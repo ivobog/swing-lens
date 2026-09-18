@@ -19,6 +19,7 @@ from app.models.tables import (
 from app.services.background_job_service import JobLeaseLost
 from app.services.combined_ranking_identity import calculation_identity_from_debug
 from app.services.contextual_calculation_identity import embed_identity
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.process_memory import WorkerMemoryCritical
 from app.services.redaction import redact_sensitive
@@ -374,6 +375,7 @@ class WinnerPredictionCaptureService:
             if callable(clear_run):
                 clear_run()
 
+    @core_writer_transaction
     def _capture_ticker(
         self,
         db: Session,
@@ -390,6 +392,7 @@ class WinnerPredictionCaptureService:
         production_training_allowed: bool | None,
         acquisition: WinnerSourceAcquisition | None,
         totals: _MutableCaptureCounts,
+        mutation_context=None,
     ) -> None:
         if isinstance(db, Session) and acquisition is None:
             raise WinnerCalculationIdentityError(
@@ -398,6 +401,16 @@ class WinnerPredictionCaptureService:
         if acquisition is not None:
             run_context = acquisition.run_context
             ticker_context = acquisition.ticker_context
+        if isinstance(db, Session):
+            from app.services.decision_mutation_authority import lock_decision_scope
+
+            if run_context.upload_run.id != run_id:
+                raise ValueError("MUTATION_WINNER_CAPTURE_RUN_SCOPE_MISMATCH")
+            lock_decision_scope(
+                db, {"winner_capture": run_id, "ticker": ticker_context.raw_row.ticker}
+            )
+            if decision_at is None:
+                raise ValueError("MUTATION_WINNER_EXPLICIT_DECISION_TIME_REQUIRED")
         feature_as_of_at = decision_at or datetime.now(UTC)
         features = self.feature_extractor.extract(
             run_context,
@@ -428,6 +441,20 @@ class WinnerPredictionCaptureService:
             if acquisition is not None
             else None
         )
+        if isinstance(db, Session):
+            from app.services.winner_probability.mutation_authority import (
+                prediction_capture_authority,
+            )
+
+            prediction_capture_authority(
+                db,
+                acquisition=acquisition,
+                features=features,
+                identity=winner_identity,
+                config=config,
+                decision_at=ticker_decision_at,
+                mutation_context=mutation_context,
+            )
         totals.warnings += len(features.warnings)
         existing = self.repository.get_active_prediction(
             db,
@@ -437,6 +464,12 @@ class WinnerPredictionCaptureService:
             feature_schema_version=config.feature_schema.version,
         )
         if existing is not None:
+            if isinstance(db, Session):
+                from app.services.winner_probability.prediction_authority import (
+                    validate_prediction_source,
+                )
+
+                validate_prediction_source(db, existing)
             if winner_identity is not None:
                 from app.services.decision_effective_configuration import (
                     resolve_winner_configuration,
@@ -516,6 +549,17 @@ class WinnerPredictionCaptureService:
             **prediction.lineage_json,
             "dependent_episode": assignment.is_dependent,
         }
+        if isinstance(db, Session):
+            from app.services.winner_probability.episode_service import episode_body
+
+            prediction.lineage_json = {
+                **prediction.lineage_json,
+                "episode_at_capture": {
+                    "role": "SUPPORTING_EPISODE_LEDGER",
+                    "birth": not assignment.is_dependent,
+                    "body": episode_body(assignment.episode),
+                },
+            }
         self.training_eligibility_policy.persist_capture_decision(
             prediction,
             explicit_legacy_override=production_training_allowed,
@@ -524,6 +568,10 @@ class WinnerPredictionCaptureService:
             prediction,
             semantic_input_time_valid=reconstruction_method is None,
         )
+        if isinstance(db, Session):
+            from app.services.winner_probability.prediction_authority import seal_capture
+
+            seal_capture(prediction)
         self.repository.add(db, prediction)
         temporal_decision.prediction_id = prediction.id
         self.repository.add(db, temporal_decision)
@@ -540,6 +588,9 @@ class WinnerPredictionCaptureService:
             totals.excluded += 1
             totals.record_exclusion(prediction.exclusion_reason)
 
+    @core_writer_member(
+        "app.services.winner_probability.capture_service:WinnerPredictionCaptureService._capture_ticker"
+    )
     def _ensure_eligible_children(
         self,
         db: Session,
@@ -700,6 +751,9 @@ class WinnerPredictionCaptureService:
                 CONFIGURATION_PAYLOAD_KEY: resolve_winner_configuration(config).snapshot.as_dict(),
                 "outcome_effective_configuration": outcome_configuration.snapshot.as_dict(),
                 "outcome_reference_policy": reference_policy,
+                "estimate_effective_configuration": resolve_winner_configuration(
+                    config, family="cohort"
+                ).snapshot.as_dict(),
             }
             prediction.lineage_json = embed_identity(
                 prediction.lineage_json,

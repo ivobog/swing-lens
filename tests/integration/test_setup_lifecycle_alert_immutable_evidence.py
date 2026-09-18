@@ -11,6 +11,15 @@ import pytest
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+from historical_setup_alert_fixture import SetupLifecycleAlertService
+from historical_setup_evidence_fixture import (
+    get_setup_evidence,
+    persist_alert_decision_evidence,
+    persist_lifecycle_evaluation_evidence,
+    persist_lifecycle_transition_evidence,
+    persist_setup_evidence,
+    prior_generated_alert_decision,
+)
 from sqlalchemy import BigInteger, create_engine, inspect, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
@@ -40,15 +49,6 @@ from app.services.calculation_identity import (
 )
 from app.services.combined_ranking_identity import embed_calculation_identity
 from app.services.core_calculation_evidence import CoreEvidenceKind, get_current_evidence
-from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
-from app.services.setup_lifecycle.decision_evidence import (
-    get_setup_evidence,
-    persist_alert_decision_evidence,
-    persist_lifecycle_evaluation_evidence,
-    persist_lifecycle_transition_evidence,
-    persist_setup_evidence,
-    prior_generated_alert_decision,
-)
 from app.services.setup_lifecycle.dtos import ActionabilityDecision, LifecycleDecision
 from app.services.setup_lifecycle.enums import (
     Actionability,

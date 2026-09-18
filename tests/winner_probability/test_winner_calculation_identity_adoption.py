@@ -38,6 +38,8 @@ from app.services.winner_probability.calculation_identity import (
 from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
 from app.services.winner_probability.repository import RunCaptureContext
 
+pytestmark = pytest.mark.usefixtures("simulated_native_winner_capture")
+
 
 def test_canonical_capture_validates_sources_then_freezes_identity() -> None:
     context, cutoff = ready_identity_context()

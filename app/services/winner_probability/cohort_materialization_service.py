@@ -12,9 +12,11 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import (
     WinnerCohortGeneration,
+    WinnerCohortRefreshState,
     WinnerCohortStatistic,
     WinnerOutcomeDefinition,
 )
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.winner_probability.cohort_definition import (
     CohortDefinitionService,
     CohortKey,
@@ -75,6 +77,7 @@ class CohortMaterializationService:
         self.manifest_service = manifest_service or EvidenceManifestService()
         self.generation_service = generation_service or CohortGenerationService()
 
+    @core_writer_transaction
     def materialize_slice(
         self,
         db: Session,
@@ -87,11 +90,59 @@ class CohortMaterializationService:
         max_groups: int = 100,
         max_wall_seconds: float = 45.0,
         publish_when_ready: bool = True,
+        operation_at: datetime | None = None,
+        mutation_context=None,
     ) -> CohortMaterializationResult:
         from app.services.configuration_delivery import configuration_for_winner_generation
 
         if isinstance(db, Session):
             config = configuration_for_winner_generation(db, generation, config)
+            from app.services.domain_mutation import MutationDomain
+            from app.services.winner_probability.cohort_authority import (
+                operation_authority,
+                validate_generation,
+            )
+
+            validate_generation(db, generation, config)
+            operation_authority(
+                db,
+                domain=MutationDomain.WINNER_COHORT,
+                writer="CohortMaterializationService.materialize_slice",
+                config=config,
+                now=operation_at,
+                manifest={
+                    "outcome_definition_id": outcome_definition.id,
+                    "generation_id": generation.id,
+                    "watermark": generation.watermark_json,
+                },
+                context=mutation_context,
+            )
+            # The logical lock can wait for another complete slice. Refresh
+            # only this already validated primary key and recheck its seal.
+            db.refresh(generation)
+            validate_generation(db, generation, config)
+            if (
+                generation.outcome_definition_id != outcome_definition.id
+                or operation_at < generation.training_cutoff_at
+            ):
+                raise ValueError("MUTATION_WINNER_MATERIALIZATION_SCOPE_OR_CLOCK_MISMATCH")
+            if generation.status == CohortGenerationStatus.READY:
+                from app.services.winner_probability.cohort_authority import validate_completion
+
+                validate_completion(db, generation, config)
+                if not publish_when_ready:
+                    return self._result(generation, no_op=True)
+                publication = self.generation_service.publish(
+                    db,
+                    generation=generation,
+                    lease_guard=lease_guard,
+                    config=config,
+                    published_at=operation_at,
+                    predecessor_id=db.get(
+                        WinnerCohortRefreshState, generation.refresh_state_id
+                    ).published_generation_id,
+                )
+                return self._result(generation, publication_status=publication.status, no_op=True)
         if generation.status == CohortGenerationStatus.PUBLISHED:
             return self._result(
                 generation,
@@ -136,7 +187,12 @@ class CohortMaterializationService:
                 self._cancel(db, generation, lease_guard)
 
         try:
-            universe = self._load_frozen_evidence(
+            loader = (
+                CohortMaterializationService()._load_frozen_evidence
+                if isinstance(db, Session)
+                else self._load_frozen_evidence
+            )
+            universe = loader(
                 db,
                 outcome_definition_id=outcome_identity.id,
                 training_cutoff_at=training_cutoff_at,
@@ -175,6 +231,10 @@ class CohortMaterializationService:
                 continuation_required=True,
             )
         evidence_load_completed_at = datetime.now(UTC)
+        if isinstance(db, Session):
+            from app.services.winner_probability.cohort_authority import population_bodies
+
+            population_bodies(db, universe.evidence, financial=True, cutoff=training_cutoff_at)
         root_manifest = self.manifest_service.create_or_get_manifest(
             db,
             evidence=universe.evidence,
@@ -184,8 +244,9 @@ class CohortMaterializationService:
             db, manifest=root_manifest.manifest, evidence=universe.evidence
         )
         generation.root_manifest_hash = root_manifest.manifest_hash
-        groups = self._groups(universe.evidence, config)
-        ordered = self._ordered_groups(groups, config)
+        planner = CohortMaterializationService() if isinstance(db, Session) else self
+        groups = planner._groups(universe.evidence, config)
+        ordered = planner._ordered_groups(groups, config)
         generation.evidence_row_count = len(universe.evidence)
         generation.planned_group_count = len(ordered)
         metrics = {
@@ -241,6 +302,10 @@ class CohortMaterializationService:
                 config=config,
             )
             statistics = self.statistics_service.calculate(evidence, config)
+            if isinstance(db, Session) and statistics != CohortStatisticsService().calculate(
+                evidence, config
+            ):
+                raise ValueError("MUTATION_WINNER_COHORT_NATIVE_STATISTICS_MISMATCH")
             manifest = self.manifest_service.create_or_get_manifest(
                 db,
                 evidence=evidence,
@@ -261,7 +326,7 @@ class CohortMaterializationService:
                         cohort_definition_id=definition.id,
                         outcome_definition_id=outcome_identity.id,
                         evidence_manifest_id=manifest.manifest.id,
-                        statistic_as_of=datetime.now(UTC),
+                        statistic_as_of=operation_at or datetime.now(UTC),
                         training_cutoff_at=training_cutoff_at,
                         sample_n=statistics.sample_n,
                         effective_n=statistics.effective_n,
@@ -295,6 +360,25 @@ class CohortMaterializationService:
                     "generation cohort statistic has corrupted evidence identity"
                 )
             db.flush()
+            if isinstance(db, Session):
+                from app.services.winner_probability.cohort_authority import (
+                    seal_statistic,
+                    validate_statistic,
+                )
+
+                statistic_row = db.scalar(
+                    select(WinnerCohortStatistic).where(
+                        WinnerCohortStatistic.generation_id == generation_id,
+                        WinnerCohortStatistic.cohort_definition_id == definition.id,
+                    )
+                )
+                if existing is None:
+                    seal_statistic(
+                        db, statistic_row, evidence=evidence, config=config, statistics=statistics
+                    )
+                    db.flush()
+                else:
+                    validate_statistic(db, statistic_row, config)
             completed_group_count = int(
                 db.scalar(
                     select(func.count(WinnerCohortStatistic.id)).where(
@@ -354,6 +438,8 @@ class CohortMaterializationService:
             "slice_elapsed_seconds": monotonic() - started,
         }
         db.flush()
+        if isinstance(db, Session):
+            self._seal_completion(db, generation, config)
         lease_guard()
         if should_cancel():
             self._cancel(db, generation, lease_guard)
@@ -363,6 +449,13 @@ class CohortMaterializationService:
             db,
             generation=generation,
             lease_guard=lease_guard,
+            config=config,
+            published_at=operation_at,
+            predecessor_id=db.get(
+                WinnerCohortRefreshState, generation.refresh_state_id
+            ).published_generation_id
+            if isinstance(db, Session)
+            else None,
         )
         return self._result(
             generation,
@@ -372,6 +465,41 @@ class CohortMaterializationService:
             desired_watermark_advanced=publication.desired_watermark_advanced,
             publication_status=publication.status,
         )
+
+    @core_writer_member(
+        "app.services.winner_probability.cohort_materialization_service:CohortMaterializationService.materialize_slice"
+    )
+    def _seal_completion(self, db, generation, config):
+        from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+        from app.services.winner_probability.cohort_authority import validate_statistic
+
+        rows = list(
+            db.scalars(
+                select(WinnerCohortStatistic)
+                .where(WinnerCohortStatistic.generation_id == generation.id)
+                .order_by(WinnerCohortStatistic.id)
+            )
+        )
+        for row in rows:
+            validate_statistic(db, row, config)
+        generation.metrics_json = {
+            **generation.metrics_json,
+            "native_generation_completion": {
+                "contract": "winner-native-generation-completion-v1",
+                "root_manifest_hash": generation.root_manifest_hash,
+                "planned_group_count": generation.planned_group_count,
+                "statistics": [
+                    {
+                        "id": row.id,
+                        "fingerprint": Canonical.fingerprint(
+                            row.metadata_json["native_cohort_proof"]
+                        ),
+                    }
+                    for row in rows
+                ],
+            },
+        }
+        db.flush()
 
     def _load_frozen_evidence(
         self,

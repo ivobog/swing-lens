@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -12,31 +13,30 @@ from typing import Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriCompany, CeriProcessingRun
+from app.models.ceri_tables import CeriCompany, CeriProcessingRun, CeriScoreSnapshot
 from app.models.tables import (
     IBContract,
     PriceBar,
+    RawCompanyRow,
     UploadRun,
     WinnerForwardOutcome,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
 )
-from app.services.ceri.confidence_service import ConfidenceResult
-from app.services.ceri.dtos import ScoreComponent
-from app.services.ceri.enums import CeriConfidenceLabel, CeriDataset
-from app.services.ceri.event_risk_service import CeriEventRiskService
+from app.services.ceri.capture_service import CeriRunCaptureService
+from app.services.ceri.enums import CeriDataset
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
 )
 from app.services.ceri.normalization_service import CeriNormalizationService
-from app.services.ceri.opportunity_score_service import OpportunityResult
 from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
 from app.services.ceri.snapshot_service import CeriSnapshotService
+from app.services.contextual_effective_configuration import resolve_ceri_configuration
 from app.services.market_clock_service import MarketClockService
 from app.services.us_market_calendar import previous_us_trading_day
 from app.services.winner_probability.config import load_winner_probability_config
@@ -303,6 +303,23 @@ def write_canonical_csv(path: Path) -> str:
             "2026-08-10",
         ),
     ]
+    # ALFA is the native positive Winner path. Sparse financial sources stay
+    # degraded and cannot supply mandatory Combined/Ranking readiness.
+    from app.services.column_mapper import load_alias_map, map_csv_rows
+
+    alfa = rows[0]
+    present = map_csv_rows([alfa])[0].canonical
+    aliases = load_alias_map()
+    complete_financials = json.loads(
+        Path(__file__).with_name("financial_inputs.json").read_text(encoding="utf-8")
+    )
+    supplements = {
+        aliases[key][0]: value
+        for key, value in complete_financials.items()
+        if present.get(key) in (None, "")
+    }
+    headers.extend(sorted(supplements))
+    alfa.update(supplements)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=headers)
@@ -347,13 +364,19 @@ def _csv_row(ticker: str, company: str, sector: str, *values: Any) -> dict[str, 
 def certification_as_of_session(reference_timestamp: datetime | None = None) -> date:
     """Select the fixture session through SwingLens's canonical exchange clock."""
     reference = reference_timestamp or datetime.now(UTC)
-    return MarketClockService().cutoff_for(
-        reference,
-        reason="SINGLE_RUN_CERTIFICATION_FIXTURE",
-    ).latest_completed_session
+    return (
+        MarketClockService()
+        .cutoff_for(
+            reference,
+            reason="SINGLE_RUN_CERTIFICATION_FIXTURE",
+        )
+        .latest_completed_session
+    )
 
 
-def seed_prerequisites(database_url: str) -> SeedResult:
+def seed_prerequisites(
+    database_url: str, *, winner_configuration_path: Path | None = None
+) -> SeedResult:
     engine = create_engine(database_url)
     ceri_ingestion_ids: list[int] = []
     ceri_processing_ids: list[int] = []
@@ -369,7 +392,7 @@ def seed_prerequisites(database_url: str) -> SeedResult:
         db.add(decoy)
         db.flush()
         _seed_market_cache(db, as_of_session=as_of_session)
-        _seed_winner_history(db, decoy.id)
+        _seed_winner_history(db, decoy.id, configuration_path=winner_configuration_path)
         db.commit()
         ceri_ingestion_ids, ceri_processing_ids, ceri_baseline_snapshot_id = (
             _seed_ceri_manual_evidence(db, as_of_session=as_of_session)
@@ -460,8 +483,14 @@ def _ohlcv(ticker: str, count: int, *, as_of_session: date) -> list[dict[str, An
     return rows
 
 
-def _seed_winner_history(db: Session, decoy_run_id: int) -> None:
-    config = load_winner_probability_config()
+def _seed_winner_history(
+    db: Session, decoy_run_id: int, *, configuration_path: Path | None = None
+) -> None:
+    config = (
+        load_winner_probability_config(configuration_path)
+        if configuration_path is not None
+        else load_winner_probability_config()
+    )
     raw_definition = config.primary_outcome_definition
     definition = WinnerOutcomeDefinition(
         definition_id=raw_definition.id,
@@ -681,6 +710,10 @@ def _seed_ceri_manual_evidence(
                 }
             )
 
+    # Acquire and calculate the modest baseline before acquiring the richer
+    # current input. Both decisions retain their actual acquisition/cutoff time.
+    baseline_snapshot_id = _seed_ceri_baseline_snapshot(db, records)
+    db.commit()
     provider = ManualCeriProvider(records, provider_terms_version=FIXTURE_VERSION)
     service = CeriIngestionService(registry=CeriProviderRegistry(providers={"manual": provider}))
     ingestion_ids: list[int] = []
@@ -703,6 +736,7 @@ def _seed_ceri_manual_evidence(
             )
             db.flush()
             if result.ingestion_run_id is not None:
+                db.commit()
                 ingestion_ids.append(result.ingestion_run_id)
                 processing = CeriProcessingRun(
                     job_type="CERI_NORMALIZE",
@@ -713,11 +747,12 @@ def _seed_ceri_manual_evidence(
                 )
                 db.add(processing)
                 db.flush()
-                CeriNormalizationService().normalize(
+                normalized = CeriNormalizationService().normalize(
                     db,
                     processing_run=processing,
                     ingestion_run_id=result.ingestion_run_id,
                 )
+                assert normalized.failed == 0, normalized.errors
                 processing_ids.append(processing.id)
     db.flush()
     feature_result = CeriFeatureRebuildService().rebuild(
@@ -743,55 +778,109 @@ def _seed_ceri_manual_evidence(
         counts=feature_result.as_dict(),
     )
     processing_ids.append(feature_run.id)
-    baseline_snapshot_id = _seed_ceri_baseline_snapshot(db)
     return ingestion_ids, processing_ids, baseline_snapshot_id
 
 
-def _seed_ceri_baseline_snapshot(db: Session) -> int:
-    company = db.query(CeriCompany).filter(CeriCompany.ticker == "ALFA").one()
-    as_of_session = date(2026, 6, 30)
-    opportunity = OpportunityResult(
-        score=7.0,
-        rated=True,
-        coverage_pct=100.0,
-        available_weight=1.0,
-        minimum_required_coverage_pct=60.0,
-        reweighted=False,
-        unrated_reason=None,
-        components=(
-            ScoreComponent(
-                name="certification_baseline",
-                value=7.0,
-                weight=1.0,
-                contribution=7.0,
-                evidence_ids=(),
-                reasons=("deterministic_pre_run_baseline",),
+def _seed_ceri_baseline_snapshot(
+    db: Session, records: dict[CeriDataset, list[dict[str, Any]]]
+) -> int:
+    baseline_records = {
+        dataset: [deepcopy(row) for row in rows if row["ticker"] == "ALFA"]
+        for dataset, rows in records.items()
+        if dataset in {CeriDataset.ESTIMATES, CeriDataset.EARNINGS, CeriDataset.GUIDANCE}
+    }
+    for rows in baseline_records.values():
+        for row in rows:
+            row["provider_record_id"] += "-pre-run"
+    for row in baseline_records[CeriDataset.ESTIMATES]:
+        row["upward_count"], row["downward_count"] = 4, 3
+        if "current" in row["provider_record_id"]:
+            row.update(
+                consensus="1.05",
+                high="1.155",
+                low="0.945",
+                published_at="2026-08-06T20:15:00Z",
+                observed_at="2026-08-06T20:15:00Z",
+            )
+    for row in baseline_records[CeriDataset.EARNINGS]:
+        row.update(actual="1.02", surprise_percent="2.0", report_at="2026-07-30T20:15:00Z")
+    for row in baseline_records[CeriDataset.GUIDANCE]:
+        row["action"] = "MAINTAINED"
+    ingestion = CeriIngestionService(
+        registry=CeriProviderRegistry(
+            providers={
+                "manual": ManualCeriProvider(
+                    baseline_records, provider_terms_version=FIXTURE_VERSION
+                )
+            }
+        )
+    )
+    for dataset in baseline_records:
+        result = ingestion.ingest(
+            db,
+            CeriIngestionRequest(
+                provider="manual",
+                dataset=dataset,
+                ticker="ALFA",
+                request_key=f"certification:{FIXTURE_VERSION}:pre-run:{dataset.value}",
             ),
+        )
+        processing = CeriProcessingRun(
+            job_type="CERI_NORMALIZE",
+            status="RUNNING",
+            deterministic_request_key=f"certification:pre-run:normalize:{result.ingestion_run_id}",
+            scope_json={"ticker": "ALFA", "dataset": dataset.value},
+            started_at=datetime.now(UTC),
+        )
+        db.add(processing)
+        db.flush()
+        normalized = CeriNormalizationService().normalize(
+            db,
+            processing_run=processing,
+            ingestion_run_id=result.ingestion_run_id,
+        )
+        assert normalized.failed == 0, normalized
+    db.flush()
+    cutoff = MarketClockService().cutoff_for(
+        datetime.now(UTC), reason="CERTIFICATION_NATIVE_BASELINE"
+    )
+    rebuilt = CeriFeatureRebuildService().rebuild(
+        db,
+        CeriFeatureRebuildRequest(
+            ticker="ALFA",
+            as_of_session=cutoff.latest_completed_session,
+            cutoff_at=cutoff.cutoff_at,
+            mode="AS_KNOWN",
         ),
-        penalties=(),
-        reasons=("deterministic_pre_run_baseline",),
-        warnings=(),
     )
-    confidence = ConfidenceResult(
-        score=7.0,
-        label=CeriConfidenceLabel.NORMAL,
-        coverage_pct=100.0,
-        reasons=("deterministic_pre_run_baseline",),
-        warnings=(),
+    assert rebuilt.failed == 0, rebuilt
+    run = UploadRun(filename="ceri-native-baseline.csv", status="COMPLETED", row_count=1)
+    db.add(run)
+    db.flush()
+    db.add(RawCompanyRow(run_id=run.id, row_number=1, ticker="ALFA", raw_json={}))
+    db.flush()
+    snapshot_service = CeriSnapshotService()
+    frozen = resolve_ceri_configuration(
+        snapshot_service.config,
+        consumer={
+            "run_capture": True,
+            "revision_feature_config_hash": snapshot_service.config.config_hash,
+            "ibmi_enabled": False,
+            "volatility_enabled": False,
+            "short_pressure_enabled": False,
+            "volatility": {"ceri_risk_max_contribution": 1.5},
+        },
     )
-    snapshot = CeriSnapshotService().build_snapshot(
-        company_id=company.id,
-        ticker=company.ticker,
-        as_of_session=as_of_session,
-        cutoff_at=datetime(2026, 6, 30, 20, 0, tzinfo=UTC),
-        opportunity=opportunity,
-        event_risk=CeriEventRiskService().calculate(as_of_session=as_of_session),
-        confidence=confidence,
-        source_ids=[],
-        source_run_id_text="certification-pre-run-baseline",
-        evidence_lineage={"fixture": FIXTURE_VERSION, "kind": "pre_run_baseline"},
+    captured = CeriRunCaptureService(snapshot_service=snapshot_service).capture_run(
+        db,
+        run.id,
+        force=True,
+        market_cutoff=cutoff,
+        effective_configuration=frozen,
     )
-    CeriSnapshotService().persist_snapshot(db, snapshot)
+    assert captured.failed == 0 and captured.score_snapshots == 1, captured
+    snapshot = db.query(CeriScoreSnapshot).filter(CeriScoreSnapshot.run_id == run.id).one()
+    assert snapshot.evidence_id is not None
     return int(snapshot.id)
 
 

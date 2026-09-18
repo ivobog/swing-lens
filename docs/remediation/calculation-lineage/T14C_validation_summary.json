@@ -1,0 +1,1882 @@
+{
+  "artifact_sha256": {
+    "app/models/tables.py": "382319af5f8090fa8b02ccd115e5f706e019b74951d39f3e49c31cdb8ef17ae6",
+    "app/services/background_worker.py": "7d77fcb04062b4c10ef859bd88e282daf57c1dcc5a11b961502088d3c6f096cd",
+    "app/services/canonical_evidence.py": "28f505ddcfc403934df26da39e131fd18edd16657c592337428f0673379b025b",
+    "app/services/ceri/alert_authority.py": "dedaf2625ed5a93a65cae9367d5707a33b24fb757f8f42b6a79dd4555ce283d4",
+    "app/services/ceri/alert_service.py": "e88ed47522d3317940b32c08a55ddb13d4741dab8c465e77aacf384b33b10a90",
+    "app/services/ceri/change_authority.py": "349a7a405fd5998f831365e1ca79f5e5877ddebe1e10b624064728375eb51c18",
+    "app/services/ceri/change_detection_service.py": "4dc53175735671a19719b62d901078702f99171d4dfa7ac4f0fe4b42903e14ca",
+    "app/services/ceri/normalization_service.py": "9a05ea47d1667da44ae43ea442b3b334630b74d04f53785cb72109f3028caaf0",
+    "app/services/configuration_delivery.py": "165281c3541a4c3501ad9ec9f3af5ccff670581140fac44b2268d521d4dcd760",
+    "app/services/core_calculation_evidence.py": "05a35b31c0a369ab8871cb2e2b08206404f9dd5e4332c1e821796b7f59a1ce2a",
+    "app/services/core_mutation_authority.py": "021a2942f3429e1a836599f7520d6b220169c1d44ffa45a6bda0f7193d972794",
+    "app/services/decision_effective_configuration.py": "8a6a55ac6ffbdf1b55d5094dda77fd82ee2308e11458a5899d19f26ba65c244c",
+    "app/services/decision_mutation_authority.py": "2c2bb4f5b8e62cd9b4c698f5f1c377549362981f9ad9e711067fab81ba24fafc",
+    "app/services/domain_mutation.py": "246995e2bd1345fb061e528c92ceebfbb78cba01aa31eb4c9b43c35707f9b44c",
+    "app/services/domain_write_fence.py": "a6538c57ca0db8f015ad2d45b062465aeb541657d70361d647a157d456fc5a80",
+    "app/services/ib_fetch_executor.py": "3f4fa34c855a85bde5fd0a1c0bc74001f262202ccb922816dee8852caeec33da",
+    "app/services/setup_lifecycle/alert_authority.py": "b840fb0ea91dec20af76d9215a5aad0a7f2fe5bb48c0cbbab96fdf2c71dd0a89",
+    "app/services/setup_lifecycle/alert_service.py": "1a7c79693c8326f07c69df7cf4ca483d847570c74590379cec3d471cb9fe61ef",
+    "app/services/setup_lifecycle/canonicalization.py": "577e31ca23b72b46a47fab9212e35d0c00179d9ed4dac2e342655e831df0aa42",
+    "app/services/setup_lifecycle/change_authority.py": "164ea2f6082dc0ad79bffa0844d2faaf23aec301561e363210ecd5403810d2ac",
+    "app/services/setup_lifecycle/change_detector.py": "02ffd3f0d8ef2ff0b6881e396094d62ffda640cc060da3cc11f81ab2d4e7aa0c",
+    "app/services/setup_lifecycle/decision_evidence.py": "5dbcfcfee2217aa127a45d8f5b9c93ab00bc4e340feb174ed0e198ddbd2a1c2c",
+    "app/services/setup_lifecycle/episode_service.py": "7fe7a7d877ef9ea1c5ee7a07396f41164e4341dfe39dad94acf348a12059e7f8",
+    "app/services/setup_lifecycle/evaluation_service.py": "26f0348285868a82dba4f7fb610ada7c517fc9ef932abeaaf3687c96200aef57",
+    "app/services/setup_lifecycle/maintenance_service.py": "c6b927d1a5069f892db213893efbdc8c38351958263e269b815b7eaae102a2f7",
+    "app/services/setup_lifecycle/purge_service.py": "f13c4eb7dd555c3596757666062e4d3098300cab939b96a7cda63209d6c1f0e4",
+    "app/services/setup_lifecycle/replay_service.py": "f8c9c08ed2c0e5931f855b6535c788f8b454b536e993d028164383b06a9cfe77",
+    "app/services/setup_lifecycle/repository.py": "aab98cbef3b9721a65d8d418f07f69943b46fca82cf64aef9ebaa5b1a998c5a8",
+    "app/services/setup_lifecycle/snapshot_builder.py": "9b56bd040ed68877669764a7b75052c1385efad8bc9f8a1994c103220f94f708",
+    "app/services/transition_preflight_plan_service.py": "809f304b2af07ca967c7a93d90f42d11f4687eaa56174b52c6787d94fed64f24",
+    "app/services/winner_probability/calibration_service.py": "8986514e88d44c39c8258bca306e243f892b85aed7e9b2d0fb178db68ca6be9b",
+    "app/services/winner_probability/capture_service.py": "bdec6678c9ebfe16f363f9a8dc36527623be17c8df195ffe90c1c91119f69d83",
+    "app/services/winner_probability/cohort_authority.py": "36a0c6b61066b1bc6f798a1ebb0b91266237f2364033c3a52a4eebd827caf646",
+    "app/services/winner_probability/cohort_definition.py": "df005ef70cbb65aa79fc019e13f5a1ddb2d2f59916437494e1fa9fc72e8b14c9",
+    "app/services/winner_probability/cohort_generation_service.py": "54e16c3da636c17926dbc07c571e050f91ad1c24cb8159c0e8bb44aa65cae205",
+    "app/services/winner_probability/cohort_materialization_service.py": "b2a025ca15fdd24b49937e19c32712987266901b7e40f14270776af175d52712",
+    "app/services/winner_probability/decision_time_estimate_service.py": "a0a89a9ad9f0031d32bf7b794c39aeb90c9056098bb7f68565702af830a84f6f",
+    "app/services/winner_probability/drift_service.py": "63ff3e541c0f8addc6fb6a7463984a5624a45cd9cc1e7a8391b9d3b4f6db66ff",
+    "app/services/winner_probability/episode_service.py": "4f5e7927d63539ab26aaad16dd7bd2ccac50f428bed5d751b2f0d56fa1a14c87",
+    "app/services/winner_probability/estimate_authority.py": "f8df21a1ee47c13a169f4b11ca6d26e40a26237675d03294d04f04d44fcf6eff",
+    "app/services/winner_probability/estimate_publication_service.py": "4d4c5189c9ce30cdf25046bee69d1645d99e9ed8f77aae7fb5c9b15756a3cb79",
+    "app/services/winner_probability/evidence_manifest_service.py": "10796343b77e9ceb9554c6e9ddbcd3ec4a04b26c44de2ce09e6aeccd50d08d8e",
+    "app/services/winner_probability/feature_extractor.py": "7f577276eee61a92690ac985bb3517e34020cee853cfc50adba902453f468e80",
+    "app/services/winner_probability/job_handlers.py": "247a3d9937e1357967f133964e7f62dff2f5edf8021957d89f4346fc4be530d0",
+    "app/services/winner_probability/market_data_obligation_service.py": "0de116121ba40e54cb1c01e19bb064d53fadcd40846303e44df27fd4bbd29b69",
+    "app/services/winner_probability/model_authority.py": "c3735deccb9fafb4f68b3d97af6d163b3bb4b93cfdcfaf82c6e41a025e4e5e46",
+    "app/services/winner_probability/model_registry.py": "5f2beede7f828e84f9d17837aac68461c86a9488682611c6a2002c79f5dceb8f",
+    "app/services/winner_probability/model_training.py": "ffa733b5654b5427252fba1d84a9ad449571504254af6b0214c85cf4226ffdd9",
+    "app/services/winner_probability/mutation_authority.py": "b93a6f5c2b5c1cda8920152eb25688c25a65dc65f530895029e016f24261aac8",
+    "app/services/winner_probability/outcome_authority.py": "7a073da69b23a920ab74d9177c3256b31b006bb6d4949123c06d5db611816afd",
+    "app/services/winner_probability/outcome_revision_service.py": "cdb1333663a85dc044e63857cb38e4decd2f106bc610b115a3e0db183aa31a49",
+    "app/services/winner_probability/outcome_service.py": "38b2689896ed23cf32d6af002951f98ca2a80b4d1574764faf6f48c795f525bf",
+    "app/services/winner_probability/pending_outcome_service.py": "1229cc07bad93b0821ff0bf0e7d3870e326ccee788dac68696afd17283ff9e7a",
+    "app/services/winner_probability/prediction_authority.py": "999f272ca05167d877446c48fb40227723bd3e514346fa97979d7a5c64e4e283",
+    "app/services/winner_probability/probability_estimator.py": "e63bb8763a39a8e1247caa985149189c8f33c0e940b645991ab7c719770072cb",
+    "app/services/winner_probability/repository.py": "ee09a167d5bb617433cd15225b632a5c91548489634a4787c0db4e5e37db0745",
+    "app/services/winner_probability/similarity_service.py": "1d80ea74665b7fb15b1b1f48c84d1932f54df6ebeef62b241079ffb40a1d779c",
+    "app/services/winner_probability/training_eligibility.py": "6029caeb4e048d2431a0b39f2d8c3285fefb373986bdbdd8857ceb861520c6ef",
+    "docs/architecture/SWINGLENS_MUTATION_ENTRYPOINT_CONTRACT.md": "bd59f21d6079a21c3e33c1b80647b26bb589df89c07be1196e8bb13f1f5e4882",
+    "docs/remediation/calculation-lineage/T14C_T14D_exact_handoff.json": "499bd0e83acb9511e2c275c1fef2bff90226569d4b0c2b38e4b38c148bba631f",
+    "docs/remediation/calculation-lineage/T14C_checked_handoff.json": "9b0f9415d61a927060fa5dd6d50ffb1c84ee465880a6babd596dc1b41fee4e10",
+    "docs/remediation/calculation-lineage/T14C_decision_winner_writer_adoption.md": "aa71627f72c0d516918b08d180ed255a18c9383bd3a35ad1bc05b37337afe092",
+    "docs/remediation/calculation-lineage/T14C_decision_winner_writer_certification.json": "181f3d4a4c5d5aa90200b9f98184b95955a589583130080be83aedcdc06502c7",
+    "docs/remediation/calculation-lineage/T14C_semantic_family_review.json": "aaf4b1765baa5210597b06def614f63545182f6ebd5180737c41d2bfe3d9f924",
+    "docs/remediation/calculation-lineage/T14C_semantic_review_source_pins.json": "d276050cbc58c77998b9f08087c18138c31340ee038c95583e6092bea62f0129",
+    "docs/remediation/calculation-lineage/T14C_starting_state.json": "24e1f8312491368d918fa25367cb7a89f7bdbaec0bf8206dacdd03dd3bafeb82",
+    "scripts/qa/t13e_deployed_probe.py": "14f40d315c3c9d667b5093c018e53b80eb230363f90bf582c6e1e25155281208",
+    "scripts/qa/t14a_semantic_completeness.py": "714fdcea5edc3c0fe4e6e47cc6595c38fe7a1de7a2ba8f12bb61cbbfcc423913",
+    "scripts/qa/t14a_semantic_families.py": "85b943cb7e122b07410519c6ce9087722e7fff7a30f655196cb0d8e9c3584d0b",
+    "tests/conftest.py": "9859b2f4b0239c2376646244d15b059221c34a1922b41847909c23af16e692cd",
+    "tests/e2e/single_run_certification/certification_server.py": "c5344f59dea307313875dd7e6bd610a6669253aff21bc92cfb0a328869c940f1",
+    "tests/e2e/single_run_certification/financial_inputs.json": "2ed2a3af051eac8553b37d13a7d31a7541c3192fbf8416b98bd481aabda0182c",
+    "tests/e2e/single_run_certification/fixtures.py": "cda8d06981bd0f5a262f0e13e2cda199907ea52b6e3d4cc3542a6f4425c3be51",
+    "tests/e2e/single_run_certification/test_single_run_certification.py": "3115db9715f1e15f8177e6656843bca885d3520bc90bbd00bce7659de775304b",
+    "tests/e2e/test_slse_populated_browser.py": "f748432c57cf7de3bbd7e2c707fd4e6767218cc189b033dbce87f0df7256618d",
+    "tests/historical_setup_alert_fixture.py": "a5a44f1377a711f10c2f402d210058e9bab5b2cccdc976082c087ffd65a6cbbe",
+    "tests/historical_setup_evidence_fixture.py": "f16c15165e598b6a377ad8c2fc55801712f53e96557ddc9d084e38b1eaf6cead",
+    "tests/integration/test_contextual_consumer_eligibility_postgresql.py": "8019d12d1774763a1699da5475a12000a8e4fd74405d3044073cb5f014470769",
+    "tests/integration/test_decision_configuration_delivery_postgresql.py": "5b9ccfa6a699023e21bacc02a28d48138b3567977351392ccb163a689b59cbdc",
+    "tests/integration/test_phase2_immutable_evidence_certification.py": "7f6347aca071db3d0ef4c31dcf723dff7e98f3ff133180e4fa5aa98dda5d0d79",
+    "tests/integration/test_phase4_configuration_certification_postgresql.py": "664c39839877ddcbd340f9635d86d13911661a71280b7683d015d202ddc6a05e",
+    "tests/integration/test_setup_lifecycle_alert_immutable_evidence.py": "637656ccd5aa0480e966a1b54656ee56e692a2330fcfc627d8e8fb50a9b5b9c2",
+    "tests/integration/test_t14c_decision_writer_postgresql.py": "90add9686ede59ccd10e9fbcedb087eee05b270dd3d9b5c4f9b3f1a0bd7c484b",
+    "tests/integration/test_t14c_winner_writer_postgresql.py": "5c39c871ae30e2dda2e231e64f264d65b41137adad5ba188f7716dc596f133f0",
+    "tests/integration/test_technical_consumer_eligibility_postgresql.py": "1e9ffbf6af51948e6fa2b1665fa2ce3ec404c347f96964b7d73e8326e61a3abf",
+    "tests/integration/test_transition_preflight_plan_postgresql.py": "e6133c41d368c27970ddd1343d9b71f684bf1a8c8172097b476ca62f1b4bedea",
+    "tests/integration/test_webapp_fix_flows.py": "f5d010a03d0de55a2aee27b5a299ae5f994848ee887f37c27b399a02750429ce",
+    "tests/integration/test_winner_consumer_eligibility_postgresql.py": "8a74be6d69682c79119f51949e3f09c16f65dbe355c6f57fe9e10dbc7831e1d7",
+    "tests/integration/test_winner_temporal_integrity_postgresql.py": "8af34623342844bcc32a1bba55edea95d263ef9a8dd00fa8c680388af099f106",
+    "tests/native_mutation_support.py": "92c46322e130cb07f30e39a24eb561a5f5a847ac551b93cd604f1b8fa55e507a",
+    "tests/native_winner_support.py": "1cf102b443548c6406fea7573cb05097fd384a9be236cfb044fdf4b65da2becc",
+    "tests/test_canonical_evidence_serializer.py": "9cf82667892d9181f501eb94722a8617bda6704a9c888be389ef20ffe80a1cc4",
+    "tests/test_decision_effective_configuration.py": "23cf6c814f3a6b6576b7af38e438ca4650e9aee57413b7649403f4dba355d2cb",
+    "tests/test_producer_readiness.py": "4af0d9b8bbcf34f47434c8188e9fcdc2dba379b2dff6e409d85af899b9f3d73b",
+    "tests/test_t14a_mutation_inventory.py": "aba551643261f886c988aa1d21d51ce3cc85a2a4df9fb129ef69a121b7f77ad0",
+    "tests/winner_probability/test_consumer_readiness.py": "5760d1ff6085b31ccc255dd891a41ab97fcec4de92b66c633d0f3d36d434c8be",
+    "tests/winner_probability/test_generation_publication_fence.py": "32c5a7150cf4a0c78f789960a469e4f4212ea41f35590a3621537fb7cfbbf3c1",
+    "tests/winner_probability/test_readiness_frozen_operations.py": "676f1cca10a89b47722d76911be0abaed34083cef8ed14ca8f01ebca9997d58c",
+    "tests/winner_probability/test_t12d_ready_scenarios.py": "9726e242a229e31d5c43ff97d43355740ebc3cc35a08a22cb442c019b5f20ce8",
+    "tests/winner_probability/test_t12e_readiness_certification.py": "fcc779a7fc02b6975efc16ffaaf7c9d1fc1af1e59a8cda221a2a0bef947bd251",
+    "tests/winner_probability/test_winner_calculation_identity_adoption.py": "cc43770dc745b6ae691977f42da73c1d2b80aac266b14a742fb7dda1d2b7281c"
+  },
+  "baselines": {
+    "original_audited": "3a9d47063be996908b7d5d1cc5769e0bbd033546",
+    "phase2": "7b015124807b8f895911d7e790fcbf01949ff85f",
+    "phase3": "5422bcdf7703db891810d9e9c20a8f1770241fc9",
+    "phase4": "d3157c8642c119a7e5d7a84c69f4a58c6d3866d8",
+    "t14a": "5eef0d08d783de132fecb14c5dedd66821f0949f",
+    "t14b": "d56fe385e29b7b6233d2df5031a40a576db0ca7f"
+  },
+  "branch": "codex/t14c-decision-winner-writer-adoption",
+  "changed_file_count": 102,
+  "changed_files": [
+    "app/models/tables.py",
+    "app/services/background_worker.py",
+    "app/services/canonical_evidence.py",
+    "app/services/ceri/alert_authority.py",
+    "app/services/ceri/alert_service.py",
+    "app/services/ceri/change_authority.py",
+    "app/services/ceri/change_detection_service.py",
+    "app/services/ceri/normalization_service.py",
+    "app/services/configuration_delivery.py",
+    "app/services/core_calculation_evidence.py",
+    "app/services/core_mutation_authority.py",
+    "app/services/decision_effective_configuration.py",
+    "app/services/decision_mutation_authority.py",
+    "app/services/domain_mutation.py",
+    "app/services/domain_write_fence.py",
+    "app/services/ib_fetch_executor.py",
+    "app/services/setup_lifecycle/alert_authority.py",
+    "app/services/setup_lifecycle/alert_service.py",
+    "app/services/setup_lifecycle/canonicalization.py",
+    "app/services/setup_lifecycle/change_authority.py",
+    "app/services/setup_lifecycle/change_detector.py",
+    "app/services/setup_lifecycle/decision_evidence.py",
+    "app/services/setup_lifecycle/episode_service.py",
+    "app/services/setup_lifecycle/evaluation_service.py",
+    "app/services/setup_lifecycle/maintenance_service.py",
+    "app/services/setup_lifecycle/purge_service.py",
+    "app/services/setup_lifecycle/replay_service.py",
+    "app/services/setup_lifecycle/repository.py",
+    "app/services/setup_lifecycle/snapshot_builder.py",
+    "app/services/transition_preflight_plan_service.py",
+    "app/services/winner_probability/calibration_service.py",
+    "app/services/winner_probability/capture_service.py",
+    "app/services/winner_probability/cohort_authority.py",
+    "app/services/winner_probability/cohort_definition.py",
+    "app/services/winner_probability/cohort_generation_service.py",
+    "app/services/winner_probability/cohort_materialization_service.py",
+    "app/services/winner_probability/decision_time_estimate_service.py",
+    "app/services/winner_probability/drift_service.py",
+    "app/services/winner_probability/episode_service.py",
+    "app/services/winner_probability/estimate_authority.py",
+    "app/services/winner_probability/estimate_publication_service.py",
+    "app/services/winner_probability/evidence_manifest_service.py",
+    "app/services/winner_probability/feature_extractor.py",
+    "app/services/winner_probability/job_handlers.py",
+    "app/services/winner_probability/market_data_obligation_service.py",
+    "app/services/winner_probability/model_authority.py",
+    "app/services/winner_probability/model_registry.py",
+    "app/services/winner_probability/model_training.py",
+    "app/services/winner_probability/mutation_authority.py",
+    "app/services/winner_probability/outcome_authority.py",
+    "app/services/winner_probability/outcome_revision_service.py",
+    "app/services/winner_probability/outcome_service.py",
+    "app/services/winner_probability/pending_outcome_service.py",
+    "app/services/winner_probability/prediction_authority.py",
+    "app/services/winner_probability/probability_estimator.py",
+    "app/services/winner_probability/repository.py",
+    "app/services/winner_probability/similarity_service.py",
+    "app/services/winner_probability/training_eligibility.py",
+    "docs/architecture/SWINGLENS_MUTATION_ENTRYPOINT_CONTRACT.md",
+    "docs/remediation/calculation-lineage/T14C_T14D_exact_handoff.json",
+    "docs/remediation/calculation-lineage/T14C_checked_handoff.json",
+    "docs/remediation/calculation-lineage/T14C_decision_winner_writer_adoption.md",
+    "docs/remediation/calculation-lineage/T14C_decision_winner_writer_certification.json",
+    "docs/remediation/calculation-lineage/T14C_semantic_family_review.json",
+    "docs/remediation/calculation-lineage/T14C_semantic_review_source_pins.json",
+    "docs/remediation/calculation-lineage/T14C_starting_state.json",
+    "docs/remediation/calculation-lineage/T14C_validation_summary.json",
+    "scripts/qa/t13e_deployed_probe.py",
+    "scripts/qa/t14a_semantic_completeness.py",
+    "scripts/qa/t14a_semantic_families.py",
+    "tests/conftest.py",
+    "tests/e2e/single_run_certification/certification_server.py",
+    "tests/e2e/single_run_certification/financial_inputs.json",
+    "tests/e2e/single_run_certification/fixtures.py",
+    "tests/e2e/single_run_certification/test_single_run_certification.py",
+    "tests/e2e/test_slse_populated_browser.py",
+    "tests/historical_setup_alert_fixture.py",
+    "tests/historical_setup_evidence_fixture.py",
+    "tests/integration/test_contextual_consumer_eligibility_postgresql.py",
+    "tests/integration/test_decision_configuration_delivery_postgresql.py",
+    "tests/integration/test_phase2_immutable_evidence_certification.py",
+    "tests/integration/test_phase4_configuration_certification_postgresql.py",
+    "tests/integration/test_setup_lifecycle_alert_immutable_evidence.py",
+    "tests/integration/test_t14c_decision_writer_postgresql.py",
+    "tests/integration/test_t14c_winner_writer_postgresql.py",
+    "tests/integration/test_technical_consumer_eligibility_postgresql.py",
+    "tests/integration/test_transition_preflight_plan_postgresql.py",
+    "tests/integration/test_webapp_fix_flows.py",
+    "tests/integration/test_winner_consumer_eligibility_postgresql.py",
+    "tests/integration/test_winner_temporal_integrity_postgresql.py",
+    "tests/native_mutation_support.py",
+    "tests/native_winner_support.py",
+    "tests/test_canonical_evidence_serializer.py",
+    "tests/test_decision_effective_configuration.py",
+    "tests/test_producer_readiness.py",
+    "tests/test_t14a_mutation_inventory.py",
+    "tests/winner_probability/test_consumer_readiness.py",
+    "tests/winner_probability/test_generation_publication_fence.py",
+    "tests/winner_probability/test_readiness_frozen_operations.py",
+    "tests/winner_probability/test_t12d_ready_scenarios.py",
+    "tests/winner_probability/test_t12e_readiness_certification.py",
+    "tests/winner_probability/test_winner_calculation_identity_adoption.py"
+  ],
+  "commit": "Commit containing this certificate; resolve git log -1 --format=%H -- this file",
+  "confirmed_defect_family_ids": [],
+  "continuation_wave0": {
+    "broader_failures_reconciliation": "Three stale semantic-review pin failures passed in the refreshed 20-case review. The comprehensive migration/browser lane passed with 668 comparisons, 48 database relationships and 6400 database rows. The historical broader attempt remains retained as failed; the full broader lane must be rerun after all writer waves.",
+    "configuration_decoder": "Entire-input immutable snapshot decoding only is memoized; storage/ownership/eligibility comparisons remain uncached.",
+    "latest_lanes": {
+      "t14c-continuation-broader": {
+        "artifact": ".qa_work\\t14c-continuation-broader.xml",
+        "errors": 0,
+        "failures": 4,
+        "skipped": 7,
+        "tests": 3486
+      },
+      "t14c-wave0-browser-migration": {
+        "artifact": ".qa_work/t14c-wave0-browser-migration.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "5996f1c03b4f19f7900bf27b63a99ab91d5561d26ceaa3d738cfc83de729cb28",
+        "skipped": 0,
+        "tests": 1
+      },
+      "t14c-wave0-canonical-native": {
+        "artifact": ".qa_work/t14c-wave0-canonical-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "51291a2663bad9ff11a858c2e35677ef51b0851ea0eeb9d72fe25d371c4d380b",
+        "skipped": 0,
+        "tests": 21
+      },
+      "t14c-wave0-canonical-parity": {
+        "artifact": ".qa_work/t14c-wave0-canonical-parity.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "fb4bc9c68cfc54ef21d7111fb4ccbaff045172a32f59d8607d37438c8888211b",
+        "skipped": 0,
+        "tests": 39
+      },
+      "t14c-wave0-ceri-fixture": {
+        "artifact": ".qa_work/t14c-wave0-ceri-fixture.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "3cff5895373ba08ed87bd56b29c7b489053be7957b6508ff314fb0c859dfd879",
+        "skipped": 0,
+        "tests": 1
+      },
+      "t14c-wave0-configuration-units": {
+        "artifact": ".qa_work\\t14c-wave0-configuration-units.xml",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 67
+      },
+      "t14c-wave0-core-and-writers": {
+        "artifact": ".qa_work\\t14c-wave0-core-and-writers.xml",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 19
+      },
+      "t14c-wave0-csv-source": {
+        "artifact": ".qa_work/t14c-wave0-csv-source.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "51bffc2417e3cbd13e46c65178dd59137b1203deadd60526f477ae0ad6e85d1c",
+        "skipped": 0,
+        "tests": 1
+      },
+      "t14c-wave0-fence-worker": {
+        "artifact": ".qa_work\\t14c-wave0-fence-worker.xml",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 16
+      },
+      "t14c-wave0-phase4": {
+        "artifact": ".qa_work\\t14c-wave0-phase4.xml",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      },
+      "t14c-wave0-semantic-review": {
+        "artifact": ".qa_work\\t14c-wave0-semantic-review.xml",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 20
+      },
+      "t14c-wave0-units": {
+        "artifact": ".qa_work\\t14c-wave0-units.xml",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 53
+      }
+    },
+    "native_browser_report": {
+      "artifact": ".qa_work/t14c-browser-evidence/20260917T234149Z-2143dd2b/report.json",
+      "comparison_count": 668,
+      "database_relationship_count": 48,
+      "database_row_count": 6400,
+      "sha256": "19ae958e876411e10ae259d821e50a8305c58a366235c9f96061961db166e442"
+    },
+    "native_handoff_fix": "Certified Combined sealed source graph plus serving-value comparison supports cleared compatibility score IDs and rejects incorrect upstream evidence.",
+    "status": "EXIT_GATE_PASS",
+    "strict_source_validation": "Full source seal/value/config checks consolidated inside actual Core writer authority. Constructor declarations confer no permit; mutation after declaration fails and all staged rows roll back."
+  },
+  "continuation_wave1": {
+    "certification": "Whole-task certification remains pending remaining waves; no PASS or commit claimed.",
+    "failure_reconciliation": [
+      {
+        "artifact": ".qa_work/t14c-wave1-phase4.xml",
+        "classification": "T14C_DEFECT",
+        "repair": "Canonicalize the field-named payload before exact financial comparison.",
+        "root_cause": "Source-value canonicalization lost reason_codes field semantics."
+      },
+      {
+        "artifact": ".qa_work/t14c-wave1-phase4-fixed.xml",
+        "classification": "TEST_FIXTURE_DEFECT",
+        "repair": "Use fresh C2ACME ticker scope for native C2 financial configuration delivery.",
+        "root_cause": "C1 maintenance intentionally expired ACME 45 days forward; C2 today attempted resurrection."
+      },
+      {
+        "artifact": ".qa_work/t14c-wave1-phase4-valid-scope.xml",
+        "classification": "TEST_FIXTURE_DEFECT",
+        "repair": "Include actual ticker in fixture source keys and seed each missing ticker price frame.",
+        "root_cause": "New ticker reused old fixture source idempotency keys."
+      },
+      {
+        "artifact": ".qa_work/t14c-wave1-phase4-final.xml",
+        "classification": "T14C_DEFECT",
+        "repair": "Use exact fully qualified registered transaction owner; native positive and rejection rerun.",
+        "root_cause": "New bookkeeping supporting-owner guard initially used a short owner name."
+      },
+      {
+        "artifact": ".qa_work/t14c-wave1-signal-change-proof.xml",
+        "classification": "T14C_DEFECT",
+        "repair": "Retain native_change_proof with exact immutable Core configuration reference and native body comparison.",
+        "root_cause": "Supporting proof key matched persistence sensitive-key redaction; full configuration embedding also unsuitable."
+      }
+    ],
+    "implementation": [
+      "Setup native recomputation from exact retained inputs",
+      "Single/batch immutable retry comparison",
+      "Session-bound supporting writer ownership",
+      "Lifecycle native evaluation/actionability recomputation",
+      "Sealed episode projection counters/confidence/metadata",
+      "Primary refresh as explicit compatible certified projection maintenance",
+      "Transition source/episode/native output validation",
+      "Canonical native choice and supporting bookkeeping/purge boundaries"
+    ],
+    "implemented_family_ids": [
+      "WF_LIFECYCLE_EPISODE",
+      "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+      "WF_LIFECYCLE_OBSERVATION_GAP",
+      "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+      "WF_SETUP_CHANGE_EVENT_STATE",
+      "WF_SETUP_CURRENT_SELECTION",
+      "WF_SETUP_DECISION_EVIDENCE",
+      "WF_SETUP_DERIVED_PURGE",
+      "WF_SETUP_EVALUATION_RUN_STATE",
+      "WF_SETUP_PERSISTENCE",
+      "WF_SETUP_TRANSITION_EVENT_STATE"
+    ],
+    "latest_lanes": {
+      "t14c-wave1-bookkeeping-native": {
+        "artifact": ".qa_work/t14c-wave1-bookkeeping-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "d873fcd5c58baf2144f8d9cb0c582880fd86b9110b4dc2dbffc884a3cde63e87",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 2
+      },
+      "t14c-wave1-bookkeeping-unit": {
+        "artifact": ".qa_work/t14c-wave1-bookkeeping-unit.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "c07fb0f40f7729067856b5ee1232474aff84bd3ba5f8cc0f8b5ddbac49c6fcc9",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 16
+      },
+      "t14c-wave1-complete-native": {
+        "artifact": ".qa_work/t14c-wave1-complete-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "2e5e456bb301e1813f7e974d6428c414c79dddc848f0636d29ba505e1e7598db",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 18
+      },
+      "t14c-wave1-complete-unit": {
+        "artifact": ".qa_work/t14c-wave1-complete-unit.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "d66da96ee918fce8a757004a4f7accde796a2b2e0849d8d902928b6a581a50ce",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 301
+      },
+      "t14c-wave1-ownership-review-resolved": {
+        "artifact": ".qa_work/t14c-wave1-ownership-review-resolved.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "280d8a6d50efee7add8a617df42d87adaea024ea8a5224ad892cfb22ba94ece0",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 20
+      },
+      "t14c-wave1-phase4-owner-fixed": {
+        "artifact": ".qa_work/t14c-wave1-phase4-owner-fixed.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "ecb5278dda64bb1c4a4335be70a89f62c78dbf9602efa39d6fa84d0af3b8d9b4",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      }
+    },
+    "shared_family_remaining_wave2": {
+      "WF_SETUP_TYPED_REPOSITORY": "Setup/Lifecycle/change members validated; Alert rule/status members belong to Wave 2."
+    },
+    "status": "EXIT_GATE_PASS"
+  },
+  "continuation_wave2": {
+    "certification": "Whole-task certificate remains FAIL/pending; no commit created.",
+    "failure_reconciliation": [
+      {
+        "artifact": ".qa_work/t14c-wave2-alert-projection-status.xml",
+        "classification": "T14C_DEFECT",
+        "repair": "Read explicit attached scalar columns before copying frozen rule values.",
+        "root_cause": "Deep-copying expired ORM rule rows produced detached scalar loaders."
+      },
+      {
+        "artifact": ".qa_work/t14c-wave2-alert-actual-risk-native.xml",
+        "classification": "TEST_FIXTURE_DEFECT",
+        "repair": "Use genuine readiness-complete CSV financial inputs and native risk component changes.",
+        "root_cause": "Fundamental fixtures had nonzero missing-input penalty, so Setup correctly omitted their degraded contextual influence."
+      },
+      {
+        "artifact": ".qa_work/t14c-wave2-alert-native-ready-sources.xml",
+        "classification": "TEST_FIXTURE_DEFECT",
+        "repair": "Require native fail-closed rollback for unmatched retained configuration, and validate exact frozen C1 retry. No guard weakened.",
+        "root_cause": "Configuration-drift test expected C2 rule values to reinterpret an original C1 pipeline decision."
+      }
+    ],
+    "implemented_semantics": [
+      "Setup native alert condition, rule configuration, source event, projection, notification status and bootstrap member validation",
+      "Ceri score and normalized-event changes are supporting ledgers, with exact source/configuration, native recomputation and explicit operation time",
+      "Ceri notification creation validates retained change proof, native rule and source condition; status preserves creation body"
+    ],
+    "latest_lanes": {
+      "t14c-wave2-alert-bootstrap-native": {
+        "artifact": ".qa_work/t14c-wave2-alert-bootstrap-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "7cdca9d5d2b46710e9fbbe0711455a5c414d575aa1f648fdff4dcf2ba7ec722a",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 2
+      },
+      "t14c-wave2-alert-config-drift-native": {
+        "artifact": ".qa_work/t14c-wave2-alert-config-drift-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "ea815823ca972334fef6dee929fb4414c91f5af003bbb2bad4a0657a4a493c14",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 2
+      },
+      "t14c-wave2-alert-native-ready-sources": {
+        "artifact": ".qa_work/t14c-wave2-alert-native-ready-sources.xml",
+        "errors": 0,
+        "failures": 1,
+        "sha256": "54995e5b909470260cc57a0ad38d908352bd100cd0bc9fe2f3d83e32fe5050dd",
+        "skipped": 0,
+        "status": "FAIL",
+        "tests": 2
+      },
+      "t14c-wave2-ceri-company-scope-native": {
+        "artifact": ".qa_work/t14c-wave2-ceri-company-scope-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "989f93b83cce2d0d5a3c3c13770d74862518f6134a89a3d534050701575c7b31",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      },
+      "t14c-wave2-ceri-complete-native": {
+        "artifact": ".qa_work/t14c-wave2-ceri-complete-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "31d32224deb347b58b9c2e05c9719f4f70d7ebcc608b93533aa4d6950f6a80f7",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 39
+      },
+      "t14c-wave2-ceri-rule-drift-native": {
+        "artifact": ".qa_work/t14c-wave2-ceri-rule-drift-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "0339a22ba8a841f867fe73610f20543d9c94be338778569009052c5f76059b3c",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      },
+      "t14c-wave2-ceri-score-native-rule": {
+        "artifact": ".qa_work/t14c-wave2-ceri-score-native-rule.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "c46d7dcafd26f641b04e13a40f2ea4f557d08e39a2a94962cf77327b0babdcc5",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      },
+      "t14c-wave2-ceri-source-hash-native": {
+        "artifact": ".qa_work/t14c-wave2-ceri-source-hash-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "90965640bc1af3e9f53df6648c089e7689d70533a049bf58f9148ad4e6b41b76",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 39
+      },
+      "t14c-wave2-complete-unit": {
+        "artifact": ".qa_work/t14c-wave2-complete-unit.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "1adb78a5a372ef00ea709a03de451a2b7b0e75186d4a567cc54abd3a2896e7d4",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 338
+      },
+      "t14c-wave2-full-native": {
+        "artifact": ".qa_work/t14c-wave2-full-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "ac4e3fcb70ef3f27e858f0399ea332c140e090206f9d7efd6d8b4ce61be89957",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 23
+      },
+      "t14c-wave2-source-ownership": {
+        "artifact": ".qa_work/t14c-wave2-source-ownership.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "64f8065925364ab4fc8f73ae7ef910956c8a4bce7c31b36d53d8f55f0a32f95e",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 20
+      }
+    },
+    "pending": [
+      "Complete frozen full native PostgreSQL suite before Wave 3",
+      "Exact T14D handoff delivery update and complete task certification in later waves"
+    ],
+    "source_review_artifact": ".qa_work/t14c-wave2-final-source-review.xml",
+    "source_review_tests": 53,
+    "status": "EXIT_GATE_PASS"
+  },
+  "continuation_wave3": {
+    "input_fixture_boundary": "Populated shadow training/diagnostics use explicitly marked historical fixture facts; native writers are unpatched; no historical CI recovery claimed. SHADOW_WALK_FORWARD is diagnostic/governance-only, never serving estimates. Financial algorithms remain unchanged; held-out metadata extends artifact content hashes.",
+    "latest_lanes": {
+      "t14c-wave3-final-exit-native": {
+        "artifact": ".qa_work/t14c-wave3-final-exit-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "855cc972c6540d0610cf52a149d6c7f1769633a6714e4c382aef1f5438034a84",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      },
+      "t14c-wave3-final-exit-ownership": {
+        "artifact": ".qa_work/t14c-wave3-final-exit-ownership.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "36d809ffc603b94da9e465b3c456372e17155134880b540afb717fb7a1cd86bb",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 53
+      },
+      "t14c-wave3-training-metadata-unit": {
+        "artifact": ".qa_work/t14c-wave3-training-metadata-unit.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "d577065284193b86aa6615508ab6dc6e3285c1ee31220bb6449f816101e1eac7",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 17
+      },
+      "t14c-wave3-unit-final": {
+        "artifact": ".qa_work/t14c-wave3-unit-final.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "9852f10d501d36129b5a24c8954b766af1fe6d858bf0c52902f2e7779d3e4683",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 578
+      }
+    },
+    "remaining_waves": [
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "status": "EXIT_GATE_PASS",
+    "whole_task_certified": false
+  },
+  "continuation_wave4": {
+    "WIN-006": "PARTIAL: revised prices pin exact existing revision IDs/payloads; birth rows can lack revision IDs",
+    "latest_lanes": {
+      "t14c-wave4-bounded-unit": {
+        "artifact": ".qa_work/t14c-wave4-bounded-unit.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "181117096d1c28470f316c014840d8d8cc9b053619a7706ffa9298b477f83a8b",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 16
+      },
+      "t14c-wave4-final-native": {
+        "artifact": ".qa_work/t14c-wave4-final-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "0bcdd0b3fb3ab818876a3995af2464d4c24f288d2181f6341cb25c401fdc38d8",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      },
+      "t14c-wave4-final-ownership": {
+        "artifact": ".qa_work/t14c-wave4-final-ownership.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "7f75b17e8afbad4cc15f279424ae2f56e3241b04d44e70652dd199dc9edae53b",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 53
+      },
+      "t14c-wave4-unit-fixture-fixed": {
+        "artifact": ".qa_work/t14c-wave4-unit-fixture-fixed.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "c16397650a095f36f338f0c61c9d55683cde2ad3a460d4262990a1938da100b6",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 534
+      }
+    },
+    "native_proof": [
+      "native certified capture and original outcome/reference configuration",
+      "supporting pending and instrument/session obligation scope",
+      "explicit operation time and native price content/revision payload",
+      "concurrent first maturation creates one financial result",
+      "unchanged retry and concurrent retries produce no additional revision",
+      "nested counterfeit creation proof rejects and rolls back staged caller state",
+      "standalone revision bypass rejects and rolls back staged caller state",
+      "failure after forward revision flush leaves original current truth intact",
+      "changed price truth creates exact forward/target revisions and retains predecessors"
+    ],
+    "remaining_waves": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "status": "EXIT_GATE_PASS",
+    "test_fixture_boundary": "534 calculator tests include explicit table-free simulation fixtures; these are not writer certification evidence",
+    "whole_task_certified": false
+  },
+  "continuation_wave5": {
+    "fixture_boundary": "Calculator simulations are explicitly scoped and are not native writer certification",
+    "latest_lanes": {
+      "t14c-wave5-final-native": {
+        "artifact": ".qa_work/t14c-wave5-final-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "8780b33a8328fd576fd223e4ae79aae74eb71a7798a1e945e93d0ce880e9aad1",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      },
+      "t14c-wave5-final-ownership": {
+        "artifact": ".qa_work/t14c-wave5-final-ownership.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "e74281ca16cb15077e1400616a7ae1a54ab254b87c9f76693b6389a9a7b86ada",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 53
+      },
+      "t14c-wave5-final-unit": {
+        "artifact": ".qa_work/t14c-wave5-final-unit.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "c942a2bab4c41d81eacd53d73485fc96642e88e574bf4357589193b545eb1b9c",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 534
+      }
+    },
+    "native_proof": [
+      "actual native frozen population and hierarchy",
+      "generation birth and complete materialization with exact full configuration",
+      "incomplete generation publication rejected",
+      "exact predecessor first publication and duplicate publication",
+      "reviewed candidate with sealed native predecessor and review hash",
+      "rejection after generation switch rolls back serving and generation state",
+      "reviewed replacement publication and request retry are atomic and idempotent"
+    ],
+    "remaining_waves": [
+      6,
+      7,
+      8
+    ],
+    "status": "EXIT_GATE_PASS",
+    "whole_task_certified": false
+  },
+  "continuation_wave6": {
+    "diagnostic_policies": {
+      "WF_WINNER_CALIBRATION": {
+        "artifact": "WinnerCalibrationBin",
+        "authority": "Full generation configuration, explicit diagnostic cutoff, exact model/outcome and sealed manifest; native estimates or native held-out training artifact; concrete calibration recomputation",
+        "business_meaning": "Native probability calibration diagnostic; exact pinned model promotion evidence",
+        "downstream_semantics": "Model promotion explicitly validates the exact calibration artifact, its scope/configuration and native report. No direct probability, generation or publication input.",
+        "owner": "CalibrationService.persist_bins",
+        "status": "PHASE5_CONTRACT_ENFORCED"
+      },
+      "WF_WINNER_DRIFT": {
+        "artifact": "WinnerDriftMetric",
+        "authority": "Full generation configuration, explicit cutoff, exact model/outcome/manifest and disjoint baseline/recent populations; concrete four-metric recomputation",
+        "business_meaning": "Native distribution/performance diagnostic and exact pinned model promotion evidence",
+        "downstream_semantics": "Model promotion validates an exact artifact containing all four required metrics, sample sufficiency, freshness and any critical breach. No ambient latest diagnostic gate.",
+        "owner": "DriftService.persist_metrics",
+        "status": "PHASE5_CONTRACT_ENFORCED"
+      },
+      "WF_WINNER_MODEL_TRAINING": {
+        "artifact": "WinnerModelTrainingRun and frozen shadow model artifact",
+        "authority": "Full generation configuration, explicit cutoff, actual SQL manifest/population, exact training parameters and concrete native training/report recomputation",
+        "business_meaning": "New current-rules walk-forward training using explicitly frozen historical facts",
+        "downstream_semantics": "Model registration requires the exact sealed training artifact; promotion separately requires pinned governance diagnostics. Historical prediction bodies/model identities cannot change. Legacy training facts acquire no reconstructed original Calculation Identity.",
+        "owner": "ShadowModelTrainingService.persist_training_run",
+        "status": "CURRENT_RULES_EXPLICIT"
+      },
+      "WF_WINNER_SIMILARITY": {
+        "artifact": "WinnerSimilarityLink",
+        "authority": "Exact prediction/outcome and manifest, full configuration, explicit matching cutoff, feature weights/order, rank limit and concrete native ranking recomputation",
+        "business_meaning": "Read-only diagnostic neighbor display",
+        "downstream_semantics": "Diagnostic evidence role is enforced; neither the feature vector, cohort calculation nor serving probability consumes persisted links. Native estimate and publication creation proofs remain separate.",
+        "owner": "SimilarityService.persist_neighbors",
+        "status": "SUPPORTED_DISTINCT_SAFE"
+      }
+    },
+    "latest_lanes": {
+      "t14c-wave6-native": {
+        "artifact": ".qa_work/t14c-wave6-native.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "0626cf7f714220f64fe1f33e7682eafafa33be2b8ca0d0b43660f1ef521eca76",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      },
+      "t14c-wave6-unit": {
+        "artifact": ".qa_work/t14c-wave6-unit.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "d8c5f0fd8381eb739fc875f9d97935ca5237d195405cc631cf9afd7e1b9f654e",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 19
+      }
+    },
+    "potential_bypass_count": 0,
+    "remaining_waves": [
+      7,
+      8
+    ],
+    "status": "EXIT_GATE_PASS",
+    "whole_task_certified": false
+  },
+  "continuation_wave7": {
+    "finite_repairs": [
+      "certified lifecycle duplicate retains original projection/reasons",
+      "caller staging cannot borrow semantic writer permission during autoflush",
+      "mapper rejection unwinds flush before whole-Session rollback",
+      "registered SETUP_ALERT_REBUILD bootstrap job permission with exact configuration/run/fence"
+    ],
+    "latest_lanes": {
+      "t14c-phase4-decision-bootstrap-fixed": {
+        "artifact": ".qa_work/t14c-phase4-decision-bootstrap-fixed.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "ca2fb3e5aabb54106380b616be41144ff503b30e38575acbe1a1e65a2dc779d0",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      },
+      "t14c-wave7-decision-full": {
+        "artifact": ".qa_work/t14c-wave7-decision-full.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "fd74b506af3c667e9254b712c7a9642763b0c38a871cc62e6f32bd893e3772e2",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 28
+      },
+      "t14c-wave7-ownership": {
+        "artifact": ".qa_work/t14c-wave7-ownership.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "6cdb55c2a153bbb6a409a99dc1b7ef69d5446440dcb2ba7dd532c847c295c795",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 53
+      },
+      "t14c-wave7-unit": {
+        "artifact": ".qa_work/t14c-wave7-unit.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "e5c60d48c13b181b70648e3c0611f4fd64eccf54be7b245a0035601cfde22437",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 799
+      },
+      "t14c-wave7-winner-complete-matrix": {
+        "artifact": ".qa_work/t14c-wave7-winner-complete-matrix.xml",
+        "errors": 0,
+        "failures": 0,
+        "sha256": "c7bf7b7ade903666fa34cdc6695433b4d5a636dfa555234fc8d973f236392a72",
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 1
+      }
+    },
+    "matrix": {
+      "alerts": "Native frozen rule/condition/source event, confidence, predecessor/cooldown/expiry, altered retries, configuration drift, concurrent duplicate/cooldown and supporting rule ownership",
+      "ceri_change": "Actual SQL raw/normalized/score source bodies and company scope; native delta recomputation, original/current clock distinction, duplicate/concurrent change and alert source consumption",
+      "cohorts": "Actual frozen population/hierarchy and native statistic recomputation; explicit inline vs generation semantics; rejection after first statistic flush leaves generation BUILDING and zero new statistics",
+      "fencing": "Actual enqueue/claim A, expired lease/recover/claim B; A cannot write and staged rows disappear, B writes/commits under identical semantic configuration, for both Decision and Winner; same-transaction native PostgreSQL row lock retained",
+      "generation": "Full birth configuration/native contract and immutable creation proof; concurrent creation returns one PK, concurrent completion produces one complete set and a validated duplicate",
+      "lifecycle": "Native evaluation/output, exact predecessor/target/configuration, primary projection, retrospective isolation, explicit gap operation, concurrent first advance and certified duplicate retention",
+      "model_diagnostics": "Native current-rules training and exact artifact/model/configuration; calibration and complete four-metric drift promotion pins; counterfeit nested diagnostics and retained proof deletion attacks",
+      "outcomes": "Native pending/source scope, aware operation cutoff, price content and retained revision payload/ID; actual forward/target math; concurrent first/retry maturation and rollback after new forward revision",
+      "prediction_estimates": "Native complete capture/feature derivation and immutable estimate body; wrong source/configuration/clock/readiness and failure after prediction/pending flush with zero child state",
+      "publication": "Incomplete rejection; exact explicit predecessor; concurrent publication commits once and rejects conflicting old predecessor; wrong manifest/generation/model, missing clock/disabled operation, staged activation and rollback after switch; duplicate reviewed request",
+      "setup": "Native single/batch exact sources/output, altered retry, sealed projection, same-session ownership, concurrent first capture and actual lease reclaim"
+    },
+    "native_boundary": "Actual disposable PostgreSQL semantic writers; no financial authority validator patching in the T14C native certification cases",
+    "remaining_waves": [
+      8
+    ],
+    "status": "EXIT_GATE_PASS",
+    "whole_task_certified": false
+  },
+  "continuation_wave8": {
+    "browser_worker_failures": 0,
+    "finite_repairs": [
+      "Normal IB fetch delivers its retained aware completion timestamp to obligation reevaluation.",
+      "Native retrospective replay validates original Setup source scope separately from its own delivered C2 operation configuration.",
+      "Positive browser profile uses an actual enabled disposable Winner YAML parsed and frozen by native configuration delivery.",
+      "Future native maturation, obligation price observation and follow-up cohort operations share explicit coherent simulation clocks.",
+      "Browser maturation counts select the exact processing run owned by the GUI-submitted job, avoiding equal-clock row ties.",
+      "Native outcome seal uses PostgreSQL NUMERIC tie rounding; actual H5 SQL-reload regression retains 74.293433 rather than sealing 74.293432.",
+      "Historical synthetic fixtures remain pure algorithm/read-history coverage and cannot confer native financial authority."
+    ],
+    "latest_lanes": {
+      "t14c-final-broader": {
+        "artifact": ".qa_work/t14c-final-broader.xml",
+        "deselected": 347,
+        "duration_seconds": 833.005,
+        "errors": 0,
+        "failures": 0,
+        "passed": 3450,
+        "sha256": "712bc96ec369be10fbdab3ec61f1da9ac745053fde7ca668ec4a386a2ff7968d",
+        "skip_reasons": [
+          {
+            "reason": "external_ib_bid_ask requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+            "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[liquidity-external_ib_bid_ask]"
+          },
+          {
+            "reason": "external_ib_fee_rate requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+            "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[short-pressure-external_ib_fee_rate]"
+          },
+          {
+            "reason": "external_ib_volatility requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+            "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[volatility-external_ib_volatility]"
+          },
+          {
+            "reason": "external_ib_generic_ticks requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+            "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[options-external_ib_generic_ticks]"
+          },
+          {
+            "reason": "external_ib_scanner requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+            "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[scanner-external_ib_scanner]"
+          },
+          {
+            "reason": "external_ib_histogram requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+            "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[histogram-external_ib_histogram]"
+          },
+          {
+            "reason": "external_ib_flex requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+            "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[flex-external_ib_flex]"
+          }
+        ],
+        "skipped": 7,
+        "status": "PASS",
+        "tests": 3457,
+        "warnings": 23
+      },
+      "t14c-final-browser-runtime-fixed": {
+        "artifact": ".qa_work/t14c-final-browser-runtime-fixed.xml",
+        "deselected": 0,
+        "duration_seconds": 622.467,
+        "errors": 0,
+        "failures": 0,
+        "passed": 25,
+        "sha256": "71e5ea1190edbf0f5e75ff3b4940d9830a168f728bccbf83af420c9289567ac7",
+        "skip_reasons": [],
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 25,
+        "warnings": 2
+      },
+      "t14c-final-fetch-delivery": {
+        "artifact": ".qa_work/t14c-final-fetch-delivery.xml",
+        "deselected": 0,
+        "duration_seconds": 1.081,
+        "errors": 0,
+        "failures": 0,
+        "passed": 27,
+        "sha256": "7c0227c3f45ea056b3ffe0d7e345c5638ad4228fa34e7430cd4baa0b4de42259",
+        "skip_reasons": [],
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 27,
+        "warnings": 1
+      },
+      "t14c-final-phase0-4": {
+        "artifact": ".qa_work/t14c-final-phase0-4.xml",
+        "deselected": 0,
+        "duration_seconds": 1575.091,
+        "errors": 0,
+        "failures": 0,
+        "passed": 325,
+        "sha256": "c2be20f6872cb8e92694625c7007e53cd4f76ef7855b89bfd78a0311f28ce22d",
+        "skip_reasons": [],
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 325,
+        "warnings": 226
+      },
+      "t14c-final-t14b-native": {
+        "artifact": ".qa_work/t14c-final-t14b-native.xml",
+        "deselected": 0,
+        "duration_seconds": 126.521,
+        "errors": 0,
+        "failures": 0,
+        "passed": 14,
+        "sha256": "969f2c46d5b01f382331742ae8c25c8b349cb6253a9a7c8072bf80536cacd9f2",
+        "skip_reasons": [],
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 14,
+        "warnings": 43
+      },
+      "t14c-wave7-decision-full": {
+        "artifact": ".qa_work/t14c-wave7-decision-full.xml",
+        "deselected": 0,
+        "duration_seconds": 821.175,
+        "errors": 0,
+        "failures": 0,
+        "passed": 28,
+        "sha256": "e4a72a06b73f06fd311aaa3d41e2f9fdd42da58f6c3d1cd8c8361f62344c17cb",
+        "skip_reasons": [],
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 28,
+        "warnings": 85
+      },
+      "t14c-wave7-ownership": {
+        "artifact": ".qa_work/t14c-wave7-ownership.xml",
+        "deselected": 0,
+        "duration_seconds": 67.707,
+        "errors": 0,
+        "failures": 0,
+        "passed": 53,
+        "sha256": "1579766fe78fc9ecdaf5f488f776111916d2040e05c6d3c5ef372356661c1c81",
+        "skip_reasons": [],
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 53,
+        "warnings": 1
+      },
+      "t14c-wave7-unit": {
+        "artifact": ".qa_work/t14c-wave7-unit.xml",
+        "deselected": 0,
+        "duration_seconds": 273.38,
+        "errors": 0,
+        "failures": 0,
+        "passed": 799,
+        "sha256": "e5c60d48c13b181b70648e3c0611f4fd64eccf54be7b245a0035601cfde22437",
+        "skip_reasons": [],
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 799,
+        "warnings": 1
+      },
+      "t14c-wave7-winner-complete-matrix": {
+        "artifact": ".qa_work/t14c-wave7-winner-complete-matrix.xml",
+        "deselected": 0,
+        "duration_seconds": 77.623,
+        "errors": 0,
+        "failures": 0,
+        "passed": 2,
+        "sha256": "4d254a6a03b312f63f3b3c0e33be132db08e3d7c384336979d4cb0b31f4312ee",
+        "skip_reasons": [],
+        "skipped": 0,
+        "status": "PASS",
+        "tests": 2,
+        "warnings": 7
+      }
+    },
+    "native_browser": {
+      "artifact": ".qa_work/t14c-final-browser-evidence/20260918T061630Z-fc46cefa/report.json",
+      "comparison_count": 668,
+      "database_relationship_count": 48,
+      "database_row_count": 6400,
+      "sha256": "b2d8639da2ab1f9bf5f6fe6888e927eb7b34ba0a2e730a595517beccfc56aced",
+      "verdict": "PASS"
+    },
+    "prior_browser_attempts": [
+      {
+        "artifact": ".qa_work/t14c-browser-before-native-rounding.xml",
+        "reason": "Observed pre-SQL versus retained SQL NUMERIC tie mismatch in follow-up cohort validation; concurrent inherited lane also caused pipeline GUI timeout/idempotency race. Final run uses corrected retention sealing and isolated timing.",
+        "status": "FAIL"
+      }
+    ],
+    "source_freeze": {
+      "app/models/tables.py": "382319af5f8090fa8b02ccd115e5f706e019b74951d39f3e49c31cdb8ef17ae6",
+      "app/services/background_worker.py": "7d77fcb04062b4c10ef859bd88e282daf57c1dcc5a11b961502088d3c6f096cd",
+      "app/services/canonical_evidence.py": "28f505ddcfc403934df26da39e131fd18edd16657c592337428f0673379b025b",
+      "app/services/ceri/alert_authority.py": "dedaf2625ed5a93a65cae9367d5707a33b24fb757f8f42b6a79dd4555ce283d4",
+      "app/services/ceri/alert_service.py": "e88ed47522d3317940b32c08a55ddb13d4741dab8c465e77aacf384b33b10a90",
+      "app/services/ceri/change_authority.py": "349a7a405fd5998f831365e1ca79f5e5877ddebe1e10b624064728375eb51c18",
+      "app/services/ceri/change_detection_service.py": "4dc53175735671a19719b62d901078702f99171d4dfa7ac4f0fe4b42903e14ca",
+      "app/services/ceri/normalization_service.py": "9a05ea47d1667da44ae43ea442b3b334630b74d04f53785cb72109f3028caaf0",
+      "app/services/configuration_delivery.py": "165281c3541a4c3501ad9ec9f3af5ccff670581140fac44b2268d521d4dcd760",
+      "app/services/core_calculation_evidence.py": "05a35b31c0a369ab8871cb2e2b08206404f9dd5e4332c1e821796b7f59a1ce2a",
+      "app/services/core_mutation_authority.py": "021a2942f3429e1a836599f7520d6b220169c1d44ffa45a6bda0f7193d972794",
+      "app/services/decision_effective_configuration.py": "8a6a55ac6ffbdf1b55d5094dda77fd82ee2308e11458a5899d19f26ba65c244c",
+      "app/services/decision_mutation_authority.py": "2c2bb4f5b8e62cd9b4c698f5f1c377549362981f9ad9e711067fab81ba24fafc",
+      "app/services/domain_mutation.py": "246995e2bd1345fb061e528c92ceebfbb78cba01aa31eb4c9b43c35707f9b44c",
+      "app/services/domain_write_fence.py": "a6538c57ca0db8f015ad2d45b062465aeb541657d70361d647a157d456fc5a80",
+      "app/services/ib_fetch_executor.py": "3f4fa34c855a85bde5fd0a1c0bc74001f262202ccb922816dee8852caeec33da",
+      "app/services/setup_lifecycle/alert_authority.py": "b840fb0ea91dec20af76d9215a5aad0a7f2fe5bb48c0cbbab96fdf2c71dd0a89",
+      "app/services/setup_lifecycle/alert_service.py": "1a7c79693c8326f07c69df7cf4ca483d847570c74590379cec3d471cb9fe61ef",
+      "app/services/setup_lifecycle/canonicalization.py": "577e31ca23b72b46a47fab9212e35d0c00179d9ed4dac2e342655e831df0aa42",
+      "app/services/setup_lifecycle/change_authority.py": "164ea2f6082dc0ad79bffa0844d2faaf23aec301561e363210ecd5403810d2ac",
+      "app/services/setup_lifecycle/change_detector.py": "02ffd3f0d8ef2ff0b6881e396094d62ffda640cc060da3cc11f81ab2d4e7aa0c",
+      "app/services/setup_lifecycle/decision_evidence.py": "5dbcfcfee2217aa127a45d8f5b9c93ab00bc4e340feb174ed0e198ddbd2a1c2c",
+      "app/services/setup_lifecycle/episode_service.py": "7fe7a7d877ef9ea1c5ee7a07396f41164e4341dfe39dad94acf348a12059e7f8",
+      "app/services/setup_lifecycle/evaluation_service.py": "26f0348285868a82dba4f7fb610ada7c517fc9ef932abeaaf3687c96200aef57",
+      "app/services/setup_lifecycle/maintenance_service.py": "c6b927d1a5069f892db213893efbdc8c38351958263e269b815b7eaae102a2f7",
+      "app/services/setup_lifecycle/purge_service.py": "f13c4eb7dd555c3596757666062e4d3098300cab939b96a7cda63209d6c1f0e4",
+      "app/services/setup_lifecycle/replay_service.py": "f8c9c08ed2c0e5931f855b6535c788f8b454b536e993d028164383b06a9cfe77",
+      "app/services/setup_lifecycle/repository.py": "aab98cbef3b9721a65d8d418f07f69943b46fca82cf64aef9ebaa5b1a998c5a8",
+      "app/services/setup_lifecycle/snapshot_builder.py": "9b56bd040ed68877669764a7b75052c1385efad8bc9f8a1994c103220f94f708",
+      "app/services/transition_preflight_plan_service.py": "809f304b2af07ca967c7a93d90f42d11f4687eaa56174b52c6787d94fed64f24",
+      "app/services/winner_probability/calibration_service.py": "8986514e88d44c39c8258bca306e243f892b85aed7e9b2d0fb178db68ca6be9b",
+      "app/services/winner_probability/capture_service.py": "bdec6678c9ebfe16f363f9a8dc36527623be17c8df195ffe90c1c91119f69d83",
+      "app/services/winner_probability/cohort_authority.py": "36a0c6b61066b1bc6f798a1ebb0b91266237f2364033c3a52a4eebd827caf646",
+      "app/services/winner_probability/cohort_definition.py": "df005ef70cbb65aa79fc019e13f5a1ddb2d2f59916437494e1fa9fc72e8b14c9",
+      "app/services/winner_probability/cohort_generation_service.py": "54e16c3da636c17926dbc07c571e050f91ad1c24cb8159c0e8bb44aa65cae205",
+      "app/services/winner_probability/cohort_materialization_service.py": "b2a025ca15fdd24b49937e19c32712987266901b7e40f14270776af175d52712",
+      "app/services/winner_probability/decision_time_estimate_service.py": "a0a89a9ad9f0031d32bf7b794c39aeb90c9056098bb7f68565702af830a84f6f",
+      "app/services/winner_probability/drift_service.py": "63ff3e541c0f8addc6fb6a7463984a5624a45cd9cc1e7a8391b9d3b4f6db66ff",
+      "app/services/winner_probability/episode_service.py": "4f5e7927d63539ab26aaad16dd7bd2ccac50f428bed5d751b2f0d56fa1a14c87",
+      "app/services/winner_probability/estimate_authority.py": "f8df21a1ee47c13a169f4b11ca6d26e40a26237675d03294d04f04d44fcf6eff",
+      "app/services/winner_probability/estimate_publication_service.py": "4d4c5189c9ce30cdf25046bee69d1645d99e9ed8f77aae7fb5c9b15756a3cb79",
+      "app/services/winner_probability/evidence_manifest_service.py": "10796343b77e9ceb9554c6e9ddbcd3ec4a04b26c44de2ce09e6aeccd50d08d8e",
+      "app/services/winner_probability/feature_extractor.py": "7f577276eee61a92690ac985bb3517e34020cee853cfc50adba902453f468e80",
+      "app/services/winner_probability/job_handlers.py": "247a3d9937e1357967f133964e7f62dff2f5edf8021957d89f4346fc4be530d0",
+      "app/services/winner_probability/market_data_obligation_service.py": "0de116121ba40e54cb1c01e19bb064d53fadcd40846303e44df27fd4bbd29b69",
+      "app/services/winner_probability/model_authority.py": "c3735deccb9fafb4f68b3d97af6d163b3bb4b93cfdcfaf82c6e41a025e4e5e46",
+      "app/services/winner_probability/model_registry.py": "5f2beede7f828e84f9d17837aac68461c86a9488682611c6a2002c79f5dceb8f",
+      "app/services/winner_probability/model_training.py": "ffa733b5654b5427252fba1d84a9ad449571504254af6b0214c85cf4226ffdd9",
+      "app/services/winner_probability/mutation_authority.py": "b93a6f5c2b5c1cda8920152eb25688c25a65dc65f530895029e016f24261aac8",
+      "app/services/winner_probability/outcome_authority.py": "7a073da69b23a920ab74d9177c3256b31b006bb6d4949123c06d5db611816afd",
+      "app/services/winner_probability/outcome_revision_service.py": "cdb1333663a85dc044e63857cb38e4decd2f106bc610b115a3e0db183aa31a49",
+      "app/services/winner_probability/outcome_service.py": "38b2689896ed23cf32d6af002951f98ca2a80b4d1574764faf6f48c795f525bf",
+      "app/services/winner_probability/pending_outcome_service.py": "1229cc07bad93b0821ff0bf0e7d3870e326ccee788dac68696afd17283ff9e7a",
+      "app/services/winner_probability/prediction_authority.py": "999f272ca05167d877446c48fb40227723bd3e514346fa97979d7a5c64e4e283",
+      "app/services/winner_probability/probability_estimator.py": "e63bb8763a39a8e1247caa985149189c8f33c0e940b645991ab7c719770072cb",
+      "app/services/winner_probability/repository.py": "ee09a167d5bb617433cd15225b632a5c91548489634a4787c0db4e5e37db0745",
+      "app/services/winner_probability/similarity_service.py": "1d80ea74665b7fb15b1b1f48c84d1932f54df6ebeef62b241079ffb40a1d779c",
+      "app/services/winner_probability/training_eligibility.py": "6029caeb4e048d2431a0b39f2d8c3285fefb373986bdbdd8857ceb861520c6ef",
+      "scripts/qa/t13e_deployed_probe.py": "14f40d315c3c9d667b5093c018e53b80eb230363f90bf582c6e1e25155281208",
+      "scripts/qa/t14a_semantic_completeness.py": "714fdcea5edc3c0fe4e6e47cc6595c38fe7a1de7a2ba8f12bb61cbbfcc423913",
+      "scripts/qa/t14a_semantic_families.py": "85b943cb7e122b07410519c6ce9087722e7fff7a30f655196cb0d8e9c3584d0b",
+      "tests/conftest.py": "9859b2f4b0239c2376646244d15b059221c34a1922b41847909c23af16e692cd",
+      "tests/e2e/single_run_certification/certification_server.py": "c5344f59dea307313875dd7e6bd610a6669253aff21bc92cfb0a328869c940f1",
+      "tests/e2e/single_run_certification/fixtures.py": "cda8d06981bd0f5a262f0e13e2cda199907ea52b6e3d4cc3542a6f4425c3be51",
+      "tests/e2e/single_run_certification/test_single_run_certification.py": "3115db9715f1e15f8177e6656843bca885d3520bc90bbd00bce7659de775304b",
+      "tests/e2e/test_slse_populated_browser.py": "f748432c57cf7de3bbd7e2c707fd4e6767218cc189b033dbce87f0df7256618d",
+      "tests/historical_setup_alert_fixture.py": "a5a44f1377a711f10c2f402d210058e9bab5b2cccdc976082c087ffd65a6cbbe",
+      "tests/historical_setup_evidence_fixture.py": "f16c15165e598b6a377ad8c2fc55801712f53e96557ddc9d084e38b1eaf6cead",
+      "tests/integration/test_contextual_consumer_eligibility_postgresql.py": "8019d12d1774763a1699da5475a12000a8e4fd74405d3044073cb5f014470769",
+      "tests/integration/test_decision_configuration_delivery_postgresql.py": "5b9ccfa6a699023e21bacc02a28d48138b3567977351392ccb163a689b59cbdc",
+      "tests/integration/test_phase2_immutable_evidence_certification.py": "7f6347aca071db3d0ef4c31dcf723dff7e98f3ff133180e4fa5aa98dda5d0d79",
+      "tests/integration/test_phase4_configuration_certification_postgresql.py": "664c39839877ddcbd340f9635d86d13911661a71280b7683d015d202ddc6a05e",
+      "tests/integration/test_setup_lifecycle_alert_immutable_evidence.py": "637656ccd5aa0480e966a1b54656ee56e692a2330fcfc627d8e8fb50a9b5b9c2",
+      "tests/integration/test_t14c_decision_writer_postgresql.py": "90add9686ede59ccd10e9fbcedb087eee05b270dd3d9b5c4f9b3f1a0bd7c484b",
+      "tests/integration/test_t14c_winner_writer_postgresql.py": "5c39c871ae30e2dda2e231e64f264d65b41137adad5ba188f7716dc596f133f0",
+      "tests/integration/test_technical_consumer_eligibility_postgresql.py": "1e9ffbf6af51948e6fa2b1665fa2ce3ec404c347f96964b7d73e8326e61a3abf",
+      "tests/integration/test_transition_preflight_plan_postgresql.py": "e6133c41d368c27970ddd1343d9b71f684bf1a8c8172097b476ca62f1b4bedea",
+      "tests/integration/test_webapp_fix_flows.py": "f5d010a03d0de55a2aee27b5a299ae5f994848ee887f37c27b399a02750429ce",
+      "tests/integration/test_winner_consumer_eligibility_postgresql.py": "8a74be6d69682c79119f51949e3f09c16f65dbe355c6f57fe9e10dbc7831e1d7",
+      "tests/integration/test_winner_temporal_integrity_postgresql.py": "8af34623342844bcc32a1bba55edea95d263ef9a8dd00fa8c680388af099f106",
+      "tests/native_mutation_support.py": "92c46322e130cb07f30e39a24eb561a5f5a847ac551b93cd604f1b8fa55e507a",
+      "tests/native_winner_support.py": "1cf102b443548c6406fea7573cb05097fd384a9be236cfb044fdf4b65da2becc",
+      "tests/test_canonical_evidence_serializer.py": "9cf82667892d9181f501eb94722a8617bda6704a9c888be389ef20ffe80a1cc4",
+      "tests/test_decision_effective_configuration.py": "23cf6c814f3a6b6576b7af38e438ca4650e9aee57413b7649403f4dba355d2cb",
+      "tests/test_producer_readiness.py": "4af0d9b8bbcf34f47434c8188e9fcdc2dba379b2dff6e409d85af899b9f3d73b",
+      "tests/test_t14a_mutation_inventory.py": "aba551643261f886c988aa1d21d51ce3cc85a2a4df9fb129ef69a121b7f77ad0",
+      "tests/winner_probability/test_consumer_readiness.py": "5760d1ff6085b31ccc255dd891a41ab97fcec4de92b66c633d0f3d36d434c8be",
+      "tests/winner_probability/test_generation_publication_fence.py": "32c5a7150cf4a0c78f789960a469e4f4212ea41f35590a3621537fb7cfbbf3c1",
+      "tests/winner_probability/test_readiness_frozen_operations.py": "676f1cca10a89b47722d76911be0abaed34083cef8ed14ca8f01ebca9997d58c",
+      "tests/winner_probability/test_t12d_ready_scenarios.py": "9726e242a229e31d5c43ff97d43355740ebc3cc35a08a22cb442c019b5f20ce8",
+      "tests/winner_probability/test_t12e_readiness_certification.py": "fcc779a7fc02b6975efc16ffaaf7c9d1fc1af1e59a8cda221a2a0bef947bd251",
+      "tests/winner_probability/test_winner_calculation_identity_adoption.py": "cc43770dc745b6ae691977f42da73c1d2b80aac266b14a742fb7dda1d2b7281c"
+    },
+    "status": "EXIT_GATE_PASS",
+    "whole_task_certified": true
+  },
+  "continuation_wave8_prior_attempts": [
+    {
+      "counted_as_pass": false,
+      "deselected": 346,
+      "duration_seconds": 992.28,
+      "failed": 1,
+      "failure": "test_adoption_pending_callers_pass_foundation_with_known_ownership: review ran while Source/pins changed; frozen 53-case ownership recheck passed",
+      "lane": "broader",
+      "passed": 3449,
+      "skipped": 7
+    },
+    {
+      "cause": "second Playwright Sync runtime",
+      "counted_as_pass": false,
+      "errors": 1,
+      "lane": "browser_combined",
+      "passed": 24
+    },
+    {
+      "cause": "normal IB fetch omitted retained completion timestamp to obligation writer; exact explicit delivery fixed and 27 focused tests passed",
+      "counted_as_pass": false,
+      "failed": 1,
+      "lane": "browser_combined_shared_runtime",
+      "passed": 24
+    },
+    {
+      "cause": "concurrent pytest Playwright cleanup removed shared output directory; final rerun uses separate roots",
+      "counted_as_pass": false,
+      "errors": 1,
+      "lane": "browser_combined_concurrent_default_output",
+      "passed": 24
+    },
+    {
+      "attempt": "isolated_browser_disabled_native_profile",
+      "errors": 0,
+      "failures": 1,
+      "retained_artifact": ".qa_work/isolated_browser_disabled_native_profile.xml",
+      "status": "FAIL",
+      "tests": 25
+    },
+    {
+      "attempt": "full_inherited_phase0_4_pre_fixture_repairs",
+      "errors": 0,
+      "failures": 20,
+      "retained_artifact": ".qa_work/full_inherited_phase0_4_pre_fixture_repairs.xml",
+      "status": "FAIL",
+      "tests": 325
+    }
+  ],
+  "final_classification_counts": {
+    "CURRENT_RULES_EXPLICIT": 2,
+    "PHASE5_CONTRACT_ENFORCED": 27,
+    "SUPPORTED_DISTINCT_SAFE": 12
+  },
+  "final_head": "Commit containing this certificate; resolve git log -1 --format=%H -- this file",
+  "final_head_resolution": "Commit containing this certificate; resolve git log -1 --format=%H -- this file. No self-referential commit hash is embedded.",
+  "final_validation": {
+    "t14c-final-broader": {
+      "artifact": ".qa_work/t14c-final-broader.xml",
+      "deselected": 347,
+      "duration_seconds": 833.005,
+      "errors": 0,
+      "failures": 0,
+      "passed": 3450,
+      "sha256": "712bc96ec369be10fbdab3ec61f1da9ac745053fde7ca668ec4a386a2ff7968d",
+      "skip_reasons": [
+        {
+          "reason": "external_ib_bid_ask requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[liquidity-external_ib_bid_ask]"
+        },
+        {
+          "reason": "external_ib_fee_rate requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[short-pressure-external_ib_fee_rate]"
+        },
+        {
+          "reason": "external_ib_volatility requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[volatility-external_ib_volatility]"
+        },
+        {
+          "reason": "external_ib_generic_ticks requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[options-external_ib_generic_ticks]"
+        },
+        {
+          "reason": "external_ib_scanner requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[scanner-external_ib_scanner]"
+        },
+        {
+          "reason": "external_ib_histogram requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[histogram-external_ib_histogram]"
+        },
+        {
+          "reason": "external_ib_flex requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[flex-external_ib_flex]"
+        }
+      ],
+      "skipped": 7,
+      "status": "PASS",
+      "tests": 3457,
+      "warnings": 23
+    },
+    "t14c-final-browser-runtime-fixed": {
+      "artifact": ".qa_work/t14c-final-browser-runtime-fixed.xml",
+      "deselected": 0,
+      "duration_seconds": 622.467,
+      "errors": 0,
+      "failures": 0,
+      "passed": 25,
+      "sha256": "71e5ea1190edbf0f5e75ff3b4940d9830a168f728bccbf83af420c9289567ac7",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 25,
+      "warnings": 2
+    },
+    "t14c-final-fetch-delivery": {
+      "artifact": ".qa_work/t14c-final-fetch-delivery.xml",
+      "deselected": 0,
+      "duration_seconds": 1.081,
+      "errors": 0,
+      "failures": 0,
+      "passed": 27,
+      "sha256": "7c0227c3f45ea056b3ffe0d7e345c5638ad4228fa34e7430cd4baa0b4de42259",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 27,
+      "warnings": 1
+    },
+    "t14c-final-phase0-4": {
+      "artifact": ".qa_work/t14c-final-phase0-4.xml",
+      "deselected": 0,
+      "duration_seconds": 1575.091,
+      "errors": 0,
+      "failures": 0,
+      "passed": 325,
+      "sha256": "c2be20f6872cb8e92694625c7007e53cd4f76ef7855b89bfd78a0311f28ce22d",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 325,
+      "warnings": 226
+    },
+    "t14c-final-t14b-native": {
+      "artifact": ".qa_work/t14c-final-t14b-native.xml",
+      "deselected": 0,
+      "duration_seconds": 126.521,
+      "errors": 0,
+      "failures": 0,
+      "passed": 14,
+      "sha256": "969f2c46d5b01f382331742ae8c25c8b349cb6253a9a7c8072bf80536cacd9f2",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 14,
+      "warnings": 43
+    },
+    "t14c-wave7-decision-full": {
+      "artifact": ".qa_work/t14c-wave7-decision-full.xml",
+      "deselected": 0,
+      "duration_seconds": 821.175,
+      "errors": 0,
+      "failures": 0,
+      "passed": 28,
+      "sha256": "e4a72a06b73f06fd311aaa3d41e2f9fdd42da58f6c3d1cd8c8361f62344c17cb",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 28,
+      "warnings": 85
+    },
+    "t14c-wave7-ownership": {
+      "artifact": ".qa_work/t14c-wave7-ownership.xml",
+      "deselected": 0,
+      "duration_seconds": 67.707,
+      "errors": 0,
+      "failures": 0,
+      "passed": 53,
+      "sha256": "1579766fe78fc9ecdaf5f488f776111916d2040e05c6d3c5ef372356661c1c81",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 53,
+      "warnings": 1
+    },
+    "t14c-wave7-unit": {
+      "artifact": ".qa_work/t14c-wave7-unit.xml",
+      "deselected": 0,
+      "duration_seconds": 273.38,
+      "errors": 0,
+      "failures": 0,
+      "passed": 799,
+      "sha256": "e5c60d48c13b181b70648e3c0611f4fd64eccf54be7b245a0035601cfde22437",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 799,
+      "warnings": 1
+    },
+    "t14c-wave7-winner-complete-matrix": {
+      "artifact": ".qa_work/t14c-wave7-winner-complete-matrix.xml",
+      "deselected": 0,
+      "duration_seconds": 77.623,
+      "errors": 0,
+      "failures": 0,
+      "passed": 2,
+      "sha256": "4d254a6a03b312f63f3b3c0e33be132db08e3d7c384336979d4cb0b31f4312ee",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 2,
+      "warnings": 7
+    }
+  },
+  "finding_status": {
+    "INV-ENTRY-001": "41/41 T14C WRITERS AND 84/84 INITIATORS RECONCILED; ORIGINAL_T14D_SCOPE_PRESERVED",
+    "PIPE-008": "CLOSED_FOR_CERTIFIED_T14B_T14C_WRITERS; T14D_CALLER_SCOPE_REMAINS",
+    "SETUP-005": "CLOSED_FOR_CERTIFIED_WRITER_ENFORCEMENT; T14D_CALLER_DELIVERY_REMAINS",
+    "SETUP-007": "CERTIFIED_RULE_HISTORY_CONFIGURATION_AND_WRITER_ENFORCEMENT_CLOSED; UNANCHORED_ORIGINAL_RULE_RECONSTRUCTION_REMAINS_PARTIAL",
+    "SETUP-009": "CLOSED_FOR_CERTIFIED_WRITER_PROJECTIONS; ORIGINAL_CONTEXT_CALLER_SCOPE_REMAINS",
+    "SETUP-010": "CONFIGURATION_AND_WRITER_AUTHORITY_PORTIONS_CLOSED; CURRENT_CONTEXT_MAINTENANCE_AND_OTHER_RECONSTRUCTION_ALGORITHM_SCOPE_REMAINS_PARTIAL",
+    "WIN-001": "CLOSED_FOR_CERTIFIED_CAPTURE_BUSINESS_TIME; STANDALONE_CALLERS_T14D",
+    "WIN-003": "CLOSED, RE-CERTIFIED",
+    "WIN-004": "CLOSED, RE-CERTIFIED",
+    "WIN-005": "CONSUMER_WRITER_AUTHORITY_ENFORCED; PRODUCER_ALGORITHM_DEFECTS_NOT_CLOSED",
+    "WIN-006": "PARTIAL: EXACT RETAINED REVISED PRICE IDS/PAYLOADS PROVEN; BIRTH ROWS MAY LACK REVISION IDS",
+    "WIN-007": "CLOSED, RE-CERTIFIED",
+    "WIN-008": "OPEN: TARGET-SET STABILITY REQUIRES TARGET-SCOPE FREEZING",
+    "WIN-009": "CLOSED, RE-CERTIFIED",
+    "WIN-010": "CLOSED_FOR_CERTIFIED_FINANCIAL_MUTATION_PERMISSION; SUPPORTING_DIAGNOSTICS_AND_RETIREMENT_KEEP_DISTINCT_NATIVE_SEMANTICS",
+    "XINT-006": "CERTIFIED_T14B_T14C_WRITER_ENFORCEMENT_COMPLETE; T14D_T14E_SCOPE_REMAINS"
+  },
+  "historical_artifact_sha256": {
+    "app/services/core_calculation_evidence.py": "9354b2c38c4fab25e05e305e55bb46ba10d9412d604a53a7865556b48e4e418c",
+    "app/services/core_mutation_authority.py": "a6d873fb86fc83cb648aafb27437c0b38faf08deb78ca7a1bd43410c229ee9f1",
+    "app/services/decision_mutation_authority.py": "7c543a8d770b549c98f5200f6841a94c8a1f0d3eb5eaa0c99e69e7dd2e064bdc",
+    "app/services/domain_mutation.py": "a1a39e818238b691c026b45400f9405f43e38fcd1297718a9263d3513bbbca64",
+    "app/services/setup_lifecycle/alert_service.py": "545d9139f4cb7e46a9586a20a9b96af3940709c8ea2686abfea2523e6f2af832",
+    "app/services/setup_lifecycle/decision_evidence.py": "dc3e916c3a9f78007529ca4798963df6fd64b29665a23ce2bc0b1c57eb1ce05f",
+    "app/services/setup_lifecycle/episode_service.py": "0e7e0c85ea555a47f1ae7bb97b6ab864794aa099410053668a35e50a0277112a",
+    "app/services/setup_lifecycle/repository.py": "286515448f2c2fb6319375f10536ab0163129afe4e77bf85cea7f0b61758afcb",
+    "app/services/winner_probability/calibration_service.py": "8ebfdad769a8ef43d7b5afdbeec5569782e9cd531386088b8ad8971bc69e910c",
+    "app/services/winner_probability/capture_service.py": "fb764ae86b9976fb951354ab8a63635d83edb71bffc8f619e0263bb793d0f4ad",
+    "app/services/winner_probability/drift_service.py": "98659695485c8c242078f35a6545fde4f75b83e810437e10ab41ad115b50927c",
+    "app/services/winner_probability/model_training.py": "803d881614a5edef8ba645a02eb1e7be64620019d6a7797b0ca33eca27f97676",
+    "app/services/winner_probability/mutation_authority.py": "4b99407250ead1f95a85173ce440171011630637317f34f6f344322fb67ae880",
+    "app/services/winner_probability/repository.py": "848d993b5b72556d4143aae79a826912708e16732aa27151e45df265f53c1fd3",
+    "app/services/winner_probability/similarity_service.py": "895c38051fecf20927665a9d64f4277ab696579eacd4af8d78e7c9ad9bcfc52a",
+    "docs/architecture/SWINGLENS_MUTATION_ENTRYPOINT_CONTRACT.md": "a9ec6f61a1b787b1dd58aef9ffc33fa53d36c1fa5eb9db6ccbc55e6aae77b197",
+    "docs/remediation/calculation-lineage/T14C_T14D_exact_handoff.json": "959034ddda29802e749f4d99f8abdb262e36b664f83c70010e81e660d67444f1",
+    "docs/remediation/calculation-lineage/T14C_checked_handoff.json": "cab93b7373be64e97c57dbefba41183b5ef5cfc9f5854e2bf1adb644ba27efbb",
+    "docs/remediation/calculation-lineage/T14C_decision_winner_writer_adoption.md": "b475d2861cbb62f835f96243fa94053f551e01f7027702d5851edc2ddb3df822",
+    "docs/remediation/calculation-lineage/T14C_decision_winner_writer_certification.json": "dbf1dbd99597431e58287806e2cc4717762387a07ff9203be1957e95b902df8f",
+    "docs/remediation/calculation-lineage/T14C_semantic_family_review.json": "6fa2a4323a9076b1d30f335fc46d23503bc684491bd14eb2b5d52e2eaf3fe1ec",
+    "docs/remediation/calculation-lineage/T14C_semantic_review_source_pins.json": "bcf0dcc64e97fa0183ee5bb3767f49536407de03df19e16dc5abea4ccaf493e5",
+    "docs/remediation/calculation-lineage/T14C_starting_state.json": "24e1f8312491368d918fa25367cb7a89f7bdbaec0bf8206dacdd03dd3bafeb82",
+    "scripts/qa/t14a_semantic_completeness.py": "714fdcea5edc3c0fe4e6e47cc6595c38fe7a1de7a2ba8f12bb61cbbfcc423913",
+    "scripts/qa/t14a_semantic_families.py": "85b943cb7e122b07410519c6ce9087722e7fff7a30f655196cb0d8e9c3584d0b",
+    "tests/conftest.py": "13ad3c7c3a897e036c20a25e809e765f2f0713eabedab5f2f2e662a073aca34d",
+    "tests/integration/test_contextual_consumer_eligibility_postgresql.py": "ba907dfe32770395ef41e1c62cf21141f6c8bf7a253daeacc38093c8391c9a62",
+    "tests/integration/test_t14c_decision_writer_postgresql.py": "92e4538da6895838eca7b5fbfbd665b4d69077b7bff704ac183eb9ee6db36f26",
+    "tests/test_t14a_mutation_inventory.py": "aba551643261f886c988aa1d21d51ce3cc85a2a4df9fb129ef69a121b7f77ad0",
+    "tests/winner_probability/test_consumer_readiness.py": "5760d1ff6085b31ccc255dd891a41ab97fcec4de92b66c633d0f3d36d434c8be",
+    "tests/winner_probability/test_readiness_frozen_operations.py": "676f1cca10a89b47722d76911be0abaed34083cef8ed14ca8f01ebca9997d58c",
+    "tests/winner_probability/test_t12d_ready_scenarios.py": "9726e242a229e31d5c43ff97d43355740ebc3cc35a08a22cb442c019b5f20ce8",
+    "tests/winner_probability/test_t12e_readiness_certification.py": "fcc779a7fc02b6975efc16ffaaf7c9d1fc1af1e59a8cda221a2a0bef947bd251",
+    "tests/winner_probability/test_winner_calculation_identity_adoption.py": "cc43770dc745b6ae691977f42da73c1d2b80aac266b14a742fb7dda1d2b7281c"
+  },
+  "historical_static_attempt": {
+    "changed_python_ruff_format_compile": "PASS: .qa_work/t14c-static-final.log (all 26 changed Python files, including final test-only clone adjustment)",
+    "format_entire_root": "FAIL: 242 files outside the focused formatting lane; no broad formatting rewrite performed",
+    "git_diff_check": "PASS; ordinary Windows line-ending warnings",
+    "handoff_completeness": "PASS: exact 41 families, 84 initiators, zero unreconciled IDs",
+    "inventory_determinism": "PASS: final T14A/T14B/domain foundation regression, 89 cases; byte-deterministic exports/source freshness gates included. Historical inventory files are not regenerated in place",
+    "ruff_app_scripts_tests": "PASS",
+    "ruff_entire_root": "FAIL: existing legacy Alembic lint plus corrected changed-test import ordering; not an adoption PASS gate substitute",
+    "schema_model_drift": "PASS in each focused native PostgreSQL fixture",
+    "single_alembic_head": "PASS: 0080_effective_configuration",
+    "tracked_and_untracked_secret_scan": "PASS: .qa_work/t14c-secret-final.log; zero credential-shaped findings in all tracked and current untracked text artifacts"
+  },
+  "historical_tests": {
+    "t14c-alert-final": {
+      "errors": 0,
+      "failed_cases": [],
+      "failures": 0,
+      "sha256": "f1ed881b224139610b73aefc79a129fb34b259e6cc5da4a3b4dcab7377e2fabb",
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 1,
+      "xml": ".qa_work\\t14c-alert-final.xml"
+    },
+    "t14c-broader": {
+      "errors": 21,
+      "failed_cases": [
+        {
+          "case": "tests.e2e.single_run_certification.test_single_run_certification::test_single_run_comprehensive_e2e_certification",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: BLOCKED: certification requires disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_dashboard_keyboard_navigation_and_responsive_layout[chromium]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_ceri_operations_contains_wide_tables_on_mobile[chromium]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_dashboard_loads_without_browser_console_errors[chromium]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_csv_upload_reaches_run_detail_in_real_browser[chromium]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_settings_page_exposes_research_only_ib_boundary[chromium]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_slse_populated_browser::test_populated_market_changes_and_alert_center_contract[chromium]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/runs]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/market-regime]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/setup-lifecycle]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/setup-lifecycle/alerts]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/ceri]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/ceri/operations]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/history]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/winner-probability/operations]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/ib]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/scoring]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/settings]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/system/operations]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.e2e.test_browser_smoke::test_core_surfaces_have_accessible_structure_and_contrast[chromium-/help]",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: Browser tests require disposable PostgreSQL: connection failed: connection to server at \"127.0.0.1\", port 5432 failed: FATAL:  password authentication failed for user \"postgres\"\""
+        },
+        {
+          "case": "tests.integration.test_webapp_fix_flows::test_upload_fetch_plan_execution_cockpit_and_export_flow",
+          "kind": "failure",
+          "message": "assert False\n +  where False = <app.models.tables.CombinedResult object at 0x000001D9A29CB620>.is_complete"
+        },
+        {
+          "case": "tests.integration.test_webapp_fix_flows::test_v4_technical_workflow_refreshes_cockpit_and_exports_fields",
+          "kind": "failure",
+          "message": "AssertionError: assert None == 'Climax reversal risk'\n +  where None = <app.models.tables.CombinedResult object at 0x000001D9A2B2B4A0>.technical_classification"
+        },
+        {
+          "case": "tests.test_producer_readiness::test_lifecycle_gap_evidence_and_current_pointer_never_certify_trading_ready",
+          "kind": "failure",
+          "message": "ValueError: MUTATION_LIFECYCLE_GAP_EXPLICIT_AUTHORITY_REQUIRED"
+        }
+      ],
+      "failures": 3,
+      "sha256": "3d13823bd1080b449203cac494fd9626644831ac4feaa016021e38f9fb167c41",
+      "skipped": 10,
+      "status": "FAIL",
+      "tests": 3486,
+      "xml": ".qa_work\\t14c-broader.xml"
+    },
+    "t14c-browser-final": {
+      "errors": 1,
+      "failed_cases": [
+        {
+          "case": "tests.e2e.single_run_certification.test_single_run_certification::test_single_run_comprehensive_e2e_certification",
+          "kind": "error",
+          "message": "failed on setup with \"Failed: BLOCKED: Alembic migration failed; see C:\\Users\\Ivica\\Documents\\SwingLens\\test-results\\single-run-certification\\20260917T212223Z-7bbedebb\\logs\\alembic-upgrade.log\""
+        },
+        {
+          "case": "tests.e2e.test_slse_populated_browser::test_populated_market_changes_and_alert_center_contract[chromium]",
+          "kind": "failure",
+          "message": "AssertionError: Locator expected to have count '1'\nActual value: 0 \nCall log:\n  - Expect \"to_have_count\" with timeout 5000ms\n  - waiting for locator(\"tbody tr:not(.detail-row)\")\n    14 \u00d7 locator resolved to 0 elements\n       - unexpected value \"0\""
+        }
+      ],
+      "failures": 1,
+      "sha256": "4c1ff3879acbd871cc00a8aef56b105f053b5ec7a025a053025a9803201feab1",
+      "skipped": 0,
+      "status": "FAIL",
+      "tests": 28,
+      "xml": ".qa_work\\t14c-browser-final.xml"
+    },
+    "t14c-focused-certified-attempt": {
+      "errors": 0,
+      "failed_cases": [],
+      "failures": 0,
+      "sha256": "635b9a36f97eac9d3b0c0600adf7325be4aba92a49f8d30b0ddeb9d56e073797",
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 4,
+      "xml": ".qa_work\\t14c-focused-certified-attempt.xml"
+    },
+    "t14c-foundation": {
+      "errors": 0,
+      "failed_cases": [
+        {
+          "case": "tests.test_t14a_mutation_inventory::test_exports_are_byte_deterministic",
+          "kind": "failure",
+          "message": "AssertionError: T14A_entrypoint_writer_inventory.csv\nassert b'entrypoint,...OPTION,T14D\\n' == b'entrypoint,...OPTION,T14D\\n'\n  \n  At index 2848163 diff: b'7' != b'8'\n  Use -v to get more diff"
+        },
+        {
+          "case": "tests.test_t14a_mutation_inventory::test_foundation_does_not_certify_caller_authority",
+          "kind": "failure",
+          "message": "AssertionError: assert 'FAIL' == 'PASS'\n  \n  - PASS\n  + FAIL"
+        },
+        {
+          "case": "tests.test_t14a_mutation_inventory::test_production_adoption_is_source_qualified_and_preserves_foundation_history",
+          "kind": "failure",
+          "message": "KeyError: 'foundation_baseline'"
+        },
+        {
+          "case": "tests.test_t14a_mutation_inventory::test_incomplete_writer_review_remains_a_hard_foundation_gate",
+          "kind": "failure",
+          "message": "AssertionError: assert 'FAIL' == 'PASS'\n  \n  - PASS\n  + FAIL"
+        }
+      ],
+      "failures": 4,
+      "sha256": "ad65e25123c47f93f3b3b9359d73cda9b9fb1ece0fc6f4de07aec3d74a2a29ec",
+      "skipped": 0,
+      "status": "FAIL",
+      "tests": 89,
+      "xml": ".qa_work\\t14c-foundation.xml"
+    },
+    "t14c-foundation-final": {
+      "errors": 0,
+      "failed_cases": [],
+      "failures": 0,
+      "sha256": "f57060f72b54aa36a88df4d7335f34c6de7dc8f8a3847bd5772eae43cf9762b7",
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 89,
+      "xml": ".qa_work\\t14c-foundation-final.xml"
+    },
+    "t14c-postgres-final": {
+      "errors": 0,
+      "failed_cases": [],
+      "failures": 0,
+      "sha256": "15ef578ace6a888061f8d145f3d39de5195a16672183e77be474708aaf370daa",
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 14,
+      "xml": ".qa_work\\t14c-postgres-final.xml"
+    }
+  },
+  "legacy_backfill_required": false,
+  "migration_head": "0080_effective_configuration",
+  "migration_required": false,
+  "phase0_through_4_module_counts": {
+    "tests.integration.test_ceri_immutable_decision_evidence": 14,
+    "tests.integration.test_contextual_configuration_adoption_postgresql": 4,
+    "tests.integration.test_contextual_consumer_eligibility_postgresql": 1,
+    "tests.integration.test_core_calculation_evidence_postgresql": 4,
+    "tests.integration.test_core_configuration_adoption_postgresql": 5,
+    "tests.integration.test_decision_configuration_delivery_postgresql": 20,
+    "tests.integration.test_domain_mutation_postgresql": 4,
+    "tests.integration.test_effective_configuration_postgresql": 2,
+    "tests.integration.test_ibmi_immutable_constituent_evidence": 8,
+    "tests.integration.test_phase2_immutable_evidence_certification": 3,
+    "tests.integration.test_phase4_configuration_certification_postgresql": 7,
+    "tests.integration.test_readiness_evidence_postgresql": 1,
+    "tests.integration.test_regime_sector_immutable_evidence_postgresql": 5,
+    "tests.integration.test_repository_historical_read_enforcement": 20,
+    "tests.integration.test_session_temporal_integrity_postgresql": 2,
+    "tests.integration.test_setup_lifecycle_alert_immutable_evidence": 6,
+    "tests.integration.test_t14b_cache_authority_postgresql": 1,
+    "tests.integration.test_t14b_financial_source_values_postgresql": 2,
+    "tests.integration.test_t14b_regime_legacy_maintenance_postgresql": 1,
+    "tests.integration.test_t14b_source_boundaries_postgresql": 1,
+    "tests.integration.test_t14b_writer_authority_postgresql": 9,
+    "tests.integration.test_technical_consumer_eligibility_postgresql": 1,
+    "tests.integration.test_transition_preflight_plan_postgresql": 24,
+    "tests.integration.test_winner_consumer_eligibility_postgresql": 8,
+    "tests.integration.test_winner_temporal_integrity_postgresql": 10,
+    "tests.test_contextual_effective_configuration": 30,
+    "tests.test_core_effective_configuration": 24,
+    "tests.test_decision_effective_configuration": 31,
+    "tests.test_effective_configuration": 41,
+    "tests.test_phase4_configuration_certification": 36
+  },
+  "potential_bypass_family_ids": [],
+  "previous_t14c_failure_resolved": true,
+  "prior_attempts": {
+    "collection_attempt": "Four temporary syntax collection errors from misplaced simulation marks; corrected and 515-case lane passed",
+    "focused_before_final_repo_guards": "4 passed, 13 existing warnings",
+    "foundation_before_source_freeze": "4 failed, 85 passed; source changes during exports plus missing foundation_baseline metadata. Final results supersede when completed.",
+    "foundation_final_first_invocation": "Collection invocation used a nonexistent test_t14b_mutation_writer_inventory.py path; corrected invocation passed all 89 cases.",
+    "historical_winner_pg": "Initial 2 passed/7 failed legacy source configuration; a follow-up interrupted on an unnecessary raw-source row lock. Removed lock; revalidated retained immutable raw handoff membership. Lane not counted as PASS.",
+    "parity_recheck": "515 passed, one existing warning; mocked storage boundary is calculator evidence only",
+    "phase4_worker": "1 failed, 6 deselected; actual root native capture succeeded, downstream date-only gap rejected",
+    "unit_initial": "65 failed, 823 passed; superseded calculator separation and source freshness changes"
+  },
+  "production_rewrite_required": false,
+  "production_runtime_mutations": [],
+  "schema_changes": [],
+  "starting_head": "d56fe385e29b7b6233d2df5031a40a576db0ca7f",
+  "static": {
+    "changed_python_ruff_format_compile": "PASS: Ruff and compile for all 92 changed Python files; .qa_work/t14c-final-static.json",
+    "format_entire_root": "FAIL: 242 files outside the focused formatting lane; no broad formatting rewrite performed",
+    "git_diff_check": "PASS: .qa_work/t14c-final-diff-check.log; ordinary Windows line-ending warnings",
+    "handoff_completeness": "PASS: exact 41 families, 84 initiators, zero unreconciled IDs",
+    "inventory_determinism": "PASS: final T14A/T14B/domain foundation regression, 89 cases; byte-deterministic exports/source freshness gates included. Historical inventory files are not regenerated in place",
+    "ruff_app_scripts_tests": "PASS",
+    "ruff_entire_root": "FAIL: existing legacy Alembic lint plus corrected changed-test import ordering; not an adoption PASS gate substitute",
+    "schema_model_drift": "PASS in each focused native PostgreSQL fixture",
+    "single_alembic_head": "PASS: 0080_effective_configuration",
+    "tracked_and_untracked_secret_scan": "PASS: .qa_work/t14c-secret-final.log; zero credential-shaped findings in all tracked and current untracked text artifacts"
+  },
+  "tests": {
+    "t14c-final-broader": {
+      "artifact": ".qa_work/t14c-final-broader.xml",
+      "deselected": 347,
+      "duration_seconds": 833.005,
+      "errors": 0,
+      "failures": 0,
+      "passed": 3450,
+      "sha256": "712bc96ec369be10fbdab3ec61f1da9ac745053fde7ca668ec4a386a2ff7968d",
+      "skip_reasons": [
+        {
+          "reason": "external_ib_bid_ask requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[liquidity-external_ib_bid_ask]"
+        },
+        {
+          "reason": "external_ib_fee_rate requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[short-pressure-external_ib_fee_rate]"
+        },
+        {
+          "reason": "external_ib_volatility requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[volatility-external_ib_volatility]"
+        },
+        {
+          "reason": "external_ib_generic_ticks requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[options-external_ib_generic_ticks]"
+        },
+        {
+          "reason": "external_ib_scanner requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[scanner-external_ib_scanner]"
+        },
+        {
+          "reason": "external_ib_histogram requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[histogram-external_ib_histogram]"
+        },
+        {
+          "reason": "external_ib_flex requires SWINGLENS_RUN_EXTERNAL_IBMI=true",
+          "test": "tests.ib_market_intelligence.test_external_smoke.test_external_ib_market_intelligence[flex-external_ib_flex]"
+        }
+      ],
+      "skipped": 7,
+      "status": "PASS",
+      "tests": 3457,
+      "warnings": 23
+    },
+    "t14c-final-browser-runtime-fixed": {
+      "artifact": ".qa_work/t14c-final-browser-runtime-fixed.xml",
+      "deselected": 0,
+      "duration_seconds": 622.467,
+      "errors": 0,
+      "failures": 0,
+      "passed": 25,
+      "sha256": "71e5ea1190edbf0f5e75ff3b4940d9830a168f728bccbf83af420c9289567ac7",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 25,
+      "warnings": 2
+    },
+    "t14c-final-fetch-delivery": {
+      "artifact": ".qa_work/t14c-final-fetch-delivery.xml",
+      "deselected": 0,
+      "duration_seconds": 1.081,
+      "errors": 0,
+      "failures": 0,
+      "passed": 27,
+      "sha256": "7c0227c3f45ea056b3ffe0d7e345c5638ad4228fa34e7430cd4baa0b4de42259",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 27,
+      "warnings": 1
+    },
+    "t14c-final-phase0-4": {
+      "artifact": ".qa_work/t14c-final-phase0-4.xml",
+      "deselected": 0,
+      "duration_seconds": 1575.091,
+      "errors": 0,
+      "failures": 0,
+      "passed": 325,
+      "sha256": "c2be20f6872cb8e92694625c7007e53cd4f76ef7855b89bfd78a0311f28ce22d",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 325,
+      "warnings": 226
+    },
+    "t14c-final-t14b-native": {
+      "artifact": ".qa_work/t14c-final-t14b-native.xml",
+      "deselected": 0,
+      "duration_seconds": 126.521,
+      "errors": 0,
+      "failures": 0,
+      "passed": 14,
+      "sha256": "969f2c46d5b01f382331742ae8c25c8b349cb6253a9a7c8072bf80536cacd9f2",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 14,
+      "warnings": 43
+    },
+    "t14c-wave7-decision-full": {
+      "artifact": ".qa_work/t14c-wave7-decision-full.xml",
+      "deselected": 0,
+      "duration_seconds": 821.175,
+      "errors": 0,
+      "failures": 0,
+      "passed": 28,
+      "sha256": "e4a72a06b73f06fd311aaa3d41e2f9fdd42da58f6c3d1cd8c8361f62344c17cb",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 28,
+      "warnings": 85
+    },
+    "t14c-wave7-ownership": {
+      "artifact": ".qa_work/t14c-wave7-ownership.xml",
+      "deselected": 0,
+      "duration_seconds": 67.707,
+      "errors": 0,
+      "failures": 0,
+      "passed": 53,
+      "sha256": "1579766fe78fc9ecdaf5f488f776111916d2040e05c6d3c5ef372356661c1c81",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 53,
+      "warnings": 1
+    },
+    "t14c-wave7-unit": {
+      "artifact": ".qa_work/t14c-wave7-unit.xml",
+      "deselected": 0,
+      "duration_seconds": 273.38,
+      "errors": 0,
+      "failures": 0,
+      "passed": 799,
+      "sha256": "e5c60d48c13b181b70648e3c0611f4fd64eccf54be7b245a0035601cfde22437",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 799,
+      "warnings": 1
+    },
+    "t14c-wave7-winner-complete-matrix": {
+      "artifact": ".qa_work/t14c-wave7-winner-complete-matrix.xml",
+      "deselected": 0,
+      "duration_seconds": 77.623,
+      "errors": 0,
+      "failures": 0,
+      "passed": 2,
+      "sha256": "4d254a6a03b312f63f3b3c0e33be132db08e3d7c384336979d4cb0b31f4312ee",
+      "skip_reasons": [],
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 2,
+      "warnings": 7
+    }
+  },
+  "uncertified_family_ids": [],
+  "verdict": "PASS"
+}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -10,6 +10,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from app.models.tables import ProcessingStatus, WinnerModelTrainingRun
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
     load_winner_probability_config,
@@ -74,11 +75,7 @@ class ShadowModelTrainingService:
         folds: list[WalkForwardFold] = []
         for fold_index, chunk in enumerate(chunks, start=1):
             test_episode_keys = {group.episode_key for group in chunk}
-            test_indices = tuple(
-                index
-                for group in chunk
-                for index in group.example_indices
-            )
+            test_indices = tuple(index for group in chunk for index in group.example_indices)
             test_start = min(ordered[index].cutoff_at for index in test_indices)
             train_indices = tuple(
                 index
@@ -176,6 +173,7 @@ class ShadowModelTrainingService:
             artifact_payload=artifact_payload,
         )
 
+    @core_writer_transaction
     def persist_training_run(
         self,
         db: Session,
@@ -185,7 +183,57 @@ class ShadowModelTrainingService:
         training_cutoff_at: datetime,
         background_job_id: int | None = None,
         candidate_model_version_id: int | None = None,
+        mutation_context=None,
+        effective_configuration=None,
+        training_parameters: dict[str, Any] | None = None,
     ) -> WinnerModelTrainingRun:
+        if isinstance(db, Session):
+            from app.services.winner_probability.mutation_authority import (
+                validate_diagnostic_authority,
+            )
+
+            population = validate_diagnostic_authority(
+                db,
+                mutation_context,
+                writer="ShadowModelTrainingService.persist_training_run",
+                subject_id=candidate_model_version_id,
+                outcome_id=outcome_definition_id,
+                configuration=effective_configuration,
+                contract={
+                    "artifact": "TRAINING",
+                    "report": asdict(report),
+                    "training_cutoff_at": training_cutoff_at,
+                    "training_parameters": training_parameters or {},
+                },
+            )
+            from app.services.winner_probability.mutation_authority import diagnostic_population
+
+            if training_cutoff_at != mutation_context.temporal.cutoff_at:
+                raise ValueError("MUTATION_WINNER_TRAINING_CUTOFF_MISMATCH")
+            evidence = diagnostic_population(
+                db, population, outcome_definition_id, as_of=training_cutoff_at
+            )
+            examples = tuple(
+                ShadowTrainingExample(
+                    feature_vector=p.prediction.feature_json,
+                    label=p.won,
+                    cutoff_at=p.prediction.source_data_cutoff_at,
+                    episode_id=p.prediction.episode_id,
+                    weight=p.inclusion_weight,
+                )
+                for p in evidence
+            )
+            native = ShadowModelTrainingService().train_shadow_report(
+                examples,
+                feature_names=report.feature_order,
+                outcome_definition_id=outcome_definition_id,
+                training_cutoff_at=training_cutoff_at,
+                algorithm=report.algorithm,
+                config=effective_configuration.winner_config(),
+                **(training_parameters or {}),
+            )
+            if native != report:
+                raise ValueError("MUTATION_WINNER_TRAINING_REPORT_MISMATCH")
         row = WinnerModelTrainingRun(
             background_job_id=background_job_id,
             candidate_model_version_id=candidate_model_version_id,
@@ -195,6 +243,11 @@ class ShadowModelTrainingService:
             feature_schema_version=report.feature_schema_version,
             training_cutoff_at=training_cutoff_at,
             fold_plan_json={
+                **(
+                    {"mutation_authority": mutation_context.canonical_payload()}
+                    if isinstance(db, Session)
+                    else {}
+                ),
                 "folds": [
                     {
                         "fold_index": fold.fold_index,
@@ -207,7 +260,7 @@ class ShadowModelTrainingService:
                         "test_episode_ids": list(fold.test_episode_ids),
                     }
                     for fold in report.fold_plan
-                ]
+                ],
             },
             preprocessing_json=report.preprocessing,
             metrics_json=report.metrics,
@@ -216,6 +269,17 @@ class ShadowModelTrainingService:
             started_at=training_cutoff_at,
             completed_at=_utcnow(),
         )
+        if isinstance(db, Session):
+            from app.services.winner_probability.mutation_authority import (
+                diagnostic_input_bodies,
+                seal_diagnostic_artifact,
+            )
+
+            row.fold_plan_json["input_bodies"] = diagnostic_input_bodies(evidence)
+
+            seal_diagnostic_artifact(
+                row, "fold_plan_json", artifact_payload=report.artifact_payload
+            )
         db.add(row)
         db.flush()
         return row
@@ -258,6 +322,17 @@ def _fit_and_score_fold(
         "fold_index": fold.fold_index,
         "train_n": len(train),
         "test_n": len(test),
+        "held_out": [
+            {
+                "index": index,
+                "probability": round(float(probability), 10),
+                "observed": example.label,
+                "weight": str(example.weight),
+            }
+            for index, probability, example in zip(
+                fold.test_indices, predictions, test, strict=True
+            )
+        ],
         "model_log_loss": _log_loss(y_test, predictions),
         "model_brier_score": _brier_score(y_test, predictions),
         "global_baseline_log_loss": _baseline_log_loss(y_test, global_baseline),
@@ -411,8 +486,7 @@ def _episode_groups(examples: tuple[ShadowTrainingExample, ...]) -> tuple[_Episo
 def _chunks(items: tuple[_EpisodeGroup, ...], count: int) -> tuple[tuple[_EpisodeGroup, ...], ...]:
     chunk_size = max(math.ceil(len(items) / count), 1)
     return tuple(
-        tuple(items[index : index + chunk_size])
-        for index in range(0, len(items), chunk_size)
+        tuple(items[index : index + chunk_size]) for index in range(0, len(items), chunk_size)
     )
 
 

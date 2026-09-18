@@ -357,7 +357,16 @@ def configuration_for_winner_generation(db, generation, config):
         != resolve_winner_configuration(config, family="cohort").snapshot.semantic_hash
     ):
         raise ValueError("WINNER_GENERATION_CONFIGURATION_ANCHOR_MISMATCH")
-    return retained.winner_config()
+    decoded = retained.winner_config()
+    object.__setattr__(
+        decoded,
+        "_configuration_snapshots",
+        {
+            namespace: delivery.configurations[namespace]
+            for namespace in ("decision.winner.cohort", "decision.winner.generation")
+        },
+    )
+    return decoded
 
 
 def bind_job_configuration(db, job):

@@ -99,12 +99,39 @@ class CanonicalEvidenceSerializer:
     @classmethod
     def dumps(cls, value: Any) -> str:
         return json.dumps(
-            cls.canonicalize(value),
+            value if cls._already_canonical_json(value) else cls.canonicalize(value),
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,
             allow_nan=False,
         )
+
+    @classmethod
+    def _already_canonical_json(cls, value: Any, field_name: str | None = None) -> bool:
+        """Check fresh JSON without allocating another complete evidence tree.
+
+        JSON key ordering is supplied by dumps. Other canonical transformations
+        still use canonicalize, including typed values and sequence reordering.
+        No validation result or fingerprint is cached for mutable input.
+        """
+        kind = type(value)
+        if value is None or kind in (bool, int, str):
+            return True
+        if kind is float:
+            return math.isfinite(value) and not (value == 0 and math.copysign(1, value) < 0)
+        if kind is dict:
+            return all(
+                type(key) is str and cls._already_canonical_json(item, key)
+                for key, item in value.items()
+            )
+        if kind is list:
+            if not all(cls._already_canonical_json(item) for item in value):
+                return False
+            if cls._is_unordered_field(field_name):
+                keys = [cls._sort_key(item) for item in value]
+                return all(left <= right for left, right in zip(keys, keys[1:], strict=False))
+            return True
+        return False
 
     @classmethod
     def bytes(cls, value: Any) -> bytes:

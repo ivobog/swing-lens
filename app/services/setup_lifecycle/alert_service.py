@@ -20,6 +20,7 @@ from app.models.tables import (
 )
 from app.services.configuration_delivery import anchored_decision_calculator
 from app.services.contextual_consumer_eligibility import setup_with_contextual_permission
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.decision_evidence import (
     get_setup_evidence,
@@ -65,9 +66,35 @@ class SetupLifecycleAlertService:
         self.repository = repository or SetupLifecycleRepository()
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def seed_builtin_rules(self, db) -> tuple[SignalAlertRule, ...]:
+        self.effective_configuration.require_family("decision.alerts.setup")
+        self.config = self.effective_configuration.setup_config()
         if not self.config.alerts.built_in_rules_enabled:
             return ()
+        from app.models.tables import BackgroundJob
+        from app.services.decision_mutation_authority import operational_decision_authority
+        from app.services.domain_write_fence import current_domain_write_ownership
+
+        ownership = current_domain_write_ownership()
+        job = db.get(BackgroundJob, ownership.job_id) if ownership is not None else None
+        operational_decision_authority(
+            db,
+            writer="setup_alert_rule_bootstrap",
+            manifest={
+                "configuration": self.effective_configuration.snapshot.as_dict(),
+                "built_in_rules_enabled": True,
+                "native_rule_ids": sorted(self.config.alerts.rules),
+            },
+            run_id=job.related_run_id if job is not None else None,
+            job_types=(
+                "FULL_PIPELINE",
+                "SETUP_LIFECYCLE_EVALUATE_RUN",
+                "SETUP_LIFECYCLE_DAILY_MAINTENANCE",
+                "SETUP_LIFECYCLE_REPAIR_TICKER",
+                "SETUP_ALERT_REBUILD",
+            ),
+        )
         from app.services.configuration_delivery import current_delivery
 
         if current_delivery() is not None:
@@ -103,6 +130,7 @@ class SetupLifecycleAlertService:
                     config_version=self.config.engine.config_version,
                     condition=dict(rule.filters),
                     market_restrictions=rule.filters.get("market_restrictions"),
+                    effective_configuration=self.effective_configuration,
                 )
             )
         return tuple(rules)
@@ -312,6 +340,7 @@ class SetupLifecycleAlertService:
         )
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def _persist_alert(
         self,
         db,
@@ -331,6 +360,9 @@ class SetupLifecycleAlertService:
         episode_id: int | None = None,
     ) -> AlertServiceResult:
         from app.services.configuration_delivery import current_delivery
+        from app.services.decision_mutation_authority import lock_decision_scope
+
+        lock_decision_scope(db, ("setup-alert", rule.rule_id, ticker.upper(), timeframe))
 
         effective = self.effective_configuration
         if current_delivery() is not None:
@@ -338,6 +370,10 @@ class SetupLifecycleAlertService:
             if rule is None:
                 raise ValueError("MISSING_FROZEN_ALERT_RULE")
         elif not hasattr(self, "_frozen_rules"):
+            from sqlalchemy.orm import Session
+
+            if isinstance(db, Session):
+                raise ValueError("MUTATION_ALERT_FROZEN_CONFIGURATION_REQUIRED")
             # A direct legacy helper call is a new explicit current-rules
             # operation. Public matching paths already froze their whole batch.
             effective = self._freeze_rules((rule,))
@@ -363,6 +399,9 @@ class SetupLifecycleAlertService:
                 **evidence,
                 "source_confidence": source_confidence,
                 "evaluation_run_id": evaluation_run_id,
+                "lifecycle_event_id": lifecycle_event_id,
+                "signal_change_event_id": signal_change_event_id,
+                "episode_id": episode_id,
             },
             "setup_evidence_id": setup_evidence_id,
             "lifecycle_evaluation_evidence_id": lifecycle_evaluation_evidence_id,
@@ -376,6 +415,10 @@ class SetupLifecycleAlertService:
                 lifecycle_transition_evidence_id,
             )
         )
+        from sqlalchemy.orm import Session
+
+        if isinstance(db, Session) and not certified_source:
+            raise ValueError("MUTATION_ALERT_CERTIFIED_SOURCE_REQUIRED")
         if _reconstructed_source(evidence):
             if certified_source:
                 persist_alert_decision_evidence(
@@ -501,8 +544,6 @@ class SetupLifecycleAlertService:
 
     def _rules(self, db) -> tuple[SignalAlertRule, ...]:
         if not hasattr(self, "_frozen_rules"):
-            from copy import deepcopy
-
             from app.services.configuration_delivery import (
                 current_delivery,
                 delivered_configuration,
@@ -521,22 +562,36 @@ class SetupLifecycleAlertService:
                 return self._frozen_rules
 
             self._frozen_rules = tuple(
-                deepcopy(row) for row in self.repository.alert_rules(db, enabled_only=True)
+                self._copy_rule(row) for row in self.repository.alert_rules(db, enabled_only=True)
             )
             self.effective_configuration = self._freeze_rules(self._frozen_rules)
         return self._frozen_rules
 
     def _prepare_rules(self, db, rules):
-        from copy import deepcopy
-
         from app.services.configuration_delivery import current_delivery
 
         if current_delivery() is not None or rules is None:
             return self._rules(db)
         if not hasattr(self, "_frozen_rules"):
-            self._frozen_rules = tuple(deepcopy(row) for row in rules)
+            self._frozen_rules = tuple(self._copy_rule(row) for row in rules)
             self.effective_configuration = self._freeze_rules(self._frozen_rules)
         return self._frozen_rules
+
+    @staticmethod
+    def _copy_rule(rule):
+        from copy import deepcopy
+
+        # Read the attached row's explicit scalar values before copying. Copying
+        # an expired ORM instance first creates an unusable detached loader and
+        # also pulls unrelated relationship state into the frozen operation.
+        return SignalAlertRule(
+            **deepcopy(
+                {
+                    column.name: getattr(rule, column.name)
+                    for column in SignalAlertRule.__table__.columns
+                }
+            )
+        )
 
     def _freeze_rules(self, rules):
         from app.services.decision_effective_configuration import resolve_alert_configuration

@@ -40,6 +40,26 @@ def test_retained_configuration_round_trip_has_no_live_reads(resolver):
     assert restored.snapshot.as_dict() == retained
 
 
+def test_verified_decoder_rejects_changed_payload_after_cache_warmup():
+    from copy import deepcopy
+
+    from app.services.decision_effective_configuration import _verified_configuration_snapshot
+
+    payload = resolve_setup_configuration().snapshot.as_dict()
+    _verified_configuration_snapshot.cache_clear()
+    first = configuration_from_payload(payload)
+    second = configuration_from_payload(deepcopy(payload))
+    assert _verified_configuration_snapshot.cache_info().hits == 1
+    assert first.snapshot.as_dict() == second.snapshot.as_dict() == payload
+    second.values["native"]["config_hash"] = "altered-runtime-value"
+    assert configuration_from_payload(payload).snapshot.as_dict() == payload
+    altered = deepcopy(payload)
+    altered["entries"][0]["value"] = {"type": "string", "value": "tampered"}
+    with pytest.raises(ValueError, match="FROZEN_CONFIGURATION_INTEGRITY_MISMATCH"):
+        configuration_from_payload(altered)
+    assert configuration_from_payload(payload).snapshot.as_dict() == payload
+
+
 def test_setup_drift_preserves_original():
     config = load_setup_lifecycle_config()
     first = resolve_setup_configuration(config)

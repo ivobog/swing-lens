@@ -17,6 +17,11 @@ ADOPTION_REVIEW_FILE = (
 )
 if ADOPTION_REVIEW_FILE.exists():
     REVIEW_FILE = ADOPTION_REVIEW_FILE
+DECISION_REVIEW_FILE = (
+    ROOT / "docs/remediation/calculation-lineage/T14C_semantic_family_review.json"
+)
+if DECISION_REVIEW_FILE.exists():
+    REVIEW_FILE = DECISION_REVIEW_FILE
 DISPOSITIONS = {
     "T14B",
     "T14C",

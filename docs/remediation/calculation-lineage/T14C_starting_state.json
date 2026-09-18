@@ -1,0 +1,86 @@
+{
+  "repository_path": "C:\\Users\\Ivica\\Documents\\SwingLens",
+  "branch": {
+    "command": [
+      "git",
+      "branch",
+      "--show-current"
+    ],
+    "exit_status": 0,
+    "stdout": "codex/t14c-decision-winner-writer-adoption",
+    "stderr": ""
+  },
+  "head": {
+    "command": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit_status": 0,
+    "stdout": "d56fe385e29b7b6233d2df5031a40a576db0ca7f",
+    "stderr": ""
+  },
+  "git_status": {
+    "command": [
+      "git",
+      "status",
+      "--porcelain"
+    ],
+    "exit_status": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "tracked_changes": {
+    "command": [
+      "git",
+      "diff",
+      "--name-status"
+    ],
+    "exit_status": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "untracked_files": {
+    "command": [
+      "git",
+      "ls-files",
+      "--others",
+      "--exclude-standard"
+    ],
+    "exit_status": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "migration_head": {
+    "command": [
+      "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+      "-m",
+      "alembic",
+      "heads"
+    ],
+    "exit_status": 0,
+    "stdout": "0080_effective_configuration (head)",
+    "stderr": ""
+  },
+  "python_version": "3.12.2 (tags/v3.12.2:6abddd9, Feb  6 2024, 21:26:36) [MSC v.1937 64 bit (AMD64)]",
+  "docker": {
+    "command": [
+      "docker",
+      "info",
+      "--format",
+      "{{.ServerVersion}}"
+    ],
+    "exit_status": 0,
+    "stdout": "29.6.2",
+    "stderr": ""
+  },
+  "postgresql": {
+    "command": [
+      "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe",
+      "--version"
+    ],
+    "exit_status": 0,
+    "stdout": "pg_ctl (PostgreSQL) 18.3",
+    "stderr": ""
+  }
+}

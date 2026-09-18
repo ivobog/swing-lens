@@ -18,6 +18,7 @@ from app.models.tables import (
     WinnerMarketDataObligation,
     WinnerPredictionSnapshot,
 )
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.us_market_calendar import next_us_trading_day
 from app.services.winner_probability.temporal_eligibility import (
     load_current_temporal_decisions,
@@ -143,6 +144,7 @@ def build_recovery_request_plan(needs: Sequence[RecoveryNeed]) -> tuple[Recovery
 class MarketDataObligationService:
     """Persist and evaluate Winner bar dependencies without invoking maturation."""
 
+    @core_writer_transaction
     def ensure_for_outcomes(
         self,
         db: Session,
@@ -151,6 +153,19 @@ class MarketDataObligationService:
         excluded_tickers: frozenset[str] = frozenset(),
         now: datetime | None = None,
     ) -> ObligationSyncResult:
+        if isinstance(db, Session):
+            from app.services.winner_probability.outcome_authority import obligation_authority
+
+            obligation_authority(
+                db,
+                [
+                    row
+                    for row in outcomes
+                    if row.entry_model == "NEXT_OPEN" and row.horizon_sessions == 5
+                ],
+                now=now,
+                writer="MarketDataObligationService.ensure_for_outcomes",
+            )
         now = now or datetime.now(UTC)
         prediction_ids = {int(row.prediction_id) for row in outcomes}
         predictions = {
@@ -226,6 +241,24 @@ class MarketDataObligationService:
                         last_checked_at=now,
                         metadata_json={"obligation_version": "winner-market-data-1.0"},
                     )
+                    if isinstance(db, Session):
+                        from app.services.canonical_evidence import (
+                            CanonicalEvidenceSerializer as Canonical,
+                        )
+                        from app.services.winner_probability.outcome_authority import (
+                            obligation_scope_body,
+                        )
+
+                        obligation.metadata_json = {
+                            **obligation.metadata_json,
+                            "native_obligation_scope": {
+                                "contract": "winner-native-obligation-scope-v1",
+                                "fingerprint": Canonical.fingerprint(
+                                    obligation_scope_body(obligation)
+                                ),
+                                "capture_proof": prediction.lineage_json["native_capture_proof"],
+                            },
+                        }
                     db.add(obligation)
                     existing[key] = obligation
                     created += 1
@@ -243,6 +276,7 @@ class MarketDataObligationService:
             excluded=excluded,
         )
 
+    @core_writer_transaction
     def evaluate(
         self,
         db: Session,
@@ -251,6 +285,8 @@ class MarketDataObligationService:
         tickers: Sequence[str] = (),
         now: datetime | None = None,
     ) -> ObligationSyncResult:
+        if isinstance(db, Session) and (now is None or now.tzinfo is None):
+            raise ValueError("MUTATION_WINNER_OBLIGATION_EXPLICIT_OPERATION_TIME_REQUIRED")
         now = now or datetime.now(UTC)
         if obligations is None:
             statement = select(WinnerMarketDataObligation)
@@ -263,6 +299,35 @@ class MarketDataObligationService:
             obligations = list(db.scalars(statement))
         if not obligations:
             return ObligationSyncResult()
+        if isinstance(db, Session):
+            from app.services.winner_probability.outcome_authority import obligation_authority
+
+            outcomes = [db.get(WinnerForwardOutcome, row.forward_outcome_id) for row in obligations]
+            if any(row is None for row in outcomes):
+                raise ValueError("MUTATION_WINNER_OBLIGATION_OUTCOME_REQUIRED")
+            obligation_authority(
+                db, outcomes, now=now, writer="MarketDataObligationService.evaluate"
+            )
+            for obligation, outcome in zip(obligations, outcomes, strict=True):
+                from app.services.winner_probability.outcome_authority import (
+                    validate_obligation_scope,
+                )
+
+                validate_obligation_scope(obligation)
+                prediction = db.get(WinnerPredictionSnapshot, outcome.prediction_id)
+                required = required_outcome_sessions(
+                    outcome.entry_session, outcome.horizon_sessions
+                )
+                if (
+                    obligation.prediction_id != prediction.id
+                    or obligation.ticker_snapshot != prediction.ticker.upper()
+                    or obligation.entry_session != required[0]
+                    or obligation.required_through_session != required[-1]
+                    or obligation.required_sessions_json != [day.isoformat() for day in required]
+                    or obligation.timeframe != "1 day"
+                    or obligation.what_to_show not in SUPPORTED_BASES
+                ):
+                    raise ValueError("MUTATION_WINNER_OBLIGATION_NATIVE_DEPENDENCY_SCOPE_MISMATCH")
         contract_ids = {row.ib_contract_id for row in obligations if row.ib_contract_id is not None}
         contracts = {
             int(row.id): row
@@ -303,6 +368,17 @@ class MarketDataObligationService:
                 for row in bars_by_key[(obligation.ticker_snapshot, obligation.what_to_show)]
                 if row.bar_date in sessions
             ]
+            if isinstance(db, Session):
+                from app.services.market_clock_service import MarketClockService
+                from app.services.winner_probability.outcome_authority import price_manifest
+
+                price_manifest(
+                    db,
+                    relevant,
+                    clock=MarketClockService().cutoff_for(
+                        now, reason="WINNER_OBLIGATION_OPERATION"
+                    ),
+                )
             watermark = price_series_watermark(relevant)
             present = {row.bar_date for row in relevant}
             missing = tuple(session for session in sessions if session not in present)
@@ -381,6 +457,7 @@ class MarketDataObligationService:
                 )
         return tuple(result)
 
+    @core_writer_transaction
     def record_fetch_results(
         self,
         db: Session,
@@ -389,6 +466,42 @@ class MarketDataObligationService:
         now: datetime | None = None,
     ) -> ObligationSyncResult:
         """Reevaluate touched series and retain provider-result distinctions."""
+        if isinstance(db, Session):
+            if now is None or now.tzinfo is None or fetch_run.id is None:
+                raise ValueError("MUTATION_WINNER_OBLIGATION_FETCH_TIME_SOURCE_REQUIRED")
+            from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+
+            with db.no_autoflush:
+                retained = (
+                    db.execute(
+                        select(*IBFetchRun.__table__.columns).where(IBFetchRun.id == fetch_run.id)
+                    )
+                    .mappings()
+                    .one_or_none()
+                )
+            if retained is None or any(
+                Canonical.dumps(value) != Canonical.dumps(getattr(fetch_run, key))
+                for key, value in retained.items()
+            ):
+                raise ValueError("MUTATION_WINNER_OBLIGATION_RETAINED_FETCH_MISMATCH")
+            for item in fetch_run.items:
+                with db.no_autoflush:
+                    stored = (
+                        db.execute(
+                            select(*item.__table__.columns).where(item.__table__.c.id == item.id)
+                        )
+                        .mappings()
+                        .one_or_none()
+                    )
+                if (
+                    stored is None
+                    or stored["fetch_run_id"] != fetch_run.id
+                    or any(
+                        Canonical.dumps(value) != Canonical.dumps(getattr(item, key))
+                        for key, value in stored.items()
+                    )
+                ):
+                    raise ValueError("MUTATION_WINNER_OBLIGATION_FETCH_ITEM_MISMATCH")
         now = now or datetime.now(UTC)
         items = list(fetch_run.items or [])
         tickers = sorted({str(item.ticker).upper() for item in items})

@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, time
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
 from app.models.tables import SetupLifecycleEpisode, SetupLifecycleEvent, SetupSignalSnapshot
+from app.services.market_clock_service import (
+    EXCHANGE_TIMEZONE,
+    MarketCalculationCutoff,
+    MarketClockService,
+)
 from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
 from app.services.setup_lifecycle.change_detector import SetupLifecycleChangeDetector
 from app.services.setup_lifecycle.enums import SetupFamily
@@ -54,9 +60,7 @@ class SetupLifecycleMaintenanceService:
         self.episode_service = episode_service or SetupLifecycleEpisodeService(
             repository=self.repository
         )
-        self.alert_service = alert_service or SetupLifecycleAlertService(
-            repository=self.repository
-        )
+        self.alert_service = alert_service or SetupLifecycleAlertService(repository=self.repository)
         self.change_detector = change_detector or SetupLifecycleChangeDetector(
             repository=self.repository
         )
@@ -68,6 +72,7 @@ class SetupLifecycleMaintenanceService:
         as_of_date: date,
         market_session_completed: bool = True,
         evaluation_run_id: int | None = None,
+        market_cutoff: MarketCalculationCutoff | None = None,
     ) -> SetupLifecycleMaintenanceResult:
         if not market_session_completed:
             return SetupLifecycleMaintenanceResult(
@@ -75,6 +80,16 @@ class SetupLifecycleMaintenanceService:
                 skipped=1,
                 warnings=("MARKET_SESSION_NOT_COMPLETED",),
             )
+        # This is a new current-state maintenance operation, not a replay of
+        # the original Setup calculation. A requested calendar day selects its
+        # last completed exchange session, including weekends/holidays.
+        if market_cutoff is None:
+            market_cutoff = MarketClockService().cutoff_for(
+                datetime.combine(as_of_date, time.max, tzinfo=ZoneInfo(EXCHANGE_TIMEZONE)),
+                reason="LIFECYCLE_CURRENT_STATE_MAINTENANCE_AS_OF_DAY",
+            )
+        if market_cutoff.latest_completed_session > as_of_date:
+            raise ValueError("LIFECYCLE_MAINTENANCE_FUTURE_SESSION")
         aged = 0
         expired = 0
         warnings: list[str] = []
@@ -89,8 +104,9 @@ class SetupLifecycleMaintenanceService:
                 ticker=episode.ticker,
                 timeframe=episode.timeframe,
                 setup_family=family,
-                observed_on=as_of_date,
+                observed_on=market_cutoff.latest_completed_session,
                 evaluation_run_id=evaluation_run_id,
+                market_cutoff=market_cutoff,
             )
             if result.updated:
                 aged += 1

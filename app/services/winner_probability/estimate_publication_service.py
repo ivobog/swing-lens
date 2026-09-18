@@ -19,6 +19,7 @@ from app.models.tables import (
     WinnerEstimatePublicationRequest,
     WinnerProbabilityEstimate,
 )
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
     GenerationPublicationConflict,
@@ -118,6 +119,7 @@ class WinnerEstimatePublicationService:
     def __init__(self, generation_service: CohortGenerationService | None = None) -> None:
         self.generation_service = generation_service or CohortGenerationService()
 
+    @core_writer_transaction
     def publish(
         self,
         db: Session,
@@ -130,6 +132,8 @@ class WinnerEstimatePublicationService:
         approve_write: bool,
         published_at: datetime | None = None,
         stage_hook: Callable[[str], None] | None = None,
+        config=None,
+        mutation_context=None,
     ) -> dict[str, Any]:
         if not approve_write:
             raise PermissionError("explicit approve_write=True is required")
@@ -141,6 +145,62 @@ class WinnerEstimatePublicationService:
             raise PublicationInvariantViolation("manifest does not identify the reviewed hash")
         if manifest.get("candidate_manifest_hash") != candidate_manifest_hash:
             raise PublicationInvariantViolation("candidate manifest hash mismatch")
+        if isinstance(db, Session):
+            from app.services.decision_effective_configuration import configuration_from_payload
+            from app.services.domain_mutation import MutationDomain
+            from app.services.winner_probability.cohort_authority import (
+                operation_authority,
+                retained_row,
+                validate_completion,
+                validate_generation,
+            )
+            from app.services.winner_probability.estimate_authority import validate_estimate
+
+            scoped_generation = db.get(WinnerCohortGeneration, int(manifest["generation"]["id"]))
+            if scoped_generation is None:
+                raise ValueError("MUTATION_WINNER_PUBLICATION_GENERATION_REQUIRED")
+            operation_authority(
+                db,
+                domain=MutationDomain.WINNER_PUBLICATION,
+                writer="WinnerEstimatePublicationService.publish",
+                config=config,
+                now=published_at,
+                manifest={
+                    "outcome_definition_id": scoped_generation.outcome_definition_id,
+                    "reviewed_manifest_hash": reviewed_manifest_hash,
+                    "candidate_manifest_hash": candidate_manifest_hash,
+                    "records": list(manifest.get("records") or ()),
+                },
+                context=mutation_context,
+            )
+            for label in ("generation", "previous_generation"):
+                source_generation = db.get(WinnerCohortGeneration, int(manifest[label]["id"]))
+                if source_generation is None:
+                    raise ValueError("MUTATION_WINNER_PUBLICATION_GENERATION_REQUIRED")
+                birth = (source_generation.metrics_json or {}).get("native_generation_proof")
+                if birth is None:
+                    raise ValueError("MUTATION_WINNER_CERTIFIED_GENERATION_REQUIRED")
+                source_config = (
+                    config
+                    if label == "generation"
+                    else configuration_from_payload(birth["configuration"]).winner_config()
+                )
+                validate_generation(db, source_generation, source_config)
+                validate_completion(db, source_generation, source_config)
+            for record in manifest.get("records") or ():
+                for role in ("original_estimate_id", "candidate_estimate_id"):
+                    estimate = db.get(WinnerProbabilityEstimate, int(record[role]))
+                    if estimate is None:
+                        raise ValueError("MUTATION_WINNER_PUBLICATION_ESTIMATE_REQUIRED")
+                    retained_row(db, estimate)
+                    birth = (estimate.metadata_json or {}).get(
+                        "effective_configuration_at_creation"
+                    )
+                    if birth is None:
+                        raise ValueError(
+                            "MUTATION_WINNER_CERTIFIED_ESTIMATE_CONFIGURATION_REQUIRED"
+                        )
+                    validate_estimate(estimate, configuration_from_payload(birth).winner_config())
 
         existing_request = db.scalar(
             select(WinnerEstimatePublicationRequest).where(
@@ -148,6 +208,8 @@ class WinnerEstimatePublicationService:
             )
         )
         if existing_request is not None:
+            if isinstance(db, Session):
+                retained_row(db, existing_request)
             if (
                 existing_request.transition_manifest_hash != reviewed_manifest_hash
                 or existing_request.candidate_manifest_hash != candidate_manifest_hash

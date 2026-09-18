@@ -33,7 +33,20 @@ from app.services.producer_readiness import readiness_from_evidence
 _active_writers = ContextVar("core_mutation_semantic_transactions", default=())
 
 
-def core_writer_member(owner):
+def require_semantic_writer(db, owners):
+    owners = (owners,) if isinstance(owners, str) else tuple(owners)
+    if isinstance(db, Session) and not any(
+        active_db is db and active_owner in owners
+        for active_db, active_owner in _active_writers.get()
+    ):
+        # Mapper callbacks run inside flush, where Session.rollback is illegal.
+        # Raising aborts that flush; the semantic transaction then rolls back.
+        if not db._flushing:
+            db.rollback()
+        raise ValueError("MUTATION_SUPPORTING_SEMANTIC_TRANSACTION_REQUIRED")
+
+
+def core_writer_member(owner, *, models=None):
     """Supporting row changes belong to a validating semantic transaction."""
 
     def adopt(mechanism):
@@ -42,6 +55,8 @@ def core_writer_member(owner):
         @wraps(mechanism)
         def guarded(*args, **kwargs):
             arguments = parameters.bind(*args, **kwargs).arguments
+            if models is not None and not isinstance(arguments.get("row"), models):
+                return mechanism(*args, **kwargs)
             db = arguments.get("db")
             if db is None:
                 from sqlalchemy import inspect
@@ -52,9 +67,7 @@ def core_writer_member(owner):
                         db = object_session(value)
                         if db is not None:
                             break
-            if isinstance(db, Session) and owner not in _active_writers.get():
-                db.rollback()
-                raise ValueError("MUTATION_SUPPORTING_SEMANTIC_TRANSACTION_REQUIRED")
+            require_semantic_writer(db, owner)
             return mechanism(*args, **kwargs)
 
         return guarded
@@ -154,13 +167,12 @@ def validate_core_mutation_authority(
     configuration,
     sources: dict,
     manifests: dict[str, dict],
+    writer: str = "persist_core_evidence",
 ) -> None:
     """Validate declarations and authoritative storage in the effective transaction."""
     if not isinstance(context, DomainMutationContext):
         raise ValueError("DOMAIN_MUTATION_CONTEXT_REQUIRED")
-    native_writer = MutationWriterDescriptor(
-        "persist_core_evidence", "phase5-core-writer-v1", domain
-    )
+    native_writer = MutationWriterDescriptor(writer, "phase5-core-writer-v1", domain)
     if context.domain is not domain or context.writer != native_writer:
         raise ValueError("MUTATION_WRITER_DOMAIN_MISMATCH")
     if context.calculation_identity != identity or context.configuration != configuration.identity:
@@ -223,6 +235,7 @@ def validate_core_mutation_authority(
         for role, source in sources.items():
             evidence = db.get(CoreCalculationEvidence, source.evidence_id)
             _validate_evidence(evidence)
+            validate_source_values(source, evidence, db=db)
             validate_source_configuration(db, identity, evidence, context.execution)
             if getattr(source, "run_id", evidence.run_id) != evidence.run_id:
                 raise ValueError("MUTATION_SOURCE_RUN_MISMATCH: " + role)
@@ -285,8 +298,12 @@ def _validate_configuration(db, context, configuration):
     ):
         raise ValueError("MUTATION_CONFIGURATION_FINGERPRINT_MISMATCH")
     namespace = configuration.family.namespace
+    from app.services.decision_effective_configuration import DecisionEffectiveConfiguration
+
     config = (
-        CoreEffectiveConfiguration(configuration)
+        DecisionEffectiveConfiguration(configuration)
+        if namespace.startswith("decision.")
+        else CoreEffectiveConfiguration(configuration)
         if namespace.startswith("core.")
         else ContextualEffectiveConfiguration(configuration)
     )
@@ -320,7 +337,7 @@ def _validate_evidence(evidence):
     if identity.configuration.effective_configuration.state is not IdentityState.KNOWN:
         raise ValueError("MUTATION_SOURCE_LEGACY_CONFIGURATION")
     namespace = identity.configuration.effective_configuration.value.namespace
-    if not namespace.startswith(("core.", "contextual.")):
+    if not namespace.startswith(("core.", "contextual.", "decision.")):
         raise ValueError("MUTATION_SOURCE_LEGACY_CONFIGURATION")
     from app.services.effective_configuration import configuration_from_evidence
 
@@ -337,15 +354,20 @@ def _validate_evidence(evidence):
     validate_executable_configuration(retained)
     from app.services.contextual_effective_configuration import ContextualEffectiveConfiguration
     from app.services.core_effective_configuration import CoreEffectiveConfiguration
+    from app.services.decision_effective_configuration import DecisionEffectiveConfiguration
 
     native = (
-        CoreEffectiveConfiguration(retained.snapshot)
+        DecisionEffectiveConfiguration(retained.snapshot)
+        if namespace.startswith("decision.")
+        else CoreEffectiveConfiguration(retained.snapshot)
         if namespace.startswith("core.")
         else ContextualEffectiveConfiguration(retained.snapshot)
     )
     native.require_family(namespace)
     expected_namespace = (
-        "core." + evidence.artifact_kind.lower()
+        "decision.setup"
+        if evidence.artifact_kind == "SETUP"
+        else "core." + evidence.artifact_kind.lower()
         if evidence.artifact_kind in {"FUNDAMENTAL", "TECHNICAL", "COMBINED", "RANKING"}
         else "contextual." + evidence.artifact_kind.lower()
     )
@@ -501,7 +523,14 @@ def validate_source_values(source, evidence, *, db=None):
             ):
                 equal = Decimal(str(actual)) == Decimal(str(value))
             else:
-                equal = Canonical.canonicalize(actual) == value
+                # calculation_evidence_payload already canonicalizes the complete
+                # native projection. Re-encoding each normalized JSON field adds
+                # no check; detached/contextual projections still normalize here.
+                equal = (
+                    actual
+                    if normalized is not None
+                    else Canonical.canonicalize({field: actual})[field]
+                ) == value
             if not equal:
                 raise ValueError("MUTATION_SOURCE_FINANCIAL_VALUE_MISMATCH: " + field)
 
@@ -545,7 +574,12 @@ def _validate_permission(context, role, evidence):
         "prior_sector": "PRIOR_SECTOR",
     }.get(role, evidence.artifact_kind)
     module = technical if prefix == "TECHNICAL" else contextual
-    native = getattr(module, prefix + "_TO_" + context.domain.value, None)
+    consumer = context.domain.value
+    if consumer == "WINNER_PREDICTION":
+        from app.services.winner_probability import consumer_eligibility as module
+
+        consumer = "WINNER"
+    native = getattr(module, prefix + "_TO_" + consumer, None)
     if native is None or native.evaluate(readiness) != supplied.decision:
         raise ValueError("MUTATION_FROZEN_ELIGIBILITY_MISMATCH: " + role)
 
@@ -596,9 +630,20 @@ def core_writer_transaction(writer):
         if not isinstance(db, Session):
             return writer(*args, **kwargs)
         owner = writer.__module__ + ":" + writer.__qualname__
-        token = _active_writers.set(_active_writers.get() + (owner,))
+        token = None
         try:
+            connection = db.connection()
+            if (
+                connection.dialect.name == "sqlite"
+                and not connection.connection.driver_connection.in_transaction
+            ):
+                # pysqlite otherwise lets the first SAVEPOINT become the outer
+                # transaction, whose release commits before caller rollback.
+                connection.exec_driver_sql("BEGIN")
             with db.begin_nested():
+                # Savepoint entry flushes caller staging. It must not borrow
+                # this writer's projection permission before validation starts.
+                token = _active_writers.set(_active_writers.get() + ((db, owner),))
                 return writer(*args, **kwargs)
         except Exception:
             # begin_nested flushes pre-existing pending rows. Rejecting a lower
@@ -606,12 +651,15 @@ def core_writer_transaction(writer):
             db.rollback()
             raise
         finally:
-            _active_writers.reset(token)
+            if token is not None:
+                _active_writers.reset(token)
 
     return transactional
 
 
-def artifact_mutation_context(db, *, kind, current_row, identity, configuration, sources, payload):
+def artifact_mutation_context(
+    db, *, kind, current_row, identity, configuration, sources, payload, declaration_only=False
+):
     """Native artifact adapter. Every named manifest is independently checked."""
     from app.models.tables import RawCompanyRow
     from app.services.combined_ranking_identity import require_fundamental_raw_source
@@ -632,6 +680,7 @@ def artifact_mutation_context(db, *, kind, current_row, identity, configuration,
     debug = (
         getattr(current_row, "debug_json", None)
         or getattr(current_row, "evidence_lineage_json", None)
+        or getattr(current_row, "source_lineage_json", None)
         or {}
     )
     if (
@@ -639,8 +688,10 @@ def artifact_mutation_context(db, *, kind, current_row, identity, configuration,
         and identity.subject.company_id.value != getattr(current_row, "company_id", None)
     ):
         raise ValueError("MUTATION_ARTIFACT_COMPANY_MISMATCH")
-    native_session = getattr(current_row, "as_of_session", None) or getattr(
-        current_row, "as_of_date", None
+    native_session = (
+        getattr(current_row, "as_of_session", None)
+        or getattr(current_row, "as_of_date", None)
+        or getattr(current_row, "data_as_of_date", None)
     )
     native_cutoff = getattr(current_row, "cutoff_at", None) or getattr(
         current_row, "calculation_cutoff_at", None
@@ -656,8 +707,21 @@ def artifact_mutation_context(db, *, kind, current_row, identity, configuration,
         and native_cutoff != identity.temporal.calculation_cutoff.value
     ):
         raise ValueError("MUTATION_ARTIFACT_TEMPORAL_MISMATCH")
+    if domain is MutationDomain.SETUP:
+        debug = getattr(current_row, "source_lineage_json", None) or {}
     manifest = {}
-    if domain is MutationDomain.FUNDAMENTAL:
+    if domain is MutationDomain.SETUP:
+        from app.services.decision_mutation_authority import validate_setup_inputs
+
+        manifest["price_manifest"] = validate_setup_inputs(
+            db,
+            current_row,
+            identity,
+            sources,
+            configuration=configuration,
+            declaration_only=declaration_only,
+        )
+    elif domain is MutationDomain.FUNDAMENTAL:
         references = (
             identity.source_lineage.value.references if identity.source_lineage.value else ()
         )
@@ -796,9 +860,16 @@ def artifact_mutation_context(db, *, kind, current_row, identity, configuration,
     permissions = []
     for role, source in sources.items():
         evidence = db.get(CoreCalculationEvidence, source.evidence_id)
-        _validate_evidence(evidence)
-        validate_source_values(source, evidence, db=db)
-        validate_source_configuration(db, identity, evidence, current_domain_write_ownership())
+        if evidence is None:
+            raise ValueError("MUTATION_SOURCE_EVIDENCE_MISSING")
+        if not declaration_only and role not in allowed:
+            # Core authority validates every allowed source's seal immediately
+            # after this adapter, in the same writer transaction. Extra Sector
+            # population references are validated here because they are outside
+            # the policy's ordinary source roles.
+            _validate_evidence(evidence)
+            validate_source_values(source, evidence, db=db)
+            validate_source_configuration(db, identity, evidence, current_domain_write_ownership())
         expected_kind = (
             "RANKING"
             if role.startswith("ranking:")
@@ -806,6 +877,8 @@ def artifact_mutation_context(db, *, kind, current_row, identity, configuration,
             if role == "prior_sector"
             else "IBMI"
             if role.startswith("ibmi_")
+            else "RANKING"
+            if role == "ranking_metadata"
             else role.upper()
         )
         if evidence.artifact_kind != expected_kind:
@@ -945,6 +1018,9 @@ def validate_source_address(identity, role, source, evidence):
         "technical": "TechnicalScore",
         "combined": "CombinedResult",
         "regime": "MarketRegimeSnapshot",
+        "sector": "SectorRotationSnapshot",
+        "ranking_metadata": "RankingResult",
+        "ranking": "RankingResult",
         "prior_sector": "PriorSectorRotationSnapshot",
     }.get(role, "RankingResult" if role.startswith("ranking:") else "IBIntelligenceFeature")
     references = identity.source_lineage.value.references if identity.source_lineage.value else ()

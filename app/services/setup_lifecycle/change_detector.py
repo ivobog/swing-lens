@@ -7,6 +7,7 @@ from typing import Any
 
 from app.models.tables import SetupSignalSnapshot, SignalChangeEvent
 from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.enums import EventSeverity, SignalCategory, SignalValueType
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
@@ -91,6 +92,7 @@ class SetupLifecycleChangeDetector:
         return tuple(changes)
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def detect_and_persist(
         self,
         db,
@@ -141,6 +143,15 @@ class SetupLifecycleChangeDetector:
             if previous is None:
                 skipped += 1
                 continue
+            from sqlalchemy.orm import Session
+
+            from app.services.setup_lifecycle.change_authority import discover_change_sources
+
+            source_manifest = (
+                discover_change_sources(db, previous=previous, current=current, history=history)
+                if isinstance(db, Session)
+                else None
+            )
             for change in self.detect_changes(
                 previous=previous,
                 current=current,
@@ -152,10 +163,20 @@ class SetupLifecycleChangeDetector:
                     current=current,
                     evaluation_run_id=evaluation_run_id,
                 )
-                existing = self.repository.get_signal_change_event(db, event.source_event_key)
-                if existing is not None:
+                if isinstance(db, Session):
+                    persisted = self.repository.add_signal_change_event(
+                        db,
+                        event,
+                        effective_configuration=self.effective_configuration,
+                        source_manifest=source_manifest,
+                    )
+                else:
+                    existing = self.repository.get_signal_change_event(db, event.source_event_key)
+                    if existing is not None:
+                        continue
+                    persisted = self.repository.add_signal_change_event(db, event)
+                if persisted is not event:
                     continue
-                persisted = self.repository.add_signal_change_event(db, event)
                 event_ids.append(getattr(persisted, "id", None))
                 changes.append(change)
 

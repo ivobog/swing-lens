@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.tables import WinnerCalibrationBin
+from app.services.core_mutation_authority import core_writer_transaction
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,7 @@ class CalibrationService:
         metrics = _metrics(examples, bins)
         return CalibrationReport(bins=bins, metrics=metrics)
 
+    @core_writer_transaction
     def persist_bins(
         self,
         db: Session,
@@ -60,7 +62,43 @@ class CalibrationService:
         estimate_kind: str,
         model_version_id: int | None = None,
         segment: dict[str, Any] | None = None,
+        mutation_context=None,
+        effective_configuration=None,
+        estimate_ids: tuple[int, ...] = (),
     ) -> tuple[WinnerCalibrationBin, ...]:
+        if isinstance(db, Session):
+            from app.services.winner_probability.mutation_authority import (
+                validate_diagnostic_authority,
+            )
+
+            population = validate_diagnostic_authority(
+                db,
+                mutation_context,
+                writer="CalibrationService.persist_bins",
+                subject_id=model_version_id,
+                outcome_id=outcome_definition_id,
+                configuration=effective_configuration,
+                contract={
+                    "artifact": "CALIBRATION",
+                    "report": asdict(report),
+                    "estimate_kind": estimate_kind,
+                    "segment": segment or {},
+                    "estimate_ids": estimate_ids,
+                },
+            )
+            from app.services.winner_probability.mutation_authority import calibration_examples
+
+            examples = calibration_examples(
+                db,
+                population,
+                outcome_id=outcome_definition_id,
+                model_id=model_version_id,
+                estimate_kind=estimate_kind,
+                estimate_ids=estimate_ids,
+                as_of=mutation_context.temporal.cutoff_at,
+            )
+            if CalibrationService().calculate(examples, bin_count=len(report.bins)) != report:
+                raise ValueError("MUTATION_WINNER_CALIBRATION_REPORT_MISMATCH")
         rows: list[WinnerCalibrationBin] = []
         for bin_row in report.bins:
             row = WinnerCalibrationBin(
@@ -77,12 +115,30 @@ class CalibrationService:
                 upper_bound=bin_row.upper_bound,
                 error=bin_row.error,
                 calculated_at=_utcnow(),
-                segment_json=segment or {},
+                segment_json={
+                    **(segment or {}),
+                    "mutation_authority": mutation_context.canonical_payload(),
+                    "native_report": _native_report_payload(report),
+                }
+                if isinstance(db, Session)
+                else segment or {},
             )
+            if isinstance(db, Session):
+                from app.services.winner_probability.mutation_authority import (
+                    seal_diagnostic_artifact,
+                )
+
+                seal_diagnostic_artifact(row, "segment_json")
             db.add(row)
             rows.append(row)
         db.flush()
         return tuple(rows)
+
+
+def _native_report_payload(report):
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer
+
+    return CanonicalEvidenceSerializer.canonicalize(asdict(report))
 
 
 def _calculate_bin(
@@ -155,14 +211,20 @@ def _metrics(
             "calibration_intercept": None,
             "coverage": Decimal("0.000000"),
         }
-    brier = sum(
-        ((example.probability - _observed_decimal(example)) ** 2) * example.weight
-        for example in examples
-    ) / total_weight
-    log_loss = sum(
-        (_log_loss(example.probability, example.observed) * example.weight)
-        for example in examples
-    ) / total_weight
+    brier = (
+        sum(
+            ((example.probability - _observed_decimal(example)) ** 2) * example.weight
+            for example in examples
+        )
+        / total_weight
+    )
+    log_loss = (
+        sum(
+            (_log_loss(example.probability, example.observed) * example.weight)
+            for example in examples
+        )
+        / total_weight
+    )
     ece = sum(
         (bin_row.effective_n / total_weight) * (bin_row.error or Decimal("0"))
         for bin_row in bins

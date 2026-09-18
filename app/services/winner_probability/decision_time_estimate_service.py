@@ -80,7 +80,7 @@ class DecisionTimeEstimateService:
             source_version=COHORT_BASELINE_SOURCE_VERSION,
             training_cutoff_at=prediction.source_data_cutoff_at,
         )
-        if existing is not None:
+        if existing is not None and not isinstance(db, Session):
             return DecisionTimeEstimateResult(estimate=existing, status="duplicate")
         result = self.probability_estimator.create_decision_time_estimate(
             db,

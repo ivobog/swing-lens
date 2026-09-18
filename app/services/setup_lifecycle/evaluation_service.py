@@ -418,7 +418,16 @@ class SetupLifecycleEvaluationService:
             )
             alert_created += alerts.created
         if use_preloaded_episodes:
-            self.episode_service.refresh_primary_statuses(db, keys=episode_keys)
+            self.episode_service.refresh_primary_statuses(
+                db,
+                keys=episode_keys,
+                market_cutoffs={
+                    (snapshot.ticker, snapshot.timeframe): self.episode_service._snapshot_cutoff(
+                        db, snapshot
+                    )
+                    for snapshot in snapshots
+                },
+            )
         return transitions, alert_created
 
 

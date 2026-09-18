@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -16,6 +16,7 @@ from app.models.tables import (
     WinnerSimilarityLink,
     WinnerTargetStopOutcome,
 )
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
     load_winner_probability_config,
@@ -182,6 +183,7 @@ class SimilarityService:
             config=config,
         )
 
+    @core_writer_transaction
     def persist_neighbors(
         self,
         db: Session,
@@ -191,7 +193,58 @@ class SimilarityService:
         neighbors: tuple[SimilarityNeighbor, ...],
         source_cutoff_at: datetime | None = None,
         cache_version: str = SIMILARITY_CACHE_VERSION,
+        mutation_context=None,
+        effective_configuration=None,
+        feature_names: tuple[str, ...] | None = None,
+        feature_weights: dict[str, Decimal | int | float] | None = None,
+        limit: int = 10,
+        one_per_episode: bool = True,
     ) -> tuple[WinnerSimilarityLink, ...]:
+        if isinstance(db, Session):
+            from app.services.winner_probability.mutation_authority import (
+                diagnostic_population,
+                validate_diagnostic_authority,
+            )
+
+            if source_cutoff_at is None:
+                raise ValueError("MUTATION_WINNER_SIMILARITY_CUTOFF_REQUIRED")
+            population = validate_diagnostic_authority(
+                db,
+                mutation_context,
+                writer="SimilarityService.persist_neighbors",
+                subject_id=prediction.id,
+                subject_type=WinnerPredictionSnapshot,
+                outcome_id=outcome_definition.id,
+                configuration=effective_configuration,
+                contract={
+                    "artifact": "SIMILARITY",
+                    "neighbors": [asdict(n) for n in neighbors],
+                    "source_cutoff_at": source_cutoff_at,
+                    "cache_version": cache_version,
+                    "feature_names": feature_names,
+                    "feature_weights": feature_weights,
+                    "limit": limit,
+                    "one_per_episode": one_per_episode,
+                },
+            )
+            if source_cutoff_at != mutation_context.temporal.cutoff_at:
+                raise ValueError("MUTATION_WINNER_SIMILARITY_CUTOFF_MISMATCH")
+            native = SimilarityService().rank_neighbors(
+                prediction=prediction,
+                evidence=diagnostic_population(
+                    db, population, outcome_definition.id, as_of=source_cutoff_at
+                ),
+                feature_names=feature_names,
+                feature_weights=feature_weights,
+                as_of=source_cutoff_at,
+                limit=limit,
+                one_per_episode=one_per_episode,
+                config=effective_configuration.winner_config(),
+            )
+            if neighbors != native or any(
+                n.evidence_role != SIMILARITY_EVIDENCE_ROLE for n in neighbors
+            ):
+                raise ValueError("MUTATION_WINNER_SIMILARITY_REPORT_MISMATCH")
         source_cutoff_at = source_cutoff_at or prediction.source_data_cutoff_at
         rows: list[WinnerSimilarityLink] = []
         for neighbor in neighbors:
@@ -205,6 +258,11 @@ class SimilarityService:
                 distance=neighbor.distance,
                 similarity_coverage=neighbor.similarity_coverage,
                 contribution_json={
+                    **(
+                        {"mutation_authority": mutation_context.canonical_payload()}
+                        if isinstance(db, Session)
+                        else {}
+                    ),
                     "evidence_role": neighbor.evidence_role,
                     "top_features": [
                         {
@@ -228,6 +286,12 @@ class SimilarityService:
                 cache_version=cache_version,
                 source_cutoff_at=source_cutoff_at,
             )
+            if isinstance(db, Session):
+                from app.services.winner_probability.mutation_authority import (
+                    seal_diagnostic_artifact,
+                )
+
+                seal_diagnostic_artifact(row, "contribution_json")
             db.add(row)
             rows.append(row)
         db.flush()

@@ -252,6 +252,26 @@ class SetupLifecycleSnapshotBuilder:
             as_of_date,
             trigger_reference,
         )
+        native_inputs = {
+            "raw_row_id": getattr(context.raw_row, "id", None),
+            "raw_fingerprint": CanonicalEvidenceSerializer.fingerprint(
+                getattr(context.raw_row, "raw_json", None) or {}
+            ),
+            "ranking_results": [
+                {"id": row.id, "evidence_id": getattr(row, "evidence_id", None)}
+                for row in context.ranking_results
+            ],
+            "sector_row_id": getattr(context.sector_rotation_row, "id", None),
+            "history": [
+                {
+                    "id": getattr(row, "id", None),
+                    "evidence_id": getattr(row, "evidence_id", None),
+                    "is_canonical": bool(getattr(row, "is_canonical", False)),
+                }
+                for row in history
+            ],
+        }
+        source_lineage["native_calculation_inputs"] = native_inputs
         source_lineage[TECHNICAL_ELIGIBILITY_KEY] = eligibility
         source_lineage[CONTEXTUAL_ELIGIBILITY_KEY] = {
             "regime": regime_permission,
@@ -300,6 +320,7 @@ class SetupLifecycleSnapshotBuilder:
                     "data_as_of_date": as_of_date,
                     "latest_bar": _bar_lineage(latest_bar),
                     "trigger_reference": trigger_reference.as_dict(),
+                    "native_calculation_inputs": native_inputs,
                 },
             )
             setup_identity = self.effective_configuration.bind(setup_identity)
@@ -352,6 +373,17 @@ class SetupLifecycleSnapshotBuilder:
                     {
                         "builder": "phase_3_snapshot_builder",
                         "trigger_reference": trigger_reference.as_dict(),
+                        "native_projection_at_capture": {
+                            key: promoted.get(key)
+                            for key in (
+                                "primary_setup_family",
+                                "primary_phase",
+                                "lifecycle_state_candidate",
+                                "actionability_candidate",
+                                "confidence_score",
+                                "confidence_label",
+                            )
+                        },
                     },
                     setup_identity,
                     policy=SETUP_TECHNICAL_COMPATIBILITY.name,

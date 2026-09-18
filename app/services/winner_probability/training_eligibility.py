@@ -82,6 +82,14 @@ class TrainingEligibilityPolicy:
         *,
         explicit_legacy_override: bool | None = None,
     ) -> TrainingEligibilityDecision:
+        from sqlalchemy import inspect
+        from sqlalchemy.orm import object_session
+
+        if not inspect(prediction).transient:
+            db = object_session(prediction)
+            if db is not None:
+                db.rollback()
+            raise ValueError("MUTATION_WINNER_CAPTURE_TRAINING_METADATA_CREATION_ONLY")
         decision = self.evaluate_capture(
             prediction,
             explicit_legacy_override=explicit_legacy_override,
@@ -105,9 +113,7 @@ class TrainingEligibilityPolicy:
             return TrainingEligibilityDecision(
                 capture_training_candidate=False,
                 evidence_training_eligible=False,
-                rejection_reasons=(
-                    str(TrainingRejectionReason.LEGACY_ELIGIBILITY_UNCLASSIFIED),
-                ),
+                rejection_reasons=(str(TrainingRejectionReason.LEGACY_ELIGIBILITY_UNCLASSIFIED),),
             )
         reasons = tuple(str(value) for value in lineage.get("training_rejection_reasons", []))
         capture_candidate = lineage.get("capture_training_candidate") is True

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.tables import WinnerDriftMetric
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.winner_probability.calibration_service import (
     CalibrationExample,
     CalibrationService,
@@ -74,6 +75,7 @@ class DriftService:
             for name, value in values.items()
         )
 
+    @core_writer_transaction
     def persist_metrics(
         self,
         db: Session,
@@ -82,7 +84,110 @@ class DriftService:
         outcome_definition_id: int,
         as_of_date: date,
         model_version_id: int | None = None,
+        mutation_context=None,
+        effective_configuration=None,
+        baseline_estimate_ids: tuple[int, ...] = (),
+        recent_estimate_ids: tuple[int, ...] = (),
+        estimate_kind: str = "DECISION_TIME",
+        baseline_held_out_indices: tuple[int, ...] = (),
+        recent_held_out_indices: tuple[int, ...] = (),
     ) -> tuple[WinnerDriftMetric, ...]:
+        if isinstance(db, Session):
+            from app.services.winner_probability.mutation_authority import (
+                validate_diagnostic_authority,
+            )
+
+            population = validate_diagnostic_authority(
+                db,
+                mutation_context,
+                writer="DriftService.persist_metrics",
+                subject_id=model_version_id,
+                outcome_id=outcome_definition_id,
+                configuration=effective_configuration,
+                contract={
+                    "artifact": "DRIFT",
+                    "results": [asdict(r) for r in results],
+                    "as_of_date": as_of_date,
+                    "baseline_estimate_ids": baseline_estimate_ids,
+                    "recent_estimate_ids": recent_estimate_ids,
+                    "estimate_kind": estimate_kind,
+                    **(
+                        {
+                            "baseline_held_out_indices": baseline_held_out_indices,
+                            "recent_held_out_indices": recent_held_out_indices,
+                        }
+                        if estimate_kind == "SHADOW_WALK_FORWARD"
+                        else {}
+                    ),
+                },
+            )
+            if as_of_date != mutation_context.temporal.latest_completed_session:
+                raise ValueError("MUTATION_WINNER_DRIFT_AS_OF_MISMATCH")
+            from types import SimpleNamespace
+
+            from app.models.tables import WinnerProbabilityEstimate
+            from app.services.winner_probability.mutation_authority import calibration_examples
+
+            ids = baseline_estimate_ids + recent_estimate_ids
+            shadow = estimate_kind == "SHADOW_WALK_FORWARD"
+            if not results or (
+                not shadow and (len(ids) != len(set(ids)) or len(ids) != population.member_count)
+            ):
+                raise ValueError("MUTATION_WINNER_DRIFT_EXACT_POPULATIONS_REQUIRED")
+            if shadow and (
+                ids
+                or not baseline_held_out_indices
+                or not recent_held_out_indices
+                or set(baseline_held_out_indices) & set(recent_held_out_indices)
+            ):
+                raise ValueError("MUTATION_WINNER_SHADOW_DRIFT_EXACT_SPLIT_REQUIRED")
+
+            def examples(selected):
+                if shadow:
+                    from app.services.winner_probability.mutation_authority import (
+                        shadow_calibration_examples,
+                    )
+
+                    return shadow_calibration_examples(
+                        db,
+                        population,
+                        outcome_id=outcome_definition_id,
+                        model_id=model_version_id,
+                        as_of=mutation_context.temporal.cutoff_at,
+                        indices=selected,
+                    )
+                estimates = [db.get(WinnerProbabilityEstimate, id) for id in selected]
+                if any(p is None for p in estimates):
+                    raise ValueError("MUTATION_WINNER_DRIFT_ESTIMATE_MISSING")
+                predictions = {p.prediction_id for p in estimates}
+                partial = SimpleNamespace(
+                    payload_json={
+                        "members": [
+                            p
+                            for p in population.payload_json["members"]
+                            if p["prediction_id"] in predictions
+                        ]
+                    }
+                )
+                return calibration_examples(
+                    db,
+                    partial,
+                    outcome_id=outcome_definition_id,
+                    model_id=model_version_id,
+                    estimate_kind=estimate_kind,
+                    estimate_ids=selected,
+                    as_of=mutation_context.temporal.cutoff_at,
+                )
+
+            native = DriftService().calculate(
+                baseline=examples(baseline_held_out_indices if shadow else baseline_estimate_ids),
+                recent=examples(recent_held_out_indices if shadow else recent_estimate_ids),
+                comparison_window=results[0].comparison_window,
+                segment=results[0].segment,
+                config=effective_configuration.winner_config(),
+            )
+            if native != results:
+                raise ValueError("MUTATION_WINNER_DRIFT_REPORT_MISMATCH")
         rows: list[WinnerDriftMetric] = []
         for result in results:
             row = WinnerDriftMetric(
@@ -95,14 +200,32 @@ class DriftService:
                 breached=result.breached,
                 sample_n=result.sample_n,
                 comparison_window=result.comparison_window,
-                segment_json=result.segment,
+                segment_json={
+                    **result.segment,
+                    "mutation_authority": mutation_context.canonical_payload(),
+                    "native_report": _native_report_payload(results),
+                }
+                if isinstance(db, Session)
+                else result.segment,
                 sufficient_sample=result.sufficient_sample,
                 calculated_at=_utcnow(),
             )
+            if isinstance(db, Session):
+                from app.services.winner_probability.mutation_authority import (
+                    seal_diagnostic_artifact,
+                )
+
+                seal_diagnostic_artifact(row, "segment_json")
             db.add(row)
             rows.append(row)
         db.flush()
         return tuple(rows)
+
+
+def _native_report_payload(results):
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer
+
+    return CanonicalEvidenceSerializer.canonicalize([asdict(row) for row in results])
 
 
 def _result(

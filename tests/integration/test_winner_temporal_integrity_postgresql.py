@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
@@ -555,89 +555,88 @@ def test_market_data_obligation_persists_identity_and_gates_maturation(
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     with Session(engine) as db:
-        prediction = _prediction(db, ticker="OBLIG")
-        TemporalValidationService().record(
-            db,
-            prediction=prediction,
-            decision_at=datetime(2026, 8, 20, 12, 0, tzinfo=UTC),
-            entry_session=date(2026, 8, 20),
-            semantic_input_time_valid=True,
-            evaluated_by="TEST_CAPTURE",
-        )
-        contract = IBContract(
-            ticker="OBLIG",
-            ib_conid=81234,
-            symbol="OBLIG",
-            local_symbol="OBLIG",
-            exchange="SMART",
-            primary_exchange="NASDAQ",
-            currency="USD",
-            sec_type="STK",
-            trading_class="NMS",
-            resolution_status="RESOLVED",
-        )
-        outcome = WinnerForwardOutcome(
-            prediction_id=prediction.id,
-            entry_model="NEXT_OPEN",
-            horizon_sessions=5,
-            entry_session=date(2026, 8, 20),
-            due_session=date(2026, 8, 26),
-            status="PENDING",
-            revision=1,
-            is_current_revision=True,
-            metadata_json={},
-        )
-        db.add_all([contract, outcome])
-        db.flush()
+        from native_winner_support import native_pending_prediction
 
-        created = MarketDataObligationService().ensure_for_outcomes(db, [outcome])
-        assert created.created == 2
+        prediction, outcome = native_pending_prediction(db)
+        contract = db.scalar(select(IBContract).where(IBContract.ticker == "ACME"))
+        assert db.scalar(select(func.count()).select_from(WinnerMarketDataObligation)) == 2
+        operation_at = datetime.combine(
+            outcome.due_session + timedelta(days=2), datetime.min.time(), UTC
+        )
+
+        created = MarketDataObligationService().ensure_for_outcomes(db, [outcome], now=operation_at)
+        assert created.created == 0 and created.updated == 2
         assert created.fetch_required == 2
         obligations = list(db.scalars(select(WinnerMarketDataObligation)))
         assert {row.what_to_show for row in obligations} == {"ADJUSTED_LAST", "TRADES"}
         assert {row.ib_conid_snapshot for row in obligations} == {81234}
         assert (
             WinnerOutcomeRepository().get_due_pending_forward_outcomes(
-                db, completed_on=date(2026, 8, 27), limit=10
+                db,
+                completed_on=outcome.due_session + timedelta(days=1),
+                limit=10,
+                entry_model="NEXT_OPEN",
+                horizon_sessions=5,
             )
             == []
         )
 
-        sessions = required_outcome_sessions(date(2026, 8, 20), 5)
-        for session in sessions:
-            db.add(
-                PriceBar(
-                    ticker="OBLIG",
-                    bar_date=session,
+        sessions = required_outcome_sessions(outcome.entry_session, 5)
+        from app.services.bar_cache_service import cache_bars
+        from app.services.ib_data_fetcher import HistoricalBar
+
+        cache_bars(
+            db,
+            [
+                HistoricalBar(
+                    ticker="ACME",
                     timeframe="1 day",
+                    source="TEST",
+                    adjustment_type=None,
+                    bar_date=session,
                     open=Decimal("100"),
                     high=Decimal("102"),
                     low=Decimal("99"),
                     close=Decimal("101"),
                     volume=Decimal("1000"),
-                    source="TEST",
                     what_to_show="ADJUSTED_LAST",
                 )
-            )
+                for session in sessions
+            ],
+        )
         db.flush()
-        refreshed = MarketDataObligationService().evaluate(db, obligations=obligations)
+        refreshed = MarketDataObligationService().evaluate(
+            db, obligations=obligations, now=operation_at
+        )
         assert refreshed.satisfied == 1
         unchanged_watermark = obligations[0].price_series_watermark
-        repeated = MarketDataObligationService().evaluate(db, obligations=obligations)
+        repeated = MarketDataObligationService().evaluate(
+            db, obligations=obligations, now=operation_at
+        )
         assert repeated.satisfied == 1
         assert obligations[0].price_series_watermark == unchanged_watermark
         selected = WinnerOutcomeRepository().get_due_pending_forward_outcomes(
-            db, completed_on=date(2026, 8, 27), limit=10
+            db,
+            completed_on=outcome.due_session + timedelta(days=1),
+            limit=10,
+            entry_model="NEXT_OPEN",
+            horizon_sessions=5,
         )
         assert [row.id for row in selected] == [outcome.id]
 
         contract.ib_conid = 99999
         db.flush()
-        blocked = MarketDataObligationService().evaluate(db, obligations=obligations)
+        blocked = MarketDataObligationService().evaluate(
+            db, obligations=obligations, now=operation_at
+        )
         assert blocked.identity_blocked == 2
         assert (
             WinnerOutcomeRepository().get_due_pending_forward_outcomes(
-                db, completed_on=date(2026, 8, 27), limit=10
+                db,
+                completed_on=outcome.due_session + timedelta(days=1),
+                limit=10,
+                entry_model="NEXT_OPEN",
+                horizon_sessions=5,
             )
             == []
         )
@@ -687,15 +686,35 @@ def test_uncertified_and_quarantined_pending_outcomes_create_no_obligation(
             outcomes.append(outcome)
         db.flush()
 
-        first = MarketDataObligationService().ensure_for_outcomes(db, outcomes)
-        assert first.excluded == 2
-        assert first.created == 2
-        assert set(db.scalars(select(WinnerMarketDataObligation.prediction_id))) == {valid.id}
+        db.commit()
+        # A temporal certification alone cannot qualify fabricated historical
+        # predictions for a current supporting financial dependency.
+        with pytest.raises(ValueError, match="MUTATION_WINNER_CERTIFIED_CAPTURE_REQUIRED"):
+            MarketDataObligationService().ensure_for_outcomes(
+                db, outcomes, now=datetime(2026, 8, 27, 22, tzinfo=UTC)
+            )
+        assert db.scalar(select(func.count()).select_from(WinnerMarketDataObligation)) == 0
+        from native_winner_support import native_pending_prediction
 
+        native_prediction, native_outcome = native_pending_prediction(db)
+        native_operation_at = datetime.combine(
+            native_outcome.due_session + timedelta(days=2), datetime.min.time(), UTC
+        )
+        first = MarketDataObligationService().ensure_for_outcomes(
+            db, [native_outcome], now=native_operation_at
+        )
+        assert first.created == 0 and first.updated == 2
+        assert set(db.scalars(select(WinnerMarketDataObligation.prediction_id))) == {
+            native_prediction.id
+        }
+        db.commit()
         # A later run/universe change does not remove the durable dependency.
-        second = MarketDataObligationService().ensure_for_outcomes(db, [outcomes[-1]])
+        second = MarketDataObligationService().ensure_for_outcomes(
+            db, [native_outcome], now=native_operation_at
+        )
         assert second.created == 0
         assert db.scalar(select(func.count()).select_from(WinnerMarketDataObligation)) == 2
+
     engine.dispose()
 
 

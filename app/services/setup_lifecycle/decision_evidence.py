@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.models.tables import (
     CoreCalculationEvidence,
@@ -24,8 +25,10 @@ from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
     calculation_evidence_payload,
+    declare_core_evidence_mutation,
     persist_core_evidence,
 )
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.producer_readiness import (
     READINESS_PAYLOAD_KEY,
     ProducerReadinessEnvelope,
@@ -43,6 +46,12 @@ _SETUP_PROJECTION_FIELDS = {
     "canonical_decision_json",
     "superseded_by_snapshot_id",
     "captured_at",
+    "primary_setup_family",
+    "primary_phase",
+    "lifecycle_state_candidate",
+    "actionability_candidate",
+    "confidence_score",
+    "confidence_label",
 }
 
 
@@ -58,12 +67,17 @@ def get_lifecycle_readiness_for_episode(
     return readiness_from_lifecycle_evaluation(evaluation)
 
 
-def persist_setup_evidence(db, snapshot: SetupSignalSnapshot) -> CoreCalculationEvidence | None:
-    """Freeze a certified Setup envelope; identity-incomplete rows remain legacy current."""
+@core_writer_transaction
+def persist_setup_evidence(
+    db, snapshot: SetupSignalSnapshot, *, mutation_context=None
+) -> CoreCalculationEvidence | None:
+    """Freeze Setup only from explicit, exact, retained native authority."""
 
     identity = calculation_identity_from_debug(snapshot.source_lineage_json)
     if identity is None:
-        return None
+        if not isinstance(db, Session):
+            return None
+        raise ValueError("MUTATION_SETUP_IDENTITY_REQUIRED")
     lineage_ids = dict((snapshot.source_lineage_json or {}).get("source_ids") or {})
     sources: dict[str, Any] = {}
     source_pairs = (
@@ -74,19 +88,51 @@ def persist_setup_evidence(db, snapshot: SetupSignalSnapshot) -> CoreCalculation
         ("regime", "market_regime_snapshot_id", "regime_evidence_id"),
         ("sector", "sector_rotation_snapshot_id", "sector_evidence_id"),
     )
+    from app.models.tables import (
+        CombinedResult,
+        FundamentalScore,
+        MarketRegimeSnapshot,
+        RankingResult,
+        SectorRotationSnapshot,
+        TechnicalScore,
+    )
+
+    source_models = {
+        "fundamental": FundamentalScore,
+        "technical": TechnicalScore,
+        "combined": CombinedResult,
+        "ranking_metadata": RankingResult,
+        "regime": MarketRegimeSnapshot,
+        "sector": SectorRotationSnapshot,
+    }
     for role, row_key, evidence_key in source_pairs:
         row_id = lineage_ids.get(row_key)
         evidence_id = lineage_ids.get(evidence_key)
         if row_id is None:
             continue
         if evidence_id is None:
-            return None
+            raise ValueError("MUTATION_SETUP_SOURCE_EVIDENCE_REQUIRED: " + role)
         source = db.get(CoreCalculationEvidence, int(evidence_id))
         if source is None:
             raise EvidenceUnavailableError(
                 f"EVIDENCE_UNAVAILABLE: SETUP source role={role} evidence={evidence_id} missing"
             )
-        sources[role] = SimpleNamespace(evidence_id=int(evidence_id))
+        if isinstance(db, Session):
+            native = db.scalar(
+                select(source_models[role])
+                .where(source_models[role].id == int(row_id))
+                .with_for_update()
+            )
+            if native is None or native.evidence_id != int(evidence_id):
+                raise ValueError("MUTATION_SETUP_SOURCE_ROW_EVIDENCE_MISMATCH: " + role)
+            sources[role] = native
+        else:
+            sources[role] = SimpleNamespace(
+                id=int(row_id),
+                evidence_id=int(evidence_id),
+                run_id=source.run_id,
+                ticker=source.ticker,
+            )
 
     payload = calculation_evidence_payload(snapshot, excluded_columns=_SETUP_PROJECTION_FIELDS)
     frozen = getattr(snapshot, "_effective_configuration", None)
@@ -104,6 +150,16 @@ def persist_setup_evidence(db, snapshot: SetupSignalSnapshot) -> CoreCalculation
         payload=payload,
         calculation_identity=identity,
         effective_configuration=frozen,
+        mutation_context=mutation_context
+        or declare_core_evidence_mutation(
+            db,
+            kind=CoreEvidenceKind.SETUP,
+            current_row=snapshot,
+            sources=sources,
+            payload=payload,
+            calculation_identity=identity,
+            effective_configuration=frozen,
+        ),
     )
 
 
@@ -116,6 +172,7 @@ def get_setup_evidence(db, evidence_id: int) -> CoreCalculationEvidence:
     return evidence
 
 
+@core_writer_transaction
 def persist_lifecycle_evaluation_evidence(
     db,
     *,
@@ -126,7 +183,12 @@ def persist_lifecycle_evaluation_evidence(
     evaluation_run_id: int | None,
     transition_eligible: bool,
     effective_configuration=None,
+    mutation_context=None,
+    prior_snapshots=(),
+    completed_observation_sessions=1,
 ) -> SetupLifecycleEvaluationEvidence | None:
+    if effective_configuration is None:
+        raise ValueError("MUTATION_LIFECYCLE_CONFIGURATION_REQUIRED")
     setup = (
         get_setup_evidence(db, snapshot.evidence_id)
         if getattr(snapshot, "evidence_id", None) is not None
@@ -139,7 +201,9 @@ def persist_lifecycle_evaluation_evidence(
     # remain explicit legacy-current projections instead of becoming a forged
     # certified chain at the first post-migration observation.
     if episode is not None and getattr(episode, "latest_evaluation_evidence_id", None) is None:
-        return None
+        if not isinstance(db, Session):
+            return None
+        raise ValueError("MUTATION_LIFECYCLE_CERTIFIED_PREDECESSOR_REQUIRED")
 
     prior_evaluation_id = getattr(episode, "latest_evaluation_evidence_id", None)
     prior_transition_id = getattr(episode, "latest_transition_evidence_id", None)
@@ -148,6 +212,42 @@ def persist_lifecycle_evaluation_evidence(
         if prior_evaluation_id is not None
         else None
     )
+    from app.services.decision_mutation_authority import (
+        lifecycle_evaluation_authority,
+        validate_retained_decision,
+    )
+
+    if prior_evaluation_id is not None:
+        validate_retained_decision(
+            db,
+            prior_evaluation,
+            contract="setup-lifecycle-evaluation-evidence-v1",
+            payload_key="payload_fingerprint",
+        )
+    lifecycle_evaluation_authority(
+        db,
+        snapshot=snapshot,
+        setup=setup,
+        episode=episode,
+        configuration=effective_configuration,
+        mutation_context=mutation_context,
+        prior_snapshots=prior_snapshots,
+        evaluation_run_id=evaluation_run_id,
+    )
+    if isinstance(db, Session):
+        from app.services.decision_mutation_authority import validate_native_lifecycle_output
+
+        validate_native_lifecycle_output(
+            db,
+            snapshot=snapshot,
+            episode=episode,
+            decision=decision,
+            actionability=actionability,
+            configuration=effective_configuration,
+            prior_snapshots=prior_snapshots,
+            evaluation_run_id=evaluation_run_id,
+            transition_eligible=transition_eligible,
+        )
     if (
         prior_evaluation is not None
         and prior_evaluation.setup_evidence_id == setup.id
@@ -182,6 +282,12 @@ def persist_lifecycle_evaluation_evidence(
         if prior_transition_id is not None
         else None
     )
+    if prior_transition_id is not None:
+        validate_retained_decision(
+            db,
+            prior_transition,
+            contract="setup-lifecycle-transition-evidence-v1",
+        )
     if (
         prior_transition is not None
         and prior_transition.effective_session > snapshot.data_as_of_date
@@ -208,6 +314,8 @@ def persist_lifecycle_evaluation_evidence(
     }
     decision_payload = {
         "setup_evidence_id": setup.id,
+        "episode_id": getattr(episode, "id", None),
+        "prior_snapshot_ids": [item.source_ids.get("snapshot_id") for item in prior_snapshots],
         "prior_evaluation_evidence_id": prior_evaluation_id,
         "prior_transition_evidence_id": prior_transition_id,
         "ticker": snapshot.ticker,
@@ -239,6 +347,30 @@ def persist_lifecycle_evaluation_evidence(
         "reasons": list(decision.reason_codes),
         "warnings": list(snapshot.warning_flags_json or []),
     }
+    from app.services.decision_mutation_authority import lifecycle_projection_after
+
+    effective_sessions = (
+        0
+        if episode is not None and snapshot.data_as_of_date <= episode.last_observed_on
+        else completed_observation_sessions
+    )
+    if not isinstance(effective_sessions, int) or effective_sessions < 0:
+        raise ValueError("MUTATION_LIFECYCLE_OBSERVATION_COUNT_INVALID")
+    if isinstance(db, Session) and episode is not None:
+        from app.services.setup_lifecycle.episode_service import trading_sessions_between
+
+        maximum_sessions = trading_sessions_between(
+            episode.last_observed_on, snapshot.data_as_of_date
+        )
+        if effective_sessions > maximum_sessions:
+            raise ValueError("MUTATION_LIFECYCLE_OBSERVATION_COUNT_EXCEEDS_SESSION_AUTHORITY")
+    decision_payload["projection_after"] = lifecycle_projection_after(
+        snapshot,
+        episode,
+        decision,
+        actionability,
+        effective_sessions,
+    )
     if effective_configuration is not None:
         from app.services.contextual_calculation_identity import build_contextual_result_identity
         from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
@@ -254,6 +386,10 @@ def persist_lifecycle_evaluation_evidence(
                 source_artifacts=(),
                 source_payload={
                     "setup_evidence_id": setup.id,
+                    "episode_id": getattr(episode, "id", None),
+                    "prior_snapshot_ids": [
+                        item.source_ids.get("snapshot_id") for item in prior_snapshots
+                    ],
                     "prior_evaluation_evidence_id": prior_evaluation_id,
                     "prior_transition_evidence_id": prior_transition_id,
                 },
@@ -327,15 +463,28 @@ def persist_lifecycle_evaluation_evidence(
     return row
 
 
+@core_writer_transaction
 def persist_lifecycle_transition_evidence(
     db,
     *,
     event: SetupLifecycleEvent,
     evaluation: SetupLifecycleEvaluationEvidence | None,
     prior_transition_evidence_id: int | None,
+    mutation_context=None,
 ) -> SetupLifecycleTransitionEvidence | None:
     if evaluation is None:
-        return None
+        if not isinstance(db, Session):
+            return None
+        raise ValueError("MUTATION_LIFECYCLE_EVALUATION_REQUIRED")
+    from app.services.decision_mutation_authority import lifecycle_transition_authority
+
+    lifecycle_transition_authority(
+        db,
+        event=event,
+        evaluation=evaluation,
+        prior_id=prior_transition_evidence_id,
+        mutation_context=mutation_context,
+    )
     if prior_transition_evidence_id is not None:
         prior = db.get(SetupLifecycleTransitionEvidence, prior_transition_evidence_id)
         if prior is None:
@@ -345,6 +494,12 @@ def persist_lifecycle_transition_evidence(
     payload = CanonicalEvidenceSerializer.canonicalize(
         {
             "evaluation_evidence_id": evaluation.id,
+            "episode_id": event.episode_id,
+            "snapshot_id": event.snapshot_id,
+            "source_event_key": event.source_event_key,
+            "confidence_score": event.confidence_score,
+            "confidence_label": event.confidence_label,
+            "severity": event.severity,
             "setup_evidence_id": evaluation.setup_evidence_id,
             "prior_transition_evidence_id": prior_transition_evidence_id,
             "ticker": event.ticker,
@@ -400,6 +555,7 @@ def persist_lifecycle_transition_evidence(
     return row
 
 
+@core_writer_transaction
 def persist_observation_gap_evaluation_evidence(
     db,
     *,
@@ -409,15 +565,109 @@ def persist_observation_gap_evaluation_evidence(
     threshold: int,
     evaluation_run_id: int | None,
     effective_configuration=None,
+    market_cutoff=None,
+    mutation_context=None,
 ) -> SetupLifecycleEvaluationEvidence | None:
     """Record a gap/no-gap evaluation from the exact current certified chain."""
 
     prior_evaluation_id = episode.latest_evaluation_evidence_id
     if prior_evaluation_id is None:
-        return None
+        if not isinstance(db, Session):
+            return None
+        raise ValueError("MUTATION_LIFECYCLE_CERTIFIED_PREDECESSOR_REQUIRED")
     prior = db.get(SetupLifecycleEvaluationEvidence, prior_evaluation_id)
     if prior is None:
         raise EvidenceUnavailableError("current lifecycle evaluation evidence is missing")
+    from app.services.contextual_calculation_identity import (
+        build_contextual_result_identity,
+        consumer_context_identity,
+    )
+    from app.services.decision_mutation_authority import (
+        decision_authority,
+        validate_episode_projection,
+    )
+    from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+    from app.services.setup_lifecycle.episode_service import trading_sessions_between
+
+    if effective_configuration is None or market_cutoff is None:
+        raise ValueError("MUTATION_LIFECYCLE_GAP_EXPLICIT_AUTHORITY_REQUIRED")
+    validate_episode_projection(db, episode)
+    setup = get_setup_evidence(db, prior.setup_evidence_id)
+    run = (
+        db.get(SetupLifecycleEvaluationRun, evaluation_run_id)
+        if evaluation_run_id is not None
+        else None
+    )
+    if (
+        isinstance(db, Session)
+        and evaluation_run_id is not None
+        and (
+            run is None
+            or run.mode not in {"LIVE", "REPAIR"}
+            or run.source_run_id not in {None, setup.run_id}
+            or run.config_hash != effective_configuration.setup_config().config_hash
+        )
+    ):
+        raise ValueError("MUTATION_LIFECYCLE_GAP_EVALUATION_RUN_SCOPE_MISMATCH")
+    expected_threshold = (
+        effective_configuration.setup_config()
+        .families.policies[
+            next(
+                family
+                for family in effective_configuration.setup_config().families.policies
+                if family.value == episode.setup_family
+            )
+        ]
+        .observation_gap_sessions
+    )
+    if (
+        market_cutoff.latest_completed_session != observed_on
+        or market_cutoff.cutoff_at < prior.calculation_cutoff_at
+        or episode.current_as_of_date > observed_on
+        or threshold != expected_threshold
+        or missing_observation_sessions
+        != trading_sessions_between(episode.last_observed_on, observed_on)
+    ):
+        raise ValueError("MUTATION_LIFECYCLE_GAP_TIME_OR_COUNTER_MISMATCH")
+    identity = effective_configuration.bind(
+        build_contextual_result_identity(
+            base=consumer_context_identity(
+                market_cutoff=market_cutoff,
+                run_id=setup.run_id,
+                pipeline_id=None,
+                ticker=episode.ticker,
+            ),
+            namespace="lifecycle-gap-repair",
+            config_hash=effective_configuration.snapshot.semantic_hash,
+            calculation_version=episode.engine_version,
+            engine_version=episode.engine_version,
+            source_artifacts=(),
+            source_payload={
+                "setup_evidence_id": setup.id,
+                "prior_evaluation_evidence_id": prior.id,
+                "prior_transition_evidence_id": episode.latest_transition_evidence_id,
+                "observed_on": observed_on,
+                "threshold": threshold,
+            },
+        )
+    )
+    decision_authority(
+        db,
+        domain=MutationDomain.LIFECYCLE_EVALUATION,
+        writer="persist_observation_gap_evaluation_evidence",
+        identity=identity,
+        configuration=effective_configuration,
+        records={"setup": setup},
+        manifests={
+            "previous_episode": {
+                "id": episode.id,
+                "evaluation_key": prior.evidence_key,
+                "transition_id": episode.latest_transition_evidence_id,
+            }
+        },
+        mutation_context=mutation_context,
+        semantic_mode=MutationSemanticMode.CURRENT_STATE_REPAIR,
+    )
     if prior.decision_session > observed_on:
         raise ValueError("observation-gap evaluation cannot consume future evidence")
     if (
@@ -434,11 +684,6 @@ def persist_observation_gap_evaluation_evidence(
         )
     ):
         return prior
-    run = (
-        db.get(SetupLifecycleEvaluationRun, evaluation_run_id)
-        if evaluation_run_id is not None
-        else None
-    )
     expired = missing_observation_sessions > threshold
     output_state = "EXPIRED" if expired else episode.current_state
     output_phase = "OBSERVATION_GAP_EXPIRED" if expired else episode.current_phase
@@ -451,14 +696,16 @@ def persist_observation_gap_evaluation_evidence(
             "timeframe": episode.timeframe,
             "setup_family": episode.setup_family,
             "decision_session": observed_on,
-            "calculation_cutoff_at": prior.calculation_cutoff_at,
-            "calendar_version": prior.calendar_version,
+            "calculation_cutoff_at": market_cutoff.cutoff_at,
+            "calendar_version": market_cutoff.calendar_version,
             "calculation_identity_fingerprint": prior.calculation_identity_fingerprint,
             "execution_mode": getattr(run, "mode", "MAINTENANCE") if run else "MAINTENANCE",
             "previous_state": episode.current_state,
             "output_state": output_state,
             "output_phase": output_phase,
             "transition_eligible": expired,
+            "confidence_score": episode.confidence_score,
+            "confidence_label": episode.confidence_label,
             "counters": {
                 "missing_observation_sessions": missing_observation_sessions,
                 "observation_gap_threshold": threshold,
@@ -472,32 +719,23 @@ def persist_observation_gap_evaluation_evidence(
         }
     )
     if effective_configuration is not None:
-        from app.services.contextual_calculation_identity import build_contextual_result_identity
         from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
 
+        projection = dict(prior.payload_json.get("projection_after") or {})
+        projection.update(
+            current_as_of_date=observed_on,
+            missing_observation_sessions=missing_observation_sessions,
+            current_state=output_state,
+            current_phase=output_phase,
+            status="CLOSED" if expired else episode.status,
+        )
+        payload["episode_id"] = episode.id
+        payload["projection_after"] = CanonicalEvidenceSerializer.canonicalize(projection)
         payload[CONFIGURATION_PAYLOAD_KEY] = effective_configuration.snapshot.as_dict()
         payload["execution_semantics"] = "CURRENT_STATE_REPAIR"
         setup = db.get(CoreCalculationEvidence, prior.setup_evidence_id)
         if setup is None:
             raise EvidenceUnavailableError("gap repair setup evidence is missing")
-        base = _setup_base_identity(setup, episode.ticker)
-        identity = effective_configuration.bind(
-            build_contextual_result_identity(
-                base=base,
-                namespace="lifecycle-gap-repair",
-                config_hash=effective_configuration.snapshot.semantic_hash,
-                calculation_version=episode.engine_version,
-                engine_version=episode.engine_version,
-                source_artifacts=(),
-                source_payload={
-                    "setup_evidence_id": setup.id,
-                    "prior_evaluation_evidence_id": prior.id,
-                    "prior_transition_evidence_id": episode.latest_transition_evidence_id,
-                    "observed_on": observed_on,
-                    "threshold": threshold,
-                },
-            )
-        )
         payload["calculation_identity"] = identity.canonical_payload()
         payload["calculation_identity_fingerprint"] = str(identity.fingerprint())
     payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
@@ -508,7 +746,7 @@ def persist_observation_gap_evaluation_evidence(
         },
         identity_fingerprint=payload["calculation_identity_fingerprint"],
         calculation_versions={"engine_version": episode.engine_version},
-        evaluated_at=prior.calculation_cutoff_at,
+        evaluated_at=market_cutoff.cutoff_at,
         business_anchor=observed_on,
     ).canonical_payload()
     fingerprint = CanonicalEvidenceSerializer.fingerprint(payload)
@@ -531,8 +769,8 @@ def persist_observation_gap_evaluation_evidence(
         timeframe=episode.timeframe,
         setup_family=episode.setup_family,
         decision_session=observed_on,
-        calculation_cutoff_at=prior.calculation_cutoff_at,
-        calendar_version=prior.calendar_version,
+        calculation_cutoff_at=market_cutoff.cutoff_at,
+        calendar_version=market_cutoff.calendar_version,
         calculation_identity_fingerprint=payload["calculation_identity_fingerprint"],
         execution_mode=payload["execution_mode"],
         previous_state=episode.current_state,
@@ -554,6 +792,9 @@ def persist_observation_gap_evaluation_evidence(
     return row
 
 
+@core_writer_member(
+    "app.services.setup_lifecycle.decision_evidence:persist_alert_decision_evidence"
+)
 def persist_alert_rule_evidence(db, rule: SignalAlertRule) -> SignalAlertRuleEvidence:
     payload = CanonicalEvidenceSerializer.canonicalize(
         {
@@ -623,6 +864,7 @@ def prior_generated_alert_decision(
     )
 
 
+@core_writer_transaction
 def persist_alert_decision_evidence(
     db,
     *,
@@ -641,10 +883,32 @@ def persist_alert_decision_evidence(
     cooldown_predecessor_evidence_id: int | None = None,
     dedup_predecessor_evidence_id: int | None = None,
     effective_configuration=None,
+    mutation_context=None,
 ) -> SignalAlertDecisionEvidence:
+    from app.services.decision_mutation_authority import _alert_decision_authority
+
+    authority = _alert_decision_authority(
+        db,
+        rule=rule,
+        ticker=ticker,
+        timeframe=timeframe,
+        session=effective_session,
+        semantic_key=semantic_key,
+        source_event_key=source_event_key,
+        decision=decision,
+        setup_id=setup_evidence_id,
+        evaluation_id=lifecycle_evaluation_evidence_id,
+        transition_id=lifecycle_transition_evidence_id,
+        cooldown_id=cooldown_predecessor_evidence_id,
+        dedup_id=dedup_predecessor_evidence_id,
+        configuration=effective_configuration,
+        mutation_context=mutation_context,
+        payload=payload,
+        reasons=reasons,
+    )
     rule_evidence = persist_alert_rule_evidence(db, rule)
-    cutoff = None
-    calendar = None
+    cutoff = authority.temporal.cutoff_at
+    calendar = authority.temporal.calendar_version
     if lifecycle_evaluation_evidence_id is not None:
         evaluation = db.get(SetupLifecycleEvaluationEvidence, lifecycle_evaluation_evidence_id)
         if evaluation is not None:
@@ -669,6 +933,9 @@ def persist_alert_decision_evidence(
             "decision": decision,
             "reasons": list(reasons),
             "decision_payload": payload,
+            "calculation_identity": authority.calculation_identity.canonical_payload(),
+            "calculation_identity_fingerprint": str(authority.calculation_identity.fingerprint()),
+            "execution_semantics": authority.semantic_mode.value,
         }
     )
     if effective_configuration is not None:
@@ -684,6 +951,27 @@ def persist_alert_decision_evidence(
     )
     if existing is not None:
         return existing
+    if (
+        decision == "GENERATED"
+        and db.scalar(
+            select(SignalAlertDecisionEvidence.id)
+            .join(
+                SignalAlertRuleEvidence,
+                SignalAlertRuleEvidence.id == SignalAlertDecisionEvidence.rule_evidence_id,
+            )
+            .where(
+                SignalAlertRuleEvidence.rule_id == rule.rule_id,
+                SignalAlertDecisionEvidence.ticker == ticker.strip().upper(),
+                SignalAlertDecisionEvidence.timeframe == timeframe,
+                SignalAlertDecisionEvidence.source_event_key == source_event_key,
+                SignalAlertDecisionEvidence.decision == "GENERATED",
+                SignalAlertDecisionEvidence.effective_session <= effective_session,
+            )
+            .limit(1)
+        )
+        is not None
+    ):
+        raise ValueError("MUTATION_ALERT_DEDUP_ALREADY_GENERATED")
     row = SignalAlertDecisionEvidence(
         rule_evidence_id=rule_evidence.id,
         setup_evidence_id=setup_evidence_id,

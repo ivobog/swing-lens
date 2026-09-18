@@ -11,6 +11,7 @@ import json
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.configuration_source_values import configuration_leaves
 from app.services.contextual_effective_configuration import _restore
 from app.services.core_effective_configuration import CoreEffectiveConfiguration, _decode
@@ -491,9 +492,21 @@ def _configuration_from_payload(payload):
 
 def configuration_from_payload(payload):
     try:
-        return _configuration_from_payload(payload)
+        # Cache only deterministic decoding of the entire supplied value. A changed
+        # payload has a different key and must pass every integrity check again.
+        # Database bindings, ownership, eligibility and record comparisons remain
+        # uncached at their callers. Snapshots and their entries are immutable;
+        # the adapter exposes a fresh native value tree on every read.
+        return DecisionEffectiveConfiguration(
+            _verified_configuration_snapshot(Canonical.dumps(payload))
+        )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("FROZEN_CONFIGURATION_INTEGRITY_MISMATCH") from exc
+
+
+@lru_cache(maxsize=128)
+def _verified_configuration_snapshot(serialized_payload):
+    return _configuration_from_payload(json.loads(serialized_payload)).snapshot
 
 
 @lru_cache(maxsize=64)

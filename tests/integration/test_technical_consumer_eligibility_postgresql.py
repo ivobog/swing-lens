@@ -1,9 +1,15 @@
 from copy import deepcopy
+from dataclasses import replace
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 from alembic.config import Config
 from historical_evidence_support import seed_pre_phase5_evidence
+from historical_setup_evidence_fixture import (
+    persist_lifecycle_evaluation_evidence,
+    persist_setup_evidence,
+)
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session, selectinload
 from test_combined_decision import _config
@@ -24,11 +30,6 @@ from app.services.core_calculation_evidence import CoreEvidenceKind
 from app.services.ranking_profile_config import get_ranking_profile
 from app.services.ranking_profile_engine import rank_single_row
 from app.services.ranking_profile_service import _to_ranking_model
-from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
-from app.services.setup_lifecycle.decision_evidence import (
-    persist_lifecycle_evaluation_evidence,
-    persist_setup_evidence,
-)
 from app.services.setup_lifecycle.dtos import ActionabilityDecision, LifecycleDecision
 from app.services.setup_lifecycle.enums import (
     Actionability,
@@ -241,25 +242,58 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
         newer_setup = persist_setup_evidence(db, newer)
         assert newer_setup.id != setup.id
         service = SetupLifecycleEpisodeService()
-        result = service.apply_snapshot(db, newer, preloaded_episodes=(episode,))
+
+        def retained_history_result():
+            # Algorithm/read-history coverage over pre-Phase-5 fixture facts.
+            # This seeder grants no current financial writer authority.
+            from app.services.setup_lifecycle.episode_service import normalized_snapshot_from_row
+            from app.services.setup_lifecycle.lifecycle_engine import LifecycleEvaluationInput
+
+            normalized = replace(
+                normalized_snapshot_from_row(newer),
+                source_lineage=deepcopy(newer_setup.payload_json["source_lineage_json"]),
+            )
+            decision = service.lifecycle_engine.evaluate(
+                LifecycleEvaluationInput(
+                    snapshot=normalized,
+                    previous_state=LifecycleState.READY,
+                    previous_phase="PIVOT_READY",
+                    previous_confidence_score=90,
+                )
+            )
+            # A frozen technical block retains the existing primary family,
+            # exactly as the live service's blocked-episode selection does.
+            from app.services.technical_consumer_eligibility import setup_technical_blocked
+
+            assert setup_technical_blocked(normalized)
+            decision = replace(decision, setup_family=SetupFamily(episode.setup_family))
+            actionability = service.actionability_policy.evaluate(decision, normalized)
+            evaluation = persist_lifecycle_evaluation_evidence(
+                db,
+                snapshot=newer,
+                episode=episode,
+                decision=decision,
+                actionability=actionability,
+                evaluation_run_id=None,
+                transition_eligible=True,
+            )
+            episode.latest_evaluation_evidence_id = evaluation.id
+            return SimpleNamespace(
+                decision=decision, actionability=actionability, lifecycle_event=None
+            )
+
+        result = retained_history_result()
         assert result.decision.proposed_state is LifecycleState.READY
         assert result.actionability.actionability is Actionability.BLOCKED
         assert result.lifecycle_event is None
         evaluation = db.get(SetupLifecycleEvaluationEvidence, episode.latest_evaluation_evidence_id)
         assert evaluation.id != old_evaluation.id
         assert evaluation.payload_json["decision"]["actionability"] == "BLOCKED"
-        alerts = SetupLifecycleAlertService()
-        alerts.seed_builtin_rules(db)
-        alerts.evaluate_episode_result(db, result)
-        assert not db.scalars(
-            select(SignalAlertEvent).where(
-                SignalAlertEvent.evidence_json["actionability_after"].astext == "ACTIONABLE"
-            )
-        ).all()
+        assert not db.scalars(select(SignalAlertEvent)).all()
         assert old_evaluation.payload_json == old_payload
         # A mutable Setup projection cannot clear a frozen block.
         newer.source_lineage_json = deepcopy(snapshot.source_lineage_json)
-        repeated = service.apply_snapshot(db, newer, preloaded_episodes=(episode,))
+        repeated = retained_history_result()
         assert repeated.actionability.actionability is Actionability.BLOCKED
         for evidence_id, payload in historical.items():
             assert db.get(CoreCalculationEvidence, evidence_id).payload_json == payload
@@ -317,7 +351,7 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
                 assert payload[TECHNICAL_ELIGIBILITY_KEY]["decision"]["policy_version"].endswith(
                     "-v2-test"
                 )
-            frozen_replay = service.apply_snapshot(db, newer, preloaded_episodes=(episode,))
+            frozen_replay = retained_history_result()
             assert frozen_replay.actionability.actionability is Actionability.BLOCKED
             for evidence_id, payload in historical.items():
                 assert db.get(CoreCalculationEvidence, evidence_id).payload_json == payload
@@ -327,6 +361,11 @@ def test_core_permissions_freeze_round_trip_retry_and_block_existing_ready_episo
             )
         ids = list(historical)
         db.commit()
+        # Current writers reject these retained fixture facts; native positive
+        # transition/blocking behavior is exercised by test_t14c_decision_writer_postgresql.
+        with pytest.raises(ValueError, match="MUTATION_|Market calculation context"):
+            service.apply_snapshot(db, newer, preloaded_episodes=(episode,))
+        db.rollback()
     with Session(engine) as db:
         for evidence_id in ids:
             assert (

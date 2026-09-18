@@ -8,6 +8,7 @@ from typing import Any
 
 from app.models.tables import SetupLifecycleEvent, SetupSignalSnapshot
 from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 
@@ -83,6 +84,7 @@ class SetupLifecycleCanonicalizer:
         )
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def canonicalize_snapshots(
         self,
         db,

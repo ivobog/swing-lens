@@ -287,6 +287,7 @@ def execute_fetch_plan(
         MarketDataObligationService().record_fetch_results(
             db,
             fetch_run=fetch_run,
+            now=fetch_run.completed_at,
         )
         db.commit()
 

@@ -107,7 +107,6 @@ class CeriNormalizationService:
         failed = int(processing_run.failed_count or 0)
         warning_count = int(processing_run.warning_count or 0)
         errors: list[dict[str, Any]] = list((processing_run.errors_json or {}).get("records") or [])
-        persisted_sec_identities: set[tuple[int, str]] = set()
 
         for index, source_record in enumerate(records, start=1):
             if callable(should_cancel) and should_cancel():
@@ -125,12 +124,6 @@ class CeriNormalizationService:
                             db,
                             source_record,
                             company_id=resolution.company_id,
-                        )
-                        _persist_sec_identity(
-                            db,
-                            source_record,
-                            resolution.company_id,
-                            seen=persisted_sec_identities,
                         )
                         normalized += created
                         warning_count += _warning_count_for_last(db)
@@ -195,6 +188,9 @@ class CeriNormalizationService:
         *,
         company_id: int,
     ) -> int:
+        # Source identity maintenance belongs to the same validated native
+        # source transaction as normalization, including direct record calls.
+        _persist_sec_identity(db, source_record, company_id)
         dataset = CeriDataset(source_record.dataset)
         if dataset is CeriDataset.ESTIMATES:
             if _exists_by_source(db, CeriEstimateSnapshot, source_record.id):

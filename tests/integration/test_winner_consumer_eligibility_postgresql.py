@@ -29,7 +29,6 @@ from app.models.tables import (
     TransitionPreflightPlan,
     UploadRun,
     WinnerForwardOutcome,
-    WinnerOutcomeDefinition,
     WinnerPredictionEpisode,
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
@@ -63,7 +62,6 @@ from app.services.winner_probability.calculation_identity import (
 from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.consumer_eligibility import WINNER_ELIGIBILITY_KEY
-from app.services.winner_probability.probability_estimator import ProbabilityEstimator
 from app.services.winner_probability.repository import WinnerProbabilityRepository
 
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
@@ -286,10 +284,32 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
             assert all(db.scalar(select(func.count()).select_from(model)) == 0 for model in counts)
             engine.dispose()
             return
-        assert result.inserted == 1 and result.failed == 0, result.as_dict()
-        prediction = db.scalar(select(WinnerPredictionSnapshot))
-        assert counts[WinnerPredictionEpisode] == 1
-        assert counts[WinnerForwardOutcome] == 10 and counts[WinnerTargetStopOutcome] == 2
+        # These hand-built producer facts test permission mathematics/history.
+        # They have no native financial birth proof and cannot create predictions.
+        assert result.failed == 1 and result.inserted == 0, result.as_dict()
+        assert all(value == 0 for value in counts.values())
+        from app.services.winner_probability.feature_extractor import WinnerFeatureExtractor
+
+        acquisition = acquire_winner_sources(
+            context,
+            context.tickers[0],
+            run_id=7,
+            market_cutoff=cutoff,
+            winner_config=winner_config,
+        )
+        prediction = WinnerFeatureExtractor().extract(
+            acquisition.run_context,
+            acquisition.ticker_context,
+            winner_config,
+            decision_at=cutoff.cutoff_at,
+        )
+        prediction = replace(
+            prediction,
+            lineage_json={
+                **prediction.lineage_json,
+                WINNER_ELIGIBILITY_KEY: acquisition.consumer_eligibility.canonical_payload(),
+            },
+        )
         frozen = deepcopy(prediction.feature_json), deepcopy(prediction.lineage_json)
         decisions = frozen[1][WINNER_ELIGIBILITY_KEY]
         exact_rows = {
@@ -334,7 +354,7 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
             61 if regime_included else None
         )
         retry = service.capture_run(db, run_id=7, market_cutoff=cutoff)
-        assert retry.duplicate == 1 and retry.inserted == 0
+        assert retry.failed == 1 and retry.inserted == 0
         assert {
             model: db.scalar(select(func.count()).select_from(model)) for model in counts
         } == counts
@@ -372,7 +392,6 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
             assert {
                 model: db.scalar(select(func.count()).select_from(model)) for model in counts
             } == counts
-            db.expire(prediction)
             assert (prediction.feature_json, prediction.lineage_json) == frozen
         # Advancing a current producer is legitimate; neither the handoff nor the
         # successful prediction may be edited to accommodate that new pointer.
@@ -405,101 +424,26 @@ def test_native_winner_permissions_atomic_retry_and_frozen_history(
         )
         db.commit()
 
-        def forbidden(*_args, **_kwargs):
-            raise AssertionError("Historical SQL operation reacquired readiness")
-
-        from app.services.winner_probability import calculation_identity, capture_service
-
-        monkeypatch.setattr(calculation_identity, "acquire_winner_sources", forbidden)
-        monkeypatch.setattr(capture_service, "acquire_winner_sources", forbidden)
-        monkeypatch.setattr(TechnicalConsumerPolicy, "evaluate", forbidden)
-        monkeypatch.setattr(ContextualConsumerPolicy, "evaluate", forbidden)
-        db.expire(prediction)
+        # Reading the previously extracted facts does not reacquire readiness.
+        # Native rescore/maturation/immutability are covered with actual financial
+        # producers in test_t14c_winner_writer_postgresql, never this fixture.
         assert (prediction.feature_json, prediction.lineage_json) == frozen
-        definition = db.scalar(
-            select(WinnerOutcomeDefinition).where(WinnerOutcomeDefinition.is_primary.is_(True))
+        assert all(db.scalar(select(func.count()).select_from(model)) == 0 for model in counts)
+        retained_setup = db.get(CoreCalculationEvidence, setup_snapshot.evidence_id)
+        assert retained_setup.payload_json == setup_payload
+        changed = deepcopy(retained_setup.payload_json)
+        changed["source_lineage_json"][CONTEXTUAL_ELIGIBILITY_KEY]["fundamental"]["included"] = (
+            False
         )
-        estimate = ProbabilityEstimator().create_latest_rescore(
-            db,
-            prediction=prediction,
-            outcome_definition=definition,
-            as_of=cutoff.cutoff_at + timedelta(days=30),
-        )
-        assert estimate.status == "insufficient"
-        db.commit()
-        assert (prediction.feature_json, prediction.lineage_json) == frozen
-        from winner_probability.test_outcome_service import _bars
-
-        from app.services.winner_probability.outcome_service import OutcomeMaturationService
-
-        bars = _bars([100, 101, 102, 102, 103], highs=[101, 102, 103, 103, 104])
-        bars += _bars([200, 200, 201, 201, 202], ticker="SPY")
-        bars += _bars([50, 50, 50.5, 51, 51], ticker="XLK")
-        for bar in bars:
-            bar.id = None  # Let the native SQL primary key allocator assign each bar.
-        db.add_all(bars)
-        db.commit()
-        from app.models.tables import IBContract
-        from app.services.winner_probability.market_data_obligation_service import (
-            MarketDataObligationService,
-        )
-
-        db.add(
-            IBContract(
-                ticker="MSFT",
-                ib_conid=81234,
-                symbol="MSFT",
-                local_symbol="MSFT",
-                exchange="SMART",
-                primary_exchange="NASDAQ",
-                currency="USD",
-                sec_type="STK",
-                trading_class="NMS",
-                resolution_status="RESOLVED",
-            )
-        )
-        db.flush()
-        due_forward = db.scalar(
-            select(WinnerForwardOutcome).where(
-                WinnerForwardOutcome.entry_model == "NEXT_OPEN",
-                WinnerForwardOutcome.horizon_sessions == 5,
-                WinnerForwardOutcome.is_current_revision.is_(True),
-            )
-        )
-        obligations = MarketDataObligationService().ensure_for_outcomes(
-            db, [due_forward], now=datetime(2026, 8, 10, 21, tzinfo=UTC)
-        )
-        assert obligations.satisfied == 1 and obligations.identity_blocked == 0
-        db.commit()
-        matured = OutcomeMaturationService().process_due_outcomes(
-            db,
-            now=datetime(2026, 8, 10, 21, tzinfo=UTC),
-            entry_model="NEXT_OPEN",
-            horizon_sessions=5,
-        )
-        assert matured.matured == 1 and matured.target_stop_matured == 1, matured.as_dict()
-        db.commit()
-        native_forward = db.scalar(
-            select(WinnerForwardOutcome).where(
-                WinnerForwardOutcome.entry_model == "NEXT_OPEN",
-                WinnerForwardOutcome.horizon_sessions == 5,
-                WinnerForwardOutcome.is_current_revision.is_(True),
-            )
-        )
-        assert native_forward.close_return_pct == 3
-        assert prediction.feature_json == frozen[0]
-        assert prediction.lineage_json[WINNER_ELIGIBILITY_KEY] == frozen[1][WINNER_ELIGIBILITY_KEY]
-        altered = deepcopy(prediction.lineage_json)
-        altered[WINNER_ELIGIBILITY_KEY]["technical"]["included"] = False
-        prediction.lineage_json = altered
+        retained_setup.payload_json = changed
         with pytest.raises(ValueError, match="IMMUTABLE_EVIDENCE_MUTATION_REJECTED"):
             db.flush()
         db.rollback()
+
     engine.dispose()
 
 
 def _seed(engine, mode):
-    from datetime import UTC, datetime
 
     cutoff = (
         MarketClockService()

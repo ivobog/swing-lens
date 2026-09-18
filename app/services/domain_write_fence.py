@@ -24,6 +24,27 @@ _current_ownership: ContextVar[DomainWriteOwnership | None] = ContextVar(
     "swinglens_domain_write_ownership",
     default=None,
 )
+_fenced_session: ContextVar[tuple[Session, DomainWriteOwnership] | None] = ContextVar(
+    "swinglens_fenced_domain_session", default=None
+)
+
+
+def current_fenced_domain_session(job_id: int, execution_token: str) -> Session | None:
+    """Find this attempt's synchronous transaction retaining the job row lock."""
+    retained = _fenced_session.get()
+    if retained is None:
+        return None
+    db, ownership = retained
+    if ownership != DomainWriteOwnership(job_id, execution_token) or not db.in_transaction():
+        return None
+    return db
+
+
+@event.listens_for(Session, "after_transaction_end")
+def _release_fenced_session(db: Session, transaction) -> None:
+    retained = _fenced_session.get()
+    if transaction.parent is None and retained is not None and retained[0] is db:
+        _fenced_session.set(None)
 
 
 def current_domain_write_ownership() -> DomainWriteOwnership | None:
@@ -56,6 +77,7 @@ def assert_current_execution_ownership(
         or current.execution_token != execution_token
     ):
         raise JobLeaseLost(f"Background job {job_id} lease is no longer held.")
+    _fenced_session.set((db, DomainWriteOwnership(job_id, execution_token)))
 
 
 @contextmanager

@@ -6,9 +6,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.tables import WinnerForwardOutcome, WinnerTargetStopOutcome
+from app.services.core_mutation_authority import core_writer_member
 
 
 class OutcomeRevisionService:
+    @core_writer_member(
+        "app.services.winner_probability.outcome_service:OutcomeMaturationService.process_forward_outcome"
+    )
     def upsert_forward_revision(
         self,
         db: Session,
@@ -38,10 +42,19 @@ class OutcomeRevisionService:
             metadata_json={**(current.metadata_json or {}), "revised_from_id": current.id},
         )
         _assign(revision, values)
+        revision.metadata_json = {
+            key: value
+            for key, value in (revision.metadata_json or {}).items()
+            if key != "native_outcome_proof"
+        }
+        revision.metadata_json["revised_from_id"] = current.id
         db.add(revision)
         db.flush()
         return revision, True
 
+    @core_writer_member(
+        "app.services.winner_probability.outcome_service:OutcomeMaturationService.process_forward_outcome"
+    )
     def upsert_target_stop_revision(
         self,
         db: Session,
@@ -72,6 +85,12 @@ class OutcomeRevisionService:
             metadata_json={**(current.metadata_json or {}), "revised_from_id": current.id},
         )
         _assign(revision, values)
+        revision.metadata_json = {
+            key: value
+            for key, value in (revision.metadata_json or {}).items()
+            if key != "native_outcome_proof"
+        }
+        revision.metadata_json["revised_from_id"] = current.id
         db.add(revision)
         db.flush()
         return revision, True

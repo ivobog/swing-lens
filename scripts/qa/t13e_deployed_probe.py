@@ -89,13 +89,15 @@ def main(mode: str) -> dict:
         sys.path.insert(0, str(repo / "tests"))
         from test_fundamental_ranker_v2 import _quality_values
 
+        fixture_ticker = os.environ.get("T13E_FIXTURE_TICKER", "ACME")
+
         # Real cache rows, known before the route reserves its market cutoff.
         # Financial inputs remain available after every process exits.
         seed_cutoff = MarketClockService().cutoff_for(now, reason="T13E_ACQUISITION_FIXTURE")
         dates = pd.bdate_range(end=seed_cutoff.latest_completed_session, periods=400)
         with SessionLocal() as db:
-            if db.scalar(select(PriceBar.id).limit(1)) is None:
-                for ticker in ("ACME", "SPY", "QQQ", "IWM", "XLK", "TLT", "VIXY"):
+            for ticker in (fixture_ticker, "SPY", "QQQ", "IWM", "XLK", "TLT", "VIXY"):
+                if db.scalar(select(PriceBar.id).where(PriceBar.ticker == ticker).limit(1)) is None:
                     db.add(IBContract(ticker=ticker, resolution_status="RESOLVED", ib_conid=1000))
                     for index, bar_date in enumerate(dates):
                         close = 100 + index * 0.2
@@ -124,7 +126,7 @@ def main(mode: str) -> dict:
             )
             db.commit()
         aliases = load_alias_map()
-        raw = {"Symbol": "ACME", "Description": "ACME", "Sector": "Technology"}
+        raw = {"Symbol": fixture_ticker, "Description": fixture_ticker, "Sector": "Technology"}
         raw.update(
             {
                 aliases[key][0]: value
@@ -185,10 +187,12 @@ def main(mode: str) -> dict:
                     upload_run_id=run_id,
                     pipeline_run_id=pipeline.id,
                 )
-                company = db.scalar(select(CeriCompany).where(CeriCompany.ticker == "ACME"))
+                company = db.scalar(select(CeriCompany).where(CeriCompany.ticker == fixture_ticker))
                 seed_estimates = company is None
                 if company is None:
-                    company = CeriCompany(ticker="ACME", exchange="NYSE", company_name="ACME")
+                    company = CeriCompany(
+                        ticker=fixture_ticker, exchange="NYSE", company_name=fixture_ticker
+                    )
                     db.add(company)
                     db.flush()
                 for metric in ("EPS_DILUTED", "REVENUE"):
@@ -202,7 +206,7 @@ def main(mode: str) -> dict:
                             if not seed_estimates:
                                 continue
                             known = cutoff.cutoff_at - timedelta(days=days)
-                            key = f"t13e-{metric}-{slot}-{days}"
+                            key = f"t13e-{fixture_ticker}-{metric}-{slot}-{days}"
                             source = CeriSourceRecord(
                                 provider="manual",
                                 dataset="estimates",
@@ -255,7 +259,7 @@ def main(mode: str) -> dict:
                 enqueue_job(
                     db,
                     "IB_INTELLIGENCE_REBUILD_FEATURES",
-                    {"module": "LIQUIDITY", "tickers": ["ACME"]},
+                    {"module": "LIQUIDITY", "tickers": [fixture_ticker]},
                     related_run_id=run_id,
                     parent_job_id=job.id,
                 )

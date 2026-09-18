@@ -18,6 +18,8 @@ from app.services.winner_probability.consumer_eligibility import (
     WinnerSourceEligibilityError,
 )
 
+pytestmark = pytest.mark.usefixtures("simulated_native_winner_capture")
+
 
 @pytest.mark.parametrize("source", ["technical", "ranking", "regime", "sector"])
 def test_exact_blocked_source_cannot_be_replaced_by_ready_current_candidate(source):

@@ -13,6 +13,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
 )
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.us_market_calendar import nth_us_trading_day_from_entry
 from app.services.winner_probability.config import (
     ENTRY_MODEL_SIGNAL_CLOSE_DIAGNOSTIC,
@@ -37,12 +38,19 @@ class PendingOutcomeService:
         self.repository = repository or WinnerProbabilityRepository()
         self.obligation_service = obligation_service
 
+    @core_writer_transaction
     def materialize_pending_outcomes(
         self,
         db: Session,
         prediction: WinnerPredictionSnapshot,
         config: WinnerProbabilityConfig,
+        *,
+        mutation_context=None,
     ) -> PendingOutcomeMaterializationResult:
+        if isinstance(db, Session):
+            from app.services.winner_probability.outcome_authority import pending_authority
+
+            pending_authority(db, prediction, config, mutation_context)
         from app.services.decision_effective_configuration import (
             configuration_from_payload,
             validate_executable_configuration,
@@ -68,11 +76,24 @@ class PendingOutcomeService:
                     db, prediction, entry_model, horizon
                 )
                 forward_outcomes.append(forward)
+                if isinstance(db, Session):
+                    from app.services.winner_probability.outcome_authority import (
+                        seal_pending,
+                        validate_retained_outcome,
+                    )
+
+                    if created:
+                        seal_pending(db, forward, prediction)
+                        db.flush()
+                    else:
+                        validate_retained_outcome(db, forward)
                 if created:
                     forward_count += 1
 
         if self.obligation_service is not None:
-            self.obligation_service.ensure_for_outcomes(db, forward_outcomes)
+            self.obligation_service.ensure_for_outcomes(
+                db, forward_outcomes, now=prediction.captured_at
+            )
 
         for raw_definition, definition in zip(config.outcome_definitions, definitions, strict=True):
             forward = self.repository.get_forward_outcome(
@@ -81,7 +102,7 @@ class PendingOutcomeService:
                 entry_model=raw_definition.entry_model,
                 horizon_sessions=raw_definition.horizon_sessions,
             )
-            _, created = self._ensure_target_stop_outcome(
+            target, created = self._ensure_target_stop_outcome(
                 db,
                 prediction,
                 definition,
@@ -91,12 +112,24 @@ class PendingOutcomeService:
             )
             if created:
                 target_stop_count += 1
+            if isinstance(db, Session):
+                if created:
+                    seal_pending(db, target, prediction)
+                    db.flush()
+                else:
+                    validate_retained_outcome(db, target)
 
         return PendingOutcomeMaterializationResult(
             forward_outcome_count=forward_count,
             target_stop_outcome_count=target_stop_count,
         )
 
+    @core_writer_member(
+        (
+            "app.services.winner_probability.pending_outcome_service:PendingOutcomeService.materialize_pending_outcomes",
+            "app.services.winner_probability.capture_service:WinnerPredictionCaptureService._capture_ticker",
+        )
+    )
     def _ensure_outcome_definition(
         self,
         db: Session,
@@ -157,6 +190,9 @@ class PendingOutcomeService:
             retained or resolve_winner_configuration(config, family="outcome")
         ).snapshot.as_dict()
 
+    @core_writer_member(
+        "app.services.winner_probability.pending_outcome_service:PendingOutcomeService.materialize_pending_outcomes"
+    )
     def _ensure_forward_outcome(
         self,
         db: Session,
@@ -194,6 +230,9 @@ class PendingOutcomeService:
         )
         return self.repository.add(db, row), True
 
+    @core_writer_member(
+        "app.services.winner_probability.pending_outcome_service:PendingOutcomeService.materialize_pending_outcomes"
+    )
     def _ensure_target_stop_outcome(
         self,
         db: Session,

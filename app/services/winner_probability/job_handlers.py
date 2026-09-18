@@ -4,7 +4,7 @@ import logging
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -193,6 +193,7 @@ class WinnerCohortRefreshService:
         on_generation_captured: Callable[[WinnerCohortGeneration], None] | None = None,
         max_groups: int = 100,
         max_wall_seconds: float = 45.0,
+        operation_at: datetime | None = None,
     ) -> WinnerCohortRefreshResult:
         config = load_winner_probability_config()
         outcome_definition = self._outcome_definition(
@@ -210,8 +211,10 @@ class WinnerCohortRefreshService:
             db,
             outcome_definition=outcome_definition,
             config=config,
+            observed_at=operation_at,
         )
         state = advance.state
+        calculation_at = operation_at + timedelta(microseconds=1) if operation_at else None
         if (
             state.published_generation_id is not None
             and state.published_watermark_hash == state.desired_watermark_hash
@@ -230,6 +233,8 @@ class WinnerCohortRefreshService:
             db,
             state=state,
             contract=contract_for(outcome_definition, config),
+            config=config,
+            requested_at=calculation_at,
         )
         if isinstance(db, Session):
             from app.services.configuration_delivery import bind_winner_generation_configuration
@@ -246,6 +251,7 @@ class WinnerCohortRefreshService:
             should_cancel=should_cancel,
             max_groups=max_groups,
             max_wall_seconds=max_wall_seconds,
+            operation_at=calculation_at,
         )
         return WinnerCohortRefreshResult(
             processed=materialized.groups_in_slice,
@@ -814,6 +820,7 @@ def execute_cohort_refresh_job(
             on_generation_captured=link_generation,
             max_groups=max_groups,
             max_wall_seconds=max_wall_seconds,
+            operation_at=_utcnow(),
         )
     except (WinnerCohortRefreshCancelled, CohortMaterializationCancelled) as exc:
         _finish_processing_run(

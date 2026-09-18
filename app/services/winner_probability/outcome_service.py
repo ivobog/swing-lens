@@ -23,6 +23,7 @@ from app.models.tables import (
     WinnerTargetStopOutcome,
 )
 from app.services.bar_cache_service import price_bar_data_hash
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.winner_probability.market_data_obligation_service import (
     complete_basis_for_rows,
@@ -115,6 +116,7 @@ class OutcomeMaturationService:
         self.revision_service = revision_service or OutcomeRevisionService()
         self.target_stop_service = target_stop_service or TargetStopService()
 
+    @core_writer_transaction
     def process_due_outcomes(
         self,
         db: Session,
@@ -126,6 +128,8 @@ class OutcomeMaturationService:
         horizon_sessions: int | None = None,
         due_session: date | None = None,
     ) -> OutcomeMaturationResult:
+        if isinstance(db, Session) and (now is None or now.tzinfo is None):
+            raise ValueError("MUTATION_WINNER_OUTCOME_EXPLICIT_OPERATION_TIME_REQUIRED")
         now = now or _utcnow()
         completed_on = _latest_completed_for(now)
         selector_kwargs: dict[str, Any] = {"completed_on": completed_on, "limit": limit}
@@ -143,6 +147,7 @@ class OutcomeMaturationService:
             self.process_forward_outcome(db, outcome, now=now, totals=totals)
         return totals.to_result()
 
+    @core_writer_transaction
     def process_current_revisions(
         self,
         db: Session,
@@ -152,6 +157,8 @@ class OutcomeMaturationService:
         forward_outcome_ids: tuple[int, ...] = (),
         should_cancel: Callable[[], bool] | None = None,
     ) -> OutcomeMaturationResult:
+        if isinstance(db, Session) and (now is None or now.tzinfo is None):
+            raise ValueError("MUTATION_WINNER_OUTCOME_EXPLICIT_OPERATION_TIME_REQUIRED")
         now = now or _utcnow()
         outcomes = self.repository.get_current_matured_forward_outcomes(
             db, limit=limit, forward_outcome_ids=forward_outcome_ids
@@ -169,6 +176,7 @@ class OutcomeMaturationService:
     ) -> OutcomeBatchContext:
         return self.repository.load_batch_context(db, outcomes)
 
+    @core_writer_transaction
     def process_forward_outcome(
         self,
         db: Session,
@@ -177,7 +185,46 @@ class OutcomeMaturationService:
         now: datetime | None = None,
         totals: _MutableOutcomeCounts | None = None,
         context: OutcomeBatchContext | None = None,
+        mutation_context=None,
     ) -> OutcomeMaturationResult:
+        authority = None
+        if isinstance(db, Session):
+            from app.services.decision_mutation_authority import lock_decision_scope
+            from app.services.winner_probability.outcome_authority import forward_authority
+
+            lock_decision_scope(
+                db,
+                {
+                    "winner_outcome": outcome.prediction_id,
+                    "entry_model": outcome.entry_model,
+                    "horizon": outcome.horizon_sessions,
+                },
+            )
+            if not db.is_modified(outcome, include_collections=True):
+                from app.services.winner_probability.outcome_authority import (
+                    refresh_exact_predecessor,
+                )
+
+                refresh_exact_predecessor(db, outcome)
+
+            prediction = db.get(WinnerPredictionSnapshot, outcome.prediction_id)
+            native_context = WinnerOutcomeRepository().load_batch_context(db, [outcome])
+            if context is not None:
+                expected_ids = [
+                    row.id for row in native_context.bars_by_outcome.get(outcome.id, [])
+                ]
+                supplied_ids = [row.id for row in context.bars_by_outcome.get(outcome.id, [])]
+                if expected_ids != supplied_ids:
+                    raise ValueError("MUTATION_WINNER_OUTCOME_EXACT_BATCH_PRICE_SCOPE_REQUIRED")
+            context = native_context
+            authority = forward_authority(
+                db,
+                prediction=prediction,
+                outcome=outcome,
+                now=now,
+                batch=context,
+                mutation_context=mutation_context,
+            )
         now = now or _utcnow()
         totals = totals or _MutableOutcomeCounts()
         totals.processed += 1
@@ -201,6 +248,29 @@ class OutcomeMaturationService:
             return totals.to_result()
 
         calculation = self._calculate_forward(db, prediction, outcome, now=now, context=context)
+        if isinstance(db, Session):
+            from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+
+            native_calculation = OutcomeMaturationService()._calculate_forward(
+                db, prediction, outcome, now=now, context=context
+            )
+
+            def result_body(result):
+                return (
+                    None
+                    if result is None
+                    else {
+                        "values": result.values,
+                        "ticker_bars": [bar.id for bar in result.ticker_bars],
+                        "lineage_bars": [bar.id for bar in result.lineage_bars],
+                        "warnings": result.warnings,
+                    }
+                )
+
+            if Canonical.dumps(result_body(calculation)) != Canonical.dumps(
+                result_body(native_calculation)
+            ):
+                raise ValueError("MUTATION_WINNER_FORWARD_NATIVE_RESULT_MISMATCH")
         if calculation is None:
             if outcome.status == OutcomeStatus.EXCLUDED:
                 totals.excluded += 1
@@ -219,6 +289,17 @@ class OutcomeMaturationService:
             calculation.values,
             now=now,
         )
+        if authority is not None and changed:
+            from app.services.winner_probability.outcome_authority import seal_outcome
+
+            seal_outcome(
+                db,
+                matured_outcome,
+                context=authority[0],
+                configuration=authority[1],
+                prices=authority[2],
+            )
+            db.flush()
         if changed:
             totals.matured += 1
         if matured_outcome.revision > before_revision:
@@ -239,6 +320,15 @@ class OutcomeMaturationService:
             matured_target, material = self._mature_target_stop(
                 db, target_stop, matured_outcome, calculation, now=now, prediction=prediction
             )
+            if authority is not None and material:
+                seal_outcome(
+                    db,
+                    matured_target,
+                    context=authority[0],
+                    configuration=authority[1],
+                    prices=authority[2],
+                )
+                db.flush()
             if material:
                 totals.target_stop_matured += 1
                 totals.material_changes.append(
@@ -254,6 +344,9 @@ class OutcomeMaturationService:
 
         return totals.to_result()
 
+    @core_writer_member(
+        "app.services.winner_probability.outcome_service:OutcomeMaturationService.process_forward_outcome"
+    )
     def _calculate_forward(
         self,
         db: Session,
@@ -451,6 +544,9 @@ class OutcomeMaturationService:
             context=context,
         )
 
+    @core_writer_member(
+        "app.services.winner_probability.outcome_service:OutcomeMaturationService.process_forward_outcome"
+    )
     def _mature_target_stop(
         self,
         db: Session,
@@ -462,6 +558,17 @@ class OutcomeMaturationService:
         prediction: WinnerPredictionSnapshot | None = None,
     ) -> tuple[WinnerTargetStopOutcome, bool]:
         policy = _target_stop_policy(prediction, target_stop)
+        if isinstance(db, Session):
+            from app.services.winner_probability.outcome_authority import validate_retained_outcome
+
+            validate_retained_outcome(db, target_stop)
+            definition = target_stop.outcome_definition
+            retained = _retained_outcome_configuration(prediction)
+            if (
+                definition.calculation_version
+                != retained.winner_config().engine.calculation_version
+            ):
+                raise ValueError("MUTATION_WINNER_TARGET_STOP_DEFINITION_VERSION_MISMATCH")
         evaluation = self.target_stop_service.evaluate(
             bars=calculation.ticker_bars,
             entry_price=Decimal(str(forward_outcome.entry_price)),
@@ -469,6 +576,14 @@ class OutcomeMaturationService:
             stop_pct=Decimal(str(target_stop.stop_pct)),
             same_bar_conflict_policy=policy,
         )
+        if isinstance(db, Session) and evaluation != TargetStopService().evaluate(
+            bars=calculation.ticker_bars,
+            entry_price=Decimal(str(forward_outcome.entry_price)),
+            target_pct=Decimal(str(target_stop.target_pct)),
+            stop_pct=Decimal(str(target_stop.stop_pct)),
+            same_bar_conflict_policy=policy,
+        ):
+            raise ValueError("MUTATION_WINNER_TARGET_STOP_NATIVE_RESULT_MISMATCH")
         values = {
             "forward_outcome_id": forward_outcome.id,
             "status": OutcomeStatus.MATURED,

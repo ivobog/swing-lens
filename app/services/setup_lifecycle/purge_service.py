@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.setup_lifecycle.config import (
     SetupLifecycleConfig,
     load_setup_lifecycle_config,
@@ -40,6 +41,7 @@ class SetupLifecyclePurgeService:
     def preview(self, db: Session, scope: PurgeScope) -> PurgePreview:
         return self.repository.preview_purge(db, scope)
 
+    @core_writer_transaction
     def execute(
         self,
         db: Session,
@@ -64,9 +66,7 @@ class SetupLifecyclePurgeService:
 
     def _validate_execute(self, request: SetupLifecyclePurgeExecuteRequest) -> None:
         if not self.config.retention.purge_enabled:
-            raise SetupLifecyclePurgeError(
-                "setup lifecycle purge is disabled by retention policy"
-            )
+            raise SetupLifecyclePurgeError("setup lifecycle purge is disabled by retention policy")
         if self.config.retention.purge_preview_required and request.preview is None:
             raise SetupLifecyclePurgeError("setup lifecycle purge requires a preview")
         if self.config.retention.purge_confirmation_required:

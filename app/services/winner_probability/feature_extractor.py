@@ -165,6 +165,16 @@ class WinnerFeatureExtractor:
             sector_snapshot,
         )
         prediction_as_of = latest_completed_us_trading_day(decision_at)
+        handoff = getattr(run_context, "decision_handoff_manifest", None)
+        if handoff is not None and (handoff.manifest_json or {}).get("contract") == (
+            "transition-decision-handoff-v1"
+        ):
+            from app.services.winner_probability.calculation_identity import _cutoff_from_handoff
+
+            source_clock = _cutoff_from_handoff(
+                run_context.decision_handoff_manifest.manifest_json["market_context"]
+            )
+            prediction_as_of = source_clock.latest_completed_session
         for context_name, context_date in (
             ("market_regime", getattr(market, "as_of_date", None)),
             ("sector_rotation", getattr(sector_snapshot, "as_of_date", None)),

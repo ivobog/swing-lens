@@ -88,6 +88,7 @@ def declare_core_evidence_mutation(
             configuration=effective_configuration,
             sources=sources or {},
             payload=payload or {},
+            declaration_only=True,
         )
     return declaration
 
@@ -121,8 +122,6 @@ def persist_core_evidence(
     if identity is None:
         if effective_configuration is not None:
             raise ValueError("configuration evidence requires an explicit Calculation Identity")
-        if kind is CoreEvidenceKind.SETUP:
-            return None  # Retained decision-writer behavior; adoption is T14C.
         raise ValueError(
             "DOMAIN_MUTATION_CONTEXT_REQUIRED: legacy serving rows cannot create evidence"
         )
@@ -148,46 +147,45 @@ def persist_core_evidence(
             raise ValueError("effective configuration must match the bound Calculation Identity")
 
     source_rows = sources or {}
-    if kind is not CoreEvidenceKind.SETUP:
-        if not isinstance(mutation_context, DomainMutationContext):
-            raise ValueError("DOMAIN_MUTATION_CONTEXT_REQUIRED")
-        expected_profile = (
-            getattr(current_row, "ranking_profile", None)
-            if kind is CoreEvidenceKind.RANKING
-            else getattr(current_row, "module", None)
-            if kind is CoreEvidenceKind.IBMI
-            else getattr(current_row, "mode", None)
-            if kind is CoreEvidenceKind.SECTOR
-            else f"controlled-replay:{current_row.controlled_replay_id}"
-            if kind is CoreEvidenceKind.CERI
-            and getattr(current_row, "controlled_replay_id", None) is not None
-            else None
+    if not isinstance(mutation_context, DomainMutationContext):
+        raise ValueError("DOMAIN_MUTATION_CONTEXT_REQUIRED")
+    expected_profile = (
+        getattr(current_row, "ranking_profile", None)
+        if kind is CoreEvidenceKind.RANKING
+        else getattr(current_row, "module", None)
+        if kind is CoreEvidenceKind.IBMI
+        else getattr(current_row, "mode", None)
+        if kind is CoreEvidenceKind.SECTOR
+        else f"controlled-replay:{current_row.controlled_replay_id}"
+        if kind is CoreEvidenceKind.CERI
+        and getattr(current_row, "controlled_replay_id", None) is not None
+        else None
+    )
+    if (scope_profile is not _SCOPE_UNSET and scope_profile != expected_profile) or (
+        scope_ticker is not _SCOPE_UNSET
+        and _normalized_ticker(scope_ticker)
+        != _normalized_ticker(getattr(current_row, "ticker", None))
+    ):
+        raise ValueError("MUTATION_ARTIFACT_PROJECTION_SCOPE_MISMATCH")
+    with db.no_autoflush:
+        declared, native_sources, manifests = artifact_mutation_context(
+            db,
+            kind=kind,
+            current_row=current_row,
+            identity=identity,
+            configuration=effective_configuration,
+            sources=source_rows,
+            payload=payload or {},
         )
-        if (scope_profile is not _SCOPE_UNSET and scope_profile != expected_profile) or (
-            scope_ticker is not _SCOPE_UNSET
-            and _normalized_ticker(scope_ticker)
-            != _normalized_ticker(getattr(current_row, "ticker", None))
-        ):
-            raise ValueError("MUTATION_ARTIFACT_PROJECTION_SCOPE_MISMATCH")
-        with db.no_autoflush:
-            declared, native_sources, manifests = artifact_mutation_context(
-                db,
-                kind=kind,
-                current_row=current_row,
-                identity=identity,
-                configuration=effective_configuration,
-                sources=source_rows,
-                payload=payload or {},
-            )
-            validate_core_mutation_authority(
-                db,
-                mutation_context,
-                domain=MutationDomain(kind.value),
-                identity=identity,
-                configuration=effective_configuration,
-                sources=native_sources,
-                manifests=manifests,
-            )
+        validate_core_mutation_authority(
+            db,
+            mutation_context,
+            domain=MutationDomain(kind.value),
+            identity=identity,
+            configuration=effective_configuration,
+            sources=native_sources,
+            manifests=manifests,
+        )
     source_ids: dict[str, int] = {}
     for role, source in sorted(source_rows.items()):
         evidence_id = getattr(source, "evidence_id", None)
@@ -275,9 +273,7 @@ def persist_core_evidence(
     projection = _advance_current_projection(
         db,
         evidence,
-        mutation_context=projection_mutation_context(evidence)
-        if kind is not CoreEvidenceKind.SETUP
-        else None,
+        mutation_context=projection_mutation_context(evidence),
     )
     if (
         kind
@@ -497,10 +493,9 @@ def _advance_current_projection(
     *,
     mutation_context: DomainMutationContext | None = None,
 ) -> CoreCalculationCurrentProjection:
-    if evidence.artifact_kind != CoreEvidenceKind.SETUP.value:
-        if mutation_context is None:
-            raise ValueError("DOMAIN_MUTATION_CONTEXT_REQUIRED: projection")
-        validate_projection_mutation(db, evidence, mutation_context)
+    if mutation_context is None:
+        raise ValueError("DOMAIN_MUTATION_CONTEXT_REQUIRED: projection")
+    validate_projection_mutation(db, evidence, mutation_context)
     profile_key = evidence.ranking_profile or ""
     if isinstance(db, Session) and db.get_bind().dialect.name == "postgresql":
         from sqlalchemy import text

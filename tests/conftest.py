@@ -126,6 +126,37 @@ def fixed_clock() -> FrozenClock:
 
 
 @pytest.fixture
+def simulated_native_winner_capture(monkeypatch):
+    """Keep in-memory Phase-2/3 calculator scenarios separate from writer proof.
+
+    These tests use a SQLite Session without tables and FakeWinnerRepository.
+    Persisted writer authority is exercised unpatched in PostgreSQL integration
+    tests. This explicit fixture provides no evidence for T14C certification.
+    """
+    monkeypatch.setattr(
+        "app.services.winner_probability.mutation_authority.prediction_capture_authority",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.winner_probability.prediction_authority.seal_capture",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.winner_probability.prediction_authority.validate_prediction_source",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.winner_probability.episode_service.validate_episode_source",
+        lambda *_args, **_kwargs: None,
+    )
+    for helper in ("pending_authority", "seal_pending", "validate_retained_outcome"):
+        monkeypatch.setattr(
+            f"app.services.winner_probability.outcome_authority.{helper}",
+            lambda *_args, **_kwargs: None,
+        )
+
+
+@pytest.fixture
 def settings_factory(qa_paths: QaPaths) -> Callable[..., Settings]:
     def build(**overrides: Any) -> Settings:
         values: dict[str, Any] = {
@@ -214,9 +245,7 @@ def fake_ib_gateway_factory() -> Callable[..., ScriptedIBGateway]:
 def disposable_postgres_database_factory() -> Callable[[], AbstractContextManager[str]]:
     """Return a context manager that creates and safely drops disposable databases."""
     admin_url = os.environ.get("SWINGLENS_TEST_POSTGRES_ADMIN_URL", POSTGRES_ADMIN_URL)
-    sqlalchemy_admin_url = make_url(
-        admin_url.replace("postgresql://", "postgresql+psycopg://", 1)
-    )
+    sqlalchemy_admin_url = make_url(admin_url.replace("postgresql://", "postgresql+psycopg://", 1))
 
     @contextmanager
     def create_database() -> Iterator[str]:

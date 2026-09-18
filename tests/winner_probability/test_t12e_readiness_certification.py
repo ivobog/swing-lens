@@ -53,6 +53,8 @@ from app.services.winner_probability.consumer_eligibility import (
     WinnerSourceEligibilityError,
 )
 
+pytestmark = pytest.mark.usefixtures("simulated_native_winner_capture")
+
 
 def stored_state(row, status):
     """Store an explicit contract state while retaining every native numeric value."""

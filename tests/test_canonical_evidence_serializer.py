@@ -22,6 +22,41 @@ from app.services.setup_lifecycle.transition_candidate_service import (
 )
 
 
+def test_json_encoding_matches_full_canonicalization_for_nested_evidence() -> None:
+    serializer = CanonicalEvidenceSerializer
+    rng = random.Random(1403)
+
+    def reference(value):
+        return json.dumps(
+            serializer.canonicalize(value),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+
+    for _ in range(200):
+        payload = {
+            "bars": [{"close": rng.random(), "session": str(i)} for i in range(20)],
+            "nested": {"reason_codes": rng.sample(["Ω", "A", "Z", "B"], 4)},
+            "ordered": [None, True, -0.0, 0.0, 12, "Unicode Ω"],
+        }
+        assert serializer.dumps(payload) == reference(payload)
+        payload["ordered"][2] = 0.0
+        payload["nested"]["reason_codes"].sort()
+        assert serializer.dumps(payload) == reference(payload)
+        original = serializer.fingerprint(payload)
+        payload["bars"][0]["close"] += 1
+        assert serializer.dumps(payload) == reference(payload)
+        assert serializer.fingerprint(payload) != original
+    for payload in (
+        {"reason_codes": [2, 10, 1]},
+        {"reason_codes": [{"z": 1, "a": 2}, {"a": 1}]},
+        {"typed": Decimal("1.200"), "timestamp": datetime(2026, 9, 16, tzinfo=UTC)},
+    ):
+        assert serializer.dumps(payload) == reference(payload)
+
+
 def test_exact_latest_canary_timezone_regression_is_canonical() -> None:
     utc_value = datetime.fromisoformat("2026-09-09T19:55:33.682959+00:00")
     zurich_value = datetime.fromisoformat("2026-09-09T21:55:33.682959+02:00")

@@ -503,6 +503,24 @@ def run_worker_once(
         try:
 
             def heartbeat() -> None:
+                from app.services.domain_write_fence import current_fenced_domain_session
+
+                source_db = current_fenced_domain_session(job.id, execution_token)
+                if source_db is not None and (
+                    source_db is not db or source_db.in_nested_transaction()
+                ):
+                    # A synchronous child source transaction holds the same
+                    # job-attempt row lock. Updating through the parent session
+                    # would wait on our own child. Keep the heartbeat atomic
+                    # with that native transaction; its lock prevents reclaim.
+                    source_job = source_db.get(BackgroundJob, job.id)
+                    heartbeat_job(
+                        source_db,
+                        source_job,
+                        lease_seconds=stale_after_seconds,
+                        execution_token=execution_token,
+                    )
+                    return
                 heartbeat_job(
                     db,
                     job,

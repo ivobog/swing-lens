@@ -979,7 +979,9 @@ def _validate_handoff_temporal_lineage(
                 "technical_score_id": getattr(technical, "id", None),
             }
             observed_sources = dict((combined.debug_json or {}).get("source_ids") or {})
-            if any(key.endswith("_evidence_id") for key in observed_sources):
+            if getattr(combined, "evidence_id", None) is not None or any(
+                key.endswith("_evidence_id") for key in observed_sources
+            ):
                 from app.services.core_calculation_evidence import (
                     CoreEvidenceKind,
                     get_certified_evidence_for_row,
@@ -991,6 +993,22 @@ def _validate_handoff_temporal_lineage(
                 evidence = get_certified_evidence_for_row(
                     db, kind=CoreEvidenceKind.COMBINED, current_row=combined
                 )
+                from app.models.tables import CoreCalculationEvidence
+
+                if isinstance(evidence, CoreCalculationEvidence):
+                    from app.services.core_mutation_authority import (
+                        _validate_evidence,
+                        validate_source_values,
+                    )
+
+                    _validate_evidence(evidence)
+                    validate_source_values(combined, evidence, db=db)
+                    # Native blocked-input decisions can clear compatibility
+                    # score IDs. The immutable graph retains the actual upstream
+                    # evidence, including inputs evaluated and then blocked.
+                    observed_sources = dict(
+                        (evidence.payload_json.get("debug_json") or {}).get("source_ids") or {}
+                    )
                 expected_pins = {
                     role: source.evidence_id
                     for role, source in (("fundamental", fundamental), ("technical", technical))

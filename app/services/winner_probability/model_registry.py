@@ -17,6 +17,8 @@ from app.models.tables import (
     WinnerModelLifecycleEvent,
     WinnerModelVersion,
 )
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
+from app.services.decision_effective_configuration import resolve_winner_configuration
 from app.services.redaction import redact_text
 from app.services.winner_probability.config import (
     WinnerProbabilityConfig,
@@ -46,6 +48,7 @@ class ModelRegistry:
     def __init__(self, *, artifact_service: ModelArtifactService | None = None) -> None:
         self.artifact_service = artifact_service or ModelArtifactService()
 
+    @core_writer_transaction
     def register_model(
         self,
         db: Session,
@@ -70,8 +73,13 @@ class ModelRegistry:
         preprocessing: dict[str, Any] | None = None,
         calibration: dict[str, Any] | None = None,
         dependency_versions: dict[str, Any] | None = None,
+        config: WinnerProbabilityConfig | None = None,
+        mutation_context=None,
+        artifact_payload: dict[str, Any] | None = None,
+        training_run_id: int | None = None,
     ) -> WinnerModelVersion:
-        config = load_winner_probability_config()
+        supplied_config = config
+        config = config or load_winner_probability_config()
         if algorithm not in config.model_governance.approved_algorithms:
             raise ModelRegistryError(
                 "MODEL_ALGORITHM_NOT_APPROVED",
@@ -104,6 +112,87 @@ class ModelRegistry:
             artifact_hash=artifact_hash,
             dependency_versions_json=dependency_versions or {},
         )
+        creation_proof = {}
+        if isinstance(db, Session):
+            from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+            from app.services.winner_probability.model_authority import (
+                baseline_artifact,
+                governance_authority,
+                model_body,
+            )
+
+            pins = governance_authority(
+                db,
+                mutation_context,
+                model=model,
+                action="register_model",
+                actor=actor,
+                reason=reason,
+                config=supplied_config,
+            )
+            if artifact_payload is None:
+                raise ValueError("MUTATION_WINNER_MODEL_ARTIFACT_PAYLOAD_REQUIRED")
+            self.artifact_service.validate_json_payload(
+                artifact_payload, expected_hash=artifact_hash
+            )
+            self.artifact_service.validate_model_version(model, config=config)
+            if (
+                calculation_version != config.engine.calculation_version
+                or config_hash != config.config_hash
+            ):
+                raise ValueError("MUTATION_WINNER_MODEL_CREATION_CONFIGURATION_MISMATCH")
+            if algorithm == "cohort":
+                if artifact_payload != baseline_artifact(config, outcome_definition_id) or metrics:
+                    raise ValueError("MUTATION_WINNER_MODEL_NATIVE_BASELINE_REQUIRED")
+            else:
+                from app.models.tables import WinnerModelTrainingRun
+                from app.services.winner_probability.mutation_authority import (
+                    validate_diagnostic_artifact,
+                )
+
+                training = db.get(WinnerModelTrainingRun, training_run_id)
+                if training is None:
+                    raise ValueError("MUTATION_WINNER_MODEL_TRAINING_SOURCE_REQUIRED")
+                from app.services.core_calculation_evidence import calculation_evidence_payload
+                from app.services.domain_mutation import MutationEvidenceReference
+
+                training_pin = MutationEvidenceReference(
+                    "training",
+                    training.__tablename__,
+                    training.id,
+                    Canonical.fingerprint(calculation_evidence_payload(training)),
+                )
+                if pins.get("training") != training_pin:
+                    raise ValueError("MUTATION_WINNER_MODEL_TRAINING_PIN_MISMATCH")
+                validate_diagnostic_artifact(training, "fold_plan_json")
+                if training.fold_plan_json["mutation_authority"]["configuration"] != (
+                    resolve_winner_configuration(
+                        config, family="generation"
+                    ).snapshot.identity.as_dict()
+                ):
+                    raise ValueError("MUTATION_WINNER_MODEL_TRAINING_CONFIGURATION_MISMATCH")
+                if (
+                    training.artifact_hash != artifact_hash
+                    or training.algorithm != algorithm
+                    or training.outcome_definition_id != outcome_definition_id
+                    or training.training_cutoff_at != training_cutoff_at
+                    or training.metrics_json != model.metrics_json
+                    or training.preprocessing_json != model.preprocessing_json
+                    or training.fold_plan_json["native_diagnostic_proof"].get("artifact_payload")
+                    != artifact_payload
+                ):
+                    raise ValueError("MUTATION_WINNER_MODEL_TRAINING_SOURCE_MISMATCH")
+            creation_proof = {
+                "native_model_proof": {
+                    "contract": "winner-model-creation-v1",
+                    "body_fingerprint": Canonical.fingerprint(model_body(model)),
+                    "artifact_hash": artifact_hash,
+                    "training_run_id": training_run_id,
+                    "configuration": resolve_winner_configuration(
+                        config, family="generation"
+                    ).snapshot.as_dict(),
+                }
+            }
         db.add(model)
         db.flush()
         self._record_event(
@@ -114,6 +203,7 @@ class ModelRegistry:
             reason=reason,
             old_status=None,
             new_status=status,
+            metadata=creation_proof,
         )
         return model
 
@@ -124,9 +214,18 @@ class ModelRegistry:
         model: WinnerModelVersion,
         config: WinnerProbabilityConfig | None = None,
         minimum_sample: int | None = None,
+        diagnostic_pins=None,
     ) -> PromotionGateResult:
         config = config or load_winner_probability_config()
         metrics = model.metrics_json or {}
+        if diagnostic_pins is not None and "calibration" in diagnostic_pins:
+            calibration = db.get(WinnerCalibrationBin, diagnostic_pins["calibration"].artifact_id)
+            native_metrics = calibration.segment_json["native_report"]["metrics"]
+            metrics = {
+                **metrics,
+                "ece": native_metrics["ece"],
+                "coverage": native_metrics["coverage"],
+            }
         minimum_sample = minimum_sample or int(config.drift.thresholds["min_sample"])
         reasons: list[str] = []
         checks: dict[str, Any] = {}
@@ -176,14 +275,32 @@ class ModelRegistry:
         reasons.extend(quantitative_reasons)
         checks.update(quantitative_checks)
         if config.model_governance.promotion_gates["require_calibration_bins"]:
-            calibration_bins = self._calibration_bins(db, model.id)
+            calibration_bins = (
+                [db.get(WinnerCalibrationBin, diagnostic_pins["calibration"].artifact_id)]
+                if diagnostic_pins is not None and "calibration" in diagnostic_pins
+                else self._calibration_bins(db, model.id)
+            )
             if not calibration_bins:
                 reasons.append("calibration_bins_missing")
             checks["calibration_bins"] = {
                 "bin_count": len(calibration_bins),
                 "passed": bool(calibration_bins),
             }
-        drift_metrics = self._sufficient_drift_metrics(db, model.id)
+        drift_metrics = (
+            [db.get(WinnerDriftMetric, diagnostic_pins["drift"].artifact_id)]
+            if diagnostic_pins is not None and "drift" in diagnostic_pins
+            else self._sufficient_drift_metrics(db, model.id)
+        )
+        native_drift_report = None
+        if diagnostic_pins is not None and "drift" in diagnostic_pins:
+            native_drift_report = drift_metrics[0].segment_json["native_report"]
+            required = {"brier_score_delta", "ece_delta", "win_rate_delta", "psi"}
+            if {row["metric_name"] for row in native_drift_report} != required or len(
+                native_drift_report
+            ) != len(required):
+                reasons.append("drift_report_incomplete")
+            if not all(row["sufficient_sample"] for row in native_drift_report):
+                reasons.append("drift_sample_insufficient")
         if config.model_governance.promotion_gates["require_fresh_drift_metrics"]:
             if not drift_metrics:
                 reasons.append("drift_metrics_missing")
@@ -198,7 +315,11 @@ class ModelRegistry:
                 "passed": bool(drift_metrics)
                 and not self._drift_metrics_stale(drift_metrics, model),
             }
-        if self._has_critical_drift(db, model.id):
+        if (
+            any(row["breached"] and row["sufficient_sample"] for row in native_drift_report or [])
+            if diagnostic_pins is not None
+            else self._has_critical_drift(db, model.id)
+        ):
             reasons.append("critical_drift_breach")
         checks["critical_drift"] = {
             "passed": "critical_drift_breach" not in reasons,
@@ -226,6 +347,7 @@ class ModelRegistry:
             report_hash=_stable_hash(report),
         )
 
+    @core_writer_transaction
     def promote_model(
         self,
         db: Session,
@@ -234,16 +356,30 @@ class ModelRegistry:
         actor: str,
         reason: str,
         config: WinnerProbabilityConfig | None = None,
+        mutation_context=None,
     ) -> WinnerModelVersion:
         model = self._require_model(db, model_id)
-        gates = self.evaluate_promotion(db, model=model, config=config)
+        pins = None
+        if isinstance(db, Session):
+            from app.services.winner_probability.model_authority import governance_authority
+
+            pins = governance_authority(
+                db,
+                mutation_context,
+                model=model,
+                action="promote_model",
+                actor=actor,
+                reason=reason,
+                config=config,
+            )
+        gates = self.evaluate_promotion(db, model=model, config=config, diagnostic_pins=pins)
         if not gates.allowed:
             raise ModelRegistryError(
                 "MODEL_PROMOTION_BLOCKED",
                 ", ".join(gates.reasons),
             )
         old_status = model.status
-        self._retire_active_replaced_models(db, model)
+        self._retire_active_replaced_models(db, model, governance_context=mutation_context)
         model.status = ModelStatus.ACTIVE
         model.activated_at = _utcnow()
         self._record_event(
@@ -257,11 +393,17 @@ class ModelRegistry:
             metadata={
                 "gate_report": gates.report,
                 "gate_report_hash": gates.report_hash,
+                **(
+                    {"native_governance_proof": mutation_context.canonical_payload()}
+                    if isinstance(db, Session)
+                    else {}
+                ),
             },
         )
         db.flush()
         return model
 
+    @core_writer_transaction
     def retire_model(
         self,
         db: Session,
@@ -271,8 +413,31 @@ class ModelRegistry:
         reason: str,
         replacement_model_version_id: int | None = None,
         allow_without_active_fallback: bool = False,
+        config: WinnerProbabilityConfig | None = None,
+        mutation_context=None,
     ) -> tuple[WinnerModelVersion, WinnerModelLifecycleEvent]:
         model = self._require_model(db, model_id)
+        if isinstance(db, Session):
+            from app.services.winner_probability.model_authority import governance_authority
+
+            governance_authority(
+                db,
+                mutation_context,
+                model=model,
+                action="retire_model",
+                actor=actor,
+                reason=reason,
+                config=config,
+                replacement_id=replacement_model_version_id,
+                allow_without_fallback=allow_without_active_fallback,
+            )
+            if replacement_model_version_id is not None:
+                replacement = self._require_model(db, replacement_model_version_id)
+                from app.services.winner_probability.model_authority import validate_model_source
+
+                validate_model_source(db, replacement)
+                if replacement.outcome_definition_id != model.outcome_definition_id:
+                    raise ValueError("MUTATION_WINNER_MODEL_REPLACEMENT_SCOPE_MISMATCH")
         old_status = model.status
         if old_status == ModelStatus.ACTIVE and not allow_without_active_fallback:
             active_count = self._active_count(db, model.outcome_definition_id)
@@ -295,6 +460,9 @@ class ModelRegistry:
             old_status=old_status,
             new_status=ModelStatus.RETIRED,
             replacement_model_version_id=replacement_model_version_id,
+            metadata={"native_governance_proof": mutation_context.canonical_payload()}
+            if isinstance(db, Session)
+            else None,
         )
         db.flush()
         return model, event
@@ -450,10 +618,15 @@ class ModelRegistry:
             )
         )
 
+    @core_writer_member(
+        "app.services.winner_probability.model_registry:ModelRegistry.promote_model"
+    )
     def _retire_active_replaced_models(
         self,
         db: Session,
         replacement: WinnerModelVersion,
+        *,
+        governance_context=None,
     ) -> None:
         active_models = list(
             db.scalars(
@@ -467,6 +640,10 @@ class ModelRegistry:
         for active_model in active_models:
             if active_model.id == replacement.id:
                 continue
+            if isinstance(db, Session):
+                from app.services.winner_probability.model_authority import validate_model_source
+
+                validate_model_source(db, active_model)
             old_status = active_model.status
             active_model.status = ModelStatus.RETIRED
             active_model.retired_at = _utcnow()
@@ -479,8 +656,24 @@ class ModelRegistry:
                 old_status=old_status,
                 new_status=ModelStatus.RETIRED,
                 replacement_model_version_id=replacement.id,
+                metadata={
+                    "native_governance_proof": governance_context.canonical_payload(),
+                    "native_replacement": {
+                        "model_id": replacement.id,
+                        "artifact_hash": replacement.artifact_hash,
+                    },
+                }
+                if isinstance(db, Session)
+                else None,
             )
 
+    @core_writer_member(
+        (
+            "app.services.winner_probability.model_registry:ModelRegistry.register_model",
+            "app.services.winner_probability.model_registry:ModelRegistry.promote_model",
+            "app.services.winner_probability.model_registry:ModelRegistry.retire_model",
+        )
+    )
     def _record_event(
         self,
         db: Session,

@@ -26,6 +26,7 @@ from app.models.tables import (
     WinnerTargetStopOutcome,
     WinnerTemporalValidityDecision,
 )
+from app.services.core_mutation_authority import core_writer_member
 from app.services.market_clock_service import MarketCalculationCutoff
 
 
@@ -327,6 +328,12 @@ class WinnerProbabilityRepository:
             .where(WinnerProbabilityEstimate.training_cutoff_at == training_cutoff_at)
         )
 
+    @core_writer_member(
+        (
+            "app.services.winner_probability.capture_service:WinnerPredictionCaptureService._capture_ticker",
+            "app.services.winner_probability.pending_outcome_service:PendingOutcomeService.materialize_pending_outcomes",
+        )
+    )
     def add(self, db: Session, row: Any) -> Any:
         db.add(row)
         db.flush()

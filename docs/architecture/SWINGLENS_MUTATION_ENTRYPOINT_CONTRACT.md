@@ -295,3 +295,53 @@ Native frozen readers retain historical serialization. Technical cache-fallback 
 Certification evidence is in T14B_core_contextual_writer_adoption.md, T14B_core_contextual_writer_certification.json, T14B_validation_summary.json and T14B_business_parity.json under docs/remediation/calculation-lineage. Final native PostgreSQL/Phase 0–4 plus attacks: 324 passed; broader: 3,448 passed, seven optional live-IB skips, 321 deselected. Source adapter rejection/structural proof is distinct from native financial positive commits and calculator parity. No migration, production rewrite, legacy backfill or live provider/trading execution occurs.
 
 PIPE-008 is closed for core/contextual writers and partial overall; PIPE-003/PIPE-007 remain caller-delivery work for T14D. SETUP-005 and XINT-006 remain partial. INV-ENTRY-001 is enforced for core/contextual writers and partial repository-wide. T14C still adopts Setup/Lifecycle/Alert and Winner writers; T14D still unifies standalone/repair/admin/CLI/legacy/bootstrap/scheduler callers and trade episodes; T14E integrates Phase-5 after those adoptions. Background refresh/scope, original-context reconstruction and privileged external SQL governance remain separate.
+
+## 27. T14C certified Decision and Winner writer adoption
+
+T14C verdict: PASS. Exact handoff closure is 41 writer families and 84 initiators:
+27 contract-enforced, 12 supported-distinct safe and two current-rules explicit.
+All are enforced/certified native boundaries; zero defects, unknowns or potential
+bypasses remain. Historical T14A/T14B foundation facts remain unchanged.
+
+The semantic writer resolves exact native retained sources/creation proofs,
+complete executable configuration, calculation identity where financial, aware
+business time, readiness and explicit predecessor/target/model/generation scope.
+Validation precedes deduplication and persistence. Supporting members require
+the exact owner and same Session; they confer no financial identity/readiness.
+No writer repairs absent authority from current/latest state. Exact validated
+primary keys may be refreshed after their native logical lock and revalidated.
+
+Owner permission starts after savepoint entry flushes caller staging. Failure
+rolls back the whole semantic Session, including flushed children. Mapper failure
+first unwinds flush. SQLite starts its physical outer transaction before nesting.
+Native PostgreSQL retains the current durable token/job row lock in the effective
+writing transaction. Actual Decision/Winner lease reclaim proves T1 rejection
+and T2 success without altering semantic configuration.
+
+Immutable Setup/lifecycle/alert evidence is distinct from mutable selection,
+episode and status projections. Certified lifecycle duplicates retain original
+reasons. Original Winner vector/estimate birth authority is distinct from latest
+rescore rules; native outcome revision retains old truth and exact revised price
+payloads/IDs. Generation materialization seals exact native population/statistics
+and both cohort/generation configuration snapshots. Publication validates native
+completion, explicit predecessor, reviewed manifest/approval and candidate bodies
+before deduplication; serving replacement remains atomic and F0-fenced.
+
+Calibration/drift are native diagnostics with exact model-promotion governance
+pins, without direct probability/publication dependencies. Training is explicit
+current-rules walk-forward evidence with an exact registration artifact; it does
+not reconstruct original legacy identity. Similarity has a diagnostic display
+role and cannot mutate features, cohorts or serving. Supporting watermarks,
+manifests, descriptors and obligations retain separate native semantics.
+
+The exact handoff preserves 168 original T14D initiators/25 writer IDs plus all
+84 T14C initiators. T14C writer prerequisites are complete; conditional caller
+delivery remains T14D and Phase-5 integration remains T14E. Producer algorithms,
+background/target-scope semantics, original-context reconstruction and privileged
+external SQL governance remain scoped separately. WIN-006 is partial for birth
+bars without revision IDs; WIN-008 remains open for target-set freezing.
+
+No schema change, legacy backfill, historical identity upgrade, financial formula
+change or forbidden required dependency is introduced. Final native and regression
+evidence, exact source pins and finding statuses are in the T14C certificate,
+validation summary and remediation report.

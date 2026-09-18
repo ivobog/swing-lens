@@ -11,9 +11,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    CoreCalculationEvidence,
     SetupLifecycleEpisode,
+    SetupLifecycleEvaluationEvidence,
     SetupLifecycleEvaluationRun,
     SetupLifecycleEvent,
+    SetupLifecycleTransitionEvidence,
     SetupSignalSnapshot,
     SetupSignalSnapshotCurrentSelection,
     SignalAlertEvent,
@@ -21,6 +24,9 @@ from app.models.tables import (
     SignalChangeEvent,
     UploadRun,
 )
+from app.services.calculation_identity import CalculationIdentity
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.core_calculation_evidence import calculation_evidence_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -60,8 +66,7 @@ def test_populated_market_changes_and_alert_center_contract(
         db.get(SetupLifecycleEvent, lifecycle_event_id).is_current_version = False
         current_selection = db.scalar(
             select(SetupSignalSnapshotCurrentSelection).where(
-                SetupSignalSnapshotCurrentSelection.selected_snapshot_id
-                == current_snapshot_id
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == current_snapshot_id
             )
         )
         assert current_selection is not None
@@ -264,6 +269,7 @@ def _seed_vertical_fixture(db: Session) -> tuple[int, int, int]:
     )
     db.add_all([lifecycle, change])
     db.flush()
+    _seed_retained_history_fixture(db, previous, current, lifecycle)
     trigger_rule = _rule("NEW_TRIGGER", "ACTIONABLE", "lifecycle_transition")
     score_rule = _rule("SCORE_ACCELERATION", "NOTABLE", "signal_change")
     db.add_all([trigger_rule, score_rule])
@@ -293,6 +299,91 @@ def _seed_vertical_fixture(db: Session) -> tuple[int, int, int]:
     )
     db.commit()
     return source_run.id, current.id, lifecycle.id
+
+
+def _seed_retained_history_fixture(db, previous, current, event):
+    """Explicit retained pre-Phase-5 reader data, never live writer proof.
+
+    Historical views require retained ledgers. This UI-only fixture used to
+    provide mutable rows alone, which correctly cannot populate that view.
+    Unknown historical authority is retained rather than reconstructed.
+    """
+    for snapshot in (previous, current):
+        identity = CalculationIdentity.legacy_unknown(
+            run_id=snapshot.run_id, ticker=snapshot.ticker
+        )
+        payload = Canonical.canonicalize(calculation_evidence_payload(snapshot))
+        payload["_test_fixture_semantics"] = "RETAINED_PRE_PHASE5_READER_ONLY"
+        fingerprint = Canonical.fingerprint(payload)
+        evidence = CoreCalculationEvidence(
+            artifact_kind="SETUP",
+            run_id=snapshot.run_id,
+            ticker=snapshot.ticker,
+            calculation_identity_fingerprint=str(identity.fingerprint()),
+            calculation_identity_json=identity.canonical_payload(),
+            payload_json=payload,
+            payload_fingerprint=fingerprint,
+            source_evidence_ids_json={},
+            evidence_key=Canonical.fingerprint(
+                {"fixture": "slse-ui", "snapshot": snapshot.id, "payload": fingerprint}
+            ),
+            calculated_at=snapshot.calculated_at,
+        )
+        db.add(evidence)
+        db.flush()
+        snapshot.evidence_id = evidence.id
+    payload = Canonical.canonicalize(calculation_evidence_payload(event))
+    payload["_test_fixture_semantics"] = "RETAINED_PRE_PHASE5_READER_ONLY"
+    fingerprint = Canonical.fingerprint(payload)
+    evaluation = SetupLifecycleEvaluationEvidence(
+        setup_evidence_id=current.evidence_id,
+        evaluation_run_id=event.evaluation_run_id,
+        ticker=event.ticker,
+        timeframe=event.timeframe,
+        setup_family=event.setup_family,
+        decision_session=event.effective_date,
+        calculation_cutoff_at=current.calculated_at,
+        calendar_version="swinglens-us-equities-v1",
+        calculation_identity_fingerprint="a" * 64,
+        execution_mode="RETAINED_FIXTURE",
+        previous_state=event.from_state,
+        output_state=event.to_state,
+        output_phase=event.to_phase,
+        transition_eligible=True,
+        engine_version=event.engine_version,
+        config_version=event.config_version,
+        config_hash=event.config_hash,
+        payload_json=payload,
+        payload_fingerprint=fingerprint,
+        evidence_key=Canonical.fingerprint(
+            {"fixture": "slse-ui-evaluation", "payload": fingerprint}
+        ),
+    )
+    db.add(evaluation)
+    db.flush()
+    transition = SetupLifecycleTransitionEvidence(
+        evaluation_evidence_id=evaluation.id,
+        setup_evidence_id=current.evidence_id,
+        ticker=event.ticker,
+        timeframe=event.timeframe,
+        setup_family=event.setup_family,
+        effective_session=event.effective_date,
+        event_type=event.event_type,
+        from_state=event.from_state,
+        to_state=event.to_state,
+        from_phase=event.from_phase,
+        to_phase=event.to_phase,
+        config_hash=event.config_hash,
+        reasons_json=list(event.reason_codes_json),
+        payload_json=payload,
+        payload_fingerprint=fingerprint,
+        evidence_key=Canonical.fingerprint(
+            {"fixture": "slse-ui-transition", "payload": fingerprint}
+        ),
+    )
+    db.add(transition)
+    db.flush()
+    event.transition_evidence_id = transition.id
 
 
 def _snapshot(

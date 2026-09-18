@@ -8,6 +8,8 @@ from test_winner_calculation_identity_adoption import _service, _session
 
 from app.services.winner_probability.probability_estimator import ProbabilityEstimator
 
+pytestmark = pytest.mark.usefixtures("simulated_native_winner_capture")
+
 
 @pytest.mark.parametrize(
     "mode", ["canonical", "cross_run", "no_regime", "no_sector", "no_context", "historical"]

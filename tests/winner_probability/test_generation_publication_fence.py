@@ -53,6 +53,23 @@ OBSERVED = datetime(2026, 9, 14, 12, 0, tzinfo=UTC)
 
 @pytest.fixture
 def publication_sessions(tmp_path, monkeypatch):
+    # Phase-0 pointer/ordering simulation with deliberately invented contracts.
+    # Native Phase-5 financial authority is tested unpatched in PostgreSQL.
+    class CalculatorSimulationSession:
+        pass
+
+    monkeypatch.setattr(
+        "app.services.winner_probability.cohort_generation_service.Session",
+        CalculatorSimulationSession,
+    )
+    monkeypatch.setattr(
+        "app.services.winner_probability.estimate_publication_service.Session",
+        CalculatorSimulationSession,
+    )
+    monkeypatch.setattr(
+        "app.services.core_mutation_authority.require_semantic_writer",
+        lambda *_args, **_kwargs: None,
+    )
     engine = create_engine(
         f"sqlite+pysqlite:///{tmp_path / 'winner-publication.db'}",
         connect_args={"timeout": 10},
@@ -119,9 +136,7 @@ def _seed(publication_sessions):
         )
         db.add(state)
         db.flush()
-        generations = {
-            value: _generation(value=value, state_id=state.id) for value in (1, 2, 3)
-        }
+        generations = {value: _generation(value=value, state_id=state.id) for value in (1, 2, 3)}
         db.add_all(generations.values())
     return generations
 
@@ -386,14 +401,12 @@ def test_t09b_execution_token_fence_still_rejects_background_publication(
 ) -> None:
     _seed(publication_sessions)
     with publication_sessions.begin() as db:
-        db.execute(
-            text("UPDATE background_jobs SET execution_token='token-b' WHERE id=1")
-        )
+        db.execute(text("UPDATE background_jobs SET execution_token='token-b' WHERE id=1"))
 
     with publication_sessions() as db:
         with fence_domain_commits(job_id=1, execution_token="token-a"):
-            assert _publish(db, 1).status == GenerationPublicationStatus.PUBLISHED
             with pytest.raises(JobLeaseLost):
+                _publish(db, 1)
                 db.commit()
         db.rollback()
 
@@ -404,8 +417,6 @@ def test_t09b_execution_token_fence_still_rejects_background_publication(
 
 def test_pointer_queries_compile_with_row_locks() -> None:
     statement = (
-        select(WinnerCohortRefreshState)
-        .where(WinnerCohortRefreshState.id == 1)
-        .with_for_update()
+        select(WinnerCohortRefreshState).where(WinnerCohortRefreshState.id == 1).with_for_update()
     )
     assert "FOR UPDATE" in str(statement.compile(dialect=postgresql.dialect()))

@@ -1,0 +1,2370 @@
+{
+  "families": [
+    {
+      "artifacts_tables": [
+        "ceri_alert_events",
+        "ceri_alert_rules"
+      ],
+      "assigned_initiators": [
+        "EF_8d44630b5c3bfb20"
+      ],
+      "canonical_owner": "app/services/ceri/alert_service.py:CeriAlertService.persist_alert_for_change",
+      "current_projection_writer": false,
+      "domain": [
+        "CERI_ALERT"
+      ],
+      "family_id": "WF_CERI_ALERT_CREATION",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/ceri/alert_service.py:CeriAlertService._rule_for_change",
+        "app/services/ceri/alert_service.py:CeriAlertService.persist_alert_for_change"
+      ],
+      "native_proof": "Rule-backed alert dedup/cooldown and change authority; acknowledgement/dismissal split below.",
+      "parallel_writer_families": [
+        "WF_CERI_ALERT_STATUS",
+        "WF_CERI_LICENSED_PURGE"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "ceri_alert_events"
+      ],
+      "assigned_initiators": [
+        "EF_43e51c53a8544734",
+        "EF_552e27976095f9b4"
+      ],
+      "canonical_owner": "app/services/ceri/alert_service.py:CeriAlertService.acknowledge",
+      "current_projection_writer": false,
+      "domain": [
+        "CERI_ALERT"
+      ],
+      "family_id": "WF_CERI_ALERT_STATUS",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/ceri/alert_service.py:CeriAlertService.acknowledge",
+        "app/services/ceri/alert_service.py:CeriAlertService.dismiss"
+      ],
+      "native_proof": "Acknowledgement/dismissal of addressed existing CERI alert; no new alert score or recalculation.",
+      "parallel_writer_families": [
+        "WF_CERI_ALERT_CREATION",
+        "WF_CERI_LICENSED_PURGE"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "SUPPORTED_DISTINCT_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "ceri_change_events"
+      ],
+      "assigned_initiators": [],
+      "canonical_owner": "app/services/ceri/change_detection_service.py:CeriChangeDetectionService._persist_change",
+      "current_projection_writer": false,
+      "domain": [
+        "CERI_CHANGE"
+      ],
+      "family_id": "WF_CERI_CHANGE",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/ceri/change_detection_service.py:CeriChangeDetectionService._persist_change"
+      ],
+      "native_proof": "Comparable source transitions append deduplicated change events.",
+      "parallel_writer_families": [
+        "WF_CERI_LICENSED_PURGE"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_lifecycle_episodes",
+        "setup_signal_snapshots"
+      ],
+      "assigned_initiators": [
+        "EF_34751282c1807125",
+        "EF_5088947f34107440",
+        "EF_7de5b07f9f5c012a",
+        "EF_b28b7630f07da0e9",
+        "EF_c9db4dc167d1d6e3",
+        "EF_daf4c522e989a063"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService._update_episode",
+      "current_projection_writer": false,
+      "domain": [
+        "LIFECYCLE_TRANSITION",
+        "SETUP"
+      ],
+      "family_id": "WF_LIFECYCLE_EPISODE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService._apply_snapshot_denormalization",
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService._close_episode",
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService._maybe_open_episode",
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService._update_episode",
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.refresh_primary_status",
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.refresh_primary_statuses"
+      ],
+      "native_proof": "Episode open/update/close and primary flags plus snapshot denormalization; distinct from dedicated retained decision ledgers.",
+      "parallel_writer_families": [
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_DERIVED_PURGE",
+        "WF_SETUP_PERSISTENCE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_lifecycle_evaluation_evidence"
+      ],
+      "assigned_initiators": [
+        "EF_16c693b72a6392ab",
+        "EF_34751282c1807125",
+        "EF_5088947f34107440",
+        "EF_daf4c522e989a063"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/decision_evidence.py:persist_lifecycle_evaluation_evidence",
+      "current_projection_writer": false,
+      "domain": [
+        "LIFECYCLE_EVALUATION"
+      ],
+      "family_id": "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_lifecycle_evaluation_evidence"
+      ],
+      "native_proof": "Dedicated typed retained decision ledger: persist_lifecycle_evaluation_evidence; no generic score rewrite.",
+      "parallel_writer_families": [
+        "WF_LIFECYCLE_OBSERVATION_GAP"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_lifecycle_evaluation_evidence"
+      ],
+      "assigned_initiators": [
+        "EF_c9db4dc167d1d6e3",
+        "EF_e9f698aec5b69e29"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/decision_evidence.py:persist_observation_gap_evaluation_evidence",
+      "current_projection_writer": false,
+      "domain": [
+        "LIFECYCLE_EVALUATION"
+      ],
+      "family_id": "WF_LIFECYCLE_OBSERVATION_GAP",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_observation_gap_evaluation_evidence"
+      ],
+      "native_proof": "Dedicated typed retained decision ledger: persist_observation_gap_evaluation_evidence; no generic score rewrite.",
+      "parallel_writer_families": [
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_lifecycle_transition_evidence"
+      ],
+      "assigned_initiators": [
+        "EF_2ccea74c5c437507",
+        "EF_34751282c1807125",
+        "EF_5088947f34107440",
+        "EF_c9db4dc167d1d6e3",
+        "EF_daf4c522e989a063"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/decision_evidence.py:persist_lifecycle_transition_evidence",
+      "current_projection_writer": false,
+      "domain": [
+        "LIFECYCLE_TRANSITION"
+      ],
+      "family_id": "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_lifecycle_transition_evidence"
+      ],
+      "native_proof": "Dedicated typed retained decision ledger: persist_lifecycle_transition_evidence; no generic score rewrite.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "signal_alert_events"
+      ],
+      "assigned_initiators": [
+        "EF_17cd4c0e3faace6e",
+        "EF_5088947f34107440",
+        "EF_d50f2f406f864b95",
+        "EF_daf4c522e989a063",
+        "EF_f2b0ab3e703edec5",
+        "EF_f3a7461cf3417399"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_alert_event",
+      "current_projection_writer": false,
+      "domain": [
+        "ALERT_DECISION"
+      ],
+      "family_id": "WF_SETUP_ALERT_EVENT_STATE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_alert_event"
+      ],
+      "native_proof": "Persists the caller-supplied SignalAlertEvent after event-key lookup; financial evaluation is owned by the alert service and dedicated evidence adapters.",
+      "parallel_writer_families": [
+        "WF_SETUP_DERIVED_PURGE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Native alert decision/rule and event_key from the caller; dedicated immutable decision and rule ledgers remain separate. Repository delivery is idempotent by event_key, not a new alert evaluator.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "signal_alert_rules"
+      ],
+      "assigned_initiators": [
+        "EF_5088947f34107440",
+        "EF_9b54186b1978efc7",
+        "EF_daf4c522e989a063"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.seed_builtin_rules",
+      "current_projection_writer": false,
+      "domain": [
+        "ALERT_DECISION"
+      ],
+      "family_id": "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.seed_builtin_rules"
+      ],
+      "native_proof": "Native built-in alert rules; retained rule evidence belongs to decision adapter.",
+      "parallel_writer_families": [
+        "WF_SETUP_ALERT_RULE_STATE"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "signal_alert_rule_evidence"
+      ],
+      "assigned_initiators": [
+        "EF_12960f471203b24d",
+        "EF_4a7754d23dd80087",
+        "EF_5088947f34107440",
+        "EF_d50f2f406f864b95",
+        "EF_daf4c522e989a063",
+        "EF_f2b0ab3e703edec5",
+        "EF_f3a7461cf3417399"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/decision_evidence.py:persist_alert_rule_evidence",
+      "current_projection_writer": false,
+      "domain": [
+        "ALERT_DECISION"
+      ],
+      "family_id": "WF_SETUP_ALERT_RULE_EVIDENCE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_alert_rule_evidence"
+      ],
+      "native_proof": "Dedicated typed retained decision ledger: persist_alert_rule_evidence; no generic score rewrite.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "signal_alert_rules"
+      ],
+      "assigned_initiators": [
+        "EF_5088947f34107440",
+        "EF_9b4d3201debe9ea7",
+        "EF_9b54186b1978efc7",
+        "EF_daf4c522e989a063"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_alert_rule",
+      "current_projection_writer": false,
+      "domain": [
+        "CONFIGURATION",
+        "ALERT_DECISION"
+      ],
+      "family_id": "WF_SETUP_ALERT_RULE_STATE",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_alert_rule"
+      ],
+      "native_proof": "Upsert mutates the rule definition only. Native built-in seeding and rule-ledger capture are retained as alternate and supporting owners respectively.",
+      "parallel_writer_families": [
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP"
+      ],
+      "required_phase5_authority": "Addressed rule_id, supplied rule configuration/version and enabled/condition/scope fields. Native rule evidence is separately owned by WF_SETUP_ALERT_RULE_EVIDENCE; editing a rule definition is not financial alert evaluation.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "signal_change_events"
+      ],
+      "assigned_initiators": [
+        "EF_5088947f34107440",
+        "EF_567aa492a5f39941",
+        "EF_84d4762d05423329",
+        "EF_daf4c522e989a063"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_signal_change_event",
+      "current_projection_writer": false,
+      "domain": [
+        "SETUP"
+      ],
+      "family_id": "WF_SETUP_CHANGE_EVENT_STATE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_signal_change_event"
+      ],
+      "native_proof": "Persists a supplied SignalChangeEvent; it does not calculate a new Setup snapshot or select Winner evidence.",
+      "parallel_writer_families": [
+        "WF_SETUP_DERIVED_PURGE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Native change-detector source snapshot pair and source_event_key. Exact source snapshot/configuration authority is retained at the originating detector; repository add deduplicates that key.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_signal_snapshot_current_selections",
+        "setup_signal_snapshot_selection_events",
+        "setup_signal_snapshots"
+      ],
+      "assigned_initiators": [
+        "EF_14cfda3844ac2a98",
+        "EF_2549c9b27b482b53",
+        "EF_5088947f34107440",
+        "EF_53e5ff53b1c5e6dd",
+        "EF_9e0bf6312cea1b10",
+        "EF_d464434e38c414dc",
+        "EF_daf4c522e989a063",
+        "EF_f07d87c600a3ded4"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.advance_canonical_selection",
+      "current_projection_writer": true,
+      "domain": [
+        "CURRENT_PROJECTION",
+        "SETUP"
+      ],
+      "family_id": "WF_SETUP_CURRENT_SELECTION",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.advance_canonical_selection",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.advance_canonical_selections",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.record_snapshot_canonical_decision",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.record_snapshot_canonical_decisions"
+      ],
+      "native_proof": "Single/batch native canonical selection plus snapshot flags and retained selection audit; not new Setup calculation.",
+      "parallel_writer_families": [
+        "WF_LIFECYCLE_EPISODE",
+        "WF_SETUP_DERIVED_PURGE",
+        "WF_SETUP_PERSISTENCE"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CURRENT_PROJECTION_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "signal_alert_decision_evidence"
+      ],
+      "assigned_initiators": [
+        "EF_12960f471203b24d",
+        "EF_5088947f34107440",
+        "EF_d50f2f406f864b95",
+        "EF_daf4c522e989a063",
+        "EF_f2b0ab3e703edec5",
+        "EF_f3a7461cf3417399"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/decision_evidence.py:persist_alert_decision_evidence",
+      "current_projection_writer": false,
+      "domain": [
+        "ALERT_DECISION"
+      ],
+      "family_id": "WF_SETUP_DECISION_EVIDENCE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_alert_decision_evidence"
+      ],
+      "native_proof": "Typed dedicated ledgers for alert/rule/lifecycle evaluation/transition; split by function below.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_lifecycle_episodes",
+        "setup_lifecycle_evaluation_runs",
+        "setup_lifecycle_events",
+        "setup_signal_snapshots",
+        "signal_alert_events",
+        "signal_change_events"
+      ],
+      "assigned_initiators": [
+        "EF_d169ba011ca95514"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository._delete_selected",
+      "current_projection_writer": false,
+      "domain": [
+        "ALERT_DECISION",
+        "LIFECYCLE_EVALUATION",
+        "LIFECYCLE_TRANSITION",
+        "SETUP"
+      ],
+      "family_id": "WF_SETUP_DERIVED_PURGE",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository._delete_selected"
+      ],
+      "native_proof": "Explicit selected derived-artifact removal for rebuild; existing administrative wrappers do not waive retained-evidence checks.",
+      "parallel_writer_families": [
+        "WF_LIFECYCLE_EPISODE",
+        "WF_SETUP_ALERT_EVENT_STATE",
+        "WF_SETUP_CHANGE_EVENT_STATE",
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_EVALUATION_RUN_STATE",
+        "WF_SETUP_PERSISTENCE",
+        "WF_SETUP_TRANSITION_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "SUPPORTED_DISTINCT_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_lifecycle_evaluation_runs"
+      ],
+      "assigned_initiators": [
+        "EF_48bd32bb045bb8b9",
+        "EF_5088947f34107440",
+        "EF_5ecffaf35b261ecd",
+        "EF_60948ade054ed19a",
+        "EF_6512999c3ff8e394",
+        "EF_b91e53fb5c6f1222",
+        "EF_ca5cc419a94e79c8",
+        "EF_daf4c522e989a063"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.create_evaluation_run",
+      "current_projection_writer": false,
+      "domain": [
+        "LIFECYCLE_EVALUATION"
+      ],
+      "family_id": "WF_SETUP_EVALUATION_RUN_STATE",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.apply_evaluation_counts",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.complete_evaluation_run",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.create_evaluation_run",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.heartbeat_evaluation_run"
+      ],
+      "native_proof": "Creates execution/provenance metadata and updates counters, timestamps and status. No snapshot score, episode transition or alert algorithm is implemented here.",
+      "parallel_writer_families": [
+        "WF_SETUP_DERIVED_PURGE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Exact evaluation-run target, source run/text scope, native mode, engine/config version/hash and retained requested scope. Heartbeats/counters/status need the addressed evaluation run and execution ownership; they do not require inventing new financial identity. Dedicated financial decisions are owned by WF_LIFECYCLE_EVALUATION_EVIDENCE.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_signal_snapshots"
+      ],
+      "assigned_initiators": [
+        "EF_5088947f34107440",
+        "EF_5ecffaf35b261ecd",
+        "EF_60948ade054ed19a",
+        "EF_a65afd15a9f488ee",
+        "EF_daf4c522e989a063",
+        "EF_dc80507b53b12bdc"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_snapshot",
+      "current_projection_writer": false,
+      "domain": [
+        "SETUP"
+      ],
+      "family_id": "WF_SETUP_PERSISTENCE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository._apply_snapshot_fields",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_snapshot",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_snapshots"
+      ],
+      "native_proof": "Only single/batch Setup snapshot capture and their field-copy member remain. Both converge on the same native snapshot identity; generic evaluation/event/rule/add mechanisms were split into explicit supporting families.",
+      "parallel_writer_families": [
+        "WF_LIFECYCLE_EPISODE",
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_DERIVED_PURGE"
+      ],
+      "required_phase5_authority": "Exact source raw/Fundamental/Technical/Combined/Ranking snapshots, relevant eligible contextual pins, native Setup data-as-of/temporal identity and decision.setup effective configuration; idempotent identity includes run/ticker/timeframe/date/engine/config/source-data hashes. Current selection is a separate family; Winner is not a Setup input.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_lifecycle_events"
+      ],
+      "assigned_initiators": [
+        "EF_14cfda3844ac2a98",
+        "EF_22b85b4f8e513ffa",
+        "EF_34751282c1807125",
+        "EF_5088947f34107440",
+        "EF_9331426e90d56ac8",
+        "EF_c9db4dc167d1d6e3",
+        "EF_d464434e38c414dc",
+        "EF_daf4c522e989a063",
+        "EF_f0226ae27f1e202f",
+        "EF_f6ddec7d59b9a9f3"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_lifecycle_event",
+      "current_projection_writer": false,
+      "domain": [
+        "LIFECYCLE_TRANSITION"
+      ],
+      "family_id": "WF_SETUP_TRANSITION_EVENT_STATE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_lifecycle_event",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_lifecycle_events",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_new_lifecycle_event",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.supersede_prior_current_events"
+      ],
+      "native_proof": "Single and batch add share event idempotency predicates; supersede_prior_current_events changes only matching current-version flags. This repository mechanism does not choose transition mathematics.",
+      "parallel_writer_families": [
+        "WF_SETUP_DERIVED_PURGE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Originating native episode/evaluation, event source key/evaluation-run identity and transition version/effective date. Current flags supersede only the same episode/date/type; immutable transition evidence remains owned by WF_LIFECYCLE_TRANSITION_EVIDENCE.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "setup_lifecycle_administrative_audit_events",
+        "setup_lifecycle_episodes",
+        "setup_lifecycle_evaluation_runs",
+        "setup_lifecycle_events",
+        "signal_alert_events",
+        "signal_change_events"
+      ],
+      "assigned_initiators": [
+        "EF_0f42cc0be4abc685",
+        "EF_14cfda3844ac2a98",
+        "EF_17cd4c0e3faace6e",
+        "EF_34751282c1807125",
+        "EF_5088947f34107440",
+        "EF_567aa492a5f39941",
+        "EF_5ecffaf35b261ecd",
+        "EF_60948ade054ed19a",
+        "EF_6512999c3ff8e394",
+        "EF_84d4762d05423329",
+        "EF_9331426e90d56ac8",
+        "EF_c0bd3112a99523a0",
+        "EF_c9db4dc167d1d6e3",
+        "EF_d464434e38c414dc",
+        "EF_d50f2f406f864b95",
+        "EF_daf4c522e989a063",
+        "EF_f0226ae27f1e202f",
+        "EF_f2b0ab3e703edec5",
+        "EF_f3a7461cf3417399"
+      ],
+      "canonical_owner": "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add",
+      "current_projection_writer": false,
+      "domain": [
+        "SETUP",
+        "LIFECYCLE_EVALUATION",
+        "LIFECYCLE_TRANSITION",
+        "ALERT_DECISION"
+      ],
+      "family_id": "WF_SETUP_TYPED_REPOSITORY",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add"
+      ],
+      "native_proof": "Shared add/flush mechanism carries supplied snapshot, episode, evaluation, event, rule, alert or audit rows. Concrete discovered types and table owners are retained; this is a supporting repository family, not a scoring algorithm.",
+      "parallel_writer_families": [
+        "WF_LIFECYCLE_EPISODE",
+        "WF_SETUP_ALERT_EVENT_STATE",
+        "WF_SETUP_CHANGE_EVENT_STATE",
+        "WF_SETUP_DERIVED_PURGE",
+        "WF_SETUP_EVALUATION_RUN_STATE",
+        "WF_SETUP_TRANSITION_EVENT_STATE"
+      ],
+      "required_phase5_authority": "Typed supplied row and native originating caller scope. Table-specific writers and immutable decision ledgers own financial authority; add/flush grants no independent permission to compute a snapshot or decision.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_calibration_bins"
+      ],
+      "assigned_initiators": [
+        "EF_62e86ef307df87ac"
+      ],
+      "canonical_owner": "app/services/winner_probability/calibration_service.py:CalibrationService.persist_bins",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_DIAGNOSTICS"
+      ],
+      "family_id": "WF_WINNER_CALIBRATION",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/calibration_service.py:CalibrationService.persist_bins"
+      ],
+      "native_proof": "Caller-supplied calibration bins target a model; native promotion consumes these diagnostics but persistence does not independently seal input membership.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "POTENTIAL_BYPASS",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_prediction_snapshots"
+      ],
+      "assigned_initiators": [
+        "EF_b2c4eae10dbb7074",
+        "EF_dfa047a276b66281"
+      ],
+      "canonical_owner": "app/services/winner_probability/training_eligibility.py:TrainingEligibilityPolicy.persist_capture_decision",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_PREDICTION"
+      ],
+      "family_id": "WF_WINNER_CAPTURE_TRAINING_METADATA",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/winner_probability/training_eligibility.py:TrainingEligibilityPolicy.persist_capture_decision"
+      ],
+      "native_proof": "Only prediction lineage_json; dedicated training decision/replay tables are written by pre11 compatibility service.",
+      "parallel_writer_families": [
+        "WF_COMBINED_REFRESH",
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_PREDICTION_CAPTURE",
+        "WF_WINNER_TEMPORAL_VALIDITY",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_cohort_definitions"
+      ],
+      "assigned_initiators": [
+        "EF_188a52d7dc0ff552",
+        "EF_33499b0639d00900",
+        "EF_4401e1a8a0cd2743",
+        "EF_446e95876ddd58c5",
+        "EF_5b65c0a336085ec6",
+        "EF_8cbe38eaadc0dfcb",
+        "EF_ddff1e372aaee0e2",
+        "EF_dfa047a276b66281",
+        "EF_e53dd685d5dadcf0"
+      ],
+      "canonical_owner": "app/services/winner_probability/cohort_definition.py:CohortDefinitionService.ensure_definition",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_COHORT"
+      ],
+      "family_id": "WF_WINNER_COHORT_DEFINITION",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/winner_probability/cohort_definition.py:CohortDefinitionService.ensure_definition"
+      ],
+      "native_proof": "Deduplicated native cohort definition; no statistics algorithm.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_cohort_generations",
+        "winner_cohort_statistics"
+      ],
+      "assigned_initiators": [
+        "EF_188a52d7dc0ff552",
+        "EF_33499b0639d00900",
+        "EF_4401e1a8a0cd2743",
+        "EF_ddff1e372aaee0e2"
+      ],
+      "canonical_owner": "app/services/winner_probability/cohort_materialization_service.py:CohortMaterializationService.materialize_slice",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_COHORT",
+        "WINNER_GENERATION"
+      ],
+      "family_id": "WF_WINNER_COHORT_MATERIALIZATION",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/cohort_materialization_service.py:CohortMaterializationService._cancel",
+        "app/services/winner_probability/cohort_materialization_service.py:CohortMaterializationService.materialize_slice"
+      ],
+      "native_proof": "Generation slice statistics and generation cancellation, distinct from inline estimator statistics.",
+      "parallel_writer_families": [
+        "WF_WINNER_CURRENT_RULE_RECONSTRUCTION",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_INLINE_COHORT"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_drift_metrics"
+      ],
+      "assigned_initiators": [
+        "EF_f6c22b4705f16967"
+      ],
+      "canonical_owner": "app/services/winner_probability/drift_service.py:DriftService.persist_metrics",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_DIAGNOSTICS"
+      ],
+      "family_id": "WF_WINNER_DRIFT",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/drift_service.py:DriftService.persist_metrics"
+      ],
+      "native_proof": "Caller-supplied drift metrics are persisted for a model; promotion consumes them without an independently sealed persistence manifest.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "POTENTIAL_BYPASS",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_prediction_episodes"
+      ],
+      "assigned_initiators": [
+        "EF_1fcddaaed4bf5583",
+        "EF_dfa047a276b66281"
+      ],
+      "canonical_owner": "app/services/winner_probability/episode_service.py:WinnerEpisodeService.assign_episode",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_PREDICTION"
+      ],
+      "family_id": "WF_WINNER_EPISODE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/episode_service.py:WinnerEpisodeService.assign_episode"
+      ],
+      "native_proof": "Assign prediction episode identity; no Setup episode or prediction score calculation.",
+      "parallel_writer_families": [
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_cohort_statistics",
+        "winner_probability_estimates"
+      ],
+      "assigned_initiators": [
+        "EF_5b65c0a336085ec6",
+        "EF_8cbe38eaadc0dfcb",
+        "EF_dfa047a276b66281",
+        "EF_e53dd685d5dadcf0"
+      ],
+      "canonical_owner": "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._create_estimate",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_COHORT",
+        "WINNER_ESTIMATE"
+      ],
+      "family_id": "WF_WINNER_ESTIMATOR",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._create_estimate",
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._persist_insufficient"
+      ],
+      "native_proof": "_create_estimate and _persist_insufficient own estimated and insufficient native outputs. The estimate path may create an inline cohort statistic; both this branch and _materialize_cohort_statistic reject existing manifest/configuration mismatches. Generation materialization remains WF_WINNER_COHORT_MATERIALIZATION; inline estimation is explicitly distinct from generation activation/publication.",
+      "parallel_writer_families": [
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_INLINE_COHORT",
+        "WF_WINNER_LATEST_RESCORE",
+        "WF_WINNER_PRE11_ACTIVATION",
+        "WF_WINNER_PUBLICATION",
+        "WF_WINNER_SQL_CANDIDATE_ESTIMATE",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Frozen prediction and exact outcome definition, training_cutoff_at, eligible evidence membership/manifest, cohort definition and native Winner cohort effective configuration. Existing cohort statistic key must match BOTH evidence_manifest_hash and config_hash. Estimate idempotency includes prediction/definition/kind/cutoff. Insufficient output remains an explicit native decision artifact.",
+      "t14a_classification": "SUPPORTED_DISTINCT_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_estimate_evidence_members",
+        "winner_evidence_manifest_members",
+        "winner_evidence_manifests"
+      ],
+      "assigned_initiators": [
+        "EF_188a52d7dc0ff552",
+        "EF_33499b0639d00900",
+        "EF_4401e1a8a0cd2743",
+        "EF_5b65c0a336085ec6",
+        "EF_7f9ab18e0a68b4e4",
+        "EF_8cbe38eaadc0dfcb",
+        "EF_abd56d56b5b99888",
+        "EF_bf185d27ba6a5998",
+        "EF_ddff1e372aaee0e2",
+        "EF_dfa047a276b66281",
+        "EF_e53dd685d5dadcf0"
+      ],
+      "canonical_owner": "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.create_or_get_manifest",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_COHORT"
+      ],
+      "family_id": "WF_WINNER_EVIDENCE_MANIFEST",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.create_or_get_manifest",
+        "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.persist_manifest_members",
+        "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.persist_members"
+      ],
+      "native_proof": "Exact manifest/header and membership delivery; estimate membership and manifest membership remain typed artifacts.",
+      "parallel_writer_families": [
+        "WF_WINNER_SQL_CANDIDATE_ESTIMATE"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_forward_outcomes",
+        "winner_prediction_snapshots"
+      ],
+      "assigned_initiators": [
+        "EF_21b51ca218ca4e33",
+        "EF_3544a66f80c3a3ee",
+        "EF_ddff1e372aaee0e2",
+        "EF_e07c379588727421",
+        "EF_e53568287697baf9"
+      ],
+      "canonical_owner": "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_forward_outcome",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "family_id": "WF_WINNER_FORWARD_MATURATION",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/outcome_service.py:OutcomeMaturationService._calculate_forward",
+        "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_forward_outcome",
+        "app/services/winner_probability/outcome_service.py:_mark_excluded",
+        "app/services/winner_probability/outcome_service.py:_mark_pending"
+      ],
+      "native_proof": "Frozen prediction authority, observed outcome window and pending/excluded/matured state handling.",
+      "parallel_writer_families": [
+        "WF_COMBINED_REFRESH",
+        "WF_WINNER_CAPTURE_TRAINING_METADATA",
+        "WF_WINNER_MATURATION_CANARY",
+        "WF_WINNER_OUTCOME_REVISION",
+        "WF_WINNER_PENDING_OUTCOME",
+        "WF_WINNER_PREDICTION_CAPTURE",
+        "WF_WINNER_TEMPORAL_VALIDITY",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_cohort_generations",
+        "winner_cohort_refresh_state"
+      ],
+      "assigned_initiators": [
+        "EF_0a056737ae51257a",
+        "EF_188a52d7dc0ff552",
+        "EF_2bf8cff4ba3b4f20",
+        "EF_33499b0639d00900",
+        "EF_4401e1a8a0cd2743",
+        "EF_9de871e1a7416925",
+        "EF_ddff1e372aaee0e2",
+        "EF_e127938927133466"
+      ],
+      "canonical_owner": "app/services/winner_probability/cohort_generation_service.py:CohortGenerationService.capture_or_resume",
+      "current_projection_writer": false,
+      "domain": [
+        "CURRENT_PROJECTION",
+        "WINNER_GENERATION"
+      ],
+      "family_id": "WF_WINNER_GENERATION",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/cohort_generation_service.py:CohortGenerationService._activate_locked",
+        "app/services/winner_probability/cohort_generation_service.py:CohortGenerationService.capture_or_resume"
+      ],
+      "native_proof": "Capture generation/membership watermark and compatible activation; watermark lock split below.",
+      "parallel_writer_families": [
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_CURRENT_RULE_RECONSTRUCTION",
+        "WF_WINNER_WATERMARK"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_cohort_statistics"
+      ],
+      "assigned_initiators": [
+        "EF_5b65c0a336085ec6",
+        "EF_8cbe38eaadc0dfcb",
+        "EF_dfa047a276b66281",
+        "EF_e53dd685d5dadcf0"
+      ],
+      "canonical_owner": "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._materialize_cohort_statistic",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_COHORT"
+      ],
+      "family_id": "WF_WINNER_INLINE_COHORT",
+      "final_t14c_classification": "CURRENT_RULES_EXPLICIT",
+      "member_sinks": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._materialize_cohort_statistic"
+      ],
+      "native_proof": "Inline cohort statistics are computed for estimator evidence membership; distinct from generation slice operation.",
+      "parallel_writer_families": [
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_ESTIMATOR"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_probability_estimates"
+      ],
+      "assigned_initiators": [
+        "EF_3fc4b414d23b5f24",
+        "EF_c9e75e814c3b2bca"
+      ],
+      "canonical_owner": "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_latest_rescore_from_generation",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_ESTIMATE"
+      ],
+      "family_id": "WF_WINNER_LATEST_RESCORE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_latest_rescore_from_generation"
+      ],
+      "native_proof": "Explicit latest-generation rescore creates a new estimate under current rules; does not rewrite original prediction contract.",
+      "parallel_writer_families": [
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_PRE11_ACTIVATION",
+        "WF_WINNER_PUBLICATION",
+        "WF_WINNER_SQL_CANDIDATE_ESTIMATE",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CURRENT_RULES_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_market_data_obligations"
+      ],
+      "assigned_initiators": [
+        "EF_0a5cee795e4d11d5",
+        "EF_17fbd8ea8e28f686",
+        "EF_a89fe25d89061bca",
+        "EF_dfa047a276b66281",
+        "EF_ff740e59dc6eec85"
+      ],
+      "canonical_owner": "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.ensure_for_outcomes",
+      "current_projection_writer": false,
+      "domain": [
+        "PRICE"
+      ],
+      "family_id": "WF_WINNER_MARKET_DATA_OBLIGATION",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.ensure_for_outcomes",
+        "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.evaluate",
+        "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.record_fetch_results"
+      ],
+      "native_proof": "Pending outcome source-data obligations, fetch result recording and readiness evaluation.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_model_lifecycle_events",
+        "winner_model_versions"
+      ],
+      "assigned_initiators": [
+        "EF_108005c3877b73f8",
+        "EF_955c1ccf26f164a6",
+        "EF_d45e97b8bb4b82c2",
+        "EF_e5897acb70c600d3"
+      ],
+      "canonical_owner": "app/services/winner_probability/model_registry.py:ModelRegistry.register_model",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_MODEL"
+      ],
+      "family_id": "WF_WINNER_MODEL_GOVERNANCE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/model_registry.py:ModelRegistry._record_event",
+        "app/services/winner_probability/model_registry.py:ModelRegistry._retire_active_replaced_models",
+        "app/services/winner_probability/model_registry.py:ModelRegistry.promote_model",
+        "app/services/winner_probability/model_registry.py:ModelRegistry.register_model",
+        "app/services/winner_probability/model_registry.py:ModelRegistry.retire_model"
+      ],
+      "native_proof": "Registration/promote/retire plus lifecycle audit; promotion gates and retirement fallback are distinct native action variants.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_model_training_runs"
+      ],
+      "assigned_initiators": [
+        "EF_7042df9c9280cacb"
+      ],
+      "canonical_owner": "app/services/winner_probability/model_training.py:ShadowModelTrainingService.persist_training_run",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_DIAGNOSTICS"
+      ],
+      "family_id": "WF_WINNER_MODEL_TRAINING",
+      "final_t14c_classification": "CURRENT_RULES_EXPLICIT",
+      "member_sinks": [
+        "app/services/winner_probability/model_training.py:ShadowModelTrainingService.persist_training_run"
+      ],
+      "native_proof": "Persist supplied training report/model target; retained report alone is not independently reconstructed input membership.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "POTENTIAL_BYPASS",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_forward_outcomes",
+        "winner_target_stop_outcomes"
+      ],
+      "assigned_initiators": [
+        "EF_21b51ca218ca4e33",
+        "EF_3544a66f80c3a3ee",
+        "EF_7ce4f5f114ccbfab",
+        "EF_913f3902d02f0fc3",
+        "EF_ddff1e372aaee0e2",
+        "EF_e07c379588727421",
+        "EF_e53568287697baf9"
+      ],
+      "canonical_owner": "app/services/winner_probability/outcome_revision_service.py:OutcomeRevisionService.upsert_forward_revision",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_OUTCOME"
+      ],
+      "family_id": "WF_WINNER_OUTCOME_REVISION",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/outcome_revision_service.py:OutcomeRevisionService.upsert_forward_revision",
+        "app/services/winner_probability/outcome_revision_service.py:OutcomeRevisionService.upsert_target_stop_revision"
+      ],
+      "native_proof": "Immutable forward/target-stop outcome revisions with native idempotency/supersession.",
+      "parallel_writer_families": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_MATURATION_CANARY",
+        "WF_WINNER_PENDING_OUTCOME",
+        "WF_WINNER_TARGET_STOP_REPAIR",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_forward_outcomes",
+        "winner_outcome_definitions",
+        "winner_target_stop_outcomes"
+      ],
+      "assigned_initiators": [
+        "EF_dfa047a276b66281",
+        "EF_ff740e59dc6eec85"
+      ],
+      "canonical_owner": "app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService._ensure_forward_outcome",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_OUTCOME"
+      ],
+      "family_id": "WF_WINNER_PENDING_OUTCOME",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService._ensure_forward_outcome",
+        "app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService._ensure_outcome_definition",
+        "app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService._ensure_target_stop_outcome"
+      ],
+      "native_proof": "Create pending forward/target-stop outcomes and definition addresses; no matured evidence.",
+      "parallel_writer_families": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_MATURATION_CANARY",
+        "WF_WINNER_OUTCOME_REVISION",
+        "WF_WINNER_TARGET_STOP_REPAIR",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_prediction_snapshots",
+        "winner_temporal_validity_decisions"
+      ],
+      "assigned_initiators": [
+        "EF_dfa047a276b66281"
+      ],
+      "canonical_owner": "app/services/winner_probability/capture_service.py:WinnerPredictionCaptureService._capture_ticker",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_PREDICTION"
+      ],
+      "family_id": "WF_WINNER_PREDICTION_CAPTURE",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/capture_service.py:WinnerPredictionCaptureService._capture_ticker"
+      ],
+      "native_proof": "Frozen independent prediction contract and initial temporal validity decision.",
+      "parallel_writer_families": [
+        "WF_COMBINED_REFRESH",
+        "WF_WINNER_CAPTURE_TRAINING_METADATA",
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_TEMPORAL_VALIDITY",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_estimate_publication_requests",
+        "winner_probability_estimates"
+      ],
+      "assigned_initiators": [
+        "EF_2bf8cff4ba3b4f20"
+      ],
+      "canonical_owner": "app/services/winner_probability/estimate_publication_service.py:WinnerEstimatePublicationService.publish",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_ESTIMATE",
+        "WINNER_PUBLICATION"
+      ],
+      "family_id": "WF_WINNER_PUBLICATION",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/estimate_publication_service.py:WinnerEstimatePublicationService.publish"
+      ],
+      "native_proof": "Locked generation/estimate publication and idempotent publication request audit.",
+      "parallel_writer_families": [
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_LATEST_RESCORE",
+        "WF_WINNER_PRE11_ACTIVATION",
+        "WF_WINNER_SQL_CANDIDATE_ESTIMATE",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CANONICAL_WRITER",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_similarity_links"
+      ],
+      "assigned_initiators": [
+        "EF_4f6bcd619acea809"
+      ],
+      "canonical_owner": "app/services/winner_probability/similarity_service.py:SimilarityService.persist_neighbors",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_DIAGNOSTICS"
+      ],
+      "family_id": "WF_WINNER_SIMILARITY",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/winner_probability/similarity_service.py:SimilarityService.persist_neighbors"
+      ],
+      "native_proof": "Caller-supplied neighbour result persistence; PIT candidate selection is a separate native calculation and must remain bound.",
+      "parallel_writer_families": [],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "POTENTIAL_BYPASS",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_forward_outcomes",
+        "winner_outcome_definitions",
+        "winner_prediction_episodes",
+        "winner_prediction_snapshots",
+        "winner_probability_estimates",
+        "winner_target_stop_outcomes",
+        "winner_temporal_validity_decisions",
+        "winner_training_eligibility_decisions"
+      ],
+      "assigned_initiators": [
+        "EF_1fcddaaed4bf5583",
+        "EF_c37482a6d5894991",
+        "EF_dfa047a276b66281",
+        "EF_ff740e59dc6eec85"
+      ],
+      "canonical_owner": "app/services/winner_probability/repository.py:WinnerProbabilityRepository.add",
+      "current_projection_writer": false,
+      "domain": [
+        "WINNER_COHORT",
+        "WINNER_ESTIMATE",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "family_id": "WF_WINNER_TYPED_REPOSITORY",
+      "final_t14c_classification": "PHASE5_CONTRACT_ENFORCED",
+      "member_sinks": [
+        "app/services/winner_probability/repository.py:WinnerProbabilityRepository.add"
+      ],
+      "native_proof": "WinnerProbabilityRepository.add only adds and flushes a supplied row. Its eight discovered table types have explicit native table owners and callers. It is a lower-level supporting mechanism, not a prediction, estimate, cohort or outcome algorithm.",
+      "parallel_writer_families": [
+        "WF_COMBINED_REFRESH",
+        "WF_WINNER_CAPTURE_TRAINING_METADATA",
+        "WF_WINNER_EPISODE",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_LATEST_RESCORE",
+        "WF_WINNER_MATURATION_CANARY",
+        "WF_WINNER_OUTCOME_REVISION",
+        "WF_WINNER_PENDING_OUTCOME",
+        "WF_WINNER_PRE11_ACTIVATION",
+        "WF_WINNER_PRE11_TRAINING_REPLAY",
+        "WF_WINNER_PREDICTION_CAPTURE",
+        "WF_WINNER_PUBLICATION",
+        "WF_WINNER_SQL_CANDIDATE_ESTIMATE",
+        "WF_WINNER_TARGET_STOP_REPAIR",
+        "WF_WINNER_TEMPORAL_VALIDITY"
+      ],
+      "required_phase5_authority": "Supplied typed row and exact originating native owner. Prediction/episode, pending outcome/definition, maturity/revision, estimate and temporal/training permission writers keep their own contracts; generic add/flush supplies none of those contracts by itself.",
+      "t14a_classification": "DOMAIN_SUPPORTING_STATE",
+      "writer_prerequisite_complete": true
+    },
+    {
+      "artifacts_tables": [
+        "winner_cohort_refresh_state"
+      ],
+      "assigned_initiators": [
+        "EF_33499b0639d00900",
+        "EF_4401e1a8a0cd2743",
+        "EF_8e47858541189c36",
+        "EF_ddff1e372aaee0e2"
+      ],
+      "canonical_owner": "app/services/winner_probability/cohort_generation_service.py:EvidenceWatermarkService._locked_state",
+      "current_projection_writer": true,
+      "domain": [
+        "CURRENT_PROJECTION"
+      ],
+      "family_id": "WF_WINNER_WATERMARK",
+      "final_t14c_classification": "SUPPORTED_DISTINCT_SAFE",
+      "member_sinks": [
+        "app/services/winner_probability/cohort_generation_service.py:EvidenceWatermarkService._locked_state"
+      ],
+      "native_proof": "Locked evidence watermark/refresh pointer supporting generation materialization.",
+      "parallel_writer_families": [
+        "WF_WINNER_GENERATION"
+      ],
+      "required_phase5_authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
+      "t14a_classification": "CURRENT_PROJECTION_WRITER",
+      "writer_prerequisite_complete": true
+    }
+  ],
+  "initiators": [
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/cohort_generation_service.py:CohortGenerationService.capture_or_resume"
+      ],
+      "initiator_id": "EF_0a056737ae51257a",
+      "writer_dependencies": [
+        "WF_WINNER_GENERATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.evaluate"
+      ],
+      "initiator_id": "EF_0a5cee795e4d11d5",
+      "writer_dependencies": [
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.write_admin_audit_event"
+      ],
+      "initiator_id": "EF_0f42cc0be4abc685",
+      "writer_dependencies": [
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/model_registry.py:ModelRegistry.retire_model"
+      ],
+      "initiator_id": "EF_108005c3877b73f8",
+      "writer_dependencies": [
+        "WF_WINNER_MODEL_GOVERNANCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_alert_decision_evidence"
+      ],
+      "initiator_id": "EF_12960f471203b24d",
+      "writer_dependencies": [
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/canonicalization.py:SetupLifecycleCanonicalizer.canonicalize_snapshots"
+      ],
+      "initiator_id": "EF_14cfda3844ac2a98",
+      "writer_dependencies": [
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_TRANSITION_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_lifecycle_evaluation_evidence"
+      ],
+      "initiator_id": "EF_16c693b72a6392ab",
+      "writer_dependencies": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_alert_event"
+      ],
+      "initiator_id": "EF_17cd4c0e3faace6e",
+      "writer_dependencies": [
+        "WF_SETUP_ALERT_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.ensure_for_outcomes"
+      ],
+      "initiator_id": "EF_17fbd8ea8e28f686",
+      "writer_dependencies": [
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/cohort_materialization_service.py:CohortMaterializationService.materialize_slice"
+      ],
+      "initiator_id": "EF_188a52d7dc0ff552",
+      "writer_dependencies": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_GENERATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/episode_service.py:WinnerEpisodeService.assign_episode"
+      ],
+      "initiator_id": "EF_1fcddaaed4bf5583",
+      "writer_dependencies": [
+        "WF_WINNER_EPISODE",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_current_revisions"
+      ],
+      "initiator_id": "EF_21b51ca218ca4e33",
+      "writer_dependencies": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_OUTCOME_REVISION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.supersede_prior_current_events"
+      ],
+      "initiator_id": "EF_22b85b4f8e513ffa",
+      "writer_dependencies": [
+        "WF_SETUP_TRANSITION_EVENT_STATE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.record_snapshot_canonical_decision"
+      ],
+      "initiator_id": "EF_2549c9b27b482b53",
+      "writer_dependencies": [
+        "WF_SETUP_CURRENT_SELECTION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/estimate_publication_service.py:WinnerEstimatePublicationService.publish"
+      ],
+      "initiator_id": "EF_2bf8cff4ba3b4f20",
+      "writer_dependencies": [
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_PUBLICATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_lifecycle_transition_evidence"
+      ],
+      "initiator_id": "EF_2ccea74c5c437507",
+      "writer_dependencies": [
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/job_handlers.py:WinnerCohortRefreshService.refresh_cohorts"
+      ],
+      "initiator_id": "EF_33499b0639d00900",
+      "writer_dependencies": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_WATERMARK"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.apply_snapshot"
+      ],
+      "initiator_id": "EF_34751282c1807125",
+      "writer_dependencies": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_TRANSITION_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_forward_outcome"
+      ],
+      "initiator_id": "EF_3544a66f80c3a3ee",
+      "writer_dependencies": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_OUTCOME_REVISION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_latest_rescore_from_generation"
+      ],
+      "initiator_id": "EF_3fc4b414d23b5f24",
+      "writer_dependencies": [
+        "WF_WINNER_LATEST_RESCORE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/ceri/alert_service.py:CeriAlertService.acknowledge"
+      ],
+      "initiator_id": "EF_43e51c53a8544734",
+      "writer_dependencies": [
+        "WF_CERI_ALERT_STATUS"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence"
+      ],
+      "initiator_id": "EF_4401e1a8a0cd2743",
+      "writer_dependencies": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_WATERMARK"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/cohort_definition.py:CohortDefinitionService.ensure_definition"
+      ],
+      "initiator_id": "EF_446e95876ddd58c5",
+      "writer_dependencies": [
+        "WF_WINNER_COHORT_DEFINITION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.apply_evaluation_counts"
+      ],
+      "initiator_id": "EF_48bd32bb045bb8b9",
+      "writer_dependencies": [
+        "WF_SETUP_EVALUATION_RUN_STATE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_alert_rule_evidence"
+      ],
+      "initiator_id": "EF_4a7754d23dd80087",
+      "writer_dependencies": [
+        "WF_SETUP_ALERT_RULE_EVIDENCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/similarity_service.py:SimilarityService.persist_neighbors"
+      ],
+      "initiator_id": "EF_4f6bcd619acea809",
+      "writer_dependencies": [
+        "WF_WINNER_SIMILARITY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/evaluation_service.py:SetupLifecycleEvaluationService.evaluate_run"
+      ],
+      "initiator_id": "EF_5088947f34107440",
+      "writer_dependencies": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_ALERT_EVENT_STATE",
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_ALERT_RULE_STATE",
+        "WF_SETUP_CHANGE_EVENT_STATE",
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_EVALUATION_RUN_STATE",
+        "WF_SETUP_PERSISTENCE",
+        "WF_SETUP_TRANSITION_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.record_snapshot_canonical_decisions"
+      ],
+      "initiator_id": "EF_53e5ff53b1c5e6dd",
+      "writer_dependencies": [
+        "WF_SETUP_CURRENT_SELECTION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/ceri/alert_service.py:CeriAlertService.dismiss"
+      ],
+      "initiator_id": "EF_552e27976095f9b4",
+      "writer_dependencies": [
+        "WF_CERI_ALERT_STATUS"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_signal_change_event"
+      ],
+      "initiator_id": "EF_567aa492a5f39941",
+      "writer_dependencies": [
+        "WF_SETUP_CHANGE_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/decision_time_estimate_service.py:DecisionTimeEstimateService.create_decision_time_estimate"
+      ],
+      "initiator_id": "EF_5b65c0a336085ec6",
+      "writer_dependencies": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/snapshot_builder.py:SetupLifecycleSnapshotCaptureService.capture_snapshots_for_run"
+      ],
+      "initiator_id": "EF_5ecffaf35b261ecd",
+      "writer_dependencies": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SETUP_EVALUATION_RUN_STATE",
+        "WF_SETUP_PERSISTENCE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/snapshot_builder.py:capture_snapshots_for_run"
+      ],
+      "initiator_id": "EF_60948ade054ed19a",
+      "writer_dependencies": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_SETUP_EVALUATION_RUN_STATE",
+        "WF_SETUP_PERSISTENCE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/calibration_service.py:CalibrationService.persist_bins"
+      ],
+      "initiator_id": "EF_62e86ef307df87ac",
+      "writer_dependencies": [
+        "WF_WINNER_CALIBRATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.create_evaluation_run"
+      ],
+      "initiator_id": "EF_6512999c3ff8e394",
+      "writer_dependencies": [
+        "WF_SETUP_EVALUATION_RUN_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/model_training.py:ShadowModelTrainingService.persist_training_run"
+      ],
+      "initiator_id": "EF_7042df9c9280cacb",
+      "writer_dependencies": [
+        "WF_WINNER_MODEL_TRAINING"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/outcome_revision_service.py:OutcomeRevisionService.upsert_forward_revision"
+      ],
+      "initiator_id": "EF_7ce4f5f114ccbfab",
+      "writer_dependencies": [
+        "WF_WINNER_OUTCOME_REVISION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.refresh_primary_status"
+      ],
+      "initiator_id": "EF_7de5b07f9f5c012a",
+      "writer_dependencies": [
+        "WF_LIFECYCLE_EPISODE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.persist_members"
+      ],
+      "initiator_id": "EF_7f9ab18e0a68b4e4",
+      "writer_dependencies": [
+        "WF_WINNER_EVIDENCE_MANIFEST"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/change_detector.py:SetupLifecycleChangeDetector.detect_and_persist"
+      ],
+      "initiator_id": "EF_84d4762d05423329",
+      "writer_dependencies": [
+        "WF_SETUP_CHANGE_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_decision_time_estimate"
+      ],
+      "initiator_id": "EF_8cbe38eaadc0dfcb",
+      "writer_dependencies": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/ceri/alert_service.py:CeriAlertService.persist_alert_for_change"
+      ],
+      "initiator_id": "EF_8d44630b5c3bfb20",
+      "writer_dependencies": [
+        "WF_CERI_ALERT_CREATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/cohort_generation_service.py:EvidenceWatermarkService.advance_to_current_material_evidence"
+      ],
+      "initiator_id": "EF_8e47858541189c36",
+      "writer_dependencies": [
+        "WF_WINNER_WATERMARK"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/outcome_revision_service.py:OutcomeRevisionService.upsert_target_stop_revision"
+      ],
+      "initiator_id": "EF_913f3902d02f0fc3",
+      "writer_dependencies": [
+        "WF_WINNER_OUTCOME_REVISION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_new_lifecycle_event"
+      ],
+      "initiator_id": "EF_9331426e90d56ac8",
+      "writer_dependencies": [
+        "WF_SETUP_TRANSITION_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/model_registry.py:ModelRegistry.promote_model"
+      ],
+      "initiator_id": "EF_955c1ccf26f164a6",
+      "writer_dependencies": [
+        "WF_WINNER_MODEL_GOVERNANCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_alert_rule"
+      ],
+      "initiator_id": "EF_9b4d3201debe9ea7",
+      "writer_dependencies": [
+        "WF_SETUP_ALERT_RULE_STATE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.seed_builtin_rules"
+      ],
+      "initiator_id": "EF_9b54186b1978efc7",
+      "writer_dependencies": [
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+        "WF_SETUP_ALERT_RULE_STATE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/cohort_generation_service.py:CohortGenerationService.publish_reviewed_supersession"
+      ],
+      "initiator_id": "EF_9de871e1a7416925",
+      "writer_dependencies": [
+        "WF_WINNER_GENERATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.advance_canonical_selections"
+      ],
+      "initiator_id": "EF_9e0bf6312cea1b10",
+      "writer_dependencies": [
+        "WF_SETUP_CURRENT_SELECTION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_snapshot"
+      ],
+      "initiator_id": "EF_a65afd15a9f488ee",
+      "writer_dependencies": [
+        "WF_SETUP_PERSISTENCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/market_data_obligation_service.py:MarketDataObligationService.record_fetch_results"
+      ],
+      "initiator_id": "EF_a89fe25d89061bca",
+      "writer_dependencies": [
+        "WF_WINNER_MARKET_DATA_OBLIGATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.create_or_get_manifest"
+      ],
+      "initiator_id": "EF_abd56d56b5b99888",
+      "writer_dependencies": [
+        "WF_WINNER_EVIDENCE_MANIFEST"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.refresh_primary_statuses"
+      ],
+      "initiator_id": "EF_b28b7630f07da0e9",
+      "writer_dependencies": [
+        "WF_LIFECYCLE_EPISODE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/training_eligibility.py:TrainingEligibilityPolicy.persist_capture_decision"
+      ],
+      "initiator_id": "EF_b2c4eae10dbb7074",
+      "writer_dependencies": [
+        "WF_WINNER_CAPTURE_TRAINING_METADATA"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.heartbeat_evaluation_run"
+      ],
+      "initiator_id": "EF_b91e53fb5c6f1222",
+      "writer_dependencies": [
+        "WF_SETUP_EVALUATION_RUN_STATE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/evidence_manifest_service.py:EvidenceManifestService.persist_manifest_members"
+      ],
+      "initiator_id": "EF_bf185d27ba6a5998",
+      "writer_dependencies": [
+        "WF_WINNER_EVIDENCE_MANIFEST"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add"
+      ],
+      "initiator_id": "EF_c0bd3112a99523a0",
+      "writer_dependencies": [
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_setup_evidence"
+      ],
+      "initiator_id": "EF_c213ced13c9ed3f5",
+      "writer_dependencies": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/repository.py:WinnerProbabilityRepository.add"
+      ],
+      "initiator_id": "EF_c37482a6d5894991",
+      "writer_dependencies": [
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService.apply_observation_gap"
+      ],
+      "initiator_id": "EF_c9db4dc167d1d6e3",
+      "writer_dependencies": [
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_OBSERVATION_GAP",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_TRANSITION_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_candidate_rescore_from_generation"
+      ],
+      "initiator_id": "EF_c9e75e814c3b2bca",
+      "writer_dependencies": [
+        "WF_WINNER_LATEST_RESCORE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.complete_evaluation_run"
+      ],
+      "initiator_id": "EF_ca5cc419a94e79c8",
+      "writer_dependencies": [
+        "WF_SETUP_EVALUATION_RUN_STATE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.execute_purge"
+      ],
+      "initiator_id": "EF_d169ba011ca95514",
+      "writer_dependencies": [
+        "WF_SETUP_DERIVED_PURGE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/api_service.py:WinnerProbabilityApiService.retire_model"
+      ],
+      "initiator_id": "EF_d45e97b8bb4b82c2",
+      "writer_dependencies": [
+        "WF_WINNER_MODEL_GOVERNANCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/canonicalization.py:SetupLifecycleCanonicalizer.canonicalize_run"
+      ],
+      "initiator_id": "EF_d464434e38c414dc",
+      "writer_dependencies": [
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_TRANSITION_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.evaluate_episode_result"
+      ],
+      "initiator_id": "EF_d50f2f406f864b95",
+      "writer_dependencies": [
+        "WF_SETUP_ALERT_EVENT_STATE",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/evaluation_service.py:evaluate_setup_lifecycles_for_run"
+      ],
+      "initiator_id": "EF_daf4c522e989a063",
+      "writer_dependencies": [
+        "WF_CORE_CURRENT_PROJECTION",
+        "WF_CORE_RETAINED_EVIDENCE",
+        "WF_LIFECYCLE_EPISODE",
+        "WF_LIFECYCLE_EVALUATION_EVIDENCE",
+        "WF_LIFECYCLE_TRANSITION_EVIDENCE",
+        "WF_SETUP_ALERT_EVENT_STATE",
+        "WF_SETUP_ALERT_RULE_BOOTSTRAP",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_ALERT_RULE_STATE",
+        "WF_SETUP_CHANGE_EVENT_STATE",
+        "WF_SETUP_CURRENT_SELECTION",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_EVALUATION_RUN_STATE",
+        "WF_SETUP_PERSISTENCE",
+        "WF_SETUP_TRANSITION_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.upsert_snapshots"
+      ],
+      "initiator_id": "EF_dc80507b53b12bdc",
+      "writer_dependencies": [
+        "WF_SETUP_PERSISTENCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow"
+      ],
+      "initiator_id": "EF_ddff1e372aaee0e2",
+      "writer_dependencies": [
+        "WF_CONFIGURATION_DELIVERY",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_COHORT_MATERIALIZATION",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_GENERATION",
+        "WF_WINNER_OUTCOME_REVISION",
+        "WF_WINNER_WATERMARK"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/capture_service.py:WinnerPredictionCaptureService.capture_run"
+      ],
+      "initiator_id": "EF_dfa047a276b66281",
+      "writer_dependencies": [
+        "WF_WINNER_CAPTURE_TRAINING_METADATA",
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_EPISODE",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT",
+        "WF_WINNER_MARKET_DATA_OBLIGATION",
+        "WF_WINNER_PENDING_OUTCOME",
+        "WF_WINNER_PREDICTION_CAPTURE",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_due_outcomes"
+      ],
+      "initiator_id": "EF_e07c379588727421",
+      "writer_dependencies": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_OUTCOME_REVISION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/cohort_generation_service.py:CohortGenerationService.publish"
+      ],
+      "initiator_id": "EF_e127938927133466",
+      "writer_dependencies": [
+        "WF_WINNER_GENERATION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/outcome_orchestration_service.py:H5NextOpenOrchestrationService.drain_due"
+      ],
+      "initiator_id": "EF_e53568287697baf9",
+      "writer_dependencies": [
+        "WF_WINNER_FORWARD_MATURATION",
+        "WF_WINNER_OUTCOME_REVISION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator.create_latest_rescore"
+      ],
+      "initiator_id": "EF_e53dd685d5dadcf0",
+      "writer_dependencies": [
+        "WF_WINNER_COHORT_DEFINITION",
+        "WF_WINNER_ESTIMATOR",
+        "WF_WINNER_EVIDENCE_MANIFEST",
+        "WF_WINNER_INLINE_COHORT"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/model_registry.py:ModelRegistry.register_model"
+      ],
+      "initiator_id": "EF_e5897acb70c600d3",
+      "writer_dependencies": [
+        "WF_WINNER_MODEL_GOVERNANCE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/decision_evidence.py:persist_observation_gap_evaluation_evidence"
+      ],
+      "initiator_id": "EF_e9f698aec5b69e29",
+      "writer_dependencies": [
+        "WF_LIFECYCLE_OBSERVATION_GAP"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_lifecycle_event"
+      ],
+      "initiator_id": "EF_f0226ae27f1e202f",
+      "writer_dependencies": [
+        "WF_SETUP_TRANSITION_EVENT_STATE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.advance_canonical_selection"
+      ],
+      "initiator_id": "EF_f07d87c600a3ded4",
+      "writer_dependencies": [
+        "WF_SETUP_CURRENT_SELECTION"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.evaluate_lifecycle_event"
+      ],
+      "initiator_id": "EF_f2b0ab3e703edec5",
+      "writer_dependencies": [
+        "WF_SETUP_ALERT_EVENT_STATE",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/alert_service.py:SetupLifecycleAlertService.evaluate_signal_change_events"
+      ],
+      "initiator_id": "EF_f3a7461cf3417399",
+      "writer_dependencies": [
+        "WF_SETUP_ALERT_EVENT_STATE",
+        "WF_SETUP_ALERT_RULE_EVIDENCE",
+        "WF_SETUP_DECISION_EVIDENCE",
+        "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/drift_service.py:DriftService.persist_metrics"
+      ],
+      "initiator_id": "EF_f6c22b4705f16967",
+      "writer_dependencies": [
+        "WF_WINNER_DRIFT"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.add_lifecycle_events"
+      ],
+      "initiator_id": "EF_f6ddec7d59b9a9f3",
+      "writer_dependencies": [
+        "WF_SETUP_TRANSITION_EVENT_STATE"
+      ],
+      "writer_prerequisites_complete": true
+    },
+    {
+      "caller_type": "SERVICE_PUBLIC",
+      "entrypoints": [
+        "app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService.materialize_pending_outcomes"
+      ],
+      "initiator_id": "EF_ff740e59dc6eec85",
+      "writer_dependencies": [
+        "WF_WINNER_MARKET_DATA_OBLIGATION",
+        "WF_WINNER_PENDING_OUTCOME",
+        "WF_WINNER_TYPED_REPOSITORY"
+      ],
+      "writer_prerequisites_complete": true
+    }
+  ],
+  "initiators_assigned": 84,
+  "initiators_reconciled": 84,
+  "source": "T14A_phase5_handoff.json",
+  "unreconciled_ids": [],
+  "writer_families_assigned": 41,
+  "writer_families_reconciled": 41
+}

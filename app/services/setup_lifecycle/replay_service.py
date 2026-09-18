@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import select
@@ -14,6 +13,7 @@ from app.models.tables import (
     SignalAlertEvent,
 )
 from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.setup_lifecycle.actionability_policy import SetupLifecycleActionabilityPolicy
 from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.decision_evidence import (
     persist_lifecycle_evaluation_evidence,
@@ -89,9 +89,8 @@ class SetupLifecycleReplayService:
                     snapshot=snapshot,
                     episode=None,
                     decision=decision,
-                    actionability=SimpleNamespace(
-                        actionability=decision.actionability_candidate,
-                        blockers=(),
+                    actionability=SetupLifecycleActionabilityPolicy(self.config).evaluate(
+                        decision, normalized_snapshot_from_row(snapshot)
                     ),
                     evaluation_run_id=evaluation_run.id,
                     transition_eligible=False,

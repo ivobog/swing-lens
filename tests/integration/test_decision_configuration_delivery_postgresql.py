@@ -50,6 +50,16 @@ def delivery_db(disposable_postgres_database):
         db.add(UploadRun(id=1, filename="t13d.csv", status="COMPLETED"))
         db.add(PipelineRun(id=1, upload_run_id=1, status="PENDING"))
         db.commit()
+        # Explicit fixture PKs do not advance PostgreSQL identity sequences.
+        for table in ("upload_runs", "pipeline_runs"):
+            db.execute(
+                text(
+                    "SELECT setval(pg_get_serial_sequence(:table, 'id'), "
+                    "(SELECT max(id) FROM " + table + "))"
+                ),
+                {"table": table},
+            )
+        db.commit()
         yield db
         db.rollback()
     engine.dispose()
@@ -234,28 +244,57 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
     disposable_postgres_database,
     monkeypatch,
 ):
-    from integration.test_winner_consumer_eligibility_postgresql import _seed
+    from integration.test_t14c_decision_writer_postgresql import _native_liquidity_source
+    from native_mutation_support import seed_native_core
 
     from app.models.tables import (
         CoreCalculationEvidence,
         SetupLifecycleEvaluationEvidence,
         WinnerPredictionSnapshot,
     )
+    from app.services.decision_effective_configuration import (
+        resolve_lifecycle_configuration,
+        resolve_winner_configuration,
+    )
     from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+    from app.services.setup_lifecycle.canonicalization import SetupLifecycleCanonicalizer
     from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
     from app.services.setup_lifecycle.episode_service import SetupLifecycleEpisodeService
     from app.services.setup_lifecycle.repository import SetupLifecycleRepository
     from app.services.setup_lifecycle.snapshot_builder import SetupLifecycleSnapshotBuilder
     from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
+    from app.services.transition_preflight_plan_service import (
+        freeze_transition_decision_handoff_manifest,
+    )
     from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
 
     config = Config("alembic.ini")
     config.attributes["database_url"] = disposable_postgres_database
     command.upgrade(config, "head")
     engine = create_engine(disposable_postgres_database)
-    cutoff = _seed(engine, "ready")
+    monkeypatch.setenv("WINNER_PROBABILITY_ENABLED", "true")
+    monkeypatch.setenv("WINNER_PROBABILITY_CAPTURE_IN_PIPELINE", "true")
+    monkeypatch.setenv("SETUP_LIFECYCLE_ENABLED", "true")
+    get_settings.cache_clear()
+    winner_config = load_winner_probability_config()
+    winner_config = replace(winner_config, engine=replace(winner_config.engine, enabled=True))
+    extra = (resolve_setup_configuration(), resolve_lifecycle_configuration()) + tuple(
+        resolve_winner_configuration(winner_config, family=family)
+        for family in ("prediction", "outcome", "cohort", "generation")
+    )
     with Session(engine) as db:
-        job = enqueue_job(db, "FULL_PIPELINE", {"pipeline_run_id": 61}, coalesce=False)
+        bundle = resolve_pipeline_configurations(db)
+        bundle.update({item.snapshot.family.namespace: item for item in extra})
+        cutoff, _, _ = seed_native_core(
+            db,
+            extra_configurations=tuple(bundle.values()),
+            cutoff_at=datetime(2026, 7, 31, 21, 30, tzinfo=UTC),
+            raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+        )
+        pipeline_id = db.scalar(select(PipelineRun.id).where(PipelineRun.upload_run_id == 7))
+        job = enqueue_job(
+            db, "FULL_PIPELINE", {"pipeline_run_id": pipeline_id, "run_id": 7}, coalesce=False
+        )
         db.commit()
 
         def calculate(db, _job):
@@ -264,15 +303,29 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
             built = SetupLifecycleSnapshotBuilder().build(context.tickers[0])
             row = repository.upsert_snapshot(db, built.dto)
             assert persist_setup_evidence(db, row) is not None
+            SetupLifecycleCanonicalizer().canonicalize_run(db, run_id=7, snapshot_ids=(row.id,))
             setup = SetupLifecycleEpisodeService().apply_snapshot(db, row)
+            handoff = freeze_transition_decision_handoff_manifest(
+                db, upload_run_id=7, market_cutoff=cutoff
+            )
+            db.flush()
+            # Capture uses independent per-ticker Sessions, as normal stages do.
+            db.commit()
             winner = WinnerPredictionCaptureService().capture_run(
-                db, run_id=7, market_cutoff=cutoff
+                db,
+                run_id=7,
+                market_cutoff=cutoff,
+                config=winner_config,
+                decision_handoff_manifest_id=handoff.id,
+                decision_at=datetime.now(UTC),
             )
             return setup, winner
 
         setup, winner = execute_job(db, job, {job.job_type: calculate})
         assert setup.lifecycle_evaluation_evidence is not None
-        assert winner.failed == 0, winner
+        assert winner.failed == 0, "\n".join(
+            failure["message"] for failure in winner.representative_failures
+        )
         db.commit()
         evidence = db.scalars(
             select(CoreCalculationEvidence).where(CoreCalculationEvidence.artifact_kind == "SETUP")
@@ -284,6 +337,7 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
 
         from app.models.tables import SetupLifecycleEpisode, SetupSignalSnapshot
         from app.services.decision_effective_configuration import resolve_lifecycle_configuration
+        from app.services.market_clock_service import MarketClockService
         from app.services.setup_lifecycle.enums import SetupFamily
         from app.services.setup_lifecycle.replay_service import (
             SetupLifecycleReplayRequest,
@@ -312,6 +366,9 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
             timeframe=episode.timeframe,
             setup_family=SetupFamily(episode.setup_family),
             observed_on=date(2026, 8, 4),
+            market_cutoff=MarketClockService().cutoff_for(
+                datetime(2026, 8, 4, 22, tzinfo=UTC), reason="T14C_EXPLICIT_GAP_REPAIR"
+            ),
         )
         repaired = db.get(SetupLifecycleEvaluationEvidence, episode.latest_evaluation_evidence_id)
         assert repaired.payload_json["execution_semantics"] == "CURRENT_STATE_REPAIR"
@@ -326,9 +383,7 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
         snapshot = db.scalar(
             select(SetupSignalSnapshot).where(SetupSignalSnapshot.evidence_id == evidence[0].id)
         )
-        SetupLifecycleRepository().advance_canonical_selection(
-            db, snapshot, reason="T13D_NATIVE_CERTIFICATION", decision={}
-        )
+        SetupLifecycleCanonicalizer().canonicalize_run(db, run_id=7, snapshot_ids=(snapshot.id,))
         retrospective = SetupLifecycleReplayService(config=c2_native).replay(
             db, SetupLifecycleReplayRequest(ticker=snapshot.ticker, persist=True)
         )
@@ -344,9 +399,7 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
         db.commit()
         frozen = [deepcopy(row.payload_json) for row in evidence + lifecycle]
         winner_frozen = [deepcopy(row.lineage_json) for row in predictions]
-        from app.services.winner_probability.config import load_winner_probability_config
-
-        winner_c1 = load_winner_probability_config()
+        winner_c1 = winner_config
         winner_c2 = replace(
             winner_c1,
             horizon=replace(winner_c1.horizon, sessions=(*winner_c1.horizon.sessions, 99)),
@@ -356,9 +409,9 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
         )
         assert recaptured.failed > 0
         assert any(
-            "outcome configuration conflict" in failure["message"]
+            "MUTATION_RETAINED_CONFIGURATION_MISMATCH" in failure["message"]
             for failure in recaptured.representative_failures
-        )
+        ), "\n".join(failure["message"] for failure in recaptured.representative_failures)
         assert [row.lineage_json for row in predictions] == winner_frozen
         for row in evidence + lifecycle:
             assert row.payload_json[CONFIGURATION_PAYLOAD_KEY]["semantic_hash"]
@@ -396,124 +449,188 @@ def test_0079_upgrade_downgrade_reupgrade_constraints(disposable_postgres_databa
 
 
 def test_alert_configuration_history_rule_drift_and_predecessor_are_immutable(delivery_db):
-    from datetime import date
+    from integration.test_t14c_decision_writer_postgresql import _native_liquidity_source
+    from native_mutation_support import seed_native_core
 
-    from app.models.tables import SignalAlertRule
+    from app.models.tables import SignalAlertDecisionEvidence, SignalAlertRule
     from app.services.decision_effective_configuration import (
         configuration_from_payload,
         resolve_alert_configuration,
     )
-    from app.services.setup_lifecycle.decision_evidence import persist_alert_decision_evidence
+    from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
+    from app.services.setup_lifecycle.canonicalization import SetupLifecycleCanonicalizer
+    from app.services.setup_lifecycle.change_detector import SetupLifecycleChangeDetector
+    from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+    from app.services.setup_lifecycle.snapshot_builder import SetupLifecycleSnapshotBuilder
+    from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
 
     db = delivery_db
+    setup = resolve_setup_configuration()
     rule = SignalAlertRule(
         rule_id="t13d-native-rule",
         enabled=True,
         severity="ACTIONABLE",
-        scope="lifecycle",
+        scope="signal_change",
         cooldown_sessions=2,
-        minimum_confidence=70,
+        minimum_confidence=0,
         config_version="C1",
-        condition_json={},
+        condition_json={
+            "signal_keys": [item.key for item in setup.setup_config().signal_registry.definitions()]
+        },
         market_restrictions_json={},
         metadata_json={},
     )
     db.add(rule)
     db.flush()
     c1 = resolve_alert_configuration(rules=(rule,))
-    args = dict(
-        rule=rule,
-        ticker="ACME",
-        timeframe="1d",
-        effective_session=date(2026, 9, 15),
-        source_event_key="native-alert-1",
-        semantic_key="native-alert",
-        decision="GENERATED",
-        reasons=("READY",),
-        payload={"cooldown": 2},
-        effective_configuration=c1,
-    )
-    first = persist_alert_decision_evidence(db, **args)
-    frozen = deepcopy(first.payload_json)
-    rule.cooldown_sessions, rule.config_version = 99, "C2"
-    db.flush()
-    c2 = resolve_alert_configuration(rules=(rule,))
-    assert c1.snapshot.semantic_hash != c2.snapshot.semantic_hash
-    second = persist_alert_decision_evidence(
-        db,
-        **{
-            **args,
-            "source_event_key": "native-alert-2",
-            "decision": "SUPPRESSED_COOLDOWN",
-            "cooldown_predecessor_evidence_id": first.id,
-            "effective_configuration": c2,
-        },
-    )
+    sources = []
+    for offset, (day, weak) in enumerate(((14, False), (15, True), (16, False), (17, True))):
+        if offset == 2:
+            rule.cooldown_sessions, rule.config_version = 99, "C2"
+            db.commit()
+        current = resolve_alert_configuration(rules=(rule,))
+        alerts = SetupLifecycleAlertService()
+        alerts._prepare_rules(db, (rule,))
+        cutoff, _, _ = seed_native_core(
+            db,
+            run_id=7 + offset,
+            cutoff_at=datetime(2026, 9, day, 21, tzinfo=UTC),
+            raw_values=_native_liquidity_source(weak=weak),
+            extra_configurations=(setup, current),
+        )
+        context = SetupLifecycleSourceLoader().load_run_context(
+            db, 7 + offset, market_cutoff=cutoff
+        )
+        repository = SetupLifecycleRepository(setup.setup_config())
+        snapshot = repository.upsert_snapshot(
+            db, SetupLifecycleSnapshotBuilder(setup.setup_config()).build(context.tickers[0]).dto
+        )
+        SetupLifecycleCanonicalizer(
+            repository=repository, config=setup.setup_config()
+        ).canonicalize_run(db, run_id=7 + offset, snapshot_ids=(snapshot.id,))
+        db.commit()
+        changes = SetupLifecycleChangeDetector(
+            repository=repository, config=setup.setup_config()
+        ).detect_and_persist(db, evaluation_run_id=None, snapshot_ids=(snapshot.id,))
+        db.commit()
+        if weak:
+            events = repository.get_signal_change_events_by_ids(db, changes.event_ids)
+            source = (
+                events[0]
+                if not sources
+                else next(event for event in events if event.signal_key == sources[0].signal_key)
+            )
+            sources.append(source)
+            alerts.evaluate_signal_change_events(db, (source,))
+            db.commit()
+    first, second = db.scalars(
+        select(SignalAlertDecisionEvidence).order_by(SignalAlertDecisionEvidence.id)
+    ).all()
+    assert first.decision == "GENERATED" and second.decision == "SUPPRESSED_COOLDOWN"
     assert second.cooldown_predecessor_evidence_id == first.id
-    db.commit()
+    frozen = deepcopy(first.payload_json)
+    restored = configuration_from_payload(frozen["effective_configuration_at_creation"])
+    assert restored.snapshot.semantic_hash == c1.snapshot.semantic_hash
+    assert restored.values["rules"][0]["cooldown_sessions"] == 2
     db.expire_all()
     assert first.payload_json == frozen
-    restored = configuration_from_payload(first.payload_json["effective_configuration_at_creation"])
-    assert restored.values["rules"][0]["cooldown_sessions"] == 2
     with pytest.raises(ValueError, match="IMMUTABLE_EVIDENCE"):
         first.payload_json = second.payload_json
         db.flush()
 
 
 def test_ceri_downstream_native_writes_keep_c1_rules_and_allow_ack(delivery_db, monkeypatch):
-    from datetime import date
+    from pathlib import Path
 
-    from app.models.ceri_tables import CeriAlertRule, CeriCompany
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "e2e"))
+    from single_run_certification.fixtures import _seed_ceri_manual_evidence
+
+    from app.models.ceri_tables import CeriAlertRule, CeriChangeEvent
+    from app.models.tables import RawCompanyRow
     from app.services.ceri.alert_service import CeriAlertService
-    from app.services.ceri.change_detection_service import CeriChangeDetectionService
+    from app.services.ceri.capture_service import CeriRunCaptureService
+    from app.services.ceri.config import AlertRuleConfig, load_ceri_config
     from app.services.ceri.enums import CeriChangeType
     from app.services.ceri.feature_flags import CeriFeatureFlags
+    from app.services.ceri.snapshot_service import CeriSnapshotService
+    from app.services.contextual_effective_configuration import resolve_ceri_configuration
+    from app.services.market_clock_service import MarketClockService
 
     db = delivery_db
-    db.add(CeriCompany(id=1, ticker="ACME"))
+    clock = MarketClockService()
+    cutoff = clock.cutoff_for(datetime.now(UTC), reason="T14C_CERI_CONFIGURATION_SOURCE")
+    _seed_ceri_manual_evidence(db, as_of_session=cutoff.latest_completed_session)
+    db.commit()
+    db.add(UploadRun(id=777, filename="ceri-config-native.csv", status="COMPLETED"))
     db.flush()
-    change_service = CeriChangeDetectionService()
-    change, created = change_service._persist_change(
+    db.add(RawCompanyRow(run_id=777, row_number=1, ticker="ALFA", raw_json={}))
+    db.commit()
+    cutoff = clock.cutoff_for(datetime.now(UTC), reason="T14C_CERI_RETAINED_CAPTURE")
+    snapshot_service = CeriSnapshotService()
+    frozen = resolve_ceri_configuration(
+        snapshot_service.config,
+        consumer={
+            "run_capture": True,
+            "revision_feature_config_hash": snapshot_service.config.config_hash,
+            "ibmi_enabled": False,
+            "volatility_enabled": False,
+            "short_pressure_enabled": False,
+            "volatility": {"ceri_risk_max_contribution": 1.5},
+        },
+    )
+    result = CeriRunCaptureService(snapshot_service=snapshot_service).capture_run(
         db,
-        company_id=1,
-        change_type=CeriChangeType.NEW_BINARY_EVENT,
-        severity="RISK",
-        effective_session=date(2026, 9, 15),
-        scope="native",
-        delta={"status": "SCHEDULED"},
-        config_hash="fixture-events",
-        calculation_version="ceri-1.0.0",
+        777,
+        force=True,
+        market_cutoff=cutoff,
+        effective_configuration=frozen,
     )
-    assert created
-    rule = CeriAlertRule(
-        rule_id="NEW_BINARY_EVENT",
-        enabled=True,
-        severity="RISK",
-        cooldown_sessions=2,
-        config_version="C1",
-        source_event_types_json=["NEW_BINARY_EVENT"],
-        thresholds_json={},
-        scope_json={},
+    assert result.failed == 0 and result.change_events > 0
+    db.commit()
+    change = db.scalar(select(CeriChangeEvent).where(CeriChangeEvent.company_id == 1))
+    assert change is not None and change.delta_json["native_change_proof"]
+    change_type = CeriChangeType(change.change_type)
+    config = load_ceri_config()
+    config = replace(
+        config,
+        alerts=replace(
+            config.alerts,
+            rules={
+                **config.alerts.rules,
+                change_type: AlertRuleConfig(change_type, True, "RISK", change_type, 2),
+            },
+        ),
     )
-    db.add(rule)
-    db.flush()
     monkeypatch.setattr(
         "app.services.ceri.alert_service.ceri_flags",
         lambda: CeriFeatureFlags(True, True, True, True, True, True, True),
     )
-    service = CeriAlertService(alerts_enabled=True)
-    service._ensure_rule_configuration(db)
-    rule.cooldown_sessions = 99
-    rule.severity = "NOTABLE"
+    service = CeriAlertService(config=config, alerts_enabled=True)
+    db.add(
+        CeriAlertRule(
+            rule_id=change.change_type,
+            enabled=True,
+            severity="RISK",
+            cooldown_sessions=2,
+            config_version=config.engine.config_version,
+            source_event_types_json=[change.change_type],
+            thresholds_json={},
+            scope_json={},
+        )
+    )
     db.flush()
-    alert = service.persist_alert_for_change(db, change=change, ticker="ACME")
+    service._ensure_rule_configuration(db)
+    rule = db.scalar(select(CeriAlertRule).where(CeriAlertRule.rule_id == change.change_type))
+    rule.cooldown_sessions, rule.severity = 99, "NOTABLE"
+    db.commit()
+    alert = service.persist_alert_for_change(db, change=change, ticker="ALFA")
     assert alert is not None and alert.severity == "RISK"
     assert alert.evidence_json["effective_configuration_at_creation"]["semantic_hash"]
     assert change.delta_json["effective_configuration_at_creation"]["semantic_hash"]
-    frozen = deepcopy(alert.evidence_json)
+    frozen_alert = deepcopy(alert.evidence_json)
     service.acknowledge(db, alert)
     db.commit()
-    assert alert.evidence_json == frozen
+    assert alert.evidence_json == frozen_alert
     with pytest.raises(ValueError, match="IMMUTABLE_CONFIGURATION_PROOF"):
         alert.evidence_json = {}
         db.flush()

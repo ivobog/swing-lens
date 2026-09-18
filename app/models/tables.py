@@ -2437,14 +2437,13 @@ def _protect_winner_readiness_update(_mapper: Any, connection: Any, target: Any)
     # capture-time consumer permission are sealed; legacy rows cannot be promoted.
     from sqlalchemy import inspect
 
-    if not inspect(target).attrs.lineage_json.history.has_changes():
-        return
     stored = connection.execute(
         select(WinnerPredictionSnapshot.__table__.c.lineage_json).where(
             WinnerPredictionSnapshot.__table__.c.id == target.id
         )
     ).scalar_one()
     sealed_members = (
+        "native_capture_proof",
         "producer_readiness",
         "winner_consumer_eligibility",
         "effective_configuration_at_creation",
@@ -2456,6 +2455,19 @@ def _protect_winner_readiness_update(_mapper: Any, connection: Any, target: Any)
         for member in sealed_members
     ):
         _reject_core_evidence_mutation(_mapper, connection, target)
+    if (stored or {}).get("native_capture_proof") is not None:
+        from app.services.winner_probability.prediction_authority import (
+            PROJECTION_COLUMNS,
+            validate_capture_body,
+        )
+
+        if any(
+            inspect(target).attrs[column.key].history.has_changes()
+            for column in WinnerPredictionSnapshot.__table__.columns
+            if column.key not in PROJECTION_COLUMNS
+        ):
+            _reject_core_evidence_mutation(_mapper, connection, target)
+        validate_capture_body(target)
 
 
 def _protect_winner_readiness_delete(mapper: Any, connection: Any, target: Any) -> None:
@@ -4793,3 +4805,387 @@ for _configured_model in (
     WinnerProbabilityEstimate,
 ):
     seal_configuration_member(_configured_model, "metadata_json")
+
+
+def _protect_native_winner_artifact(mapper: Any, connection: Any, target: Any) -> None:
+    """Creation proofs cannot be replaced by an autoflushed source alteration."""
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+
+    containers = {
+        WinnerCalibrationBin: "segment_json",
+        WinnerDriftMetric: "segment_json",
+        WinnerModelTrainingRun: "fold_plan_json",
+        WinnerSimilarityLink: "contribution_json",
+        WinnerProbabilityEstimate: "metadata_json",
+        WinnerModelLifecycleEvent: "metadata_json",
+    }
+    container = containers[type(target)]
+    table = target.__table__
+    stored = connection.execute(
+        select(table.c[container]).where(table.c.id == target.id)
+    ).scalar_one()
+    proof_key = (
+        "native_estimate_proof"
+        if isinstance(target, WinnerProbabilityEstimate)
+        else "native_model_proof"
+        if isinstance(target, WinnerModelLifecycleEvent)
+        else "native_diagnostic_proof"
+    )
+    proof = (stored or {}).get(proof_key)
+    if isinstance(target, WinnerModelLifecycleEvent):
+        proof = proof or (stored or {}).get("native_governance_proof")
+        if proof is not None:
+            from sqlalchemy import inspect
+
+            if any(attribute.history.has_changes() for attribute in inspect(target).attrs):
+                _reject_core_evidence_mutation(mapper, connection, target)
+            return
+    if proof is None:
+        return
+    if proof != (getattr(target, container) or {}).get(proof_key):
+        _reject_core_evidence_mutation(mapper, connection, target)
+    if isinstance(target, WinnerProbabilityEstimate):
+        from sqlalchemy import inspect
+        from sqlalchemy.orm import object_session
+
+        from app.services.core_mutation_authority import require_semantic_writer
+        from app.services.winner_probability.estimate_authority import estimate_body
+
+        if any(
+            inspect(target).attrs[name].history.has_changes()
+            for name in ("lifecycle_status", "published_at", "superseded_at")
+        ):
+            require_semantic_writer(
+                object_session(target),
+                "app.services.winner_probability.estimate_publication_service:WinnerEstimatePublicationService.publish",
+            )
+
+        fingerprint = Canonical.fingerprint(estimate_body(target))
+    elif isinstance(target, WinnerModelLifecycleEvent):
+        from sqlalchemy import inspect
+
+        if any(attribute.history.has_changes() for attribute in inspect(target).attrs):
+            _reject_core_evidence_mutation(mapper, connection, target)
+        return
+    else:
+        from app.services.winner_probability.mutation_authority import diagnostic_artifact_body
+
+        fingerprint = Canonical.fingerprint(diagnostic_artifact_body(target, container))
+    if proof.get("body_fingerprint") != fingerprint:
+        _reject_core_evidence_mutation(mapper, connection, target)
+
+
+def _protect_native_winner_artifact_delete(mapper: Any, connection: Any, target: Any) -> None:
+    containers = (
+        "segment_json",
+        "fold_plan_json",
+        "contribution_json",
+        "metadata_json",
+        "lineage_json",
+        "metrics_json",
+    )
+    table = target.__table__
+    values = (
+        connection.execute(
+            select(*(table.c[name] for name in containers if name in table.c)).where(
+                table.c.id == target.id
+            )
+        )
+        .mappings()
+        .one()
+    )
+    if any(
+        any(
+            key in (values.get(container) or {})
+            for key in (
+                "native_diagnostic_proof",
+                "native_estimate_proof",
+                "native_model_proof",
+                "native_governance_proof",
+                "native_capture_proof",
+                "native_outcome_proof",
+                "native_pending_proof",
+                "native_cohort_proof",
+                "native_generation_proof",
+                "native_obligation_scope",
+            )
+        )
+        for container in containers
+    ):
+        _reject_core_evidence_mutation(mapper, connection, target)
+
+
+event.listen(WinnerPredictionSnapshot, "before_delete", _protect_native_winner_artifact_delete)
+
+
+def _protect_native_outcome(mapper: Any, connection: Any, target: Any) -> None:
+    from sqlalchemy.orm import object_session
+
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+    from app.services.core_mutation_authority import require_semantic_writer
+    from app.services.winner_probability.outcome_authority import outcome_body
+
+    stored = connection.execute(
+        select(target.__table__.c.metadata_json).where(target.__table__.c.id == target.id)
+    ).scalar_one()
+    proof = (stored or {}).get("native_outcome_proof")
+    if proof is None:
+        pending = (stored or {}).get("native_pending_proof")
+        if pending is not None:
+            if pending != (target.metadata_json or {}).get("native_pending_proof"):
+                _reject_core_evidence_mutation(mapper, connection, target)
+            require_semantic_writer(
+                object_session(target),
+                "app.services.winner_probability.outcome_service:OutcomeMaturationService.process_forward_outcome",
+            )
+        return
+    if proof != (target.metadata_json or {}).get("native_outcome_proof") or (
+        proof["body_fingerprint"] != Canonical.fingerprint(outcome_body(target))
+    ):
+        _reject_core_evidence_mutation(mapper, connection, target)
+    require_semantic_writer(
+        object_session(target),
+        "app.services.winner_probability.outcome_service:OutcomeMaturationService.process_forward_outcome",
+    )
+
+
+for _native_outcome_model in (WinnerForwardOutcome, WinnerTargetStopOutcome):
+    event.listen(_native_outcome_model, "before_update", _protect_native_outcome)
+    event.listen(_native_outcome_model, "before_delete", _protect_native_winner_artifact_delete)
+
+
+def _protect_native_obligation(mapper: Any, connection: Any, target: Any) -> None:
+    from sqlalchemy.orm import object_session
+
+    from app.services.core_mutation_authority import require_semantic_writer
+    from app.services.winner_probability.outcome_authority import validate_obligation_scope
+
+    stored = connection.execute(
+        select(target.__table__.c.metadata_json).where(target.__table__.c.id == target.id)
+    ).scalar_one()
+    proof = (stored or {}).get("native_obligation_scope")
+    if proof is None:
+        return
+    if proof != (target.metadata_json or {}).get("native_obligation_scope"):
+        _reject_core_evidence_mutation(mapper, connection, target)
+    validate_obligation_scope(target)
+    require_semantic_writer(
+        object_session(target),
+        tuple(
+            "app.services.winner_probability.market_data_obligation_service:MarketDataObligationService."
+            + method
+            for method in ("ensure_for_outcomes", "evaluate", "record_fetch_results")
+        ),
+    )
+
+
+event.listen(WinnerMarketDataObligation, "before_update", _protect_native_obligation)
+
+
+def _protect_native_cohort_statistic(mapper: Any, connection: Any, target: Any) -> None:
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+    from app.services.winner_probability.cohort_authority import statistic_body
+
+    stored = connection.execute(
+        select(target.__table__.c.metadata_json).where(target.__table__.c.id == target.id)
+    ).scalar_one()
+    proof = (stored or {}).get("native_cohort_proof")
+    if proof is not None and (
+        proof != (target.metadata_json or {}).get("native_cohort_proof")
+        or proof["fingerprint"] != Canonical.fingerprint(statistic_body(target))
+    ):
+        _reject_core_evidence_mutation(mapper, connection, target)
+
+
+def _protect_native_generation(mapper: Any, connection: Any, target: Any) -> None:
+    from sqlalchemy.orm import object_session
+
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+    from app.services.core_mutation_authority import require_semantic_writer
+    from app.services.winner_probability.cohort_authority import generation_body
+
+    stored = connection.execute(
+        select(target.__table__.c.metrics_json).where(target.__table__.c.id == target.id)
+    ).scalar_one()
+    proof = (stored or {}).get("native_generation_proof")
+    if proof is None:
+        return
+    if proof != (target.metrics_json or {}).get("native_generation_proof") or proof[
+        "fingerprint"
+    ] != Canonical.fingerprint(generation_body(target)):
+        _reject_core_evidence_mutation(mapper, connection, target)
+    completion = (stored or {}).get("native_generation_completion")
+    if completion is not None and completion != (target.metrics_json or {}).get(
+        "native_generation_completion"
+    ):
+        _reject_core_evidence_mutation(mapper, connection, target)
+    require_semantic_writer(
+        object_session(target),
+        (
+            "app.services.winner_probability.cohort_generation_service:CohortGenerationService.capture_or_resume",
+            "app.services.winner_probability.cohort_generation_service:CohortGenerationService.publish",
+            "app.services.winner_probability.cohort_materialization_service:CohortMaterializationService.materialize_slice",
+            "app.services.winner_probability.estimate_publication_service:WinnerEstimatePublicationService.publish",
+        ),
+    )
+
+
+def _protect_native_manifest(mapper: Any, connection: Any, target: Any) -> None:
+    stored = connection.execute(
+        select(target.__table__.c.payload_json).where(target.__table__.c.id == target.id)
+    ).scalar_one()
+    if "native_source_bodies" in (stored or {}) or "native_source_bodies" in (
+        target.payload_json or {}
+    ):
+        _reject_core_evidence_mutation(mapper, connection, target)
+
+
+event.listen(WinnerCohortStatistic, "before_update", _protect_native_cohort_statistic)
+event.listen(WinnerCohortGeneration, "before_update", _protect_native_generation)
+event.listen(WinnerCohortStatistic, "before_delete", _protect_native_winner_artifact_delete)
+event.listen(WinnerCohortGeneration, "before_delete", _protect_native_winner_artifact_delete)
+event.listen(WinnerEvidenceManifest, "before_update", _protect_native_manifest)
+event.listen(WinnerEvidenceManifest, "before_delete", _protect_native_manifest)
+
+
+def _protect_native_manifest_member(mapper: Any, connection: Any, target: Any) -> None:
+    stored = (
+        connection.execute(
+            select(*target.__table__.columns).where(target.__table__.c.id == target.id)
+        )
+        .mappings()
+        .one()
+    )
+    if isinstance(target, WinnerEvidenceManifestMember):
+        manifest_id = stored["manifest_id"]
+    else:
+        manifest_id = connection.execute(
+            select(WinnerProbabilityEstimate.evidence_manifest_id).where(
+                WinnerProbabilityEstimate.id == stored["estimate_id"]
+            )
+        ).scalar_one()
+    payload = connection.execute(
+        select(WinnerEvidenceManifest.payload_json).where(WinnerEvidenceManifest.id == manifest_id)
+    ).scalar_one_or_none()
+    if "native_source_bodies" in (payload or {}):
+        _reject_core_evidence_mutation(mapper, connection, target)
+
+
+for _native_manifest_member in (WinnerEvidenceManifestMember, WinnerEstimateEvidenceMember):
+    event.listen(_native_manifest_member, "before_update", _protect_native_manifest_member)
+    event.listen(_native_manifest_member, "before_delete", _protect_native_manifest_member)
+
+
+def _protect_native_refresh_state(mapper: Any, connection: Any, target: Any) -> None:
+    from sqlalchemy.orm import object_session
+
+    from app.services.core_mutation_authority import require_semantic_writer
+
+    metrics = connection.execute(
+        select(WinnerCohortGeneration.metrics_json).where(
+            WinnerCohortGeneration.refresh_state_id == target.id
+        )
+    ).scalars()
+    if not any((value or {}).get("native_generation_proof") for value in metrics):
+        return
+    require_semantic_writer(
+        object_session(target),
+        (
+            "app.services.winner_probability.cohort_generation_service:EvidenceWatermarkService.advance_to_current_material_evidence",
+            "app.services.winner_probability.cohort_generation_service:CohortGenerationService.publish",
+            "app.services.winner_probability.estimate_publication_service:WinnerEstimatePublicationService.publish",
+        ),
+    )
+
+
+event.listen(WinnerCohortRefreshState, "before_update", _protect_native_refresh_state)
+event.listen(WinnerMarketDataObligation, "before_delete", _protect_native_winner_artifact_delete)
+
+
+def _protect_native_cohort_definition(mapper: Any, connection: Any, target: Any) -> None:
+    metadata = connection.execute(
+        select(WinnerCohortStatistic.metadata_json).where(
+            WinnerCohortStatistic.cohort_definition_id == target.id
+        )
+    ).scalars()
+    if any((value or {}).get("native_cohort_proof") for value in metadata):
+        _reject_core_evidence_mutation(mapper, connection, target)
+
+
+event.listen(WinnerCohortDefinition, "before_update", _protect_native_cohort_definition)
+event.listen(WinnerCohortDefinition, "before_delete", _protect_native_cohort_definition)
+
+
+for _native_winner_artifact in (
+    WinnerCalibrationBin,
+    WinnerDriftMetric,
+    WinnerModelTrainingRun,
+    WinnerSimilarityLink,
+    WinnerProbabilityEstimate,
+    WinnerModelLifecycleEvent,
+):
+    event.listen(_native_winner_artifact, "before_update", _protect_native_winner_artifact)
+    event.listen(_native_winner_artifact, "before_delete", _protect_native_winner_artifact_delete)
+
+
+def _protect_native_model_projection(mapper: Any, connection: Any, target: Any) -> None:
+    from sqlalchemy import inspect
+    from sqlalchemy.orm import object_session
+
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+    from app.services.core_mutation_authority import require_semantic_writer
+    from app.services.winner_probability.model_authority import model_body
+
+    rows = (
+        connection.execute(
+            select(WinnerModelLifecycleEvent.__table__.c.metadata_json).where(
+                WinnerModelLifecycleEvent.__table__.c.model_version_id == target.id,
+                WinnerModelLifecycleEvent.__table__.c.event_type == LifecycleEventType.CREATED,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    proofs = [(row or {}).get("native_model_proof") for row in rows]
+    proofs = [proof for proof in proofs if proof is not None]
+    if not proofs:
+        return
+    if len(proofs) != 1 or proofs[0].get("body_fingerprint") != Canonical.fingerprint(
+        model_body(target)
+    ):
+        _reject_core_evidence_mutation(mapper, connection, target)
+    if any(
+        inspect(target).attrs[field].history.has_changes()
+        for field in ("status", "activated_at", "retired_at")
+    ):
+        require_semantic_writer(
+            object_session(target),
+            (
+                "app.services.winner_probability.model_registry:ModelRegistry.promote_model",
+                "app.services.winner_probability.model_registry:ModelRegistry.retire_model",
+            ),
+        )
+
+
+event.listen(WinnerModelVersion, "before_update", _protect_native_model_projection)
+
+
+def _protect_native_winner_episode(mapper: Any, connection: Any, target: Any) -> None:
+    from sqlalchemy import inspect
+
+    birth = connection.execute(
+        select(WinnerPredictionSnapshot.__table__.c.id)
+        .where(
+            WinnerPredictionSnapshot.__table__.c.episode_id == target.id,
+            WinnerPredictionSnapshot.__table__.c.lineage_json["native_capture_proof"].is_not(None),
+        )
+        .limit(1)
+    ).scalar_one_or_none()
+    if birth is not None and any(
+        inspect(target).attrs[column.key].history.has_changes()
+        for column in WinnerPredictionEpisode.__table__.columns
+    ):
+        _reject_core_evidence_mutation(mapper, connection, target)
+
+
+event.listen(WinnerPredictionEpisode, "before_update", _protect_native_winner_episode)

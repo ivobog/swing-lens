@@ -18,7 +18,6 @@ from app.models.tables import (
     CoreCalculationEvidenceSource,
     MarketCalculationContext,
     SectorRotationRow,
-    SetupLifecycleEpisode,
     SetupLifecycleEvaluationEvidence,
     SetupLifecycleEvent,
     SetupSignalSnapshot,
@@ -66,17 +65,12 @@ from app.services.sector_rotation_repository import (
     SectorRotationSnapshotWrite,
 )
 from app.services.setup_lifecycle.alert_service import (
-    SetupLifecycleAlertService,
     _event_market_regime,
 )
 from app.services.setup_lifecycle.decision_evidence import (
-    persist_lifecycle_evaluation_evidence,
     persist_setup_evidence,
 )
-from app.services.setup_lifecycle.dtos import ActionabilityDecision, LifecycleDecision
 from app.services.setup_lifecycle.enums import (
-    Actionability,
-    ConfidenceLabel,
     LifecycleState,
 )
 from app.services.setup_lifecycle.episode_service import (
@@ -366,51 +360,10 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
                 snapshot=normalized_snapshot_from_row(snapshot),
             )
         )
-        old_decision = LifecycleDecision(
-            setup_family=earlier_family.setup_family,
-            phase_code=earlier_family.phase_code,
-            previous_state=None,
-            proposed_state=LifecycleState.READY,
-            actionability_candidate=Actionability.ACTIONABLE,
-            confidence_score=90,
-            confidence_label=ConfidenceLabel.HIGH,
-            reason_codes=("PREVIOUS_VALID_READY",),
-            evidence={},
-        )
-        old_evaluation = persist_lifecycle_evaluation_evidence(
-            db,
-            snapshot=snapshot,
-            episode=None,
-            decision=old_decision,
-            actionability=ActionabilityDecision(Actionability.ACTIONABLE, ("GATES_PASS",)),
-            evaluation_run_id=None,
-            transition_eligible=True,
-        )
-        episode = SetupLifecycleEpisode(
-            ticker=row.ticker,
-            timeframe="1d",
-            setup_family=earlier_family.setup_family.value,
-            status="ACTIVE",
-            engine_version=snapshot.engine_version,
-            config_version=snapshot.config_version,
-            config_hash=snapshot.config_hash,
-            current_state="READY",
-            current_phase=earlier_family.phase_code,
-            current_actionability="ACTIONABLE",
-            opened_on=snapshot.data_as_of_date,
-            last_observed_on=snapshot.data_as_of_date,
-            current_as_of_date=snapshot.data_as_of_date,
-            state_entered_on=snapshot.data_as_of_date,
-            current_snapshot_id=snapshot.id,
-            confidence_score=90,
-            confidence_label="HIGH",
-            state_age_sessions=0,
-            missing_observation_sessions=0,
-            latest_evaluation_evidence_id=old_evaluation.id,
-        )
-        db.add(episode)
-        db.flush()
-        old_payload = deepcopy(old_evaluation.payload_json)
+        # This retained pre-Phase-5 fixture exercises contextual consumer math.
+        # Its hand-built historical sources cannot be promoted to certified
+        # lifecycle evidence by calling a current financial writer. Native
+        # lifecycle persistence/rollback is tested in the T14C PostgreSQL lane.
         stale_write = replace(regime_write, warnings=["severely_stale_market_data"])
         object.__setattr__(
             stale_write, "_effective_configuration", regime_config._effective_configuration.snapshot
@@ -447,14 +400,29 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
         assert not decisions["regime"]["included"] and not decisions["sector"]["included"]
         assert decisions["regime"]["decision"]["producer_evidence_id"] == stale.evidence_id
         service = SetupLifecycleEpisodeService()
-        result = service.apply_snapshot(db, newer, preloaded_episodes=(episode,))
-        assert db.get(SetupLifecycleEvaluationEvidence, episode.latest_evaluation_evidence_id)
-        assert old_evaluation.payload_json == old_payload
-        assert result.decision.proposed_state not in {
+        lifecycle_request = LifecycleEvaluationInput(
+            snapshot=normalized_snapshot_from_row(newer),
+            previous_state=LifecycleState.READY,
+            previous_phase=earlier_family.phase_code,
+            previous_confidence_score=90,
+        )
+        result = service.lifecycle_engine.evaluate(lifecycle_request)
+        assert result.proposed_state not in {
             LifecycleState.TRIGGERED,
             LifecycleState.CONFIRMED,
         }
-        assert result.lifecycle_event is None
+        db.commit()
+        # Retained consumer facts remain readable, but cannot open a certified
+        # episode or produce actionable alerts without native writer authority.
+        with pytest.raises(
+            ValueError, match="Market calculation context 17 is not owned by a pipeline"
+        ):
+            service.apply_snapshot(db, newer)
+        assert not db.scalars(select(SetupLifecycleEvaluationEvidence)).all()
+        assert not db.scalars(select(SetupLifecycleEvent)).all()
+        assert not db.scalars(select(SignalAlertEvent)).all()
+        for evidence_id, payload in historical.items():
+            assert db.get(CoreCalculationEvidence, evidence_id).payload_json == payload
         # Optional missing context may permit independently qualified Technical
         # actionability; it cannot restore the omitted contextual signals or votes.
         normalized = setup_with_contextual_permission(normalized_snapshot_from_row(newer))
@@ -466,14 +434,6 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
         newer.source_lineage_json = {}
         assert _event_market_regime(SetupLifecycleEvent(evidence_json={}), newer, db=db) is None
         newer.signals_json, newer.source_lineage_json = original_signals, original_lineage
-        alerts = SetupLifecycleAlertService()
-        alerts.seed_builtin_rules(db)
-        alerts.evaluate_episode_result(db, result)
-        assert not db.scalars(
-            select(SignalAlertEvent).where(
-                SignalAlertEvent.evidence_json["actionability_after"].astext == "ACTIONABLE",
-            )
-        ).all()
         original_ibmi = features["LIQUIDITY"]
         invalid = _feature(db, row.ticker, "LIQUIDITY", cutoff, coverage="UNAVAILABLE")
         omitted = rank_single_row(
@@ -566,8 +526,8 @@ def test_native_contextual_permissions_sources_retry_history_and_lifecycle(
                 )
             for evidence_id, payload in historical.items():
                 assert db.get(CoreCalculationEvidence, evidence_id).payload_json == payload
-            repeat = service.apply_snapshot(db, newer, preloaded_episodes=(episode,))
-            assert repeat.decision.proposed_state == result.decision.proposed_state
+            repeat = service.lifecycle_engine.evaluate(lifecycle_request)
+            assert repeat.proposed_state == result.proposed_state
         retry = seed_pre_phase5_evidence(
             db,
             kind=CoreEvidenceKind.RANKING,
@@ -616,6 +576,8 @@ def _feature(db, ticker, module, cutoff, *, coverage="AVAILABLE"):
 
 
 def _setup(db, context):
+    from unittest.mock import patch
+
     snapshot = SetupSignalSnapshot()
     SetupLifecycleRepository()._apply_snapshot_fields(
         snapshot,
@@ -623,11 +585,33 @@ def _setup(db, context):
     )
     db.add(snapshot)
     db.flush()
-    assert persist_setup_evidence(db, snapshot)
+    # This fixture describes retained pre-Phase-5 producer permissions. It must
+    # not call the live sealer with historical, incomplete native authority.
+    with (
+        patch(
+            "app.services.setup_lifecycle.decision_evidence.persist_core_evidence",
+            seed_pre_phase5_evidence,
+        ),
+        patch(
+            "app.services.setup_lifecycle.decision_evidence.declare_core_evidence_mutation",
+            lambda *a, **k: None,
+        ),
+    ):
+        assert persist_setup_evidence(db, snapshot)
     return snapshot
 
 
 def _ceri(db, ticker, cutoff, features, *, run_id=7):
+    # Explicitly load retained links after a writer rejection expires ORM state.
+    loaded = {
+        feature.id: feature
+        for feature in db.scalars(
+            select(IBIntelligenceFeature)
+            .where(IBIntelligenceFeature.id.in_([item.id for item in features.values()]))
+            .options(selectinload(IBIntelligenceFeature.calculation_evidence))
+        )
+    }
+    features = {key: loaded[value.id] for key, value in features.items()}
     permissions = {}
     kwargs = dict(
         as_of_session=cutoff.latest_completed_session,

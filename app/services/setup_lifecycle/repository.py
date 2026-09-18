@@ -23,6 +23,7 @@ from app.models.tables import (
     SignalChangeEvent,
 )
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.setup_lifecycle.config import (
     SetupLifecycleConfig,
     load_setup_lifecycle_config,
@@ -78,6 +79,7 @@ class PurgePreview:
     scope: PurgeScope
     token: str
     counts: dict[str, int]
+    target_ids: dict[str, tuple[int, ...]] = field(default_factory=dict)
 
 
 def current_canonical_snapshot_predicate(snapshot_entity=SetupSignalSnapshot):
@@ -89,10 +91,22 @@ def current_canonical_snapshot_predicate(snapshot_entity=SetupSignalSnapshot):
     )
 
 
+_LIFECYCLE_OWNERS = (
+    "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_snapshot",
+    "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_observation_gap",
+)
+_CANONICAL_OWNER = (
+    "app.services.setup_lifecycle.canonicalization:"
+    "SetupLifecycleCanonicalizer.canonicalize_snapshots"
+)
+_LIFECYCLE_EVENT_OWNERS = _LIFECYCLE_OWNERS + (_CANONICAL_OWNER,)
+
+
 class SetupLifecycleRepository:
     def __init__(self, config: SetupLifecycleConfig | None = None) -> None:
         self.config = config or load_setup_lifecycle_config()
 
+    @core_writer_transaction
     def create_evaluation_run(
         self,
         db: Session,
@@ -112,6 +126,25 @@ class SetupLifecycleRepository:
         dry_run: bool = False,
         requester: str | None = None,
     ) -> SetupLifecycleEvaluationRun:
+        if mode not in {"LIVE", "REPLAY", "REPAIR", "DRY_RUN"} or status not in {
+            "RUNNING",
+            "PENDING",
+        }:
+            raise ValueError("MUTATION_LIFECYCLE_EVALUATION_RUN_MODE_OR_STATUS_INVALID")
+        if (
+            engine_version != self.config.engine.version
+            or config_version != self.config.engine.config_version
+            or config_hash != self.config.config_hash
+        ):
+            raise ValueError("MUTATION_LIFECYCLE_EVALUATION_RUN_CONFIGURATION_MISMATCH")
+        if isinstance(db, Session) and source_run_id is not None:
+            from app.models.tables import UploadRun
+
+            if db.get(UploadRun, source_run_id) is None:
+                raise ValueError("MUTATION_LIFECYCLE_EVALUATION_RUN_SOURCE_MISSING")
+        self._evaluation_run_authority(
+            db, source_run_id, {"mode": mode, "configuration": config_hash}
+        )
         evaluation_run = SetupLifecycleEvaluationRun(
             source_run_id=source_run_id,
             source_run_id_text=source_run_id_text,
@@ -131,6 +164,7 @@ class SetupLifecycleRepository:
         )
         return self.add(db, evaluation_run)
 
+    @core_writer_transaction
     def complete_evaluation_run(
         self,
         db: Session,
@@ -144,6 +178,15 @@ class SetupLifecycleRepository:
         source_snapshot_max_id: int | None = None,
         completed_at: datetime | None = None,
     ) -> SetupLifecycleEvaluationRun:
+        if status not in {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}:
+            raise ValueError("MUTATION_LIFECYCLE_EVALUATION_RUN_TERMINAL_STATUS_INVALID")
+        if evaluation_run.config_hash != self.config.config_hash:
+            raise ValueError("MUTATION_LIFECYCLE_EVALUATION_RUN_CONFIGURATION_MISMATCH")
+        self._evaluation_run_authority(
+            db,
+            evaluation_run.source_run_id,
+            {"evaluation_run_id": evaluation_run.id, "status": status},
+        )
         finished_at = completed_at or _utcnow()
         evaluation_run.status = status
         evaluation_run.current_phase = current_phase
@@ -163,6 +206,24 @@ class SetupLifecycleRepository:
         db.flush()
         return evaluation_run
 
+    def _evaluation_run_authority(self, db, run_id, manifest):
+        from app.services.decision_mutation_authority import operational_decision_authority
+
+        operational_decision_authority(
+            db,
+            writer="setup_evaluation_run_bookkeeping",
+            manifest=manifest,
+            run_id=run_id,
+            job_types=(
+                "SETUP_LIFECYCLE_EVALUATE_RUN",
+                "SETUP_LIFECYCLE_REPLAY",
+                "SETUP_LIFECYCLE_REPAIR_TICKER",
+                "SETUP_LIFECYCLE_DAILY_MAINTENANCE",
+                "FULL_PIPELINE",
+            ),
+        )
+
+    @core_writer_transaction
     def heartbeat_evaluation_run(
         self,
         db: Session,
@@ -170,6 +231,13 @@ class SetupLifecycleRepository:
         *,
         current_phase: str | None = None,
     ) -> None:
+        if isinstance(db, Session):
+            run = db.get(SetupLifecycleEvaluationRun, evaluation_run_id)
+            if run is None:
+                raise ValueError("MUTATION_LIFECYCLE_EVALUATION_RUN_MISSING")
+            self._evaluation_run_authority(
+                db, run.source_run_id, {"evaluation_run_id": run.id, "phase": current_phase}
+            )
         now = _utcnow()
         values: dict[str, Any] = {"heartbeat_at": now, "last_heartbeat_at": now}
         if current_phase is not None:
@@ -181,6 +249,9 @@ class SetupLifecycleRepository:
         )
         db.flush()
 
+    @core_writer_member(
+        "app.services.setup_lifecycle.repository:SetupLifecycleRepository.complete_evaluation_run"
+    )
     def apply_evaluation_counts(
         self,
         evaluation_run: SetupLifecycleEvaluationRun,
@@ -203,11 +274,13 @@ class SetupLifecycleRepository:
             if value is not None:
                 setattr(evaluation_run, f"{key}_count", value)
 
+    @core_writer_transaction
     def upsert_snapshot(
         self,
         db: Session,
         dto: SetupSignalSnapshotWrite,
     ) -> SetupSignalSnapshot:
+        self._validate_snapshot_write_scope(db, dto)
         snapshot = self.find_snapshot_by_identity(
             db,
             run_id=dto.run_id,
@@ -219,6 +292,10 @@ class SetupLifecycleRepository:
             source_data_hash=dto.source_data_hash,
         )
         if snapshot is not None:
+            from app.services.decision_mutation_authority import validate_setup_projection
+
+            validate_setup_projection(db, snapshot)
+            self._validate_snapshot_retry(db, snapshot, dto)
             return snapshot
 
         candidate = SetupSignalSnapshot(
@@ -254,11 +331,19 @@ class SetupLifecycleRepository:
             )
             if snapshot is None:
                 raise
+            from app.services.decision_mutation_authority import validate_setup_projection
+
+            validate_setup_projection(db, snapshot)
+            self._validate_snapshot_retry(db, snapshot, dto)
             return snapshot
 
+        from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
+
+        persist_setup_evidence(db, snapshot)
         db.flush()
         return snapshot
 
+    @core_writer_transaction
     def upsert_snapshots(
         self,
         db: Session,
@@ -267,6 +352,8 @@ class SetupLifecycleRepository:
         """Idempotently persist one capture batch without a lookup/savepoint per ticker."""
         if not dtos:
             return []
+        for dto in dtos:
+            self._validate_snapshot_write_scope(db, dto)
 
         run_ids = {dto.run_id for dto in dtos if dto.run_id is not None}
         includes_standalone = any(dto.run_id is None for dto in dtos)
@@ -319,6 +406,7 @@ class SetupLifecycleRepository:
                 source_data_hash=dto.source_data_hash,
             )
             if key in by_identity:
+                self._validate_snapshot_retry(db, by_identity[key], dto)
                 continue
             candidate = self._snapshot_from_write(dto)
             by_identity[key] = candidate
@@ -335,6 +423,15 @@ class SetupLifecycleRepository:
                 for key, dto, _candidate in pending:
                     by_identity[key] = self.upsert_snapshot(db, dto)
 
+        from app.services.decision_mutation_authority import validate_setup_projection
+        from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
+
+        for snapshot in by_identity.values():
+            if snapshot.evidence_id is None:
+                persist_setup_evidence(db, snapshot)
+            else:
+                validate_setup_projection(db, snapshot)
+
         return [
             by_identity[
                 self.snapshot_identity_key(
@@ -349,6 +446,24 @@ class SetupLifecycleRepository:
             ]
             for dto in dtos
         ]
+
+    def _validate_snapshot_write_scope(self, db, dto):
+        if not isinstance(db, Session):
+            return
+        from app.services.combined_ranking_identity import calculation_identity_from_debug
+        from app.services.effective_configuration import EffectiveConfigurationSnapshot
+
+        identity = calculation_identity_from_debug(dto.source_lineage)
+        if identity is None:
+            raise ValueError("MUTATION_SETUP_IDENTITY_REQUIRED")
+        if not isinstance(dto.effective_configuration, EffectiveConfigurationSnapshot):
+            raise ValueError("MUTATION_SETUP_CONFIGURATION_REQUIRED")
+        if (
+            identity.ownership.run_id.value != dto.run_id
+            or identity.subject.ticker.value != self.normalize_ticker(dto.ticker)
+            or identity.temporal.as_of_session.value != dto.data_as_of_date
+        ):
+            raise ValueError("MUTATION_SETUP_WRITE_SCOPE_MISMATCH")
 
     def _snapshot_from_write(self, dto: SetupSignalSnapshotWrite) -> SetupSignalSnapshot:
         snapshot = SetupSignalSnapshot(
@@ -368,6 +483,30 @@ class SetupLifecycleRepository:
         self._apply_snapshot_fields(snapshot, dto)
         snapshot._effective_configuration = dto.effective_configuration
         return snapshot
+
+    def _validate_snapshot_retry(self, db, snapshot, dto) -> None:
+        from app.services.canonical_evidence import CanonicalEvidenceSerializer
+        from app.services.core_calculation_evidence import calculation_evidence_payload
+        from app.services.setup_lifecycle.decision_evidence import _SETUP_PROJECTION_FIELDS
+
+        frozen = dto.effective_configuration
+        if frozen is None:
+            raise ValueError("MUTATION_SETUP_RETRY_CONFIGURATION_REQUIRED")
+        if snapshot.evidence_id is not None:
+            from app.models.tables import CoreCalculationEvidence
+
+            evidence = db.get(CoreCalculationEvidence, snapshot.evidence_id)
+            if frozen.as_dict() != evidence.payload_json.get("effective_configuration_at_creation"):
+                raise ValueError("MUTATION_SETUP_RETRY_CONFIGURATION_MISMATCH")
+
+        excluded = _SETUP_PROJECTION_FIELDS | {"calculated_at", "origin_type"}
+        candidate = self._snapshot_from_write(dto)
+        expected = calculation_evidence_payload(snapshot, excluded_columns=excluded)
+        supplied = calculation_evidence_payload(candidate, excluded_columns=excluded)
+        if CanonicalEvidenceSerializer.dumps(expected) != CanonicalEvidenceSerializer.dumps(
+            supplied
+        ):
+            raise ValueError("MUTATION_SETUP_ALTERED_RETRY")
 
     def find_snapshot_by_identity(
         self,
@@ -430,6 +569,7 @@ class SetupLifecycleRepository:
                 {"keys": keys},
             )
 
+    @core_writer_transaction
     def advance_canonical_selection(
         self,
         db: Session,
@@ -439,6 +579,11 @@ class SetupLifecycleRepository:
         decision: dict[str, Any] | None = None,
         evaluation_run_id: int | None = None,
     ) -> CanonicalSelectionAdvance:
+        from app.services.decision_mutation_authority import validate_setup_projection
+
+        validate_setup_projection(db, snapshot)
+        self.lock_canonicalization_keys(db, [snapshot])
+        self._validate_canonical_choice(db, snapshot)
         selection = db.scalar(
             select(SetupSignalSnapshotCurrentSelection)
             .where(SetupSignalSnapshotCurrentSelection.ticker == snapshot.ticker)
@@ -451,6 +596,8 @@ class SetupLifecycleRepository:
             if selection is not None
             else None
         )
+        if previous is not None and previous.calculation_cutoff_at > snapshot.calculation_cutoff_at:
+            raise ValueError("MUTATION_SETUP_PROJECTION_REGRESSION")
         if selection is not None and selection.selected_snapshot_id == snapshot.id:
             return CanonicalSelectionAdvance(selection, previous, False, None)
 
@@ -532,6 +679,7 @@ class SetupLifecycleRepository:
         db.flush()
         return CanonicalSelectionAdvance(selection, previous, True, audit_event)
 
+    @core_writer_transaction
     def advance_canonical_selections(
         self,
         db: Session,
@@ -540,6 +688,13 @@ class SetupLifecycleRepository:
         reason: str,
         evaluation_run_id: int | None = None,
     ) -> list[CanonicalSelectionAdvance]:
+        from app.services.decision_mutation_authority import validate_setup_projection
+
+        for snapshot, _decision in items:
+            validate_setup_projection(db, snapshot)
+        self.lock_canonicalization_keys(db, [snapshot for snapshot, _decision in items])
+        for snapshot, _decision in items:
+            self._validate_canonical_choice(db, snapshot)
         """Advance an advisory-lock-protected canonicalization batch."""
         if not items:
             return []
@@ -597,6 +752,13 @@ class SetupLifecycleRepository:
         for snapshot, decision in items:
             key = (snapshot.ticker, snapshot.timeframe, snapshot.data_as_of_date)
             selection = selection_by_key.get(key)
+            previous_target = (
+                previous_by_id.get(selection.selected_snapshot_id) if selection else None
+            )
+            if previous_target is not None and (
+                previous_target.calculation_cutoff_at > snapshot.calculation_cutoff_at
+            ):
+                raise ValueError("MUTATION_SETUP_PROJECTION_REGRESSION")
             previous = (
                 previous_by_id.get(selection.selected_snapshot_id)
                 if selection is not None
@@ -677,6 +839,9 @@ class SetupLifecycleRepository:
             db.flush()
         return advances
 
+    @core_writer_member(
+        "app.services.setup_lifecycle.canonicalization:SetupLifecycleCanonicalizer.canonicalize_snapshots"
+    )
     def record_snapshot_canonical_decisions(
         self,
         db: Session,
@@ -694,6 +859,9 @@ class SetupLifecycleRepository:
         if changed:
             db.flush()
 
+    @core_writer_member(
+        "app.services.setup_lifecycle.canonicalization:SetupLifecycleCanonicalizer.canonicalize_snapshots"
+    )
     def record_snapshot_canonical_decision(
         self,
         db: Session,
@@ -963,6 +1131,48 @@ class SetupLifecycleRepository:
             )
         )
 
+    def _validate_canonical_choice(self, db, snapshot):
+        from app.services.decision_mutation_authority import validate_setup_projection
+        from app.services.setup_lifecycle.canonicalization import select_canonical_snapshot
+
+        if snapshot.config_hash != self.config.config_hash:
+            raise ValueError("MUTATION_SETUP_PROJECTION_CONFIGURATION_MISMATCH")
+        candidates = self.load_canonicalization_candidates(db, [snapshot], lock=True)
+        compatible = []
+        for candidate in candidates:
+            validate_setup_projection(db, candidate)
+            if candidate.config_hash == snapshot.config_hash:
+                compatible.append(candidate)
+        if not compatible or select_canonical_snapshot(compatible).id != snapshot.id:
+            raise ValueError("MUTATION_SETUP_PROJECTION_NATIVE_CHOICE_MISMATCH")
+        from app.models.tables import CoreCalculationEvidence
+        from app.services.calculation_identity import CalculationIdentity
+        from app.services.decision_effective_configuration import configuration_from_payload
+        from app.services.decision_mutation_authority import decision_authority
+        from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+
+        evidence = db.get(CoreCalculationEvidence, snapshot.evidence_id)
+        configuration = configuration_from_payload(
+            evidence.payload_json["effective_configuration_at_creation"]
+        )
+        decision_authority(
+            db,
+            domain=MutationDomain.CURRENT_PROJECTION,
+            writer="advance_canonical_selection",
+            identity=CalculationIdentity.from_canonical_payload(evidence.calculation_identity_json),
+            configuration=configuration,
+            records={"target_evidence": evidence},
+            manifests={
+                "projection_scope": {
+                    "ticker": snapshot.ticker,
+                    "timeframe": snapshot.timeframe,
+                    "session": snapshot.data_as_of_date,
+                    "snapshot_id": snapshot.id,
+                }
+            },
+            semantic_mode=MutationSemanticMode.CURRENT_PROJECTION_ADVANCE,
+        )
+
     def load_canonicalization_candidates(
         self,
         db: Session,
@@ -1195,6 +1405,7 @@ class SetupLifecycleRepository:
             grouped[(row.ticker, row.timeframe)].append(row)
         return grouped
 
+    @core_writer_member(_LIFECYCLE_OWNERS)
     def supersede_prior_current_events(
         self,
         db: Session,
@@ -1233,11 +1444,13 @@ class SetupLifecycleRepository:
         )
         return row
 
+    @core_writer_member(_LIFECYCLE_EVENT_OWNERS)
     def add_lifecycle_event(
         self,
         db: Session,
         event: SetupLifecycleEvent,
     ) -> SetupLifecycleEvent:
+        self._validate_canonical_revision_event(db, event)
         existing = self.get_lifecycle_event(
             db,
             evaluation_run_id=event.evaluation_run_id,
@@ -1247,14 +1460,17 @@ class SetupLifecycleRepository:
             return existing
         return self.add(db, event)
 
+    @core_writer_member(_LIFECYCLE_EVENT_OWNERS)
     def add_new_lifecycle_event(
         self,
         db: Session,
         event: SetupLifecycleEvent,
     ) -> SetupLifecycleEvent:
         """Persist an event for a just-created episode, which cannot have duplicates."""
+        self._validate_canonical_revision_event(db, event)
         return self.add(db, event)
 
+    @core_writer_member(_LIFECYCLE_EVENT_OWNERS)
     def add_lifecycle_events(
         self,
         db: Session,
@@ -1262,6 +1478,8 @@ class SetupLifecycleRepository:
     ) -> list[SetupLifecycleEvent]:
         if not events:
             return []
+        for event in events:
+            self._validate_canonical_revision_event(db, event)
         source_keys = {event.source_event_key for event in events}
         existing = list(
             db.scalars(
@@ -1286,6 +1504,57 @@ class SetupLifecycleRepository:
             db.flush()
         return result
 
+    def _validate_canonical_revision_event(self, db, event):
+        if not isinstance(db, Session) or event.event_type != "CANONICAL_REVISION":
+            return
+        from app.services.decision_mutation_authority import validate_setup_projection
+        from app.services.setup_lifecycle.canonicalization import _canonical_sort_key, _json_value
+
+        snapshot = db.get(SetupSignalSnapshot, event.snapshot_id)
+        if snapshot is None:
+            raise ValueError("MUTATION_CANONICAL_AUDIT_TARGET_REQUIRED")
+        validate_setup_projection(db, snapshot)
+        selection = db.scalar(
+            select(SetupSignalSnapshotCurrentSelection).where(
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == snapshot.id,
+                SetupSignalSnapshotCurrentSelection.selected_evaluation_run_id
+                == event.evaluation_run_id,
+            )
+        )
+        selected = (event.evidence_json or {}).get("selected_snapshot_id")
+        predecessor = (event.evidence_json or {}).get("previous_snapshot_id")
+        expected_key = self.stable_key(
+            "canonical_revision",
+            str(event.evaluation_run_id or ""),
+            snapshot.ticker,
+            snapshot.timeframe,
+            snapshot.data_as_of_date.isoformat(),
+            str(predecessor or ""),
+            str(snapshot.id),
+            snapshot.config_hash,
+        )
+        if (
+            selection is None
+            or selected != snapshot.id
+            or event.episode_id is not None
+            or event.ticker != snapshot.ticker
+            or event.timeframe != snapshot.timeframe
+            or event.effective_date != snapshot.data_as_of_date
+            or event.config_hash != snapshot.config_hash
+            or event.source_event_key != expected_key
+            or (event.evidence_json or {}).get("canonical_score")
+            != _json_value(list(_canonical_sort_key(snapshot)))
+        ):
+            raise ValueError("MUTATION_CANONICAL_AUDIT_TARGET_MISMATCH")
+        audit = db.scalar(
+            select(SetupSignalSnapshotSelectionEvent).where(
+                SetupSignalSnapshotSelectionEvent.selected_snapshot_id == snapshot.id,
+                SetupSignalSnapshotSelectionEvent.selection_revision == selection.revision,
+            )
+        )
+        if audit is None or audit.previous_snapshot_id != predecessor:
+            raise ValueError("MUTATION_CANONICAL_AUDIT_PREDECESSOR_MISMATCH")
+
     def get_lifecycle_event(
         self,
         db: Session,
@@ -1302,14 +1571,42 @@ class SetupLifecycleRepository:
             statement = statement.where(SetupLifecycleEvent.evaluation_run_id == evaluation_run_id)
         return db.scalar(statement.limit(1))
 
+    @core_writer_transaction
     def add_signal_change_event(
         self,
         db: Session,
         event: SignalChangeEvent,
+        *,
+        effective_configuration=None,
+        source_manifest=None,
     ) -> SignalChangeEvent:
+        from app.services.decision_mutation_authority import lock_decision_scope
+        from app.services.setup_lifecycle.change_authority import (
+            signal_change_body,
+            validate_signal_change,
+        )
+
+        if isinstance(db, Session):
+            lock_decision_scope(db, ("setup-signal-change", event.source_event_key))
+            proof = validate_signal_change(
+                db, event, configuration=effective_configuration, source_manifest=source_manifest
+            )
         existing = self.get_signal_change_event(db, event.source_event_key)
         if existing is not None:
+            if isinstance(db, Session) and (
+                signal_change_body(existing) != signal_change_body(event)
+                or CanonicalEvidenceSerializer.dumps(
+                    (existing.evidence_json or {}).get("native_change_proof")
+                )
+                != CanonicalEvidenceSerializer.dumps(proof)
+            ):
+                raise ValueError("MUTATION_CHANGE_ALTERED_RETRY")
             return existing
+        if isinstance(db, Session):
+            event.evidence_json = {
+                **event.evidence_json,
+                "native_change_proof": CanonicalEvidenceSerializer.canonicalize(proof),
+            }
         return self.add(db, event)
 
     def get_signal_change_event(
@@ -1338,6 +1635,9 @@ class SetupLifecycleRepository:
             )
         )
 
+    @core_writer_member(
+        "app.services.setup_lifecycle.alert_service:SetupLifecycleAlertService.seed_builtin_rules"
+    )
     def upsert_alert_rule(
         self,
         db: Session,
@@ -1352,7 +1652,42 @@ class SetupLifecycleRepository:
         minimum_confidence: int = 0,
         condition: dict[str, Any] | None = None,
         market_restrictions: dict[str, Any] | None = None,
+        effective_configuration=None,
     ) -> SignalAlertRule:
+        if isinstance(db, Session):
+            if effective_configuration is None:
+                raise ValueError("MUTATION_ALERT_RULE_FULL_CONFIGURATION_REQUIRED")
+            effective_configuration.require_family("decision.alerts.setup")
+            config = effective_configuration.setup_config()
+            native = config.alerts.rules.get(rule_id)
+            if native is None or not config.alerts.built_in_rules_enabled:
+                raise ValueError("MUTATION_ALERT_RULE_BOOTSTRAP_DISABLED_OR_UNKNOWN")
+            expected = {
+                "enabled": native.enabled,
+                "severity": native.severity.value,
+                "scope": native.source,
+                "config_version": config.engine.config_version,
+                "setup_family": native.filters.get("setup_family"),
+                "cooldown_sessions": native.cooldown_sessions,
+                "minimum_confidence": native.minimum_confidence,
+                "condition": dict(native.filters),
+                "market_restrictions": native.filters.get("market_restrictions") or {},
+            }
+            supplied = {
+                "enabled": enabled,
+                "severity": severity,
+                "scope": scope,
+                "config_version": config_version,
+                "setup_family": setup_family,
+                "cooldown_sessions": cooldown_sessions,
+                "minimum_confidence": minimum_confidence,
+                "condition": condition or {},
+                "market_restrictions": market_restrictions or {},
+            }
+            if CanonicalEvidenceSerializer.dumps(expected) != CanonicalEvidenceSerializer.dumps(
+                supplied
+            ):
+                raise ValueError("MUTATION_ALERT_RULE_NATIVE_CONFIGURATION_MISMATCH")
         rule = db.scalar(select(SignalAlertRule).where(SignalAlertRule.rule_id == rule_id).limit(1))
         if rule is None:
             rule = SignalAlertRule(rule_id=rule_id)
@@ -1380,15 +1715,24 @@ class SetupLifecycleRepository:
             statement = statement.where(SignalAlertRule.enabled.is_(True))
         return list(db.scalars(statement))
 
+    @core_writer_member(
+        "app.services.setup_lifecycle.alert_service:SetupLifecycleAlertService._persist_alert"
+    )
     def add_alert_event(
         self,
         db: Session,
         event: SignalAlertEvent,
     ) -> SignalAlertEvent:
+        if isinstance(db, Session):
+            from app.services.setup_lifecycle.alert_authority import validate_alert_event_projection
+
+            validate_alert_event_projection(db, event)
         existing = db.scalar(
             select(SignalAlertEvent).where(SignalAlertEvent.event_key == event.event_key).limit(1)
         )
         if existing is not None:
+            if isinstance(db, Session):
+                validate_alert_event_projection(db, existing)
             return existing
         return self.add(db, event)
 
@@ -1432,6 +1776,7 @@ class SetupLifecycleRepository:
     def get_alert_event(self, db: Session, alert_id: int) -> SignalAlertEvent | None:
         return db.get(SignalAlertEvent, alert_id)
 
+    @core_writer_transaction
     def acknowledge_alert_event(
         self,
         db: Session,
@@ -1442,11 +1787,13 @@ class SetupLifecycleRepository:
         alert = self.get_alert_event(db, alert_id)
         if alert is None:
             return None
+        self._validate_alert_status_operation(db, alert, "ACKNOWLEDGED")
         alert.status = "ACKNOWLEDGED"
         alert.acknowledged_at = acknowledged_at or _utcnow()
         db.flush()
         return alert
 
+    @core_writer_transaction
     def dismiss_alert_event(
         self,
         db: Session,
@@ -1457,11 +1804,55 @@ class SetupLifecycleRepository:
         alert = self.get_alert_event(db, alert_id)
         if alert is None:
             return None
+        self._validate_alert_status_operation(db, alert, "DISMISSED")
         alert.status = "DISMISSED"
         alert.dismissed_at = dismissed_at or _utcnow()
         db.flush()
         return alert
 
+    def _validate_alert_status_operation(self, db, alert, status):
+        from app.models.tables import SignalAlertDecisionEvidence
+        from app.services.decision_mutation_authority import (
+            operational_decision_authority,
+            validate_retained_decision,
+        )
+
+        if not isinstance(db, Session):
+            return
+        from app.services.setup_lifecycle.alert_authority import validate_alert_event_projection
+
+        validate_alert_event_projection(db, alert, allow_legacy=True)
+        decision = (
+            db.get(SignalAlertDecisionEvidence, alert.decision_evidence_id)
+            if alert.decision_evidence_id is not None
+            else None
+        )
+        if decision is not None:
+            validate_retained_decision(db, decision, contract="signal-alert-decision-evidence-v1")
+            if (
+                decision.ticker != alert.ticker
+                or decision.timeframe != alert.timeframe
+                or decision.effective_session != alert.effective_date
+                or decision.source_event_key != alert.source_event_key
+                or decision.decision != "GENERATED"
+            ):
+                raise ValueError("MUTATION_ALERT_STATUS_TARGET_MISMATCH")
+        elif alert.decision_evidence_id is not None:
+            raise ValueError("MUTATION_ALERT_STATUS_DECISION_MISSING")
+        operational_decision_authority(
+            db,
+            writer="setup_alert_notification_status",
+            manifest={
+                "alert_id": alert.id,
+                "event_key": alert.event_key,
+                "decision_evidence_id": alert.decision_evidence_id,
+                "status": status,
+                "artifact_role": "NOTIFICATION_STATUS_ONLY",
+                "legacy_nonfinancial_status": alert.decision_evidence_id is None,
+            },
+        )
+
+    @core_writer_transaction
     def write_admin_audit_event(
         self,
         db: Session,
@@ -1476,6 +1867,10 @@ class SetupLifecycleRepository:
         affected_counts: dict[str, int] | None = None,
         preview_token: str | None = None,
     ) -> SetupLifecycleAdministrativeAuditEvent:
+        if event_type == "PURGE_EXECUTED" and (
+            not requester.strip() or not (reason or "").strip() or not preview_token
+        ):
+            raise ValueError("MUTATION_LIFECYCLE_PURGE_AUDIT_AUTHORITY_REQUIRED")
         audit_event = SetupLifecycleAdministrativeAuditEvent(
             event_type=event_type,
             requester=requester,
@@ -1499,13 +1894,37 @@ class SetupLifecycleRepository:
             "evaluation_runs": self._count(db, self._scoped_evaluation_runs(scope)),
         }
         token = self.stable_hash({"scope": scope.__dict__, "counts": counts})
-        return PurgePreview(scope=scope, token=token, counts=counts)
+        target_ids = {}
+        if isinstance(db, Session):
+            for name, statement in self._purge_statements(scope):
+                target_ids[name] = tuple(sorted(row.id for row in db.scalars(statement)))
+            token = self.stable_hash(
+                {"scope": scope.__dict__, "counts": counts, "target_ids": target_ids}
+            )
+        return PurgePreview(scope=scope, token=token, counts=counts, target_ids=target_ids)
 
+    def _purge_statements(self, scope):
+        return (
+            ("alert_events", self._scoped_alert_events(scope)),
+            ("signal_change_events", self._scoped_signal_change_events(scope)),
+            ("lifecycle_events", self._scoped_lifecycle_events(scope)),
+            ("episodes", self._scoped_episodes(scope)),
+            ("snapshots", self._scoped_snapshots(scope)),
+            ("evaluation_runs", self._scoped_evaluation_runs(scope)),
+        )
+
+    @core_writer_transaction
     def execute_purge(self, db: Session, preview: PurgePreview, token: str) -> dict[str, int]:
         if not self.config.retention.purge_enabled:
             raise ValueError("setup lifecycle purge is disabled by retention policy")
         return self._execute_purge_unchecked(db, preview, token)
 
+    @core_writer_member(
+        (
+            "app.services.setup_lifecycle.repository:SetupLifecycleRepository.execute_purge",
+            "app.services.setup_lifecycle.purge_service:SetupLifecyclePurgeService.execute",
+        )
+    )
     def _execute_purge_unchecked(
         self,
         db: Session,
@@ -1514,20 +1933,110 @@ class SetupLifecycleRepository:
     ) -> dict[str, int]:
         if token != preview.token:
             raise ValueError("purge preview token does not match")
-        deleted: dict[str, int] = {}
-        for name, statement in (
-            ("alert_events", self._scoped_alert_events(preview.scope)),
-            ("signal_change_events", self._scoped_signal_change_events(preview.scope)),
-            ("lifecycle_events", self._scoped_lifecycle_events(preview.scope)),
-            ("episodes", self._scoped_episodes(preview.scope)),
-            ("snapshots", self._scoped_snapshots(preview.scope)),
-            ("evaluation_runs", self._scoped_evaluation_runs(preview.scope)),
+        if not self.config.retention.purge_enabled:
+            raise ValueError("setup lifecycle purge is disabled by retention policy")
+        current = self.preview_purge(db, preview.scope)
+        if current.token != preview.token:
+            raise ValueError("MUTATION_LIFECYCLE_PURGE_STALE_PREVIEW")
+        if self.config.retention.purge_audit_required and not db.scalar(
+            select(SetupLifecycleAdministrativeAuditEvent.id)
+            .where(
+                SetupLifecycleAdministrativeAuditEvent.event_type == "PURGE_EXECUTED",
+                SetupLifecycleAdministrativeAuditEvent.preview_token_hash == self.hash_token(token),
+            )
+            .limit(1)
         ):
+            raise ValueError("MUTATION_LIFECYCLE_PURGE_AUDIT_AUTHORITY_REQUIRED")
+        from app.services.decision_mutation_authority import operational_decision_authority
+
+        operational_decision_authority(
+            db,
+            writer="setup_derived_purge",
+            manifest={"scope": preview.scope.__dict__, "token": token},
+        )
+        deleted: dict[str, int] = {}
+        for name, statement in self._purge_statements(preview.scope):
+            if isinstance(db, Session):
+                entity = statement.column_descriptions[0]["entity"]
+                statement = select(entity).where(entity.id.in_(current.target_ids[name]))
             deleted[name] = self._delete_selected(db, statement)
         db.flush()
         return deleted
 
+    @core_writer_member(
+        (
+            "app.services.setup_lifecycle.repository:SetupLifecycleRepository.upsert_snapshot",
+            "app.services.setup_lifecycle.repository:SetupLifecycleRepository.upsert_snapshots",
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_snapshot",
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_observation_gap",
+            "app.services.setup_lifecycle.alert_service:SetupLifecycleAlertService._persist_alert",
+            _CANONICAL_OWNER,
+        ),
+        models=(SetupSignalSnapshot, SetupLifecycleEpisode, SetupLifecycleEvent, SignalAlertEvent),
+    )
     def add(self, db: Session, row: Any) -> Any:
+        from app.models.tables import (
+            SetupLifecycleEvaluationEvidence,
+            SetupLifecycleTransitionEvidence,
+            SignalAlertDecisionEvidence,
+            SignalAlertRuleEvidence,
+        )
+        from app.services.core_mutation_authority import require_semantic_writer
+
+        native_owners = {
+            SignalAlertEvent: (
+                "app.services.setup_lifecycle.alert_service:SetupLifecycleAlertService._persist_alert",
+            ),
+            SignalAlertRule: (
+                "app.services.setup_lifecycle.alert_service:SetupLifecycleAlertService.seed_builtin_rules",
+            ),
+            SignalAlertRuleEvidence: (
+                "app.services.setup_lifecycle.decision_evidence:persist_alert_decision_evidence",
+            ),
+            SignalAlertDecisionEvidence: (
+                "app.services.setup_lifecycle.decision_evidence:persist_alert_decision_evidence",
+            ),
+            SignalChangeEvent: (
+                "app.services.setup_lifecycle.repository:SetupLifecycleRepository.add_signal_change_event",
+            ),
+            SetupLifecycleAdministrativeAuditEvent: (
+                "app.services.setup_lifecycle.repository:SetupLifecycleRepository.write_admin_audit_event",
+            ),
+            SetupSignalSnapshot: tuple(
+                "app.services.setup_lifecycle.repository:SetupLifecycleRepository." + name
+                for name in ("upsert_snapshot", "upsert_snapshots")
+            ),
+            SetupLifecycleEpisode: _LIFECYCLE_OWNERS,
+            SetupLifecycleEvaluationRun: (
+                "app.services.setup_lifecycle.repository:SetupLifecycleRepository.create_evaluation_run",
+            ),
+            SetupLifecycleEvaluationEvidence: tuple(
+                "app.services.setup_lifecycle.decision_evidence:" + name
+                for name in (
+                    "persist_lifecycle_evaluation_evidence",
+                    "persist_observation_gap_evaluation_evidence",
+                )
+            ),
+            SetupLifecycleTransitionEvidence: (
+                "app.services.setup_lifecycle.decision_evidence:persist_lifecycle_transition_evidence",
+            ),
+            SetupSignalSnapshotCurrentSelection: tuple(
+                "app.services.setup_lifecycle.repository:SetupLifecycleRepository." + name
+                for name in ("advance_canonical_selection", "advance_canonical_selections")
+            ),
+            SetupSignalSnapshotSelectionEvent: tuple(
+                "app.services.setup_lifecycle.repository:SetupLifecycleRepository." + name
+                for name in ("advance_canonical_selection", "advance_canonical_selections")
+            ),
+        }
+        if type(row) in native_owners:
+            require_semantic_writer(db, native_owners[type(row)])
+        if isinstance(row, SetupLifecycleEvent):
+            self._validate_canonical_revision_event(db, row)
+        if isinstance(db, Session) and isinstance(row, SignalAlertEvent):
+            from app.services.setup_lifecycle.alert_authority import validate_alert_event_projection
+
+            validate_alert_event_projection(db, row)
         db.add(row)
         db.flush()
         return row
@@ -1776,7 +2285,7 @@ class SetupLifecycleRepository:
     @staticmethod
     def _delete_selected(db: Session, statement: Select[tuple[Any]]) -> int:
         entity = statement.column_descriptions[0]["entity"]
-        criteria = tuple(statement.whereclause.clauses) if statement.whereclause is not None else ()
+        criteria = (statement.whereclause,) if statement.whereclause is not None else ()
         result = db.execute(delete(entity).where(*criteria))
         return int(result.rowcount or 0)
 

@@ -28,6 +28,9 @@ from app.services.winner_probability.consumer_eligibility import (
 POLICIES = (TECHNICAL_TO_WINNER, RANKING_TO_WINNER, REGIME_TO_WINNER, SECTOR_TO_WINNER)
 
 
+pytestmark = pytest.mark.usefixtures("simulated_native_winner_capture")
+
+
 @pytest.mark.parametrize("member,value", [("ticker", "OTHER"), ("ranking_profile", "OTHER")])
 def test_exact_ranking_evidence_ticker_and_profile_must_match(member, value):
     context, cutoff = ready_identity_context()

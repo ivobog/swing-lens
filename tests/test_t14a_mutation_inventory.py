@@ -185,6 +185,11 @@ def test_production_adoption_is_source_qualified_and_preserves_foundation_histor
             ROOT / "docs/remediation/calculation-lineage/T14B_semantic_review_source_pins.json"
         ).read_text()
     )
+    decision_adoption = (
+        ROOT / "docs/remediation/calculation-lineage/T14C_semantic_review_source_pins.json"
+    )
+    if decision_adoption.exists():
+        adoption = json.loads(decision_adoption.read_text())
     assert set(imports) <= set(adoption["sources"])
     assert {
         "app/services/core_mutation_authority.py",

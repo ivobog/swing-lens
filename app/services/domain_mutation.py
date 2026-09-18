@@ -199,6 +199,7 @@ _POLICIES = [
             "replacement_model",
             "promotion_report",
             "governance_configuration",
+            "active_predecessor",
         ),
     ),
     MutationAuthorityRequirement(
@@ -269,7 +270,7 @@ _POLICIES = [
         MutationDomain.ALERT_DECISION,
         "decision.alerts.setup",
         ("rule", "evaluation"),
-        ("setup", "transition"),
+        ("setup", "transition", "cooldown_predecessor", "dedup_predecessor"),
     ),
     _calculation(MutationDomain.CERI_CHANGE, "decision.ceri.changes", ("ceri",), ("prior_ceri",)),
     _calculation(
@@ -285,6 +286,7 @@ _POLICIES = [
         MutationDomain.WINNER_ESTIMATE,
         "decision.winner.cohort",
         ("prediction", "model", "evidence_manifest"),
+        ("outcome_contract", "generation"),
     ),
     MutationAuthorityRequirement(
         MutationDomain.WINNER_OUTCOME,
@@ -345,6 +347,7 @@ _POLICIES.append(
     MutationAuthorityRequirement(
         MutationDomain.OPERATIONAL,
         frozenset({MutationSemanticMode.OPERATIONAL}),
+        optional_evidence_roles=("native_operation_scope",),
         pipeline_if_bound=False,
     )
 )

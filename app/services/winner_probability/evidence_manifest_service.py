@@ -17,6 +17,7 @@ from app.models.tables import (
     WinnerEvidenceManifestMember,
     WinnerProbabilityEstimate,
 )
+from app.services.core_mutation_authority import core_writer_transaction
 from app.services.winner_probability.evidence_service import GenerationEvidenceMember
 
 
@@ -28,6 +29,7 @@ class EvidenceManifestResult:
 
 
 class EvidenceManifestService:
+    @core_writer_transaction
     def create_or_get_manifest(
         self,
         db: Session,
@@ -36,6 +38,12 @@ class EvidenceManifestService:
         hash_algorithm: str = "sha256",
     ) -> EvidenceManifestResult:
         payload = _manifest_payload(evidence)
+        if isinstance(db, Session):
+            if hash_algorithm != "sha256":
+                raise ValueError("MUTATION_WINNER_MANIFEST_HASH_ALGORITHM_REQUIRED")
+            from app.services.winner_probability.cohort_authority import population_bodies
+
+            payload["native_source_bodies"] = population_bodies(db, evidence)
         manifest_hash = _hash_payload(payload)
         existing = db.scalar(
             select(WinnerEvidenceManifest).where(
@@ -43,6 +51,8 @@ class EvidenceManifestService:
             )
         )
         if existing is not None:
+            if isinstance(db, Session):
+                self.validate_manifest(db, existing, payload=payload)
             return EvidenceManifestResult(
                 manifest=existing,
                 manifest_hash=manifest_hash,
@@ -94,6 +104,7 @@ class EvidenceManifestService:
             payload=payload,
         )
 
+    @core_writer_transaction
     def persist_manifest_members(
         self,
         db: Session,
@@ -102,6 +113,12 @@ class EvidenceManifestService:
         evidence: tuple[GenerationEvidenceMember, ...],
     ) -> int:
         """Persist immutable content-addressed members with one bulk statement."""
+        if isinstance(db, Session):
+            from app.services.winner_probability.cohort_authority import population_bodies
+
+            payload = _manifest_payload(evidence)
+            payload["native_source_bodies"] = population_bodies(db, evidence)
+            self.validate_manifest(db, manifest, payload=payload)
         values = [
             _manifest_member_values(manifest.id, ordinal, row)
             for ordinal, row in enumerate(evidence)
@@ -131,6 +148,7 @@ class EvidenceManifestService:
         db.flush()
         return len(rows)
 
+    @core_writer_transaction
     def persist_members(
         self,
         db: Session,
@@ -140,6 +158,22 @@ class EvidenceManifestService:
         included_as_of: datetime,
         inclusion_cutoff_at: datetime,
     ) -> None:
+        if isinstance(db, Session):
+            from app.services.winner_probability.cohort_authority import population_bodies
+
+            payload = _manifest_payload(evidence)
+            payload["native_source_bodies"] = population_bodies(db, evidence)
+            manifest = db.get(WinnerEvidenceManifest, estimate.evidence_manifest_id)
+            self.validate_manifest(db, manifest, payload=payload)
+            if (
+                included_as_of is None
+                or inclusion_cutoff_at is None
+                or included_as_of.tzinfo is None
+                or inclusion_cutoff_at.tzinfo is None
+            ):
+                raise ValueError("MUTATION_WINNER_MANIFEST_EXPLICIT_INCLUSION_TIME_REQUIRED")
+            if inclusion_cutoff_at != estimate.training_cutoff_at:
+                raise ValueError("MUTATION_WINNER_ESTIMATE_MEMBERSHIP_CUTOFF_MISMATCH")
         values = [
             {
                 "estimate_id": estimate.id,
@@ -179,6 +213,19 @@ class EvidenceManifestService:
             for value in values:
                 db.add(WinnerEstimateEvidenceMember(**value))
         db.flush()
+
+    @staticmethod
+    def validate_manifest(db, manifest, *, payload=None):
+        from app.services.winner_probability.cohort_authority import retained_row
+
+        retained_row(db, manifest)
+        if (
+            _hash_payload(manifest.payload_json) != manifest.manifest_hash
+            or manifest.member_count != len(manifest.payload_json.get("members", []))
+            or (payload is not None and payload != manifest.payload_json)
+        ):
+            raise ValueError("MUTATION_WINNER_EXACT_MANIFEST_CONTENT_REQUIRED")
+        return manifest
 
 
 def _manifest_payload(evidence: tuple[GenerationEvidenceMember, ...]) -> dict[str, Any]:

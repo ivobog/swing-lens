@@ -4,7 +4,9 @@ from io import BytesIO
 from types import SimpleNamespace
 from typing import Any
 
+from core_readiness_helpers import seal_core
 from fastapi import UploadFile
+from readiness_helpers import seal_technical
 
 import app.services.ib_fetch_executor as executor
 import app.services.ib_fetch_job_service as jobs
@@ -209,9 +211,13 @@ def test_v4_technical_workflow_refreshes_cockpit_and_exports_fields() -> None:
     )
 
     assert combined[0].ticker == "NVDA"
-    assert combined[0].technical_classification == "Climax reversal risk"
-    assert combined[0].combined_decision == "Avoid"
-    assert combined[0].position_size_hint == "Avoid"
+    # These producer warnings make v1 Technical readiness DEGRADED; its native
+    # consumer policy intentionally has no permissive degraded override. Keep
+    # diagnostic/export values visible while refusing financial consumption.
+    assert combined[0].technical_classification is None
+    assert combined[0].combined_decision == "Incomplete data"
+    assert combined[0].position_size_hint == "Wait"
+    assert combined[0].is_complete is False
     assert combined[0].has_warning is True
     assert "climax_reversal_risk" in combined[0].warning_flags_json
     assert "market_risk_off" in combined[0].warning_flags_json
@@ -225,10 +231,12 @@ def test_v4_technical_workflow_refreshes_cockpit_and_exports_fields() -> None:
     technical_csv = export_run_csv(run, "technicals")
 
     assert "technical_stage" in combined_csv
-    assert "Climax reversal risk" in combined_csv
-    assert "Stage 4" in combined_csv
-    assert "Risk-off" in combined_csv
-    assert "climax_reversal_risk; market_risk_off; stage_4_downtrend" in combined_csv
+    assert "Climax reversal risk" not in combined_csv
+    assert "Incomplete data" in combined_csv
+    assert "Climax reversal risk" in technical_csv
+    assert "Stage 4" in technical_csv
+    assert "Risk-off" in technical_csv
+    assert "climax_reversal_risk; market_risk_off; stage_4_downtrend" in technical_csv
     assert "technical_version,stage,market_regime" in technical_csv
     assert "4.0.0,Stage 4,Risk-off" in technical_csv
     assert "Climax risk; Market risk" in technical_csv
@@ -375,6 +383,11 @@ def _attach_combined_input_identities(
         technical_identity,
         policy="WEBAPP_FIX_FLOW_TEST",
     )
+    # Calculator-only fixtures need explicitly frozen producer values/readiness;
+    # identities alone cannot make an unsealed legacy source eligible.
+    fundamental.data_coverage_score = fundamental.data_coverage_score or Decimal("10")
+    seal_core(fundamental)
+    seal_technical(technical)
     return market_cutoff, pipeline_run_id
 
 

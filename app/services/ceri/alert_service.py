@@ -20,6 +20,7 @@ from app.services.ceri.enums import CeriChangeType
 from app.services.ceri.evidence_eligibility import EXCLUDED, effective_disposition_by_snapshot
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class CeriAlertService:
         self.sessions = CeriEffectiveSessionService(self.config.engine.timezone)
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def rebuild_alerts(
         self,
         db: Session,
@@ -137,6 +139,7 @@ class CeriAlertService:
         return bool(delta.get("prior_comparable") is True and accepted)
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def persist_alert_for_change(
         self,
         db: Session,
@@ -144,10 +147,45 @@ class CeriAlertService:
         change: CeriChangeEvent,
         ticker: str,
     ) -> CeriAlertEvent | None:
+        cutoff = None
+        if isinstance(db, Session):
+            from app.services.ceri.alert_authority import validate_alert_source
+            from app.services.decision_mutation_authority import (
+                lock_decision_scope,
+                operational_decision_authority,
+            )
+
+            # Serializes both first-rule creation and the ticker cooldown check.
+            lock_decision_scope(db, ("ceri-alert", change.change_type, ticker.upper()))
+            self._ensure_rule_configuration(db)
+            cutoff = validate_alert_source(db, self, change, ticker)
+            from app.models.ceri_tables import CeriScoreSnapshot
+
+            source = (
+                db.get(CeriScoreSnapshot, change.to_snapshot_id) if change.to_snapshot_id else None
+            )
+            operational_decision_authority(
+                db,
+                writer="persist_ceri_alert",
+                run_id=source.run_id if source else None,
+                manifest={
+                    "change_id": change.id,
+                    "change_key": change.dedup_key,
+                    "ticker": ticker.upper(),
+                    "cutoff_at": cutoff.cutoff_at,
+                    "session": cutoff.latest_completed_session,
+                    "configuration": self.effective_configuration.snapshot.as_dict(),
+                },
+                job_types=("CERI_ALERT_REBUILD", "FULL_PIPELINE", "REPAIR_TICKER"),
+            )
         self._ensure_rule_configuration(db)
         rule = self._rule_for_change(db, change)
         if rule is None:
             return None
+        if isinstance(db, Session):
+            from app.services.ceri.alert_authority import validate_rule
+
+            validate_rule(db, self, rule, change)
         identity = alert_business_identity(rule.rule_id, change)
         event_key = _identity_hash(identity)
         existing = _maybe_scalar(
@@ -155,6 +193,10 @@ class CeriAlertService:
             select(CeriAlertEvent).where(CeriAlertEvent.event_key == event_key),
         )
         if existing is not None:
+            if isinstance(db, Session):
+                from app.services.ceri.alert_authority import validate_notification
+
+                validate_notification(db, existing)
             return None
         if self._within_cooldown(db, rule, ticker, change):
             return None
@@ -183,11 +225,37 @@ class CeriAlertService:
                 "cooldown_sessions": rule.cooldown_sessions,
             },
         )
+        if isinstance(db, Session):
+            from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+            from app.services.ceri.alert_authority import alert_body
+
+            event.evidence_json["native_alert_proof"] = Canonical.canonicalize(
+                {
+                    "artifact_role": "SUPPORTING_NOTIFICATION",
+                    "classification": "SUPPORTED_DISTINCT_SAFE",
+                    "change_key": change.dedup_key,
+                    "body_fingerprint": Canonical.fingerprint(alert_body(event)),
+                    "operation_time": {
+                        "cutoff_at": cutoff.cutoff_at,
+                        "session": cutoff.latest_completed_session,
+                    },
+                    "rule": {
+                        "row_id": rule.id,
+                        "rule_id": rule.rule_id,
+                        "enabled": rule.enabled,
+                        "severity": rule.severity,
+                        "cooldown_sessions": rule.cooldown_sessions,
+                        "config_version": rule.config_version,
+                    },
+                }
+            )
         db.add(event)
         db.flush()
         return event
 
+    @core_writer_transaction
     def acknowledge(self, db: Session, alert: CeriAlertEvent) -> CeriAlertEvent:
+        self._validate_status(db, alert)
         if alert.status == "INVALIDATED":
             return alert
         alert.status = "ACKNOWLEDGED"
@@ -195,7 +263,9 @@ class CeriAlertService:
         db.flush()
         return alert
 
+    @core_writer_transaction
     def dismiss(self, db: Session, alert: CeriAlertEvent) -> CeriAlertEvent:
+        self._validate_status(db, alert)
         if alert.status == "INVALIDATED":
             return alert
         alert.status = "DISMISSED"
@@ -203,6 +273,27 @@ class CeriAlertService:
         db.flush()
         return alert
 
+    def _validate_status(self, db, alert):
+        if isinstance(db, Session):
+            from app.services.ceri.alert_authority import _normalized_source, validate_notification
+            from app.services.decision_mutation_authority import operational_decision_authority
+
+            _normalized_source(db, CeriAlertEvent, alert.id)
+            validate_notification(db, alert, allow_legacy=True)
+            operational_decision_authority(
+                db,
+                writer="ceri_alert_status",
+                manifest={
+                    "alert_id": alert.id,
+                    "event_key": alert.event_key,
+                    "change_id": alert.source_change_event_id,
+                    "legacy_notification": not bool(
+                        (alert.evidence_json or {}).get("native_alert_proof")
+                    ),
+                },
+            )
+
+    @core_writer_member("app.services.ceri.alert_service:CeriAlertService.persist_alert_for_change")
     def _rule_for_change(
         self,
         db: Session,
@@ -286,6 +377,25 @@ class CeriAlertService:
                 else alert.alert_rule_id == rule.id
             )
             if not same_rule or alert.ticker.upper() != ticker.upper():
+                continue
+            if isinstance(db, Session):
+                from datetime import date
+
+                from app.services.ceri.alert_authority import (
+                    validate_change_source,
+                    validate_notification,
+                )
+
+                validate_notification(db, alert)
+                prior_time = (alert.evidence_json or {})["native_alert_proof"]["operation_time"]
+                current_time = validate_change_source(db, change)
+                age_sessions = _trading_sessions_between(
+                    date.fromisoformat(prior_time["session"]),
+                    current_time.latest_completed_session,
+                    self.sessions,
+                )
+                if 0 <= age_sessions < rule.cooldown_sessions:
+                    return True
                 continue
             if alert.created_at is None or change.created_at is None:
                 continue

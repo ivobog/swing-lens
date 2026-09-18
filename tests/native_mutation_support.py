@@ -43,8 +43,17 @@ def seed_price_frame(db, ticker, frame, cutoff_at):
     """Already observed source facts, bounded before the fixed test cutoff."""
     observed = cutoff_at - timedelta(minutes=1)
     rows = []
+    from sqlalchemy import select
+
+    existing = set(
+        db.execute(
+            select(PriceBar.bar_date, PriceBar.what_to_show).where(PriceBar.ticker == ticker)
+        ).all()
+    )
     for what in ("ADJUSTED_LAST", "TRADES"):
         for item in frame.to_dict(orient="records"):
+            if (item["date"].date(), what) in existing:
+                continue
             values = {
                 key: Decimal(str(item[key])) for key in ("open", "high", "low", "close", "volume")
             }
@@ -67,7 +76,7 @@ def seed_price_frame(db, ticker, frame, cutoff_at):
     db.flush()
 
 
-def seed_native_core(db, *, run_id=7, extra_configurations=(), cutoff_at=None):
+def seed_native_core(db, *, run_id=7, extra_configurations=(), cutoff_at=None, raw_values=None):
     import pandas as pd
     from test_core_effective_configuration import core_configurations
     from test_fundamental_ranker_v2 import _quality_values
@@ -76,6 +85,7 @@ def seed_native_core(db, *, run_id=7, extra_configurations=(), cutoff_at=None):
     from app.models.tables import RawCompanyRow, UploadRun
     from app.services.combined_decision import refresh_combined_results
     from app.services.core_effective_configuration import resolve_technical_configuration
+    from app.services.earnings_date_parser import parse_earnings_date
     from app.services.fundamental_score_service import recalculate_run_fundamentals
     from app.services.ranking_profile_service import refresh_ranking_profile
     from app.services.technical_indicators import load_pine_defaults
@@ -93,7 +103,13 @@ def seed_native_core(db, *, run_id=7, extra_configurations=(), cutoff_at=None):
             ticker="ACME",
             sector="Technology",
             sector_canonical="Information Technology",
-            raw_json={"Symbol": "ACME", **_quality_values()},
+            upcoming_earnings_date=parse_earnings_date(
+                (raw_values or {}).get("upcoming_earnings_date")
+            ),
+            raw_json={
+                "Symbol": "ACME",
+                **(_quality_values() if raw_values is None else raw_values),
+            },
         )
     )
     db.flush()

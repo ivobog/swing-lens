@@ -12,6 +12,7 @@ from app.models.tables import (
     SetupSignalSnapshot,
 )
 from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.setup_lifecycle.actionability_policy import SetupLifecycleActionabilityPolicy
 from app.services.setup_lifecycle.config import SetupLifecycleConfig, load_setup_lifecycle_config
 from app.services.setup_lifecycle.decision_evidence import (
@@ -75,6 +76,7 @@ class SetupLifecycleEpisodeService:
         )
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def apply_snapshot(
         self,
         db,
@@ -86,6 +88,25 @@ class SetupLifecycleEpisodeService:
         preloaded_episodes: tuple[SetupLifecycleEpisode, ...] | None = None,
         refresh_primary: bool = True,
     ) -> EpisodeEvaluationResult:
+        from sqlalchemy.orm import Session
+
+        from app.services.decision_mutation_authority import (
+            lock_decision_scope,
+            validate_episode_projection,
+        )
+
+        if isinstance(db, Session):
+            lock_decision_scope(db, ("lifecycle", snapshot.ticker, snapshot.timeframe))
+            if evaluation_run_id is not None:
+                from app.models.tables import SetupLifecycleEvaluationRun
+
+                operation = db.get(SetupLifecycleEvaluationRun, evaluation_run_id)
+                if operation is None or operation.mode not in {"LIVE", "REPAIR"}:
+                    raise ValueError("MUTATION_LIFECYCLE_CURRENT_EPISODE_MODE_REJECTED")
+            if preloaded_episodes is not None:
+                for episode in preloaded_episodes:
+                    db.refresh(episode, with_for_update=True)
+                    validate_episode_projection(db, episode)
         normalized = normalized_snapshot_from_row(snapshot)
         if snapshot.evidence_id is not None:
             setup = get_setup_evidence(db, snapshot.evidence_id)
@@ -135,6 +156,8 @@ class SetupLifecycleEpisodeService:
         )
         decision = first_pass
         if active is not None:
+            if isinstance(db, Session):
+                validate_episode_projection(db, active)
             decision = self.lifecycle_engine.evaluate(
                 _request(
                     normalized,
@@ -151,6 +174,13 @@ class SetupLifecycleEpisodeService:
                 decision = replace(decision, setup_family=SetupFamily(active.setup_family))
         actionability = self.actionability_policy.evaluate(decision, normalized)
         self._apply_snapshot_denormalization(snapshot, decision, actionability)
+        # The evidence writer rechecks the sealed Setup projection in this
+        # transaction before retaining any evaluation or advancing an episode.
+        effective_observation_sessions = (
+            0
+            if active is not None and snapshot.data_as_of_date <= active.last_observed_on
+            else completed_observation_sessions
+        )
         evaluation_evidence = persist_lifecycle_evaluation_evidence(
             db,
             snapshot=snapshot,
@@ -165,7 +195,33 @@ class SetupLifecycleEpisodeService:
                 or active.current_phase != decision.phase_code
             ),
             effective_configuration=self.lifecycle_engine.effective_configuration,
+            prior_snapshots=prior_snapshots,
+            completed_observation_sessions=effective_observation_sessions,
         )
+        if (
+            active is not None
+            and evaluation_evidence is not None
+            and evaluation_evidence.id == active.latest_evaluation_evidence_id
+        ):
+            # A certified duplicate retains its original projection, including
+            # opening reason codes. The fresh no-change decision is not new evidence.
+            self._certify_episode_projection(db, active)
+            if refresh_primary:
+                self.refresh_primary_status(
+                    db,
+                    ticker=snapshot.ticker,
+                    timeframe=snapshot.timeframe,
+                    market_cutoff=self._snapshot_cutoff(db, snapshot),
+                )
+            return EpisodeEvaluationResult(
+                episode=active,
+                decision=decision,
+                actionability=actionability,
+                lifecycle_event=None,
+                lifecycle_evaluation_evidence=evaluation_evidence,
+                actionability_before=active.current_actionability,
+                updated=False,
+            )
 
         if active is None:
             return self._maybe_open_episode(
@@ -179,11 +235,6 @@ class SetupLifecycleEpisodeService:
                 refresh_primary=refresh_primary,
             )
 
-        effective_observation_sessions = (
-            0
-            if snapshot.data_as_of_date <= active.last_observed_on
-            else completed_observation_sessions
-        )
         return self._update_episode(
             db,
             active,
@@ -197,6 +248,7 @@ class SetupLifecycleEpisodeService:
         )
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def apply_observation_gap(
         self,
         db,
@@ -206,6 +258,7 @@ class SetupLifecycleEpisodeService:
         setup_family: SetupFamily,
         observed_on: date,
         evaluation_run_id: int | None = None,
+        market_cutoff=None,
     ) -> EpisodeApplyResult:
         episode = self.repository.active_episode_for_update(
             db,
@@ -217,28 +270,40 @@ class SetupLifecycleEpisodeService:
         if episode is None:
             return EpisodeApplyResult(episode_id=None)
 
+        from sqlalchemy.orm import Session
+
+        if isinstance(db, Session):
+            from app.services.decision_mutation_authority import validate_episode_projection
+
+            if market_cutoff is None or market_cutoff.latest_completed_session != observed_on:
+                raise ValueError("MUTATION_LIFECYCLE_GAP_TEMPORAL_AUTHORITY_REQUIRED")
+            validate_episode_projection(db, episode)
+
         missing_sessions = trading_sessions_between(episode.last_observed_on, observed_on)
         if missing_sessions <= 0:
             return EpisodeApplyResult(episode_id=episode.id, updated=False)
 
-        episode.missing_observation_sessions = max(
+        missing_observation_sessions = max(
             episode.missing_observation_sessions,
             missing_sessions,
         )
-        episode.current_as_of_date = observed_on
         threshold = self.config.families.policies[setup_family].observation_gap_sessions
         evaluation_evidence = persist_observation_gap_evaluation_evidence(
             db,
             episode=episode,
             observed_on=observed_on,
-            missing_observation_sessions=episode.missing_observation_sessions,
+            missing_observation_sessions=missing_observation_sessions,
             threshold=threshold,
             evaluation_run_id=evaluation_run_id,
             effective_configuration=self.lifecycle_engine.effective_configuration,
+            market_cutoff=market_cutoff,
         )
         if evaluation_evidence is not None:
             episode.latest_evaluation_evidence_id = evaluation_evidence.id
+        episode.missing_observation_sessions = missing_observation_sessions
+        episode.current_as_of_date = observed_on
         if episode.missing_observation_sessions <= threshold:
+            self._certify_episode_projection(db, episode)
             return EpisodeApplyResult(episode_id=episode.id, updated=True)
 
         event = self._create_event(
@@ -258,6 +323,10 @@ class SetupLifecycleEpisodeService:
             },
             event_type="STATE_TRANSITION",
             immediate_transition=False,
+            from_state=LifecycleState(episode.current_state),
+            from_phase=episode.current_phase,
+            actionability_before=episode.current_actionability,
+            state_age_before=episode.state_age_sessions,
             evaluation_evidence=evaluation_evidence,
         )
         self._close_episode(
@@ -268,6 +337,7 @@ class SetupLifecycleEpisodeService:
             terminal_reason="OBSERVATION_GAP",
             evaluation_run_id=evaluation_run_id,
         )
+        self._certify_episode_projection(db, episode)
         return EpisodeApplyResult(
             episode_id=episode.id,
             updated=True,
@@ -275,27 +345,161 @@ class SetupLifecycleEpisodeService:
             lifecycle_event_id=event.id,
         )
 
-    def refresh_primary_status(self, db, *, ticker: str, timeframe: str) -> None:
+    @core_writer_transaction
+    def refresh_primary_status(
+        self, db, *, ticker: str, timeframe: str, market_cutoff=None
+    ) -> None:
         episodes = self.repository.active_episodes_for_ticker(
             db,
             ticker=ticker,
             timeframe=timeframe,
         )
+        self._validate_primary_refresh(
+            db, episodes, ticker=ticker, timeframe=timeframe, market_cutoff=market_cutoff
+        )
         for index, episode in enumerate(select_primary_episodes(episodes, config=self.config)):
             episode.is_primary = index == 0
             episode.primary_rank = index + 1
 
-    def refresh_primary_statuses(self, db, *, keys: set[tuple[str, str]]) -> None:
-        loader = getattr(self.repository, "active_episodes_for_keys", None)
-        if loader is None:
-            for ticker, timeframe in sorted(keys):
-                self.refresh_primary_status(db, ticker=ticker, timeframe=timeframe)
-            return
-        for episodes in loader(db, keys).values():
-            for index, episode in enumerate(select_primary_episodes(episodes, config=self.config)):
-                episode.is_primary = index == 0
-                episode.primary_rank = index + 1
+    @core_writer_transaction
+    def refresh_primary_statuses(
+        self, db, *, keys: set[tuple[str, str]], market_cutoffs=None
+    ) -> None:
+        for ticker, timeframe in sorted(keys):
+            self.refresh_primary_status(
+                db,
+                ticker=ticker,
+                timeframe=timeframe,
+                market_cutoff=(market_cutoffs or {}).get((ticker, timeframe)),
+            )
 
+    def _validate_primary_refresh(self, db, episodes, *, ticker, timeframe, market_cutoff):
+        from sqlalchemy import select
+        from sqlalchemy.orm import Session
+
+        from app.services.calculation_identity import CalculationIdentity
+        from app.services.contextual_calculation_identity import (
+            build_contextual_result_identity,
+            consumer_context_identity,
+        )
+        from app.services.core_mutation_authority import identity_cutoff
+        from app.services.decision_mutation_authority import (
+            decision_authority,
+            lock_decision_scope,
+            validate_episode_projection,
+        )
+        from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+
+        if not isinstance(db, Session):
+            return
+        if market_cutoff is None:
+            raise ValueError("MUTATION_LIFECYCLE_PRIMARY_TEMPORAL_AUTHORITY_REQUIRED")
+        lock_decision_scope(db, ("lifecycle", ticker.upper(), timeframe))
+        # Reload the entire target scope after acquiring its lock. A caller
+        # cannot select a smaller population or supply ranking inputs.
+        locked = list(
+            db.scalars(
+                select(SetupLifecycleEpisode)
+                .where(
+                    SetupLifecycleEpisode.ticker == ticker.upper(),
+                    SetupLifecycleEpisode.timeframe == timeframe,
+                    SetupLifecycleEpisode.status == "ACTIVE",
+                )
+                .order_by(SetupLifecycleEpisode.id)
+                .with_for_update()
+            )
+        )
+        episodes[:] = locked
+        if not episodes:
+            return
+        manifest = []
+        evaluations = []
+        for episode in episodes:
+            validate_episode_projection(db, episode)
+            evaluation = db.get(
+                SetupLifecycleEvaluationEvidence, episode.latest_evaluation_evidence_id
+            )
+            frozen = evaluation.payload_json.get("effective_configuration_at_creation") or {}
+            if frozen.get("semantic_hash") != self.effective_configuration.snapshot.semantic_hash:
+                raise ValueError("MUTATION_LIFECYCLE_PRIMARY_CONFIGURATION_MISMATCH")
+            if episode.current_as_of_date > market_cutoff.latest_completed_session:
+                raise ValueError("MUTATION_LIFECYCLE_PRIMARY_SESSION_REGRESSION")
+            evaluations.append(evaluation)
+            manifest.append(
+                {
+                    "episode_id": episode.id,
+                    "evaluation_id": evaluation.id,
+                    "evaluation_key": evaluation.evidence_key,
+                }
+            )
+        base = CalculationIdentity.from_canonical_payload(
+            evaluations[0].payload_json["calculation_identity"]
+        )
+        if identity_cutoff(db, base) != market_cutoff:
+            from app.models.tables import BackgroundJob
+            from app.services.domain_write_fence import current_domain_write_ownership
+
+            ownership = current_domain_write_ownership()
+            if ownership is not None:
+                job = db.get(BackgroundJob, ownership.job_id)
+                if (
+                    job.job_type != "SETUP_LIFECYCLE_DAILY_MAINTENANCE"
+                    or job.related_run_id is not None
+                ):
+                    raise ValueError("MUTATION_LIFECYCLE_PRIMARY_EXECUTION_SCOPE_MISMATCH")
+                from datetime import datetime, time
+                from zoneinfo import ZoneInfo
+
+                from app.services.market_clock_service import EXCHANGE_TIMEZONE, MarketClockService
+
+                maintenance_day = date.fromisoformat(str(job.payload_json["as_of_date"]))
+                expected_cutoff = MarketClockService().cutoff_for(
+                    datetime.combine(maintenance_day, time.max, tzinfo=ZoneInfo(EXCHANGE_TIMEZONE)),
+                    reason="LIFECYCLE_CURRENT_STATE_MAINTENANCE_AS_OF_DAY",
+                )
+                if job.payload_json.get("market_session_completed", True) is not True or any(
+                    getattr(market_cutoff, field) != getattr(expected_cutoff, field)
+                    for field in (
+                        "cutoff_at",
+                        "latest_completed_session",
+                        "exchange_timezone",
+                        "calendar_version",
+                        "bar_readiness_version",
+                        "context_id",
+                    )
+                ):
+                    raise ValueError("MUTATION_LIFECYCLE_PRIMARY_EXECUTION_SCOPE_MISMATCH")
+            base = consumer_context_identity(
+                market_cutoff=market_cutoff, run_id=None, pipeline_id=None, ticker=ticker
+            )
+        identity = self.effective_configuration.bind(
+            build_contextual_result_identity(
+                base=base,
+                namespace="lifecycle-primary-projection",
+                config_hash=self.effective_configuration.snapshot.semantic_hash,
+                calculation_version=self.config.engine.version,
+                engine_version=self.config.engine.version,
+                source_artifacts=(),
+                source_payload={"episodes": manifest, "timeframe": timeframe},
+            )
+        )
+        decision_authority(
+            db,
+            domain=MutationDomain.CURRENT_PROJECTION,
+            writer="refresh_primary_status",
+            identity=identity,
+            configuration=self.effective_configuration,
+            records={"target_evidence": evaluations[0]},
+            manifests={"projection_scope": {"episodes": manifest, "timeframe": timeframe}},
+            semantic_mode=MutationSemanticMode.CURRENT_PROJECTION_ADVANCE,
+        )
+
+    @core_writer_member(
+        (
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_snapshot",
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_observation_gap",
+        )
+    )
     def _maybe_open_episode(
         self,
         db,
@@ -378,7 +582,13 @@ class SetupLifecycleEpisodeService:
             new_episode=True,
         )
         if refresh_primary:
-            self.refresh_primary_status(db, ticker=snapshot.ticker, timeframe=snapshot.timeframe)
+            self.refresh_primary_status(
+                db,
+                ticker=snapshot.ticker,
+                timeframe=snapshot.timeframe,
+                market_cutoff=self._snapshot_cutoff(db, snapshot),
+            )
+        self._certify_episode_projection(db, episode)
         return EpisodeEvaluationResult(
             episode=episode,
             decision=decision,
@@ -390,6 +600,12 @@ class SetupLifecycleEpisodeService:
             updated=True,
         )
 
+    @core_writer_member(
+        (
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_snapshot",
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_observation_gap",
+        )
+    )
     def _update_episode(
         self,
         db,
@@ -471,7 +687,13 @@ class SetupLifecycleEpisodeService:
             closed = True
 
         if refresh_primary:
-            self.refresh_primary_status(db, ticker=snapshot.ticker, timeframe=snapshot.timeframe)
+            self.refresh_primary_status(
+                db,
+                ticker=snapshot.ticker,
+                timeframe=snapshot.timeframe,
+                market_cutoff=self._snapshot_cutoff(db, snapshot),
+            )
+        self._certify_episode_projection(db, episode)
         return EpisodeEvaluationResult(
             episode=episode,
             decision=decision,
@@ -483,6 +705,12 @@ class SetupLifecycleEpisodeService:
             closed=closed,
         )
 
+    @core_writer_member(
+        (
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_snapshot",
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_observation_gap",
+        )
+    )
     def _create_event(
         self,
         db,
@@ -574,6 +802,12 @@ class SetupLifecycleEpisodeService:
             db.flush()
         return event
 
+    @core_writer_member(
+        (
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_snapshot",
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_observation_gap",
+        )
+    )
     def _close_episode(
         self,
         episode: SetupLifecycleEpisode,
@@ -595,6 +829,26 @@ class SetupLifecycleEpisodeService:
         episode.closing_evaluation_id = evaluation_run_id
         episode.is_primary = False
         episode.primary_rank = None
+
+    def _certify_episode_projection(self, db, episode):
+        from sqlalchemy.orm import Session
+
+        from app.services.decision_mutation_authority import validate_episode_projection
+
+        if isinstance(db, Session):
+            validate_episode_projection(db, episode)
+
+    def _snapshot_cutoff(self, db, snapshot):
+        from sqlalchemy.orm import Session
+
+        from app.services.combined_ranking_identity import calculation_identity_from_debug
+        from app.services.core_mutation_authority import identity_cutoff
+
+        return (
+            identity_cutoff(db, calculation_identity_from_debug(snapshot.source_lineage_json))
+            if isinstance(db, Session)
+            else None
+        )
 
     def _cooldown_warning(
         self,
@@ -635,6 +889,12 @@ class SetupLifecycleEpisodeService:
         return None
 
     @staticmethod
+    @core_writer_member(
+        (
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_snapshot",
+            "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_observation_gap",
+        )
+    )
     def _apply_snapshot_denormalization(
         snapshot: SetupSignalSnapshot,
         decision: LifecycleDecision,

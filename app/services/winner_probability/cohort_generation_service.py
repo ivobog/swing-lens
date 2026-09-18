@@ -24,6 +24,7 @@ from app.models.tables import (
     WinnerTrainingEligibilityDecision,
     WinnerTrainingOutcomeReplay,
 )
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.winner_probability.config import WinnerProbabilityConfig
 from app.services.winner_probability.pre11_compatibility_service import (
     BRIDGE_VERSION,
@@ -35,6 +36,7 @@ from app.services.winner_probability.temporal_eligibility import (
 )
 
 COHORT_ALGORITHM_VERSION = "cohort-v2.2"
+_UNSUPPLIED_PREDECESSOR = object()
 ELIGIBILITY_POLICY_VERSION = "training-eligibility-v2-temporal"
 _PUBLICATION_CONTRACT_FIELDS = (
     "outcome_definition_id",
@@ -185,6 +187,7 @@ def validate_generation_transition(current: str, target: str) -> None:
 
 
 class EvidenceWatermarkService:
+    @core_writer_transaction
     def advance_to_current_material_evidence(
         self,
         db: Session,
@@ -193,6 +196,21 @@ class EvidenceWatermarkService:
         config: WinnerProbabilityConfig,
         observed_at: datetime | None = None,
     ) -> WatermarkAdvanceResult:
+        if isinstance(db, Session):
+            from app.services.domain_mutation import MutationDomain
+            from app.services.winner_probability.cohort_authority import operation_authority
+
+            operation_authority(
+                db,
+                domain=MutationDomain.WINNER_GENERATION,
+                writer="EvidenceWatermarkService.advance_to_current_material_evidence",
+                config=config,
+                now=observed_at,
+                manifest={
+                    "outcome_definition_id": outcome_definition.id,
+                    "contract": contract_for(outcome_definition, config).as_dict(),
+                },
+            )
         contract = contract_for(outcome_definition, config)
         state = self._locked_state(db, contract=contract, observed_at=observed_at)
         watermark = self.current_material_watermark(db, outcome_definition_id=outcome_definition.id)
@@ -269,6 +287,9 @@ class EvidenceWatermarkService:
         ).one()
         return EvidenceWatermark(*(int(value or 0) for value in row))
 
+    @core_writer_member(
+        "app.services.winner_probability.cohort_generation_service:EvidenceWatermarkService.advance_to_current_material_evidence"
+    )
     def _locked_state(
         self,
         db: Session,
@@ -321,6 +342,7 @@ class CohortGenerationService:
             return None
         return self.published_for_state(db, state)
 
+    @core_writer_transaction
     def capture_or_resume(
         self,
         db: Session,
@@ -328,7 +350,38 @@ class CohortGenerationService:
         state: WinnerCohortRefreshState,
         contract: WinnerCohortContract,
         requested_at: datetime | None = None,
+        config: WinnerProbabilityConfig | None = None,
+        mutation_context=None,
     ) -> WinnerCohortGeneration:
+        authority = None
+        if isinstance(db, Session):
+            from app.services.domain_mutation import MutationDomain
+            from app.services.winner_probability.cohort_authority import (
+                operation_authority,
+                retained_row,
+            )
+
+            source = retained_row(db, state)
+            authority = operation_authority(
+                db,
+                domain=MutationDomain.WINNER_GENERATION,
+                writer="CohortGenerationService.capture_or_resume",
+                config=config,
+                now=requested_at,
+                manifest={
+                    "outcome_definition_id": contract.outcome_definition_id,
+                    "contract": contract.as_dict(),
+                    "state": source,
+                },
+                context=mutation_context,
+            )
+            if any(getattr(state, key) != value for key, value in contract.as_dict().items()):
+                raise ValueError("MUTATION_WINNER_GENERATION_EXACT_STATE_CONTRACT_REQUIRED")
+            definition = db.get(WinnerOutcomeDefinition, contract.outcome_definition_id)
+            if definition is None or contract != contract_for(definition, config):
+                raise ValueError("MUTATION_WINNER_GENERATION_NATIVE_CONTRACT_REQUIRED")
+            if requested_at <= state.updated_at:
+                raise ValueError("MUTATION_WINNER_GENERATION_SOURCE_OBSERVATION_TIME_REQUIRED")
         requested_at = requested_at or datetime.now(UTC)
         watermark = watermark_from_state(state)
         key = canonical_generation_key(contract, watermark, requested_at=requested_at)
@@ -336,6 +389,10 @@ class CohortGenerationService:
             select(WinnerCohortGeneration).where(WinnerCohortGeneration.generation_key == key)
         )
         if generation is not None:
+            if isinstance(db, Session):
+                from app.services.winner_probability.cohort_authority import validate_generation
+
+                validate_generation(db, generation, config)
             if generation.status in {
                 CohortGenerationStatus.CANCELLED,
                 CohortGenerationStatus.FAILED,
@@ -390,12 +447,40 @@ class CohortGenerationService:
             if generation is None:
                 raise GenerationInvariantViolation("cohort generation insert was lost")
             generation._configuration_generation_created = generation_id is not None
+            if authority is not None and generation_id is not None:
+                self._seal_creation(db, generation, authority, config)
+            elif authority is not None:
+                from app.services.winner_probability.cohort_authority import validate_generation
+
+                validate_generation(db, generation, config)
             return generation
         generation = WinnerCohortGeneration(**values)
         db.add(generation)
         db.flush()
         generation._configuration_generation_created = True
+        if authority is not None:
+            self._seal_creation(db, generation, authority, config)
         return generation
+
+    @core_writer_member(
+        "app.services.winner_probability.cohort_generation_service:CohortGenerationService.capture_or_resume"
+    )
+    def _seal_creation(self, db, generation, authority, config):
+        from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+        from app.services.configuration_delivery import bind_winner_generation_configuration
+        from app.services.winner_probability.cohort_authority import generation_body
+
+        generation.metrics_json = {
+            **(generation.metrics_json or {}),
+            "native_generation_proof": {
+                "contract": "winner-native-generation-v1",
+                "fingerprint": Canonical.fingerprint(generation_body(generation)),
+                "configuration": authority[1].snapshot.as_dict(),
+                "mutation_authority": authority[0].canonical_payload(),
+            },
+        }
+        db.flush()
+        bind_winner_generation_configuration(db, generation, config)
 
     def published_for_state(
         self, db: Session, state: WinnerCohortRefreshState
@@ -407,6 +492,7 @@ class CohortGenerationService:
             raise GenerationInvariantViolation("published generation pointer is invalid")
         return generation
 
+    @core_writer_transaction
     def publish(
         self,
         db: Session,
@@ -414,7 +500,40 @@ class CohortGenerationService:
         generation: WinnerCohortGeneration,
         lease_guard,
         published_at: datetime | None = None,
+        config: WinnerProbabilityConfig | None = None,
+        mutation_context=None,
+        predecessor_id=_UNSUPPLIED_PREDECESSOR,
     ) -> GenerationPublicationResult:
+        if isinstance(db, Session):
+            from app.services.domain_mutation import MutationDomain
+            from app.services.winner_probability.cohort_authority import (
+                operation_authority,
+                retained_row,
+                validate_completion,
+                validate_generation,
+            )
+
+            if predecessor_id is _UNSUPPLIED_PREDECESSOR:
+                raise ValueError("MUTATION_WINNER_EXPLICIT_PUBLICATION_PREDECESSOR_REQUIRED")
+            validate_generation(db, generation, config)
+            operation_authority(
+                db,
+                domain=MutationDomain.WINNER_PUBLICATION,
+                writer="CohortGenerationService.publish",
+                config=config,
+                now=published_at,
+                manifest={
+                    "outcome_definition_id": generation.outcome_definition_id,
+                    "generation": generation.generation_key,
+                    "predecessor_id": predecessor_id,
+                },
+                context=mutation_context,
+            )
+            if generation.status in {
+                CohortGenerationStatus.READY,
+                CohortGenerationStatus.PUBLISHED,
+            }:
+                validate_completion(db, generation, config)
         published_at = published_at or datetime.now(UTC)
         generation_id = int(generation.id)
         lease_guard()
@@ -425,6 +544,10 @@ class CohortGenerationService:
         )
         if state is None:
             raise GenerationInvariantViolation("cohort refresh state disappeared")
+        if isinstance(db, Session):
+            retained_row(db, state)
+            if state.published_generation_id != predecessor_id:
+                raise ValueError("MUTATION_WINNER_PUBLICATION_PREDECESSOR_MISMATCH")
         locked_generation = db.scalar(
             select(WinnerCohortGeneration)
             .where(WinnerCohortGeneration.id == generation_id)
@@ -556,6 +679,9 @@ class CohortGenerationService:
             active_generation_id=generation_id,
         )
 
+    @core_writer_member(
+        "app.services.winner_probability.estimate_publication_service:WinnerEstimatePublicationService.publish"
+    )
     def publish_reviewed_supersession(
         self,
         db: Session,
@@ -641,6 +767,12 @@ class CohortGenerationService:
         )
 
     @staticmethod
+    @core_writer_member(
+        (
+            "app.services.winner_probability.cohort_generation_service:CohortGenerationService.publish",
+            "app.services.winner_probability.estimate_publication_service:WinnerEstimatePublicationService.publish",
+        )
+    )
     def _activate_locked(
         db: Session,
         *,

@@ -10,6 +10,11 @@ import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from historical_evidence_support import seed_pre_phase5_evidence
+from historical_setup_evidence_fixture import (
+    persist_alert_decision_evidence,
+    persist_lifecycle_evaluation_evidence,
+    persist_lifecycle_transition_evidence,
+)
 from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -48,11 +53,6 @@ from app.services.historical_read_service import (
     HistoricalReadError,
     ReadMode,
     read_core_artifact,
-)
-from app.services.setup_lifecycle.decision_evidence import (
-    persist_alert_decision_evidence,
-    persist_lifecycle_evaluation_evidence,
-    persist_lifecycle_transition_evidence,
 )
 from app.services.setup_lifecycle.dtos import ActionabilityDecision, LifecycleDecision
 from app.services.setup_lifecycle.enums import (

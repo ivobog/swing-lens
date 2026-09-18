@@ -401,16 +401,17 @@ def test_pointer_and_ledger_roll_back_together_on_injected_failure(
     engine = create_engine(disposable_postgres_database)
     with Session(engine, expire_on_commit=False) as db:
         run_id = _insert_upload(db)
-        snapshot = _snapshot(run_id, 1, date(2026, 9, 8), "1d", hour=10)
+        snapshot = _native_snapshot(db, date(2026, 9, 8), "1d")
         db.add(snapshot)
         db.commit()
         snapshot_id = snapshot.id
+        run_id = snapshot.run_id
 
     with Session(engine) as db:
         try:
             SetupLifecycleCanonicalizer().canonicalize_run(
                 db,
-                run_id=run_id,
+                run_id=snapshot.run_id,
                 snapshot_ids=(snapshot_id,),
             )
             raise RuntimeError("injected after pointer and ledger flush, before commit")
@@ -556,8 +557,8 @@ def test_failure_between_pointer_update_and_ledger_insert_rolls_back_both(
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     with Session(engine, expire_on_commit=False) as db:
-        run_id = _insert_upload(db)
-        snapshot = _snapshot(run_id, 1, date(2026, 9, 8), "1d", hour=10)
+        _insert_upload(db)
+        snapshot = _native_snapshot(db, date(2026, 9, 8), "1d")
         db.add(snapshot)
         db.commit()
         snapshot_id = snapshot.id
@@ -572,7 +573,7 @@ def test_failure_between_pointer_update_and_ledger_insert_rolls_back_both(
         with pytest.raises(RuntimeError, match="before ledger"):
             SetupLifecycleCanonicalizer(repository=repository).canonicalize_run(
                 db,
-                run_id=run_id,
+                run_id=snapshot.run_id,
                 snapshot_ids=(snapshot_id,),
             )
         db.rollback()
@@ -668,36 +669,38 @@ def test_session_canonical_keys_and_cross_session_current_state_are_distinct(
     first_session = date(2026, 9, 4)
     next_session = date(2026, 9, 8)
     with Session(engine, expire_on_commit=False) as db:
-        run_id = _insert_upload(db)
-        first = _snapshot(run_id, 1, first_session, "1d", hour=10)
+        _insert_upload(db)
+        first = _native_snapshot(db, first_session, "1d")
         db.add(first)
         db.flush()
         canonicalizer = SetupLifecycleCanonicalizer()
-        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(first.id,))
-        replacement = _snapshot(run_id, 2, first_session, "1d", hour=11)
-        next_day = _snapshot(run_id, 3, next_session, "1d", hour=12)
-        weekly = _snapshot(run_id, 4, next_session, "1w", hour=12)
+        canonicalizer.canonicalize_run(db, run_id=first.run_id, snapshot_ids=(first.id,))
+        replacement = _native_snapshot(db, first_session, "1d")
+        next_day = _native_snapshot(db, next_session, "1d")
+        weekly = _native_snapshot(db, next_session, "1w")
         db.add_all([replacement, next_day, weekly])
         db.flush()
-        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(replacement.id,))
-        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(next_day.id,))
-        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(weekly.id,))
+        canonicalizer.canonicalize_run(
+            db, run_id=replacement.run_id, snapshot_ids=(replacement.id,)
+        )
+        canonicalizer.canonicalize_run(db, run_id=next_day.run_id, snapshot_ids=(next_day.id,))
+        canonicalizer.canonicalize_run(db, run_id=weekly.run_id, snapshot_ids=(weekly.id,))
         db.commit()
 
     repository = SetupLifecycleRepository()
     with Session(engine) as db:
         assert (
             repository.historical_session_canonical_snapshot(
-                db, ticker="MSFT", timeframe="1d", data_as_of_date=first_session
+                db, ticker="ACME", timeframe="1d", data_as_of_date=first_session
             ).id
             == replacement.id
         )
         assert (
-            repository.current_cross_session_snapshot(db, ticker="MSFT", timeframe="1d").id
+            repository.current_cross_session_snapshot(db, ticker="ACME", timeframe="1d").id
             == next_day.id
         )
         assert (
-            repository.current_cross_session_snapshot(db, ticker="MSFT", timeframe="1w").id
+            repository.current_cross_session_snapshot(db, ticker="ACME", timeframe="1w").id
             == weekly.id
         )
         assert (
@@ -719,21 +722,21 @@ def test_pointer_precondition_reads_current_admin_state_not_frozen_pit_cutoff(
     earlier = date(2026, 9, 4)
     later = date(2026, 9, 8)
     with Session(engine, expire_on_commit=False) as db:
-        run_id = _insert_upload(db)
-        first = _snapshot(run_id, 1, earlier, "1d", hour=10)
-        second = _snapshot(run_id, 2, later, "1d", hour=11)
+        _insert_upload(db)
+        first = _native_snapshot(db, earlier, "1d")
+        second = _native_snapshot(db, later, "1d")
         db.add_all([first, second])
         db.flush()
         canonicalizer = SetupLifecycleCanonicalizer()
-        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(first.id,))
-        canonicalizer.canonicalize_run(db, run_id=run_id, snapshot_ids=(second.id,))
+        canonicalizer.canonicalize_run(db, run_id=first.run_id, snapshot_ids=(first.id,))
+        canonicalizer.canonicalize_run(db, run_id=second.run_id, snapshot_ids=(second.id,))
         db.commit()
 
     with Session(engine) as db:
         latest, exact, latest_revision, exact_revision = (
             TransitionCandidateDiscoveryService._pointers(
                 db,
-                ticker="MSFT",
+                ticker="ACME",
                 timeframe="1d",
                 data_as_of_date=later,
             )
@@ -849,9 +852,12 @@ def test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempot
             plan.run_start_anchor_fingerprint
         )
         assert handoff.manifest_json["artifact_lineage"]["MSFT"]["combined_result"]
-        assert handoff.manifest_json["decision_manifests"]["MSFT"]["decision_manifest"][
-            "candidate"
-        ]["type"] == "SAME_SESSION_REPLACEMENT"
+        assert (
+            handoff.manifest_json["decision_manifests"]["MSFT"]["decision_manifest"]["candidate"][
+                "type"
+            ]
+            == "SAME_SESSION_REPLACEMENT"
+        )
 
     with Session(engine, expire_on_commit=False) as db:
         plan = db.get(TransitionPreflightPlan, plan_id)
@@ -870,9 +876,12 @@ def test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempot
         )
         assert repeated.id == handoff_id
         assert repeated.manifest_fingerprint == handoff_hash
-        assert db.execute(
-            text("SELECT count(*) FROM transition_decision_handoff_manifests")
-        ).scalar_one() == 1
+        assert (
+            db.execute(
+                text("SELECT count(*) FROM transition_decision_handoff_manifests")
+            ).scalar_one()
+            == 1
+        )
 
         context.combined_result.final_score = Decimal("1")
         with pytest.raises(TransitionPreflightError) as caught:
@@ -1229,3 +1238,36 @@ def _upgrade(database_url: str) -> None:
     config = Config(str(REPO_ROOT / "alembic.ini"))
     configure_guarded_alembic(config, database_url)
     command.upgrade(config, "head")
+
+
+def _native_snapshot(db, effective_session, timeframe):
+    """Actual native financial target for current selection/rollback tests."""
+    from dataclasses import replace
+
+    from native_mutation_support import seed_native_core
+    from sqlalchemy import func
+
+    from app.models.tables import UploadRun
+    from app.services.decision_effective_configuration import resolve_setup_configuration
+    from app.services.setup_lifecycle.config import load_setup_lifecycle_config
+    from app.services.setup_lifecycle.snapshot_builder import SetupLifecycleSnapshotBuilder
+    from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
+
+    run_id = (db.scalar(select(func.max(UploadRun.id))) or 0) + 1
+    native = load_setup_lifecycle_config()
+    native = replace(native, engine=replace(native.engine, timeframe=timeframe))
+    config = resolve_setup_configuration(native)
+    cutoff, _, _ = seed_native_core(
+        db,
+        run_id=run_id,
+        extra_configurations=(config,),
+        cutoff_at=datetime.combine(effective_session, datetime.min.time(), tzinfo=UTC)
+        + timedelta(hours=21),
+    )
+    context = SetupLifecycleSourceLoader().load_run_context(db, run_id, market_cutoff=cutoff)
+    snapshot = SetupLifecycleRepository(native).upsert_snapshot(
+        db,
+        SetupLifecycleSnapshotBuilder(native).build(context.tickers[0]).dto,
+    )
+    db.commit()
+    return snapshot

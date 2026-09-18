@@ -13,6 +13,7 @@ from app.models.ceri_tables import (
     CeriChangeEvent,
     CeriScoreSnapshot,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.change_semantics import (
     ComparisonState,
     change_dimensions,
@@ -21,6 +22,7 @@ from app.services.ceri.change_semantics import (
 from app.services.ceri.config import CeriConfig
 from app.services.ceri.enums import CeriChangeType
 from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.core_mutation_authority import core_writer_transaction
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,7 @@ class CeriChangeDetectionService:
         self.config = self.effective_configuration.ceri_decision_config()
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def detect_score_changes(
         self,
         db: Session,
@@ -61,6 +64,10 @@ class CeriChangeDetectionService:
         comparison_state: ComparisonState | str | None = None,
     ) -> ChangeDetectionResult:
         state = ComparisonState(comparison_state or classify_snapshot_comparison(prior, current))
+        if isinstance(db, Session):
+            from app.services.ceri.change_authority import validate_score_comparison
+
+            validate_score_comparison(db, current=current, prior=prior, comparison_state=state)
         current.comparison_state = state.value
         current.comparison_snapshot_id = prior.id if prior is not None else None
         if state is not ComparisonState.COMPARABLE:
@@ -98,6 +105,7 @@ class CeriChangeDetectionService:
         )
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def detect_catalyst_revision(
         self,
         db: Session,
@@ -106,31 +114,12 @@ class CeriChangeDetectionService:
         prior_revision: CeriCatalystEventRevision | None = None,
         company_id: int,
         scope: str = "daily_change_feed",
+        market_cutoff=None,
     ) -> ChangeDetectionResult:
         if not _catalyst_change_eligible(revision, prior_revision):
             return ChangeDetectionResult(changes=0, duplicates=0)
         change_type = _catalyst_change_type(revision, prior_revision)
-        delta = {
-            "canonical_event_id": revision.catalyst_event_id,
-            "event_revision_id": revision.id,
-            "status": revision.status,
-            "prior_status": prior_revision.status if prior_revision is not None else None,
-            "direction": revision.direction,
-            "materiality": revision.materiality,
-            "confidence": revision.source_confidence,
-            "announced_at": revision.announced_at.isoformat()
-            if revision.announced_at is not None
-            else None,
-            "effective_session": revision.effective_session.isoformat()
-            if revision.effective_session is not None
-            else None,
-            "expected_date": revision.expected_date.isoformat()
-            if revision.expected_date is not None
-            else None,
-            "issuer_relevance": revision.issuer_relevance,
-            "binary_eligible": revision.binary_eligible,
-            "eligibility_reason": revision.relevance_reason,
-        }
+        delta = _catalyst_delta(revision, prior_revision)
         event, created = self._persist_change(
             db,
             company_id=company_id,
@@ -139,6 +128,8 @@ class CeriChangeDetectionService:
             effective_session=revision.effective_session,
             scope=scope,
             catalyst_revision_id=revision.id,
+            prior_catalyst_revision_id=prior_revision.id if prior_revision else None,
+            market_cutoff=market_cutoff,
             delta=delta,
             config_hash="event_revision",
             calculation_version="ceri-1.0.0",
@@ -151,6 +142,7 @@ class CeriChangeDetectionService:
         )
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def detect_guidance_change(
         self,
         db: Session,
@@ -158,7 +150,9 @@ class CeriChangeDetectionService:
         guidance: Any,
         company_id: int,
         prior_action: str | None = None,
+        prior_guidance_event_id: int | None = None,
         scope: str = "daily_change_feed",
+        market_cutoff=None,
     ) -> ChangeDetectionResult:
         if getattr(guidance, "accepted_for_scoring", None) is not True:
             return ChangeDetectionResult(changes=0, duplicates=0)
@@ -178,18 +172,9 @@ class CeriChangeDetectionService:
             effective_session=guidance.effective_session,
             scope=scope,
             guidance_event_id=getattr(guidance, "id", None),
-            delta={
-                "guidance_event_id": getattr(guidance, "id", None),
-                "action": guidance.action,
-                "prior_action": prior_action,
-                "metric": getattr(guidance, "metric", None),
-                "period": getattr(guidance, "period_type", None),
-                "low": _json_value(getattr(guidance, "low_value", None)),
-                "high": _json_value(getattr(guidance, "high_value", None)),
-                "point": _json_value(getattr(guidance, "point_value", None)),
-                "confidence": getattr(guidance, "confidence", None),
-                "accepted_for_scoring": True,
-            },
+            prior_guidance_event_id=prior_guidance_event_id,
+            market_cutoff=market_cutoff,
+            delta=_guidance_delta(guidance, prior_action),
             config_hash="guidance_event",
             calculation_version="ceri-1.0.0",
             comparison_state=ComparisonState.COMPARABLE,
@@ -296,6 +281,7 @@ class CeriChangeDetectionService:
         return changes
 
     @anchored_decision_calculator
+    @core_writer_transaction
     def _persist_change(
         self,
         db: Session,
@@ -313,7 +299,62 @@ class CeriChangeDetectionService:
         catalyst_revision_id: int | None = None,
         guidance_event_id: int | None = None,
         comparison_state: ComparisonState | str = ComparisonState.COMPARABLE,
+        prior_catalyst_revision_id: int | None = None,
+        prior_guidance_event_id: int | None = None,
+        market_cutoff=None,
     ) -> tuple[CeriChangeEvent, bool]:
+        proof = None
+        if isinstance(db, Session):
+            from app.services.ceri.change_authority import validate_score_change
+            from app.services.decision_mutation_authority import lock_decision_scope
+
+            lock_decision_scope(
+                db,
+                (
+                    "ceri-change",
+                    company_id,
+                    from_snapshot_id,
+                    to_snapshot_id,
+                    catalyst_revision_id,
+                    guidance_event_id,
+                    change_type.value,
+                ),
+            )
+            if catalyst_revision_id is not None or guidance_event_id is not None:
+                from app.services.ceri.change_authority import validate_normalized_change
+
+                proof = validate_normalized_change(
+                    db,
+                    self,
+                    company_id=company_id,
+                    change_type=change_type,
+                    effective_session=effective_session,
+                    delta=delta,
+                    config_hash=config_hash,
+                    calculation_version=calculation_version,
+                    catalyst_revision_id=catalyst_revision_id,
+                    guidance_event_id=guidance_event_id,
+                    prior_catalyst_revision_id=prior_catalyst_revision_id,
+                    prior_guidance_event_id=prior_guidance_event_id,
+                    market_cutoff=market_cutoff,
+                    comparison_state=ComparisonState(comparison_state),
+                )
+                if from_snapshot_id is not None or to_snapshot_id is not None:
+                    raise ValueError("MUTATION_CERI_CHANGE_MIXED_SOURCE_KINDS")
+            else:
+                proof = validate_score_change(
+                    db,
+                    self,
+                    company_id=company_id,
+                    change_type=change_type,
+                    effective_session=effective_session,
+                    delta=delta,
+                    config_hash=config_hash,
+                    calculation_version=calculation_version,
+                    from_snapshot_id=from_snapshot_id,
+                    to_snapshot_id=to_snapshot_id,
+                    comparison_state=ComparisonState(comparison_state),
+                )
         importance, signal_class = change_dimensions(change_type, delta)
         dedup_key = change_dedup_key(
             company_id=company_id,
@@ -332,8 +373,6 @@ class CeriChangeDetectionService:
             db,
             select(CeriChangeEvent).where(CeriChangeEvent.dedup_key == dedup_key),
         )
-        if existing is not None:
-            return existing, False
         configuration_payload = self.effective_configuration.snapshot.as_dict()
         event = CeriChangeEvent(
             company_id=company_id,
@@ -352,6 +391,17 @@ class CeriChangeDetectionService:
             },
             dedup_key=dedup_key,
         )
+        if proof is not None:
+            event.delta_json["native_change_proof"] = CanonicalEvidenceSerializer.canonicalize(
+                proof
+            )
+        if existing is not None:
+            if isinstance(db, Session):
+                from app.services.ceri.change_authority import change_body
+
+                if change_body(existing) != change_body(event):
+                    raise ValueError("MUTATION_CERI_CHANGE_ALTERED_RETRY")
+            return existing, False
         db.add(event)
         db.flush()
         return event, True
@@ -478,3 +528,42 @@ def _maybe_scalar(db: Session, statement):
     if callable(scalar):
         return scalar(statement)
     return None
+
+
+def _catalyst_delta(revision, prior_revision):
+    return {
+        "canonical_event_id": revision.catalyst_event_id,
+        "event_revision_id": revision.id,
+        "status": revision.status,
+        "prior_status": prior_revision.status if prior_revision is not None else None,
+        "direction": revision.direction,
+        "materiality": revision.materiality,
+        "confidence": revision.source_confidence,
+        "announced_at": revision.announced_at.isoformat()
+        if revision.announced_at is not None
+        else None,
+        "effective_session": revision.effective_session.isoformat()
+        if revision.effective_session is not None
+        else None,
+        "expected_date": revision.expected_date.isoformat()
+        if revision.expected_date is not None
+        else None,
+        "issuer_relevance": revision.issuer_relevance,
+        "binary_eligible": revision.binary_eligible,
+        "eligibility_reason": revision.relevance_reason,
+    }
+
+
+def _guidance_delta(guidance, prior_action):
+    return {
+        "guidance_event_id": getattr(guidance, "id", None),
+        "action": guidance.action,
+        "prior_action": prior_action,
+        "metric": getattr(guidance, "metric", None),
+        "period": getattr(guidance, "period_type", None),
+        "low": _json_value(getattr(guidance, "low_value", None)),
+        "high": _json_value(getattr(guidance, "high_value", None)),
+        "point": _json_value(getattr(guidance, "point_value", None)),
+        "confidence": getattr(guidance, "confidence", None),
+        "accepted_for_scoring": True,
+    }

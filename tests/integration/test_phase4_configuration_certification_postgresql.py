@@ -189,7 +189,16 @@ def test_public_upload_enqueue_process_restart_native_worker_and_frozen_history(
         # public route creates new C2 work; old proof remains byte-for-byte C1.
         shutil.copytree(REPO / "config", tmp_path / "config", dirs_exist_ok=True)
         _write_c2_sources(tmp_path)
-        c2 = _process("enqueue", tmp_path, disposable_postgres_database, **overrides)
+        # The C1 maintenance probe deliberately moved ACME 45 days forward.
+        # C2 financial configuration delivery needs valid new work, in a fresh
+        # ticker scope; today's input must not resurrect that closed episode.
+        c2 = _process(
+            "enqueue",
+            tmp_path,
+            disposable_postgres_database,
+            T13E_FIXTURE_TICKER="C2ACME",
+            **overrides,
+        )
         assert c2["anchor"]["fingerprint"] != queued["anchor"]["fingerprint"]
         for namespace in (
             "core.fundamental",

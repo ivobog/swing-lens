@@ -20,6 +20,7 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
 )
+from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.winner_probability.cohort_definition import (
     COHORT_BASELINE_SOURCE_VERSION,
     CohortDefinitionService,
@@ -127,6 +128,7 @@ class ProbabilityEstimator:
             model_version_id=model_version_id,
         )
 
+    @core_writer_transaction
     def create_latest_rescore_from_generation(
         self,
         db: Session,
@@ -138,6 +140,8 @@ class ProbabilityEstimator:
         model_version_id: int | None = None,
         _candidate: bool = False,
         _source_version: str = COHORT_BASELINE_SOURCE_VERSION,
+        _supersedes_estimate_id: int | None = None,
+        _reviewed_manifest_hash: str | None = None,
     ) -> ProbabilityEstimateResult:
         """Create a bounded v2 rescore from already-materialized statistics.
 
@@ -147,7 +151,48 @@ class ProbabilityEstimator:
         config = config or load_winner_probability_config()
         from app.services.decision_effective_configuration import resolve_winner_configuration
 
+        generation_configuration = resolve_winner_configuration(config, family="generation")
         config = resolve_winner_configuration(config, family="cohort").winner_config()
+        object.__setattr__(
+            config,
+            "_configuration_snapshots",
+            {
+                **getattr(config, "_configuration_snapshots", {}),
+                "decision.winner.generation": generation_configuration,
+            },
+        )
+        if isinstance(db, Session):
+            from app.services.winner_probability.cohort_authority import (
+                validate_completion,
+                validate_generation,
+            )
+
+            validate_generation(db, generation, config)
+            validate_completion(db, generation, config)
+            if _candidate:
+                from app.services.decision_effective_configuration import configuration_from_payload
+                from app.services.winner_probability.estimate_authority import validate_estimate
+
+                predecessor = (
+                    db.get(WinnerProbabilityEstimate, _supersedes_estimate_id)
+                    if _supersedes_estimate_id
+                    else None
+                )
+                if (
+                    predecessor is None
+                    or not _reviewed_manifest_hash
+                    or predecessor.prediction_id != prediction.id
+                    or predecessor.outcome_definition_id != outcome_definition.id
+                    or predecessor.estimate_kind != ESTIMATE_KIND_LATEST_RESCORE
+                    or predecessor.lifecycle_status != "PUBLISHED"
+                ):
+                    raise ValueError("MUTATION_WINNER_CANDIDATE_EXACT_SERVING_PREDECESSOR_REQUIRED")
+                validate_estimate(
+                    predecessor,
+                    configuration_from_payload(
+                        predecessor.metadata_json["effective_configuration_at_creation"]
+                    ).winner_config(),
+                )
         if _candidate:
             if model_version_id is not None:
                 raise ValueError("candidate cohort rescore cannot attach a serving model")
@@ -171,6 +216,20 @@ class ProbabilityEstimator:
             from app.services.configuration_delivery import configuration_for_winner_generation
 
             config = configuration_for_winner_generation(db, generation, config)
+            from app.services.winner_probability.estimate_authority import (
+                estimate_request_authority,
+            )
+
+            estimate_request_authority(
+                db,
+                prediction=prediction,
+                outcome_definition=outcome_definition,
+                config=config,
+                cutoff_at=generation.training_cutoff_at,
+                estimate_kind=ESTIMATE_KIND_LATEST_RESCORE,
+                model_version_id=model_version_id,
+                generation=generation,
+            )
         existing = db.scalar(
             select(WinnerProbabilityEstimate)
             .where(WinnerProbabilityEstimate.prediction_id == prediction.id)
@@ -180,6 +239,16 @@ class ProbabilityEstimator:
             .where(WinnerProbabilityEstimate.source_version == _source_version)
         )
         if existing is not None:
+            if isinstance(db, Session):
+                from app.services.winner_probability.estimate_authority import validate_estimate
+
+                validate_estimate(existing, config)
+                if _candidate and (
+                    existing.supersedes_estimate_id != _supersedes_estimate_id
+                    or existing.metadata_json.get("reviewed_manifest_hash")
+                    != _reviewed_manifest_hash
+                ):
+                    raise ValueError("MUTATION_WINNER_CANDIDATE_RETRY_PREDECESSOR_MISMATCH")
             retained = (existing.metadata_json or {}).get("effective_configuration_at_creation")
             if (
                 retained is not None
@@ -206,6 +275,11 @@ class ProbabilityEstimator:
             .where(WinnerCohortDefinition.cohort_key.in_([key.key for key in keys]))
         ).all()
         by_key = {definition.cohort_key: statistic for definition, statistic in rows}
+        if isinstance(db, Session):
+            from app.services.winner_probability.cohort_authority import validate_statistic
+
+            for statistic in by_key.values():
+                validate_statistic(db, statistic, config)
         selected_key: CohortKey | None = None
         selected_statistic: WinnerCohortStatistic | None = None
         for level, key in zip(config.cohort.hierarchy, keys, strict=True):
@@ -252,6 +326,7 @@ class ProbabilityEstimator:
             insufficient_reasons = ["historical_self_exclusion_required"]
         estimate = WinnerProbabilityEstimate(
             **(candidate_lifecycle_fields() if _candidate else published_lifecycle_fields()),
+            supersedes_estimate_id=_supersedes_estimate_id,
             prediction_id=prediction.id,
             outcome_definition_id=outcome_definition.id,
             estimate_kind=ESTIMATE_KIND_LATEST_RESCORE,
@@ -311,9 +386,14 @@ class ProbabilityEstimator:
                 "calculation_version": config.engine.calculation_version,
                 "request_timestamp_is_identity": False,
                 "estimate_lifecycle": "CANDIDATE" if _candidate else "PUBLISHED",
+                "reviewed_manifest_hash": _reviewed_manifest_hash,
             },
         )
 
+        if isinstance(db, Session):
+            from app.services.winner_probability.estimate_authority import seal_estimate
+
+            seal_estimate(db, estimate)
         db.add(estimate)
         db.flush()
         return ProbabilityEstimateResult(
@@ -333,6 +413,8 @@ class ProbabilityEstimator:
         generation: WinnerCohortGeneration,
         source_version: str,
         config: WinnerProbabilityConfig | None = None,
+        supersedes_estimate_id: int | None = None,
+        reviewed_manifest_hash: str | None = None,
     ) -> ProbabilityEstimateResult:
         """Create an inspectable rescore fenced from every serving consumer."""
 
@@ -344,8 +426,11 @@ class ProbabilityEstimator:
             config=config,
             _candidate=True,
             _source_version=source_version,
+            _supersedes_estimate_id=supersedes_estimate_id,
+            _reviewed_manifest_hash=reviewed_manifest_hash,
         )
 
+    @core_writer_transaction
     def _create_estimate(
         self,
         db: Session,
@@ -361,6 +446,20 @@ class ProbabilityEstimator:
         from app.services.decision_effective_configuration import resolve_winner_configuration
 
         config = resolve_winner_configuration(config, family="cohort").winner_config()
+        if isinstance(db, Session):
+            from app.services.winner_probability.estimate_authority import (
+                estimate_request_authority,
+            )
+
+            estimate_request_authority(
+                db,
+                prediction=prediction,
+                outcome_definition=outcome_definition,
+                config=config,
+                cutoff_at=training_cutoff_at,
+                estimate_kind=estimate_kind,
+                model_version_id=model_version_id,
+            )
         existing = _existing_estimate(
             db,
             prediction=prediction,
@@ -369,6 +468,10 @@ class ProbabilityEstimator:
             training_cutoff_at=training_cutoff_at,
         )
         if existing is not None:
+            if isinstance(db, Session):
+                from app.services.winner_probability.estimate_authority import validate_estimate
+
+                validate_estimate(existing, config)
             return ProbabilityEstimateResult(
                 estimate=existing,
                 status="duplicate",
@@ -488,6 +591,10 @@ class ProbabilityEstimator:
                 extra=_evidence_composition(evidence),
             ),
         )
+        if isinstance(db, Session):
+            from app.services.winner_probability.estimate_authority import seal_estimate
+
+            seal_estimate(db, estimate)
         db.add(estimate)
         db.flush()
         self.manifest_service.persist_members(
@@ -514,11 +621,18 @@ class ProbabilityEstimator:
         training_cutoff_at: datetime,
         config: WinnerProbabilityConfig,
     ) -> tuple[CohortKey, tuple[EvidenceOutcome, ...], CohortStatisticsResult] | None:
-        keys = self.cohort_definition_service.cohort_keys_for_prediction(prediction, config)
+        definition_service = (
+            CohortDefinitionService() if isinstance(db, Session) else self.cohort_definition_service
+        )
+        evidence_service = EvidenceService() if isinstance(db, Session) else self.evidence_service
+        statistics_service = (
+            CohortStatisticsService() if isinstance(db, Session) else self.statistics_service
+        )
+        keys = definition_service.cohort_keys_for_prediction(prediction, config)
         if not keys:
             return None
         broadest_key = keys[-1]
-        broadest_evidence = self.evidence_service.load_evidence(
+        broadest_evidence = evidence_service.load_evidence(
             db,
             prediction=prediction,
             outcome_definition=outcome_definition,
@@ -533,11 +647,11 @@ class ProbabilityEstimator:
         for _level_config, cohort_key in reversed(
             tuple(zip(config.cohort.hierarchy, keys, strict=True))
         ):
-            filter_for_cohort = getattr(self.evidence_service, "filter_for_cohort", None)
+            filter_for_cohort = getattr(evidence_service, "filter_for_cohort", None)
             evidence = (
                 filter_for_cohort(broadest_evidence, cohort_key)
                 if callable(filter_for_cohort)
-                else self.evidence_service.load_evidence(
+                else evidence_service.load_evidence(
                     db,
                     prediction=prediction,
                     outcome_definition=outcome_definition,
@@ -546,7 +660,7 @@ class ProbabilityEstimator:
                     config=config,
                 )
             )
-            statistics = self.statistics_service.calculate(evidence, config)
+            statistics = statistics_service.calculate(evidence, config)
             self._materialize_cohort_statistic(
                 db,
                 cohort_key=cohort_key,
@@ -568,6 +682,9 @@ class ProbabilityEstimator:
                 return cohort_key, evidence, statistics
         return None
 
+    @core_writer_member(
+        "app.services.winner_probability.probability_estimator:ProbabilityEstimator._create_estimate"
+    )
     def _materialize_cohort_statistic(
         self,
         db: Session,
@@ -579,6 +696,10 @@ class ProbabilityEstimator:
         statistics: CohortStatisticsResult,
         config: WinnerProbabilityConfig,
     ) -> WinnerCohortStatistic:
+        if isinstance(db, Session):
+            from app.services.winner_probability.cohort_authority import population_bodies
+
+            population_bodies(db, evidence, financial=True, cutoff=training_cutoff_at)
         definition = self.cohort_definition_service.ensure_definition(
             db, cohort_key=cohort_key, outcome_definition=outcome_definition, config=config
         )
@@ -594,6 +715,10 @@ class ProbabilityEstimator:
             training_cutoff_at=training_cutoff_at,
         )
         if existing is not None:
+            if isinstance(db, Session):
+                from app.services.winner_probability.cohort_authority import validate_statistic
+
+                validate_statistic(db, existing, config)
             if (
                 existing.evidence_manifest_hash != manifest.manifest_hash
                 or existing.config_hash != config.config_hash
@@ -634,8 +759,16 @@ class ProbabilityEstimator:
         )
         db.add(row)
         db.flush()
+        if isinstance(db, Session):
+            from app.services.winner_probability.cohort_authority import seal_statistic
+
+            seal_statistic(db, row, evidence=evidence, config=config, statistics=statistics)
+            db.flush()
         return row
 
+    @core_writer_member(
+        "app.services.winner_probability.probability_estimator:ProbabilityEstimator._create_estimate"
+    )
     def _persist_insufficient(
         self,
         db: Session,
@@ -715,6 +848,10 @@ class ProbabilityEstimator:
                 },
             ),
         )
+        if isinstance(db, Session):
+            from app.services.winner_probability.estimate_authority import seal_estimate
+
+            seal_estimate(db, estimate)
         db.add(estimate)
         db.flush()
         self.manifest_service.persist_members(

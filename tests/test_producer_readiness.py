@@ -384,56 +384,25 @@ def test_setup_intrinsic_quality_is_distinct_from_trading_state_and_confidence()
 
 def test_lifecycle_gap_evidence_and_current_pointer_never_certify_trading_ready():
     from app.models.tables import SetupLifecycleEpisode, SetupLifecycleEvaluationEvidence
-    from app.services.setup_lifecycle.decision_evidence import (
-        get_lifecycle_readiness_for_episode,
-        persist_observation_gap_evaluation_evidence,
-    )
+    from app.services.setup_lifecycle.decision_evidence import get_lifecycle_readiness_for_episode
 
-    prior = SimpleNamespace(
-        id=10,
-        decision_session=date(2026, 9, 10),
-        counters_json={},
+    # This is a retained-reader fixture, not a live writer authority test.
+    # Native gap writes, explicit temporal/configuration and durable authority
+    # are exercised unpatched by the PostgreSQL decision certification lane.
+    result = SetupLifecycleEvaluationEvidence(
+        id=11,
         output_state="READY",
-        setup_evidence_id=1,
-        calculation_cutoff_at=datetime(2026, 9, 10, 20, tzinfo=UTC),
-        calendar_version="swinglens-us-equities-v1",
         calculation_identity_fingerprint="a" * 64,
+        payload_json={
+            "producer_readiness": normalize_producer_readiness(
+                "LIFECYCLE",
+                {"missing_observation_sessions": 1, "observation_gap_threshold": 3},
+                identity_fingerprint="a" * 64,
+            ).canonical_payload()
+        },
     )
-    rows = {10: prior}
-
-    def add(row):
-        row.id = 11
-        rows[11] = row
-
-    db = SimpleNamespace(
-        get=lambda model, row_id: (
-            rows.get(row_id) if model is SetupLifecycleEvaluationEvidence else None
-        ),
-        scalar=lambda _statement: None,
-        add=add,
-        flush=lambda: None,
-    )
-    episode = SetupLifecycleEpisode(
-        ticker="ACME",
-        timeframe="1D",
-        setup_family="BREAKOUT",
-        current_state="READY",
-        current_phase="READY",
-        latest_evaluation_evidence_id=10,
-        latest_transition_evidence_id=None,
-        last_observed_on=date(2026, 9, 10),
-        engine_version="test-v1",
-        config_version="test-v1",
-        config_hash="c" * 64,
-    )
-    result = persist_observation_gap_evaluation_evidence(
-        db,
-        episode=episode,
-        observed_on=date(2026, 9, 11),
-        missing_observation_sessions=1,
-        threshold=3,
-        evaluation_run_id=None,
-    )
+    db = SimpleNamespace(get=lambda model, row_id: result if row_id == 11 else None)
+    episode = SetupLifecycleEpisode(ticker="ACME", timeframe="1D", setup_family="BREAKOUT")
     episode.latest_evaluation_evidence_id = result.id
     readiness = get_lifecycle_readiness_for_episode(db, episode)
     assert result.output_state == "READY"

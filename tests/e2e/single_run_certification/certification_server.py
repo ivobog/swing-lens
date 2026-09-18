@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -209,8 +209,26 @@ def _install_deterministic_outcome_clock() -> None:
         )
 
     job_handlers.execute_outcome_maturation_job = execute_outcome_maturation_job
+    # Cohort operations consume the future maturation observation. Supply the
+    # same explicit simulation clock at the normal operation-clock source.
+    job_handlers._utcnow = lambda: fixed_now + timedelta(microseconds=1)
 
 
+def _install_native_configuration_profile() -> None:
+    # Select an actual disposable YAML profile before app/worker imports. The
+    # production parser and full configuration delivery remain authoritative.
+    from app.services.winner_probability import config as native_config
+
+    profile = Path(os.environ["CERTIFICATION_WINNER_CONFIGURATION"])
+    original_loader = native_config.load_winner_probability_config
+
+    def load_configuration(path=profile):
+        return original_loader(path)
+
+    native_config.load_winner_probability_config = load_configuration
+
+
+_install_native_configuration_profile()
 _install_deterministic_fetch_dependency()
 _install_deterministic_outcome_clock()
 

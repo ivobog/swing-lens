@@ -10,6 +10,7 @@ import socket
 import subprocess
 import sys
 import time
+import traceback
 import urllib.error
 import urllib.request
 import uuid
@@ -22,7 +23,10 @@ from pathlib import Path
 
 import psycopg
 import pytest
-from playwright.sync_api import Page, sync_playwright
+import yaml
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from playwright.sync_api import Browser, Page
 from psycopg import sql
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
@@ -63,7 +67,9 @@ from single_run_certification.reporting import (
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
-ALEMBIC_HEAD = "0075_core_immutable_evidence"
+ALEMBIC_HEAD = ScriptDirectory.from_config(
+    Config(str(REPO_ROOT / "alembic.ini"))
+).get_current_head()
 TERMINAL_PIPELINE_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"}
 
 
@@ -102,7 +108,13 @@ def certification_environment(
     )
     assert_disposable_database(database_url)
     runtime_root = tmp_path_factory.mktemp("swinglens-single-run-certification")
-    artifact_dir = REPO_ROOT / "test-results" / "single-run-certification" / execution_id
+    artifact_root = Path(
+        os.environ.get(
+            "SWINGLENS_CERTIFICATION_ARTIFACT_ROOT",
+            str(REPO_ROOT / "test-results" / "single-run-certification"),
+        )
+    ).resolve()
+    artifact_dir = artifact_root / execution_id
     for relative in (
         "screenshots/gui",
         "screenshots/database",
@@ -117,10 +129,16 @@ def certification_environment(
     ib_log = artifact_dir / "logs" / "deterministic-ib.jsonl"
     csv_path = runtime_root / "single-run-certification.csv"
     csv_hash = write_canonical_csv(csv_path)
+    # This positive path freezes an enabled native profile, alongside the flags.
+    winner_profile = yaml.safe_load((REPO_ROOT / "config/winner_probability.yaml").read_text())
+    winner_profile["engine"]["enabled"] = True
+    winner_configuration_path = runtime_root / "winner_probability.yaml"
+    winner_configuration_path.write_text(yaml.safe_dump(winner_profile), encoding="utf-8")
 
     env = {
         **os.environ,
         "DATABASE_URL": database_url,
+        "SWINGLENS_DATABASE_SAFETY_CONTEXT": "DISPOSABLE_TEST",
         "APP_HOST": "127.0.0.1",
         "DEBUG": "false",
         "ALLOW_PUBLIC_BIND": "false",
@@ -154,6 +172,7 @@ def certification_environment(
         "CERI_UI_ENABLED": "true",
         "CERI_ADMIN_ENABLED": "true",
         "CERTIFICATION_IB_LOG": str(ib_log),
+        "CERTIFICATION_WINNER_CONFIGURATION": str(winner_configuration_path),
         "CERTIFICATION_OUTCOME_NOW": "2027-01-15T22:00:00+00:00",
         "PYTHONPATH": str(REPO_ROOT),
     }
@@ -174,7 +193,7 @@ def certification_environment(
         admin.close()
         pytest.fail(f"BLOCKED: Alembic migration failed; see {migration_log}")
 
-    seed = seed_prerequisites(database_url)
+    seed = seed_prerequisites(database_url, winner_configuration_path=winner_configuration_path)
     _activate_disposable_sec_processor(database_url)
     port = _available_port()
     base_url = f"http://127.0.0.1:{port}"
@@ -277,19 +296,14 @@ def certification_environment(
 
 
 @pytest.fixture
-def certification_page() -> Iterator[Page]:
-    """Own the browser lifecycle; do not depend on the optional pytest plugin."""
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
-        context = browser.new_context(
-            accept_downloads=True, viewport={"width": 1600, "height": 1000}
-        )
-        page = context.new_page()
-        try:
-            yield page
-        finally:
-            context.close()
-            browser.close()
+def certification_page(browser: Browser) -> Iterator[Page]:
+    """Use the shared browser runtime with an isolated certification context."""
+    context = browser.new_context(accept_downloads=True, viewport={"width": 1600, "height": 1000})
+    page = context.new_page()
+    try:
+        yield page
+    finally:
+        context.close()
 
 
 @pytest.mark.e2e
@@ -328,6 +342,19 @@ def test_single_run_comprehensive_e2e_certification(
             from pipeline_steps where pipeline_run_id = :pipeline_id order by step_order
             """,
             {"pipeline_id": pipeline_id},
+        )
+        (env.artifact_dir / "pipeline-results.json").write_text(
+            json.dumps(
+                query_rows(
+                    engine,
+                    "select step_name, status, result_json from pipeline_steps "
+                    "where pipeline_run_id=:pipeline_id order by step_order",
+                    {"pipeline_id": pipeline_id},
+                ),
+                default=str,
+                indent=2,
+            ),
+            encoding="utf-8",
         )
         _compare_pipeline_page(page, recorder, pipeline_steps)
         idempotency = _materialize_rankings_once(page, engine, env, recorder, run_id)
@@ -438,6 +465,9 @@ def test_single_run_comprehensive_e2e_certification(
         _capture_database_screenshots(page, env, graph)
     except Exception as exc:  # keep the mandatory evidence package on harness/product failure
         recorder.failures.append(f"Harness execution: {type(exc).__name__}: {exc}")
+        (env.artifact_dir / "logs" / "harness-traceback.log").write_text(
+            traceback.format_exc(), encoding="utf-8"
+        )
     finally:
         environment = json.loads(
             (env.artifact_dir / "environment.json").read_text(encoding="utf-8")
@@ -647,10 +677,13 @@ def _compare_run_detail(
     db_rows = query_rows(
         engine,
         """
-        select ticker, sector, final_rank, final_score, combined_decision,
-               fundamental_score, dual_score, days_until_earnings,
-               is_complete, has_warning
-        from combined_results where run_id=:run_id order by final_rank nulls last, ticker
+        select c.ticker, c.sector, c.final_rank, c.final_score, c.combined_decision,
+               c.fundamental_score, coalesce(c.dual_score, t.dual_score) as dual_score,
+               c.days_until_earnings,
+               c.is_complete, c.has_warning
+        from combined_results c
+        left join technical_scores t on t.run_id=c.run_id and t.ticker=c.ticker
+        where c.run_id=:run_id order by c.final_rank nulls last, c.ticker
         """,
         {"run_id": run_id},
     )
@@ -686,6 +719,17 @@ def _compare_run_detail(
         )
         if db is None:
             continue
+        for gui_field, expected in (
+            ("incomplete", "false" if db["is_complete"] else "true"),
+            ("hasWarning", "true" if db["has_warning"] else "false"),
+        ):
+            recorder.check(
+                gui.get(gui_field) == expected,
+                f"{ticker} {gui_field} GUI↔DB",
+                area="Isolation/Integrity",
+                expected=expected,
+                actual=gui.get(gui_field),
+            )
         for gui_field, db_field in mapping.items():
             expected = _normalized_scalar(db[db_field])
             actual = _normalized_scalar(gui.get(gui_field))
@@ -1249,17 +1293,6 @@ def _mature_winner_evidence(
     operations_rows = _table_rows(
         page, {"ID", "Type", "Status", "Run", "Started", "Completed", "Counts", "Error"}
     )
-    maturation_row = next(
-        (row for row in operations_rows if row["Type"] == "WINNER_OUTCOME_MATURATION"),
-        None,
-    )
-    recorder.check(
-        maturation_row is not None and maturation_row["Status"] == job.get("status"),
-        "Winner operations GUI status matches the background job",
-        area="Winner Evidence",
-        expected=job.get("status"),
-        actual=maturation_row["Status"] if maturation_row else "missing",
-    )
     processing_runs = query_rows(
         engine,
         """
@@ -1276,6 +1309,21 @@ def _mature_winner_evidence(
         actual=bool(processing_runs),
     )
     processing_run = processing_runs[0] if processing_runs else {"id": None, "counts_json": {}}
+    maturation_row = next(
+        (
+            row
+            for row in operations_rows
+            if row["Type"] == "WINNER_OUTCOME_MATURATION" and row["ID"] == str(processing_run["id"])
+        ),
+        None,
+    )
+    recorder.check(
+        maturation_row is not None and maturation_row["Status"] == job.get("status"),
+        "Winner operations GUI status matches the background job",
+        area="Winner Evidence",
+        expected=job.get("status"),
+        actual=maturation_row["Status"] if maturation_row else "missing",
+    )
     gui_counts = json.loads(maturation_row["Counts"]) if maturation_row else {}
     recorder.check(
         gui_counts == processing_run["counts_json"],
@@ -1453,7 +1501,7 @@ def _seed_later_market_bars(engine, prediction_id: int) -> int:
                 index += 1
             summary = cache_bars(db, bars)
             inserted += summary.inserted
-        MarketDataObligationService().evaluate(db, now=datetime.now(UTC))
+        MarketDataObligationService().evaluate(db, now=datetime(2027, 1, 15, 22, tzinfo=UTC))
         db.commit()
     return inserted
 
@@ -1557,7 +1605,8 @@ def _compare_lifecycle(page: Page, engine, recorder: CertificationRecorder, run_
         )[0]["value"]
     )
     response = page.request.get(
-        f"{page.url.split('/runs/', 1)[0]}/api/setup-lifecycle/changes?run_id={run_id}&limit=500"
+        f"{page.url.split('/runs/', 1)[0]}/api/setup-lifecycle/changes"
+        f"?view_scope=HISTORICAL_RUN&run_id={run_id}&limit=500"
     )
     api = response.json()
     expected_count = lifecycle_count + signal_count
@@ -1592,15 +1641,15 @@ def _compare_lifecycle(page: Page, engine, recorder: CertificationRecorder, run_
             expected=expected_state,
             actual=gui["State"],
         )
-        if item["state_age_sessions"] is not None:
-            expected_age = f"Age {item['state_age_sessions']} sessions"
-            recorder.check(
-                expected_age in gui["State"],
-                f"Market Changes {expected_ticker} state age GUI/API",
-                area="Setup Lifecycle",
-                expected=expected_age,
-                actual=gui["State"],
-            )
+        age = item["state_age_sessions"]
+        expected_age = f"Age {age if age is not None else '—'} sessions"
+        recorder.check(
+            expected_age in gui["State"],
+            f"Market Changes {expected_ticker} state age GUI/API",
+            area="Setup Lifecycle",
+            expected=expected_age,
+            actual=gui["State"],
+        )
         recorder.check(
             str(item["source_type"]) in gui["Source"],
             f"Market Changes {expected_ticker} source type GUI/API",
@@ -1739,7 +1788,17 @@ def _compare_ranking_profile(
         "is_complete": "is_complete",
         "has_warning": "has_warning",
     }
-    for gui, db in zip(gui_rows, db_rows, strict=False):
+    gui_by_ticker = {row["ticker"]: row for row in gui_rows}
+    recorder.check(
+        len(gui_by_ticker) == len(gui_rows)
+        and set(gui_by_ticker) == {row["ticker"] for row in db_rows},
+        f"ranking profile {profile} returns the exact unique run target set",
+        area="Rankings",
+        expected=sorted(row["ticker"] for row in db_rows),
+        actual=sorted(gui_by_ticker),
+    )
+    for db in db_rows:
+        gui = gui_by_ticker.get(db["ticker"], {})
         for gui_field, db_field in field_map.items():
             expected = _normalized_scalar(db[db_field])
             actual = _normalized_scalar(gui.get(gui_field))
@@ -1969,7 +2028,7 @@ def _capture_exports(page: Page, engine, env, recorder, run_id: int) -> list[dic
 def _materialize_rankings_once(page: Page, engine, env, recorder, run_id: int) -> dict:
     before = _idempotency_counts(engine, run_id)
     page.goto(f"{env.base_url}/runs/{run_id}")
-    page.get_by_role("button", name="Refresh rankings").first.click()
+    _refresh_rankings_through_gui(page)
     page.wait_for_load_state("networkidle")
     after_first = _idempotency_counts(engine, run_id)
     recorder.check(
@@ -1983,7 +2042,7 @@ def _materialize_rankings_once(page: Page, engine, env, recorder, run_id: int) -
 
 
 def _verify_idempotency(page: Page, engine, env, recorder, run_id: int, *, state: dict) -> dict:
-    page.get_by_role("button", name="Refresh rankings").first.click()
+    _refresh_rankings_through_gui(page)
     page.wait_for_load_state("networkidle")
     after_second = _idempotency_counts(engine, run_id)
     recorder.check(
@@ -1998,6 +2057,14 @@ def _verify_idempotency(page: Page, engine, env, recorder, run_id: int, *, state
         **state,
         "after_second": after_second,
     }
+
+
+def _refresh_rankings_through_gui(page: Page) -> None:
+    # This POST computes every configured profile synchronously. Keep the normal
+    # interaction/render timeout, and give domain completion the same 300-second
+    # budget as the native pipeline. A response must arrive before DB comparison.
+    with page.expect_navigation(wait_until="domcontentloaded", timeout=300_000):
+        page.get_by_role("button", name="Refresh rankings").first.click(no_wait_after=True)
 
 
 def _idempotency_counts(engine, run_id: int) -> dict:

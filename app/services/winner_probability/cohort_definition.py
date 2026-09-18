@@ -13,6 +13,7 @@ from app.models.tables import (
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
 )
+from app.services.core_mutation_authority import core_writer_member
 from app.services.winner_probability.config import (
     CohortLevelConfig,
     WinnerProbabilityConfig,
@@ -41,8 +42,7 @@ class CohortDefinitionService:
         config: WinnerProbabilityConfig,
     ) -> tuple[CohortKey, ...]:
         return tuple(
-            _cohort_key(level, prediction.feature_json or {})
-            for level in config.cohort.hierarchy
+            _cohort_key(level, prediction.feature_json or {}) for level in config.cohort.hierarchy
         )
 
     def cohort_keys_for_features(
@@ -52,6 +52,13 @@ class CohortDefinitionService:
     ) -> tuple[CohortKey, ...]:
         return tuple(_cohort_key(level, feature_json) for level in config.cohort.hierarchy)
 
+    @core_writer_member(
+        (
+            "app.services.winner_probability.cohort_materialization_service:CohortMaterializationService.materialize_slice",
+            "app.services.winner_probability.probability_estimator:ProbabilityEstimator._create_estimate",
+            "app.services.winner_probability.probability_estimator:ProbabilityEstimator._materialize_cohort_statistic",
+        )
+    )
     def ensure_definition(
         self,
         db: Session,
@@ -60,6 +67,16 @@ class CohortDefinitionService:
         outcome_definition: WinnerOutcomeDefinition | CohortOutcomeIdentity,
         config: WinnerProbabilityConfig,
     ) -> WinnerCohortDefinition:
+        if isinstance(db, Session):
+            levels = [level for level in config.cohort.hierarchy if level.level == cohort_key.level]
+            if len(levels) != 1 or set(cohort_key.dimensions) != set(levels[0].dimensions):
+                raise ValueError("MUTATION_WINNER_COHORT_HIERARCHY_REQUIRED")
+            payload = {"level": cohort_key.level, "dimensions": cohort_key.dimensions}
+            digest = hashlib.sha256(
+                json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+            ).hexdigest()
+            if cohort_key.key != f"{cohort_key.level}:{digest}":
+                raise ValueError("MUTATION_WINNER_NATIVE_COHORT_KEY_REQUIRED")
         getter = getattr(db, "get_existing_cohort_definition", None)
         existing = (
             getter(
@@ -76,6 +93,17 @@ class CohortDefinitionService:
             )
         )
         if existing is not None:
+            if isinstance(db, Session):
+                from app.services.winner_probability.cohort_authority import retained_row
+
+                retained_row(db, existing)
+                if (
+                    existing.dimensions_json != cohort_key.dimensions
+                    or existing.level != cohort_key.level
+                    or existing.entry_model != outcome_definition.entry_model
+                    or existing.feature_schema_version != config.feature_schema.version
+                ):
+                    raise ValueError("MUTATION_WINNER_COHORT_DEFINITION_SCOPE_MISMATCH")
             return existing
         row = WinnerCohortDefinition(
             cohort_key=cohort_key.key,
