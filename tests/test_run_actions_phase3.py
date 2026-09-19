@@ -4,10 +4,9 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app.models.tables import BackgroundJob, FundamentalScore, RawCompanyRow, UploadRun
+from app.models.tables import BackgroundJob, FundamentalScore, RawCompanyRow
 from app.routers import run_routes
 from app.services.fundamental_score_service import recalculate_run_fundamentals
-from app.services.ib_fetch_plan_service import FetchPlan
 from app.services.pipeline_service import (
     PipelineStatusDto,
     PipelineStepStatusDto,
@@ -72,123 +71,36 @@ def test_recalculate_run_fundamentals_replaces_scores_from_stored_raw_rows() -> 
     assert raw_row.raw_json == original_raw_json
 
 
-def test_refresh_combined_route_rebuilds_combined_only(monkeypatch) -> None:
-    calls = {"combined": 0, "technicals": 0}
+@pytest.mark.parametrize(
+    "operation",
+    [
+        run_routes.refresh_combined_results_action,
+        run_routes.recalculate_fundamentals_action,
+        run_routes.refresh_technicals_action,
+    ],
+)
+def test_unbound_standalone_routes_are_intentionally_retired(operation) -> None:
+    db = RouteFakeDb()
+    with pytest.raises(HTTPException) as error:
+        operation(run_id=7, db=db)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
+    assert db.commits == 0
 
+
+def test_full_pipeline_retires_reduced_path_before_work(monkeypatch) -> None:
     monkeypatch.setattr(
-        run_routes,
-        "refresh_combined_results",
-        lambda _db, _run_id: calls.__setitem__("combined", calls["combined"] + 1) or [],
+        run_routes, "get_settings", lambda: SimpleNamespace(use_durable_pipeline=False)
     )
     monkeypatch.setattr(
-        run_routes,
-        "score_run_technicals",
-        lambda _db, _run_id: calls.__setitem__("technicals", calls["technicals"] + 1) or [],
+        run_routes, "check_status", lambda **_: pytest.fail("retired path probed IB")
     )
     db = RouteFakeDb()
-
-    response = run_routes.refresh_combined_results_action(run_id=7, db=db)
-
-    assert calls == {"combined": 1, "technicals": 0}
-    assert db.commits == 1
-    assert "combined-refreshed" in response.headers["location"]
-
-
-def test_recalculate_fundamentals_route_commits_scores(monkeypatch) -> None:
-    calls = {"combined": 0}
-    monkeypatch.setattr(
-        run_routes,
-        "recalculate_run_fundamentals",
-        lambda _db, _run_id: [SimpleNamespace(ticker="MSFT")],
-    )
-    monkeypatch.setattr(
-        run_routes,
-        "refresh_combined_results",
-        lambda _db, _run_id: calls.__setitem__("combined", calls["combined"] + 1) or [],
-    )
-    db = RouteFakeDb()
-
-    response = run_routes.recalculate_fundamentals_action(run_id=7, db=db)
-
-    assert calls == {"combined": 1}
-    assert db.commits == 1
-    assert "fundamentals-refreshed" in response.headers["location"]
-
-
-def test_refresh_technicals_route_commits_scores(monkeypatch) -> None:
-    calls = {"combined": 0}
-    monkeypatch.setattr(
-        run_routes,
-        "score_run_technicals",
-        lambda _db, _run_id: [SimpleNamespace(ticker="MSFT")],
-    )
-    monkeypatch.setattr(
-        run_routes,
-        "refresh_combined_results",
-        lambda _db, _run_id: calls.__setitem__("combined", calls["combined"] + 1) or [],
-    )
-    db = RouteFakeDb()
-
-    response = run_routes.refresh_technicals_action(run_id=7, db=db)
-
-    assert calls == {"combined": 1}
-    assert db.commits == 1
-    assert "technicals-refreshed" in response.headers["location"]
-
-
-def test_full_pipeline_queues_fetch_and_refreshes_scores(monkeypatch) -> None:
-    calls = {}
-    run = UploadRun(id=7, filename="sample.csv", row_count=1, status="COMPLETED")
-    run.raw_company_rows = [RawCompanyRow(run_id=7, row_number=1, ticker="MSFT", raw_json={})]
-    plan = FetchPlan(
-        run_id=7,
-        requested_tickers=["MSFT"],
-        symbols_including_benchmarks=["MSFT", "SPY"],
-        items=[],
-        estimated_request_count=2,
-        estimated_full_backfills=1,
-        estimated_top_ups=1,
-        estimated_refreshes=0,
-        estimated_skips=0,
-        warnings=[],
-    )
-
-    monkeypatch.setattr(
-        run_routes,
-        "get_settings",
-        lambda: SimpleNamespace(use_durable_pipeline=False),
-    )
-    monkeypatch.setattr(run_routes, "check_status", lambda **_kwargs: _ready_ib_status())
-    monkeypatch.setattr(run_routes, "_load_run", lambda _db, _run_id: run)
-    monkeypatch.setattr(
-        run_routes,
-        "recalculate_run_fundamentals",
-        lambda _db, _run_id: [SimpleNamespace(ticker="MSFT")],
-    )
-    monkeypatch.setattr(run_routes, "build_fetch_plan", lambda **_kwargs: plan)
-    monkeypatch.setattr(
-        run_routes,
-        "score_run_technicals",
-        lambda _db, _run_id: [SimpleNamespace(ticker="MSFT")],
-    )
-    monkeypatch.setattr(
-        run_routes,
-        "refresh_combined_results",
-        lambda _db, _run_id: [SimpleNamespace(ticker="MSFT")],
-    )
-    monkeypatch.setattr(
-        run_routes,
-        "execute_fetch_plan",
-        lambda **_kwargs: calls.setdefault("fetched", True)
-        and SimpleNamespace(id=42, status="COMPLETED"),
-    )
-    db = RouteFakeDb()
-
-    response = run_routes.run_full_pipeline_action(run_id=7, db=db)
-
-    assert db.commits == 1
-    assert calls["fetched"] is True
-    assert "pipeline-refreshed" in response.headers["location"]
+    with pytest.raises(HTTPException) as error:
+        run_routes.run_full_pipeline_action(run_id=7, db=db)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "REDUCED_PIPELINE_RETIRED"
+    assert db.commits == 0
 
 
 def test_full_pipeline_uses_durable_pipeline_when_feature_flag_enabled(monkeypatch) -> None:
@@ -203,8 +115,9 @@ def test_full_pipeline_uses_durable_pipeline_when_feature_flag_enabled(monkeypat
     monkeypatch.setattr(
         run_routes,
         "start_pipeline",
-        lambda _db, run_id, **kwargs: calls.update({"run_id": run_id, **kwargs})
-        or SimpleNamespace(id=99),
+        lambda _db, run_id, **kwargs: (
+            calls.update({"run_id": run_id, **kwargs}) or SimpleNamespace(id=99)
+        ),
     )
     db = RouteFakeDb()
 
@@ -246,8 +159,9 @@ def test_full_pipeline_explicit_cache_fallback_enqueues_degraded_policy(monkeypa
     monkeypatch.setattr(
         run_routes,
         "start_pipeline",
-        lambda _db, run_id, **kwargs: calls.update({"run_id": run_id, **kwargs})
-        or SimpleNamespace(id=100),
+        lambda _db, run_id, **kwargs: (
+            calls.update({"run_id": run_id, **kwargs}) or SimpleNamespace(id=100)
+        ),
     )
     db = RouteFakeDb()
 

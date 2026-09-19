@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCompany
 from app.services.ceri.sec.provider import SecCeriProvider
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.source_mutation_authority import source_mutation_writer
 
 
 @dataclass(frozen=True)
@@ -21,6 +23,9 @@ class SecIdentityRepairResult:
         return self.status in {"ALREADY_RESOLVED", "RESOLVED"}
 
 
+@source_mutation_writer(
+    MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE
+)
 def resolve_and_persist_sec_identity(
     db: Session,
     *,
@@ -30,7 +35,9 @@ def resolve_and_persist_sec_identity(
     """Resolve an exact SEC ticker identity without fuzzy/ambiguous guessing."""
 
     symbol = str(ticker).strip().upper()
-    rows = list(db.scalars(select(CeriCompany).where(CeriCompany.ticker == symbol)).all())
+    rows = list(
+        db.scalars(select(CeriCompany).where(CeriCompany.ticker == symbol).with_for_update()).all()
+    )
     known = sorted({str(row.cik).zfill(10) for row in rows if row.cik})
     if len(known) > 1:
         return SecIdentityRepairResult(

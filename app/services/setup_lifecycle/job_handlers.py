@@ -9,6 +9,7 @@ from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, is_cancel_requested
 from app.services.background_worker import CancelRequested
 from app.services.configuration_delivery import anchored_job_configuration
+from app.services.setup_lifecycle.caller_authority import setup_run_cutoff
 from app.services.setup_lifecycle.evaluation_service import (
     SetupLifecycleEvaluationCancelled,
     SetupLifecycleEvaluationService,
@@ -46,6 +47,11 @@ def execute_evaluate_run_job(
     evaluation_service: SetupLifecycleEvaluationService | None = None,
 ) -> dict[str, Any]:
     run_id = _required_int(job.payload_json or {}, "run_id")
+    authority_kwargs = {}
+    if isinstance(db, Session):
+        pipeline_id = _required_int(job.payload_json or {}, "pipeline_run_id")
+        cutoff = setup_run_cutoff(db, run_id=run_id, pipeline_run_id=pipeline_id)
+        authority_kwargs = {"market_cutoff": cutoff, "pipeline_run_id": pipeline_id}
     evaluation_service = evaluation_service or SetupLifecycleEvaluationService()
 
     try:
@@ -54,6 +60,7 @@ def execute_evaluate_run_job(
             run_id,
             requester=(job.payload_json or {}).get("requester"),
             should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+            **authority_kwargs,
         )
     except SetupLifecycleEvaluationCancelled as exc:
         raise CancelRequested(str(exc)) from exc

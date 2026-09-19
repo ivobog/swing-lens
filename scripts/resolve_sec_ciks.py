@@ -7,9 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import engine
-from app.models.ceri_tables import CeriCompany
 from app.models.tables import RawCompanyRow
 from app.services.ceri.sec.client import SecClientConfig, SecEdgarClient
+from app.services.ceri.sec.identity_repair import resolve_and_persist_sec_identity
 from app.services.ceri.sec.provider import SecCeriProvider
 from app.settings import get_settings
 
@@ -46,36 +46,15 @@ def main() -> int:
             )
         )
         for ticker in tickers:
-            rows = list(
-                db.scalars(select(CeriCompany).where(CeriCompany.ticker == ticker)).all()
-            )
-            known = sorted({str(row.cik).zfill(10) for row in rows if row.cik})
-            if len(known) > 1:
-                conflicts[ticker] = known
-                continue
-            if known:
-                already_mapped[ticker] = known[0]
-                continue
-            cik = provider.resolve_cik(ticker)
-            if cik is None:
-                unresolved.append(ticker)
-                continue
-            normalized = str(cik).zfill(10)
-            resolved[ticker] = normalized
-            if args.dry_run:
-                continue
-            if rows:
-                for row in rows:
-                    row.cik = normalized
+            result = resolve_and_persist_sec_identity(db, provider=provider, ticker=ticker)
+            if result.status == "AMBIGUOUS":
+                conflicts[ticker] = [result.reason or "conflicting exact SEC identity"]
+            elif result.status == "ALREADY_RESOLVED":
+                already_mapped[ticker] = result.cik
+            elif result.status == "RESOLVED":
+                resolved[ticker] = result.cik
             else:
-                db.add(
-                    CeriCompany(
-                        ticker=ticker,
-                        exchange="US",
-                        cik=normalized,
-                        sec_applicability="REQUIRED",
-                    )
-                )
+                unresolved.append(ticker)
         if args.dry_run:
             db.rollback()
         else:

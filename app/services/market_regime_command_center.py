@@ -72,6 +72,18 @@ class MarketRegimeCommandCenterService:
         effective_configuration=None,
         expected_calculation_identity=None,
     ) -> MarketRegimeCommandCenterDto:
+        if isinstance(db, Session):
+            from app.services.configuration_delivery import current_delivery
+            from app.services.entrypoint_authority import EntryPointAuthorityError
+
+            if market_cutoff is None or (
+                effective_configuration is None and current_delivery() is None
+            ):
+                raise EntryPointAuthorityError(
+                    "REGIME_EXPLICIT_CALCULATION_AUTHORITY_REQUIRED",
+                    "Persisted Regime calculation requires an explicit cutoff and frozen "
+                    "effective configuration or canonical pipeline delivery.",
+                )
         market_cutoff = market_cutoff or standalone_market_context(
             reason="STANDALONE_MARKET_REGIME",
             cutoff_at=(

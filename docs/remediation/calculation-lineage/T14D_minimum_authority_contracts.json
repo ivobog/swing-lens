@@ -1,0 +1,794 @@
+{
+  "boundary": "Verbatim native policy, including optional contributors and eligibility-if-pinned. Discovery domains can be conservative supersets; no invented cross-domain required edges.",
+  "forbidden_dependency_interpretation": "Exactly the seven forbidden REQUIRED edges retained by T14B; native optional contributors remain conditional.",
+  "forbidden_dependency_rules": [
+    "CERI->Ranking",
+    "CERI->Setup",
+    "CERI->Winner",
+    "Setup->Winner",
+    "Lifecycle->Winner",
+    "IBMI->Winner-direct",
+    "Sector->same-run-Ranking"
+  ],
+  "policies": {
+    "ALERT_DECISION": {
+      "configuration_namespace": "decision.alerts.setup",
+      "domain": "ALERT_DECISION",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "rule",
+        "evaluation"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "setup",
+        "transition",
+        "cooldown_predecessor",
+        "dedup_predecessor"
+      ],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "ALERT_STATUS": {
+      "configuration_namespace": null,
+      "domain": "ALERT_STATUS",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "alert"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "BOOTSTRAP",
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "CERI": {
+      "configuration_namespace": "contextual.ceri",
+      "domain": "CERI",
+      "eligibility_if_pinned": [
+        "ibmi_volatility",
+        "ibmi_short_pressure"
+      ],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "source_manifest"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "ibmi_volatility",
+        "ibmi_short_pressure"
+      ],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": true
+    },
+    "CERI_ALERT": {
+      "configuration_namespace": "decision.alerts.ceri",
+      "domain": "CERI_ALERT",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "change",
+        "rule"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "CERI_CHANGE": {
+      "configuration_namespace": "decision.ceri.changes",
+      "domain": "CERI_CHANGE",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "ceri"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "prior_ceri"
+      ],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "CERI_REVIEW": {
+      "configuration_namespace": null,
+      "domain": "CERI_REVIEW",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "review_target",
+        "human_review"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "CERI_SOURCE": {
+      "configuration_namespace": null,
+      "domain": "CERI_SOURCE",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "provider_source"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "BOOTSTRAP",
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "COMBINED": {
+      "configuration_namespace": "core.combined",
+      "domain": "COMBINED",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [
+        "fundamental",
+        "technical"
+      ],
+      "evidence_roles": [
+        "fundamental",
+        "technical"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "CONFIGURATION": {
+      "configuration_namespace": null,
+      "domain": "CONFIGURATION",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "configuration_bundle"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "BOOTSTRAP",
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "CURRENT_PROJECTION": {
+      "configuration_namespace": null,
+      "domain": "CURRENT_PROJECTION",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "target_evidence",
+        "projection_scope"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "CURRENT_PROJECTION_ADVANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "FUNDAMENTAL": {
+      "configuration_namespace": "core.fundamental",
+      "domain": "FUNDAMENTAL",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "raw_source"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "IBMI": {
+      "configuration_namespace": "contextual.ibmi",
+      "domain": "IBMI",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "constituent_manifest"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": true
+    },
+    "IBMI_SOURCE": {
+      "configuration_namespace": null,
+      "domain": "IBMI_SOURCE",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "request_scope"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "BOOTSTRAP",
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "LIFECYCLE_EVALUATION": {
+      "configuration_namespace": "decision.lifecycle",
+      "domain": "LIFECYCLE_EVALUATION",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "setup"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "previous_episode"
+      ],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "LIFECYCLE_TRANSITION": {
+      "configuration_namespace": "decision.lifecycle",
+      "domain": "LIFECYCLE_TRANSITION",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "evaluation"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "previous_episode"
+      ],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "OPERATIONAL": {
+      "configuration_namespace": null,
+      "domain": "OPERATIONAL",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "OPERATIONAL"
+      ],
+      "optional_evidence_roles": [
+        "native_operation_scope"
+      ],
+      "pipeline_if_bound": false,
+      "run": false,
+      "temporal": false
+    },
+    "PIPELINE": {
+      "configuration_namespace": null,
+      "domain": "PIPELINE",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "pipeline_context"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "BOOTSTRAP",
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "PRICE": {
+      "configuration_namespace": null,
+      "domain": "PRICE",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "acquisition_plan"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "BOOTSTRAP",
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "RANKING": {
+      "configuration_namespace": "core.ranking",
+      "domain": "RANKING",
+      "eligibility_if_pinned": [
+        "ibmi_liquidity"
+      ],
+      "eligibility_roles": [
+        "fundamental",
+        "technical"
+      ],
+      "evidence_roles": [
+        "fundamental",
+        "technical"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "ibmi_liquidity"
+      ],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "RAW": {
+      "configuration_namespace": null,
+      "domain": "RAW",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "source_file"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "BOOTSTRAP",
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "REGIME": {
+      "configuration_namespace": "contextual.regime",
+      "domain": "REGIME",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "price_manifest"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": true
+    },
+    "SECTOR": {
+      "configuration_namespace": "contextual.sector",
+      "domain": "SECTOR",
+      "eligibility_if_pinned": [
+        "regime",
+        "prior_sector",
+        "technical",
+        "combined",
+        "ranking"
+      ],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "universe_manifest"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "regime",
+        "prior_sector",
+        "fundamental",
+        "technical",
+        "combined",
+        "ranking"
+      ],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": true
+    },
+    "SETUP": {
+      "configuration_namespace": "decision.setup",
+      "domain": "SETUP",
+      "eligibility_if_pinned": [
+        "fundamental",
+        "combined",
+        "regime",
+        "sector"
+      ],
+      "eligibility_roles": [
+        "technical"
+      ],
+      "evidence_roles": [
+        "price_manifest",
+        "technical"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "fundamental",
+        "combined",
+        "ranking_metadata",
+        "regime",
+        "sector"
+      ],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "TECHNICAL": {
+      "configuration_namespace": "core.technical",
+      "domain": "TECHNICAL",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "price_manifest"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "TRADE_JOURNAL": {
+      "configuration_namespace": null,
+      "domain": "TRADE_JOURNAL",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "execution_source"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "BOOTSTRAP",
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "WINNER_COHORT": {
+      "configuration_namespace": "decision.winner.cohort",
+      "domain": "WINNER_COHORT",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "evidence_manifest"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "WINNER_DIAGNOSTICS": {
+      "configuration_namespace": null,
+      "domain": "WINNER_DIAGNOSTICS",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "diagnostic_subject",
+        "input_manifest",
+        "diagnostic_contract"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "WINNER_ESTIMATE": {
+      "configuration_namespace": "decision.winner.cohort",
+      "domain": "WINNER_ESTIMATE",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "prediction",
+        "model",
+        "evidence_manifest"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "outcome_contract",
+        "generation"
+      ],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "WINNER_GENERATION": {
+      "configuration_namespace": "decision.winner.generation",
+      "domain": "WINNER_GENERATION",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "generation_manifest"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "BOOTSTRAP",
+        "CANONICAL_CALCULATION"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "WINNER_MODEL": {
+      "configuration_namespace": null,
+      "domain": "WINNER_MODEL",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "model_version",
+        "governance_action"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "MAINTENANCE",
+        "PUBLICATION"
+      ],
+      "optional_evidence_roles": [
+        "training",
+        "calibration",
+        "drift",
+        "replacement_model",
+        "promotion_report",
+        "governance_configuration",
+        "active_predecessor"
+      ],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    },
+    "WINNER_OUTCOME": {
+      "configuration_namespace": "decision.winner.outcome",
+      "domain": "WINNER_OUTCOME",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "prediction_contract",
+        "outcome_price_manifest"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "CURRENT_STATE_REPAIR",
+        "OUTCOME_MATURATION"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": true
+    },
+    "WINNER_PREDICTION": {
+      "configuration_namespace": "decision.winner.prediction",
+      "domain": "WINNER_PREDICTION",
+      "eligibility_if_pinned": [
+        "fundamental",
+        "regime",
+        "sector"
+      ],
+      "eligibility_roles": [
+        "technical",
+        "combined",
+        "ranking"
+      ],
+      "evidence_roles": [
+        "raw_source",
+        "technical",
+        "combined",
+        "ranking"
+      ],
+      "fence_if_durable": true,
+      "identity": true,
+      "mandatory_consumption": [
+        "technical",
+        "combined",
+        "ranking"
+      ],
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "CURRENT_RULES_RETROSPECTIVE",
+        "CURRENT_STATE_REPAIR"
+      ],
+      "optional_evidence_roles": [
+        "fundamental",
+        "regime",
+        "sector"
+      ],
+      "pipeline_if_bound": true,
+      "run": true,
+      "temporal": true
+    },
+    "WINNER_PUBLICATION": {
+      "configuration_namespace": null,
+      "domain": "WINNER_PUBLICATION",
+      "eligibility_if_pinned": [],
+      "eligibility_roles": [],
+      "evidence_roles": [
+        "generation",
+        "estimate"
+      ],
+      "fence_if_durable": true,
+      "identity": false,
+      "mandatory_consumption": [],
+      "modes": [
+        "PUBLICATION"
+      ],
+      "optional_evidence_roles": [],
+      "pipeline_if_bound": true,
+      "run": false,
+      "temporal": false
+    }
+  },
+  "source": "app/services/domain_mutation.py:MUTATION_AUTHORITY_POLICIES",
+  "source_sha256": "246995e2bd1345fb061e528c92ceebfbb78cba01aa31eb4c9b43c35707f9b44c"
+}

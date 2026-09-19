@@ -405,11 +405,13 @@ class RecordingDetector:
         self.score_comparisons.append((current.id, prior.id if prior is not None else None))
         return ChangeDetectionResult(1, 0)
 
-    def detect_catalyst_revision(self, _db, *, revision, prior_revision, company_id):
+    def detect_catalyst_revision(self, _db, *, revision, prior_revision, company_id, market_cutoff):
         self.revision_companies.append(company_id)
         return ChangeDetectionResult(1, 0)
 
-    def detect_guidance_change(self, _db, *, guidance, company_id, prior_action):
+    def detect_guidance_change(
+        self, _db, *, guidance, company_id, prior_action, prior_guidance_event_id, market_cutoff
+    ):
         self.guidance_companies.append(company_id)
         return ChangeDetectionResult(1, 0)
 

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>{{ title }}</h1>
+  <p>No market regime snapshot is available. Start a new Full Pipeline calculation to create one.</p>
+  {% if run_id %}<a class="button-link" href="/runs/{{ run_id }}">Open run</a>{% else %}<a class="button-link" href="/runs">Open runs</a>{% endif %}
+</section>
+{% endblock %}

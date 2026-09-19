@@ -46,12 +46,71 @@ def population_bodies(db, evidence, *, financial=False, cutoff=None):
         WinnerPredictionSnapshot,
         WinnerTargetStopOutcome,
     )
-    from app.services.winner_probability.outcome_authority import validate_retained_outcome
-    from app.services.winner_probability.prediction_authority import validate_prediction_source
+    from app.services.winner_probability.outcome_authority import validate_outcome_body
+    from app.services.winner_probability.prediction_authority import validate_capture_body
 
     bodies = []
     seen = set()
-    for member in evidence:
+    members = tuple(evidence)
+    transaction = db.get_transaction() if hasattr(db, "get_transaction") else None
+    authority_cache = None
+    if transaction is not None:
+        cache_state = db.info.get("winner_population_authority_cache")
+        if cache_state is None or cache_state["transaction"] is not transaction:
+            cache_state = {"transaction": transaction, "bodies": {}}
+            db.info["winner_population_authority_cache"] = cache_state
+        authority_cache = cache_state["bodies"]
+        diagnostic_cache = db.info.get("winner_diagnostic_population_cache")
+        if diagnostic_cache is None or diagnostic_cache["transaction"] is not transaction:
+            diagnostic_cache = {"transaction": transaction, "rows": {}}
+            db.info["winner_diagnostic_population_cache"] = diagnostic_cache
+    else:
+        diagnostic_cache = None
+    pending = []
+    for member in members:
+        prediction_id = int(member.prediction.id)
+        forward_id = int(member.forward_outcome.id)
+        target_id = int(member.target_stop_outcome.id)
+        key = (prediction_id, forward_id, target_id)
+        if key in seen:
+            raise ValueError("MUTATION_WINNER_EXACT_POPULATION_SCOPE_REQUIRED")
+        seen.add(key)
+        cache_key = (
+            *key,
+            Decimal(str(member.inclusion_weight)),
+        )
+        cached = authority_cache.get(cache_key) if authority_cache is not None else None
+        cache_valid = cached is not None and (
+            not financial or cutoff in cached["financial_cutoffs"]
+        )
+        if not cache_valid:
+            pending.append((member, cache_key))
+        else:
+            bodies.append(cached["body"])
+    if not pending:
+        return bodies
+
+    models = (WinnerPredictionSnapshot, WinnerForwardOutcome, WinnerTargetStopOutcome)
+    member_fields = ("prediction", "forward_outcome", "target_stop_outcome")
+    retained_by_model = {}
+    for member_field, model in zip(member_fields, models, strict=True):
+        ids = {int(getattr(member, member_field).id) for member, _ in pending}
+        if not ids:
+            retained_by_model[model] = {}
+            continue
+        columns = tuple(model.__table__.columns)
+        with db.no_autoflush:
+            retained = [
+                model(**dict(row))
+                for row in db.execute(
+                    select(*columns).where(model.id.in_(ids)).with_for_update()
+                ).mappings()
+            ]
+        if len(retained) != len(ids):
+            raise ValueError("MUTATION_WINNER_RETAINED_SOURCE_REQUIRED")
+        retained_by_model[model] = {int(row.id): row for row in retained}
+    pending_bodies = []
+    for member, cache_key in pending:
         supplied = (
             member.prediction,
             member.forward_outcome,
@@ -63,13 +122,12 @@ def population_bodies(db, evidence, *, financial=False, cutoff=None):
             (WinnerPredictionSnapshot, WinnerForwardOutcome, WinnerTargetStopOutcome),
             strict=True,
         ):
-            if isinstance(value, model):
-                resolved.append(value)
-                continue
-            actual = db.get(model, value.id)
+            actual = retained_by_model[model].get(int(value.id))
             if actual is None:
                 raise ValueError("MUTATION_WINNER_RETAINED_SOURCE_REQUIRED")
-            if hasattr(value, "column_values"):
+            if isinstance(value, model):
+                names = (column.key for column in model.__table__.columns)
+            elif hasattr(value, "column_values"):
                 names = value.column_values.keys()
             elif is_dataclass(value):
                 names = [field.name for field in fields(value)]
@@ -82,20 +140,25 @@ def population_bodies(db, evidence, *, financial=False, cutoff=None):
                 raise ValueError("MUTATION_WINNER_FROZEN_SOURCE_DTO_MISMATCH")
             resolved.append(actual)
         prediction, forward, target = resolved
+        if diagnostic_cache is not None:
+            diagnostic_cache["rows"].update(
+                {
+                    (WinnerPredictionSnapshot, int(prediction.id)): prediction,
+                    (WinnerForwardOutcome, int(forward.id)): forward,
+                    (WinnerTargetStopOutcome, int(target.id)): target,
+                }
+            )
         key = (prediction.id, forward.id, target.id)
         if (
-            key in seen
-            or forward.prediction_id != prediction.id
+            forward.prediction_id != prediction.id
             or target.prediction_id != prediction.id
             or target.forward_outcome_id != forward.id
         ):
             raise ValueError("MUTATION_WINNER_EXACT_POPULATION_SCOPE_REQUIRED")
-        seen.add(key)
-        values = [retained_row(db, row) for row in (prediction, forward, target)]
         if financial:
-            validate_prediction_source(db, prediction)
-            validate_retained_outcome(db, forward)
-            validate_retained_outcome(db, target)
+            validate_capture_body(prediction)
+            validate_outcome_body(forward)
+            validate_outcome_body(target)
             if (
                 cutoff is None
                 or forward.matured_at is None
@@ -116,16 +179,35 @@ def population_bodies(db, evidence, *, financial=False, cutoff=None):
             calculation_evidence_payload(forward, excluded_columns=OPERATIONAL_COLUMNS),
             calculation_evidence_payload(target, excluded_columns=OPERATIONAL_COLUMNS),
         ]
-        bodies.append(
-            {
-                "ids": list(key),
-                "body_fingerprints": [Canonical.fingerprint(value) for value in values],
-                "authority": "NATIVE_CERTIFIED"
-                if (prediction.lineage_json or {}).get("native_capture_proof")
-                else "LEGACY_NONCERTIFIED_FROZEN_FACTS",
+        body = {
+            "ids": list(key),
+            "body_fingerprints": [Canonical.fingerprint(value) for value in values],
+            "authority": "NATIVE_CERTIFIED"
+            if (prediction.lineage_json or {}).get("native_capture_proof")
+            else "LEGACY_NONCERTIFIED_FROZEN_FACTS",
+        }
+        pending_bodies.append(body)
+        if authority_cache is not None:
+            cached = authority_cache.get(cache_key)
+            financial_cutoffs = set(cached["financial_cutoffs"]) if cached else set()
+            if financial:
+                financial_cutoffs.add(cutoff)
+            authority_cache[cache_key] = {
+                "body": body,
+                "financial_cutoffs": financial_cutoffs,
             }
-        )
-    return bodies
+    bodies.extend(pending_bodies)
+    body_by_ids = {tuple(body["ids"]): body for body in bodies}
+    return [
+        body_by_ids[
+            (
+                int(member.prediction.id),
+                int(member.forward_outcome.id),
+                int(member.target_stop_outcome.id),
+            )
+        ]
+        for member in members
+    ]
 
 
 def operation_authority(db, *, domain, writer, config, now, manifest, context=None):
@@ -279,6 +361,10 @@ def seal_statistic(db, row, *, evidence, config, statistics):
 
 def validate_statistic(db, row, config):
     retained_row(db, row)
+    return validate_statistic_proof(row, config)
+
+
+def validate_statistic_proof(row, config):
     proof = (row.metadata_json or {}).get("native_cohort_proof")
     if (
         not isinstance(proof, dict)
@@ -305,7 +391,10 @@ def validate_completion(db, generation, config):
         )
     )
     actual = [
-        {"id": row.id, "fingerprint": Canonical.fingerprint(validate_statistic(db, row, config))}
+        {
+            "id": row.id,
+            "fingerprint": Canonical.fingerprint(validate_statistic_proof(row, config)),
+        }
         for row in rows
     ]
     if (
@@ -323,10 +412,19 @@ def validate_completion(db, generation, config):
             WinnerEvidenceManifest.manifest_hash == generation.root_manifest_hash
         )
     )
-    EvidenceManifestService.validate_manifest(db, root)
+    EvidenceManifestService.validate_manifest_content(root)
+    manifest_ids = {int(row.evidence_manifest_id) for row in rows}
+    manifests = {
+        int(manifest.id): manifest
+        for manifest in db.scalars(
+            select(WinnerEvidenceManifest).where(WinnerEvidenceManifest.id.in_(manifest_ids))
+        )
+    }
+    if len(manifests) != len(manifest_ids):
+        raise ValueError("MUTATION_WINNER_EXACT_MANIFEST_CONTENT_REQUIRED")
     for row in rows:
-        manifest = db.get(WinnerEvidenceManifest, row.evidence_manifest_id)
-        EvidenceManifestService.validate_manifest(db, manifest)
+        manifest = manifests[int(row.evidence_manifest_id)]
+        EvidenceManifestService.validate_manifest_content(manifest)
         evidence = diagnostic_population(
             db, manifest, generation.outcome_definition_id, as_of=generation.training_cutoff_at
         )

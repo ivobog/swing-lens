@@ -18,6 +18,11 @@ def review_source_status(root=ROOT):
     )
     if decision_adoption.exists():
         path = decision_adoption
+    caller_adoption = (
+        root / "docs/remediation/calculation-lineage/T14D_semantic_review_source_pins.json"
+    )
+    if caller_adoption.exists():
+        path = caller_adoption
     if not path.exists():
         return ["MISSING_REVIEW_SOURCE_PINS"]
     retained = json.loads(path.read_text(encoding="utf-8"))

@@ -85,6 +85,7 @@ def test_native_sector_dependencies_freeze_permissions_and_advance_current(
     disposable_postgres_database,
 ):
     from app.services.contextual_consumer_eligibility import CONTEXTUAL_ELIGIBILITY_KEY
+    from app.services.contextual_effective_configuration import resolve_sector_configuration
     from app.services.sector_rotation_service import SectorRotationService
 
     config = Config("alembic.ini")
@@ -93,9 +94,14 @@ def test_native_sector_dependencies_freeze_permissions_and_advance_current(
     engine = create_engine(disposable_postgres_database)
     cutoff = _seed(engine, "ready")
     service = SectorRotationService()
+    effective_configuration = resolve_sector_configuration()
     with Session(engine, expire_on_commit=False) as db:
         first = service.build_sector_rotation_snapshot(
-            db, run_id=7, market_cutoff=cutoff, persist=True
+            db,
+            run_id=7,
+            market_cutoff=cutoff,
+            persist=True,
+            effective_configuration=effective_configuration,
         )
         permissions = first.universe_rows[0].debug[CONTEXTUAL_ELIGIBILITY_KEY]
         assert len(permissions) == 3 and all(
@@ -140,7 +146,11 @@ def test_native_sector_dependencies_freeze_permissions_and_advance_current(
             )
         db.commit()
         second = service.build_sector_rotation_snapshot(
-            db, run_id=7, market_cutoff=cutoff, persist=True
+            db,
+            run_id=7,
+            market_cutoff=cutoff,
+            persist=True,
+            effective_configuration=effective_configuration,
         )
         permissions = second.universe_rows[0].debug[CONTEXTUAL_ELIGIBILITY_KEY]
         assert len(permissions) == 3 and all(
@@ -162,7 +172,11 @@ def test_native_sector_dependencies_freeze_permissions_and_advance_current(
             db.get(CoreCalculationEvidence, projection.evidence_id).payload_json
         )
         retry = service.build_sector_rotation_snapshot(
-            db, run_id=7, market_cutoff=cutoff, persist=True
+            db,
+            run_id=7,
+            market_cutoff=cutoff,
+            persist=True,
+            effective_configuration=effective_configuration,
         )
         db.commit()
         assert retry.rows == second.rows

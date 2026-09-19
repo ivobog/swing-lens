@@ -313,6 +313,7 @@ class SetupLifecycleRepository:
             data_quality_label=dto.data_quality_label,
         )
         self._apply_snapshot_fields(candidate, dto)
+        candidate._effective_configuration = dto.effective_configuration
         try:
             with db.begin_nested():
                 db.add(candidate)
@@ -458,10 +459,16 @@ class SetupLifecycleRepository:
             raise ValueError("MUTATION_SETUP_IDENTITY_REQUIRED")
         if not isinstance(dto.effective_configuration, EffectiveConfigurationSnapshot):
             raise ValueError("MUTATION_SETUP_CONFIGURATION_REQUIRED")
+        temporal = dict(dto.source_lineage.get("temporal_lineage") or {})
+        expected_session = (
+            date.fromisoformat(str(temporal["input_as_of_session"]))
+            if temporal.get("input_as_of_session")
+            else dto.data_as_of_date
+        )
         if (
             identity.ownership.run_id.value != dto.run_id
             or identity.subject.ticker.value != self.normalize_ticker(dto.ticker)
-            or identity.temporal.as_of_session.value != dto.data_as_of_date
+            or identity.temporal.as_of_session.value != expected_session
         ):
             raise ValueError("MUTATION_SETUP_WRITE_SCOPE_MISMATCH")
 
@@ -596,7 +603,14 @@ class SetupLifecycleRepository:
             if selection is not None
             else None
         )
-        if previous is not None and previous.calculation_cutoff_at > snapshot.calculation_cutoff_at:
+        if (
+            previous is not None
+            and previous.calculation_cutoff_at is not None
+            and (
+                snapshot.calculation_cutoff_at is None
+                or previous.calculation_cutoff_at > snapshot.calculation_cutoff_at
+            )
+        ):
             raise ValueError("MUTATION_SETUP_PROJECTION_REGRESSION")
         if selection is not None and selection.selected_snapshot_id == snapshot.id:
             return CanonicalSelectionAdvance(selection, previous, False, None)
@@ -755,8 +769,13 @@ class SetupLifecycleRepository:
             previous_target = (
                 previous_by_id.get(selection.selected_snapshot_id) if selection else None
             )
-            if previous_target is not None and (
-                previous_target.calculation_cutoff_at > snapshot.calculation_cutoff_at
+            if (
+                previous_target is not None
+                and previous_target.calculation_cutoff_at is not None
+                and (
+                    snapshot.calculation_cutoff_at is None
+                    or previous_target.calculation_cutoff_at > snapshot.calculation_cutoff_at
+                )
             ):
                 raise ValueError("MUTATION_SETUP_PROJECTION_REGRESSION")
             previous = (
@@ -1140,8 +1159,8 @@ class SetupLifecycleRepository:
         candidates = self.load_canonicalization_candidates(db, [snapshot], lock=True)
         compatible = []
         for candidate in candidates:
-            validate_setup_projection(db, candidate)
             if candidate.config_hash == snapshot.config_hash:
+                validate_setup_projection(db, candidate)
                 compatible.append(candidate)
         if not compatible or select_canonical_snapshot(compatible).id != snapshot.id:
             raise ValueError("MUTATION_SETUP_PROJECTION_NATIVE_CHOICE_MISMATCH")

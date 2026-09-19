@@ -10,7 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCompany, CeriProcessingRun, CeriScoreSnapshot
@@ -604,6 +604,7 @@ def _seed_ceri_manual_evidence(
     db: Session,
     *,
     as_of_session: date,
+    baseline_tickers: tuple[str, ...] = ("ALFA",),
 ) -> tuple[list[int], list[int], int]:
     recent_guidance_at = (
         datetime.now(UTC).replace(hour=20, minute=15, second=0, microsecond=0) - timedelta(days=3)
@@ -712,7 +713,7 @@ def _seed_ceri_manual_evidence(
 
     # Acquire and calculate the modest baseline before acquiring the richer
     # current input. Both decisions retain their actual acquisition/cutoff time.
-    baseline_snapshot_id = _seed_ceri_baseline_snapshot(db, records)
+    baseline_snapshot_id = _seed_ceri_baseline_snapshot(db, records, tickers=baseline_tickers)
     db.commit()
     provider = ManualCeriProvider(records, provider_terms_version=FIXTURE_VERSION)
     service = CeriIngestionService(registry=CeriProviderRegistry(providers={"manual": provider}))
@@ -782,10 +783,13 @@ def _seed_ceri_manual_evidence(
 
 
 def _seed_ceri_baseline_snapshot(
-    db: Session, records: dict[CeriDataset, list[dict[str, Any]]]
+    db: Session,
+    records: dict[CeriDataset, list[dict[str, Any]]],
+    *,
+    tickers: tuple[str, ...] = ("ALFA",),
 ) -> int:
     baseline_records = {
-        dataset: [deepcopy(row) for row in rows if row["ticker"] == "ALFA"]
+        dataset: [deepcopy(row) for row in rows if row["ticker"] in tickers]
         for dataset, rows in records.items()
         if dataset in {CeriDataset.ESTIMATES, CeriDataset.EARNINGS, CeriDataset.GUIDANCE}
     }
@@ -816,30 +820,31 @@ def _seed_ceri_baseline_snapshot(
         )
     )
     for dataset in baseline_records:
-        result = ingestion.ingest(
-            db,
-            CeriIngestionRequest(
-                provider="manual",
-                dataset=dataset,
-                ticker="ALFA",
-                request_key=f"certification:{FIXTURE_VERSION}:pre-run:{dataset.value}",
-            ),
-        )
-        processing = CeriProcessingRun(
-            job_type="CERI_NORMALIZE",
-            status="RUNNING",
-            deterministic_request_key=f"certification:pre-run:normalize:{result.ingestion_run_id}",
-            scope_json={"ticker": "ALFA", "dataset": dataset.value},
-            started_at=datetime.now(UTC),
-        )
-        db.add(processing)
-        db.flush()
-        normalized = CeriNormalizationService().normalize(
-            db,
-            processing_run=processing,
-            ingestion_run_id=result.ingestion_run_id,
-        )
-        assert normalized.failed == 0, normalized
+        for ticker in tickers:
+            result = ingestion.ingest(
+                db,
+                CeriIngestionRequest(
+                    provider="manual",
+                    dataset=dataset,
+                    ticker=ticker,
+                    request_key=f"certification:{FIXTURE_VERSION}:pre-run:{dataset.value}:{ticker}",
+                ),
+            )
+            processing = CeriProcessingRun(
+                job_type="CERI_NORMALIZE",
+                status="RUNNING",
+                deterministic_request_key=f"certification:pre-run:normalize:{result.ingestion_run_id}",
+                scope_json={"ticker": ticker, "dataset": dataset.value},
+                started_at=datetime.now(UTC),
+            )
+            db.add(processing)
+            db.flush()
+            normalized = CeriNormalizationService().normalize(
+                db,
+                processing_run=processing,
+                ingestion_run_id=result.ingestion_run_id,
+            )
+            assert normalized.failed == 0, normalized
     db.flush()
     cutoff = MarketClockService().cutoff_for(
         datetime.now(UTC), reason="CERTIFICATION_NATIVE_BASELINE"
@@ -847,17 +852,22 @@ def _seed_ceri_baseline_snapshot(
     rebuilt = CeriFeatureRebuildService().rebuild(
         db,
         CeriFeatureRebuildRequest(
-            ticker="ALFA",
+            company_ids=tuple(
+                db.scalars(select(CeriCompany.id).where(CeriCompany.ticker.in_(tickers)))
+            ),
             as_of_session=cutoff.latest_completed_session,
             cutoff_at=cutoff.cutoff_at,
             mode="AS_KNOWN",
         ),
     )
     assert rebuilt.failed == 0, rebuilt
-    run = UploadRun(filename="ceri-native-baseline.csv", status="COMPLETED", row_count=1)
+    run = UploadRun(filename="ceri-native-baseline.csv", status="COMPLETED", row_count=len(tickers))
     db.add(run)
     db.flush()
-    db.add(RawCompanyRow(run_id=run.id, row_number=1, ticker="ALFA", raw_json={}))
+    db.add_all(
+        RawCompanyRow(run_id=run.id, row_number=index + 1, ticker=ticker, raw_json={})
+        for index, ticker in enumerate(tickers)
+    )
     db.flush()
     snapshot_service = CeriSnapshotService()
     frozen = resolve_ceri_configuration(
@@ -878,8 +888,12 @@ def _seed_ceri_baseline_snapshot(
         market_cutoff=cutoff,
         effective_configuration=frozen,
     )
-    assert captured.failed == 0 and captured.score_snapshots == 1, captured
-    snapshot = db.query(CeriScoreSnapshot).filter(CeriScoreSnapshot.run_id == run.id).one()
+    assert captured.failed == 0 and captured.score_snapshots == len(tickers), captured
+    snapshot = (
+        db.query(CeriScoreSnapshot)
+        .filter(CeriScoreSnapshot.run_id == run.id, CeriScoreSnapshot.ticker == tickers[0])
+        .one()
+    )
     assert snapshot.evidence_id is not None
     return int(snapshot.id)
 

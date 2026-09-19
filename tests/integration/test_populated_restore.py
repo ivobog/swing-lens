@@ -65,7 +65,7 @@ def test_populated_multi_module_backup_restore_preserves_evidence(
                 capture_output=True,
                 text=True,
             )
-            subprocess.run(
+            restore = subprocess.run(
                 [
                     pg_restore,
                     "--clean",
@@ -76,10 +76,11 @@ def test_populated_multi_module_backup_restore_preserves_evidence(
                     str(dump_path),
                 ],
                 cwd=REPO_ROOT,
-                check=True,
+                check=False,
                 capture_output=True,
                 text=True,
             )
+            assert restore.returncode == 0, restore.stdout + restore.stderr
 
             restored_engine = create_engine(restored_url, pool_pre_ping=True)
             validation = validate_database(restored_engine)

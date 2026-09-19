@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
@@ -24,13 +24,13 @@ from app.models.tables import (
     WinnerTargetStopOutcome,
     WinnerTemporalValidityDecision,
 )
+from app.services.entrypoint_authority import EntryPointAuthorityError
 from app.services.us_market_calendar import us_market_session
 from app.services.winner_probability.maturation_canary_service import (
     CanaryApprovalError,
     build_maturation_canary_manifest,
     canonical_canary_hash,
     execute_reviewed_maturation_canary,
-    verify_maturation_canary_results,
 )
 from app.services.winner_probability.outcome_service import (
     OutcomeMaturationService,
@@ -50,24 +50,33 @@ def test_explicit_hash_gated_canary_matures_only_reviewed_id(
     engine = create_engine(disposable_postgres_database)
     factory = sessionmaker(engine, expire_on_commit=False)
     with factory() as db:
-        reviewed_id = _seed_ready_outcome(db, ticker="CANARY", run_suffix="one")
+        reviewed_id = _seed_native_ready_outcome(db, ticker="CANARY", run_suffix="one")
+        operation_at = _native_operation_at(db, reviewed_id)
         unrelated_id = _seed_ready_outcome(db, ticker="CONTROL", run_suffix="two")
         db.commit()
     with factory() as db:
         manifest = build_maturation_canary_manifest(db, [reviewed_id])
         reviewed_hash = canonical_canary_hash(manifest)
 
-    result = execute_reviewed_maturation_canary(
-        factory,
-        manifest,
-        reviewed_manifest_hash=reviewed_hash,
-        approve_write=True,
-        actor="pytest",
-        request_key="pytest-explicit-canary",
-        now=datetime(2026, 8, 27, 22, 0, tzinfo=UTC),
-    )
+    with pytest.raises(EntryPointAuthorityError, match="LEGACY_MUTATION_RETIRED"):
+        execute_reviewed_maturation_canary(
+            factory,
+            manifest,
+            reviewed_manifest_hash=reviewed_hash,
+            approve_write=True,
+            actor="pytest",
+            request_key="pytest-explicit-canary",
+            now=operation_at,
+        )
 
-    assert result.outcome_ids == (reviewed_id,)
+    # The supported native writer replaces this formally retired incident tool.
+    with factory() as db:
+        result = OutcomeMaturationService().process_forward_outcome(
+            db,
+            db.get(WinnerForwardOutcome, reviewed_id),
+            now=operation_at,
+        )
+        db.commit()
     assert result.processed == result.matured == 1
     assert result.failed == 0
     with factory() as db:
@@ -92,11 +101,8 @@ def test_explicit_hash_gated_canary_matures_only_reviewed_id(
         assert diagnostic.evaluated_at is None
         assert db.scalar(select(func.count(WinnerEstimateEvidenceMember.id))) == 0
         assert db.scalar(select(func.count(WinnerEvidenceManifestMember.id))) == 0
-        verify_maturation_canary_results(
-            db,
-            manifest,
-            executed_at=datetime(2026, 8, 27, 22, 0, tzinfo=UTC),
-        )
+        # The retired tool's reviewed-canary audit contract is not a claim made
+        # by normal native maturation. Financial assertions above are retained.
     engine.dispose()
 
 
@@ -121,6 +127,7 @@ def test_canary_preflight_hash_and_state_drift_roll_back_without_maturation(
             approve_write=True,
             actor="pytest",
             request_key="pytest-bad-hash",
+            now=datetime(2026, 8, 27, 22, 0, tzinfo=UTC),
         )
     with factory() as db:
         bar = db.scalar(
@@ -134,7 +141,7 @@ def test_canary_preflight_hash_and_state_drift_roll_back_without_maturation(
         bar.data_hash = "drifted"
         db.commit()
 
-    with pytest.raises(CanaryApprovalError, match="preflight"):
+    with pytest.raises(EntryPointAuthorityError, match="LEGACY_MUTATION_RETIRED"):
         execute_reviewed_maturation_canary(
             factory,
             manifest,
@@ -142,6 +149,7 @@ def test_canary_preflight_hash_and_state_drift_roll_back_without_maturation(
             approve_write=True,
             actor="pytest",
             request_key="pytest-drift",
+            now=datetime(2026, 8, 27, 22, 0, tzinfo=UTC),
         )
     with factory() as db:
         assert db.get(WinnerForwardOutcome, outcome_id).status == "PENDING"
@@ -215,12 +223,14 @@ def test_postgresql_batched_diagnostic_maturation_leaves_next_open_sibling_uncha
     repository = WinnerOutcomeRepository()
     service = OutcomeMaturationService(repository=repository)
     with Session(engine) as db:
-        next_open_id = _seed_ready_outcome(db, ticker="REVERSE", run_suffix="reverse")
+        next_open_id = _seed_native_ready_outcome(db, ticker="REVERSE", run_suffix="reverse")
+        operation_at = _native_operation_at(db, next_open_id)
         next_open = db.get(WinnerForwardOutcome, next_open_id)
         diagnostic = db.scalar(
             select(WinnerForwardOutcome).where(
                 WinnerForwardOutcome.prediction_id == next_open.prediction_id,
                 WinnerForwardOutcome.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC",
+                WinnerForwardOutcome.horizon_sessions == 5,
                 WinnerForwardOutcome.is_current_revision.is_(True),
             )
         )
@@ -228,13 +238,12 @@ def test_postgresql_batched_diagnostic_maturation_leaves_next_open_sibling_uncha
             db.scalars(
                 select(WinnerTargetStopOutcome).where(
                     WinnerTargetStopOutcome.prediction_id == next_open.prediction_id,
+                    WinnerTargetStopOutcome.forward_outcome_id.in_([next_open.id, diagnostic.id]),
                     WinnerTargetStopOutcome.is_current_revision.is_(True),
                 )
             )
         )
-        next_open_target = next(
-            row for row in targets if row.entry_model == "NEXT_OPEN"
-        )
+        next_open_target = next(row for row in targets if row.entry_model == "NEXT_OPEN")
         diagnostic_target = next(
             row for row in targets if row.entry_model == "SIGNAL_CLOSE_DIAGNOSTIC"
         )
@@ -251,7 +260,7 @@ def test_postgresql_batched_diagnostic_maturation_leaves_next_open_sibling_uncha
         result = service.process_forward_outcome(
             db,
             diagnostic,
-            now=datetime(2026, 8, 27, 22, 0, tzinfo=UTC),
+            now=operation_at,
             context=context,
         )
         db.commit()
@@ -279,13 +288,14 @@ def test_postgresql_same_bar_conflict_fixture_is_conservative(
     engine = create_engine(disposable_postgres_database)
     factory = sessionmaker(engine, expire_on_commit=False)
     with factory() as db:
-        outcome_id = _seed_ready_outcome(
+        outcome_id = _seed_native_ready_outcome(
             db,
             ticker="CONFLICT",
             run_suffix="conflict",
             first_high=Decimal("106"),
             first_low=Decimal("94"),
         )
+        operation_at = _native_operation_at(db, outcome_id)
         db.commit()
     with factory() as db:
         manifest = build_maturation_canary_manifest(db, [outcome_id])
@@ -293,16 +303,24 @@ def test_postgresql_same_bar_conflict_fixture_is_conservative(
         assert expected["first_event"] == "SAME_BAR_CONFLICT"
         assert expected["primary_winner"] is False
         reviewed_hash = canonical_canary_hash(manifest)
-    execute_reviewed_maturation_canary(
-        factory,
-        manifest,
-        reviewed_manifest_hash=reviewed_hash,
-        approve_write=True,
-        actor="pytest",
-        request_key="pytest-conflict",
-        now=datetime(2026, 8, 27, 22, 0, tzinfo=UTC),
-    )
+    with pytest.raises(EntryPointAuthorityError, match="LEGACY_MUTATION_RETIRED"):
+        execute_reviewed_maturation_canary(
+            factory,
+            manifest,
+            reviewed_manifest_hash=reviewed_hash,
+            approve_write=True,
+            actor="pytest",
+            request_key="pytest-conflict",
+            now=operation_at,
+        )
     with factory() as db:
+        result = OutcomeMaturationService().process_forward_outcome(
+            db,
+            db.get(WinnerForwardOutcome, outcome_id),
+            now=operation_at,
+        )
+        assert result.processed == result.matured == 1, result
+        db.commit()
         target = db.scalar(
             select(WinnerTargetStopOutcome).where(
                 WinnerTargetStopOutcome.prediction_id
@@ -356,17 +374,17 @@ def test_scope_leak_repair_creates_append_only_pending_revision(
             incident="pytest-scope-leak",
         )
         reviewed_hash = target_stop_scope_repair_hash(manifest)
-        result = apply_target_stop_scope_repair(
-            db,
-            manifest,
-            reviewed_manifest_hash=reviewed_hash,
-            approve_write=True,
-            actor="pytest",
-            request_key="pytest-repair",
-            now=datetime(2026, 9, 7, tzinfo=UTC),
-        )
+        with pytest.raises(EntryPointAuthorityError, match="LEGACY_MUTATION_RETIRED"):
+            apply_target_stop_scope_repair(
+                db,
+                manifest,
+                reviewed_manifest_hash=reviewed_hash,
+                approve_write=True,
+                actor="pytest",
+                request_key="pytest-repair",
+                now=datetime(2026, 9, 7, tzinfo=UTC),
+            )
         db.commit()
-        assert result.created_revision_ids
 
     with Session(engine) as db:
         rows = list(
@@ -377,18 +395,13 @@ def test_scope_leak_repair_creates_append_only_pending_revision(
                 .order_by(WinnerTargetStopOutcome.revision)
             )
         )
-        assert len(rows) == 2
-        old, current = rows
+        assert len(rows) == 1
+        old = rows[0]
         assert old.status == "MATURED"
         assert old.source_bar_lineage_hash == "wrong-next-open-lineage"
-        assert old.is_current_revision is False
-        assert current.revision == 2
-        assert current.is_current_revision is True
-        assert current.status == "PENDING"
-        assert current.forward_outcome_id != next_open_id
-        assert current.source_bar_lineage_hash is None
-        assert current.evaluated_at is None
-        assert current.metadata_json["repair_type"] == "MATURATION_SCOPE_LEAK_CORRECTION"
+        assert old.is_current_revision is True
+        assert old.revision == 1
+        assert old.forward_outcome_id == next_open_id
     engine.dispose()
 
 
@@ -419,7 +432,7 @@ def test_scope_leak_repair_hash_gate_and_drift_are_atomic(
             db, target_stop_ids=[bad_id], incident="pytest-atomic"
         )
     with Session(engine) as db:
-        with pytest.raises(RuntimeError, match="hash"):
+        with pytest.raises(EntryPointAuthorityError, match="LEGACY_MUTATION_RETIRED"):
             apply_target_stop_scope_repair(
                 db,
                 manifest,
@@ -436,7 +449,7 @@ def test_scope_leak_repair_hash_gate_and_drift_are_atomic(
         }
         db.commit()
     with Session(engine) as db:
-        with pytest.raises(RuntimeError, match="changed after review"):
+        with pytest.raises(EntryPointAuthorityError, match="LEGACY_MUTATION_RETIRED"):
             apply_target_stop_scope_repair(
                 db,
                 manifest,
@@ -459,6 +472,163 @@ def test_scope_leak_repair_hash_gate_and_drift_are_atomic(
         assert rows[0].is_current_revision is True
         assert rows[0].revision == 1
     engine.dispose()
+
+
+def _native_operation_at(db, outcome_id):
+    return datetime.combine(
+        db.get(WinnerForwardOutcome, outcome_id).due_session + timedelta(days=1),
+        time(22),
+        tzinfo=UTC,
+    )
+
+
+def _seed_native_ready_outcome(
+    db, *, ticker, run_suffix, first_high=Decimal("103"), first_low=Decimal("99")
+):
+    """Native producers replace the old manually unsealed positive fixture."""
+    from dataclasses import replace
+
+    from native_mutation_support import seed_native_core
+    from test_t14c_decision_writer_postgresql import _native_liquidity_source
+    from test_technical_work import _synthetic_frame
+
+    from app.services.bar_cache_service import price_bar_data_hash
+    from app.services.decision_effective_configuration import (
+        resolve_setup_configuration,
+        resolve_winner_configuration,
+    )
+    from app.services.transition_preflight_plan_service import (
+        freeze_transition_decision_handoff_manifest,
+    )
+    from app.services.us_market_calendar import next_us_trading_day
+    from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
+    from app.services.winner_probability.config import (
+        load_winner_probability_config,
+        winner_probability_config_hash,
+    )
+    from app.services.winner_probability.market_data_obligation_service import (
+        MarketDataObligationService,
+        required_outcome_sessions,
+    )
+
+    config = load_winner_probability_config()
+    config = replace(
+        config,
+        engine=replace(config.engine, enabled=True),
+        outcome_definitions=tuple(
+            replace(d, target_pct=5.0, stop_pct=5.0) for d in config.outcome_definitions
+        ),
+    )
+    config = replace(config, config_hash=winner_probability_config_hash(config))
+    configurations = tuple(
+        resolve_winner_configuration(config, family=f)
+        for f in ("prediction", "outcome", "cohort", "generation")
+    ) + (resolve_setup_configuration(),)
+    frame = _synthetic_frame()
+    for column in ("open", "high", "low", "close"):
+        frame[column] *= 101.0 / float(_synthetic_frame()["close"].iloc[-1])
+    # Diagnostic entry uses the native source-record birth cutoff. The test's
+    # future capture also has later observations; both closing populations are
+    # explicit source inputs, with no retrospective timestamp/proof rewriting.
+    frame.loc[frame.index[-10:], ["open", "high", "low", "close"]] = [100, 103, 99, 101]
+    run_id = int(db.scalar(select(func.max(UploadRun.id))) or 6) + 1
+    # Synthetic observation dates are after the real SQL creation timestamps.
+    # No timestamp, immutable proof or financial validator is retrofitted.
+    cutoff_at = datetime.combine(datetime.now(UTC).date() + timedelta(days=7), time(22), tzinfo=UTC)
+    cutoff, _, _ = seed_native_core(
+        db,
+        run_id=run_id,
+        ticker=ticker,
+        price_frame=frame,
+        cutoff_at=cutoff_at,
+        extra_configurations=configurations,
+        raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+    )
+    handoff = freeze_transition_decision_handoff_manifest(
+        db, upload_run_id=run_id, market_cutoff=cutoff
+    )
+    db.add(
+        IBContract(
+            ticker=ticker,
+            ib_conid=100_000 + run_id,
+            symbol=ticker,
+            local_symbol=ticker,
+            exchange="SMART",
+            primary_exchange="NYSE",
+            currency="USD",
+            sec_type="STK",
+            trading_class=ticker,
+            resolution_status="RESOLVED",
+        )
+    )
+    db.commit()
+    next_session = next_us_trading_day(cutoff.latest_completed_session)
+    decision_at = us_market_session(next_session).open_at - timedelta(hours=1)
+    result = WinnerPredictionCaptureService().capture_run(
+        db,
+        run_id=run_id,
+        config=config,
+        market_cutoff=cutoff,
+        decision_handoff_manifest_id=handoff.id,
+        decision_at=decision_at,
+        captured_at=decision_at + timedelta(minutes=1),
+    )
+    assert result.inserted == 1 and result.failed == 0, result.as_dict()
+    db.commit()
+    prediction = db.scalar(
+        select(WinnerPredictionSnapshot).where(WinnerPredictionSnapshot.run_id == run_id)
+    )
+    outcome = db.scalar(
+        select(WinnerForwardOutcome).where(
+            WinnerForwardOutcome.prediction_id == prediction.id,
+            WinnerForwardOutcome.entry_model == "NEXT_OPEN",
+            WinnerForwardOutcome.horizon_sessions == 5,
+        )
+    )
+    sessions = required_outcome_sessions(outcome.entry_session, 5)
+    operation_at = _native_operation_at(db, outcome.id)
+    observed_at = operation_at - timedelta(hours=10)
+    for basis in ("ADJUSTED_LAST", "TRADES"):
+        for index, day in enumerate(sessions):
+            bar = PriceBar(
+                ticker=ticker,
+                bar_date=day,
+                timeframe="1 day",
+                what_to_show=basis,
+                open=Decimal("100"),
+                high=first_high if index == 0 else Decimal(103 + index),
+                low=first_low if index == 0 else Decimal(99 - index),
+                close=Decimal(101 + index),
+                volume=Decimal("1000"),
+                source="T14D_EXPLICIT_OBSERVATION",
+                created_at=observed_at,
+                first_seen_at=observed_at,
+                last_seen_at=observed_at,
+                revision_count=0,
+            )
+            bar.data_hash = price_bar_data_hash(bar)
+            db.add(bar)
+    db.commit()
+    db.expire_all()
+    obligations = list(
+        db.scalars(
+            select(WinnerMarketDataObligation).where(
+                WinnerMarketDataObligation.prediction_id == prediction.id,
+                WinnerMarketDataObligation.forward_outcome_id.in_(
+                    select(WinnerForwardOutcome.id).where(
+                        WinnerForwardOutcome.prediction_id == prediction.id,
+                        WinnerForwardOutcome.horizon_sessions == 5,
+                    )
+                ),
+            )
+        )
+    )
+    evaluated = MarketDataObligationService().evaluate(
+        db, obligations=obligations, now=operation_at
+    )
+    assert evaluated.satisfied == len(obligations), evaluated.as_dict()
+    db.commit()
+    return int(outcome.id)
 
 
 def _seed_ready_outcome(

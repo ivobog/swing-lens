@@ -94,6 +94,28 @@ def test_snapshot_builder_persists_pipeline_temporal_lineage() -> None:
     assert snapshot.calendar_version == cutoff.calendar_version
 
 
+def test_snapshot_temporal_lineage_separates_evaluation_session_from_stale_source_date() -> None:
+    cutoff = (
+        MarketClockService()
+        .cutoff_for(
+            datetime(2026, 8, 5, 21, 0, tzinfo=UTC),
+            reason="FULL_PIPELINE_FROZEN_AT_ENQUEUE",
+        )
+        .with_context_id(43)
+    )
+    built = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config()).build(
+        _ticker_context(
+            market_cutoff=cutoff,
+            price_bars=(_bar(date(2026, 7, 20), close=99),),
+        )
+    )
+
+    assert built.dto.data_as_of_date == date(2026, 7, 20)
+    temporal = built.dto.source_lineage["temporal_lineage"]
+    assert temporal["input_as_of_session"] == cutoff.latest_completed_session.isoformat()
+    assert datetime.fromisoformat(temporal["calculation_cutoff_at"]) == cutoff.cutoff_at
+
+
 def test_populated_close_is_counted_but_missing_close_remains_null_and_warns() -> None:
     builder = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config())
 

@@ -42,6 +42,7 @@ from app.services.ceri.sec.client import SecClientConfig, SecEdgarClient
 from app.services.ceri.sec.guidance_extractor import GuidanceExtractionService
 from app.services.ceri.sec.provider import SecCeriProvider
 from app.services.ceri.source_record_service import CeriSourceRecordService
+from app.services.entrypoint_authority import require_disposable_tool_target
 from app.services.redaction import redact_text
 from app.services.worker_registry import heartbeat_worker, register_worker
 from app.settings import get_settings
@@ -654,6 +655,7 @@ class SystemSampler:
 
 
 def run_scenario(label: str, tickers: tuple[str, ...], stamp: str) -> dict[str, Any]:
+    require_disposable_tool_target(str(engine.url))
     known = load_known_filings(tickers)
     tracker = Tracker(label, tickers, known)
     SessionFactory = sessionmaker(
@@ -1691,6 +1693,7 @@ def safe_error(exc: Exception) -> str:
 
 
 def main() -> int:
+    require_disposable_tool_target(get_settings().database_url)
     parser = argparse.ArgumentParser(description="Measurement-only SwingLens SEC/CERI profiler")
     parser.add_argument("--output-dir", type=Path, default=Path("output"))
     parser.add_argument("--tickers", nargs="*", default=list(PROFILE_TICKERS))

@@ -446,6 +446,7 @@ def execute_outcome_maturation_job(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     payload = job.payload_json or {}
+    operation_cutoff = _retained_operation_cutoff(db, payload, now=now)
     limit = _optional_int(payload, "limit") or 500
     max_batches = _optional_int(payload, "max_batches") or 10
     due_session = (
@@ -471,6 +472,9 @@ def execute_outcome_maturation_job(
                 result = orchestration_service.drain_due(
                     db,
                     now=now,
+                    **(
+                        {"operation_cutoff_at": operation_cutoff} if isinstance(db, Session) else {}
+                    ),
                     batch_size=limit,
                     max_batches=max_batches,
                     due_session=due_session,
@@ -480,7 +484,7 @@ def execute_outcome_maturation_job(
             else:
                 result = outcome_service.process_due_outcomes(  # type: ignore[union-attr]
                     db,
-                    now=now,
+                    now=operation_cutoff,
                     limit=limit,
                     should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
                 )
@@ -573,8 +577,6 @@ def execute_outcome_maturation_job(
         )
 
     status = classify_maturation_status(counts)
-    if continuation_decision != "DEFER_SAME_JOB" and status == JobStatus.PARTIAL:
-        job.status = JobStatus.PARTIAL
     _finish_processing_run(
         db,
         processing_run,
@@ -631,6 +633,9 @@ def execute_outcome_maturation_job(
             {"outcome_definition_id": definition_id},
             request_key=f"winner:cohort-refresh:{definition_id}",
         )
+    if continuation_decision != "DEFER_SAME_JOB" and status == JobStatus.PARTIAL:
+        job.status = JobStatus.PARTIAL
+
     if continuation_decision == "ENQUEUE_CONTINUATION":
         enqueue_job(
             db,
@@ -643,6 +648,13 @@ def execute_outcome_maturation_job(
             parent_job_id=job.id,
             continuation_depth=depth + 1,
             trigger_source="CONTINUATION",
+            # The leased parent is transitioned to PARTIAL in this same
+            # transaction so the workflow unique index can hand ownership to
+            # its child.  A savepoint release is not a durable commit, but the
+            # domain fence deliberately rejects it after that lease transition.
+            # The continuation request key is derived from this unique
+            # processing run, so no same-attempt coalescing window exists.
+            coalesce=False,
         )
         publish_after_commit(db, "increment", "winner_maturation_continuations_total")
 
@@ -692,6 +704,7 @@ def execute_outcome_revision_check_job(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     payload = job.payload_json or {}
+    operation_cutoff = _retained_operation_cutoff(db, payload, now=now)
     limit = _optional_int(payload, "limit") or 500
     forward_outcome_ids = tuple(_int_list(payload, "forward_outcome_ids", required=False))
     config = load_winner_probability_config()
@@ -707,7 +720,7 @@ def execute_outcome_revision_check_job(
     try:
         result = outcome_service.process_current_revisions(
             db,
-            now=now,
+            now=operation_cutoff,
             limit=limit,
             forward_outcome_ids=forward_outcome_ids,
             should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
@@ -820,7 +833,7 @@ def execute_cohort_refresh_job(
             on_generation_captured=link_generation,
             max_groups=max_groups,
             max_wall_seconds=max_wall_seconds,
-            operation_at=_utcnow(),
+            operation_at=_retained_operation_cutoff(db, payload),
         )
     except (WinnerCohortRefreshCancelled, CohortMaterializationCancelled) as exc:
         _finish_processing_run(
@@ -1377,3 +1390,15 @@ def classify_maturation_status(counts: dict[str, Any]) -> str:
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _retained_operation_cutoff(db, payload, *, now=None):
+    if not isinstance(db, Session):
+        return now
+    value = payload.get("operation_cutoff_at")
+    if not value:
+        raise ValueError("MUTATION_FROZEN_OPERATION_CUTOFF_REQUIRED")
+    cutoff = datetime.fromisoformat(str(value))
+    if cutoff.tzinfo is None or cutoff.utcoffset() is None:
+        raise ValueError("MUTATION_AWARE_OPERATION_CUTOFF_REQUIRED")
+    return cutoff

@@ -517,7 +517,6 @@ def test_all_registered_business_handlers_reject_missing_binding_before_financia
     excluded = {name for name in handlers if not durable_business_job(name)}
     assert excluded == {
         "IB_FETCH",
-        "IB_FLEX_IMPORT",
         "IB_SCANNER_RUN",
         "MARKET_DATA_PREWARM",
         "SEC_READINESS_REPAIR",
@@ -531,6 +530,68 @@ def test_all_registered_business_handlers_reject_missing_binding_before_financia
             with pytest.raises(ValueError, match="MISSING_CONFIGURATION_ANCHOR_BINDING"):
                 execute_job(db, job, handlers)
             assert db.scalar(select(func.count()).select_from(CoreCalculationEvidence)) == 0
+        db.rollback()
+    engine.dispose()
+
+
+def test_ib_flex_import_native_enqueue_binds_retained_configuration(
+    disposable_postgres_database,
+):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.models.tables import ExecutionConfigurationBinding
+    from app.services.background_job_service import enqueue_job
+    from app.services.configuration_delivery import (
+        ANCHOR_KEY,
+        execution_configuration_reference,
+    )
+    from app.services.ib_market_intelligence.job_handlers import IB_FLEX_IMPORT
+
+    config = Config("alembic.ini")
+    config.attributes["database_url"] = disposable_postgres_database
+    command.upgrade(config, "head")
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        job = enqueue_job(
+            db,
+            job_type=IB_FLEX_IMPORT,
+            request_key="phase4-ib-flex-retained-configuration",
+            payload={"query_type": "TRADE_CONFIRMATIONS", "dry_run": True},
+        )
+        db.flush()
+        binding = db.get(ExecutionConfigurationBinding, f"job:{job.id}")
+        assert binding is not None
+        assert execution_configuration_reference(db, job) == job.payload_json[ANCHOR_KEY]
+        assert binding.anchor_id == job.payload_json[ANCHOR_KEY]["anchor_id"]
+        db.rollback()
+    engine.dispose()
+
+
+def test_ib_flex_import_manual_job_rejects_missing_binding(
+    disposable_postgres_database,
+):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.models.tables import BackgroundJob
+    from app.services.background_worker import default_job_handlers, execute_job
+    from app.services.ib_market_intelligence.job_handlers import IB_FLEX_IMPORT
+
+    config = Config("alembic.ini")
+    config.attributes["database_url"] = disposable_postgres_database
+    command.upgrade(config, "head")
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        job = BackgroundJob(
+            job_type=IB_FLEX_IMPORT,
+            status="QUEUED",
+            payload_json={"query_type": "TRADE_CONFIRMATIONS", "dry_run": True},
+        )
+        db.add(job)
+        db.flush()
+        with pytest.raises(ValueError, match="MISSING_CONFIGURATION_ANCHOR_BINDING"):
+            execute_job(db, job, default_job_handlers())
         db.rollback()
     engine.dispose()
 

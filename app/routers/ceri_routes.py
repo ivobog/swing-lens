@@ -55,12 +55,14 @@ from app.services.ceri.query_service import (
     CeriQueryFilters,
     CeriQueryService,
 )
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.redaction import redact_sensitive, redact_text
 from app.services.resource_limits import (
     ResourceLimitExceeded,
     enforce_row_limit,
     limit_error_payload,
 )
+from app.services.supporting_mutation_authority import supporting_mutation_operation
 from app.settings import get_settings
 from app.templates import templates
 
@@ -775,6 +777,11 @@ def recalculate_ceri(
     csrf_required=True,
     local_admin_required=True,
 )
+@supporting_mutation_operation(
+    MutationDomain.CERI_REVIEW,
+    MutationSemanticMode.MAINTENANCE,
+    ("review_target", "human_review"),
+)
 def review_ceri_event(
     event_id: int,
     request: Request,
@@ -791,10 +798,23 @@ def review_ceri_event(
         select(CeriCatalystEventRevision)
         .where(CeriCatalystEventRevision.catalyst_event_id == event_id)
         .where(CeriCatalystEventRevision.is_current.is_(True))
+        .with_for_update()
     )
     review_payload = dict(payload or {})
+    new_value = review_payload.get("new_value") or {"review_state": "REVIEWED"}
+    if not isinstance(new_value, dict) or set(new_value) != {"review_state"}:
+        raise _structured_http_error(
+            "REVIEW_METADATA_ONLY",
+            "Human review accepts only review_state. Financial source changes require "
+            "a separate source override and explicit recalculation.",
+            status_code=422,
+        )
+    if new_value["review_state"] not in {"UNREVIEWED", "REVIEWED", "NEEDS_REVIEW", "REJECTED"}:
+        raise _structured_http_error(
+            "INVALID_REVIEW_STATE", "Unsupported review_state.", status_code=422
+        )
     existing = _active_manual_review(db, "CATALYST_EVENT", event_id)
-    if existing is not None and existing.new_value_json != review_payload.get("new_value"):
+    if existing is not None and existing.new_value_json != new_value:
         raise _structured_http_error(
             "REVIEW_CONFLICT", "Active review already exists.", status_code=409
         )
@@ -802,7 +822,7 @@ def review_ceri_event(
         target_type="CATALYST_EVENT",
         target_id=event_id,
         prior_value_json={"review_state": getattr(current_revision, "review_state", None)},
-        new_value_json=review_payload.get("new_value") or {"review_state": "REVIEWED"},
+        new_value_json=new_value,
         reviewer=str(review_payload.get("reviewer") or "local-admin"),
         reason=str(review_payload.get("reason") or "CERI local review"),
         is_current=True,

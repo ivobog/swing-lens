@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -568,9 +568,7 @@ def queue_winner_prediction_capture(
                 ),
             )
         handoff = handoffs[0]
-        context = db.get(
-            MarketCalculationContext, handoff.market_calculation_context_id
-        )
+        context = db.get(MarketCalculationContext, handoff.market_calculation_context_id)
         if context is None:
             raise HTTPException(status_code=409, detail="Winner market context was not found")
         payload = {
@@ -699,6 +697,7 @@ def retire_winner_probability_model(
             model_id=id,
             actor=request.client.host if request.client else "local",
             reason=reason,
+            operation_at=datetime.now(UTC),
         )
         db.commit()
     except WinnerProbabilityApiError as exc:
@@ -774,9 +773,7 @@ def _run_evidence_summary(payload: dict) -> dict[str, int]:
         "estimate_count": counts.get("estimate_total", len(estimates)),
         "calibrated_count": counts.get("calibrated_total", len(calibrated)),
         "insufficient_count": counts.get("insufficient_total", len(insufficient)),
-        "missing_estimate_count": counts.get(
-            "missing_estimate_total", len(rows) - len(estimates)
-        ),
+        "missing_estimate_count": counts.get("missing_estimate_total", len(rows) - len(estimates)),
     }
 
 

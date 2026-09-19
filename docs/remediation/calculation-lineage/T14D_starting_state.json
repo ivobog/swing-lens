@@ -1,0 +1,14 @@
+{
+  "repository_path": "C:\\Users\\Ivica\\Documents\\SwingLens",
+  "starting_branch": "codex/t14c-decision-winner-writer-adoption",
+  "branch": "codex/t14d-caller-entrypoint-unification",
+  "head": "8f8b09d0b30cd0dee54328e7ad18619b09ed2a94",
+  "status_before_task": "CLEAN",
+  "tracked_changes": [],
+  "untracked_files": [],
+  "origin_main": "febe376be67f01589199cd3ba55af98fd54001ed",
+  "local_main": "febe376be67f01589199cd3ba55af98fd54001ed",
+  "migration_head": "0080_effective_configuration",
+  "python_version": "3.12.2 (tags/v3.12.2:6abddd9, Feb  6 2024, 21:26:36) [MSC v.1937 64 bit (AMD64)]",
+  "docker_postgresql_availability": "Docker Desktop Linux engine 29.6.2 available; task-owned PostgreSQL not yet created"
+}

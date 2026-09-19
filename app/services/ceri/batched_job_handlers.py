@@ -46,6 +46,7 @@ from app.services.ceri.orchestration import (
 )
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.configuration_delivery import anchored_job_configuration
 from app.services.pipeline_prerequisites import CeriUpstreamStageBlockedError
 from app.settings import get_settings
 
@@ -67,6 +68,7 @@ def implemented_batched_ceri_job_handlers():
     }
 
 
+@anchored_job_configuration
 def execute_provider_ingest_batch_job(
     db: Session,
     job: BackgroundJob,
@@ -153,6 +155,7 @@ def execute_provider_ingest_batch_job(
     }
 
 
+@anchored_job_configuration
 def execute_normalize_batch_job(
     db: Session,
     job: BackgroundJob,
@@ -247,6 +250,7 @@ def execute_normalize_batch_job(
     }
 
 
+@anchored_job_configuration
 def execute_feature_batch_job(
     db: Session,
     job: BackgroundJob,
@@ -433,6 +437,7 @@ def execute_feature_batch_job(
     }
 
 
+@anchored_job_configuration
 def execute_run_finalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     if not ceri_flags().enabled:
         return _skipped(CERI_RUN_FINALIZE, "ceri_disabled")
@@ -456,6 +461,7 @@ def execute_run_finalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
             **{
                 key: payload[key]
                 for key in (
+                    "pipeline_run_id",
                     "cutoff_at",
                     "as_of_session",
                     "calendar_version",

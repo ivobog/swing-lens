@@ -302,6 +302,8 @@ def execute_rebuild_features_job(
         },
         errors={"records": list(result.errors)} if result.errors else None,
     )
+    if result.failed:
+        job.status = JobStatus.PARTIAL
     values = {
         "job_type": CERI_REBUILD_FEATURES,
         "processing_run_id": processing.id,
@@ -336,6 +338,15 @@ def execute_capture_run_job(
     payload = job.payload_json or {}
     run_id = _required_int(payload, "run_id")
     market_cutoff = None
+    if isinstance(db, Session) and not _is_pipeline_owned_ceri_job(job, payload):
+        from app.services.market_clock_service import MarketClockService
+
+        operation_at = _optional_datetime(payload.get("operation_cutoff_at"))
+        if operation_at is None or operation_at.utcoffset() is None:
+            raise ValueError("MUTATION_FROZEN_OPERATION_CUTOFF_REQUIRED")
+        market_cutoff = MarketClockService().cutoff_for(
+            operation_at, reason="NEW_DURABLE_CERI_CALCULATION"
+        )
     if _is_pipeline_owned_ceri_job(job, payload):
         missing = [
             key
@@ -416,7 +427,14 @@ def execute_capture_run_job(
         "swinglens_ceri_scoring_total",
         result="partial" if values.get("failed") else "success",
     )
-    return {"job_type": CERI_CAPTURE_RUN, "processing_run_id": processing.id, **values}
+    if values.get("failed"):
+        job.status = JobStatus.PARTIAL
+    return {
+        "job_type": CERI_CAPTURE_RUN,
+        "processing_run_id": processing.id,
+        "status": processing.status,
+        **values,
+    }
 
 
 @anchored_job_configuration
@@ -487,6 +505,8 @@ def execute_change_detection_job(
         },
         errors={"records": list(result.errors)} if result.errors else None,
     )
+    if result.failed:
+        job.status = JobStatus.PARTIAL
     values = {
         "job_type": CERI_CHANGE_DETECTION,
         "processing_run_id": processing.id,
@@ -995,6 +1015,7 @@ def _temporal_context_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         key: payload[key]
         for key in (
+            "pipeline_run_id",
             "calculation_context_id",
             "cutoff_at",
             "as_of_session",

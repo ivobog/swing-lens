@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.database_safety import run_guarded_alembic_upgrade
 from app.models.tables import (
     CombinedResult,
+    CoreCalculationEvidence,
+    ExecutionConfigurationBinding,
     FundamentalScore,
     MarketRegimeSnapshot,
     PipelineRun,
@@ -30,10 +32,19 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.combined_ranking_identity import (
     build_fundamental_score_identity,
     build_technical_score_identity,
+    calculation_identity_from_debug,
     embed_calculation_identity,
+)
+from app.services.configuration_delivery import (
+    binding_reference,
+    configuration_delivery_scope,
+    load_configuration_delivery,
+    persist_configuration_anchor,
+    resolve_pipeline_configurations,
 )
 from app.services.contextual_calculation_identity import (
     build_contextual_result_identity,
@@ -42,12 +53,19 @@ from app.services.contextual_calculation_identity import (
     embed_identity,
     expected_sector_identity,
 )
-from app.services.market_calculation_context_service import create_pipeline_market_context
+from app.services.core_calculation_evidence import calculation_evidence_payload
+from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+from app.services.market_calculation_context_service import (
+    create_pipeline_market_context,
+    market_context_for_pipeline,
+)
 from app.services.market_regime_policy import load_market_regime_command_center_config
+from app.services.producer_readiness import READINESS_PAYLOAD_KEY, normalize_producer_readiness
 from app.services.sector_rotation_config import (
     load_sector_rotation_config,
     sector_rotation_config_hash,
 )
+from app.services.setup_lifecycle.decision_evidence import _SETUP_PROJECTION_FIELDS
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
 from app.services.setup_lifecycle.export_service import export_alerts_csv, export_changes_csv
 from app.services.setup_lifecycle.maintenance_service import SetupLifecycleMaintenanceService
@@ -56,6 +74,12 @@ from app.services.setup_lifecycle.query_service import (
     SetupLifecycleListQuery,
     SetupLifecycleQueryService,
 )
+from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+from app.services.setup_lifecycle.snapshot_builder import (
+    SetupLifecycleSnapshotBuilder,
+    build_run_context_snapshots,
+)
+from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GOLDEN_FIXTURE_VERSION = "slse-golden-1.0.0"
@@ -549,11 +573,7 @@ def test_versioned_golden_source_sequences_run_through_the_production_stack(
         for scenario in PRODUCTION_SCENARIOS:
             for day in scenario.days:
                 source_run_id = _seed_source_day(db, scenario.ticker, day)
-                result = SetupLifecycleEvaluationService().evaluate_run(
-                    db,
-                    source_run_id,
-                    requester=GOLDEN_FIXTURE_VERSION,
-                )
+                result = _evaluate_seeded_run(SetupLifecycleEvaluationService(), db, source_run_id)
                 db.commit()
                 assert result.failed == 0, (scenario.name, day.as_of, result.errors_by_ticker)
                 _assert_every_layer(db, scenario, day, source_run_id)
@@ -666,7 +686,7 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
         )
         for ticker, day, warning in missing_cases:
             run_id = _seed_source_day(db, ticker, day)
-            result = evaluator.evaluate_run(db, run_id, requester=GOLDEN_FIXTURE_VERSION)
+            result = _evaluate_seeded_run(evaluator, db, run_id)
             db.commit()
             assert result.failed == 0
             snapshot = db.scalar(
@@ -683,7 +703,7 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
             "GABS",
             SourceDay(date(2026, 7, 27), setup_score=7.8, close=99),
         )
-        evaluator.evaluate_run(db, absence_run, requester=GOLDEN_FIXTURE_VERSION)
+        _evaluate_seeded_run(evaluator, db, absence_run)
         db.commit()
         one_gap = SetupLifecycleMaintenanceService().daily_maintenance(
             db,
@@ -704,7 +724,7 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
             "GEXP",
             SourceDay(date(2026, 7, 27), setup_score=7.8, close=99),
         )
-        evaluator.evaluate_run(db, expiry_run, requester=GOLDEN_FIXTURE_VERSION)
+        _evaluate_seeded_run(evaluator, db, expiry_run)
         db.commit()
         maintenance = SetupLifecycleMaintenanceService()
         for gap_date in (
@@ -740,7 +760,7 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
             "GREV",
             SourceDay(date(2026, 8, 3), setup_score=6.0, technical_score=6.5),
         )
-        evaluator.evaluate_run(db, first_revision_run, requester=GOLDEN_FIXTURE_VERSION)
+        _evaluate_seeded_run(evaluator, db, first_revision_run)
         second_revision_run = _seed_source_day(
             db,
             "GREV",
@@ -752,7 +772,7 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
                 add_bar=False,
             ),
         )
-        evaluator.evaluate_run(db, second_revision_run, requester=GOLDEN_FIXTURE_VERSION)
+        _evaluate_seeded_run(evaluator, db, second_revision_run)
         db.commit()
         revisions = list(
             db.scalars(
@@ -794,10 +814,10 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
             "GRTY",
             SourceDay(date(2026, 8, 3), setup_score=7.8, close=99),
         )
-        evaluator.evaluate_run(db, retry_run, requester=GOLDEN_FIXTURE_VERSION)
+        _evaluate_seeded_run(evaluator, db, retry_run)
         db.commit()
         before_retry = _domain_counts(db, "GRTY")
-        evaluator.evaluate_run(db, retry_run, requester=GOLDEN_FIXTURE_VERSION)
+        _evaluate_seeded_run(evaluator, db, retry_run)
         db.commit()
         assert _domain_counts(db, "GRTY") == before_retry
         assert (
@@ -814,7 +834,7 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
             "GCAN",
             SourceDay(date(2026, 8, 3), setup_score=6.0, technical_score=6.5),
         )
-        evaluator.evaluate_run(db, canonical_first, requester=GOLDEN_FIXTURE_VERSION)
+        _evaluate_seeded_run(evaluator, db, canonical_first)
         canonical_revision = _seed_source_day(
             db,
             "GCAN",
@@ -825,7 +845,7 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
                 add_bar=False,
             ),
         )
-        evaluator.evaluate_run(db, canonical_revision, requester=GOLDEN_FIXTURE_VERSION)
+        _evaluate_seeded_run(evaluator, db, canonical_revision)
         selected_revision = db.scalar(
             select(SetupSignalSnapshot).where(
                 SetupSignalSnapshot.run_id == canonical_revision,
@@ -842,7 +862,7 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
             "GCAN",
             SourceDay(date(2026, 8, 4), setup_score=7.8, technical_score=7.8, close=99),
         )
-        evaluator.evaluate_run(db, next_run, requester=GOLDEN_FIXTURE_VERSION)
+        _evaluate_seeded_run(evaluator, db, next_run)
         db.commit()
         next_snapshot = db.scalar(
             select(SetupSignalSnapshot).where(SetupSignalSnapshot.run_id == next_run)
@@ -1004,6 +1024,118 @@ def _assert_scenario_specific(db: Session, scenario: ProductionScenario) -> None
         assert "NEW_TRIGGER" not in alert_rule_ids
 
 
+def _evaluate_seeded_run(
+    evaluator: SetupLifecycleEvaluationService,
+    db: Session,
+    run_id: int,
+):
+    pipeline = db.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.upload_run_id == run_id)
+        .order_by(PipelineRun.id.desc())
+    )
+    assert pipeline is not None
+    market_cutoff = market_context_for_pipeline(db, pipeline)
+    snapshot_id = _golden_snapshot_id(db, run_id=run_id, market_cutoff=market_cutoff)
+    delivery = load_configuration_delivery(
+        db,
+        binding_reference(db, pipeline_run_id=pipeline.id),
+    )
+    with configuration_delivery_scope(delivery):
+        return evaluator.evaluate_run(
+            db,
+            run_id,
+            requester=GOLDEN_FIXTURE_VERSION,
+            snapshot_ids=(snapshot_id,),
+            market_cutoff=market_cutoff,
+            pipeline_run_id=pipeline.id,
+        )
+
+
+def _golden_snapshot_id(db: Session, *, run_id: int, market_cutoff) -> int:
+    existing = db.scalar(
+        select(SetupSignalSnapshot)
+        .where(SetupSignalSnapshot.run_id == run_id)
+        .order_by(SetupSignalSnapshot.id.desc())
+    )
+    if existing is not None:
+        return existing.id
+    context = SetupLifecycleSourceLoader().load_run_context(
+        db,
+        run_id,
+        market_cutoff=market_cutoff,
+    )
+    builder = SetupLifecycleSnapshotBuilder()
+    repository = SetupLifecycleRepository(builder.config)
+    built_rows = build_run_context_snapshots(
+        db,
+        context,
+        builder=builder,
+        repository=repository,
+    )
+    assert len(built_rows) == 1
+    dto = built_rows[0][1].dto
+    snapshot = repository._snapshot_from_write(dto)
+    db.add(snapshot)
+    db.flush()
+    _seal_golden_snapshot_fixture(db, snapshot, dto.effective_configuration)
+    return snapshot.id
+
+
+def _seal_golden_snapshot_fixture(db: Session, snapshot, configuration) -> None:
+    """Seal the synthetic upstream corpus at the Setup adapter boundary.
+
+    The corpus tests Setup/lifecycle algorithms, not upstream producer writers.
+    Its synthetic source rows cannot be promoted as native source evidence, so
+    the exact native Setup output is retained explicitly as fixture evidence.
+    """
+
+    identity = calculation_identity_from_debug(snapshot.source_lineage_json)
+    assert identity is not None
+    payload = calculation_evidence_payload(
+        snapshot,
+        excluded_columns=_SETUP_PROJECTION_FIELDS,
+    )
+    payload["_test_fixture_semantics"] = "SYNTHETIC_GOLDEN_SETUP_ADAPTER_OUTPUT"
+    payload[CONFIGURATION_PAYLOAD_KEY] = configuration.as_dict()
+    identity_payload = identity.canonical_payload()
+    temporal = identity_payload["temporal"]
+    payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
+        "SETUP",
+        payload,
+        identity_fingerprint=str(identity.fingerprint()),
+        calculation_versions=identity_payload.get("algorithm", {}),
+        evaluated_at=temporal["calculation_cutoff"].get("value"),
+        business_anchor=temporal["as_of_session"].get("value"),
+    ).canonical_payload()
+    payload = Canonical.canonicalize(payload)
+    payload_fingerprint = Canonical.fingerprint(payload)
+    identity_fingerprint = str(identity.fingerprint())
+    source_ids: dict[str, int] = {}
+    evidence = CoreCalculationEvidence(
+        artifact_kind="SETUP",
+        run_id=snapshot.run_id,
+        ticker=snapshot.ticker,
+        calculation_identity_fingerprint=identity_fingerprint,
+        calculation_identity_json=identity.canonical_payload(),
+        payload_fingerprint=payload_fingerprint,
+        payload_json=payload,
+        source_evidence_ids_json=source_ids,
+        evidence_key=Canonical.fingerprint(
+            {
+                "artifact_kind": "SETUP",
+                "calculation_identity_fingerprint": identity_fingerprint,
+                "payload_fingerprint": payload_fingerprint,
+                "source_evidence_ids": source_ids,
+            }
+        ),
+        calculated_at=snapshot.calculation_cutoff_at,
+    )
+    db.add(evidence)
+    db.flush()
+    snapshot.evidence_id = evidence.id
+
+
 def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
     processed_date = spec.processed_as_of or spec.as_of
     processed_at = datetime.combine(processed_date, datetime.min.time(), tzinfo=UTC).replace(
@@ -1033,6 +1165,22 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
         pipeline,
         cutoff_at=processed_at,
     )
+    anchor = persist_configuration_anchor(
+        db,
+        resolve_pipeline_configurations(
+            db,
+            "FULL_PIPELINE",
+            {"run_id": run.id, "pipeline_run_id": pipeline.id},
+        ),
+    )
+    db.add(
+        ExecutionConfigurationBinding(
+            binding_key=f"pipeline:{pipeline.id}",
+            pipeline_run_id=pipeline.id,
+            anchor_id=anchor["anchor_id"],
+        )
+    )
+    db.flush()
     raw = RawCompanyRow(
         run_id=run.id,
         row_number=1,
@@ -1054,6 +1202,9 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
         ticker=ticker,
         fundamental_score=Decimal("8.5"),
         liquidity_risk_score=Decimal(str(spec.liquidity_score)),
+        data_coverage_score=Decimal("1"),
+        v2_warning_flags_json={"flags": []},
+        missing_data_penalty=Decimal("0"),
         scoring_model_version="fundamentals_v2.0",
         debug_json={"config_hash": "f" * 64},
     )
@@ -1184,6 +1335,10 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
         combined_identity,
         policy="SLSE_GOLDEN_SOURCE_FIXTURE",
     )
+    _seal_golden_source_fixture(db, fundamental, fundamental_identity, "FUNDAMENTAL")
+    if technical is not None and technical_identity is not None:
+        _seal_golden_source_fixture(db, technical, technical_identity, "TECHNICAL")
+    _seal_golden_source_fixture(db, combined, combined_identity, "COMBINED")
     if spec.include_optional_context:
         regime_config = load_market_regime_command_center_config()
         regime_identity = build_regime_identity(
@@ -1218,6 +1373,7 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
         )
         db.add(market)
         db.flush()
+        _seal_golden_source_fixture(db, market, regime_identity, "REGIME")
         sector_config = load_sector_rotation_config()
         sector_config_hash = sector_rotation_config_hash(sector_config)
         sector_version = "sector-rotation-1.0.0"
@@ -1246,6 +1402,7 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
                 config_hash=sector_config_hash,
                 calculation_version=sector_version,
                 mode=sector_mode,
+                effective_configuration=sector_config.effective_configuration,
             ),
             source_lineage=sector_with_lineage.source_lineage,
         )
@@ -1272,17 +1429,27 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
         )
         db.add(sector)
         db.flush()
-        db.add(
-            SectorRotationRow(
-                snapshot_id=sector.id,
-                sector="Technology",
-                sector_slug="technology",
-                ticker_count=1,
-                rotation_state="LEADING",
-                sector_permission="ALLOW",
-                confidence="HIGH",
-                current_rank=spec.sector_rank,
-            )
+        sector_row = SectorRotationRow(
+            snapshot_id=sector.id,
+            sector="Technology",
+            sector_slug="technology",
+            ticker_count=1,
+            rotation_state="LEADING",
+            sector_permission="ALLOW",
+            confidence="HIGH",
+            current_rank=spec.sector_rank,
+        )
+        db.add(sector_row)
+        db.flush()
+        _seal_golden_source_fixture(
+            db,
+            sector,
+            sector_identity,
+            "SECTOR",
+            payload={
+                **calculation_evidence_payload(sector),
+                "rows": [calculation_evidence_payload(sector_row)],
+            },
         )
     if spec.add_bar and spec.close is not None:
         db.add(
@@ -1305,6 +1472,60 @@ def _seed_source_day(db: Session, ticker: str, spec: SourceDay) -> int:
         )
     db.commit()
     return run.id
+
+
+def _seal_golden_source_fixture(db: Session, row, identity, kind: str, *, payload=None) -> None:
+    """Retain an exact synthetic producer output at the golden adapter boundary."""
+
+    frozen_payload = calculation_evidence_payload(row) if payload is None else dict(payload)
+    frozen_payload["_test_fixture_semantics"] = "SYNTHETIC_GOLDEN_SOURCE_ADAPTER_OUTPUT"
+    identity_payload = identity.canonical_payload()
+    temporal = identity_payload["temporal"]
+    readiness_payload = frozen_payload
+    if kind == "REGIME":
+        readiness_payload = {
+            **frozen_payload,
+            "input_symbols": {"primary_market": "SPY", "use_risk_proxy": False},
+            "debug": {
+                "market_inputs": {
+                    "SPY": {"insufficient_data": False, "missing": False},
+                }
+            },
+        }
+    frozen_payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
+        kind,
+        readiness_payload,
+        identity_fingerprint=str(identity.fingerprint()),
+        calculation_versions=identity_payload.get("algorithm", {}),
+        evaluated_at=temporal["calculation_cutoff"].get("value"),
+        business_anchor=temporal["as_of_session"].get("value"),
+    ).canonical_payload()
+    frozen_payload = Canonical.canonicalize(frozen_payload)
+    payload_fingerprint = Canonical.fingerprint(frozen_payload)
+    identity_fingerprint = str(identity.fingerprint())
+    source_ids: dict[str, int] = {}
+    evidence = CoreCalculationEvidence(
+        artifact_kind=kind,
+        run_id=row.run_id,
+        ticker=getattr(row, "ticker", None),
+        calculation_identity_fingerprint=identity_fingerprint,
+        calculation_identity_json=identity_payload,
+        payload_fingerprint=payload_fingerprint,
+        payload_json=frozen_payload,
+        source_evidence_ids_json=source_ids,
+        evidence_key=Canonical.fingerprint(
+            {
+                "artifact_kind": kind,
+                "calculation_identity_fingerprint": identity_fingerprint,
+                "payload_fingerprint": payload_fingerprint,
+                "source_evidence_ids": source_ids,
+            }
+        ),
+        calculated_at=datetime.fromisoformat(temporal["calculation_cutoff"]["value"]),
+    )
+    db.add(evidence)
+    db.flush()
+    row.evidence_id = evidence.id
 
 
 def _assert_every_layer(

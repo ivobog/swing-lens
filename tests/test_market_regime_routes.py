@@ -126,38 +126,23 @@ def test_run_api_404s_missing_snapshot(monkeypatch) -> None:
 
 
 def test_recalculate_run_api_commits_and_returns_snapshot(monkeypatch) -> None:
-    fake_repo = FakeRepository(run_snapshot=_snapshot(run_id=7))
-    fake_service = FakeCommandCenterService()
-    monkeypatch.setattr(market_regime_routes, "MarketRegimeRepository", lambda: fake_repo)
-    monkeypatch.setattr(
-        market_regime_routes,
-        "MarketRegimeCommandCenterService",
-        lambda: fake_service,
-    )
     db = RouteFakeDb()
-
-    payload = market_regime_routes.recalculate_run_market_regime_api(run_id=7, db=db)
-
-    assert payload["run_id"] == 7
-    assert fake_service.calls == [7]
-    assert db.commits == 1
+    with pytest.raises(HTTPException) as error:
+        market_regime_routes.recalculate_run_market_regime_api(run_id=7, db=db)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
+    assert db.commits == 0
     assert db.rollbacks == 0
 
 
 def test_recalculate_run_api_rolls_back_service_error(monkeypatch) -> None:
-    monkeypatch.setattr(
-        market_regime_routes,
-        "MarketRegimeCommandCenterService",
-        lambda: FakeCommandCenterService(error=ValueError("bad market data")),
-    )
     db = RouteFakeDb()
-
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(HTTPException) as error:
         market_regime_routes.recalculate_run_market_regime_api(run_id=7, db=db)
-
-    assert exc.value.status_code == 400
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
     assert db.commits == 0
-    assert db.rollbacks == 1
+    assert db.rollbacks == 0
 
 
 def test_export_latest_json_returns_attachment(monkeypatch) -> None:

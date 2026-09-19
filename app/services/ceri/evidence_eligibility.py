@@ -11,6 +11,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriEvidenceDisposition, CeriScoreSnapshot
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.supporting_mutation_authority import supporting_mutation_operation
 
 ELIGIBLE = "ELIGIBLE"
 EXCLUDED = "EXCLUDED"
@@ -168,6 +170,11 @@ def filter_eligible_snapshots(
     return [row for row in rows if dispositions.get(row.id, ELIGIBLE) != EXCLUDED]
 
 
+@supporting_mutation_operation(
+    MutationDomain.CERI_REVIEW,
+    MutationSemanticMode.MAINTENANCE,
+    ("review_target", "human_review"),
+)
 def append_evidence_dispositions(
     db: Session,
     requests: Sequence[EvidenceDispositionRequest],
@@ -176,15 +183,24 @@ def append_evidence_dispositions(
 
     if not requests:
         return 0
+    if any(
+        not request.actor_source.strip()
+        or not request.incident_reference.strip()
+        or not request.reason_code.strip()
+        for request in requests
+    ):
+        raise ValueError("CERI_DISPOSITION_REVIEW_AUTHORITY_REQUIRED")
+    ids = {request.ceri_snapshot_id for request in requests}
+    retained = set(db.scalars(select(CeriScoreSnapshot.id).where(CeriScoreSnapshot.id.in_(ids))))
+    if retained != ids:
+        raise ValueError("CERI_DISPOSITION_EXACT_TARGET_REQUIRED")
     values = [request.values() for request in requests]
     if any(value["disposition"] not in {ELIGIBLE, EXCLUDED} for value in values):
         raise ValueError("unsupported CERI evidence disposition")
     statement = (
         pg_insert(CeriEvidenceDisposition)
         .values(values)
-        .on_conflict_do_nothing(
-            constraint="uq_ceri_evidence_dispositions_event_fingerprint"
-        )
+        .on_conflict_do_nothing(constraint="uq_ceri_evidence_dispositions_event_fingerprint")
         .returning(CeriEvidenceDisposition.id)
     )
     return len(list(db.scalars(statement)))

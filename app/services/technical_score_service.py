@@ -133,6 +133,15 @@ def score_run_technicals(
     expected_calculation_identity: CalculationIdentity | None = None,
 ) -> list[TechnicalScore]:
     input_started = perf_counter()
+    if isinstance(db, Session) and (
+        market_cutoff is None or pipeline_run_id is None or effective_configuration is None
+    ):
+        from app.services.entrypoint_authority import EntryPointAuthorityError
+
+        raise EntryPointAuthorityError(
+            "TECHNICAL_EXPLICIT_CALCULATION_AUTHORITY_REQUIRED",
+            "Technical scoring requires the exact pipeline cutoff and frozen configuration.",
+        )
     market_cutoff = (
         market_cutoff
         or market_context_for_upload_run(db, run_id)
@@ -603,6 +612,15 @@ class TechnicalScoringOverlapCoordinator:
         expected_calculation_identity: CalculationIdentity | None = None,
     ) -> None:
         input_started = perf_counter()
+        if isinstance(db, Session) and (
+            market_cutoff is None or pipeline_run_id is None or effective_configuration is None
+        ):
+            from app.services.entrypoint_authority import EntryPointAuthorityError
+
+            raise EntryPointAuthorityError(
+                "TECHNICAL_EXPLICIT_CALCULATION_AUTHORITY_REQUIRED",
+                "Technical overlap requires the exact pipeline cutoff and frozen configuration.",
+            )
         self.db = db
         self.run_id = run_id
         self.pipeline_run_id = pipeline_run_id

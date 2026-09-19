@@ -170,6 +170,7 @@ def test_evaluation_route_reads_requested_run(monkeypatch: pytest.MonkeyPatch) -
 
 def test_evaluate_route_queues_background_job(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(routes, "_require_run", lambda _db, _run_id: None)
+    monkeypatch.setattr(routes, "setup_run_cutoff", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(
         routes,
         "enqueue_job",
@@ -180,6 +181,7 @@ def test_evaluate_route_queues_background_job(monkeypatch: pytest.MonkeyPatch) -
     response = routes.evaluate_setup_lifecycle_run(
         db=db,  # type: ignore[arg-type]
         request=SimpleNamespace(query_params={"run_id": "7"}),
+        pipeline_run_id=9,
     )
 
     assert response.status_code == 202

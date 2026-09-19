@@ -186,17 +186,28 @@ def validate_core_mutation_authority(
             from sqlalchemy import select
 
             from app.models.tables import BackgroundJob
+            from app.services.domain_write_fence import retained_execution_job_scope
 
-            job = db.execute(
-                select(BackgroundJob.related_run_id, BackgroundJob.payload_json)
-                .where(BackgroundJob.id == context.execution.job_id)
-                .with_for_update()
-            ).one()
-            if context.run_id is not None and job.related_run_id != context.run_id:
+            job = retained_execution_job_scope(
+                db,
+                job_id=context.execution.job_id,
+                execution_token=context.execution.execution_token,
+            )
+            if job is None:
+                job = (
+                    db.execute(
+                        select(BackgroundJob.related_run_id, BackgroundJob.payload_json)
+                        .where(BackgroundJob.id == context.execution.job_id)
+                        .with_for_update()
+                    )
+                    .one()
+                    ._mapping
+                )
+            if context.run_id is not None and job["related_run_id"] != context.run_id:
                 raise ValueError("MUTATION_EXECUTION_RUN_SCOPE_MISMATCH")
             if (
                 context.pipeline_run_id is not None
-                and job.payload_json.get("pipeline_run_id") != context.pipeline_run_id
+                and job["payload_json"].get("pipeline_run_id") != context.pipeline_run_id
             ):
                 raise ValueError("MUTATION_EXECUTION_PIPELINE_SCOPE_MISMATCH")
         if context.run_id is not None and db.get(UploadRun, context.run_id) is None:
@@ -315,7 +326,9 @@ def _validate_configuration(db, context, configuration):
             else []
         ) + ([{"job_id": context.execution.job_id}] if context.execution is not None else [])
         for owner in owners:
-            delivery = load_configuration_delivery(db, binding_reference(db, **owner))
+            delivery = load_configuration_delivery(
+                db, binding_reference(db, **owner), resolution_hash=configuration.resolution_hash
+            )
             frozen = [c.snapshot for c in delivery.configurations.values()]
             if not any(
                 c.semantic_hash == configuration.semantic_hash
@@ -631,6 +644,7 @@ def core_writer_transaction(writer):
             return writer(*args, **kwargs)
         owner = writer.__module__ + ":" + writer.__qualname__
         token = None
+        preserved_exception = None
         try:
             connection = db.connection()
             if (
@@ -644,11 +658,25 @@ def core_writer_transaction(writer):
                 # Savepoint entry flushes caller staging. It must not borrow
                 # this writer's projection permission before validation starts.
                 token = _active_writers.set(_active_writers.get() + ((db, owner),))
-                return writer(*args, **kwargs)
-        except Exception:
+                try:
+                    result = writer(*args, **kwargs)
+                except Exception as exc:
+                    if not getattr(exc, "preserve_semantic_state_on_raise", False):
+                        raise
+                    # Some terminal control-flow signals deliberately persist
+                    # the state they announce (for example, CANCELLED). Commit
+                    # only this writer's savepoint; the caller still owns the
+                    # surrounding transaction and final commit.
+                    preserved_exception = exc
+                    result = None
+            if preserved_exception is not None:
+                raise preserved_exception
+            return result
+        except Exception as exc:
             # begin_nested flushes pre-existing pending rows. Rejecting a lower
             # writer must also discard a caller's staged serving mutation.
-            db.rollback()
+            if not getattr(exc, "preserve_semantic_state_on_raise", False):
+                db.rollback()
             raise
         finally:
             if token is not None:

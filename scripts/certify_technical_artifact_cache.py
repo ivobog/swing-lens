@@ -6,6 +6,9 @@ import json
 import os
 from time import perf_counter
 
+from app.services.entrypoint_authority import require_disposable_tool_target
+from app.settings import get_settings
+
 for thread_variable in (
     "OMP_NUM_THREADS",
     "MKL_NUM_THREADS",
@@ -18,10 +21,9 @@ CACHE_MODES = ("OFF", "WRITE_ONLY", "SHADOW_VALIDATE", "ACTIVE")
 
 
 def main() -> None:
+    require_disposable_tool_target(get_settings().database_url)
     parser = argparse.ArgumentParser(
-        description=(
-            "Certify technical artifacts without rewriting historical technical scores."
-        )
+        description=("Certify technical artifacts without rewriting historical technical scores.")
     )
     parser.add_argument("--run-id", type=int, required=True)
     parser.add_argument("--mode", choices=CACHE_MODES, required=True)
@@ -77,9 +79,7 @@ def main() -> None:
         else:
             db.rollback()
     elapsed_seconds = perf_counter() - started
-    score_fingerprints = sorted(
-        service._technical_score_fingerprint(score) for score in scores
-    )
+    score_fingerprints = sorted(service._technical_score_fingerprint(score) for score in scores)
     output_fingerprint = hashlib.sha256(
         json.dumps(score_fingerprints, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -96,9 +96,7 @@ def main() -> None:
         "cache_state_committed": args.commit_cache_state,
         "cache": {
             result: int(
-                operational_metrics.total(
-                    "swinglens_technical_artifact_cache_total", result=result
-                )
+                operational_metrics.total("swinglens_technical_artifact_cache_total", result=result)
             )
             for result in (
                 "hit",
@@ -118,9 +116,7 @@ def main() -> None:
             for result in ("match", "mismatch")
         },
         "process_pool_fallbacks": int(
-            operational_metrics.total(
-                "swinglens_technical_process_pool_fallback_total"
-            )
+            operational_metrics.total("swinglens_technical_process_pool_fallback_total")
         ),
     }
     print(json.dumps(report, indent=2, sort_keys=True))

@@ -121,16 +121,16 @@
         <span data-ib-connection-label>Checking IB…</span>
       </span>
       <form method="post" action="/runs/{{ run.id }}/fundamentals/recalculate" data-loading-form>
-        <button class="secondary" type="submit" data-loading-label="Recalculating...">Recalculate fundamentals</button>
+        <button disabled title="Individual recalculation is retired. Start a new Full Pipeline calculation." class="secondary" type="submit" data-loading-label="Recalculating...">Recalculate fundamentals</button>
       </form>
       <form method="post" action="/runs/{{ run.id }}/technicals/refresh" data-loading-form>
-        <button class="secondary" type="submit" data-loading-label="Refreshing...">Refresh technicals</button>
+        <button disabled title="Individual recalculation is retired. Start a new Full Pipeline calculation." class="secondary" type="submit" data-loading-label="Refreshing...">Refresh technicals</button>
       </form>
       <form method="post" action="/runs/{{ run.id }}/combined-results" data-loading-form>
-        <button class="secondary" type="submit" data-loading-label="Refreshing...">Refresh combined</button>
+        <button disabled title="Individual recalculation is retired. Start a new Full Pipeline calculation." class="secondary" type="submit" data-loading-label="Refreshing...">Refresh combined</button>
       </form>
       <form method="post" action="/runs/{{ run.id }}/rankings/refresh?redirect=true" data-loading-form>
-        <button class="secondary" type="submit" data-loading-label="Refreshing...">Refresh rankings</button>
+        <button disabled title="Individual recalculation is retired. Start a new Full Pipeline calculation." class="secondary" type="submit" data-loading-label="Refreshing...">Refresh rankings</button>
       </form>
       <a class="button-link secondary" href="/runs/{{ run.id }}/sector-rotation">Sector rotation</a>
       <a class="button-link secondary" href="{{ setup_lifecycle_context.run_url }}">Market changes</a>
@@ -394,7 +394,7 @@
     </div>
     <div class="actions">
       <form method="post" action="/runs/{{ run.id }}/rankings/refresh?redirect=true" data-loading-form>
-        <button type="submit" data-loading-label="Refreshing...">Refresh rankings</button>
+        <button disabled title="Individual recalculation is retired. Start a new Full Pipeline calculation." type="submit" data-loading-label="Refreshing...">Refresh rankings</button>
       </form>
       {% if ranking_profile_summary.result_count %}
         <a class="button-link secondary" href="/runs/{{ run.id }}/rankings/export.csv">All profiles CSV</a>
@@ -1156,7 +1156,7 @@
       <strong>No combined decisions yet.</strong>
       <p>No technical scores or combined results have been generated for this run.</p>
       <form method="post" action="/runs/{{ run.id }}/combined-results" data-loading-form>
-        <button type="submit" data-loading-label="Refreshing...">Refresh cockpit</button>
+        <button disabled title="Individual recalculation is retired. Start a new Full Pipeline calculation." type="submit" data-loading-label="Refreshing...">Refresh cockpit</button>
       </form>
     </div>
   {% endif %}

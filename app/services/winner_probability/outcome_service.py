@@ -724,15 +724,24 @@ class WinnerOutcomeRepository:
             _validate_target_stop_link(row, definition, forward)
             target_stops.setdefault(key, []).append(row)
         symbols = {_benchmark_for_prediction(prediction) for prediction in predictions.values()}
+        legacy_sector_proxies: dict[str | None, str | None] = {}
         for prediction in predictions.values():
             symbols.add(prediction.ticker.upper())
-            proxy = _sector_proxy_for_prediction(prediction)
+            retained_reference = _retained_outcome_reference(prediction)
+            if retained_reference is not None:
+                proxy = retained_reference["sector_proxy"]
+            else:
+                sector = _prediction_sector(prediction)
+                if sector not in legacy_sector_proxies:
+                    legacy_sector_proxies[sector] = _sector_proxy(sector)
+                proxy = legacy_sector_proxies[sector]
             if proxy:
                 symbols.add(proxy)
         starts = [row.entry_session for row in outcomes if row.entry_session is not None]
         ends = [row.due_session for row in outcomes if row.due_session is not None]
         bars_by_ticker: dict[str, list[PriceBar]] = {}
         bars_by_outcome: dict[int, list[PriceBar]] = {}
+        required_sessions_by_window: dict[tuple[date, int], tuple[date, ...]] = {}
         if starts and ends and symbols:
             raw_bars = list(
                 db.scalars(
@@ -757,9 +766,11 @@ class WinnerOutcomeRepository:
                 if prediction is None or outcome.entry_session is None:
                     bars_by_outcome[int(outcome.id)] = []
                     continue
-                required = required_outcome_sessions(
-                    outcome.entry_session, int(outcome.horizon_sessions)
-                )
+                window = (outcome.entry_session, int(outcome.horizon_sessions))
+                required = required_sessions_by_window.get(window)
+                if required is None:
+                    required = required_outcome_sessions(*window)
+                    required_sessions_by_window[window] = required
                 candidates = [
                     *by_basis.get((prediction.ticker.upper(), "ADJUSTED_LAST"), []),
                     *by_basis.get((prediction.ticker.upper(), "TRADES"), []),

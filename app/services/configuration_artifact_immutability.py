@@ -10,9 +10,14 @@ def seal_configuration_member(model, field, *, members=()):
         state = inspect(target)
         if _mapper is not None and not state.attrs[field].history.has_changes():
             return
-        stored = connection.execute(
-            select(getattr(model.__table__.c, field)).where(model.__table__.c.id == target.id)
-        ).scalar_one()
+        history = state.attrs[field].history
+        stored = (
+            history.deleted[0]
+            if history.deleted
+            else connection.execute(
+                select(getattr(model.__table__.c, field)).where(model.__table__.c.id == target.id)
+            ).scalar_one()
+        )
         before = (stored or {}).get("effective_configuration_at_creation")
         after = (getattr(target, field) or {}).get("effective_configuration_at_creation")
         changed_member = before is not None and any(

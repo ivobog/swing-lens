@@ -1,0 +1,17 @@
+{
+  "finite_blockers": {
+    "confirmed_application_bypasses": [],
+    "exact_caller_ids_not_covered": [],
+    "incomplete_normalized_operation_family_ids": [],
+    "incomplete_required_lanes": [],
+    "potential_application_bypass_caller_ids_not_excluded": [],
+    "remaining_broader_regression_failures": [],
+    "remaining_browser_failures": [],
+    "remaining_ceri_performance_failures": [],
+    "remaining_ci_integration_failures": [],
+    "remaining_inherited_regression_failures": []
+  },
+  "operation_families": [],
+  "source_sha256": "f273e9a61b0a363d873b9f58cf0d702c976f5361a29eb56c2e480fa61b20a5d7",
+  "verdict": "PASS"
+}

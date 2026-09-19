@@ -15,6 +15,7 @@ from app.models.tables import (
     WinnerOutcomeDefinition,
     WinnerTargetStopOutcome,
 )
+from app.services.entrypoint_authority import reject_legacy_mutation
 from app.services.winner_probability.temporal_manifest_canonicalization import (
     canonical_manifest_bytes,
     canonicalize_manifest_value,
@@ -84,6 +85,7 @@ def apply_target_stop_scope_repair(
 ) -> TargetStopScopeRepairResult:
     if not approve_write:
         raise PermissionError("explicit approve_write=True is required")
+    reject_legacy_mutation("incident target/stop repair")
     if not actor.strip() or not request_key.strip():
         raise ValueError("actor and request_key are required")
     if manifest.get("schema") != REPAIR_SCHEMA:

@@ -25,6 +25,7 @@ from app.models.tables import (
     WinnerCohortGeneration,
     WinnerOutcomeDefinition,
 )
+from app.services.entrypoint_authority import reject_legacy_mutation
 from app.services.winner_probability.cohort_definition import CohortDefinitionService
 from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
@@ -255,6 +256,7 @@ def build_candidate(
 ) -> Path:
     if not approve_write:
         raise PermissionError("explicit --approve-write is required")
+    reject_legacy_mutation("Winner clean reconstruction")
     if not actor.strip() or not request_key.strip():
         raise ValueError("actor and request key are required")
     artifact = json.loads(artifact_path.read_text(encoding="utf-8"))

@@ -23,6 +23,7 @@ from app.models.tables import (
     WinnerEvidenceManifest,
     WinnerProbabilityEstimate,
 )
+from app.services.entrypoint_authority import reject_legacy_mutation
 from app.services.winner_probability.cohort_definition import CohortDefinitionService
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
@@ -143,6 +144,7 @@ def write(
 ) -> Path:
     if not approve_write:
         raise PermissionError("explicit --approve-write is required")
+    reject_legacy_mutation("Winner candidate SQL")
     if not actor.strip() or not request_key.strip():
         raise ValueError("actor and request key are required")
     artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
@@ -663,6 +665,7 @@ def artifact_feature_version(_record):
 
 
 def _ensure_empty_manifest(db):
+    reject_legacy_mutation("schema-0061 empty candidate evidence manifest")
     digest = _hash_payload({"members": []})
     row = db.scalar(
         select(WinnerEvidenceManifest).where(WinnerEvidenceManifest.manifest_hash == digest)

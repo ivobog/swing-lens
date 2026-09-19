@@ -150,8 +150,18 @@ def validate_alert_source(db, service, change, ticker):
 
     calculator = CeriAlertService.__new__(CeriAlertService)
     calculator.config = configuration.ceri_decision_config()
-    dispositions = effective_disposition_by_snapshot(
-        db, [value for value in (change.from_snapshot_id, change.to_snapshot_id) if value]
+    requested_snapshot_ids = {
+        int(value) for value in (change.from_snapshot_id, change.to_snapshot_id) if value
+    }
+    prefetched = getattr(service, "_prefetched_dispositions", None)
+    dispositions = (
+        {
+            snapshot_id: prefetched[snapshot_id]
+            for snapshot_id in requested_snapshot_ids
+            if snapshot_id in prefetched
+        }
+        if prefetched is not None
+        else effective_disposition_by_snapshot(db, requested_snapshot_ids)
     )
     if any(value == EXCLUDED for value in dispositions.values()):
         raise ValueError("MUTATION_CERI_ALERT_EXCLUDED_SOURCE")
@@ -162,6 +172,7 @@ def validate_alert_source(db, service, change, ticker):
 
 def validate_rule(db, service, rule, change):
     from app.models.ceri_tables import CeriAlertRule
+    from app.services.source_mutation_authority import prefetched_source_rows
 
     configuration = service.effective_configuration
     configuration.require_family("decision.alerts.ceri")
@@ -187,7 +198,8 @@ def validate_rule(db, service, rule, change):
             "config_version": native_config.engine.config_version,
         }
     actual = {key: getattr(rule, key) for key in expected}
-    physical = db.get(CeriAlertRule, rule.id)
+    prefetched = prefetched_source_rows(db, CeriAlertRule, [rule.id])
+    physical = prefetched[0] if prefetched is not None else db.get(CeriAlertRule, rule.id)
     if (
         not expected["enabled"]
         or Canonical.dumps(actual) != Canonical.dumps(expected)

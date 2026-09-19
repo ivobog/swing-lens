@@ -19,10 +19,12 @@ from app.models.tables import (
     SetupSignalSnapshotSelectionEvent,
 )
 from app.services.setup_lifecycle.canonicalization import SetupLifecycleCanonicalizer
+from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
 from app.services.setup_lifecycle.repository import (
     SetupLifecycleRepository,
-    SetupSignalSnapshotWrite,
 )
+from app.services.setup_lifecycle.snapshot_builder import SetupLifecycleSnapshotBuilder
+from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AS_OF = date(2026, 9, 4)
@@ -43,7 +45,7 @@ def test_0069_migration_and_later_run_preserve_historical_evidence(
             calculated_at=datetime(2026, 9, 8, 10, tzinfo=UTC),
             legacy_canonical=True,
         )
-        snapshot_b = _insert_snapshot(
+        legacy_snapshot_b = _insert_snapshot(
             connection,
             run_id=run_b,
             source_hash="source-b",
@@ -79,8 +81,13 @@ def test_0069_migration_and_later_run_preserve_historical_evidence(
         assert bootstrap.selected_snapshot_id == snapshot_a
         assert bootstrap.selection_reason == "LEGACY_CURRENT_FLAG_BOOTSTRAP"
 
+        snapshot_b, snapshot_b_write = _certified_snapshot(
+            db,
+            run_id=7,
+            cutoff_at=datetime(2026, 9, 8, 11, tzinfo=UTC),
+        )
         canonicalizer = SetupLifecycleCanonicalizer()
-        first = canonicalizer.canonicalize_run(db, run_id=run_b, snapshot_ids=(snapshot_b,))
+        first = canonicalizer.canonicalize_run(db, run_id=7, snapshot_ids=(snapshot_b,))
         db.commit()
         assert first.selected_snapshot_ids == (snapshot_b,)
         assert first.changed_snapshot_ids == (snapshot_b,)
@@ -99,6 +106,7 @@ def test_0069_migration_and_later_run_preserve_historical_evidence(
     repository = SetupLifecycleRepository()
     with Session(engine) as db:
         assert repository.load_snapshots_for_run(db, run_id=run_a)[0].id == snapshot_a
+        assert repository.load_snapshots_for_run(db, run_id=run_b)[0].id == legacy_snapshot_b
         assert repository.latest_canonical_snapshot(db, ticker="MSFT").id == snapshot_b
         assert db.scalar(select(SetupSignalSnapshotSelectionEvent.id)) is not None
         event_count = db.scalar(
@@ -106,7 +114,7 @@ def test_0069_migration_and_later_run_preserve_historical_evidence(
         )
 
         retry = SetupLifecycleCanonicalizer(repository=repository).canonicalize_run(
-            db, run_id=run_b, snapshot_ids=(snapshot_b,)
+            db, run_id=7, snapshot_ids=(snapshot_b,)
         )
         db.commit()
         assert retry.changed_snapshot_ids == ()
@@ -118,24 +126,7 @@ def test_0069_migration_and_later_run_preserve_historical_evidence(
     with engine.connect() as connection:
         before_retry = _row_hash(connection, snapshot_b)
     with Session(engine) as db:
-        retried = repository.upsert_snapshot(
-            db,
-            SetupSignalSnapshotWrite(
-                run_id=run_b,
-                source_run_id_text=str(run_b),
-                ticker="MSFT",
-                timeframe="1d",
-                data_as_of_date=AS_OF,
-                calculated_at=datetime(2026, 9, 8, 12, tzinfo=UTC),
-                origin_type="LIVE_RUN",
-                engine_version="slse-test",
-                config_version="test-v1",
-                config_hash="config-hash",
-                source_data_hash="source-b",
-                schema_version="snapshot-v1",
-                data_quality_label="LOW",
-            ),
-        )
+        retried = repository.upsert_snapshot(db, snapshot_b_write)
         assert retried.id == snapshot_b
         db.commit()
     with engine.connect() as connection:
@@ -147,35 +138,31 @@ def test_concurrent_completion_converges_on_deterministic_selection(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    with engine.begin() as connection:
-        base_run = _insert_upload(connection, "base.csv")
-        run_b = _insert_upload(connection, "run-b.csv")
-        run_c = _insert_upload(connection, "run-c.csv")
-        base_snapshot = _insert_snapshot(
-            connection,
-            run_id=base_run,
-            source_hash="base",
-            calculated_at=datetime(2026, 9, 8, 9, tzinfo=UTC),
+    with Session(engine) as db:
+        base_snapshot, _ = _certified_snapshot(
+            db,
+            run_id=7,
+            cutoff_at=datetime(2026, 9, 8, 9, tzinfo=UTC),
         )
 
-    with Session(engine) as db:
-        SetupLifecycleCanonicalizer().canonicalize_run(
-            db, run_id=base_run, snapshot_ids=(base_snapshot,)
-        )
+        SetupLifecycleCanonicalizer().canonicalize_run(db, run_id=7, snapshot_ids=(base_snapshot,))
         db.commit()
+
+        snapshot_b, _ = _certified_snapshot(
+            db,
+            run_id=8,
+            cutoff_at=datetime(2026, 9, 8, 10, tzinfo=UTC),
+        )
+        snapshot_c, _ = _certified_snapshot(
+            db,
+            run_id=9,
+            cutoff_at=datetime(2026, 9, 8, 11, tzinfo=UTC),
+        )
 
     barrier = Barrier(2)
 
-    def complete(run_id: int, source_hash: str, hour: int) -> int:
+    def complete(run_id: int, snapshot_id: int) -> int:
         with Session(engine) as db:
-            snapshot = _snapshot_model(
-                run_id=run_id,
-                source_hash=source_hash,
-                calculated_at=datetime(2026, 9, 8, hour, tzinfo=UTC),
-            )
-            db.add(snapshot)
-            db.flush()
-            snapshot_id = snapshot.id
             barrier.wait(timeout=10)
             SetupLifecycleCanonicalizer().canonicalize_run(
                 db, run_id=run_id, snapshot_ids=(snapshot_id,)
@@ -184,10 +171,10 @@ def test_concurrent_completion_converges_on_deterministic_selection(
             return snapshot_id
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        future_b = executor.submit(complete, run_b, "source-b", 10)
-        future_c = executor.submit(complete, run_c, "source-c", 11)
-        snapshot_b = future_b.result(timeout=30)
-        snapshot_c = future_c.result(timeout=30)
+        future_b = executor.submit(complete, 8, snapshot_b)
+        future_c = executor.submit(complete, 9, snapshot_c)
+        assert future_b.result(timeout=30) == snapshot_b
+        assert future_c.result(timeout=30) == snapshot_c
 
     with Session(engine) as db:
         pointer = db.scalar(select(SetupSignalSnapshotCurrentSelection))
@@ -257,6 +244,35 @@ def _snapshot_model(*, run_id: int, source_hash: str, calculated_at: datetime):
     )
 
 
+def _certified_snapshot(db: Session, *, run_id: int, cutoff_at: datetime):
+    from native_mutation_support import seed_native_core
+
+    from app.services.decision_effective_configuration import resolve_setup_configuration
+
+    configuration = resolve_setup_configuration()
+    cutoff, _, _ = seed_native_core(
+        db,
+        run_id=run_id,
+        ticker="MSFT",
+        cutoff_at=cutoff_at,
+        extra_configurations=(configuration,),
+    )
+    context = SetupLifecycleSourceLoader().load_run_context(
+        db,
+        run_id,
+        market_cutoff=cutoff,
+    )
+    write = (
+        SetupLifecycleSnapshotBuilder(configuration.setup_config()).build(context.tickers[0]).dto
+    )
+    snapshot = SetupLifecycleRepository(configuration.setup_config()).upsert_snapshot(db, write)
+    evidence = persist_setup_evidence(db, snapshot)
+    assert evidence is not None
+    assert snapshot.evidence_id == evidence.id
+    db.commit()
+    return snapshot.id, write
+
+
 def _insert_upload(connection, filename: str) -> int:
     return connection.execute(
         text(
@@ -309,10 +325,7 @@ def _insert_snapshot(
 
 def _row_hash(connection, snapshot_id: int) -> str:
     row = connection.execute(
-        text(
-            "SELECT to_jsonb(t) - 'evidence_id' "
-            "FROM setup_signal_snapshots t WHERE id=:id"
-        ),
+        text("SELECT to_jsonb(t) - 'evidence_id' FROM setup_signal_snapshots t WHERE id=:id"),
         {"id": snapshot_id},
     ).scalar_one()
     return hashlib.sha256(json.dumps(row, default=str, sort_keys=True).encode()).hexdigest()

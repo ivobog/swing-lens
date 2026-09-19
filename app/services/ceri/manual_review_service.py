@@ -5,9 +5,16 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCatalystEventRevision, CeriManualReview
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.supporting_mutation_authority import supporting_mutation_operation
 
 
 class CeriManualReviewService:
+    @supporting_mutation_operation(
+        MutationDomain.CERI_REVIEW,
+        MutationSemanticMode.MAINTENANCE,
+        ("review_target", "human_review"),
+    )
     def create_catalyst_override(
         self,
         db: Session,
@@ -17,6 +24,35 @@ class CeriManualReviewService:
         reviewer: str,
         reason: str,
     ) -> tuple[CeriManualReview, CeriCatalystEventRevision]:
+        if not reviewer.strip() or not reason.strip():
+            raise ValueError("CERI_OVERRIDE_REVIEWER_AND_REASON_REQUIRED")
+        supported = {
+            "announced_at",
+            "expected_date",
+            "effective_session",
+            "status",
+            "direction",
+            "materiality",
+            "date_confidence",
+            "source_confidence",
+        }
+        if not new_values or set(new_values) - supported:
+            raise ValueError("CERI_OVERRIDE_UNSUPPORTED_SOURCE_FIELDS")
+        # Serialize append of a new source revision; never rewrite score evidence.
+        from sqlalchemy import select
+
+        if isinstance(db, Session):
+            db.execute(
+                select(CeriCatalystEventRevision.id)
+                .where(CeriCatalystEventRevision.id == current_revision.id)
+                .with_for_update()
+            )
+            from app.services.source_mutation_authority import _source_value
+
+            _source_value(db, current_revision)
+            db.refresh(current_revision)
+        if not current_revision.is_current:
+            raise ValueError("CERI_OVERRIDE_CURRENT_REVISION_REQUIRED")
         review = CeriManualReview(
             target_type="ceri_catalyst_event_revision",
             target_id=current_revision.id,

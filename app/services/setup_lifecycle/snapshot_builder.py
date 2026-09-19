@@ -927,6 +927,16 @@ class SetupLifecycleSnapshotCaptureService:
         finalize_evaluation_run: bool = True,
         market_cutoff=None,
     ) -> SnapshotCaptureResult:
+        from sqlalchemy.orm import Session
+
+        from app.services.entrypoint_authority import EntryPointAuthorityError
+
+        if isinstance(db, Session) and market_cutoff is None:
+            raise EntryPointAuthorityError(
+                "SETUP_EXPLICIT_CALCULATION_AUTHORITY_REQUIRED",
+                "Setup capture requires an explicit frozen market cutoff; implicit current "
+                "source selection cannot continue an existing calculation.",
+            )
         try:
             if market_cutoff is None:
                 run_context = self.loader.load_run_context(db, run_id)

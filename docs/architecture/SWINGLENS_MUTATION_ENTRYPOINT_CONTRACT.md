@@ -345,3 +345,112 @@ No schema change, legacy backfill, historical identity upgrade, financial formul
 change or forbidden required dependency is introduced. Final native and regression
 evidence, exact source pins and finding statuses are in the T14C certificate,
 validation summary and remediation report.
+
+## 28. T14D caller authority delivery
+
+T14D supplements the certified native writer contracts; its final certification
+is recorded separately in the T14D caller certificate and validation summary.
+Source ownership reviews and matching source hashes are insufficient to certify
+caller delivery. The exact input census remains 252 callers and 25 writer IDs;
+new adapters are additional discoveries, never replacements for those IDs.
+
+Supported financial operations must deliver their native source addresses,
+cutoff/session, executable configuration, readiness and predecessor/target scope
+before mutation. The existing DomainMutationContext and Phase4 configuration
+delivery remain the authority mechanisms. A durable direct-handler invocation
+also validates the retained PostgreSQL job type, payload and run scope, current
+RUNNING execution token and immutable configuration binding. Rejection rolls
+back the semantic Session. A lease token grants attempt ownership and cannot
+replace financial authority.
+
+### Standalone calculations and legacy pipeline selection
+
+`use_durable_pipeline=False` cannot select the former reduced mutation branch:
+the Full Pipeline HTTP action returns structured 409 REDUCED_PIPELINE_RETIRED
+before provider probing or enqueue. Read-only application operation remains
+possible. Unbound Fundamental, Technical, Combined, Ranking, Regime and Sector
+recalculation endpoints return structured 409 STANDALONE_MUTATION_RETIRED.
+Their web buttons are disabled. A new Full Pipeline creates new authority at
+enqueue; it cannot recreate missing authority for an existing delivery.
+
+Technical calculation/overlap and Setup capture require explicit pipeline
+authority before source selection. Regime, Sector and CERI capture require an
+explicit cutoff and frozen configuration or an existing validated delivery.
+Setup run evaluation requires the addressed pipeline to own the addressed run,
+resolves its exact retained context, and shares that pipeline's C1 configuration
+through both synchronous and durable surfaces. Its request key includes both
+run and pipeline IDs. Pipeline execution never builds a replacement cutoff.
+
+### Supporting operations, repair and retrospective work
+
+CERI review accepts review_state metadata only. A separate human source override
+requires an exact retained current revision, reviewer, reason and supported
+source fields; it appends a new revision and audit. Neither operation rewrites
+financial score evidence. Purge still requires its reviewed licensed manifest
+and refuses referenced retained evidence; private invalidation mechanisms
+require their declaring purge transaction. SEC identity CLI and application
+operations share the same source-observation service. Company bootstrap writes
+identifiers and grants no score/readiness authority.
+
+Trade episode rebuilding consumes an explicit stored active fill population,
+aware operation time and named FIFO policy. Fill bodies are independently
+checked. Fill exclusion changes journal selection projections with an explicit
+reason and preserves broker observations. Research links declare a bounded
+retrospective association policy and carry no certified calculation authority.
+
+CURRENT_STATE_REPAIR can repair a projection only from certified native
+evidence under that evidence's scope; it cannot rewrite historical identity.
+CURRENT_RULES_RETROSPECTIVE is a new operation using delivered rules and exact
+retained inputs. Setup replay reports this mode, no original reconstruction,
+and that requested_config is metadata rather than an applied override. It
+cannot advance current Lifecycle episodes. Temporal validity review is a
+separate reviewed diagnostic operation and cannot replace missing native
+financial input proofs. Historical pre-11 activation/training replay,
+schema-0061 candidate writes, clean reconstruction, incident target-stop repair
+Run104 controlled replay and the historical hash-gated H5 maturation canary
+write entries are retired. The canary audit contract edited a sealed predecessor
+and cannot confer current financial authority. Native maturation remains supported. Read-only planning and
+historical algorithm references confer no mutation permission.
+
+### Admin, CLI, scheduler and durable boundaries
+
+Authentication, CSRF and local-admin permission remain necessary transport
+controls. They do not waive native authority checks. Historical QA mutation
+tools are noncertified and restricted to an explicitly named local disposable
+PostgreSQL database with DISPOSABLE_TEST context before connection/provider
+work. Historic SLSE development reconstruction tools are retired. Publication
+simulation retains its separate disposable-database boundary and still uses
+the native publication writer.
+
+Winner maturation, revision review, cohort refresh and latest rescore freeze an
+aware operation cutoff and semantic mode in the existing enqueue payload.
+Children inherit the parent's cutoff and C1 bundle; an altered cutoff fails.
+The scheduler freezes the same time used to select the completed session.
+Runtime retry/cooldown time is separate from the financial cutoff. Native
+request/cursor/manifests and original outcome definitions remain authoritative.
+Target-set freezing beyond the already supported manifests remains WIN-008;
+T14D does not claim its closure. Reclaim changes attempt ownership without
+granting a different configuration or calculation identity.
+
+### Read-only and external boundaries
+
+Regime and Sector GET paths display retained state and never build on a miss.
+The Regime HTML page renders an empty state; missing evidence API/export
+addresses return 404. Read-only latest displays are outside mutation admission.
+Operational job/audit bookkeeping remains distinct from financial artifacts.
+Privileged SQL, database restoration and external administrative access remain
+outside the application contract, documented as
+EXTERNAL_PRIVILEGED_OUT_OF_SCOPE rather than certified bypasses.
+
+The complete model is a supported initiator delivering explicit native
+authority to a certified writer in its validating transaction, or an explicit
+retired/read-only/noncertified disposition. Repository-wide ENFORCED status
+requires the final exact caller reconciliation and all T14D validation gates.
+
+T14D final verdict is FAIL. The exact 252-record matrix includes unresolved caller
+variants as PARTIAL_AUTHORITY. XINT-006 remains OPEN and INV-ENTRY-001 remains
+PARTIALLY_ENFORCED. The 99-writer/293-initiator graph is an exact discovery handoff,
+blocked for final T14E certification; it is not a fully certified graph.
+
+
+T14D continuation finding update: PIPE-003 is CLOSED. Both supported preflight policies reject `use_durable_pipeline=False` with structured 409 before provider/broker work, SQL DML, enqueue, pipeline creation or financial evidence mutation. Native PostgreSQL evidence is recorded in T14D_validation_summary.json; this scoped closure is independent of the incomplete global caller certification.

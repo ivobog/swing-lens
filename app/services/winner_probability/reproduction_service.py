@@ -11,6 +11,7 @@ from app.models.tables import (
     PriceBar,
     PriceBarRevision,
     WinnerEstimateEvidenceMember,
+    WinnerEvidenceManifest,
     WinnerEvidenceManifestMember,
     WinnerForwardOutcome,
     WinnerProbabilityEstimate,
@@ -24,6 +25,7 @@ from app.services.winner_probability.config import (
     load_winner_probability_config,
 )
 from app.services.winner_probability.evidence_manifest_service import (
+    EvidenceManifestService,
     _hash_payload,
     _manifest_payload,
 )
@@ -63,7 +65,15 @@ class ReproductionService:
             raise ValueError(f"Estimate {estimate_id} was not found.")
         evidence = self._load_exact_evidence(db, estimate)
         statistics = CohortStatisticsService().calculate(evidence, config)
-        manifest_hash = _hash_payload(_manifest_payload(evidence))
+        reproduced_payload = _manifest_payload(evidence)
+        if estimate.evidence_manifest_id is not None:
+            manifest = db.get(WinnerEvidenceManifest, estimate.evidence_manifest_id)
+            EvidenceManifestService.validate_manifest(db, manifest)
+            if manifest.payload_json.get("members") != reproduced_payload["members"]:
+                raise ValueError("Evidence manifest members could not be reproduced.")
+            manifest_hash = manifest.manifest_hash
+        else:
+            manifest_hash = _hash_payload(reproduced_payload)
         probability_is_publishable = estimate.evidence_grade != EvidenceGrade.INSUFFICIENT
         reproduced_probability = (
             statistics.posterior_probability if evidence and probability_is_publishable else None

@@ -1,0 +1,2473 @@
+{
+  "boundary": "All 25 inherited writer IDs reconcile; caller delivery is independently certified by the 220 final operation families.",
+  "duplicates": [],
+  "expected_writer_ids": 25,
+  "missing": [],
+  "reconciled_writer_ids": 25,
+  "verdict": "PASS",
+  "writer_ids": [
+    {
+      "caller_dependencies": [
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_fb3da89576a5f670"
+      ],
+      "canonical_target": "app/services/ceri/batched_workflow.py:_ensure_ceri_companies",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ceri/batched_workflow.py:_ensure_ceri_companies",
+        "decorators": [
+          "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.BOOTSTRAP)"
+        ],
+        "first_statements": [
+          "existing = {company.ticker.upper() for company in db.scalars(select(CeriCompany))}",
+          "for ticker in tickers:\n    symbol = ticker.upper()\n    if symbol in existing:\n        continue\n    db.add(CeriCompany(ticker=symbol, exchange='US', current_provider_ids_json={'eodhd': f'{symbol}.US'}))\n    existing.add(symbol)",
+          "db.flush()"
+        ],
+        "line": 392,
+        "native_calls": [
+          "CeriCompany",
+          "company.ticker.upper",
+          "db.add",
+          "db.flush",
+          "db.scalars",
+          "existing.add",
+          "select",
+          "source_mutation_writer",
+          "ticker.upper"
+        ],
+        "selector_expressions": [],
+        "signature": "db: Session, tickers: Iterable[str]",
+        "source_sha256": "df493397de17db386283541d6e05304ecb59d0994a40c4188020eabc07bc5986"
+      },
+      "role": "DOMAIN_SUPPORTING_STATE",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_batched_workflow_v2.py::test_company_ensure_preserves_existing_non_us_not_applicable_mapping"
+        }
+      ],
+      "why_in_T14D": "Company identities for batched ingestion; not retained score evidence.",
+      "writer_id": "WF_CERI_COMPANY_BOOTSTRAP"
+    },
+    {
+      "caller_dependencies": [
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_cc88287ad5594ea1",
+        "EF_f3014b101f7ca379"
+      ],
+      "canonical_target": "app/services/ceri/controlled_replay_service.py:CeriControlledReplayService.replay",
+      "final_status": "RETIRED_WRITE_OPERATION",
+      "native_source_review": {
+        "address": "app/services/ceri/controlled_replay_service.py:CeriControlledReplayService.replay",
+        "decorators": [],
+        "first_statements": [
+          "reject_legacy_mutation('Run 104 CERI controlled replay')",
+          "self._validate_request(db, request)",
+          "originals = list(db.scalars(eligible_snapshot_select(name='effective_replay_dispositions').where(CeriScoreSnapshot.run_id == request.source_run_id).order_by(CeriScoreSnapshot.ticker)).all())",
+          "if not originals:\n    raise ControlledReplayError(f'source run {request.source_run_id} has no snapshots')"
+        ],
+        "line": 111,
+        "native_calls": [
+          "', '.join",
+          "(original.opportunity_ledger_json or {}).get",
+          "CeriConfidenceService",
+          "CeriControlledReplay",
+          "CeriEstimateSnapshot.company_id.in_",
+          "CeriEstimateSnapshot.id.in_",
+          "CeriOpportunityScoreService",
+          "CeriPointInTimeQuery",
+          "CeriRevisionFeature.id.in_",
+          "CeriRevisionFeatureService",
+          "CeriSnapshotService",
+          "CeriSourceRecord.id.in_",
+          "ControlledReplayCertificationError",
+          "ControlledReplayError",
+          "ControlledReplayResult",
+          "SimpleNamespace",
+          "_assign_ranks",
+          "_build_replay_snapshot",
+          "_calculate_replay_features",
+          "_certification",
+          "_feature_change",
+          "_feature_groups",
+          "_features_by_identity",
+          "_freshness_days",
+          "_merge_opportunity",
+          "_merged_source_ids",
+          "_missing_feature_change",
+          "_original_state_hash",
+          "_ranking_impact",
+          "_replay_calculation_version",
+          "_replay_state_hash",
+          "_selected_revision_ids",
+          "_snapshot_comparison",
+          "_snapshot_selected_revision_ids",
+          "_validate_selected_revision_features",
+          "all",
+          "all_replay_features.extend",
+          "any",
+          "certification['invariants'].items",
+          "certification['invariants'].values",
+          "comparisons.append",
+          "confidence_service.calculate",
+          "datetime.now",
+          "db.add",
+          "db.add_all",
+          "db.execute",
+          "db.execute(select(CeriSourceRecord.id, CeriSourceRecord.provider).where(CeriSourceRecord.id.in_(sorted({row.source_record_id for row in eligible_estimates})))).all",
+          "db.flush",
+          "db.scalars",
+          "db.scalars(eligible_snapshot_select(name='effective_replay_dispositions').where(CeriScoreSnapshot.run_id == request.source_run_id).order_by(CeriScoreSnapshot.ticker)).all",
+          "db.scalars(select(CeriEstimateSnapshot).join(CeriSourceRecord, CeriSourceRecord.id == CeriEstimateSnapshot.source_record_id).where(CeriEstimateSnapshot.company_id.in_(company_ids)).where(CeriSourceRecord.ingested_at <= cutoff_at)).all",
+          "db.scalars(select(CeriEstimateSnapshot).where(CeriEstimateSnapshot.id.in_(old_lineage_estimate_ids))).all",
+          "db.scalars(select(CeriRevisionFeature).where(CeriRevisionFeature.id.in_(old_feature_ids))).all",
+          "defaultdict",
+          "dict",
+          "eligible_snapshot_select",
+          "eligible_snapshot_select(name='effective_replay_dispositions').where",
+          "eligible_snapshot_select(name='effective_replay_dispositions').where(CeriScoreSnapshot.run_id == request.source_run_id).order_by",
+          "estimate_map.update",
+          "estimates_by_company.get",
+          "estimates_by_company[estimate.company_id].append",
+          "feature_changes.append",
+          "float",
+          "iter",
+          "len",
+          "list",
+          "min",
+          "next",
+          "old_features.values",
+          "original_by_identity.get",
+          "reject_legacy_mutation",
+          "replace",
+          "replay_by_identity.get",
+          "replay_snapshots.append",
+          "select",
+          "select(CeriEstimateSnapshot).join",
+          "select(CeriEstimateSnapshot).join(CeriSourceRecord, CeriSourceRecord.id == CeriEstimateSnapshot.source_record_id).where",
+          "select(CeriEstimateSnapshot).join(CeriSourceRecord, CeriSourceRecord.id == CeriEstimateSnapshot.source_record_id).where(CeriEstimateSnapshot.company_id.in_(company_ids)).where",
+          "select(CeriEstimateSnapshot).where",
+          "select(CeriRevisionFeature).where",
+          "select(CeriSourceRecord.id, CeriSourceRecord.provider).where",
+          "self._validate_request",
+          "set",
+          "snapshot_service.persist_snapshot",
+          "sorted",
+          "sum",
+          "tuple",
+          "warning.lower"
+        ],
+        "selector_expressions": [
+          "certification = _certification(db=db, request=request, originals=originals, original_features=old_features, replay_features=all_replay_features, replay_snapshots=replay_snapshots, original_state_hash=original_state_hash, selected_replay_ids=selected_replay_ids, config=replay_config, cutoff_at=cutoff_at)",
+          "confidence = confidence_service.calculate(as_of_session=original.as_of_session, revision_features=features, dataset_freshness_days=_freshness_days(db, merged_source_ids, cutoff_at), conflict_penalty=conflict_penalty)",
+          "cutoff_at = next(iter(cutoffs))",
+          "cutoffs = {row.cutoff_at for row in originals}",
+          "eligible_estimates = list(db.scalars(select(CeriEstimateSnapshot).join(CeriSourceRecord, CeriSourceRecord.id == CeriEstimateSnapshot.source_record_id).where(CeriEstimateSnapshot.company_id.in_(company_ids)).where(CeriSourceRecord.ingested_at <= cutoff_at)).all())",
+          "features = _calculate_replay_features(revision_service, db, company_id=original.company_id, cutoff_at=cutoff_at, replay_id=manifest.id, calculation_version=calculation_version)",
+          "manifest = CeriControlledReplay(replay_identifier=request.replay_identifier, source_run_id=request.source_run_id, original_cutoff_at=cutoff_at, git_sha=request.git_sha, processor_signature=request.processor_signature, config_version=next(iter(original_config_versions)), config_hash=self.base_config.config_hash, calculation_version=calculation_version, schema_version=request.schema_version, status='RUNNING', universe_count=len(originals), original_state_hash=original_state_hash)",
+          "manifest.certification_json = certification",
+          "manifest.changed_feature_count = len(feature_changes)",
+          "manifest.completed_at = datetime.now(UTC)",
+          "manifest.feature_changes_json = feature_changes",
+          "manifest.feature_count = len(all_replay_features)",
+          "manifest.impact_json = impact",
+          "manifest.replay_state_hash = replay_state_hash",
+          "manifest.snapshot_count = len(replay_snapshots)",
+          "manifest.status = status",
+          "old_lineage_estimate_ids = {estimate_id for row in old_features.values() for estimate_id in (row.current_snapshot_id, row.baseline_snapshot_id) if estimate_id is not None}",
+          "replay_snapshot = _build_replay_snapshot(original=original, replay=manifest, features=features, opportunity=opportunity, confidence=confidence, source_ids=merged_source_ids, snapshot_service=snapshot_service, replay_config=replay_config)"
+        ],
+        "signature": "self, db: Session, request: ControlledReplayRequest",
+        "source_sha256": "a8583c89ff4954dc5c3a810dbdc72b456525a2b796da536f83763f56e77087c3"
+      },
+      "role": "CURRENT_RULES_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_decision_configuration_delivery_postgresql.py::test_native_setup_lifecycle_winner_artifacts_retain_own_c1"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/setup_lifecycle/test_replay.py::test_replay_dry_run_returns_proposed_decisions_without_creating_run"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/setup_lifecycle/test_replay.py::test_persisted_replay_creates_new_evaluation_version"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/setup_lifecycle/test_replay.py::test_replay_comparison_is_deterministic"
+        }
+      ],
+      "why_in_T14D": "Explicit replay artifact plus recalculated revision/score rows; no original-context guarantee.",
+      "writer_id": "WF_CERI_CURRENT_RULE_REPLAY"
+    },
+    {
+      "caller_dependencies": [
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_a4620089ed8199e3",
+        "EF_b95c796004827c0e"
+      ],
+      "canonical_target": "app/services/ceri/evidence_eligibility.py:append_evidence_dispositions",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ceri/evidence_eligibility.py:append_evidence_dispositions",
+        "decorators": [
+          "supporting_mutation_operation(MutationDomain.CERI_REVIEW, MutationSemanticMode.MAINTENANCE, ('review_target', 'human_review'))"
+        ],
+        "first_statements": [
+          "'Append disposition events atomically; exact duplicate requests are no-ops.'",
+          "if not requests:\n    return 0",
+          "if any((not request.actor_source.strip() or not request.incident_reference.strip() or (not request.reason_code.strip()) for request in requests)):\n    raise ValueError('CERI_DISPOSITION_REVIEW_AUTHORITY_REQUIRED')",
+          "ids = {request.ceri_snapshot_id for request in requests}"
+        ],
+        "line": 178,
+        "native_calls": [
+          "CeriScoreSnapshot.id.in_",
+          "ValueError",
+          "any",
+          "db.scalars",
+          "len",
+          "list",
+          "pg_insert",
+          "pg_insert(CeriEvidenceDisposition).values",
+          "pg_insert(CeriEvidenceDisposition).values(values).on_conflict_do_nothing",
+          "pg_insert(CeriEvidenceDisposition).values(values).on_conflict_do_nothing(constraint='uq_ceri_evidence_dispositions_event_fingerprint').returning",
+          "request.actor_source.strip",
+          "request.incident_reference.strip",
+          "request.reason_code.strip",
+          "request.values",
+          "select",
+          "select(CeriScoreSnapshot.id).where",
+          "set",
+          "supporting_mutation_operation"
+        ],
+        "selector_expressions": [
+          "statement = pg_insert(CeriEvidenceDisposition).values(values).on_conflict_do_nothing(constraint='uq_ceri_evidence_dispositions_event_fingerprint').returning(CeriEvidenceDisposition.id)"
+        ],
+        "signature": "db: Session, requests: Sequence[EvidenceDispositionRequest]",
+        "source_sha256": "ec94a2880ea6665de602660c616a3b115648d8536e5bbfaf7471f7b0c3a036fe"
+      },
+      "role": "CANONICAL_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_ceri_evidence_quarantine_postgresql.py::test_append_only_quarantine_is_idempotent_concurrent_and_filters_run159_fixture"
+        }
+      ],
+      "why_in_T14D": "Append-only retained eligibility disposition; not mutation of retained calculation evidence.",
+      "writer_id": "WF_CERI_DISPOSITION"
+    },
+    {
+      "caller_dependencies": [
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_a4713c8bc1b99a73"
+      ],
+      "canonical_target": "app/services/ceri/manual_review_service.py:CeriManualReviewService.create_catalyst_override",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ceri/manual_review_service.py:CeriManualReviewService.create_catalyst_override",
+        "decorators": [
+          "supporting_mutation_operation(MutationDomain.CERI_REVIEW, MutationSemanticMode.MAINTENANCE, ('review_target', 'human_review'))"
+        ],
+        "first_statements": [
+          "if not reviewer.strip() or not reason.strip():\n    raise ValueError('CERI_OVERRIDE_REVIEWER_AND_REASON_REQUIRED')",
+          "supported = {'announced_at', 'expected_date', 'effective_session', 'status', 'direction', 'materiality', 'date_confidence', 'source_confidence'}",
+          "if not new_values or set(new_values) - supported:\n    raise ValueError('CERI_OVERRIDE_UNSUPPORTED_SOURCE_FIELDS')",
+          "from sqlalchemy import select"
+        ],
+        "line": 18,
+        "native_calls": [
+          "CeriCatalystEventRevision",
+          "CeriManualReview",
+          "ValueError",
+          "_revision_values",
+          "_source_value",
+          "db.add",
+          "db.execute",
+          "db.flush",
+          "db.refresh",
+          "isinstance",
+          "new_values.get",
+          "reason.strip",
+          "reviewer.strip",
+          "select",
+          "select(CeriCatalystEventRevision.id).where",
+          "select(CeriCatalystEventRevision.id).where(CeriCatalystEventRevision.id == current_revision.id).with_for_update",
+          "set",
+          "supporting_mutation_operation"
+        ],
+        "selector_expressions": [
+          "current_revision.is_current = False",
+          "new_revision = CeriCatalystEventRevision(catalyst_event_id=current_revision.catalyst_event_id, source_record_id=current_revision.source_record_id, prior_revision_id=current_revision.id, revision_number=current_revision.revision_number + 1, is_current=True, announced_at=new_values.get('announced_at', current_revision.announced_at), expected_date=new_values.get('expected_date', current_revision.expected_date), effective_session=new_values.get('effective_session', current_revision.effective_session), status=new_values.get('status', current_revision.status), direction=new_values.get('direction', c",
+          "review = CeriManualReview(target_type='ceri_catalyst_event_revision', target_id=current_revision.id, prior_value_json=_revision_values(current_revision), new_value_json=new_values, reviewer=reviewer, reason=reason)"
+        ],
+        "signature": "self, db: Session, *, current_revision: CeriCatalystEventRevision, new_values: dict[str, Any], reviewer: str, reason: str",
+        "source_sha256": "342c20b815db376690ce3f606e85b3fcd175593b5cb28992313c52919bc76d8a"
+      },
+      "role": "SUPPORTED_DISTINCT_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_catalyst_taxonomy.py::test_manual_override_keeps_prior_new_reviewer_reason_and_revision_lineage"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_caller_postgresql.py::test_ceri_review_changes_metadata_and_override_appends_a_source_revision"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_supporting_operations_postgresql.py::test_source_override_missing_changed_and_superseded_authority_rolls_back"
+        }
+      ],
+      "why_in_T14D": "New catalyst source revision with prior address and human audit; not score evidence.",
+      "writer_id": "WF_CERI_HUMAN_SOURCE_OVERRIDE"
+    },
+    {
+      "caller_dependencies": [
+        "EF_17af8f95c72dc4b5",
+        "EF_75b98d629a58f4a6",
+        "EF_82e637435e97fe46",
+        "EF_PRIVILEGED_DATABASE_RESTORE"
+      ],
+      "canonical_target": "app/services/ceri/purge_service.py:CeriPurgeService.execute",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ceri/purge_service.py:CeriPurgeService.execute",
+        "decorators": [
+          "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
+        ],
+        "first_statements": [
+          "_validate_required_request(request)",
+          "audit = _find_audit(db, request.preview_manifest_hash)",
+          "if audit is None:\n    _record_blocked(db, request, 'preview_missing', job_id, processing_run_id)\n    raise CeriPurgeError('Provider-license purge execution requires a prior preview.')",
+          "if audit.provider != request.provider or audit.license_scope != request.license_scope:\n    _record_blocked(db, request, 'preview_scope_mismatch', job_id, processing_run_id)\n    raise CeriPurgeError('Provider-license purge confirmation scope does not match preview.')"
+        ],
+        "line": 122,
+        "native_calls": [
+          "CeriPurgeError",
+          "_apply_purge_lifecycle",
+          "_confirmation_token_hash",
+          "_enqueue_rebuild_jobs",
+          "_find_audit",
+          "_manifest_hash",
+          "_manifest_hash_input",
+          "_record_blocked",
+          "_validate_required_request",
+          "ceri_log_event",
+          "ceri_metrics.increment",
+          "datetime.now",
+          "db.flush",
+          "self._lifecycle_manifest",
+          "source_mutation_writer"
+        ],
+        "selector_expressions": [
+          "audit = _find_audit(db, request.preview_manifest_hash)",
+          "certified_evidence_ids = manifest['certified_decision_evidence_ids']",
+          "current_hash = _manifest_hash(_manifest_hash_input(manifest, request.provider, request.license_scope))",
+          "lifecycle = _apply_purge_lifecycle(manifest, preview_manifest_hash=request.preview_manifest_hash, audit_id=audit.id)",
+          "manifest = self._lifecycle_manifest(db, request.provider, request.license_scope)"
+        ],
+        "signature": "self, db: Session, request: CeriPurgeExecuteRequest, *, job_id: int | None=None, processing_run_id: int | None=None",
+        "source_sha256": "e140b501d17001efa8a2f0a44286464881459a970ffacc896197b64f193caafc"
+      },
+      "role": "PRIVATE_MECHANISMS_OF_NATIVE_SOURCE_TRANSACTION",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_db_monitor.py::test_select_insert_update_and_failure_are_captured_without_parameters"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_domain_write_fence.py::test_ibmi_reclaim_between_tickers_fences_old_owner_and_new_owner_continues"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_domain_write_fence.py::test_idempotency_does_not_authorize_stale_commit"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_migration_remediation.py::test_clean_postgresql_database_can_upgrade_to_alembic_head"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_migration_remediation.py::test_wave1_ceri_lineage_migration_preserves_populated_rows"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_migration_remediation.py::test_run101_fail_closed_migration_preserves_snapshots_and_demotes_null_guidance"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_migration_remediation.py::test_ceri_estimate_identity_migration_allows_corrected_observation"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_migration_remediation.py::test_postgresql_duplicate_request_key_enqueue_coalesces_across_sessions"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_migration_remediation.py::test_postgresql_old_worker_cannot_complete_after_stale_recovery"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_observability_remediation.py::test_commit_buffer_success_rollback_nested_and_retry"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_observability_remediation.py::test_flush_success_then_commit_failure_discards_metric"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_ceri_acceptance_fixture.py::test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_ceri_acceptance_fixture.py::test_purge_execute_requires_matching_confirmation_token"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_wave1_p0.py::test_eodhd_purge_rechecks_manifest_and_preserves_independent_lineage"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/e2e/test_slse_populated_browser.py::test_populated_market_changes_and_alert_center_contract"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_ceri_evidence_quarantine_postgresql.py::test_append_only_quarantine_is_idempotent_concurrent_and_filters_run159_fixture"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_ceri_immutable_decision_evidence.py::test_purge_is_forbidden_for_referenced_decision_evidence"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_ceri_pit_postgresql.py::test_0072_enforces_pipeline_context_and_preserves_legacy_unknown"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_decision_configuration_delivery_postgresql.py::test_frozen_records_and_anchors_are_immutable_in_postgresql"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_domain_mutation_postgresql.py::test_fence_holds_the_same_transaction_row_lock"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_ib_market_intelligence_persistence.py::test_metric_revision_and_flex_import_are_idempotent"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_lifecycle_immutability_postgresql.py::test_0069_migration_and_later_run_preserve_historical_evidence"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_lifecycle_immutability_postgresql.py::test_0069_downgrade_is_inspectable_and_restores_legacy_shape"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_observability_causality_postgresql.py::test_concurrent_enqueue_coalesces_to_one_authoritative_job"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_observability_remediation_postgresql.py::test_operations_plans_at_representative_isolated_volumes"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_phase2_immutable_evidence_certification.py::test_phase2_integrated_evidence_graph_survives_a_new_world"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_phase4_configuration_certification_postgresql.py::test_populated_0080_downgrade_reupgrade_preserves_business_history_and_fails_old_jobs_closed"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_phase4_configuration_certification_postgresql.py::test_real_dsn_and_provider_sentinels_do_not_enter_public_worker_authority"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_sec_incremental_ingestion_postgresql.py::test_crash_before_atomic_commit_leaves_no_records_and_stale_claim_recovers"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_sec_incremental_ingestion_postgresql.py::test_claim_is_single_owner_stale_safe_and_signature_versioned"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_sec_readiness_repair_postgresql.py::test_recovered_lease_owner_cannot_publish_continuation"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_session_temporal_integrity_postgresql.py::test_market_calculation_context_migration_on_disposable_postgresql"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_slse_market_alert_vertical.py::test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_slse_performance_certification.py::test_slse_phase_12_performance_certification"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14b_cache_authority_postgresql.py::test_cache_rejects_forged_keys_pit_drift_corruption_and_false_shadow"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14b_writer_authority_postgresql.py::test_native_writer_rejects_forged_authority_and_rolls_back_staged_serving"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14c_decision_writer_postgresql.py::test_native_setup_selection_and_bookkeeping_purge"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_retained_ownership_postgresql.py::test_batch_reuses_one_actual_outer_lock_across_savepoints"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_retained_ownership_postgresql.py::test_changed_attempt_cannot_reuse_a_prior_lock"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_source_bundle_postgresql.py::test_commit_revalidates_exact_sql_bodies_before_bundle_reuse"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_source_bundle_postgresql.py::test_same_transaction_sql_change_invalidates_prefetched_body"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_source_bundle_postgresql.py::test_physical_connection_commit_invalidates_source_locks"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_preflight_fingerprints_survive_postgresql_session_timezone_roundtrip"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_terminal_plan_states_have_deterministic_rejection_codes"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_two_concurrent_plan_consumers_create_exactly_one_pipeline"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_pointer_and_ledger_roll_back_together_on_injected_failure"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_pipeline_enqueue_failure_injection_rolls_back_every_half_applied_state"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_preflight_creation_failure_injection_leaves_no_orphan"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_failure_between_pointer_update_and_ledger_insert_rolls_back_both"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_post_cutoff_evidence_change_rejects_instead_of_creating_c2"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempotent"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_jobs_reliability_postgresql.py::test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_old_rows"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_jobs_reliability_postgresql.py::test_cohort_refresh_and_maturation_remain_independent_single_flights"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_jobs_reliability_postgresql.py::test_h5_batch_context_prefetch_is_constant_query_count_for_thousands"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_temporal_integrity_postgresql.py::test_upgrade_0056_through_temporal_head_and_append_only_ledger"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_worker_progress_reliability_postgresql.py::test_stalled_owner_is_fenced_and_late_checkpoint_rolls_back"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ops/test_alembic_heads.py::test_database_heads_are_complete_sorted_sets"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ops/test_evidence_manifest.py::test_evidence_manifest_reports_row_and_content_mismatches"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ops/test_readiness_metrics.py::test_readiness_degrades_for_stale_running_jobs"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ops/test_readiness_metrics.py::test_blocked_pipeline_is_not_misclassified_as_runnable_ib_work"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ops/test_validate_restore.py::test_restore_validation_passes_for_clean_schema"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ops/test_validate_restore.py::test_restore_validation_reports_orphans_and_blank_hashes"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/qa/test_qa_infrastructure.py::test_disposable_postgres_fixture_is_scoped_to_a_qa_database"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/setup_lifecycle/test_purge_service.py::test_purge_service_rejects_execution_when_policy_disables_purge"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/setup_lifecycle/test_purge_service.py::test_purge_service_audits_and_deletes_when_policy_allows_purge"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/setup_lifecycle/test_purge_service.py::test_purge_service_rejects_mismatched_confirmation_token"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/winner_probability/test_generation_publication_fence.py::test_t09b_execution_token_fence_still_rejects_background_publication"
+        }
+      ],
+      "why_in_T14D": "Source/derivative invalidation after retained-reference checks; immutable ledger remains protected.",
+      "writer_id": "WF_CERI_LICENSED_PURGE"
+    },
+    {
+      "caller_dependencies": [
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_eee5b61f60223f9a"
+      ],
+      "canonical_target": "app/routers/ceri_routes.py:review_ceri_event",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/routers/ceri_routes.py:review_ceri_event",
+        "decorators": [
+          "router.post('/api/ceri/events/{event_id}/review')",
+          "unsafe_route(ROUTE_CLASS_LOCAL_ADMIN, reason='persists manual CERI review state', csrf_required=True, local_admin_required=True)",
+          "supporting_mutation_operation(MutationDomain.CERI_REVIEW, MutationSemanticMode.MAINTENANCE, ('review_target', 'human_review'))"
+        ],
+        "first_statements": [
+          "_require_local_admin(request)",
+          "event = db.get(CeriCatalystEvent, event_id)",
+          "if event is None:\n    raise _structured_http_error('TICKER_NOT_FOUND', 'CERI event was not found.', status_code=404)",
+          "current_revision = db.scalar(select(CeriCatalystEventRevision).where(CeriCatalystEventRevision.catalyst_event_id == event_id).where(CeriCatalystEventRevision.is_current.is_(True)).with_for_update())"
+        ],
+        "line": 785,
+        "native_calls": [
+          "(review.new_value_json or {}).get",
+          "CeriCatalystEventRevision.is_current.is_",
+          "CeriManualReview",
+          "_active_manual_review",
+          "_require_local_admin",
+          "_structured_http_error",
+          "db.add",
+          "db.commit",
+          "db.get",
+          "db.scalar",
+          "dict",
+          "getattr",
+          "isinstance",
+          "review_payload.get",
+          "router.post",
+          "select",
+          "select(CeriCatalystEventRevision).where",
+          "select(CeriCatalystEventRevision).where(CeriCatalystEventRevision.catalyst_event_id == event_id).where",
+          "select(CeriCatalystEventRevision).where(CeriCatalystEventRevision.catalyst_event_id == event_id).where(CeriCatalystEventRevision.is_current.is_(True)).with_for_update",
+          "set",
+          "str",
+          "supporting_mutation_operation",
+          "unsafe_route"
+        ],
+        "selector_expressions": [
+          "current_revision = db.scalar(select(CeriCatalystEventRevision).where(CeriCatalystEventRevision.catalyst_event_id == event_id).where(CeriCatalystEventRevision.is_current.is_(True)).with_for_update())",
+          "current_revision.review_state = (review.new_value_json or {}).get('review_state', 'REVIEWED')",
+          "review = existing or CeriManualReview(target_type='CATALYST_EVENT', target_id=event_id, prior_value_json={'review_state': getattr(current_revision, 'review_state', None)}, new_value_json=new_value, reviewer=str(review_payload.get('reviewer') or 'local-admin'), reason=str(review_payload.get('reason') or 'CERI local review'), is_current=True)"
+        ],
+        "signature": "event_id: int, request: Request, db: DbSession, payload: dict[str, Any] | None=None",
+        "source_sha256": "5d3a98ae6de9aaee6c4cebe2757e7f640a8907a290745a3cf24a7d5cd15539f6"
+      },
+      "role": "SUPPORTED_DISTINCT_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_caller_postgresql.py::test_ceri_review_changes_metadata_and_override_appends_a_source_revision"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_supporting_operations_postgresql.py::test_source_override_missing_changed_and_superseded_authority_rolls_back"
+        }
+      ],
+      "why_in_T14D": "Human audit and review_state only; distinct from source override and score calculation.",
+      "writer_id": "WF_CERI_REVIEW_METADATA"
+    },
+    {
+      "caller_dependencies": [
+        "EF_0c0cd820f687c1bb",
+        "EF_PRIVILEGED_DATABASE_RESTORE"
+      ],
+      "canonical_target": "app/services/transition_preflight_plan_service.py:freeze_transition_decision_handoff_manifest",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/transition_preflight_plan_service.py:freeze_transition_decision_handoff_manifest",
+        "decorators": [],
+        "first_statements": [
+          "'Persist the actual decision inputs after upstream stages have committed.'",
+          "plan = db.scalar(select(TransitionPreflightPlan).where(TransitionPreflightPlan.market_calculation_context_id == market_cutoff.context_id, TransitionPreflightPlan.upload_run_id == upload_run_id, TransitionPreflightPlan.status == 'CONSUMED').with_for_update())",
+          "if plan is None:\n    plan = _create_pipeline_decision_handoff_plan(db, upload_run_id=upload_run_id, market_cutoff=market_cutoff)",
+          "if not plan.run_start_anchor_json or not plan.run_start_anchor_fingerprint:\n    raise _rejection(plan, code='MALFORMED_DECISION_MANIFEST', category='run_start_anchor', message='preflight is missing its immutable run-start anchor')"
+        ],
+        "line": 415,
+        "native_calls": [
+          "CanonicalEvidenceSerializer.fingerprint",
+          "SetupLifecycleRepository",
+          "SetupLifecycleSnapshotBuilder",
+          "SetupLifecycleSourceLoader",
+          "SetupLifecycleSourceLoader().load_run_context",
+          "TransitionDecisionHandoffManifest",
+          "_build_decision_handoff_payload",
+          "_create_pipeline_decision_handoff_plan",
+          "_rejection",
+          "_validate_handoff_temporal_lineage",
+          "build_run_context_snapshots",
+          "build_run_start_anchor_manifest",
+          "db.add",
+          "db.flush",
+          "db.scalar",
+          "reconstruct_transition_decision_manifests",
+          "select",
+          "select(TransitionDecisionHandoffManifest).where",
+          "select(TransitionPreflightPlan).where",
+          "select(TransitionPreflightPlan).where(TransitionPreflightPlan.market_calculation_context_id == market_cutoff.context_id, TransitionPreflightPlan.upload_run_id == upload_run_id, TransitionPreflightPlan.status == 'CONSUMED').with_for_update",
+          "set"
+        ],
+        "selector_expressions": [
+          "actual = reconstruct_transition_decision_manifests(db, market_cutoff=market_cutoff, built_rows=built_rows, repository=repository, tickers=set(plan.tickers_json or ()))",
+          "existing = db.scalar(select(TransitionDecisionHandoffManifest).where(TransitionDecisionHandoffManifest.preflight_plan_id == plan.id))",
+          "fingerprint = CanonicalEvidenceSerializer.fingerprint(payload)",
+          "manifest = TransitionDecisionHandoffManifest(preflight_plan_id=plan.id, market_calculation_context_id=market_cutoff.context_id, upload_run_id=upload_run_id, pipeline_run_id=plan.pipeline_run_id, run_start_anchor_fingerprint=plan.run_start_anchor_fingerprint, manifest_json=payload, manifest_fingerprint=fingerprint)",
+          "observed_anchor = build_run_start_anchor_manifest(db, upload_run_id=upload_run_id, market_cutoff=market_cutoff, decision_manifests=actual)",
+          "observed_anchor_fingerprint = CanonicalEvidenceSerializer.fingerprint(observed_anchor)",
+          "payload = _build_decision_handoff_payload(db, plan=plan, market_cutoff=market_cutoff, built_rows=built_rows, decision_manifests=actual)",
+          "plan = _create_pipeline_decision_handoff_plan(db, upload_run_id=upload_run_id, market_cutoff=market_cutoff)",
+          "plan = db.scalar(select(TransitionPreflightPlan).where(TransitionPreflightPlan.market_calculation_context_id == market_cutoff.context_id, TransitionPreflightPlan.upload_run_id == upload_run_id, TransitionPreflightPlan.status == 'CONSUMED').with_for_update())",
+          "run_context = SetupLifecycleSourceLoader().load_run_context(db, upload_run_id, market_cutoff=market_cutoff, tickers=set(plan.tickers_json or ()))"
+        ],
+        "signature": "db: Session, *, upload_run_id: int, market_cutoff: MarketCalculationCutoff",
+        "source_sha256": "809f304b2af07ca967c7a93d90f42d11f4687eaa56174b52c6787d94fed64f24"
+      },
+      "role": "DOMAIN_SUPPORTING_STATE",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_decision_configuration_delivery_postgresql.py::test_native_setup_lifecycle_winner_artifacts_retain_own_c1"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14c_winner_writer_postgresql.py::test_native_winner_complete_capture_and_immutable_retry"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_caller_postgresql.py::test_native_certified_outcome_is_unchanged_when_incident_canary_is_retired"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempotent"
+        }
+      ],
+      "why_in_T14D": "Freeze exact decision handoff manifest on transition preflight root.",
+      "writer_id": "WF_DECISION_HANDOFF_MANIFEST"
+    },
+    {
+      "caller_dependencies": [
+        "EF_84b99433eae3bc2d",
+        "EF_PRIVILEGED_DATABASE_RESTORE"
+      ],
+      "canonical_target": "app/services/ib_market_intelligence/journal.py:exclude_execution_fill",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ib_market_intelligence/journal.py:exclude_execution_fill",
+        "decorators": [
+          "source_mutation_writer(MutationDomain.TRADE_JOURNAL, 'execution_source', mode=MutationSemanticMode.MAINTENANCE)"
+        ],
+        "first_statements": [
+          "'Change journal selection flags while retaining original broker observations.'",
+          "if excluded and (not (reason or '').strip()):\n    raise EntryPointAuthorityError('TRADE_JOURNAL_EXCLUSION_REASON_REQUIRED', 'Excluding a fill requires a reason.')",
+          "db.execute(select(IBExecutionFill.id).where(IBExecutionFill.id == fill.id).with_for_update())",
+          "from app.services.source_mutation_authority import _source_value"
+        ],
+        "line": 42,
+        "native_calls": [
+          "(reason or '').strip",
+          "EntryPointAuthorityError",
+          "IBExecutionFill.id.in_",
+          "IBExecutionFill.is_excluded.is_",
+          "_source_value",
+          "bool",
+          "db.execute",
+          "db.flush",
+          "db.scalar",
+          "db.scalars",
+          "select",
+          "select(IBExecutionFill.id).where",
+          "select(IBExecutionFill.id).where(IBExecutionFill.id == fill.id).with_for_update",
+          "select(IBExecutionFill.id).where(IBExecutionFill.id.in_(episode.fill_ids_json), IBExecutionFill.id != fill.id, IBExecutionFill.is_excluded.is_(True)).limit",
+          "select(IBTradeEpisode).with_for_update",
+          "source_mutation_writer"
+        ],
+        "selector_expressions": [],
+        "signature": "db: Session, *, fill: IBExecutionFill, excluded: bool, reason: str | None",
+        "source_sha256": "f593aae222615ec082ed40e2161c5e62bc861b25c76ebc18ac2b42a44374795e"
+      },
+      "role": "SUPPORTED_DISTINCT_WRITER",
+      "tests": [],
+      "why_in_T14D": "Excluded fill flag and rebuild of derived episodes; not a new research score.",
+      "writer_id": "WF_IB_FILL_EXCLUSION"
+    },
+    {
+      "caller_dependencies": [
+        "EF_3392d180c1a8d378",
+        "EF_9aef80213867f7fc",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_ac7c37fdb3ecd56c"
+      ],
+      "canonical_target": "app/services/ib_market_intelligence/journal.py:rebuild_trade_episodes",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ib_market_intelligence/journal.py:rebuild_trade_episodes",
+        "decorators": [
+          "source_mutation_writer(MutationDomain.TRADE_JOURNAL, 'execution_source', mode=MutationSemanticMode.MAINTENANCE)"
+        ],
+        "first_statements": [
+          "'Rebuild mutable journal state from an explicitly captured fill population.'",
+          "if not isinstance(operation_at, datetime) or operation_at.tzinfo is None or operation_at.utcoffset() is None:\n    raise ValueError('TRADE_EPISODE_AWARE_OPERATION_TIME_REQUIRED')",
+          "if episode_policy != 'FIFO_POSITION_V1':\n    raise ValueError('TRADE_EPISODE_POLICY_UNSUPPORTED')",
+          "if len({fill.id for fill in fills}) != len(fills):\n    raise ValueError('TRADE_EPISODE_DUPLICATE_FILL')"
+        ],
+        "line": 98,
+        "native_calls": [
+          "IBTradeEpisode",
+          "ValueError",
+          "_episode_key",
+          "_episode_values",
+          "active_keys.add",
+          "any",
+          "construct_trade_episodes",
+          "db.add",
+          "db.flush",
+          "db.scalars",
+          "db.scalars(select(IBTradeEpisode)).all",
+          "existing_rows.get",
+          "existing_rows.items",
+          "isinstance",
+          "len",
+          "operation_at.utcoffset",
+          "persisted.append",
+          "select",
+          "set",
+          "setattr",
+          "source_mutation_writer",
+          "values.items"
+        ],
+        "selector_expressions": [],
+        "signature": "db: Session, *, fills: list[IBExecutionFill], operation_at: datetime, episode_policy: str",
+        "source_sha256": "f593aae222615ec082ed40e2161c5e62bc861b25c76ebc18ac2b42a44374795e"
+      },
+      "role": "SUPPORTED_DISTINCT_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_ib_market_intelligence_persistence.py::test_metric_revision_and_flex_import_are_idempotent"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_caller_postgresql.py::test_trade_episode_native_population_and_altered_source_rejection"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_caller_postgresql.py::test_trade_episode_retry_order_time_population_and_partial_failure"
+        }
+      ],
+      "why_in_T14D": "rebuild_trade_episodes derives current execution episodes from active fills. Historical research association is now the separate WF_IB_TRADE_RESEARCH_LINK family; optional Winner reads belong there, not to IBMI producer authority.",
+      "writer_id": "WF_IB_TRADE_EPISODES"
+    },
+    {
+      "caller_dependencies": [
+        "EF_9aef80213867f7fc",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_ac7c37fdb3ecd56c",
+        "EF_b29864373e3407c6"
+      ],
+      "canonical_target": "app/services/ib_market_intelligence/journal.py:match_episode_to_research",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ib_market_intelligence/journal.py:match_episode_to_research",
+        "decorators": [
+          "source_mutation_writer(MutationDomain.TRADE_JOURNAL, 'execution_source', mode=MutationSemanticMode.MAINTENANCE)"
+        ],
+        "first_statements": [
+          "if lookback_sessions < 1 or policy != 'latest-completed-before-entry-v1':\n    raise ValueError('TRADE_RESEARCH_MATCHING_POLICY_UNSUPPORTED')",
+          "cutoff = episode.opened_at",
+          "earliest = cutoff - timedelta(days=max(lookback_sessions * 2, 7))",
+          "candidates = db.execute(select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin(FundamentalScore, (FundamentalScore.run_id == UploadRun.id) & (FundamentalScore.ticker == CombinedResult.ticker) & (FundamentalScore.created_at <= cutoff)).where(func.upper(CombinedResult.ticker) == episode.ticker.upper()).where(UploadRun.processed_at.is_not(None)).where(UploadRu"
+        ],
+        "line": 196,
+        "native_calls": [
+          "CeriScoreSnapshot.cutoff_at.desc",
+          "CombinedResult.created_at.desc",
+          "Decimal",
+          "IBTradeResearchLink",
+          "RankingResult.created_at.desc",
+          "SetupSignalSnapshot.calculated_at.desc",
+          "UploadRun.processed_at.desc",
+          "UploadRun.processed_at.is_not",
+          "ValueError",
+          "WinnerPredictionSnapshot.source_data_cutoff_at.desc",
+          "_serving_winner_estimate",
+          "_string",
+          "all",
+          "candidate[1].created_at.date",
+          "cutoff.date",
+          "db.add",
+          "db.execute",
+          "db.execute(select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin(FundamentalScore, (FundamentalScore.run_id == UploadRun.id) & (FundamentalScore.ticker == CombinedResult.ticker) & (FundamentalScore.created_at <= cutoff)).where(func.upper(CombinedResult.ticker) == episode.ticker.upper()).where(UploadRun.processed_at.is_not(None)).where(UploadRun.processed_at <= cutoff).where(UploadRun.processed_at >= earliest).where(CombinedResult.created_at <= cutoff).order_by(CombinedResult.created_at.desc(), UploadRun.processed_at.desc())).all",
+          "db.flush",
+          "db.scalar",
+          "eligible_snapshot_select",
+          "eligible_snapshot_select(name='effective_journal_dispositions').where",
+          "eligible_snapshot_select(name='effective_journal_dispositions').where(CeriScoreSnapshot.run_id == run.id).where",
+          "eligible_snapshot_select(name='effective_journal_dispositions').where(CeriScoreSnapshot.run_id == run.id).where(func.upper(CeriScoreSnapshot.ticker) == episode.ticker.upper()).where",
+          "eligible_snapshot_select(name='effective_journal_dispositions').where(CeriScoreSnapshot.run_id == run.id).where(func.upper(CeriScoreSnapshot.ticker) == episode.ticker.upper()).where(CeriScoreSnapshot.cutoff_at <= cutoff).order_by",
+          "episode.ticker.upper",
+          "evidence_times.extend",
+          "func.upper",
+          "len",
+          "max",
+          "publish_after_commit",
+          "ranking_query.order_by",
+          "ranking_query.where",
+          "select",
+          "select(IBTradeResearchLink).where",
+          "select(RankingResult).where",
+          "select(RankingResult).where(RankingResult.id == setup.ranking_result_id).where",
+          "select(RankingResult).where(RankingResult.run_id == run.id).where",
+          "select(RankingResult).where(RankingResult.run_id == run.id).where(func.upper(RankingResult.ticker) == episode.ticker.upper()).where",
+          "select(SetupSignalSnapshot).where",
+          "select(SetupSignalSnapshot).where(SetupSignalSnapshot.run_id == run.id).where",
+          "select(SetupSignalSnapshot).where(SetupSignalSnapshot.run_id == run.id).where(func.upper(SetupSignalSnapshot.ticker) == episode.ticker.upper()).where",
+          "select(SetupSignalSnapshot).where(SetupSignalSnapshot.run_id == run.id).where(func.upper(SetupSignalSnapshot.ticker) == episode.ticker.upper()).where(SetupSignalSnapshot.calculated_at <= cutoff).order_by",
+          "select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join",
+          "select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin",
+          "select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin",
+          "select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin(FundamentalScore, (FundamentalScore.run_id == UploadRun.id) & (FundamentalScore.ticker == CombinedResult.ticker) & (FundamentalScore.created_at <= cutoff)).where",
+          "select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin(FundamentalScore, (FundamentalScore.run_id == UploadRun.id) & (FundamentalScore.ticker == CombinedResult.ticker) & (FundamentalScore.created_at <= cutoff)).where(func.upper(CombinedResult.ticker) == episode.ticker.upper()).where",
+          "select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin(FundamentalScore, (FundamentalScore.run_id == UploadRun.id) & (FundamentalScore.ticker == CombinedResult.ticker) & (FundamentalScore.created_at <= cutoff)).where(func.upper(CombinedResult.ticker) == episode.ticker.upper()).where(UploadRun.processed_at.is_not(None)).where",
+          "select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin(FundamentalScore, (FundamentalScore.run_id == UploadRun.id) & (FundamentalScore.ticker == CombinedResult.ticker) & (FundamentalScore.created_at <= cutoff)).where(func.upper(CombinedResult.ticker) == episode.ticker.upper()).where(UploadRun.processed_at.is_not(None)).where(UploadRun.processed_at <= cutoff).where",
+          "select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin(FundamentalScore, (FundamentalScore.run_id == UploadRun.id) & (FundamentalScore.ticker == CombinedResult.ticker) & (FundamentalScore.created_at <= cutoff)).where(func.upper(CombinedResult.ticker) == episode.ticker.upper()).where(UploadRun.processed_at.is_not(None)).where(UploadRun.processed_at <= cutoff).where(UploadRun.processed_at >= earliest).where",
+          "select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin(FundamentalScore, (FundamentalScore.run_id == UploadRun.id) & (FundamentalScore.ticker == CombinedResult.ticker) & (FundamentalScore.created_at <= cutoff)).where(func.upper(CombinedResult.ticker) == episode.ticker.upper()).where(UploadRun.processed_at.is_not(None)).where(UploadRun.processed_at <= cutoff).where(UploadRun.processed_at >= earliest).where(CombinedResult.created_at <= cutoff).order_by",
+          "select(WinnerPredictionSnapshot).where",
+          "select(WinnerPredictionSnapshot).where(WinnerPredictionSnapshot.run_id == run.id).where",
+          "select(WinnerPredictionSnapshot).where(WinnerPredictionSnapshot.run_id == run.id).where(func.upper(WinnerPredictionSnapshot.ticker) == episode.ticker.upper()).where",
+          "select(WinnerPredictionSnapshot).where(WinnerPredictionSnapshot.run_id == run.id).where(func.upper(WinnerPredictionSnapshot.ticker) == episode.ticker.upper()).where(WinnerPredictionSnapshot.source_data_cutoff_at <= cutoff).order_by",
+          "sorted",
+          "source_mutation_writer",
+          "timedelta"
+        ],
+        "selector_expressions": [
+          "candidates = db.execute(select(UploadRun, CombinedResult, TechnicalScore, FundamentalScore).join(CombinedResult, CombinedResult.run_id == UploadRun.id).outerjoin(TechnicalScore, (TechnicalScore.run_id == UploadRun.id) & (TechnicalScore.ticker == CombinedResult.ticker) & (TechnicalScore.created_at <= cutoff)).outerjoin(FundamentalScore, (FundamentalScore.run_id == UploadRun.id) & (FundamentalScore.ticker == CombinedResult.ticker) & (FundamentalScore.created_at <= cutoff)).where(func.upper(CombinedResult.ticker) == episode.ticker.upper()).where(UploadRun.processed_at.is_not(None)).where(UploadRu",
+          "candidates = sorted(candidates, key=lambda candidate: (candidate[1].created_at.date() == cutoff.date(), candidate[1].created_at, candidate[0].processed_at, candidate[0].id), reverse=True)",
+          "ceri = db.scalar(eligible_snapshot_select(name='effective_journal_dispositions').where(CeriScoreSnapshot.run_id == run.id).where(func.upper(CeriScoreSnapshot.ticker) == episode.ticker.upper()).where(CeriScoreSnapshot.cutoff_at <= cutoff).order_by(CeriScoreSnapshot.cutoff_at.desc()))",
+          "context: dict[str, Any] = {'semantic_mode': 'CURRENT_RULES_RETROSPECTIVE', 'certified_calculation_authority': False, 'final_score': _string(combined.final_score), 'combined_decision': combined.combined_decision, 'fundamental_score': _string(fundamental.fundamental_score) if fundamental else None, 'technical_score': _string(technical.dual_score) if technical else None, 'market_regime': technical.market_regime if technical else None, 'setup_family': setup.primary_setup_family if setup else None, 'setup_state': setup.lifecycle_state_candidate if setup else None, 'ceri_opportunity_score': ceri.opp",
+          "cutoff = episode.opened_at",
+          "earliest = cutoff - timedelta(days=max(lookback_sessions * 2, 7))",
+          "evidence_times = [run.processed_at, combined.created_at]",
+          "link.leakage_check = 'PASS' if all((value <= cutoff for value in evidence_times)) else 'FAIL'",
+          "link.leakage_check = 'PASS' if best_time <= cutoff else 'FAIL'",
+          "ranking = db.scalar(select(RankingResult).where(RankingResult.id == setup.ranking_result_id).where(RankingResult.created_at <= cutoff))",
+          "ranking_query = select(RankingResult).where(RankingResult.run_id == run.id).where(func.upper(RankingResult.ticker) == episode.ticker.upper()).where(RankingResult.created_at <= cutoff)",
+          "setup = db.scalar(select(SetupSignalSnapshot).where(SetupSignalSnapshot.run_id == run.id).where(func.upper(SetupSignalSnapshot.ticker) == episode.ticker.upper()).where(SetupSignalSnapshot.calculated_at <= cutoff).order_by(SetupSignalSnapshot.calculated_at.desc()))",
+          "winner = db.scalar(select(WinnerPredictionSnapshot).where(WinnerPredictionSnapshot.run_id == run.id).where(func.upper(WinnerPredictionSnapshot.ticker) == episode.ticker.upper()).where(WinnerPredictionSnapshot.source_data_cutoff_at <= cutoff).order_by(WinnerPredictionSnapshot.source_data_cutoff_at.desc()))",
+          "winner_estimate = _serving_winner_estimate(db, prediction_id=winner.id, cutoff=cutoff)"
+        ],
+        "signature": "db: Session, episode: IBTradeEpisode, *, lookback_sessions: int, policy: str",
+        "source_sha256": "f593aae222615ec082ed40e2161c5e62bc861b25c76ebc18ac2b42a44374795e"
+      },
+      "role": "SUPPORTED_DISTINCT_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_ib_market_intelligence_persistence.py::test_metric_revision_and_flex_import_are_idempotent"
+        }
+      ],
+      "why_in_T14D": "Writes one addressed research link as matched/unmatched/ambiguous and records leakage checks and selected artifact addresses. It does not modify research evidence or produce IBMI financial scores.",
+      "writer_id": "WF_IB_TRADE_RESEARCH_LINK"
+    },
+    {
+      "caller_dependencies": [
+        "EF_1829ba4c1327b124",
+        "EF_42b795771febb433",
+        "EF_6bbd386aea2907d8",
+        "EF_85f4b661ddf7bbe3",
+        "EF_8dac9448947605ba",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_a005dd81d77d51c6",
+        "EF_a046247f0bce46ec",
+        "EF_add9abc9ad900919",
+        "EF_b485539a18ce34a9",
+        "EF_b66fd9fbd8bf92e7",
+        "EF_bd24dd9da817c632",
+        "EF_c637fc640f1c37bb",
+        "EF_d02936b13662f350",
+        "EF_f2bc7aacc0513db5",
+        "EF_f3e3fc7ce827f01c",
+        "EF_f4945d656d5d650f",
+        "EF_f86acc74753df900"
+      ],
+      "canonical_target": "app/services/market_calculation_context_service.py:create_pipeline_market_context",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/market_calculation_context_service.py:create_pipeline_market_context",
+        "decorators": [],
+        "first_statements": [
+          "existing = pipeline.market_calculation_context",
+          "if existing is not None:\n    return cutoff_from_row(existing)",
+          "if isinstance(db, Session):\n    from app.services.source_mutation_authority import _source_value\n    with db.no_autoflush:\n        _source_value(db, pipeline)\n        bound = db.scalar(select(ExecutionConfigurationBinding.binding_key).where(ExecutionConfigurationBinding.pipeline_run_id == pipeline.id).limit(1))\n        delivered = db.scalar(select(BackgroundJob.id).where(BackgroundJob.payload_json['pipeline_run_id'].as_integer() == pipeline.id).limit(1))\n        advanced = db.scalar(select(PipelineStep.id).where(PipelineStep.pipeline_run_id == pipeline.id, PipelineStep.status.not_in(('PENDING'",
+          "cutoff = (clock or MarketClockService()).cutoff_for(cutoff_at or datetime.now(UTC), reason='FULL_PIPELINE_FROZEN_AT_ENQUEUE')"
+        ],
+        "line": 48,
+        "native_calls": [
+          "(clock or MarketClockService()).cutoff_for",
+          "BackgroundJob.payload_json['pipeline_run_id'].as_integer",
+          "MarketCalculationContext",
+          "MarketClockService",
+          "PipelineCalculationContextError",
+          "PipelineStep.status.not_in",
+          "_source_value",
+          "cutoff.with_context_id",
+          "cutoff_from_row",
+          "datetime.now",
+          "db.add",
+          "db.flush",
+          "db.rollback",
+          "db.scalar",
+          "isinstance",
+          "publish_after_commit",
+          "select",
+          "select(BackgroundJob.id).where",
+          "select(BackgroundJob.id).where(BackgroundJob.payload_json['pipeline_run_id'].as_integer() == pipeline.id).limit",
+          "select(ExecutionConfigurationBinding.binding_key).where",
+          "select(ExecutionConfigurationBinding.binding_key).where(ExecutionConfigurationBinding.pipeline_run_id == pipeline.id).limit",
+          "select(PipelineStep.id).where",
+          "select(PipelineStep.id).where(PipelineStep.pipeline_run_id == pipeline.id, PipelineStep.status.not_in(('PENDING', 'QUEUED'))).limit"
+        ],
+        "selector_expressions": [
+          "advanced = db.scalar(select(PipelineStep.id).where(PipelineStep.pipeline_run_id == pipeline.id, PipelineStep.status.not_in(('PENDING', 'QUEUED'))).limit(1))",
+          "bound = db.scalar(select(ExecutionConfigurationBinding.binding_key).where(ExecutionConfigurationBinding.pipeline_run_id == pipeline.id).limit(1))",
+          "cutoff = (clock or MarketClockService()).cutoff_for(cutoff_at or datetime.now(UTC), reason='FULL_PIPELINE_FROZEN_AT_ENQUEUE')",
+          "delivered = db.scalar(select(BackgroundJob.id).where(BackgroundJob.payload_json['pipeline_run_id'].as_integer() == pipeline.id).limit(1))",
+          "existing = pipeline.market_calculation_context",
+          "row = MarketCalculationContext(pipeline_run_id=pipeline.id, upload_run_id=pipeline.upload_run_id, cutoff_at=cutoff.cutoff_at, exchange_timezone=cutoff.exchange_timezone, latest_completed_session=cutoff.latest_completed_session, daily_bar_ready_at=cutoff.daily_bar_ready_at, calendar_version=cutoff.calendar_version, bar_readiness_version=cutoff.bar_readiness_version, cutoff_reason=cutoff.cutoff_reason)"
+        ],
+        "signature": "db: Session, pipeline: PipelineRun, *, cutoff_at: datetime | None=None, clock: MarketClockService | None=None",
+        "source_sha256": "8ab8f1914598e8289112952f52975bdf8737ae97993988aa2e7c2d0270249446"
+      },
+      "role": "DOMAIN_SUPPORTING_STATE",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_decision_configuration_delivery_postgresql.py::test_public_resume_pipeline_preserves_c1_and_temporal_context"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_phase4_configuration_certification_postgresql.py::test_populated_0080_downgrade_reupgrade_preserves_business_history_and_fails_old_jobs_closed"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_session_temporal_integrity_postgresql.py::test_pipeline_job_context_round_trip_on_disposable_postgresql"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_source_bundle_postgresql.py::test_pipeline_feature_authority_selects_remain_within_12"
+        }
+      ],
+      "why_in_T14D": "Reserve/attach/create immutable temporal root; preflight reserved root differs from pipeline ownership.",
+      "writer_id": "WF_MARKET_CONTEXT_AUTHORITY"
+    },
+    {
+      "caller_dependencies": [
+        "EF_025e41805514b5ba",
+        "EF_1829ba4c1327b124",
+        "EF_5d82bf1f829e0378",
+        "EF_952eb770ffb142bc",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_a046247f0bce46ec",
+        "EF_b485539a18ce34a9",
+        "EF_b66fd9fbd8bf92e7",
+        "EF_c637fc640f1c37bb",
+        "EF_d996ca3584688062",
+        "EF_f2bc7aacc0513db5",
+        "EF_f4945d656d5d650f",
+        "EF_f86acc74753df900",
+        "EF_ff8471e9bb4ccc07"
+      ],
+      "canonical_target": "app/services/pipeline_service.py:start_pipeline",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/pipeline_service.py:start_pipeline",
+        "decorators": [],
+        "first_statements": [
+          "settings = get_settings()",
+          "certification_mode = getattr(settings, 'runtime_mode', RuntimeMode.NORMAL) is RuntimeMode.CERTIFICATION",
+          "upload_run = db.get(UploadRun, upload_run_id)",
+          "if upload_run is None:\n    raise ValueError(f'Upload run {upload_run_id} was not found.')"
+        ],
+        "line": 119,
+        "native_calls": [
+          "(authoritative.result_json or {}).get",
+          "CanonicalEvidenceSerializer.canonicalize",
+          "MarketDataPolicy",
+          "PipelineRun",
+          "PipelineStep",
+          "PreEnqueueOperationalGateError",
+          "TransitionPreflightError",
+          "ValueError",
+          "_authoritative_pipeline_for_run",
+          "_cancel_pending_steps",
+          "_is_recoverable_sec_block",
+          "_pipeline_for_job",
+          "_pipeline_request_key",
+          "_utcnow",
+          "active_job_for_request_key",
+          "bool",
+          "certification_root_payload",
+          "consume_transition_preflight",
+          "create_pipeline_market_context",
+          "db.add",
+          "db.flush",
+          "db.get",
+          "dict",
+          "enqueue_job",
+          "enumerate",
+          "get_settings",
+          "getattr",
+          "int",
+          "len",
+          "market_cutoff.latest_completed_session.isoformat",
+          "next",
+          "operational_gate_result.ib_status.to_dict",
+          "operational_gate_result.to_dict",
+          "pipeline_for_consumed_preflight",
+          "pipeline_step_names",
+          "preflight.get",
+          "publish_after_commit",
+          "request_active_prewarm_preemption",
+          "schedule_sec_readiness_repair",
+          "validate_pre_enqueue_operational_gate",
+          "verify_transition_preflight_for_enqueue"
+        ],
+        "selector_expressions": [
+          "authoritative = _authoritative_pipeline_for_run(db, upload_run_id)",
+          "consumed_pipeline = pipeline_for_consumed_preflight(db, transition_preflight_plan_id)",
+          "consumed_pipeline._coalesced = True",
+          "existing_job = active_job_for_request_key(db, FULL_PIPELINE_JOB_TYPE, request_key)",
+          "existing_pipeline = _pipeline_for_job(db, existing_job)",
+          "existing_pipeline = _pipeline_for_job(db, job)",
+          "existing_pipeline._coalesced = True",
+          "handoff_index = next((index for index, step_name in enumerate(step_names) if step_name in {CERI_PIPELINE_PROVIDER_INGEST_STEP, *SLSE_PIPELINE_STEPS, 'CAPTURING_WINNER_PREDICTIONS'}), len(step_names))",
+          "job = enqueue_job(db, job_type=FULL_PIPELINE_JOB_TYPE, payload={'pipeline_run_id': pipeline.id, 'market_calculation_context_id': market_cutoff.context_id, 'market_cutoff_at': CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at), 'input_as_of_session': market_cutoff.latest_completed_session.isoformat(), 'market_calendar_version': market_cutoff.calendar_version, 'bar_readiness_version': market_cutoff.bar_readiness_version, 'transition_preflight_plan_id': transition_preflight_plan_id, **certification_authorization, 'transition_evidence_fingerprint': verified_transition_preflight.plan",
+          "market_cutoff = consume_transition_preflight(db, verified=verified_transition_preflight, pipeline=pipeline)",
+          "market_cutoff = create_pipeline_market_context(db, pipeline)",
+          "pipeline = PipelineRun(upload_run_id=upload_run_id, status=PipelineStatus.PENDING, current_step=step_names[0], requested_by=requested_by, message='Full pipeline is queued.')",
+          "pipeline.completed_at = _utcnow()",
+          "pipeline.message = 'Duplicate pipeline request coalesced into an active run.'",
+          "pipeline.result_json = {'background_job_id': job.id, 'market_data_policy': policy.value, 'ib_preflight_status': preflight.get('status'), 'ib_preflight_checked_at': preflight.get('checked_at'), 'ib_host': preflight.get('host', getattr(settings, 'ib_host', None)), 'ib_port': preflight.get('port', getattr(settings, 'ib_port', None)), 'market_calculation_context_id': market_cutoff.context_id, 'market_cutoff_at': CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at), 'input_as_of_session': market_cutoff.latest_completed_session.isoformat(), 'market_calendar_version': market_cutoff.calen",
+          "pipeline.result_json = {**pipeline.result_json, 'preempted_prewarm_job_ids': preempted_prewarm_jobs}",
+          "pipeline.result_json['pre_enqueue_operational_gate'] = operational_gate_result.to_dict()",
+          "pipeline.status = PipelineStatus.CANCELLED",
+          "preempted_prewarm_jobs = request_active_prewarm_preemption(db, pipeline_run_id=pipeline.id)",
+          "request_key = _pipeline_request_key(upload_run_id, step_names, policy)",
+          "step_names = (*step_names[:handoff_index], DECISION_HANDOFF_PIPELINE_STEP, *step_names[handoff_index:])",
+          "step_names = pipeline_step_names(ceri_run_capture_enabled=ceri_run_capture_enabled, ceri_provider_ingest_enabled=ceri_provider_ingest_enabled, setup_lifecycle_pipeline_step_enabled=setup_lifecycle_pipeline_step_enabled)"
+        ],
+        "signature": "db: Session, upload_run_id: int, requested_by: str | None=None, ceri_run_capture_enabled: bool | None=None, ceri_provider_ingest_enabled: bool | None=None, setup_lifecycle_pipeline_step_enabled: bool | None=None, market_data_policy: MarketDataPolicy | str=MarketDataPolicy.REQUIRE_IB, ib_preflight_status: dict[str, Any] | None=None, transition_preflight_plan_id: int | None=None, transition_candidate_discovery: Any | None=None",
+        "source_sha256": "82cf1c28c6f4ee72da8fce44e8530e1578451d5489f6066c69985d320a6d621b"
+      },
+      "role": "DOMAIN_SUPPORTING_STATE",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_service.py::test_start_pipeline_creates_pipeline_steps_and_background_job"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_service.py::test_new_pipeline_requests_running_prewarm_preemption"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_service.py::test_start_pipeline_coalesces_matching_active_pipeline_request"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_service.py::test_start_pipeline_reuses_preparing_pipeline_after_parent_job_finishes"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_service.py::test_start_pipeline_can_create_setup_lifecycle_steps_when_enabled"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_service.py::test_start_pipeline_can_create_ceri_and_setup_lifecycle_steps_when_enabled"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_service.py::test_start_pipeline_raises_for_missing_upload_run"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_service.py::test_certification_gate_failure_precedes_pipeline_and_job_creation"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_service.py::test_certification_duplicate_action_returns_consumed_pipeline_without_new_artifacts"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_session_boundary_reuses_reserved_context_and_duplicate_enqueue_is_idempotent"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_terminal_plan_states_have_deterministic_rejection_codes"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_two_concurrent_plan_consumers_create_exactly_one_pipeline"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_pipeline_enqueue_failure_injection_rolls_back_every_half_applied_state"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_post_cutoff_evidence_change_rejects_instead_of_creating_c2"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempotent"
+        }
+      ],
+      "why_in_T14D": "Start/resume/cancel/SEC continuation of pipeline root and steps with Phase-4 binding delivery.",
+      "writer_id": "WF_PIPELINE_CONTROL"
+    },
+    {
+      "caller_dependencies": [
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_c7f7c896fe1e6070"
+      ],
+      "canonical_target": "app/services/background_job_service.py:_interrupt_fenced_pipeline_steps",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/background_job_service.py:_interrupt_fenced_pipeline_steps",
+        "decorators": [],
+        "first_statements": [
+          "'Make pipeline step state agree with the fenced execution owner.\\n\\n    Background-job attempt history remains authoritative.  The compact step\\n    history retained here prevents the single current-state row from erasing\\n    the abandoned attempt when automatic replay starts.\\n    '",
+          "if job.job_type != 'FULL_PIPELINE':\n    return",
+          "raw_pipeline_id = (job.payload_json or {}).get('pipeline_run_id')",
+          "try:\n    pipeline_id = int(raw_pipeline_id)\nexcept (TypeError, ValueError):\n    return"
+        ],
+        "line": 1046,
+        "native_calls": [
+          "(job.payload_json or {}).get",
+          "db.get",
+          "db.scalars",
+          "dict",
+          "history.append",
+          "int",
+          "list",
+          "observed_at.isoformat",
+          "payload.get",
+          "select",
+          "select(PipelineStep).where",
+          "select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_id).where",
+          "step.started_at.isoformat"
+        ],
+        "selector_expressions": [
+          "pipeline = db.get(PipelineRun, pipeline_id)",
+          "pipeline.completed_at = None",
+          "pipeline.current_step = job.progress_stage or pipeline.current_step",
+          "pipeline.message = 'Pipeline execution was interrupted; automatic replay is pending.'",
+          "pipeline.status = 'PENDING'",
+          "pipeline_id = int(raw_pipeline_id)",
+          "raw_pipeline_id = (job.payload_json or {}).get('pipeline_run_id')",
+          "running_steps = list(db.scalars(select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_id).where(PipelineStep.status == 'RUNNING')))"
+        ],
+        "signature": "db: Session, job: BackgroundJob, *, observed_at: datetime",
+        "source_sha256": "b931f237b12e6710cc9a643c4751dcd056ba8e49ecd6a90b369059791ad76d68"
+      },
+      "role": "DOMAIN_SUPPORTING_STATE",
+      "tests": [],
+      "why_in_T14D": "Fenced execution status propagation to owning pipeline and steps.",
+      "writer_id": "WF_PIPELINE_FENCE_INTERRUPTION"
+    },
+    {
+      "caller_dependencies": [
+        "EF_1829ba4c1327b124",
+        "EF_42b795771febb433",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_a046247f0bce46ec",
+        "EF_add9abc9ad900919",
+        "EF_b485539a18ce34a9",
+        "EF_b66fd9fbd8bf92e7",
+        "EF_c637fc640f1c37bb",
+        "EF_f2bc7aacc0513db5",
+        "EF_f3e3fc7ce827f01c",
+        "EF_f4945d656d5d650f",
+        "EF_f86acc74753df900"
+      ],
+      "canonical_target": "app/services/pipeline_executor.py:execute_full_pipeline",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/pipeline_executor.py:execute_full_pipeline",
+        "decorators": [
+          "pipeline_configuration_delivery"
+        ],
+        "first_statements": [
+          "dependencies = dependencies or PipelineExecutionDependencies()",
+          "from app.services.configuration_delivery import current_delivery, delivered_configuration",
+          "if isinstance(db, Session) and current_delivery() is not None:\n    frozen_flags = delivered_configuration('execution.settings').values\n    expected_flags = {'ceri_run_capture_enabled': frozen_flags['ceri_enabled'] and frozen_flags['ceri_run_capture_enabled'], 'ceri_provider_ingest_enabled': frozen_flags['ceri_enabled'] and frozen_flags['ceri_provider_ingest_enabled'], 'setup_lifecycle_pipeline_step_enabled': frozen_flags['setup_lifecycle_pipeline_step_enabled'], 'setup_capture_handoff_enabled': frozen_flags['setup_capture_handoff_enabled'], 'winner_probability_capture_enabled': frozen_flags['w",
+          "pipeline = _require_pipeline(db, pipeline_run_id)"
+        ],
+        "line": 283,
+        "native_calls": [
+          "(fetch_run.decision_counts_json or {}).get",
+          "IBFetchRun.id.desc",
+          "IBGatewayUnavailable",
+          "IBHistoricalCircuitOpenError",
+          "IBHistoricalDataUnavailableError",
+          "PipelineCancelled",
+          "PipelineExecutionDependencies",
+          "PipelinePerformanceTracker",
+          "TechnicalScoringOverlapCoordinator",
+          "ValueError",
+          "_accepts_keyword",
+          "_apply_ceri_capture_result",
+          "_apply_fetch_performance",
+          "_apply_fetch_result",
+          "_apply_ib_execution_status",
+          "_apply_market_session_metadata",
+          "_apply_setup_lifecycle_capture_result",
+          "_apply_setup_lifecycle_evaluation_result",
+          "_apply_winner_capture_result",
+          "_apply_winner_step_outcome",
+          "_cached_ticker_count",
+          "_call_market_sensitive",
+          "_ceri_provider_ingest_enabled",
+          "_ceri_run_capture_enabled",
+          "_duration_ms",
+          "_empty_result",
+          "_execute_resumed_pipeline",
+          "_fetch_technical_overlap_enabled",
+          "_final_pipeline_status",
+          "_freeze_pipeline_handoff",
+          "_historical_capability_payload",
+          "_invoke_setup_evaluation",
+          "_invoke_winner_capture",
+          "_is_historical_data_ready",
+          "_mark_pipeline_blocked",
+          "_mark_pipeline_cancelled",
+          "_mark_pipeline_failed",
+          "_mark_pipeline_finished",
+          "_mark_pipeline_running",
+          "_mark_technical_scores_degraded",
+          "_market_data_policy",
+          "_pipeline_has_step",
+          "_pipeline_step",
+          "_plan_skips_ticker",
+          "_raise_if_cancelled",
+          "_record_performance_metrics",
+          "_require_pipeline",
+          "_require_upload_run",
+          "_schedule_sec_prerequisite_repair",
+          "_setup_capture_handoff_enabled",
+          "_setup_lifecycle_pipeline_step_enabled",
+          "_technical_error_count",
+          "_tickers_for_run",
+          "_to_execution_result",
+          "_winner_probability_capture_enabled",
+          "bool",
+          "callable",
+          "current_delivery",
+          "db.scalar",
+          "delivered_configuration",
+          "dependencies.build_fetch_plan",
+          "dependencies.check_ib_gateway",
+          "dependencies.check_ib_historical_capability",
+          "dependencies.execute_fetch_plan",
+          "dict",
+          "expected_flags.items",
+          "get_settings",
+          "getattr",
+          "int",
+          "is_api_ready_status",
+          "isinstance",
+          "len",
+          "market_context_for_pipeline",
+          "operational_metrics.increment",
+          "operational_metrics.total",
+          "overlap_coordinator.abort",
+          "overlap_coordinator.finalize",
+          "overlap_coordinator.mark_fetch_complete",
+          "performance.add_fallback",
+          "performance.set_metric",
+          "performance.snapshot",
+          "prewarm_skipped_tickers.intersection",
+          "publish_after_commit",
+          "record_pipeline_prewarm_reuse",
+          "replace",
+          "resolve_pipeline_prewarm_context",
+          "result.get",
+          "rollback",
+          "sector_snapshot.summary.get",
+          "select",
+          "select(IBFetchRun.id).where",
+          "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where",
+          "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').order_by",
+          "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').order_by(IBFetchRun.id.desc()).limit",
+          "should_cancel",
+          "sorted",
+          "sum",
+          "validate",
+          "validate_sec_pipeline_preflight",
+          "{'BENCHMARK', 'SECTOR'}.intersection"
+        ],
+        "selector_expressions": [
+          "capture_result = _call_market_sensitive(capture, db, upload_run.id, market_cutoff)",
+          "capture_result = _invoke_winner_capture(capture, db, upload_run.id, market_cutoff=market_cutoff, decision_handoff_manifest_id=result.get('decision_handoff_manifest_id'), should_cancel=should_cancel, lease_guard=lease_guard, progress_callback=progress_callback, memory_probe=memory_probe)",
+          "ceri_result = _call_market_sensitive(capture, db, upload_run.id, market_cutoff)",
+          "combined_results = _call_market_sensitive(dependencies.refresh_combined, db, upload_run.id, market_cutoff, pipeline_run_id=pipeline.id)",
+          "dependencies = dependencies or PipelineExecutionDependencies()",
+          "dependencies = replace(dependencies, market_cutoff=market_cutoff)",
+          "evaluation_result = _invoke_setup_evaluation(evaluate, db, upload_run.id, capture_result=capture_result if _setup_capture_handoff_enabled(dependencies) else None, market_cutoff=market_cutoff, pipeline_run_id=pipeline.id)",
+          "expected_flags = {'ceri_run_capture_enabled': frozen_flags['ceri_enabled'] and frozen_flags['ceri_run_capture_enabled'], 'ceri_provider_ingest_enabled': frozen_flags['ceri_enabled'] and frozen_flags['ceri_provider_ingest_enabled'], 'setup_lifecycle_pipeline_step_enabled': frozen_flags['setup_lifecycle_pipeline_step_enabled'], 'setup_capture_handoff_enabled': frozen_flags['setup_capture_handoff_enabled'], 'winner_probability_capture_enabled': frozen_flags['winner_probability_enabled'] and frozen_flags['winner_probability_capture_in_pipeline']}",
+          "final_status = _final_pipeline_status(result)",
+          "frozen_flags = delivered_configuration('execution.settings').values",
+          "fundamental_scores = _call_market_sensitive(dependencies.recalculate_fundamentals, db, upload_run.id, market_cutoff, pipeline_run_id=pipeline.id)",
+          "market_cutoff = dependencies.market_cutoff or market_context_for_pipeline(db, pipeline)",
+          "market_data_policy = _market_data_policy(pipeline)",
+          "overlap_coordinator = TechnicalScoringOverlapCoordinator(db, run_id=upload_run.id, tickers=tickers, should_cancel=should_cancel, lease_guard=lease_guard, required_market_tickers=benchmark_tickers, wait_for_market_events=bool(plan.estimated_request_count), market_cutoff=market_cutoff, pipeline_run_id=pipeline.id)",
+          "performance = PipelinePerformanceTracker()",
+          "pipeline = _require_pipeline(db, pipeline_run_id)",
+          "pipeline._job_progress_callback = progress_callback",
+          "prewarm_context = resolve_pipeline_prewarm_context(db, tickers)",
+          "ranking = _call_market_sensitive(dependencies.refresh_rankings, db, upload_run.id, market_cutoff, pipeline_run_id=pipeline.id)",
+          "ranking_step.status = PipelineStepStatus.SKIPPED",
+          "result = _empty_result(pipeline, upload_run)",
+          "result['ceri_provider_jobs'] = int(_call_market_sensitive(schedule, db, upload_run.id, market_cutoff) or 0)",
+          "result['sec_preflight'] = validate(db, tickers) if validate is not None else validate_sec_pipeline_preflight(db, tickers=tickers)",
+          "sector_snapshot = _call_market_sensitive(dependencies.build_sector_rotation_snapshot, db, upload_run.id, market_cutoff)",
+          "snapshot = _call_market_sensitive(dependencies.build_market_regime_snapshot, db, upload_run.id, market_cutoff)",
+          "technical_scores = _call_market_sensitive(dependencies.score_technicals, db, upload_run.id, market_cutoff, pipeline_run_id=pipeline.id)",
+          "upload_run = _require_upload_run(db, pipeline.upload_run_id)",
+          "validate = dependencies.validate_pipeline_preflight"
+        ],
+        "signature": "db: Session, pipeline_run_id: int, should_cancel: Callable[[], bool] | None=None, lease_guard: Callable[[], None] | None=None, dependencies: PipelineExecutionDependencies | None=None, resume_from_step: str | None=None, progress_callback: Callable[..., None] | None=None, memory_probe: Callable[..., None] | None=None, execution_token: str | None=None",
+        "source_sha256": "699041406a1a4127596aeafb0e170eecc2356539817c40f42c0211ab75086113"
+      },
+      "role": "DOMAIN_SUPPORTING_STATE",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_completes_when_cached_market_data_is_ready"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_sec_preflight_schedules_automatic_repair_before_expensive_pipeline_stages"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_repaired_initial_preflight_restarts_same_pipeline_from_validation"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_resume_from_ceri_does_not_reexecute_completed_expensive_stages"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_resume_from_ceri_propagates_frozen_context_to_setup_evaluation"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_resume_preflight_schedules_repair_without_ceri_enqueue"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_runs_winner_capture_when_enabled"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_winner_cohort_failures_mark_step_failed_and_surface_completion_counts"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_winner_partial_output_is_not_silently_reported_as_completed_step"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_propagates_winner_control_and_progress_contract"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_replay_interrupts_stale_running_step_and_preserves_attempt_history"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_marks_ranking_skipped_without_profiles"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_runs_setup_lifecycle_steps_when_enabled"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_passes_setup_capture_handoff_when_enabled"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_runs_ceri_before_setup_lifecycle_when_enabled"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_marks_partial_for_ceri_capture_failures"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_uses_default_setup_lifecycle_hooks_when_enabled"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_runs_fetch_before_technicals_and_finishes_partial"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_keeps_low_confidence_market_snapshot_nonfatal"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_marks_pipeline_cancelled_before_next_step"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_fails_when_run_has_no_tickers"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_require_ib_stops_before_technicals_when_gateway_closes_after_preflight"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_historical_capability_failure_blocks_before_fetch_executor"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_historical_circuit_reason_propagates_and_stops_downstream_stages"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_allow_cache_fallback_persists_degraded_metadata_and_skips_winner_capture"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_does_not_commit_step_completion_after_lease_loss"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_pipeline_executor.py::test_execute_full_pipeline_records_replay_attempt_for_previously_completed_step"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_decision_configuration_delivery_postgresql.py::test_pipeline_direct_execution_rejects_flag_override_before_math"
+        }
+      ],
+      "why_in_T14D": "Execution status/stage attempts and prerequisite source scheduling; financial stage algorithms remain separate writer families.",
+      "writer_id": "WF_PIPELINE_STAGE_STATE"
+    },
+    {
+      "caller_dependencies": [
+        "EF_16848e7d5042bbd5",
+        "EF_PRIVILEGED_DATABASE_RESTORE"
+      ],
+      "canonical_target": "app/services/ceri/sec/identity_repair.py:resolve_and_persist_sec_identity",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ceri/sec/identity_repair.py:resolve_and_persist_sec_identity",
+        "decorators": [
+          "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
+        ],
+        "first_statements": [
+          "'Resolve an exact SEC ticker identity without fuzzy/ambiguous guessing.'",
+          "symbol = str(ticker).strip().upper()",
+          "rows = list(db.scalars(select(CeriCompany).where(CeriCompany.ticker == symbol).with_for_update()).all())",
+          "known = sorted({str(row.cik).zfill(10) for row in rows if row.cik})"
+        ],
+        "line": 29,
+        "native_calls": [
+          "', '.join",
+          "CeriCompany",
+          "SecIdentityRepairResult",
+          "callable",
+          "candidate_resolver",
+          "db.add",
+          "db.flush",
+          "db.scalars",
+          "db.scalars(select(CeriCompany).where(CeriCompany.ticker == symbol).with_for_update()).all",
+          "filter",
+          "getattr",
+          "len",
+          "list",
+          "provider.resolve_cik",
+          "select",
+          "select(CeriCompany).where",
+          "select(CeriCompany).where(CeriCompany.ticker == symbol).with_for_update",
+          "sorted",
+          "source_mutation_writer",
+          "str",
+          "str(resolved).zfill",
+          "str(row.cik).zfill",
+          "str(ticker).strip",
+          "str(ticker).strip().upper",
+          "tuple"
+        ],
+        "selector_expressions": [],
+        "signature": "db: Session, *, provider: SecCeriProvider, ticker: str",
+        "source_sha256": "44ceb72fc89a0d9b32e83ad5f0814759e578794d453092670a42bf12cb0b02c7"
+      },
+      "role": "CLI_ALIAS_TO_NATIVE_SOURCE_SERVICE",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_sec_identity_repair.py::test_missing_company_mapping_is_resolved_by_exact_sec_ticker"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_sec_identity_repair.py::test_ambiguous_persisted_ciks_are_not_guessed_or_overwritten"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_sec_identity_repair.py::test_missing_exact_sec_ticker_is_reported_without_placeholder_mapping"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_caller_postgresql.py::test_sec_cli_and_application_service_share_source_operation_and_dry_run_boundary"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_supporting_operations_postgresql.py::test_sec_exact_identity_branches_do_not_guess_or_overwrite_native_identifier"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_supporting_operations_postgresql.py::test_normalized_change_rebuild_authority_queries_are_bounded"
+        }
+      ],
+      "why_in_T14D": "Explicit command repairs current company CIK identity; not financial evidence.",
+      "writer_id": "WF_SEC_CIK_CLI"
+    },
+    {
+      "caller_dependencies": [
+        "EF_1829ba4c1327b124",
+        "EF_26b4197e150dd293",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_a046247f0bce46ec",
+        "EF_b485539a18ce34a9",
+        "EF_b66fd9fbd8bf92e7",
+        "EF_f4945d656d5d650f"
+      ],
+      "canonical_target": "app/services/ceri/sec/identity_repair.py:resolve_and_persist_sec_identity",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ceri/sec/identity_repair.py:resolve_and_persist_sec_identity",
+        "decorators": [
+          "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
+        ],
+        "first_statements": [
+          "'Resolve an exact SEC ticker identity without fuzzy/ambiguous guessing.'",
+          "symbol = str(ticker).strip().upper()",
+          "rows = list(db.scalars(select(CeriCompany).where(CeriCompany.ticker == symbol).with_for_update()).all())",
+          "known = sorted({str(row.cik).zfill(10) for row in rows if row.cik})"
+        ],
+        "line": 29,
+        "native_calls": [
+          "', '.join",
+          "CeriCompany",
+          "SecIdentityRepairResult",
+          "callable",
+          "candidate_resolver",
+          "db.add",
+          "db.flush",
+          "db.scalars",
+          "db.scalars(select(CeriCompany).where(CeriCompany.ticker == symbol).with_for_update()).all",
+          "filter",
+          "getattr",
+          "len",
+          "list",
+          "provider.resolve_cik",
+          "select",
+          "select(CeriCompany).where",
+          "select(CeriCompany).where(CeriCompany.ticker == symbol).with_for_update",
+          "sorted",
+          "source_mutation_writer",
+          "str",
+          "str(resolved).zfill",
+          "str(row.cik).zfill",
+          "str(ticker).strip",
+          "str(ticker).strip().upper",
+          "tuple"
+        ],
+        "selector_expressions": [],
+        "signature": "db: Session, *, provider: SecCeriProvider, ticker: str",
+        "source_sha256": "44ceb72fc89a0d9b32e83ad5f0814759e578794d453092670a42bf12cb0b02c7"
+      },
+      "role": "CURRENT_RULES_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_sec_identity_repair.py::test_missing_company_mapping_is_resolved_by_exact_sec_ticker"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_sec_identity_repair.py::test_ambiguous_persisted_ciks_are_not_guessed_or_overwritten"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/ceri/test_sec_identity_repair.py::test_missing_exact_sec_ticker_is_reported_without_placeholder_mapping"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_caller_postgresql.py::test_sec_cli_and_application_service_share_source_operation_and_dry_run_boundary"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_supporting_operations_postgresql.py::test_sec_exact_identity_branches_do_not_guess_or_overwrite_native_identifier"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_supporting_operations_postgresql.py::test_normalized_change_rebuild_authority_queries_are_bounded"
+        }
+      ],
+      "why_in_T14D": "Repair current CIK/company source identity; not original score reconstruction.",
+      "writer_id": "WF_SEC_IDENTITY_REPAIR"
+    },
+    {
+      "caller_dependencies": [
+        "EF_1829ba4c1327b124",
+        "EF_539de8ba1f139e53",
+        "EF_952eb770ffb142bc",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_a046247f0bce46ec",
+        "EF_b485539a18ce34a9",
+        "EF_b66fd9fbd8bf92e7",
+        "EF_d996ca3584688062",
+        "EF_f2bc7aacc0513db5",
+        "EF_f4945d656d5d650f",
+        "EF_f86acc74753df900"
+      ],
+      "canonical_target": "app/services/ceri/sec/readiness_repair.py:schedule_sec_readiness_repair",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/ceri/sec/readiness_repair.py:schedule_sec_readiness_repair",
+        "decorators": [],
+        "first_statements": [
+          "readiness = dict(diagnostics.get('readiness') or {})",
+          "processor = dict(diagnostics.get('processor') or {})",
+          "signature = str(readiness.get('processor_signature') or processor.get('active_signature') or processor.get('deployed_signature') or 'unknown')",
+          "target_step = resume_from_step or pipeline.current_step or 'VALIDATING_RUN'"
+        ],
+        "line": 120,
+        "native_calls": [
+          "_reset_pipeline_step",
+          "_utcnow",
+          "_utcnow().isoformat",
+          "db.flush",
+          "diagnostics.get",
+          "dict",
+          "enqueue_job",
+          "int",
+          "max",
+          "processor.get",
+          "readiness.get",
+          "str"
+        ],
+        "selector_expressions": [
+          "job = enqueue_job(db, job_type=SEC_READINESS_REPAIR_JOB_TYPE, payload={'pipeline_run_id': pipeline.id, 'processor_signature': signature, 'resume_from_step': target_step}, related_run_id=pipeline.upload_run_id, priority=SEC_READINESS_REPAIR_PRIORITY, max_retries=SEC_READINESS_REPAIR_MAX_RETRIES, request_key=request_key, workflow_key=f'pipeline:{pipeline.id}:sec-readiness')",
+          "pipeline.completed_at = None",
+          "pipeline.current_step = target_step",
+          "pipeline.error_message = None",
+          "pipeline.message = 'Preparing SEC evidence automatically.'",
+          "pipeline.result_json = {**(pipeline.result_json or {}), 'background_job_id': job.id, 'repair_job_id': job.id, 'blocked_reason': None, 'blocked_diagnostics': None, 'sec_repair': {'pipeline_id': pipeline.id, 'run_id': pipeline.upload_run_id, 'repair_job_id': job.id, 'repair_stage': 'QUEUED', 'total_tickers': total, 'ready_tickers': initial_ready, 'repairable_tickers': max(0, total - initial_ready), 'repaired_tickers': 0, 'unresolved_tickers': [], 'current_processor_signature': signature, 'started_at': None, 'updated_at': now, 'last_error_code': None, 'last_error_detail': None, 'counts': readines",
+          "pipeline.status = PipelineStatus.PREPARING",
+          "request_key = f'sec-readiness-repair:pipeline:{pipeline.id}:signature:{signature}'",
+          "target_step = resume_from_step or pipeline.current_step or 'VALIDATING_RUN'"
+        ],
+        "signature": "db: Session, *, pipeline: PipelineRun, diagnostics: dict[str, Any], resume_from_step: str | None=None",
+        "source_sha256": "0c8d4fa417cb5563fe3bc6a1c644ff81b1102690a75c49850d659104d51f718a"
+      },
+      "role": "CURRENT_RULES_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_sec_readiness_repair_postgresql.py::test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_sec_readiness_repair_postgresql.py::test_ambiguous_identity_does_not_stop_other_safe_repairs"
+        }
+      ],
+      "why_in_T14D": "Pipeline readiness state/progress/resume/cancellation with retained enqueue root.",
+      "writer_id": "WF_SEC_PIPELINE_READINESS_REPAIR"
+    },
+    {
+      "caller_dependencies": [
+        "EF_0c0cd820f687c1bb",
+        "EF_78de7a499feb8c0b",
+        "EF_84afac2f08856690",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_a005dd81d77d51c6"
+      ],
+      "canonical_target": "app/services/transition_preflight_plan_service.py:create_transition_preflight_plan",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/transition_preflight_plan_service.py:create_transition_preflight_plan",
+        "decorators": [],
+        "first_statements": [
+          "'Freeze and persist a retryable preflight contract without business writes.'",
+          "normalized_key = idempotency_key.strip()",
+          "if not normalized_key:\n    raise ValueError('idempotency_key is required')",
+          "existing = db.scalar(select(TransitionPreflightPlan).where(TransitionPreflightPlan.idempotency_key == normalized_key))"
+        ],
+        "line": 80,
+        "native_calls": [
+          "(discovery or TransitionCandidateDiscoveryService()).discover_for_run",
+          "CanonicalEvidenceSerializer.canonicalize",
+          "CanonicalEvidenceSerializer.fingerprint",
+          "TransitionCandidateDiscoveryService",
+          "TransitionPreflightError",
+          "TransitionPreflightPlan",
+          "ValueError",
+          "_aggregate_classification",
+          "_aggregate_technical_fingerprint",
+          "_aware",
+          "_run_start_candidate_dict",
+          "_utcnow",
+          "aggregate_evidence_fingerprint",
+          "build_run_start_anchor_manifest",
+          "db.add",
+          "db.flush",
+          "db.get",
+          "db.scalar",
+          "idempotency_key.strip",
+          "reserve_preflight_market_context",
+          "select",
+          "select(TransitionPreflightPlan).where",
+          "sorted",
+          "ticker.strip",
+          "ticker.strip().upper"
+        ],
+        "selector_expressions": [
+          "evidence_fingerprint = aggregate_evidence_fingerprint(results)",
+          "market_cutoff = reserve_preflight_market_context(db, upload_run_id=upload_run_id, cutoff_at=cutoff_at)",
+          "plan = TransitionPreflightPlan(market_calculation_context_id=market_cutoff.context_id, upload_run_id=upload_run_id, pipeline_run_id=None, status='RESERVED', idempotency_key=normalized_key, candidate_classification=_aggregate_classification(results), tickers_json=sorted((row.ticker for row in results)), selection_keys_json=sorted((row.prospective_new_key for row in results)), expected_pointers_json={row.ticker: {'latest_snapshot_id': row.current_pointer_snapshot_id, 'latest_revision': row.expected_latest_pointer_revision, 'exact_snapshot_id': row.expected_exact_pointer_snapshot_id, 'exact_revis",
+          "results = (discovery or TransitionCandidateDiscoveryService()).discover_for_run(db, upload_run_id, market_cutoff=market_cutoff, tickers=tickers)",
+          "run_start_anchor = build_run_start_anchor_manifest(db, upload_run_id=upload_run_id, market_cutoff=market_cutoff, results=results)",
+          "run_start_anchor_fingerprint = CanonicalEvidenceSerializer.fingerprint(run_start_anchor)"
+        ],
+        "signature": "db: Session, *, upload_run_id: int, idempotency_key: str, tickers: set[str] | None=None, cutoff_at: datetime | None=None, expires_in: timedelta=DEFAULT_PREFLIGHT_TTL, discovery: TransitionCandidateDiscoveryService | None=None",
+        "source_sha256": "809f304b2af07ca967c7a93d90f42d11f4687eaa56174b52c6787d94fed64f24"
+      },
+      "role": "DOMAIN_SUPPORTING_STATE",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_pointer_change_after_preflight_rejects_enqueue"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_preflight_idempotency_key_rejects_materially_different_request"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_session_boundary_reuses_reserved_context_and_duplicate_enqueue_is_idempotent"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_preflight_fingerprints_survive_postgresql_session_timezone_roundtrip"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_terminal_plan_states_have_deterministic_rejection_codes"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_two_concurrent_plan_consumers_create_exactly_one_pipeline"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_pipeline_enqueue_failure_injection_rolls_back_every_half_applied_state"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_preflight_creation_failure_injection_leaves_no_orphan"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_post_cutoff_evidence_change_rejects_instead_of_creating_c2"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_abandoned_preflight_expires_without_business_state_or_lock_leak"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_transition_preflight_plan_postgresql.py::test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempotent"
+        }
+      ],
+      "why_in_T14D": "Root reservation/review/cancellation and decision handoff manifest; manifest sealing split below.",
+      "writer_id": "WF_TRANSITION_PREFLIGHT"
+    },
+    {
+      "caller_dependencies": [
+        "EF_47b620eb610ed3cd",
+        "EF_PRIVILEGED_DATABASE_RESTORE"
+      ],
+      "canonical_target": "scripts/winner_clean_reconstruction.py:build_candidate",
+      "final_status": "RETIRED_WRITE_OPERATION",
+      "native_source_review": {
+        "address": "scripts/winner_clean_reconstruction.py:build_candidate",
+        "decorators": [],
+        "first_statements": [
+          "if not approve_write:\n    raise PermissionError('explicit --approve-write is required')",
+          "reject_legacy_mutation('Winner clean reconstruction')",
+          "if not actor.strip() or not request_key.strip():\n    raise ValueError('actor and request key are required')",
+          "artifact = json.loads(artifact_path.read_text(encoding='utf-8'))"
+        ],
+        "line": 248,
+        "native_calls": [
+          "CohortGenerationService",
+          "CohortGenerationService().capture_or_resume",
+          "CohortGenerationService.audit_temporal_integrity",
+          "CohortMaterializationService",
+          "EvidenceWatermarkService",
+          "PermissionError",
+          "RuntimeError",
+          "SessionLocal",
+          "ValueError",
+          "_active_definition",
+          "_artifact_hash",
+          "_assert_controls",
+          "_canonical_hash",
+          "_control_state",
+          "_materialized_group_plan",
+          "_summary",
+          "_table_hash",
+          "_write",
+          "actor.strip",
+          "artifact.get",
+          "artifact['snapshot_at'].replace",
+          "artifact_path.read_text",
+          "contract_for",
+          "current_watermark.as_dict",
+          "datetime.fromisoformat",
+          "db.commit",
+          "db.flush",
+          "int",
+          "json.dumps",
+          "json.loads",
+          "load_winner_probability_config",
+          "materializer.materialize_slice",
+          "perf_counter",
+          "print",
+          "reject_legacy_mutation",
+          "request_key.strip",
+          "watermark_service.advance_to_current_material_evidence",
+          "watermark_service.current_material_watermark"
+        ],
+        "selector_expressions": [
+          "advance = watermark_service.advance_to_current_material_evidence(db, outcome_definition=definition, config=config, observed_at=observed_at)",
+          "current_protected = {table: _table_hash(db, table) for table in PROTECTED_TABLES}",
+          "current_watermark = watermark_service.current_material_watermark(db, outcome_definition_id=definition.id)",
+          "result_payload: dict[str, Any] = {'schema': 'swinglens-winner-clean-candidate-result-v1', 'reviewed_artifact_hash': expected_hash, 'actor': actor, 'request_key': request_key, 'generation_id': generation_id, 'generation_key': artifact['expected_generation_key'], 'status': CohortGenerationStatus.READY, 'root_manifest_hash': artifact['root_manifest_hash'], 'group_plan_hash': artifact['candidate_group_plan_hash'], 'materialization_wall_seconds': elapsed}",
+          "watermark_service = EvidenceWatermarkService()"
+        ],
+        "signature": "*, artifact_path: Path, expected_hash: str, actor: str, request_key: str, approve_write: bool, output_dir: Path",
+        "source_sha256": "8cf27573369151367d5df18799156a3268e978ec26e4cd7f173ea88e35be6d5e"
+      },
+      "role": "CURRENT_RULES_WRITER",
+      "tests": [],
+      "why_in_T14D": "Candidate generation rebuild under reviewed current rules; no original-context guarantee.",
+      "writer_id": "WF_WINNER_CURRENT_RULE_RECONSTRUCTION"
+    },
+    {
+      "caller_dependencies": [
+        "EF_1d0eb4e43cbd2c5f",
+        "EF_9ae86c108357a235",
+        "EF_PRIVILEGED_DATABASE_RESTORE"
+      ],
+      "canonical_target": "app/services/winner_probability/maturation_canary_service.py:execute_reviewed_maturation_canary",
+      "final_status": "RETIRED_WRITE_OPERATION",
+      "native_source_review": {
+        "address": "app/services/winner_probability/maturation_canary_service.py:execute_reviewed_maturation_canary",
+        "decorators": [],
+        "first_statements": [
+          "if now.tzinfo is None or now.utcoffset() is None:\n    raise CanaryApprovalError('maturation requires an explicit aware operation cutoff')",
+          "verify_canary_approval(manifest, reviewed_manifest_hash=reviewed_manifest_hash, approve_write=approve_write, actor=actor, request_key=request_key)",
+          "reject_legacy_mutation('historical hash-gated H5 maturation canary')",
+          "reviewed_records = list(manifest['outcomes'])"
+        ],
+        "line": 321,
+        "native_calls": [
+          "CanaryApprovalError",
+          "CanaryExecutionResult",
+          "OutcomeMaturationService",
+          "_target_stop_states_for_prediction",
+          "_verify_actual_result",
+          "actor.strip",
+          "actual_forward_ids.append",
+          "actual_target_ids.extend",
+          "after_targets.get",
+          "before_targets.get",
+          "build_maturation_canary_manifest",
+          "canonical_manifest_bytes",
+          "db.commit",
+          "db.flush",
+          "db.rollback",
+          "db.scalar",
+          "int",
+          "len",
+          "list",
+          "now.utcoffset",
+          "per_outcome.append",
+          "preflight_db.rollback",
+          "reject_legacy_mutation",
+          "request_key.strip",
+          "result.as_dict",
+          "select",
+          "select(WinnerForwardOutcome).where",
+          "select(WinnerForwardOutcome).where(WinnerForwardOutcome.id == outcome_id).with_for_update",
+          "service.build_batch_context",
+          "service.process_forward_outcome",
+          "session_factory",
+          "set",
+          "sorted",
+          "tuple",
+          "unchanged_sibling_ids.extend",
+          "verify_canary_approval"
+        ],
+        "selector_expressions": [
+          "current = build_maturation_canary_manifest(preflight_db, ids)",
+          "current_record = build_maturation_canary_manifest(db, [outcome_id])['outcomes'][0]",
+          "reviewed_records = list(manifest['outcomes'])"
+        ],
+        "signature": "session_factory: Callable[[], Session], manifest: dict[str, Any], *, reviewed_manifest_hash: str, approve_write: bool, actor: str, request_key: str, now: datetime",
+        "source_sha256": "56475c32d26743af758a150312347e065774390e7303b5bf4dfe97405ffdd0bf"
+      },
+      "role": "SUPPORTED_DISTINCT_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_t14d_caller_authority.py::test_incident_canary_rejects_before_opening_database"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14d_caller_postgresql.py::test_native_certified_outcome_is_unchanged_when_incident_canary_is_retired"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_maturation_canary_postgresql.py::test_explicit_hash_gated_canary_matures_only_reviewed_id"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_maturation_canary_postgresql.py::test_canary_preflight_hash_and_state_drift_roll_back_without_maturation"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_maturation_canary_postgresql.py::test_postgresql_same_bar_conflict_fixture_is_conservative"
+        }
+      ],
+      "why_in_T14D": "Reviewed bounded forward-outcome canary writes; not native unrestricted maturation.",
+      "writer_id": "WF_WINNER_MATURATION_CANARY"
+    },
+    {
+      "caller_dependencies": [
+        "EF_02815044960ac52c",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_dffa2b1993aa2354"
+      ],
+      "canonical_target": "app/services/winner_probability/pre11_activation_service.py:Pre11L5ActivationService.activate",
+      "final_status": "RETIRED_WRITE_OPERATION",
+      "native_source_review": {
+        "address": "app/services/winner_probability/pre11_activation_service.py:Pre11L5ActivationService.activate",
+        "decorators": [],
+        "first_statements": [
+          "if not approve_write:\n    raise PermissionError('explicit approve_write=True is required')",
+          "reject_legacy_mutation('pre-1.1 Winner activation')",
+          "if not actor.strip():\n    raise ValueError('actor is required')",
+          "if training_cutoff_at.tzinfo is None:\n    raise ValueError('training_cutoff_at must be timezone-aware')"
+        ],
+        "line": 69,
+        "native_calls": [
+          "Decimal",
+          "PermissionError",
+          "Pre11L5ActivationResult",
+          "ProbabilityEstimator",
+          "ValueError",
+          "WinnerProbabilityEstimate",
+          "_estimate_metadata",
+          "_evidence_composition",
+          "actor.strip",
+          "db.add",
+          "db.flush",
+          "db.scalar",
+          "estimator._materialize_cohort_statistic",
+          "next",
+          "published_lifecycle_fields",
+          "reject_legacy_mutation",
+          "select",
+          "select(WinnerProbabilityEstimate).where",
+          "select(WinnerProbabilityEstimate).where(WinnerProbabilityEstimate.prediction_id == prediction.id).where",
+          "select(WinnerProbabilityEstimate).where(WinnerProbabilityEstimate.prediction_id == prediction.id).where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition.id).where",
+          "select(WinnerProbabilityEstimate).where(WinnerProbabilityEstimate.prediction_id == prediction.id).where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition.id).where(WinnerProbabilityEstimate.estimate_kind == EstimateKind.LATEST_RESCORE).where",
+          "select(WinnerProbabilityEstimate).where(WinnerProbabilityEstimate.prediction_id == prediction.id).where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition.id).where(WinnerProbabilityEstimate.estimate_kind == EstimateKind.LATEST_RESCORE).where(WinnerProbabilityEstimate.source_version == COHORT_BASELINE_SOURCE_VERSION).where",
+          "self.definition_service.cohort_keys_for_prediction",
+          "self.evidence_service.load_evidence",
+          "self.manifest_service.create_or_get_manifest",
+          "self.manifest_service.persist_members",
+          "self.reviewed_manifest_hash",
+          "self.statistics_service.calculate"
+        ],
+        "selector_expressions": [
+          "estimate = WinnerProbabilityEstimate(**published_lifecycle_fields(), prediction_id=prediction.id, outcome_definition_id=outcome_definition.id, estimate_kind=EstimateKind.LATEST_RESCORE, source=EstimateSource.COHORT, source_version=COHORT_BASELINE_SOURCE_VERSION, cohort_definition_id=statistic.cohort_definition_id, model_version_id=None, evidence_manifest_id=manifest.manifest.id, training_cutoff_at=training_cutoff_at, point_probability=statistics.posterior_probability, lower_bound=statistics.lower_bound, upper_bound=statistics.upper_bound, interval_width=statistics.interval_width, sample_n=stat",
+          "estimator = ProbabilityEstimator(cohort_definition_service=self.definition_service, evidence_service=self.evidence_service, statistics_service=self.statistics_service, manifest_service=self.manifest_service)",
+          "evidence = self.evidence_service.load_evidence(db, prediction=prediction, outcome_definition=outcome_definition, cohort_key=l5_key, training_cutoff_at=training_cutoff_at, config=config)",
+          "existing = db.scalar(select(WinnerProbabilityEstimate).where(WinnerProbabilityEstimate.prediction_id == prediction.id).where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition.id).where(WinnerProbabilityEstimate.estimate_kind == EstimateKind.LATEST_RESCORE).where(WinnerProbabilityEstimate.source_version == COHORT_BASELINE_SOURCE_VERSION).where(WinnerProbabilityEstimate.training_cutoff_at == training_cutoff_at))",
+          "manifest = self.manifest_service.create_or_get_manifest(db, evidence=evidence, hash_algorithm=config.evidence_membership.manifest_hash_algorithm)",
+          "reviewed_hash = self.reviewed_manifest_hash(db, evidence=evidence, request_key=request_key)",
+          "statistic = estimator._materialize_cohort_statistic(db, cohort_key=l5_key, outcome_definition=outcome_definition, training_cutoff_at=training_cutoff_at, evidence=evidence, statistics=statistics, config=config)",
+          "statistic.metadata_json = {**(statistic.metadata_json or {}), 'training_family': TRAINING_FAMILY, 'activation_actor': actor, 'activation_request_key': request_key, 'reviewed_manifest_hash': reviewed_hash}",
+          "statistics = self.statistics_service.calculate(evidence, config)"
+        ],
+        "signature": "self, db: Session, *, prediction: WinnerPredictionSnapshot, outcome_definition: WinnerOutcomeDefinition, training_cutoff_at: datetime, config: WinnerProbabilityConfig, request_key: str, expected_reviewed_manifest_hash: str, actor: str, approve_write: bool",
+        "source_sha256": "ab90487586c8a1666f201882a12dc07951348df9ff7f62cc2805b3d6a7028aa9"
+      },
+      "role": "LEGACY_WRITER",
+      "tests": [],
+      "why_in_T14D": "Pre-1.1 reviewed activation creates alternate estimate artifact; separate from current native estimator.",
+      "writer_id": "WF_WINNER_PRE11_ACTIVATION"
+    },
+    {
+      "caller_dependencies": [
+        "EF_2c20ef6c4a891318",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_e7b00a98f583e767"
+      ],
+      "canonical_target": "app/services/winner_probability/pre11_compatibility_service.py:Pre11CompatibilityWriteService.persist_decisions_and_replays",
+      "final_status": "RETIRED_WRITE_OPERATION",
+      "native_source_review": {
+        "address": "app/services/winner_probability/pre11_compatibility_service.py:Pre11CompatibilityWriteService.persist_decisions_and_replays",
+        "decorators": [],
+        "first_statements": [
+          "if not approve_write:\n    raise PermissionError('explicit approve_write=True is required')",
+          "reject_legacy_mutation('pre-1.1 training replay')",
+          "dry_run.scope.validate()",
+          "if request_key != dry_run.scope.request_key:\n    raise ValueError('request key does not match the reviewed dry-run scope')"
+        ],
+        "line": 750,
+        "native_calls": [
+          "CohortRefreshPlanner",
+          "CohortRefreshPlanner().request_for_current_evidence",
+          "PermissionError",
+          "ValueError",
+          "WinnerPredictionSnapshot.id.in_",
+          "WinnerTrainingEligibilityDecision",
+          "WinnerTrainingEligibilityDecision.revision.desc",
+          "WinnerTrainingOutcomeReplay",
+          "WinnerTrainingOutcomeReplay.revision.desc",
+          "_hash",
+          "actor.strip",
+          "datetime.now",
+          "db.add",
+          "db.flush",
+          "db.scalar",
+          "db.scalars",
+          "decisions.append",
+          "dry_run.scope.validate",
+          "get_settings",
+          "json.loads",
+          "list",
+          "reject_legacy_mutation",
+          "replays.append",
+          "reviewed.get",
+          "reviewed_manifest_path.is_file",
+          "reviewed_manifest_path.read_text",
+          "select",
+          "select(WinnerPredictionSnapshot).where",
+          "select(WinnerTrainingEligibilityDecision).where",
+          "select(WinnerTrainingEligibilityDecision).where(WinnerTrainingEligibilityDecision.prediction_id == prediction.id).where",
+          "select(WinnerTrainingEligibilityDecision).where(WinnerTrainingEligibilityDecision.prediction_id == prediction.id).where(WinnerTrainingEligibilityDecision.training_family == dry_run.scope.training_family).where",
+          "select(WinnerTrainingEligibilityDecision).where(WinnerTrainingEligibilityDecision.prediction_id == prediction.id).where(WinnerTrainingEligibilityDecision.training_family == dry_run.scope.training_family).where(WinnerTrainingEligibilityDecision.policy_version == POLICY_VERSION).order_by",
+          "select(WinnerTrainingEligibilityDecision).where(WinnerTrainingEligibilityDecision.prediction_id == prediction.id).where(WinnerTrainingEligibilityDecision.training_family == dry_run.scope.training_family).where(WinnerTrainingEligibilityDecision.policy_version == POLICY_VERSION).order_by(WinnerTrainingEligibilityDecision.revision.desc()).limit",
+          "select(WinnerTrainingOutcomeReplay).where",
+          "select(WinnerTrainingOutcomeReplay).where(WinnerTrainingOutcomeReplay.eligibility_decision_id == decision.id).order_by",
+          "select(WinnerTrainingOutcomeReplay).where(WinnerTrainingOutcomeReplay.eligibility_decision_id == decision.id).order_by(WinnerTrainingOutcomeReplay.revision.desc()).limit",
+          "str",
+          "tuple"
+        ],
+        "selector_expressions": [
+          "decision = WinnerTrainingEligibilityDecision(prediction_id=prediction.id, policy_version=POLICY_VERSION, training_family=dry_run.scope.training_family, compatibility_bridge_version=BRIDGE_VERSION, source_feature_schema_version=prediction.feature_schema_version, source_calculation_version=prediction.calculation_version, source_config_hash=prediction.config_hash, target_feature_schema_version=config.feature_schema.version, target_calculation_version=config.engine.calculation_version, target_config_hash=config.config_hash, target_outcome_definition_id=outcome_definition.id, classification_status=",
+          "decision_payload = {'prediction_id': prediction.id, 'policy_version': POLICY_VERSION, 'training_family': dry_run.scope.training_family, 'request_key': request_key, 'source_manifest_hash': classified.source_manifest_hash, 'training_allowed': classified.training_allowed, 'reason_codes': classified.reason_codes}",
+          "latest = db.scalar(select(WinnerTrainingEligibilityDecision).where(WinnerTrainingEligibilityDecision.prediction_id == prediction.id).where(WinnerTrainingEligibilityDecision.training_family == dry_run.scope.training_family).where(WinnerTrainingEligibilityDecision.policy_version == POLICY_VERSION).order_by(WinnerTrainingEligibilityDecision.revision.desc()).limit(1))",
+          "latest_replay = db.scalar(select(WinnerTrainingOutcomeReplay).where(WinnerTrainingOutcomeReplay.eligibility_decision_id == decision.id).order_by(WinnerTrainingOutcomeReplay.revision.desc()).limit(1))",
+          "replay = WinnerTrainingOutcomeReplay(eligibility_decision_id=decision.id, prediction_id=classified.prediction_id, target_outcome_definition_id=outcome_definition.id, training_family=dry_run.scope.training_family, reconstruction_method=REPLAY_METHOD, replay_policy_version=REPLAY_POLICY_VERSION, compatibility_bridge_version=BRIDGE_VERSION, source_forward_outcome_id=preview.source_forward_outcome_id, entry_model=outcome_definition.entry_model, horizon_sessions=outcome_definition.horizon_sessions, entry_session=preview.entry_session, due_session=preview.due_session, entry_price=preview.entry_price",
+          "reviewed = json.loads(reviewed_manifest_path.read_text(encoding='utf-8'))"
+        ],
+        "signature": "self, db: Session, *, dry_run: Pre11DryRunResult, reviewed_manifest_path: Path, request_key: str, approve_write: bool, actor: str, outcome_definition: WinnerOutcomeDefinition, config: WinnerProbabilityConfig",
+        "source_sha256": "1fd81bff3450fbd48501f44c0efa6001fffd40987d914915875a6adea7e5d4c0"
+      },
+      "role": "CURRENT_RULES_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/winner_probability/test_pre11_compatibility_service.py::test_write_requires_explicit_approval_before_any_database_action"
+        }
+      ],
+      "why_in_T14D": "Explicit compatibility decisions/replays, separate from capture metadata-only training decision.",
+      "writer_id": "WF_WINNER_PRE11_TRAINING_REPLAY"
+    },
+    {
+      "caller_dependencies": [
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_a8f9a91d7a0d9f8a"
+      ],
+      "canonical_target": "scripts/winner_candidate_estimates.py:write",
+      "final_status": "RETIRED_WRITE_OPERATION",
+      "native_source_review": {
+        "address": "scripts/winner_candidate_estimates.py:write",
+        "decorators": [],
+        "first_statements": [
+          "if not approve_write:\n    raise PermissionError('explicit --approve-write is required')",
+          "reject_legacy_mutation('Winner candidate SQL')",
+          "if not actor.strip() or not request_key.strip():\n    raise ValueError('actor and request key are required')",
+          "artifact = json.loads(artifact_path.read_text(encoding='utf-8'))"
+        ],
+        "line": 136,
+        "native_calls": [
+          "PermissionError",
+          "RuntimeError",
+          "SessionLocal",
+          "ValueError",
+          "_artifact_hash",
+          "_candidate_checks",
+          "_candidate_membership_count",
+          "_ensure_empty_manifest",
+          "_generation_state",
+          "_insert_value",
+          "_original_estimate_hash",
+          "_original_membership_hash",
+          "_persisted_candidates_match",
+          "_persisted_memberships_match",
+          "_preflight",
+          "_protected_integrity_state",
+          "_protected_state",
+          "_serving_ids",
+          "_serving_snapshot",
+          "_summary",
+          "_write",
+          "actor.strip",
+          "all",
+          "artifact.get",
+          "artifact_path.read_text",
+          "checks.values",
+          "db.commit",
+          "db.execute",
+          "db.flush",
+          "db.scalar",
+          "insert",
+          "int",
+          "json.dumps",
+          "json.loads",
+          "len",
+          "print",
+          "range",
+          "reject_legacy_mutation",
+          "request_key.strip",
+          "text"
+        ],
+        "selector_expressions": [
+          "checks['candidate_memberships_match_manifest'] = _persisted_memberships_match(db, artifact)",
+          "checks['candidate_rows_match_manifest'] = _persisted_candidates_match(db, artifact)",
+          "current_protected = _protected_state(db)",
+          "empty_manifest = _ensure_empty_manifest(db)",
+          "payload: dict[str, Any] = {'schema': 'swinglens-winner-candidate-estimate-write-v1', 'reviewed_manifest_hash': expected_hash, 'actor': actor, 'request_key': request_key, 'inserted': inserted, 'candidate_count': candidate_count, 'candidate_memberships': _candidate_membership_count(db), 'checks': checks, 'serving_after': _serving_snapshot(db)}",
+          "values = [_insert_value(record, empty_manifest_id=int(empty_manifest.id), actor=actor, request_key=request_key, reviewed_hash=expected_hash) for record in records[offset:offset + 1000]]"
+        ],
+        "signature": "*, artifact_path: Path, expected_hash: str, actor: str, request_key: str, approve_write: bool, output_dir: Path",
+        "source_sha256": "ae93fad8edb52eded10d2ff415ae955fbac92e7a063ea23432afbd7850c95692"
+      },
+      "role": "DIRECT_SQL_LEGACY",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_t14c_decision_writer_postgresql.py::test_native_setup_output_and_altered_retry_roll_back"
+        }
+      ],
+      "why_in_T14D": "Approved schema0061 candidate estimates and direct SQL evidence membership; preflight rejects current0080 before writes.",
+      "writer_id": "WF_WINNER_SQL_CANDIDATE_ESTIMATE"
+    },
+    {
+      "caller_dependencies": [
+        "EF_1ffa51a772dfc285",
+        "EF_2d2b331779e8c8de",
+        "EF_PRIVILEGED_DATABASE_RESTORE"
+      ],
+      "canonical_target": "app/services/winner_probability/target_stop_scope_repair_service.py:apply_target_stop_scope_repair",
+      "final_status": "RETIRED_WRITE_OPERATION",
+      "native_source_review": {
+        "address": "app/services/winner_probability/target_stop_scope_repair_service.py:apply_target_stop_scope_repair",
+        "decorators": [],
+        "first_statements": [
+          "if not approve_write:\n    raise PermissionError('explicit approve_write=True is required')",
+          "reject_legacy_mutation('incident target/stop repair')",
+          "if not actor.strip() or not request_key.strip():\n    raise ValueError('actor and request_key are required')",
+          "if manifest.get('schema') != REPAIR_SCHEMA:\n    raise TargetStopScopeRepairError('unsupported repair manifest schema')"
+        ],
+        "line": 76,
+        "native_calls": [
+          "PermissionError",
+          "TargetStopScopeRepairError",
+          "TargetStopScopeRepairResult",
+          "ValueError",
+          "WinnerTargetStopOutcome",
+          "_repair_record",
+          "actor.strip",
+          "canonical_manifest_bytes",
+          "created_ids.append",
+          "datetime.now",
+          "db.add",
+          "db.flush",
+          "db.scalar",
+          "int",
+          "len",
+          "manifest.get",
+          "reject_legacy_mutation",
+          "request_key.strip",
+          "select",
+          "select(WinnerTargetStopOutcome).where",
+          "select(WinnerTargetStopOutcome).where(WinnerTargetStopOutcome.id == source_id).with_for_update",
+          "source_ids.append",
+          "target_stop_scope_repair_hash",
+          "tuple"
+        ],
+        "selector_expressions": [
+          "corrective = WinnerTargetStopOutcome(prediction_id=int(record['prediction_id']), outcome_definition_id=int(record['outcome_definition_id']), forward_outcome_id=int(record['correct_forward_outcome_id']), entry_model=expected['entry_model'], horizon_sessions=int(expected['horizon_sessions']), status=expected['status'], revision=int(expected['revision']), is_current_revision=True, target_pct=source.target_pct, stop_pct=source.stop_pct, target_hit=None, stop_hit=None, first_event=None, event_session=None, same_bar_conflict=False, primary_winner=None, optimistic_winner=None, conservative_winner=Non",
+          "current_record = _repair_record(db, source, incident=manifest['incident'])",
+          "metadata = {**expected['metadata_json'], 'actor': actor.strip(), 'request_key': request_key.strip(), 'repair_manifest_hash': reviewed_manifest_hash}",
+          "source.is_current_revision = False"
+        ],
+        "signature": "db: Session, manifest: dict[str, Any], *, reviewed_manifest_hash: str, approve_write: bool, actor: str, request_key: str, now: datetime | None=None",
+        "source_sha256": "5e6447478770410414e827b6db3497a91cf172bfba9e4d5cefa7f490b53c72de"
+      },
+      "role": "CURRENT_RULES_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_maturation_canary_postgresql.py::test_scope_leak_repair_creates_append_only_pending_revision"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_maturation_canary_postgresql.py::test_scope_leak_repair_hash_gate_and_drift_are_atomic"
+        }
+      ],
+      "why_in_T14D": "Reviewed explicit target-stop scope correction; no original-context reconstruction.",
+      "writer_id": "WF_WINNER_TARGET_STOP_REPAIR"
+    },
+    {
+      "caller_dependencies": [
+        "EF_08367ecd4bfc25ab",
+        "EF_20010a31016223bb",
+        "EF_883a8783001bcffe",
+        "EF_PRIVILEGED_DATABASE_RESTORE",
+        "EF_e90fcdb88b1d464c"
+      ],
+      "canonical_target": "app/services/winner_probability/temporal_validation_service.py:TemporalValidationService.record",
+      "final_status": "SOURCE_OWNERSHIP_RECONCILED; CALLER_CERTIFICATION_INCOMPLETE",
+      "native_source_review": {
+        "address": "app/services/winner_probability/temporal_validation_service.py:TemporalValidationService.record",
+        "decorators": [
+          "supporting_mutation_operation(MutationDomain.WINNER_DIAGNOSTICS, MutationSemanticMode.CURRENT_RULES_RETROSPECTIVE, ('diagnostic_subject', 'input_manifest', 'diagnostic_contract'))"
+        ],
+        "first_statements": [
+          "session = us_market_session(entry_session)",
+          "if session is None:\n    raise ValueError('entry_session must be a valid US market session')",
+          "db.execute(select(WinnerPredictionSnapshot.id).where(WinnerPredictionSnapshot.id == prediction.id).with_for_update())",
+          "sequence = int(db.scalar(select(func.max(WinnerTemporalValidityDecision.validation_sequence)).where(WinnerTemporalValidityDecision.prediction_id == prediction.id)) or 0) + 1"
+        ],
+        "line": 80,
+        "native_calls": [
+          "ValueError",
+          "WinnerTemporalValidityDecision",
+          "canonicalize_temporal_metadata",
+          "datetime.now",
+          "db.add",
+          "db.execute",
+          "db.flush",
+          "db.scalar",
+          "func.max",
+          "int",
+          "list",
+          "select",
+          "select(WinnerPredictionSnapshot.id).where",
+          "select(WinnerPredictionSnapshot.id).where(WinnerPredictionSnapshot.id == prediction.id).with_for_update",
+          "select(func.max(WinnerTemporalValidityDecision.validation_sequence)).where",
+          "supporting_mutation_operation",
+          "us_market_session",
+          "validate_next_open_timing"
+        ],
+        "selector_expressions": [
+          "result = validate_next_open_timing(decision_at, session.open_at, source_data_cutoff_at=prediction.source_data_cutoff_at, semantic_input_time_valid=semantic_input_time_valid)",
+          "row = WinnerTemporalValidityDecision(prediction_id=prediction.id, validation_sequence=sequence, status=result.status, entry_timing_valid=result.entry_timing_valid, source_cutoff_valid=result.source_cutoff_valid, semantic_input_time_valid=result.semantic_input_time_valid, evidence_eligible=result.evidence_eligible, reason_codes_json=list(result.reason_codes), validation_version=result.validation_version, decision_at=decision_at, entry_session=entry_session, entry_open_at=session.open_at, evaluated_at=evaluated_at or datetime.now(UTC), evaluated_by=evaluated_by, metadata_json=canonicalize_tempor"
+        ],
+        "signature": "self, db: Session, *, prediction: WinnerPredictionSnapshot, decision_at: datetime, entry_session, semantic_input_time_valid: bool | None, evaluated_by: str, evaluated_at: datetime | None=None, metadata: dict | None=None",
+        "source_sha256": "bdb7b9186c6d33dc07c9e622dfa68b17e583a0ca24a25a1434b85c9005e3c387"
+      },
+      "role": "CANONICAL_WRITER",
+      "tests": [
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/test_background_queue.py::test_consecutive_interactive_limit_forces_noninteractive_claim_opportunity"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_temporal_integrity_postgresql.py::test_upgrade_0056_through_temporal_head_and_append_only_ledger"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_temporal_integrity_postgresql.py::test_invalid_pending_outcome_is_ignored_even_when_due_and_valid_peer_is_selected"
+        },
+        {
+          "coverage": "SOURCE_CALL_NAME_REFERENCE_ONLY; exact transport/execution not inferred",
+          "test": "tests/integration/test_winner_temporal_integrity_postgresql.py::test_uncertified_and_quarantined_pending_outcomes_create_no_obligation"
+        }
+      ],
+      "why_in_T14D": "Append temporal decision and apply current certification/quarantine; supplied certification requires native compatibility checks.",
+      "writer_id": "WF_WINNER_TEMPORAL_VALIDITY"
+    }
+  ]
+}

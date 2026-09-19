@@ -9,6 +9,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import WinnerPredictionSnapshot, WinnerTemporalValidityDecision
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.supporting_mutation_authority import supporting_mutation_operation
 from app.services.us_market_calendar import us_market_session
 from app.services.winner_probability.temporal_integrity import validate_next_open_timing
 from app.services.winner_probability.temporal_manifest_canonicalization import (
@@ -70,6 +72,11 @@ class TemporalCertificationResult:
 class TemporalValidationService:
     """Append temporal certification or quarantine events without rewriting history."""
 
+    @supporting_mutation_operation(
+        MutationDomain.WINNER_DIAGNOSTICS,
+        MutationSemanticMode.CURRENT_RULES_RETROSPECTIVE,
+        ("diagnostic_subject", "input_manifest", "diagnostic_contract"),
+    )
     def record(
         self,
         db: Session,
@@ -210,6 +217,11 @@ class TemporalValidationService:
             items=ordered,
         )
 
+    @supporting_mutation_operation(
+        MutationDomain.WINNER_DIAGNOSTICS,
+        MutationSemanticMode.CURRENT_RULES_RETROSPECTIVE,
+        ("diagnostic_subject", "input_manifest", "diagnostic_contract"),
+    )
     def apply_certification(
         self,
         db: Session,
@@ -304,6 +316,11 @@ class TemporalValidationService:
             decision_ids=tuple(int(row.id) for row in rows),
         )
 
+    @supporting_mutation_operation(
+        MutationDomain.WINNER_DIAGNOSTICS,
+        MutationSemanticMode.CURRENT_RULES_RETROSPECTIVE,
+        ("diagnostic_subject", "input_manifest", "diagnostic_contract"),
+    )
     def apply_quarantine(
         self,
         db: Session,

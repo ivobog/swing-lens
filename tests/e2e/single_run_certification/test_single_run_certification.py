@@ -26,7 +26,7 @@ import pytest
 import yaml
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from playwright.sync_api import Browser, Page
+from playwright.sync_api import Browser, Page, expect
 from psycopg import sql
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
@@ -86,7 +86,7 @@ class CertificationEnvironment:
     ib_log: Path
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def certification_environment(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Iterator[CertificationEnvironment]:
@@ -551,12 +551,17 @@ def _run_pipeline_through_gui(
     confirm.locator("[data-confirm-continue]").click()
     page.wait_for_url(re.compile(rf"/runs/{run_id}/pipeline/\d+$"), timeout=30_000)
     pipeline_id = int(page.url.rsplit("/", 1)[-1])
-    deadline = time.monotonic() + 300
+    absolute_deadline = time.monotonic() + 900
+    progress_deadline = time.monotonic() + 180
+    previous_status = None
     status = ""
-    while time.monotonic() < deadline:
+    while time.monotonic() < absolute_deadline and time.monotonic() < progress_deadline:
         status = (page.locator("[data-pipeline-status]").text_content() or "").strip()
         if status in TERMINAL_PIPELINE_STATUSES:
             break
+        if status != previous_status:
+            previous_status = status
+            progress_deadline = time.monotonic() + 180
         page.wait_for_timeout(500)
     recorder.check(
         status in TERMINAL_PIPELINE_STATUSES,
@@ -2028,12 +2033,12 @@ def _capture_exports(page: Page, engine, env, recorder, run_id: int) -> list[dic
 def _materialize_rankings_once(page: Page, engine, env, recorder, run_id: int) -> dict:
     before = _idempotency_counts(engine, run_id)
     page.goto(f"{env.base_url}/runs/{run_id}")
-    _refresh_rankings_through_gui(page)
+    _assert_standalone_rankings_retired(page, env, run_id)
     page.wait_for_load_state("networkidle")
     after_first = _idempotency_counts(engine, run_id)
     recorder.check(
         after_first["ranking_count"] > 0,
-        "ranking refresh materialized all configured profiles",
+        "canonical pipeline materialized configured ranking profiles",
         area="Rankings",
         expected=">0",
         actual=after_first["ranking_count"],
@@ -2042,29 +2047,28 @@ def _materialize_rankings_once(page: Page, engine, env, recorder, run_id: int) -
 
 
 def _verify_idempotency(page: Page, engine, env, recorder, run_id: int, *, state: dict) -> dict:
-    _refresh_rankings_through_gui(page)
+    _assert_standalone_rankings_retired(page, env, run_id)
     page.wait_for_load_state("networkidle")
     after_second = _idempotency_counts(engine, run_id)
     recorder.check(
         state["after_first"] == after_second,
-        "second ranking refresh is idempotent and does not duplicate related evidence",
+        "repeated rejected ranking refresh preserves canonical evidence",
         area="Isolation/Integrity",
         expected=state["after_first"],
         actual=after_second,
     )
     return {
-        "operation": "ranking refresh twice through GUI",
+        "operation": "canonical ranking read and repeated rejected standalone refresh",
         **state,
         "after_second": after_second,
     }
 
 
-def _refresh_rankings_through_gui(page: Page) -> None:
-    # This POST computes every configured profile synchronously. Keep the normal
-    # interaction/render timeout, and give domain completion the same 300-second
-    # budget as the native pipeline. A response must arrive before DB comparison.
-    with page.expect_navigation(wait_until="domcontentloaded", timeout=300_000):
-        page.get_by_role("button", name="Refresh rankings").first.click(no_wait_after=True)
+def _assert_standalone_rankings_retired(page: Page, env, run_id: int) -> None:
+    expect(page.get_by_role("button", name="Refresh rankings").first).to_be_disabled()
+    response = page.request.post(f"{env.base_url}/runs/{run_id}/rankings/refresh")
+    assert response.status == 409
+    assert response.json()["detail"]["code"] == "STANDALONE_MUTATION_RETIRED"
 
 
 def _idempotency_counts(engine, run_id: int) -> dict:

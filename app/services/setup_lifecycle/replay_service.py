@@ -124,6 +124,9 @@ class SetupLifecycleReplayService:
             )
         return {
             "mode": "PERSISTED_REPLAY" if request.persist else "DRY_RUN_REPLAY",
+            "semantic_mode": "CURRENT_RULES_RETROSPECTIVE",
+            "original_context_reconstructed": False,
+            "requested_configuration_applied": False,
             "persisted": request.persist,
             "evaluation_run_id": evaluation_run.id if evaluation_run is not None else None,
             "snapshot_count": len(snapshots),

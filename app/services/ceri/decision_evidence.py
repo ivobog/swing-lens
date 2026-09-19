@@ -214,10 +214,11 @@ def build_ceri_source_manifest(
     )
     catalyst_revision_ids = [row.id for row in catalyst_revisions if row.id is not None]
     catalyst_sources = (
-        _rows_where(
+        _related_rows(
             db,
             CeriCatalystSource,
-            CeriCatalystSource.catalyst_revision_id.in_(catalyst_revision_ids),
+            "catalyst_revision_id",
+            catalyst_revision_ids,
         )
         if catalyst_revision_ids
         else []
@@ -428,9 +429,15 @@ def _required_rows(
     wanted = sorted({int(value) for value in ids})
     if not wanted:
         return []
-    rows = list(
-        db.scalars(select(model).where(model.id.in_(wanted)).order_by(model.id).with_for_update())
-    )
+    from app.services.source_mutation_authority import prefetched_source_rows
+
+    rows = prefetched_source_rows(db, model, wanted)
+    if rows is None:
+        rows = list(
+            db.scalars(
+                select(model).where(model.id.in_(wanted)).order_by(model.id).with_for_update()
+            )
+        )
     found = {int(row.id) for row in rows}
     missing = sorted(set(wanted) - found)
     if missing:
@@ -440,6 +447,15 @@ def _required_rows(
 
 def _rows_where(db: Session, model: type, predicate: Any) -> list[Any]:
     return list(db.scalars(select(model).where(predicate).order_by(model.id).with_for_update()))
+
+
+def _related_rows(db, model, field, values):
+    from app.services.source_mutation_authority import prefetched_source_related_rows
+
+    rows = prefetched_source_related_rows(db, model, field, values)
+    if rows is not None:
+        return rows
+    return _rows_where(db, model, getattr(model, field).in_(values))
 
 
 def _ints(values: Any) -> set[int]:

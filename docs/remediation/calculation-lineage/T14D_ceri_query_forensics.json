@@ -1,0 +1,142 @@
+{
+  "budget": "Authority SELECT count must not grow from population 1 to 50; total SQL may grow with persisted business outputs.",
+  "end_to_end_measurements": [
+    {
+      "authority_by_function": {
+        "PrefetchedSourceBodies.load": 23,
+        "_capture_source_bundle": 2,
+        "_eligible_source_backed_rows": 1,
+        "_source_value": 2,
+        "effective_disposition_by_snapshot": 1
+      },
+      "authority_selects": 29,
+      "authority_validations": 14,
+      "delivery": "capture",
+      "material_changes": null,
+      "node_id": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[capture-1]",
+      "population": 1,
+      "selects": 67,
+      "status": "PASS",
+      "total_sql": 103,
+      "wall_seconds": 3.3003786000190303,
+      "writer_invocations": 1
+    },
+    {
+      "authority_by_function": {
+        "PrefetchedSourceBodies.load": 23,
+        "_capture_source_bundle": 2,
+        "_eligible_source_backed_rows": 1,
+        "_source_value": 2,
+        "effective_disposition_by_snapshot": 1
+      },
+      "authority_selects": 29,
+      "authority_validations": 63,
+      "delivery": "capture",
+      "material_changes": null,
+      "node_id": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[capture-50]",
+      "population": 50,
+      "selects": 949,
+      "status": "PASS",
+      "total_sql": 1769,
+      "wall_seconds": 20.315944199974183,
+      "writer_invocations": 50
+    },
+    {
+      "authority_by_function": {
+        "PrefetchedSourceBodies.load": 47,
+        "_capture_source_bundle": 2,
+        "_eligible_source_backed_rows": 1,
+        "_source_value": 2,
+        "assert_current_execution_ownership": 12,
+        "effective_disposition_by_snapshot": 1,
+        "load_configuration_delivery": 2,
+        "resolve_pipeline_market_context": 3
+      },
+      "authority_selects": 70,
+      "authority_validations": 14,
+      "delivery": "pipeline",
+      "material_changes": null,
+      "node_id": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[pipeline-1]",
+      "population": 1,
+      "selects": 128,
+      "status": "PASS",
+      "total_sql": 175,
+      "wall_seconds": 4.289914399967529,
+      "writer_invocations": 1
+    },
+    {
+      "authority_by_function": {
+        "PrefetchedSourceBodies.load": 47,
+        "_capture_source_bundle": 2,
+        "_eligible_source_backed_rows": 1,
+        "_source_value": 2,
+        "assert_current_execution_ownership": 12,
+        "effective_disposition_by_snapshot": 1,
+        "load_configuration_delivery": 2,
+        "resolve_pipeline_market_context": 3
+      },
+      "authority_selects": 70,
+      "authority_validations": 63,
+      "delivery": "pipeline",
+      "material_changes": null,
+      "node_id": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[pipeline-50]",
+      "population": 50,
+      "selects": 1010,
+      "status": "PASS",
+      "total_sql": 1841,
+      "wall_seconds": 38.841993600013666,
+      "writer_invocations": 50
+    },
+    {
+      "authority_by_function": {
+        "PrefetchedSourceBodies.load": 23,
+        "_capture_source_bundle": 2,
+        "_eligible_source_backed_rows": 1,
+        "_source_value": 2,
+        "effective_disposition_by_snapshot": 1
+      },
+      "authority_selects": 29,
+      "authority_validations": 14,
+      "delivery": "material",
+      "material_changes": 3,
+      "node_id": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[material-1]",
+      "population": 1,
+      "selects": 67,
+      "status": "PASS",
+      "total_sql": 103,
+      "wall_seconds": 5.025830700004008,
+      "writer_invocations": 1
+    },
+    {
+      "authority_by_function": {
+        "PrefetchedSourceBodies.load": 23,
+        "_capture_source_bundle": 2,
+        "_eligible_source_backed_rows": 1,
+        "_source_value": 2,
+        "effective_disposition_by_snapshot": 1
+      },
+      "authority_selects": 29,
+      "authority_validations": 700,
+      "delivery": "material",
+      "material_changes": 150,
+      "node_id": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[material-50]",
+      "population": 50,
+      "selects": 1488,
+      "status": "PASS",
+      "total_sql": 3141,
+      "wall_seconds": 116.36192349996418,
+      "writer_invocations": 50
+    }
+  ],
+  "final_command": "pytest tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py -q -x",
+  "final_result": "6 passed in 413.67s",
+  "population_200": "Not run: population 50 already proves constant authority-query growth and population 200 was not inexpensive.",
+  "root_cause_and_remediation": [
+    "Batch exact prior snapshots, source rows, score evidence, dispositions, ownership and configuration in transaction-scoped sealed bundles.",
+    "Retain exact newly written change IDs instead of rediscovering them through the weak identity map.",
+    "Materialize the bounded alert-rule address set inside rebuild_alerts, then lock it into the exact bundle before sealing.",
+    "Alert validation consumes prefetched exact changes, snapshots, evidence, companies and rules without per-change reconstruction."
+  ],
+  "source_sha256": "f273e9a61b0a363d873b9f58cf0d702c976f5361a29eb56c2e480fa61b20a5d7",
+  "verdict": "PASS"
+}

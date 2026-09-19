@@ -10,7 +10,7 @@ from time import perf_counter
 from sqlalchemy import create_engine, func, inspect, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob, BackgroundWorker
+from app.models.tables import BackgroundJob, BackgroundWorker, PipelineRun, UploadRun
 from app.services.background_job_service import (
     JobStatus,
     claim_next_job,
@@ -42,6 +42,7 @@ def test_interactive_claim_preempts_large_background_backlog(
                 priority=1,
                 coalesce=False,
             )
+        _seed_pipeline(db, 1)
         interactive = enqueue_job(
             db,
             "FULL_PIPELINE",
@@ -106,6 +107,7 @@ def test_continuous_interactive_claims_eventually_yield_to_background(
     engine = create_engine(disposable_postgres_database)
     with Session(engine) as db:
         for run_id in range(1, 7):
+            _seed_pipeline(db, run_id)
             enqueue_job(db, "FULL_PIPELINE", {"pipeline_run_id": run_id})
         enqueue_job(db, "CERI_FEATURE_BATCH", {"batch": 1})
         db.commit()
@@ -141,6 +143,8 @@ def test_skip_locked_prevents_two_workers_claiming_same_job(
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     with Session(engine) as db:
+        _seed_pipeline(db, 1)
+        _seed_pipeline(db, 2)
         enqueue_job(db, "FULL_PIPELINE", {"pipeline_run_id": 1})
         enqueue_job(db, "FULL_PIPELINE", {"pipeline_run_id": 2})
         db.commit()
@@ -170,6 +174,7 @@ def test_request_key_coalescing_is_preserved_with_queue_fairness(
     engine = create_engine(disposable_postgres_database)
     request_key = "queue-fairness:full-pipeline:1"
     with Session(engine) as db:
+        _seed_pipeline(db, 1)
         first = enqueue_job(
             db,
             "FULL_PIPELINE",
@@ -201,6 +206,14 @@ def test_request_key_coalescing_is_preserved_with_queue_fairness(
             == 1
         )
     engine.dispose()
+
+
+def _seed_pipeline(db: Session, pipeline_id: int) -> None:
+    """Queue fixtures use real targets for the retained configuration binding."""
+    db.add(UploadRun(id=pipeline_id, filename=f"fairness-{pipeline_id}.csv", status="COMPLETED"))
+    db.flush()
+    db.add(PipelineRun(id=pipeline_id, upload_run_id=pipeline_id, status="QUEUED"))
+    db.flush()
 
 
 def _fair_claim(

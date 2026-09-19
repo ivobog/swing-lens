@@ -4983,12 +4983,19 @@ event.listen(WinnerMarketDataObligation, "before_update", _protect_native_obliga
 
 
 def _protect_native_cohort_statistic(mapper: Any, connection: Any, target: Any) -> None:
+    from sqlalchemy import inspect
+
     from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
     from app.services.winner_probability.cohort_authority import statistic_body
 
-    stored = connection.execute(
-        select(target.__table__.c.metadata_json).where(target.__table__.c.id == target.id)
-    ).scalar_one()
+    history = inspect(target).attrs.metadata_json.history
+    stored = (
+        history.deleted[0]
+        if history.deleted
+        else connection.execute(
+            select(target.__table__.c.metadata_json).where(target.__table__.c.id == target.id)
+        ).scalar_one()
+    )
     proof = (stored or {}).get("native_cohort_proof")
     if proof is not None and (
         proof != (target.metadata_json or {}).get("native_cohort_proof")
@@ -4998,15 +5005,21 @@ def _protect_native_cohort_statistic(mapper: Any, connection: Any, target: Any) 
 
 
 def _protect_native_generation(mapper: Any, connection: Any, target: Any) -> None:
+    from sqlalchemy import inspect
     from sqlalchemy.orm import object_session
 
     from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
     from app.services.core_mutation_authority import require_semantic_writer
     from app.services.winner_probability.cohort_authority import generation_body
 
-    stored = connection.execute(
-        select(target.__table__.c.metrics_json).where(target.__table__.c.id == target.id)
-    ).scalar_one()
+    history = inspect(target).attrs.metrics_json.history
+    stored = (
+        history.deleted[0]
+        if history.deleted
+        else connection.execute(
+            select(target.__table__.c.metrics_json).where(target.__table__.c.id == target.id)
+        ).scalar_one()
+    )
     proof = (stored or {}).get("native_generation_proof")
     if proof is None:
         return

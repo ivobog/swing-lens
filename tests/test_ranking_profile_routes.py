@@ -1,6 +1,5 @@
 from datetime import date
 from decimal import Decimal
-from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -23,87 +22,43 @@ def test_list_ranking_profiles_route_returns_enabled_profiles() -> None:
 
 
 def test_refresh_all_ranking_profiles_route_commits(monkeypatch) -> None:
-    monkeypatch.setattr(
-        run_routes,
-        "refresh_all_ranking_profiles",
-        lambda _db, _run_id: [
-            SimpleNamespace(ranking_profile="momentum_swing"),
-            SimpleNamespace(ranking_profile="quality_momentum"),
-        ],
-    )
     db = RouteFakeDb()
-
-    payload = run_routes.refresh_all_ranking_profiles_action(run_id=7, db=db)
-
-    assert payload == {"run_id": 7, "profile_count": 2, "result_count": 2}
-    assert db.commits == 1
+    with pytest.raises(HTTPException) as error:
+        run_routes.refresh_all_ranking_profiles_action(run_id=7, db=db)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
+    assert db.commits == 0
     assert db.rollbacks == 0
 
 
 def test_refresh_all_ranking_profiles_route_can_redirect_for_browser(monkeypatch) -> None:
-    monkeypatch.setattr(
-        run_routes,
-        "refresh_all_ranking_profiles",
-        lambda _db, _run_id: [
-            SimpleNamespace(ranking_profile="momentum_swing"),
-            SimpleNamespace(ranking_profile="quality_momentum"),
-        ],
-    )
     db = RouteFakeDb()
-
-    response = run_routes.refresh_all_ranking_profiles_action(
-        run_id=7,
-        db=db,
-        redirect=True,
-    )
-
-    assert db.commits == 1
-    assert "ranking-profiles-refreshed" in response.headers["location"]
-    assert "Refreshed+2+ranking+rows" in response.headers["location"]
+    with pytest.raises(HTTPException) as error:
+        run_routes.refresh_all_ranking_profiles_action(run_id=7, db=db, redirect=True)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
+    assert db.commits == 0
+    assert db.rollbacks == 0
 
 
 def test_refresh_one_ranking_profile_route_commits(monkeypatch) -> None:
-    monkeypatch.setattr(
-        run_routes,
-        "refresh_ranking_profile",
-        lambda _db, _run_id, profile_name: [
-            SimpleNamespace(ranking_profile=profile_name),
-            SimpleNamespace(ranking_profile=profile_name),
-        ],
-    )
     db = RouteFakeDb()
-
-    payload = run_routes.refresh_ranking_profile_action(
-        run_id=7,
-        profile_name="early_rocket",
-        db=db,
-    )
-
-    assert payload == {
-        "run_id": 7,
-        "profile_name": "early_rocket",
-        "result_count": 2,
-    }
-    assert db.commits == 1
+    with pytest.raises(HTTPException) as error:
+        run_routes.refresh_ranking_profile_action(run_id=7, profile_name="momentum_swing", db=db)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
+    assert db.commits == 0
+    assert db.rollbacks == 0
 
 
 def test_refresh_ranking_profile_route_rolls_back_service_error(monkeypatch) -> None:
-    def fail_refresh(_db, _run_id, _profile_name):
-        raise ValueError("unknown ranking profile")
-
-    monkeypatch.setattr(run_routes, "refresh_ranking_profile", fail_refresh)
     db = RouteFakeDb()
-
-    with pytest.raises(HTTPException) as exc:
-        run_routes.refresh_ranking_profile_action(
-            run_id=7,
-            profile_name="unknown",
-            db=db,
-        )
-
-    assert exc.value.status_code == 404
+    with pytest.raises(HTTPException) as error:
+        run_routes.refresh_ranking_profile_action(run_id=7, profile_name="momentum_swing", db=db)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
     assert db.commits == 0
-    assert db.rollbacks == 1
+    assert db.rollbacks == 0
 
 
 def test_view_ranking_profile_results_route_returns_ranked_payload(monkeypatch) -> None:

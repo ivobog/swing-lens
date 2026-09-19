@@ -247,6 +247,7 @@ def main(mode: str) -> dict:
                     "CERI_REBUILD_FEATURES",
                     {
                         "run_id": run_id,
+                        "pipeline_run_id": pipeline.id,
                         "company_ids": [company.id],
                         "calculation_context_id": cutoff.context_id,
                         "cutoff_at": cutoff.cutoff_at.isoformat(),

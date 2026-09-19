@@ -54,6 +54,8 @@ from app.services.contextual_calculation_identity import (
     build_contextual_result_identity,
     identity_metadata,
 )
+from app.services.entrypoint_authority import reject_legacy_mutation
+from app.services.source_mutation_authority import source_writer_member
 
 REPLAY_PROCESSOR_SIGNATURE = "ceri-controlled-replay-v1"
 REPLAY_SCHEMA_VERSION = "ceri-controlled-replay-schema-v1"
@@ -111,6 +113,7 @@ class CeriControlledReplayService:
         db: Session,
         request: ControlledReplayRequest,
     ) -> ControlledReplayResult:
+        reject_legacy_mutation("Run 104 CERI controlled replay")
         self._validate_request(db, request)
         originals = list(
             db.scalars(
@@ -1225,6 +1228,9 @@ def _freshness_days(
     }
 
 
+@source_writer_member(
+    "app.services.ceri.controlled_replay_service:CeriControlledReplayService.replay"
+)
 def _normalize_feature_precision(feature: CeriRevisionFeature) -> None:
     feature.absolute_change = _quantize(feature.absolute_change, 6)
     feature.pct_change = _quantize(feature.pct_change, 6)

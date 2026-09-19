@@ -15,6 +15,7 @@ from app.models.tables import (
     WinnerCohortDefinition,
     WinnerCohortGeneration,
     WinnerCohortStatistic,
+    WinnerEvidenceManifest,
     WinnerEvidenceManifestMember,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
@@ -429,6 +430,122 @@ class ProbabilityEstimator:
             _supersedes_estimate_id=supersedes_estimate_id,
             _reviewed_manifest_hash=reviewed_manifest_hash,
         )
+
+    @core_writer_transaction
+    def _create_candidate_decision_reconstruction(
+        self,
+        db: Session,
+        *,
+        prediction: WinnerPredictionSnapshot,
+        outcome_definition: WinnerOutcomeDefinition,
+        generation: WinnerCohortGeneration,
+        predecessor: WinnerProbabilityEstimate,
+        reconstruction_category: str,
+        reviewed_manifest_hash: str,
+        source_version: str,
+        config: WinnerProbabilityConfig | None = None,
+    ) -> ProbabilityEstimateResult:
+        """Create a certified fail-closed replacement for historical decision time."""
+        config = config or load_winner_probability_config()
+        from app.services.decision_effective_configuration import (
+            configuration_from_payload,
+            resolve_winner_configuration,
+        )
+        from app.services.winner_probability.cohort_authority import (
+            validate_completion,
+            validate_generation,
+        )
+        from app.services.winner_probability.estimate_authority import (
+            estimate_request_authority,
+            seal_estimate,
+            validate_estimate,
+        )
+
+        generation_config = resolve_winner_configuration(config, family="cohort").winner_config()
+        validate_generation(db, generation, config)
+        validate_completion(db, generation, config)
+        if (
+            generation.status != "READY"
+            or predecessor.lifecycle_status != "PUBLISHED"
+            or predecessor.prediction_id != prediction.id
+            or predecessor.outcome_definition_id != outcome_definition.id
+            or predecessor.estimate_kind != ESTIMATE_KIND_DECISION_TIME
+            or not reconstruction_category
+            or not reviewed_manifest_hash
+        ):
+            raise ValueError("MUTATION_WINNER_CANDIDATE_EXACT_SERVING_PREDECESSOR_REQUIRED")
+        cohort_config = configuration_from_payload(
+            predecessor.metadata_json["effective_configuration_at_creation"]
+        ).winner_config()
+        validate_estimate(predecessor, cohort_config)
+        estimate_request_authority(
+            db,
+            prediction=prediction,
+            outcome_definition=outcome_definition,
+            config=cohort_config,
+            cutoff_at=predecessor.training_cutoff_at,
+            estimate_kind=ESTIMATE_KIND_DECISION_TIME,
+            generation=generation,
+        )
+        existing = db.scalar(
+            select(WinnerProbabilityEstimate).where(
+                WinnerProbabilityEstimate.supersedes_estimate_id == predecessor.id,
+                WinnerProbabilityEstimate.cohort_generation_id == generation.id,
+                WinnerProbabilityEstimate.source_version == source_version,
+            )
+        )
+        if existing is not None:
+            validate_estimate(existing, cohort_config)
+            return ProbabilityEstimateResult(existing, "duplicate", (), None, None)
+        manifest = db.scalar(
+            select(WinnerEvidenceManifest).where(
+                WinnerEvidenceManifest.manifest_hash == generation.root_manifest_hash
+            )
+        )
+        if manifest is None:
+            raise ValueError("MUTATION_WINNER_ESTIMATE_MANIFEST_MISMATCH")
+        estimate = WinnerProbabilityEstimate(
+            **candidate_lifecycle_fields(),
+            prediction_id=prediction.id,
+            outcome_definition_id=outcome_definition.id,
+            estimate_kind=ESTIMATE_KIND_DECISION_TIME,
+            source=EstimateSource.INSUFFICIENT,
+            source_version=source_version,
+            cohort_generation_id=generation.id,
+            evidence_manifest_id=manifest.id,
+            evidence_manifest_hash=manifest.manifest_hash,
+            training_cutoff_at=predecessor.training_cutoff_at,
+            supersedes_estimate_id=predecessor.id,
+            reconstruction_category=reconstruction_category,
+            point_probability=None,
+            lower_bound=None,
+            upper_bound=None,
+            interval_width=None,
+            sample_n=0,
+            effective_n=Decimal("0"),
+            evidence_grade=EvidenceGrade.INSUFFICIENT,
+            insufficient_reasons_json=["no_clean_evidence_at_original_decision_cutoff"],
+            config_hash=cohort_config.config_hash,
+            feature_schema_version=cohort_config.feature_schema.version,
+            metadata_json={
+                "effective_configuration_at_creation": resolve_winner_configuration(
+                    cohort_config, family="cohort"
+                ).snapshot.as_dict(),
+                "configuration_execution_semantics": "FROZEN_GENERATION",
+                "replacement_generation_configuration": resolve_winner_configuration(
+                    generation_config, family="cohort"
+                ).snapshot.as_dict(),
+                "feature_vector_hash": prediction.feature_vector_hash,
+                "outcome_definition": outcome_definition.definition_id,
+                "outcome_definition_id": outcome_definition.id,
+                "wins": "0",
+                "reviewed_manifest_hash": reviewed_manifest_hash,
+            },
+        )
+        seal_estimate(db, estimate)
+        db.add(estimate)
+        db.flush()
+        return ProbabilityEstimateResult(estimate, "insufficient", (), None, None)
 
     @core_writer_transaction
     def _create_estimate(

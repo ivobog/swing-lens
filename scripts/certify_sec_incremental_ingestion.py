@@ -21,6 +21,7 @@ from app.services.ceri.sec.client import SecClientConfig, SecEdgarClient
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider
 from app.services.ceri.source_record_service import source_record_content_hash
+from app.services.entrypoint_authority import require_disposable_tool_target
 from app.settings import SecDocumentIncrementalMode, Settings, get_settings
 
 TICKERS = ("AIZ", "AMZN", "CLBT", "JPM", "SLDE")
@@ -64,6 +65,7 @@ class ScenarioResult:
 
 
 def main() -> int:
+    require_disposable_tool_target(get_settings().database_url)
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=Path("output"))
     parser.add_argument(
@@ -158,6 +160,7 @@ def main() -> int:
 def run_scenario(
     *, name, mode, runtime, config, stamp, tickers, requests_per_second
 ) -> ScenarioResult:
+    require_disposable_tool_target(str(engine.url))
     settings = Settings(
         sec_document_incremental_mode=mode,
         sec_document_lease_seconds=runtime.sec_document_lease_seconds,
@@ -253,10 +256,7 @@ def _markdown_report(report: dict) -> str:
             "",
             "## Checks",
             "",
-            *[
-                f"- [{'x' if passed else ' '}] {name}"
-                for name, passed in report["checks"].items()
-            ],
+            *[f"- [{'x' if passed else ' '}] {name}" for name, passed in report["checks"].items()],
             "",
             f"Overall: **{'PASS' if report['passed'] else 'FAIL'}**",
             "",
@@ -269,8 +269,7 @@ def _certification_checks(scenarios: list[ScenarioResult]) -> dict[str, bool]:
     by_name = {item.name: item for item in scenarios}
     checks = {
         f"{item.name}_all_tickers_ready": all(
-            values.get("run_evidence_status") == "READY"
-            and values.get("status") == "COMPLETED"
+            values.get("run_evidence_status") == "READY" and values.get("status") == "COMPLETED"
             for values in item.per_ticker.values()
         )
         for item in scenarios
@@ -295,9 +294,7 @@ def _certification_checks(scenarios: list[ScenarioResult]) -> dict[str, bool]:
             active_zero_filing_downloads=active.filing_downloads == 0,
             active_zero_parsing=active.parsing_calls == 0,
             active_zero_extraction_records=active.guidance_records == 0,
-            active_skipped_all_discovered=(
-                active.documents_skipped == active.documents_discovered
-            ),
+            active_skipped_all_discovered=(active.documents_skipped == active.documents_discovered),
         )
     if first is not None and active is not None:
         checks.update(

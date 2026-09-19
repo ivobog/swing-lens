@@ -94,7 +94,7 @@ def test_source_loader_preserves_resolved_market_context_in_run_context() -> Non
     loader = SetupLifecycleSourceLoader(latest_bar_projection_enabled=False)
     loader._load_price_bars = lambda *_args, **_kwargs: ()
 
-    context = loader.load_run_context(db, run_id=7)
+    context = loader.load_run_context(db, run_id=7, market_cutoff=cutoff)
 
     assert context.market_cutoff == cutoff
     assert context.tickers[0].market_cutoff == cutoff

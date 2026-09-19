@@ -89,6 +89,9 @@ def publication_sessions(tmp_path, monkeypatch):
                 id INTEGER PRIMARY KEY,
                 status TEXT NOT NULL,
                 execution_token TEXT,
+                job_type TEXT NOT NULL,
+                related_run_id INTEGER,
+                payload_json JSON NOT NULL DEFAULT '{}',
                 requested_cancel INTEGER NOT NULL DEFAULT 0
             )
             """
@@ -96,8 +99,8 @@ def publication_sessions(tmp_path, monkeypatch):
         connection.execute(
             text(
                 "INSERT INTO background_jobs "
-                "(id, status, execution_token, requested_cancel) "
-                "VALUES (1, 'RUNNING', 'token-a', 0)"
+                "(id, status, execution_token, job_type, payload_json, requested_cancel) "
+                "VALUES (1, 'RUNNING', 'token-a', 'WINNER_COHORT_REFRESH', '{}', 0)"
             )
         )
     monkeypatch.setattr(

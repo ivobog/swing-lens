@@ -128,6 +128,25 @@ class SetupLifecycleEvaluationService:
         market_cutoff: MarketCalculationCutoff | None = None,
         pipeline_run_id: int | None = None,
     ) -> SetupLifecycleEvaluationResult:
+        from sqlalchemy.orm import Session
+
+        from app.services.entrypoint_authority import EntryPointAuthorityError
+
+        adopt_alert_delivery = getattr(self.alert_service, "adopt_delivered_configuration", None)
+        if callable(adopt_alert_delivery):
+            adopt_alert_delivery()
+
+        if (
+            isinstance(db, Session)
+            and market_cutoff is None
+            and capture_result is None
+            and snapshot_ids is None
+        ):
+            raise EntryPointAuthorityError(
+                "SETUP_EXPLICIT_CALCULATION_AUTHORITY_REQUIRED",
+                "Setup evaluation requires exact captured snapshot IDs "
+                "or an explicit frozen cutoff.",
+            )
         should_cancel = should_cancel or (lambda: False)
         if pipeline_run_id is not None:
             market_cutoff = assert_pipeline_calculation_context(
@@ -186,7 +205,14 @@ class SetupLifecycleEvaluationService:
             for snapshot in self.repository.get_snapshots_by_ids(
                 db, canonical.selected_snapshot_ids
             ):
-                persist_setup_evidence(db, snapshot)
+                if snapshot.evidence_id is None:
+                    persist_setup_evidence(db, snapshot)
+                else:
+                    from app.services.decision_mutation_authority import (
+                        validate_setup_projection,
+                    )
+
+                    validate_setup_projection(db, snapshot)
             self._checkpoint(db, evaluation_run.id, "change_detection", should_cancel)
             changes = self.change_detector.detect_and_persist(
                 db,

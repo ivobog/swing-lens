@@ -22,6 +22,9 @@ DECISION_REVIEW_FILE = (
 )
 if DECISION_REVIEW_FILE.exists():
     REVIEW_FILE = DECISION_REVIEW_FILE
+CALLER_REVIEW_FILE = ROOT / "docs/remediation/calculation-lineage/T14D_semantic_family_review.json"
+if CALLER_REVIEW_FILE.exists():
+    REVIEW_FILE = CALLER_REVIEW_FILE
 DISPOSITIONS = {
     "T14B",
     "T14C",

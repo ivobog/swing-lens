@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from copy import copy
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import BaseRoute
 
@@ -34,6 +35,7 @@ from app.routers import (
     winner_probability_routes,
 )
 from app.security import install_trusted_host_middleware, issue_local_admin_csrf_token
+from app.services.entrypoint_authority import EntryPointAuthorityError
 from app.settings import ProcessRole, Settings, get_settings
 
 settings = get_settings()
@@ -116,6 +118,10 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = app_settings
     app.state.local_admin_csrf_token = issue_local_admin_csrf_token()
+
+    @app.exception_handler(EntryPointAuthorityError)
+    async def entrypoint_authority_error(_request, exc: EntryPointAuthorityError):
+        return JSONResponse(status_code=409, content={"detail": exc.to_dict()})
 
     app.add_middleware(DatabaseMonitorMiddleware, enabled=app_settings.db_monitor_enabled)
     app.add_middleware(CorrelationMiddleware)

@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
+from test_queue_fairness_postgresql import _seed_pipeline
 
 from app.models.tables import BackgroundJob, BackgroundWorker, IBFetchItem, IBFetchRun
 from app.services.background_job_service import (
@@ -43,6 +44,7 @@ def test_stalled_owner_is_fenced_and_late_checkpoint_rolls_back(
                 for worker_id in ("worker-a", "worker-b")
             ]
         )
+        _seed_pipeline(db, 117)
         job = enqueue_job(db, "FULL_PIPELINE", {"pipeline_run_id": 117})
         fetch_run = IBFetchRun(
             requested_tickers=["LATE"],
@@ -185,6 +187,7 @@ def test_progress_totals_and_labels_reset_at_stage_boundary(
                 queues_json=["interactive", "background"],
             )
         )
+        _seed_pipeline(setup, 148)
         job = enqueue_job(setup, "FULL_PIPELINE", {"pipeline_run_id": 148})
         setup.commit()
         job_id = int(job.id)

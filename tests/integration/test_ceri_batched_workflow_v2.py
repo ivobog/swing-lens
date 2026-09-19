@@ -27,7 +27,7 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.models.tables import BackgroundJob, PipelineRun, RawCompanyRow, UploadRun
-from app.services.background_job_service import JobStatus, enqueue_job
+from app.services.background_job_service import JobStatus, claim_next_job, enqueue_job
 from app.services.ceri.batched_job_handlers import (
     execute_feature_batch_job,
     execute_normalize_batch_job,
@@ -55,6 +55,7 @@ from app.services.ceri.job_handlers import (
     execute_rebuild_features_job,
 )
 from app.services.market_calculation_context_service import create_pipeline_market_context
+from app.services.worker_registry import register_worker
 from app.settings import Settings
 
 
@@ -74,7 +75,8 @@ def test_concurrent_finalizers_create_one_capture_in_postgresql(
     with Session(engine) as db:
         db.add_all(
             [
-                BackgroundJob(
+                _new_job(
+                    db,
                     job_type=CERI_FEATURE_BATCH,
                     workflow_key=workflow_key,
                     request_key=f"{workflow_key}:feature:{index}",
@@ -87,12 +89,13 @@ def test_concurrent_finalizers_create_one_capture_in_postgresql(
                 for index in (1, 2)
             ]
         )
-        finalizer = BackgroundJob(
+        finalizer = _new_job(
+            db,
             job_type=CERI_RUN_FINALIZE,
             workflow_key=workflow_key,
             request_key=f"{workflow_key}:finalize",
             related_run_id=95,
-            status=JobStatus.COMPLETED,
+            status=JobStatus.RUNNING,
             priority=140,
             payload_json={
                 "workflow_key": workflow_key,
@@ -186,6 +189,7 @@ def test_batched_workflow_outputs_match_legacy_workflow_in_postgresql(
         "app.services.ceri.feature_flags.get_settings",
         lambda: enabled_settings,
     )
+    monkeypatch.setattr("app.settings.get_settings", lambda: enabled_settings)
     fixed_now = datetime(2026, 8, 12, 16, 30, tzinfo=UTC)
     monkeypatch.setattr("app.services.ceri.capture_service._utcnow", lambda: fixed_now)
     monkeypatch.setattr("app.services.ceri.feature_rebuild_service.date", _FixedDate)
@@ -224,7 +228,8 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
 
     with Session(engine, expire_on_commit=False) as db:
         run_id, ingestion_run_id = _seed_fixture(db, request_key="perf-fixture:ingest:MSFT")
-        processing = BackgroundJob(
+        processing = _new_job(
+            db,
             job_type="CERI_NORMALIZE",
             related_run_id=run_id,
             request_key="perf-fixture:normalize:MSFT",
@@ -405,12 +410,14 @@ def _execute_legacy_fixture(database_url: str) -> dict:
             db, pipeline, cutoff_at=datetime(2026, 9, 8, 17, 30, tzinfo=UTC)
         )
         temporal_payload = {
+            "pipeline_run_id": pipeline.id,
             "calculation_context_id": cutoff.context_id,
             "cutoff_at": cutoff.cutoff_at.isoformat(),
             "as_of_session": cutoff.latest_completed_session.isoformat(),
             "calendar_version": cutoff.calendar_version,
         }
-        normalize = BackgroundJob(
+        normalize = _new_job(
+            db,
             job_type="CERI_NORMALIZE",
             related_run_id=run_id,
             request_key="legacy:normalize:MSFT",
@@ -466,12 +473,14 @@ def _execute_batched_fixture(database_url: str) -> dict:
         ingestion = db.get(CeriIngestionRun, ingestion_run_id)
         ingestion.request_key = f"{workflow_key}:ingest:eodhd:estimates:MSFT"
         temporal_payload = {
+            "pipeline_run_id": pipeline.id,
             "calculation_context_id": cutoff.context_id,
             "cutoff_at": cutoff.cutoff_at.isoformat(),
             "as_of_session": cutoff.latest_completed_session.isoformat(),
             "calendar_version": cutoff.calendar_version,
         }
-        provider = BackgroundJob(
+        provider = _new_job(
+            db,
             job_type=CERI_PROVIDER_INGEST_BATCH,
             workflow_key=workflow_key,
             request_key=f"{workflow_key}:provider:eodhd:estimates:0001",
@@ -481,7 +490,8 @@ def _execute_batched_fixture(database_url: str) -> dict:
             payload_json={},
             max_retries=3,
         )
-        normalize = BackgroundJob(
+        normalize = _new_job(
+            db,
             job_type=CERI_NORMALIZE_BATCH,
             workflow_key=workflow_key,
             request_key=f"{workflow_key}:normalize:eodhd:estimates:0001",
@@ -502,7 +512,8 @@ def _execute_batched_fixture(database_url: str) -> dict:
         db.add_all([provider, normalize])
         db.commit()
         _execute_handler(db, normalize, execute_normalize_batch_job)
-        feature = BackgroundJob(
+        feature = _new_job(
+            db,
             job_type=CERI_FEATURE_BATCH,
             workflow_key=workflow_key,
             request_key=f"{workflow_key}:feature:0001",
@@ -522,7 +533,8 @@ def _execute_batched_fixture(database_url: str) -> dict:
         db.add(feature)
         db.commit()
         _execute_handler(db, feature, execute_feature_batch_job)
-        finalizer = BackgroundJob(
+        finalizer = _new_job(
+            db,
             job_type=CERI_RUN_FINALIZE,
             workflow_key=workflow_key,
             request_key=f"{workflow_key}:finalize",
@@ -639,8 +651,64 @@ def _seed_fixture(db: Session, *, request_key: str) -> tuple[int, int]:
     return run.id, ingestion.id
 
 
+def _claim_native_fixture_job(db: Session, job: BackgroundJob) -> None:
+    if job.status == JobStatus.RUNNING:
+        return
+    worker_id = f"t14d-native-fixture-{job.id}"
+    worker = register_worker(
+        db,
+        worker_id=worker_id,
+        queues=("interactive", "broker", "background"),
+        heartbeat_timeout_seconds=30,
+        hostname="t14d-disposable",
+        process_id=job.id,
+    )
+    db.commit()
+    other_types = tuple(
+        kind
+        for kind in db.scalars(select(BackgroundJob.job_type).distinct())
+        if kind != job.job_type
+    )
+    claimed = claim_next_job(
+        db,
+        worker_id=worker_id,
+        worker_instance_id=worker.instance_id,
+        excluded_job_types=other_types,
+    )
+    assert claimed is not None and claimed.id == job.id
+    db.commit()
+
+
+def _new_job(db: Session, *, job_type, payload_json, status, **kwargs) -> BackgroundJob:
+    # Authority is frozen by the production enqueue before delivery, never
+    # retrofitted into a pre-existing unanchored historical job.
+    job = enqueue_job(db, job_type, payload_json, **kwargs)
+    if status == JobStatus.RUNNING:
+        _claim_native_fixture_job(db, job)
+    elif status == JobStatus.COMPLETED:
+        job.status = status  # Terminal upstream acquisition bookkeeping fixture.
+        db.flush()
+    return job
+
+
 def _execute_handler(db: Session, job: BackgroundJob, handler) -> dict:
+    if job.status == JobStatus.COMPLETED:
+        # A new retained delivery of the same business request obtains a real
+        # current attempt; a completed historical job is not made authoritative.
+        job = enqueue_job(
+            db,
+            job.job_type,
+            dict(job.payload_json),
+            request_key=f"{job.request_key}:redelivery:{job.id}",
+            related_run_id=job.related_run_id,
+            workflow_key=job.workflow_key,
+            priority=job.priority,
+            max_retries=job.max_retries,
+        )
+        db.commit()
+    _claim_native_fixture_job(db, job)
     result = handler(db, job)
+    assert not (result or {}).get("failed"), result
     job.status = (
         JobStatus.PARTIAL
         if result and result.get("status") == JobStatus.PARTIAL

@@ -33,8 +33,12 @@ from app.services.ceri.evidence_eligibility import eligible_snapshot_select
 from app.services.chart_data_service import build_ticker_chart_payload
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.column_mapping_summary_service import summarize_run_column_mapping
-from app.services.combined_decision import refresh_combined_results
 from app.services.core_effective_configuration import core_configuration_for_row
+from app.services.entrypoint_authority import (
+    EntryPointAuthorityError,
+    reject_reduced_pipeline,
+    reject_unbound_standalone,
+)
 from app.services.export_service import (
     EXPORT_TYPES,
     export_coverage_csv,
@@ -44,7 +48,6 @@ from app.services.export_service import (
     export_mapping_csv,
     export_run_csv,
 )
-from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.history_query_service import (
     DecisionFilters,
     RunFilters,
@@ -52,7 +55,6 @@ from app.services.history_query_service import (
     paged_runs,
 )
 from app.services.ib_connection import check_ib_connection
-from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_job_service import (
     FetchJobOptions,
     cancel_fetch_job,
@@ -82,8 +84,6 @@ from app.services.pre_enqueue_operational_gate import PreEnqueueOperationalGateE
 from app.services.ranking_profile_service import (
     get_ranking_profiles,
     get_ranking_results,
-    refresh_all_ranking_profiles,
-    refresh_ranking_profile,
 )
 from app.services.ranking_result_export import (
     export_all_ranking_profiles_csv,
@@ -101,7 +101,6 @@ from app.services.technical_display_fields import (
     technical_score_displays_by_ticker,
     technical_v4_details_by_ticker,
 )
-from app.services.technical_score_service import score_run_technicals
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 from app.services.worker_registry import has_live_worker_for_job
 from app.settings import RuntimeMode, get_settings
@@ -420,32 +419,7 @@ def refresh_all_ranking_profiles_action(
     redirect: bool = False,
 ) -> object:
     _require_run(db, run_id)
-    try:
-        results = refresh_all_ranking_profiles(db, run_id)
-        db.commit()
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
-    except Exception:
-        db.rollback()
-        raise
-    payload = {
-        "run_id": run_id,
-        "profile_count": len({result.ranking_profile for result in results}),
-        "result_count": len(results),
-    }
-    if redirect:
-        return _redirect_with_query(
-            run_id,
-            {
-                "ib_status": "ranking-profiles-refreshed",
-                "ib_message": (
-                    f"Refreshed {payload['result_count']} ranking rows across "
-                    f"{payload['profile_count']} profiles."
-                ),
-            },
-        )
-    return payload
+    _reject_standalone_http("Ranking profiles")
 
 
 @router.post("/runs/{run_id}/rankings/{profile_name}/refresh")
@@ -456,20 +430,7 @@ def refresh_ranking_profile_action(
     db: DbSession,
 ) -> dict[str, object]:
     _require_run(db, run_id)
-    try:
-        results = refresh_ranking_profile(db, run_id, profile_name)
-        db.commit()
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
-    except Exception:
-        db.rollback()
-        raise
-    return {
-        "run_id": run_id,
-        "profile_name": profile_name,
-        "result_count": len(results),
-    }
+    _reject_standalone_http("Ranking profile")
 
 
 @router.get("/runs/{run_id}/rankings/export.csv")
@@ -570,60 +531,32 @@ def run_mapping_page(run_id: int, request: Request, db: DbSession) -> HTMLRespon
     )
 
 
+def _reject_standalone_http(operation: str) -> None:
+    try:
+        reject_unbound_standalone(operation)
+    except EntryPointAuthorityError as exc:
+        raise HTTPException(status_code=409, detail=exc.to_dict()) from exc
+
+
 @router.post("/runs/{run_id}/combined-results")
 @unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="refreshes persisted combined results")
 def refresh_combined_results_action(run_id: int, db: DbSession) -> RedirectResponse:
-    run_exists = db.scalar(select(UploadRun.id).where(UploadRun.id == run_id))
-    if not run_exists:
-        raise HTTPException(status_code=404, detail="Run not found")
-
-    refresh_combined_results(db, run_id)
-    db.commit()
-    return _redirect_with_query(
-        run_id,
-        {
-            "ib_status": "combined-refreshed",
-            "ib_message": "Combined cockpit rebuilt from existing fundamentals and technicals.",
-        },
-    )
+    _require_run(db, run_id)
+    _reject_standalone_http("Combined")
 
 
 @router.post("/runs/{run_id}/fundamentals/recalculate")
 @unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="recalculates persisted fundamental scores")
 def recalculate_fundamentals_action(run_id: int, db: DbSession) -> RedirectResponse:
     _require_run(db, run_id)
-    scores = recalculate_run_fundamentals(db, run_id)
-    combined = refresh_combined_results(db, run_id)
-    db.commit()
-    return _redirect_with_query(
-        run_id,
-        {
-            "ib_status": "fundamentals-refreshed",
-            "ib_message": (
-                f"Recalculated {len(scores)} fundamental score rows and rebuilt "
-                f"{len(combined)} combined rows."
-            ),
-        },
-    )
+    _reject_standalone_http("Fundamental")
 
 
 @router.post("/runs/{run_id}/technicals/refresh")
 @unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="refreshes persisted technical scores")
 def refresh_technicals_action(run_id: int, db: DbSession) -> RedirectResponse:
     _require_run(db, run_id)
-    scores = score_run_technicals(db, run_id)
-    combined = refresh_combined_results(db, run_id)
-    db.commit()
-    return _redirect_with_query(
-        run_id,
-        {
-            "ib_status": "technicals-refreshed",
-            "ib_message": (
-                f"Refreshed {len(scores)} technical score rows from cached OHLCV "
-                f"and rebuilt {len(combined)} combined rows."
-            ),
-        },
-    )
+    _reject_standalone_http("Technical")
 
 
 @router.post("/runs/{run_id}/pipeline")
@@ -635,6 +568,11 @@ def run_full_pipeline_action(
     transition_preflight_plan_id: TransitionPreflightPlanForm = None,
 ) -> RedirectResponse:
     settings = get_settings()
+    if not settings.use_durable_pipeline:
+        try:
+            reject_reduced_pipeline()
+        except EntryPointAuthorityError as exc:
+            raise HTTPException(status_code=409, detail=exc.to_dict()) from exc
     certification_mode = (
         getattr(settings, "runtime_mode", RuntimeMode.NORMAL) is RuntimeMode.CERTIFICATION
     )
@@ -704,74 +642,6 @@ def run_full_pipeline_action(
         except Exception:
             db.rollback()
             raise
-
-    run = _load_run(db, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
-
-    tickers = _unique_tickers(run.raw_company_rows)
-    if not tickers:
-        return _redirect_with_query(
-            run_id,
-            {
-                "ib_status": "pipeline-failed",
-                "ib_message": "No uploaded tickers are available for this run.",
-            },
-        )
-
-    fundamental_scores = recalculate_run_fundamentals(db, run_id)
-    plan = build_fetch_plan(
-        db=db,
-        tickers=tickers,
-        run_id=run_id,
-        include_benchmarks=True,
-        what_to_show_values=DEFAULT_WHAT_TO_SHOW,
-    )
-    fetch_run = None
-    if plan.estimated_request_count and ib_preflight.status in {
-        IBGatewayHealthState.IB_API_READY.value,
-        "READY",
-    }:
-        fetch_run = execute_fetch_plan(
-            db=db,
-            plan=plan,
-            include_benchmarks=True,
-        )
-        if fetch_run.status in {"FAILED", "PARTIAL"} and policy is MarketDataPolicy.REQUIRE_IB:
-            db.rollback()
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "code": "IB_GATEWAY_UNAVAILABLE",
-                    "message": "IB market-data refresh failed; downstream scoring was not run.",
-                },
-            )
-    technical_scores = score_run_technicals(db, run_id)
-    combined_results = refresh_combined_results(db, run_id)
-
-    message = (
-        f"Recalculated {len(fundamental_scores)} fundamentals, refreshed "
-        f"{len(technical_scores)} technicals, and rebuilt {len(combined_results)} "
-        "combined rows."
-    )
-    status = (
-        "pipeline-cache-fallback"
-        if ib_preflight.status not in {IBGatewayHealthState.IB_API_READY.value, "READY"}
-        else "pipeline-refreshed"
-    )
-    if fetch_run is not None:
-        message = f"IB fetch {fetch_run.id} completed before downstream scoring. {message}"
-    elif status == "pipeline-cache-fallback":
-        message = f"Explicit cached-data fallback used. {message}"
-    db.commit()
-
-    return _redirect_with_query(
-        run_id,
-        {
-            "ib_status": status,
-            "ib_message": message,
-        },
-    )
 
 
 @router.get("/runs/{run_id}/pipeline/{pipeline_id}", response_class=HTMLResponse)

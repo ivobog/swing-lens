@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from app.models.tables import ExecutionConfigurationBinding, PipelineRun, PriceBar
-from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.bar_cache_service import price_bar_data_hash
 from app.services.configuration_delivery import persist_configuration_anchor
 from app.services.market_calculation_context_service import create_pipeline_market_context
 
@@ -68,15 +68,25 @@ def seed_price_frame(db, ticker, frame, cutoff_at):
                     first_seen_at=observed,
                     last_seen_at=observed,
                     revision_count=0,
-                    data_hash=Canonical.fingerprint(values),
                     **values,
                 )
             )
     db.add_all(rows)
+    for row in rows:
+        row.data_hash = price_bar_data_hash(row)
     db.flush()
 
 
-def seed_native_core(db, *, run_id=7, extra_configurations=(), cutoff_at=None, raw_values=None):
+def seed_native_core(
+    db,
+    *,
+    run_id=7,
+    extra_configurations=(),
+    cutoff_at=None,
+    raw_values=None,
+    ticker="ACME",
+    price_frame=None,
+):
     import pandas as pd
     from test_core_effective_configuration import core_configurations
     from test_fundamental_ranker_v2 import _quality_values
@@ -100,14 +110,14 @@ def seed_native_core(db, *, run_id=7, extra_configurations=(), cutoff_at=None, r
         RawCompanyRow(
             run_id=run_id,
             row_number=1,
-            ticker="ACME",
+            ticker=ticker,
             sector="Technology",
             sector_canonical="Information Technology",
             upcoming_earnings_date=parse_earnings_date(
                 (raw_values or {}).get("upcoming_earnings_date")
             ),
             raw_json={
-                "Symbol": "ACME",
+                "Symbol": ticker,
                 **(_quality_values() if raw_values is None else raw_values),
             },
         )
@@ -123,21 +133,21 @@ def seed_native_core(db, *, run_id=7, extra_configurations=(), cutoff_at=None, r
     cutoff, pipeline_id = bound_pipeline(
         db, run_id, [*configs, *extra_configurations], cutoff_at=cutoff_at
     )
-    frame = _synthetic_frame()
+    frame = _synthetic_frame() if price_frame is None else price_frame.copy()
     frame["date"] = pd.bdate_range(end=cutoff.latest_completed_session, periods=len(frame))
-    for ticker in ("ACME", "SPY", "QQQ", "XLK"):
-        seed_price_frame(db, ticker, frame, cutoff.cutoff_at)
+    for symbol in (ticker, "SPY", "QQQ", "XLK"):
+        seed_price_frame(db, symbol, frame, cutoff.cutoff_at)
     args = dict(market_cutoff=cutoff, pipeline_run_id=pipeline_id)
     f = recalculate_run_fundamentals(db, run_id, **args, effective_configuration=configs[0])[0]
     t = score_run_technicals(
-        db, run_id, tickers=["ACME"], **args, effective_configuration=configs[1]
+        db, run_id, tickers=[ticker], **args, effective_configuration=configs[1]
     )[0]
     c = refresh_combined_results(
         db,
         run_id,
         **args,
         effective_configuration=configs[2],
-        source_evidence={"ACME": {"fundamental": f.evidence_id, "technical": t.evidence_id}},
+        source_evidence={ticker: {"fundamental": f.evidence_id, "technical": t.evidence_id}},
     )[0]
     r = refresh_ranking_profile(
         db, run_id, "momentum_swing", **args, effective_configuration=configs[3]

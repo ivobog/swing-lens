@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models.ib_market_intelligence_tables import IBExecutionFill, IBTradeEpisode
+from app.models.ib_market_intelligence_tables import IBExecutionFill
 from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_route
 from app.services.background_job_service import enqueue_job
 from app.services.core_calculation_evidence import EvidenceUnavailableError
@@ -25,6 +25,7 @@ from app.services.ib_market_intelligence.job_handlers import (
     IB_INTELLIGENCE_REBUILD_FEATURES,
     IB_SCANNER_RUN,
 )
+from app.services.ib_market_intelligence.journal import exclude_execution_fill
 from app.services.ib_market_intelligence.query_service import (
     feature_evidence,
     histogram_detail,
@@ -293,13 +294,9 @@ def exclude_fill(
     fill = db.get(IBExecutionFill, fill_id)
     if fill is None:
         raise HTTPException(404, "Execution fill not found")
-    fill.is_excluded = payload.excluded
-    fill.exclusion_reason = payload.reason if payload.excluded else None
-    affected = 0
-    for episode in db.query(IBTradeEpisode).all():
-        if fill_id in (episode.fill_ids_json or []):
-            episode.is_excluded = payload.excluded
-            affected += 1
+    affected = exclude_execution_fill(
+        db, fill=fill, excluded=payload.excluded, reason=payload.reason
+    )
     db.commit()
     return {
         "fill_id": fill.id,

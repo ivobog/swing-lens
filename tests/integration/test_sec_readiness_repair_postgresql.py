@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCompany, CeriSecSyncState
 from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, RawCompanyRow, UploadRun
-from app.services.background_job_service import JobStatus, enqueue_job
+from app.services.background_job_service import JobStatus, claim_next_job, enqueue_job
 from app.services.ceri.sec.processor_lifecycle import certify_processor, promote_processor
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider
@@ -109,7 +109,7 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
                 pipeline_run_id=pipeline.id,
                 step_name="VALIDATING_RUN",
                 step_order=1,
-                status=PipelineStepStatus.RUNNING,
+                status=PipelineStepStatus.PENDING,
                 retry_count=0,
             )
         )
@@ -132,9 +132,7 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
             },
         )
         db.commit()
-        repair.status = JobStatus.RUNNING
-        repair.worker_id = "pytest-worker"
-        db.commit()
+        _claim_target(db, repair)
 
         result = execute_sec_readiness_repair(
             db,
@@ -265,7 +263,7 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
                 pipeline_run_id=pipeline.id,
                 step_name="VALIDATING_RUN",
                 step_order=1,
-                status=PipelineStepStatus.RUNNING,
+                status=PipelineStepStatus.PENDING,
                 retry_count=0,
             )
         )
@@ -323,12 +321,47 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
 
 
 def _freeze_pipeline(db, pipeline):
-    root = enqueue_job(
-        db, "FULL_PIPELINE", {"pipeline_run_id": pipeline.id}, related_run_id=pipeline.upload_run_id
-    )
+    from datetime import UTC, datetime
+
+    from app.services.market_calculation_context_service import create_pipeline_market_context
+
+    cutoff = create_pipeline_market_context(db, pipeline, cutoff_at=datetime.now(UTC))
+    payload = {
+        "pipeline_run_id": pipeline.id,
+        "market_calculation_context_id": cutoff.context_id,
+        "market_cutoff_at": cutoff.cutoff_at.isoformat(),
+        "input_as_of_session": cutoff.latest_completed_session.isoformat(),
+        "market_calendar_version": cutoff.calendar_version,
+        "bar_readiness_version": cutoff.bar_readiness_version,
+    }
+    root = enqueue_job(db, "FULL_PIPELINE", payload, related_run_id=pipeline.upload_run_id)
     root.status = JobStatus.COMPLETED
     db.flush()
     return root
+
+
+def _claim_target(db, job):
+    """Acquire the real retained attempt used by native durable writers."""
+    from app.models.tables import BackgroundWorker
+
+    if db.get(BackgroundWorker, "pytest-repair-worker") is None:
+        db.add(
+            BackgroundWorker(
+                worker_id="pytest-repair-worker",
+                instance_id="pytest-repair-instance",
+                generation=1,
+                queues_json=["interactive", "broker", "background"],
+            )
+        )
+    job.status = JobStatus.QUEUED
+    job.priority = 0
+    db.commit()
+    claimed = claim_next_job(
+        db, "pytest-repair-worker", queues=("interactive", "broker", "background")
+    )
+    assert claimed is not None and claimed.id == job.id
+    db.commit()
+    return claimed
 
 
 def _upgrade(database_url: str) -> None:
@@ -372,7 +405,7 @@ def incident_db(disposable_postgres_database):
                 pipeline_run_id=pipeline.id,
                 step_name="VALIDATING_RUN",
                 step_order=1,
-                status=PipelineStepStatus.RUNNING,
+                status=PipelineStepStatus.PENDING,
                 retry_count=0,
             )
         )
@@ -389,6 +422,7 @@ def _schedule_incident(db, pipeline, signature):
 
     root = _freeze_pipeline(db, pipeline)
     db.commit()
+    _claim_target(db, root)
     diagnostics = diagnose_sec_readiness(db, tickers=["TEST"], processor_signature=signature)
     assert not diagnostics.complete
 
@@ -453,6 +487,7 @@ def test_worker_repair_continuation_restart_and_c2_drift_keep_c1(
         assert _configuration_probe(db, job) == c1
         return execute_sec_readiness_repair(db, job, settings=settings, provider=provider)
 
+    _claim_target(db, repair)
     result = execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: repair_handler})
     continuation_id = result["resume_job_id"]
     db.commit()
@@ -523,6 +558,8 @@ with SessionLocal() as db:
         assert binding_reference(restarted, job_id=continuation.id) == c1[0]
         assert execute_job(restarted, continuation, {"FULL_PIPELINE": _configuration_probe}) == c1
         from app.models.tables import CoreCalculationEvidence
+        from app.services.configuration_delivery import delivered_configuration
+        from app.services.core_effective_configuration import CoreEffectiveConfiguration
         from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
         from app.services.fundamental_score_service import recalculate_run_fundamentals
         from app.services.market_calculation_context_service import market_context_for_pipeline
@@ -534,8 +571,12 @@ with SessionLocal() as db:
                 execution.upload_run_id,
                 market_cutoff=market_context_for_pipeline(db, execution),
                 pipeline_run_id=execution.id,
+                effective_configuration=CoreEffectiveConfiguration(
+                    delivered_configuration("core.fundamental").snapshot
+                ),
             )
 
+        _claim_target(restarted, continuation)
         scores = execute_job(restarted, continuation, {"FULL_PIPELINE": remaining_fundamentals})
         assert len(scores) == 1 and scores[0].evidence_id is not None
         evidence = restarted.get(CoreCalculationEvidence, scores[0].evidence_id)

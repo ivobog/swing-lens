@@ -121,8 +121,8 @@ def test_route_and_registered_job_census(inventory_pair):
         for row in inventory["routes"]
         if row["classification"] == "BUSINESS_MUTATING" and "GET" in row["methods"]
     }
-    assert "app/routers/market_regime_routes.py:market_regime_page" in get_writes
-    assert "app/routers/sector_rotation_routes.py:api_sector_rotation" in get_writes
+    assert "app/routers/market_regime_routes.py:market_regime_page" not in get_writes
+    assert "app/routers/sector_rotation_routes.py:api_sector_rotation" not in get_writes
 
 
 def test_writer_table_reverse_coverage(inventory_pair):
@@ -190,6 +190,11 @@ def test_production_adoption_is_source_qualified_and_preserves_foundation_histor
     )
     if decision_adoption.exists():
         adoption = json.loads(decision_adoption.read_text())
+    caller_adoption = (
+        ROOT / "docs/remediation/calculation-lineage/T14D_semantic_review_source_pins.json"
+    )
+    if caller_adoption.exists():
+        adoption = json.loads(caller_adoption.read_text())
     assert set(imports) <= set(adoption["sources"])
     assert {
         "app/services/core_mutation_authority.py",

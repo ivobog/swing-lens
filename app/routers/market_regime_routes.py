@@ -12,8 +12,8 @@ from app.models.tables import MarketRegimeSnapshot, UploadRun
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.core_calculation_evidence import EvidenceUnavailableError
+from app.services.entrypoint_authority import EntryPointAuthorityError, reject_unbound_standalone
 from app.services.historical_read_service import ReadMode, evidence_view
-from app.services.market_regime_command_center import MarketRegimeCommandCenterService
 from app.services.market_regime_export_service import (
     export_snapshot_csv,
     export_snapshot_json,
@@ -22,7 +22,6 @@ from app.services.market_regime_export_service import (
 )
 from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.ranking_profile_service import get_ranking_profiles
-from app.services.redaction import redact_text
 from app.templates import templates
 
 router = APIRouter(tags=["market-regime"])
@@ -74,7 +73,14 @@ WARNING_EXPLANATIONS = {
 
 @router.get("/market-regime", response_class=HTMLResponse)
 def market_regime_page(request: Request, db: DbSession) -> HTMLResponse:
-    snapshot = _latest_or_calculate(db)
+    try:
+        snapshot = _latest_or_calculate(db)
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+        return templates.TemplateResponse(
+            request, "market_regime_empty.html", {"title": "Market Regime Command Center"}
+        )
     return templates.TemplateResponse(
         request,
         "market_regime.html",
@@ -93,7 +99,16 @@ def run_market_regime_page(
     db: DbSession,
 ) -> HTMLResponse:
     _require_run(db, run_id)
-    snapshot = _run_snapshot_or_calculate(db, run_id)
+    try:
+        snapshot = _run_snapshot_or_calculate(db, run_id)
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+        return templates.TemplateResponse(
+            request,
+            "market_regime_empty.html",
+            {"title": f"Run {run_id} Market Regime", "run_id": run_id},
+        )
     return templates.TemplateResponse(
         request,
         "market_regime.html",
@@ -138,19 +153,9 @@ def run_market_regime_api(run_id: int, db: DbSession) -> dict:
 def recalculate_run_market_regime_api(run_id: int, db: DbSession) -> dict:
     _require_run(db, run_id)
     try:
-        MarketRegimeCommandCenterService().build_snapshot(db, run_id=run_id)
-        db.commit()
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=redact_text(str(exc))) from exc
-    except Exception:
-        db.rollback()
-        raise
-
-    snapshot = MarketRegimeRepository().latest_for_run(db, run_id)
-    if snapshot is None:
-        raise HTTPException(status_code=500, detail="Recalculation did not create a snapshot.")
-    return snapshot_to_payload(snapshot)
+        reject_unbound_standalone("Regime")
+    except EntryPointAuthorityError as exc:
+        raise HTTPException(status_code=409, detail=exc.to_dict()) from exc
 
 
 @router.get("/market-regime/export.json")
@@ -192,30 +197,12 @@ def export_run_market_regime_csv(run_id: int, db: DbSession) -> Response:
 
 
 def _latest_or_calculate(db: Session) -> MarketRegimeSnapshot:
-    snapshot = MarketRegimeRepository().latest(db)
-    if snapshot is not None:
-        return snapshot
-
-    try:
-        MarketRegimeCommandCenterService().build_snapshot(db)
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
+    """Read-only: missing snapshots require a new Full Pipeline calculation."""
     return _latest_snapshot_or_404(db)
 
 
 def _run_snapshot_or_calculate(db: Session, run_id: int) -> MarketRegimeSnapshot:
-    snapshot = MarketRegimeRepository().latest_for_run(db, run_id)
-    if snapshot is not None:
-        return snapshot
-
-    try:
-        MarketRegimeCommandCenterService().build_snapshot(db, run_id=run_id)
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
+    """Read-only: missing snapshots require a new Full Pipeline calculation."""
     return _run_snapshot_or_404(db, run_id)
 
 

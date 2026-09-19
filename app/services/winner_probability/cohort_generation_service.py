@@ -913,14 +913,30 @@ class CohortGenerationService:
         )
         if not prediction_ids:
             return TemporalGenerationAudit(int(generation.id), 0, ())
+        transaction = db.get_transaction()
+        cache_state = db.info.get("winner_diagnostic_population_cache")
+        cached_rows = (
+            cache_state["rows"]
+            if cache_state is not None and cache_state["transaction"] is transaction
+            else {}
+        )
         predictions = {
-            int(row.id): row
-            for row in db.scalars(
-                select(WinnerPredictionSnapshot).where(
-                    WinnerPredictionSnapshot.id.in_(sorted(prediction_ids))
-                )
-            )
+            prediction_id: cached_rows[(WinnerPredictionSnapshot, prediction_id)]
+            for prediction_id in prediction_ids
+            if (WinnerPredictionSnapshot, prediction_id) in cached_rows
         }
+        missing_prediction_ids = prediction_ids - set(predictions)
+        if missing_prediction_ids:
+            predictions.update(
+                {
+                    int(row.id): row
+                    for row in db.scalars(
+                        select(WinnerPredictionSnapshot).where(
+                            WinnerPredictionSnapshot.id.in_(sorted(missing_prediction_ids))
+                        )
+                    )
+                }
+            )
         decisions = load_current_temporal_decisions(db, prediction_ids)
         invalid = tuple(
             sorted(

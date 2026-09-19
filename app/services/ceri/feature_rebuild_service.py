@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from contextlib import nullcontext
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import Session, load_only
+from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
     CeriCatalystEvent,
@@ -51,7 +51,12 @@ from app.services.market_clock_service import (
     SessionTimestampPolicy,
 )
 from app.services.price_bar_repository import project_price_bar_rows_as_of
-from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
+from app.services.source_mutation_authority import (
+    PrefetchedSourceBodies,
+    prefetched_source_scope,
+    source_mutation_writer,
+    source_writer_member,
+)
 from app.services.us_market_calendar import us_market_session
 
 FEATURE_REBUILD_IMPL_VERSION = "batch-prefetch-pit-v2"
@@ -167,6 +172,7 @@ class CeriFeatureBatchContext:
     calendar_version: str | None = None
     ownership_mode: str = CeriArtifactOwnership.STANDALONE.value
     write_count: int = 0
+    source_bodies: PrefetchedSourceBodies | None = None
 
 
 class CeriFeatureRebuildService:
@@ -201,8 +207,9 @@ class CeriFeatureRebuildService:
         )
         select_count = 0
         rows_loaded: dict[str, int] = {}
-        companies = self._companies(db, request)
-        select_count += 1 + int(request.run_id is not None)
+        source_bodies = PrefetchedSourceBodies(db) if isinstance(db, Session) else None
+        companies = self._companies(db, request, source_bodies=source_bodies)
+        select_count += 1 + int(request.run_id is not None and not isinstance(db, Session))
         rows_loaded["companies"] = len(companies)
         company_ids = [company.id for company in companies]
         explicit_session = request.as_of_session or request.to_session
@@ -232,12 +239,18 @@ class CeriFeatureRebuildService:
         def load(model: Any, statement: Any) -> list[Any]:
             nonlocal select_count
             select_count += 1
-            rows = _scalars(db, statement)
+            rows = (
+                source_bodies.load(model, statement)
+                if source_bodies is not None
+                else _scalars(db, statement)
+            )
             rows_loaded[model.__tablename__] = len(rows)
             return rows
 
         if not company_ids:
             pit = CeriPointInTimeQuery(config=self.config, snapshots=[], source_records={})
+            if source_bodies is not None:
+                source_bodies.seal()
             return CeriFeatureBatchContext(
                 [],
                 cutoff,
@@ -305,25 +318,7 @@ class CeriFeatureRebuildService:
         sources = (
             load(
                 CeriSourceRecord,
-                select(CeriSourceRecord)
-                .options(
-                    load_only(
-                        CeriSourceRecord.id,
-                        CeriSourceRecord.provider,
-                        CeriSourceRecord.dataset,
-                        CeriSourceRecord.provider_record_id,
-                        CeriSourceRecord.published_at,
-                        CeriSourceRecord.observed_at,
-                        CeriSourceRecord.source_timestamp,
-                        CeriSourceRecord.retrieved_at,
-                        CeriSourceRecord.ingested_at,
-                        CeriSourceRecord.content_hash,
-                        CeriSourceRecord.normalized_hash,
-                        CeriSourceRecord.idempotency_key,
-                        CeriSourceRecord.supersedes_id,
-                    )
-                )
-                .where(CeriSourceRecord.id.in_(source_ids)),
+                select(CeriSourceRecord).where(CeriSourceRecord.id.in_(source_ids)),
             )
             if source_ids
             else []
@@ -532,6 +527,8 @@ class CeriFeatureRebuildService:
         pit = CeriPointInTimeQuery(
             config=self.config, snapshots=estimates, source_records=sources_by_id
         )
+        if source_bodies is not None:
+            source_bodies.seal()
         return CeriFeatureBatchContext(
             companies,
             cutoff,
@@ -556,6 +553,7 @@ class CeriFeatureRebuildService:
             calculation_context_id=request.calculation_context_id,
             calendar_version=request.calendar_version,
             ownership_mode=request.ownership_mode,
+            source_bodies=source_bodies,
         )
 
     def rebuild(
@@ -568,16 +566,17 @@ class CeriFeatureRebuildService:
     ) -> CeriFeatureRebuildResult:
         own_context = batch_context is None
         context = batch_context or self.prepare_batch(db, request)
-        results = [
-            self.rebuild_from_context(
-                db,
-                company=company,
-                request=request,
-                context=context,
-                processing_run=processing_run,
-            )
-            for company in self._context_companies(context, request)
-        ]
+        with prefetched_source_scope(db, context.source_bodies):
+            results = [
+                self.rebuild_from_context(
+                    db,
+                    company=company,
+                    request=request,
+                    context=context,
+                    processing_run=processing_run,
+                )
+                for company in self._context_companies(context, request)
+            ]
         merged = _merge_results(results)
         if own_context:
             return _replace_result(
@@ -635,16 +634,27 @@ class CeriFeatureRebuildService:
         nested = getattr(db, "begin_nested", None)
         savepoint = nested() if callable(nested) else nullcontext()
         try:
-            with savepoint:
-                return self._rebuild_company(
+            with prefetched_source_scope(db, context.source_bodies), savepoint:
+                company_context = self._company_context(company, context)
+                result = self._rebuild_company(
                     db,
                     company=company,
                     request=request,
-                    context=context,
-                    processing_run=processing_run,
+                    context=company_context,
                     input_hash=input_hash,
                     started=started,
                 )
+                context.write_count = company_context.write_count
+                if processing_run is not None:
+                    # Operational checkpoint after the validated company write;
+                    # this row does not select any calculation inputs.
+                    processing_run.checkpoint_json = {
+                        "company_id": company.id,
+                        "as_of_session": context.cutoff.isoformat(),
+                        "input_evidence_hash": input_hash,
+                        "feature_rebuild_impl_version": FEATURE_REBUILD_IMPL_VERSION,
+                    }
+                return result
         except Exception as exc:
             return CeriFeatureRebuildResult(
                 processed_companies=1,
@@ -652,6 +662,68 @@ class CeriFeatureRebuildService:
                 errors=({"company_id": company.id, "error": _safe_error(exc)},),
                 batch_total_ms=int((perf_counter() - started) * 1000),
             )
+
+    @staticmethod
+    def _company_context(company, context):
+        """Bind the source writer to precisely the company it will consume.
+
+        Previous companies may have persisted derived earnings annotations.
+        Those rows are neither inputs nor authority for this company's writer.
+        Keep the same locked SQL bundle and exact temporal/run scope while
+        projecting every mutable input/output collection to the selected ID.
+        """
+        company_id = company.id
+        events = context.catalyst_events_by_company.get(company_id, [])
+        revisions = {
+            event.id: context.catalyst_revisions_by_event.get(event.id, []) for event in events
+        }
+        inputs = [
+            *context.estimates_by_company.get(company_id, []),
+            *context.earnings_by_company.get(company_id, []),
+            *context.guidance_by_company.get(company_id, []),
+            *(row for rows in revisions.values() for row in rows),
+        ]
+        source_ids = {
+            source_id
+            for row in inputs
+            for source_id in (
+                getattr(row, "source_record_id", None),
+                getattr(row, "conversion_source_record_id", None),
+            )
+            if source_id is not None
+        }
+        return replace(
+            context,
+            companies=[company],
+            estimates_by_company={company_id: context.estimates_by_company.get(company_id, [])},
+            earnings_by_company={company_id: context.earnings_by_company.get(company_id, [])},
+            guidance_by_company={company_id: context.guidance_by_company.get(company_id, [])},
+            catalyst_events_by_company={company_id: events},
+            catalyst_revisions_by_event=revisions,
+            source_records_by_id={
+                source_id: row
+                for source_id, row in context.source_records_by_id.items()
+                if source_id in source_ids
+            },
+            existing_revision_features={
+                key: row
+                for key, row in context.existing_revision_features.items()
+                if key.company_id == company_id
+            },
+            existing_derived_features={
+                key: row
+                for key, row in context.existing_derived_features.items()
+                if key.company_id == company_id
+            },
+            existing_price_features_by_company={
+                company_id: context.existing_price_features_by_company.get(company_id, [])
+            },
+            feature_build_state={
+                key: row
+                for key, row in context.feature_build_state.items()
+                if key.company_id == company_id
+            },
+        )
 
     @source_mutation_writer(MutationDomain.CERI_SOURCE, "provider_source")
     def _rebuild_company(
@@ -661,7 +733,6 @@ class CeriFeatureRebuildService:
         company: CeriCompany,
         request: CeriFeatureRebuildRequest,
         context: CeriFeatureBatchContext,
-        processing_run: Any | None,
         input_hash: str,
         started: float,
     ) -> CeriFeatureRebuildResult:
@@ -909,13 +980,6 @@ class CeriFeatureRebuildService:
         )
         persistence_ms = int((perf_counter() - persistence_started) * 1000)
         context.write_count += writes
-        if processing_run is not None:
-            processing_run.checkpoint_json = {
-                "company_id": company.id,
-                "as_of_session": context.cutoff.isoformat(),
-                "input_evidence_hash": input_hash,
-                "feature_rebuild_impl_version": FEATURE_REBUILD_IMPL_VERSION,
-            }
         return CeriFeatureRebuildResult(
             features=len(revision_rows),
             features_inserted=inserted,
@@ -1253,12 +1317,14 @@ class CeriFeatureRebuildService:
             if (not ids or company.id in ids) and (not tickers or company.ticker.upper() in tickers)
         ]
 
-    def _companies(self, db: Session, request: CeriFeatureRebuildRequest) -> list[CeriCompany]:
+    def _companies(
+        self, db: Session, request: CeriFeatureRebuildRequest, *, source_bodies=None
+    ) -> list[CeriCompany]:
         ids = set(request.company_ids or ())
         tickers = {ticker.upper() for ticker in (request.tickers or ())}
         if request.ticker:
             tickers.add(request.ticker.upper())
-        if request.run_id is not None:
+        if request.run_id is not None and not isinstance(db, Session):
             run_tickers = {
                 row.ticker.upper()
                 for row in _scalars(
@@ -1267,11 +1333,23 @@ class CeriFeatureRebuildService:
             }
             tickers = tickers & run_tickers if tickers else run_tickers
         statement = select(CeriCompany)
+        if request.run_id is not None and isinstance(db, Session):
+            statement = statement.where(
+                func.upper(CeriCompany.ticker).in_(
+                    select(func.upper(RawCompanyRow.ticker))
+                    .where(RawCompanyRow.run_id == request.run_id)
+                    .with_for_update()
+                )
+            )
         if ids:
             statement = statement.where(CeriCompany.id.in_(ids))
         if tickers:
             statement = statement.where(func.upper(CeriCompany.ticker).in_(tickers))
-        companies = _scalars(db, statement)
+        companies = (
+            source_bodies.load(CeriCompany, statement)
+            if source_bodies is not None
+            else _scalars(db, statement)
+        )
         companies = [
             company
             for company in companies

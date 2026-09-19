@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob, BackgroundWorker
+from app.models.tables import BackgroundJob, BackgroundWorker, PipelineRun, UploadRun
 from app.services.background_job_service import claim_next_job, enqueue_job
 from app.services.worker_registry import (
     heartbeat_worker,
@@ -32,6 +32,10 @@ def test_postgresql_worker_registry_and_queue_allowlist(
     now = datetime.now(UTC)
 
     with Session(engine) as db:
+        db.add(UploadRun(id=1, filename="registry-scope.csv", status="COMPLETED"))
+        db.flush()
+        db.add(PipelineRun(id=1, upload_run_id=1, status="PENDING"))
+        db.flush()
         enqueue_job(db, "FULL_PIPELINE", {"pipeline_run_id": 1}, priority=10)
         enqueue_job(db, "IB_HISTOGRAM_FETCH", {"ticker": "MSFT"}, priority=20)
         enqueue_job(db, "CERI_FEATURE_BATCH", {"tickers": ["MSFT"]}, priority=5)

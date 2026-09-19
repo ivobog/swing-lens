@@ -7,15 +7,29 @@ Operational ownership remains separate from provider and request semantics.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from contextlib import contextmanager
 from contextvars import ContextVar
+from copy import deepcopy
 from dataclasses import fields, is_dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from functools import wraps
 from inspect import signature
+from types import MappingProxyType
+from weakref import WeakKeyDictionary, WeakSet
 
-from sqlalchemy import inspect, select
+from sqlalchemy import event, inspect, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, object_session
+from sqlalchemy.sql.dml import Delete, Insert, Update
+from sqlalchemy.sql.elements import (
+    ReleaseSavepointClause,
+    RollbackToSavepointClause,
+    SavepointClause,
+    TextClause,
+)
+from sqlalchemy.sql.selectable import Select
 
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.domain_mutation import (
@@ -30,6 +44,7 @@ from app.services.domain_write_fence import (
     DomainWriteOwnership,
     current_domain_write_ownership,
     fence_domain_commits,
+    retained_execution_ownership_scope,
 )
 
 _OPERATIONAL_ARGUMENTS = {
@@ -51,6 +66,291 @@ _OPERATIONAL_ARGUMENTS = {
 }
 
 _active_source_writers = ContextVar("source_mutation_transactions", default=())
+_prefetched_source_bodies = ContextVar("prefetched_source_bodies", default=None)
+_locked_source_bundles = WeakKeyDictionary()
+
+
+@event.listens_for(Engine, "after_cursor_execute")
+def _invalidate_changed_source_bundles(conn, cursor, statement, parameters, context, executemany):
+    bundles = _locked_source_bundles.get(conn)
+    if not bundles or _active_source_writers.get():
+        return
+    expression = getattr(getattr(context, "compiled", None), "statement", None)
+    if isinstance(expression, (SavepointClause, RollbackToSavepointClause, ReleaseSavepointClause)):
+        return
+    if isinstance(expression, TextClause) and expression.text in {
+        "SELECT pg_advisory_xact_lock(hashtextextended(:scope, 0))",
+        "SELECT pg_advisory_xact_lock(:scope)",
+    }:
+        # The native decision-scope lock neither changes a source body nor ends
+        # its SQL transaction. Other raw SQL remains conservatively invalidating.
+        return
+    if isinstance(expression, Select) and not any(
+        word in statement.upper() for word in ("UPDATE ", "INSERT ", "DELETE ")
+    ):
+        return
+    for bundle in list(bundles):
+        if isinstance(expression, (Update, Insert, Delete)):
+            target = getattr(expression, "table", None)
+            target_tables = {
+                name
+                for name in (
+                    getattr(target, "name", None),
+                    getattr(getattr(target, "original", None), "name", None),
+                )
+                if name is not None
+            }
+            if target_tables.isdisjoint(bundle.models):
+                # SQLAlchemy ORM DML commonly uses an AnnotatedTable rather than
+                # ``Table`` itself.  The compiled expression still names the
+                # exact mutation target, so unrelated writes cannot invalidate
+                # locks retained for a source table merely because a table name
+                # appears elsewhere in generated SQL.
+                continue
+        if (
+            isinstance(expression, Update)
+            and getattr(expression.table, "name", None) == "ceri_score_snapshots"
+            and not getattr(expression, "_independent_ctes", ())
+            and not getattr(context.compiled.compile_state, "is_multitable", False)
+            and statement.lstrip().upper().split(None, 1)[0] == "UPDATE"
+        ):
+            values = getattr(expression, "_values", None)
+            ordered = getattr(expression, "_ordered_values", None)
+            columns = (
+                [getattr(key, "key", key) for key in values]
+                if values
+                else [getattr(key, "key", key) for key, _ in ordered]
+                if ordered
+                else [
+                    key
+                    for key in (getattr(context.compiled, "column_keys", None) or ())
+                    if key in expression.table.c
+                ]
+            )
+            columns = list(columns or ()) + [
+                column.key
+                for column in (
+                    *getattr(context.compiled, "update_prefetch", ()),
+                    *getattr(context.compiled, "postfetch", ()),
+                )
+            ]
+            if columns and set(columns) <= {"comparison_state", "comparison_snapshot_id"}:
+                # Native CERI change detection advances only these supporting
+                # pointers. It cannot change the locked financial score/evidence
+                # bodies; raw SQL, aliases and every other column invalidate.
+                continue
+        bundle._requires_revalidation = True
+
+
+class _SourceBodyView(Mapping):
+    """Read-only addresses; nested SQL values cannot alter the retained witness."""
+
+    def __init__(self, bodies):
+        self._bodies = bodies
+
+    def __getitem__(self, key):
+        return deepcopy(self._bodies[key])
+
+    def __iter__(self):
+        return iter(self._bodies)
+
+    def __len__(self):
+        return len(self._bodies)
+
+
+class PrefetchedSourceBodies:
+    """Exact SQL bodies locked by the batch's existing SELECTs, never a latest cache.
+
+    A bundle belongs to one Session transaction. Commit/rollback invalidates its
+    locks; reuse then resolves exact IDs again in bounded table batches. Native
+    argument comparison still occurs in _source_value before admitting writes.
+    """
+
+    def __init__(self, db):
+        self._db = db
+        self._transaction = None
+        self._bodies = {}
+        self._rows = {}
+        self._models = {}
+        self._sealed = False
+        self._connection = None
+        self._sql_transaction = None
+        self._requires_revalidation = False
+        self._body_fingerprint = None
+
+    @property
+    def db(self):
+        return self._db
+
+    @property
+    def transaction(self):
+        return self._transaction
+
+    @property
+    def bodies(self):
+        return _SourceBodyView(self._bodies)
+
+    @property
+    def models(self):
+        return MappingProxyType(self._models)
+
+    def seal(self):
+        self._body_fingerprint = Canonical.fingerprint(
+            [
+                {"table": table, "address": address, "body": body}
+                for (table, address), body in sorted(self._bodies.items(), key=lambda x: str(x[0]))
+            ]
+        )
+        self._sealed = True
+
+    def load(self, model, statement):
+        if self._sealed:
+            raise ValueError("MUTATION_SOURCE_BUNDLE_FROZEN")
+        columns = list(inspect(model).columns)
+        with self.db.no_autoflush:
+            result = self.db.execute(statement.add_columns(*columns).with_for_update()).all()
+        connection = self.db.connection(bind_arguments={"mapper": model})
+        if self._connection is not None and self._connection is not connection:
+            raise ValueError("MUTATION_SOURCE_BUNDLE_CONNECTION_MISMATCH")
+        self._connection = connection
+        _locked_source_bundles.setdefault(connection, WeakSet()).add(self)
+        self._sql_transaction = connection.get_transaction()
+        self._transaction = self.db.get_transaction()
+        primary = list(inspect(model).primary_key)
+        table = inspect(model).local_table.name
+        self._models[table] = model
+        rows = []
+        for row in result:
+            body = dict(zip((c.key for c in columns), row[1:], strict=True))
+            address = tuple(body[c.key] for c in primary)
+            self._bodies[(table, address)] = deepcopy(body)
+            self._rows[(table, address)] = row[0]
+            rows.append(row[0])
+        return rows
+
+    def refresh(self):
+        if (
+            not self._requires_revalidation
+            and self.transaction is self.db.get_transaction()
+            and self.transaction is not None
+            and self._connection is not None
+            and not self._connection.closed
+            and not self._connection.invalidated
+            and self._connection.get_transaction() is self._sql_transaction
+            and self._sql_transaction is not None
+            and self._sql_transaction.is_active
+        ):
+            return
+        from sqlalchemy import tuple_
+
+        # No ambient selectors: retain precisely the addresses admitted earlier.
+        with self.db.no_autoflush:
+            for table, model in self.models.items():
+                columns = list(inspect(model).columns)
+                primary = list(inspect(model).primary_key)
+                addresses = [key[1] for key in self.bodies if key[0] == table]
+                if not addresses:
+                    continue
+                retained = (
+                    self.db.execute(
+                        select(*columns).where(tuple_(*primary).in_(addresses)).with_for_update()
+                    )
+                    .mappings()
+                    .all()
+                )
+                found = {tuple(row[c.key] for c in primary): dict(row) for row in retained}
+                if set(found) != set(addresses):
+                    raise ValueError("MUTATION_SOURCE_RECORD_MISSING: " + table)
+                for address in addresses:
+                    if Canonical.fingerprint(found[address]) != Canonical.fingerprint(
+                        self.bodies[(table, address)]
+                    ):
+                        raise ValueError("MUTATION_SOURCE_BUNDLE_CHANGED: " + table)
+        self._transaction = self.db.get_transaction()
+        self._requires_revalidation = False
+        if self.models:
+            model = next(iter(self.models.values()))
+            self._connection = self.db.connection(bind_arguments={"mapper": model})
+            self._sql_transaction = self._connection.get_transaction()
+            _locked_source_bundles.setdefault(self._connection, WeakSet()).add(self)
+
+
+@contextmanager
+def prefetched_source_scope(db, bundle):
+    if bundle is None or not isinstance(db, Session):
+        yield
+        return
+    if not isinstance(bundle, PrefetchedSourceBodies) or bundle.db is not db:
+        db.rollback()
+        raise ValueError("MUTATION_SOURCE_BUNDLE_SESSION_MISMATCH")
+    try:
+        bundle.refresh()
+        token = _prefetched_source_bodies.set(bundle)
+        try:
+            with retained_execution_ownership_scope(db):
+                yield
+        finally:
+            _prefetched_source_bodies.reset(token)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def prefetched_source_body(db, model, source_id):
+    """Use SQL truth only inside its admitted Session/transaction scope."""
+    bundle = _prefetched_source_bodies.get()
+    if bundle is None:
+        return None
+    if bundle.db is not db:
+        raise ValueError("MUTATION_SOURCE_BUNDLE_SESSION_MISMATCH")
+    bundle.refresh()
+    table = inspect(model).local_table.name
+    if table not in bundle.models:
+        return None
+    address = (table, (source_id,))
+    if bundle.models.get(table) is not model or address not in bundle.bodies:
+        raise ValueError("MUTATION_SOURCE_RECORD_MISSING: " + table)
+    return bundle.bodies[address]
+
+
+def prefetched_source_rows(db, model, source_ids):
+    """Exact locked IDs; validate mutable ORM arguments against the SQL witness."""
+    bundle = _prefetched_source_bodies.get()
+    if bundle is None or inspect(model).local_table.name not in bundle.models:
+        return None
+    if bundle.db is not db:
+        raise ValueError("MUTATION_SOURCE_BUNDLE_SESSION_MISMATCH")
+    bundle.refresh()
+    table = inspect(model).local_table.name
+    rows = []
+    for source_id in sorted(set(source_ids)):
+        key = (table, (source_id,))
+        if key not in bundle._rows:
+            raise ValueError("MUTATION_SOURCE_RECORD_MISSING: " + table)
+        row = bundle._rows[key]
+        _source_value(db, row)
+        rows.append(row)
+    return rows
+
+
+def prefetched_source_related_rows(db, model, field, values):
+    """A narrow retained-column membership predicate, not a SQL evaluator."""
+    bundle = _prefetched_source_bodies.get()
+    table = inspect(model).local_table.name
+    if bundle is None or table not in bundle.models:
+        return None
+    if field not in inspect(model).columns:
+        raise ValueError("MUTATION_SOURCE_BUNDLE_UNKNOWN_FIELD")
+    if bundle.db is not db:
+        raise ValueError("MUTATION_SOURCE_BUNDLE_SESSION_MISMATCH")
+    bundle.refresh()
+    wanted = set(values)
+    source_ids = [
+        address[0]
+        for (row_table, address), body in bundle._bodies.items()
+        if row_table == table and body[field] in wanted
+    ]
+    return prefetched_source_rows(db, model, source_ids)
 
 
 def source_writer_member(owner):
@@ -81,6 +381,16 @@ def source_writer_member(owner):
 
 
 def _source_value(db, value):
+    if isinstance(value, PrefetchedSourceBodies):
+        if value.db is not db or _prefetched_source_bodies.get() is not value:
+            raise ValueError("MUTATION_SOURCE_BUNDLE_SCOPE_REQUIRED")
+        value.refresh()
+        if not value._sealed:
+            raise ValueError("MUTATION_SOURCE_BUNDLE_NOT_SEALED")
+        return {
+            "exact_prefetched_source_body_fingerprint": value._body_fingerprint,
+            "exact_prefetched_source_count": len(value._bodies),
+        }
     state = inspect(value, raiseerr=False)
     if state is not None and hasattr(state, "mapper"):
         columns = list(state.mapper.columns)
@@ -103,21 +413,28 @@ def _source_value(db, value):
 
         native = source_columns({column.key: getattr(value, column.key) for column in columns})
         if addresses and all(address is not None for address in addresses):
-            stored = (
-                db.execute(
-                    select(*columns)
-                    .where(
-                        *[
-                            column == address
-                            for column, address in zip(primary, addresses, strict=True)
-                        ]
+            bundle = _prefetched_source_bodies.get()
+            key = (state.mapper.local_table.name, tuple(addresses))
+            stored = None
+            if bundle is not None and bundle.db is db:
+                bundle.refresh()
+                stored = bundle.bodies.get(key)
+            if stored is None:
+                stored = (
+                    db.execute(
+                        select(*columns)
+                        .where(
+                            *[
+                                column == address
+                                for column, address in zip(primary, addresses, strict=True)
+                            ]
+                        )
+                        .with_for_update()
+                        .execution_options(t14b_source_authority=True)
                     )
-                    .with_for_update()
-                    .execution_options(t14b_source_authority=True)
+                    .mappings()
+                    .one_or_none()
                 )
-                .mappings()
-                .one_or_none()
-            )
             if stored is None:
                 raise ValueError("MUTATION_SOURCE_RECORD_MISSING: " + state.mapper.local_table.name)
             # A caller's unflushed source changes are not authoritative input.

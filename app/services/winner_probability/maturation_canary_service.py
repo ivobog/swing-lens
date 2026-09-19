@@ -12,7 +12,7 @@ import hashlib
 import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -30,6 +30,7 @@ from app.models.tables import (
     WinnerTargetStopOutcome,
 )
 from app.services.bar_cache_service import price_bar_data_hash
+from app.services.entrypoint_authority import reject_legacy_mutation
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.winner_probability.market_data_obligation_service import (
     complete_basis_for_rows,
@@ -325,8 +326,10 @@ def execute_reviewed_maturation_canary(
     approve_write: bool,
     actor: str,
     request_key: str,
-    now: datetime | None = None,
+    now: datetime,
 ) -> CanaryExecutionResult:
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise CanaryApprovalError("maturation requires an explicit aware operation cutoff")
     verify_canary_approval(
         manifest,
         reviewed_manifest_hash=reviewed_manifest_hash,
@@ -334,6 +337,7 @@ def execute_reviewed_maturation_canary(
         actor=actor,
         request_key=request_key,
     )
+    reject_legacy_mutation("historical hash-gated H5 maturation canary")
     reviewed_records = list(manifest["outcomes"])
     ids = tuple(int(item["outcome_id"]) for item in reviewed_records)
     with session_factory() as preflight_db:
@@ -342,7 +346,7 @@ def execute_reviewed_maturation_canary(
             raise CanaryApprovalError("database preflight differs from reviewed manifest")
         preflight_db.rollback()
 
-    execution_now = now or datetime.now(UTC)
+    execution_now = now
     processed = matured = revised = target_stop_matured = warnings = failed = material = 0
     per_outcome: list[dict[str, Any]] = []
     actual_forward_ids: list[int] = []
@@ -366,14 +370,8 @@ def execute_reviewed_maturation_canary(
                 before_targets = _target_stop_states_for_prediction(
                     db, int(reviewed["prediction_id"])
                 )
-                outcome.metadata_json = {
-                    **(outcome.metadata_json or {}),
-                    "maturation_canary": {
-                        "actor": actor.strip(),
-                        "request_key": request_key.strip(),
-                        "reviewed_manifest_hash": reviewed_manifest_hash,
-                    },
-                }
+                # The reviewed hash and actor are retained in the execution result.
+                # Do not edit the sealed predecessor before native validation.
                 context = service.build_batch_context(db, [outcome])
                 result = service.process_forward_outcome(
                     db,

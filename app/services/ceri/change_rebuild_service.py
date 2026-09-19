@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select, union
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
@@ -15,6 +15,7 @@ from app.models.ceri_tables import (
     CeriScoreSnapshot,
     CeriSourceRecord,
 )
+from app.models.tables import CoreCalculationEvidence
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 from app.services.ceri.change_semantics import select_prior_comparison
 from app.services.ceri.config import CeriConfig, load_ceri_config
@@ -64,7 +65,61 @@ class CeriChangeRebuildService:
         self.detector = detector or CeriChangeDetectionService(config=self.config)
 
     def rebuild(self, db: Session, request: CeriChangeRebuildRequest) -> CeriChangeRebuildResult:
+        _required_boundary(request)
+        if not isinstance(db, Session):
+            return self._rebuild(db, request)
+        from app.services.source_mutation_authority import (
+            PrefetchedSourceBodies,
+            prefetched_source_scope,
+        )
+
+        bundle = PrefetchedSourceBodies(db)
+        companies = select(CeriCompany.id)
+        if request.company_ids:
+            companies = companies.where(CeriCompany.id.in_(request.company_ids))
+        elif request.ticker:
+            companies = companies.where(func.upper(CeriCompany.ticker) == request.ticker.upper())
+        elif request.run_id is not None:
+            companies = select(CeriScoreSnapshot.company_id).where(
+                CeriScoreSnapshot.run_id == request.run_id
+            )
+        guidance = select(CeriGuidanceEvent).where(CeriGuidanceEvent.company_id.in_(companies))
+        events = select(CeriCatalystEvent).where(CeriCatalystEvent.company_id.in_(companies))
+        revisions = select(CeriCatalystEventRevision).where(
+            CeriCatalystEventRevision.catalyst_event_id.in_(
+                events.with_only_columns(CeriCatalystEvent.id)
+            )
+        )
+        source_ids = union(
+            guidance.with_only_columns(CeriGuidanceEvent.source_record_id),
+            revisions.with_only_columns(CeriCatalystEventRevision.source_record_id),
+        )
+        scores = select(CeriScoreSnapshot).where(CeriScoreSnapshot.company_id.in_(companies))
+        for model, statement in (
+            (CeriGuidanceEvent, guidance),
+            (CeriCatalystEvent, events),
+            (CeriCatalystEventRevision, revisions),
+            (CeriSourceRecord, select(CeriSourceRecord).where(CeriSourceRecord.id.in_(source_ids))),
+            (CeriScoreSnapshot, scores),
+            (
+                CoreCalculationEvidence,
+                select(CoreCalculationEvidence).where(
+                    CoreCalculationEvidence.id.in_(
+                        scores.with_only_columns(CeriScoreSnapshot.evidence_id)
+                    )
+                ),
+            ),
+        ):
+            bundle.load(model, statement)
+        bundle.seal()
+        with db.no_autoflush, prefetched_source_scope(db, bundle):
+            return self._rebuild(db, request)
+
+    def _rebuild(self, db: Session, request: CeriChangeRebuildRequest) -> CeriChangeRebuildResult:
         target_session, cutoff_at = _required_boundary(request)
+        market_cutoff = MarketClockService().cutoff_for(
+            cutoff_at, reason="EXPLICIT_CERI_CHANGE_REBUILD"
+        )
         snapshots = self._snapshots(db, request)
         scoped_company_ids = self._scoped_company_ids(db, request, snapshots)
         changes = duplicates = failed = 0
@@ -120,6 +175,7 @@ class CeriChangeRebuildService:
                     revision=revision,
                     prior_revision=prior,
                     company_id=_company_id(db, revision),
+                    market_cutoff=market_cutoff,
                 )
                 changes += result.changes
                 duplicates += result.duplicates
@@ -139,19 +195,21 @@ class CeriChangeRebuildService:
             target_session=target_session,
             cutoff_at=cutoff_at,
         ).items():
-            prior_action = None
             for guidance in guidance_rows:
                 try:
+                    prior_guidance_event_id = guidance.supersedes_id
+                    prior_guidance = _get(db, CeriGuidanceEvent, prior_guidance_event_id)
                     result = self.detector.detect_guidance_change(
                         db,
                         guidance=guidance,
                         company_id=company_id,
-                        prior_action=prior_action,
+                        prior_action=prior_guidance.action if prior_guidance is not None else None,
+                        prior_guidance_event_id=prior_guidance_event_id,
+                        market_cutoff=market_cutoff,
                     )
                     changes += result.changes
                     duplicates += result.duplicates
                     change_ids.extend(result.change_ids)
-                    prior_action = guidance.action
                 except Exception as exc:
                     failed += 1
                     errors.append(

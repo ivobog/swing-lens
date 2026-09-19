@@ -12,10 +12,8 @@ from app.services.decision_mutation_authority import decision_authority, validat
 def validate_score_source(db, snapshot):
     if snapshot is None or snapshot.id is None or snapshot.evidence_id is None:
         raise ValueError("MUTATION_CERI_CHANGE_CERTIFIED_SCORE_SOURCE_REQUIRED")
-    persisted = db.scalar(
-        select(CeriScoreSnapshot).where(CeriScoreSnapshot.id == snapshot.id).with_for_update()
-    )
-    evidence = db.get(CoreCalculationEvidence, snapshot.evidence_id)
+    persisted, _ = _normalized_source(db, CeriScoreSnapshot, snapshot.id)
+    evidence, _ = _normalized_source(db, CoreCalculationEvidence, snapshot.evidence_id)
     validate_retained_decision(db, evidence, contract="unused")
     if persisted is None or evidence.artifact_kind != "CERI":
         raise ValueError("MUTATION_CERI_CHANGE_SCORE_SOURCE_KIND_MISMATCH")
@@ -79,18 +77,30 @@ def change_body(event):
 def _normalized_source(db, model, source_id):
     if source_id is None:
         raise ValueError("MUTATION_CERI_CHANGE_EXACT_NORMALIZED_SOURCE_REQUIRED")
+    from app.services.source_mutation_authority import prefetched_source_body
+
+    retained = prefetched_source_body(db, model, source_id)
     source = db.get(model, source_id)
     columns = tuple(model.__table__.columns)
-    with db.no_autoflush:
-        retained = (
-            db.execute(select(*columns).where(model.id == source_id).with_for_update())
-            .mappings()
-            .one_or_none()
-        )
+    if retained is None:
+        with db.no_autoflush:
+            retained = (
+                db.execute(select(*columns).where(model.id == source_id).with_for_update())
+                .mappings()
+                .one_or_none()
+            )
     if source is None or retained is None:
         raise ValueError("MUTATION_CERI_CHANGE_NORMALIZED_SOURCE_MISSING")
     actual = {column.name: getattr(source, column.name) for column in columns}
-    if Canonical.dumps(actual) != Canonical.dumps(dict(retained)):
+    # These two columns are supporting comparison projections, intentionally
+    # advanced by this operation. All financial columns and the entire retained
+    # evidence body still match their exact locked SQL values.
+    supporting = (
+        {"comparison_state", "comparison_snapshot_id"} if model is CeriScoreSnapshot else set()
+    )
+    if Canonical.dumps({k: v for k, v in actual.items() if k not in supporting}) != Canonical.dumps(
+        {k: v for k, v in dict(retained).items() if k not in supporting}
+    ):
         raise ValueError("MUTATION_CERI_CHANGE_NORMALIZED_SOURCE_BODY_MISMATCH")
     return source, {"id": source_id, "body_fingerprint": Canonical.fingerprint(actual)}
 

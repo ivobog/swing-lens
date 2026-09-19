@@ -1,0 +1,26 @@
+{
+  "browsers": {
+    "chromium": {
+      "failures": [],
+      "verdict": "PASS"
+    },
+    "firefox": {
+      "failures": [],
+      "verdict": "PASS"
+    }
+  },
+  "command": "pytest tests/e2e -q --browser chromium --browser firefox",
+  "coverage": [
+    "isolated per-browser single-run certification",
+    "CERI material-change alert persistence",
+    "Windows worker recovery and lifecycle tail",
+    "standalone mutation retirement"
+  ],
+  "duration_seconds": 1374.58,
+  "result": {
+    "passed": 49,
+    "warnings": 2
+  },
+  "source_sha256": "f273e9a61b0a363d873b9f58cf0d702c976f5361a29eb56c2e480fa61b20a5d7",
+  "verdict": "PASS"
+}

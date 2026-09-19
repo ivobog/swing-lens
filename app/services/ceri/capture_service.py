@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -10,12 +11,14 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.ceri_tables import (
     CeriCatalystEvent,
     CeriCatalystEventRevision,
+    CeriCatalystSource,
     CeriChangeEvent,
     CeriCompany,
     CeriEarningsActual,
     CeriEstimateSnapshot,
     CeriGuidanceEvent,
     CeriIngestionRun,
+    CeriPriceResponseFeature,
     CeriRevisionFeature,
     CeriScoreSnapshot,
     CeriSourceRecord,
@@ -140,6 +143,18 @@ class CeriRunCaptureService:
         expected_calculation_identity=None,
     ) -> CeriRunCaptureResult:
         from copy import deepcopy
+
+        from app.services.configuration_delivery import current_delivery
+        from app.services.entrypoint_authority import EntryPointAuthorityError
+
+        if isinstance(db, Session) and (
+            (market_cutoff is None and cutoff_at is None)
+            or (effective_configuration is None and current_delivery() is None)
+        ):
+            raise EntryPointAuthorityError(
+                "CERI_EXPLICIT_CALCULATION_AUTHORITY_REQUIRED",
+                "CERI capture requires an explicit cutoff and frozen configuration.",
+            )
 
         from app.services.contextual_effective_configuration import resolve_ceri_configuration
 
@@ -276,314 +291,358 @@ class CeriRunCaptureService:
             "failed": 0,
             "skipped": 0,
         }
-        for row in rows:
-            try:
-                company = companies_by_ticker.get(str(row.ticker).upper())
-                if company is None:
-                    counts["unrated"] += 1
-                    continue
-                if company.id in existing_snapshot_company_ids:
-                    counts["skipped"] += 1
-                    continue
-                features = features_by_company.get(company.id, [])
-                if not features:
-                    counts["unrated"] += 1
-                    continue
-                catalyst_features = _catalyst_features_for_company(
-                    db,
-                    company.id,
-                    as_of_session,
-                    cutoff_at,
-                    self.catalysts,
-                )
-                company_conflicted = sum(
-                    _is_conflict_warning(feature.warnings_json) for feature in features
-                )
-                company_stale = sum(
-                    "estimate_data_stale" in (feature.warnings_json or []) for feature in features
-                )
-                counts["conflicted"] += company_conflicted
-                counts["stale"] += company_stale
-                earnings = _eligible_source_backed_rows(
-                    db,
-                    _scalars(
+        captured_snapshots = []
+        from app.services.source_mutation_authority import prefetched_source_scope
+
+        initial_bundle = (
+            _capture_source_bundle(db, company_ids, run_id, market_cutoff, enrichment=True)
+            if isinstance(db, Session)
+            else None
+        )
+        initial_scope = (
+            prefetched_source_scope(db, initial_bundle)
+            if initial_bundle is not None
+            else nullcontext()
+        )
+        with initial_scope:
+            for row in rows:
+                try:
+                    company = companies_by_ticker.get(str(row.ticker).upper())
+                    if company is None:
+                        counts["unrated"] += 1
+                        continue
+                    if company.id in existing_snapshot_company_ids:
+                        counts["skipped"] += 1
+                        continue
+                    features = features_by_company.get(company.id, [])
+                    if not features:
+                        counts["unrated"] += 1
+                        continue
+                    catalyst_features = _catalyst_features_for_company(
                         db,
-                        select(CeriEarningsActual).where(
-                            CeriEarningsActual.company_id == company.id,
-                            CeriEarningsActual.report_session <= as_of_session,
-                        ),
-                    ),
-                    cutoff_at,
-                )
-                estimates = _eligible_source_backed_rows(
-                    db,
-                    _scalars(
-                        db,
-                        select(CeriEstimateSnapshot).where(
-                            CeriEstimateSnapshot.company_id == company.id,
-                            CeriEstimateSnapshot.effective_session <= as_of_session,
-                        ),
-                    ),
-                    cutoff_at,
-                    scalar_fields=("source_record_id", "conversion_source_record_id"),
-                )
-                surprise_summary = self.surprise.summarize(earnings, estimates)
-                price_result, price_feature = _price_response_for_company(
-                    db,
-                    company_id=company.id,
-                    ticker=row.ticker,
-                    as_of_session=as_of_session,
-                    cutoff_at=cutoff_at,
-                    calculation_context_id=market_cutoff.context_id,
-                    calendar_version=market_cutoff.calendar_version,
-                    service=self.price_response,
-                )
-                contextual_permissions = {}
-                volatility_feature = _point_in_time_volatility_feature(
-                    db,
-                    row.ticker,
-                    cutoff_at,
-                    as_of_session=as_of_session,
-                    market_cutoff=market_cutoff,
-                    ibmi_config=ibmi_config,
-                    candidates=ibmi_candidates,
-                    decisions=contextual_permissions,
-                    settings=settings,
-                )
-                short_pressure_feature = _point_in_time_short_pressure_feature(
-                    db,
-                    row.ticker,
-                    cutoff_at,
-                    as_of_session=as_of_session,
-                    market_cutoff=market_cutoff,
-                    ibmi_config=ibmi_config,
-                    candidates=ibmi_candidates,
-                    decisions=contextual_permissions,
-                    settings=settings,
-                )
-                confidence = self.confidence.calculate(
-                    as_of_session=as_of_session,
-                    revision_features=features,
-                    dataset_freshness_days=_provider_feed_freshness_days(
-                        provider_checks_by_ticker.get(str(row.ticker).upper(), []),
-                        ticker=str(row.ticker),
-                        cutoff_at=cutoff_at,
-                        config=self.snapshot_service.config,
-                    ),
-                    conflict_penalty=float(company_conflicted),
-                )
-                opportunity = self.opportunity.calculate(
-                    revision_features=features,
-                    surprise_summary=surprise_summary,
-                    guidance_events=_guidance_for_company(db, company.id, as_of_session, cutoff_at),
-                    catalyst_features=catalyst_features,
-                    price_response_quality=(
-                        price_result.quality if price_result is not None else None
-                    ),
-                    price_response_parent_event_id=(
-                        price_feature.event_id if price_feature is not None else None
-                    ),
-                    price_response_parent_type=(
-                        price_feature.event_type if price_feature is not None else None
-                    ),
-                    price_response_unavailable_reason=(
-                        price_result.unavailable_reason
-                        if price_result is not None
-                        else "NO_ACCEPTED_EVENT"
-                    ),
-                    conflict_penalty=min(3.0, float(company_conflicted)),
-                    as_of_session=as_of_session,
-                )
-                volatility_config = consumer["volatility"]
-                volatility_risk = (
-                    options_event_premium_score(
-                        volatility_feature,
-                        maximum=float(volatility_config.get("ceri_risk_max_contribution", 1.5)),
+                        company.id,
+                        as_of_session,
+                        cutoff_at,
+                        self.catalysts,
                     )
-                    if volatility_feature is not None
-                    else None
-                )
-                risk = self.risk.calculate(
-                    as_of_session=as_of_session,
-                    next_earnings_session=row.upcoming_earnings_date,
-                    catalyst_features=catalyst_features,
-                    stale=bool(company_stale),
-                    conflict_penalty=min(3.0, float(company_conflicted)),
-                    options_event_premium_score=volatility_risk,
-                    short_pressure_classification=(
-                        short_pressure_feature.classification
-                        if short_pressure_feature is not None
-                        else None
-                    ),
-                )
-                guidance_rows = _guidance_for_company(db, company.id, as_of_session, cutoff_at)
-                catalyst_lineage = _catalyst_lineage(db, company.id, as_of_session, cutoff_at)
-                evidence_lineage = {
-                    CONTEXTUAL_ELIGIBILITY_KEY: contextual_permissions,
-                    "ib_context_selected_feature_ids": sorted(
-                        permission["source_feature_id"]
-                        for permission in contextual_permissions.values()
-                        if permission["source_feature_id"] is not None
-                        and permission["decision"]["producer_evidence_id"] is not None
-                    ),
-                    "historical_view_mode": "AS_KNOWN",
-                    "temporal_lineage": {
-                        "calculation_context_id": market_cutoff.context_id,
-                        "calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(
-                            market_cutoff.cutoff_at
-                        ),
-                        "input_as_of_session": as_of_session.isoformat(),
-                        "calendar_version": market_cutoff.calendar_version,
-                    },
-                    "revision_feature_ids": [feature.id for feature in features if feature.id],
-                    "revision_pairs": [
-                        {
-                            "feature_id": feature.id,
-                            "metric": feature.metric,
-                            "period_slot": feature.period_slot,
-                            "window_days": feature.window_days,
-                            "current_snapshot_id": feature.current_snapshot_id,
-                            "baseline_snapshot_id": feature.baseline_snapshot_id,
-                            "baseline_origin": feature.baseline_origin,
-                            "available": feature.pct_change is not None,
-                            "unavailable_reason": feature.unavailable_reason,
-                        }
+                    company_conflicted = sum(
+                        _is_conflict_warning(feature.warnings_json) for feature in features
+                    )
+                    company_stale = sum(
+                        "estimate_data_stale" in (feature.warnings_json or [])
                         for feature in features
-                    ],
-                    "revision_source_ids": _source_ids(features),
-                    "earnings_ids": [item.id for item in earnings if item.id],
-                    "earnings_source_ids": [item.source_record_id for item in earnings],
-                    "guidance_ids": [item.id for item in guidance_rows if item.id],
-                    "guidance_selected_ids": sorted(
-                        evidence_id
-                        for component in opportunity.components
-                        if component.name == "guidance"
-                        for evidence_id in component.evidence_ids
-                    ),
-                    "guidance_rejected": [
-                        {"id": item.id, "reason": guidance_eligibility_reason(item)}
-                        for item in guidance_rows
-                        if item.accepted_for_scoring is not True
-                    ],
-                    "guidance_source_ids": [item.source_record_id for item in guidance_rows],
-                    "catalyst_event_ids": catalyst_lineage["event_ids"],
-                    "catalyst_revision_ids": catalyst_lineage["revision_ids"],
-                    "catalyst_selected_event_ids": list(risk.selected_event_ids),
-                    "catalyst_rejected_event_ids": list(risk.rejected_event_ids),
-                    "catalyst_rejected": list(risk.rejected_events),
-                    "catalyst_source_ids": catalyst_lineage["source_ids"],
-                    "price_response_feature_ids": [price_feature.id]
-                    if price_feature is not None and price_feature.id
-                    else [],
-                    "price_bar_ids": list(price_result.price_bar_ids)
-                    if price_result is not None
-                    else [],
-                    "ib_volatility_feature_ids": [volatility_feature.id]
-                    if volatility_feature is not None
-                    else [],
-                    "ib_short_pressure_feature_ids": [short_pressure_feature.id]
-                    if short_pressure_feature is not None
-                    else [],
-                    "warnings": sorted(
-                        set(
-                            warning
-                            for feature in features
-                            for warning in (feature.warnings_json or [])
-                        )
-                    ),
-                }
-                ceri_base_identity = consumer_context_identity(
-                    market_cutoff=market_cutoff,
-                    run_id=run_id,
-                    pipeline_id=pipeline_id,
-                    ticker=row.ticker,
-                    company_id=company.id,
-                )
-                ibmi_sources = []
-                if volatility_feature is not None:
-                    ibmi_sources.append(
-                        (
-                            "IBMI-volatility",
-                            volatility_feature,
-                            volatility_feature.source_identity,
-                        )
                     )
-                if short_pressure_feature is not None:
-                    ibmi_sources.append(
-                        (
-                            "IBMI-short-pressure",
-                            short_pressure_feature,
-                            short_pressure_feature.source_identity,
-                        )
-                    )
-                ceri_identity = build_contextual_result_identity(
-                    base=ceri_base_identity,
-                    namespace="ceri-context",
-                    config_hash=self.snapshot_service.config.config_hash,
-                    calculation_version=self.snapshot_service.config.engine.calculation_version,
-                    engine_version=self.snapshot_service.config.engine.calculation_version,
-                    source_artifacts=ibmi_sources,
-                    source_payload=evidence_lineage,
-                    company_id=company.id,
-                )
-                ceri_identity = self.snapshot_service.effective_configuration.bind(ceri_identity)
-                evidence_lineage.update(
-                    identity_metadata(ceri_identity, policy=CERI_CONTEXT_COMPATIBILITY.name)
-                )
-                source_ids = sorted(
-                    set(
-                        _source_ids(features)
-                        + [item.source_record_id for item in earnings]
-                        + [item.source_record_id for item in guidance_rows]
-                        + catalyst_lineage["source_ids"]
-                    )
-                )
-                snapshot = self.snapshot_service.build_snapshot(
-                    run_id=run_id,
-                    source_run_id_text=str(run_id),
-                    company_id=company.id,
-                    ticker=row.ticker,
-                    as_of_session=as_of_session,
-                    cutoff_at=cutoff_at,
-                    opportunity=opportunity,
-                    event_risk=risk,
-                    confidence=confidence,
-                    source_ids=source_ids,
-                    alignment_inputs={
-                        "fundamentals": bool(row.raw_json.get("fundamental_score")),
-                        "technicals": bool(row.raw_json.get("technical_score")),
-                        "sector": bool(row.sector),
-                        "regime": bool(row.raw_json.get("market_regime")),
-                        "lifecycle": bool(row.raw_json.get("lifecycle_state")),
-                    },
-                    alignment_context=_alignment_context(db, row, run_id),
-                    evidence_lineage=evidence_lineage,
-                )
-                snapshot.calculation_context_id = market_cutoff.context_id
-                snapshot.calendar_version = market_cutoff.calendar_version
-                self.snapshot_service.persist_snapshot(db, snapshot)
-                counts["score_snapshots"] += 1
-                if not getattr(opportunity, "rated", opportunity.score is not None):
-                    counts["unrated"] += 1
-                prior, comparison_state = _prior_snapshot(db, company.id, snapshot)
-                changes = self.change_detection.detect_score_changes(
-                    db,
-                    current=snapshot,
-                    prior=prior,
-                    scope=f"run:{run_id}",
-                    comparison_state=comparison_state,
-                )
-                counts["change_events"] += changes.changes
-                if changes.changes:
-                    new_changes = _latest_changes(db, company.id, changes.changes)
-                    alerts = self.alert_service.rebuild_alerts(
+                    counts["conflicted"] += company_conflicted
+                    counts["stale"] += company_stale
+                    earnings = _eligible_source_backed_rows(
                         db,
-                        changes=new_changes,
-                        ticker_by_company={company.id: row.ticker},
+                        _scalars(
+                            db,
+                            select(CeriEarningsActual).where(
+                                CeriEarningsActual.company_id == company.id,
+                                CeriEarningsActual.report_session <= as_of_session,
+                            ),
+                        ),
+                        cutoff_at,
                     )
-                    counts["alerts"] += alerts.alerts
+                    estimates = _eligible_source_backed_rows(
+                        db,
+                        _scalars(
+                            db,
+                            select(CeriEstimateSnapshot).where(
+                                CeriEstimateSnapshot.company_id == company.id,
+                                CeriEstimateSnapshot.effective_session <= as_of_session,
+                            ),
+                        ),
+                        cutoff_at,
+                        scalar_fields=("source_record_id", "conversion_source_record_id"),
+                    )
+                    surprise_summary = self.surprise.summarize(earnings, estimates)
+                    price_result, price_feature = _price_response_for_company(
+                        db,
+                        company_id=company.id,
+                        ticker=row.ticker,
+                        as_of_session=as_of_session,
+                        cutoff_at=cutoff_at,
+                        calculation_context_id=market_cutoff.context_id,
+                        calendar_version=market_cutoff.calendar_version,
+                        service=self.price_response,
+                    )
+                    contextual_permissions = {}
+                    volatility_feature = _point_in_time_volatility_feature(
+                        db,
+                        row.ticker,
+                        cutoff_at,
+                        as_of_session=as_of_session,
+                        market_cutoff=market_cutoff,
+                        ibmi_config=ibmi_config,
+                        candidates=ibmi_candidates,
+                        decisions=contextual_permissions,
+                        settings=settings,
+                    )
+                    short_pressure_feature = _point_in_time_short_pressure_feature(
+                        db,
+                        row.ticker,
+                        cutoff_at,
+                        as_of_session=as_of_session,
+                        market_cutoff=market_cutoff,
+                        ibmi_config=ibmi_config,
+                        candidates=ibmi_candidates,
+                        decisions=contextual_permissions,
+                        settings=settings,
+                    )
+                    confidence = self.confidence.calculate(
+                        as_of_session=as_of_session,
+                        revision_features=features,
+                        dataset_freshness_days=_provider_feed_freshness_days(
+                            provider_checks_by_ticker.get(str(row.ticker).upper(), []),
+                            ticker=str(row.ticker),
+                            cutoff_at=cutoff_at,
+                            config=self.snapshot_service.config,
+                        ),
+                        conflict_penalty=float(company_conflicted),
+                    )
+                    opportunity = self.opportunity.calculate(
+                        revision_features=features,
+                        surprise_summary=surprise_summary,
+                        guidance_events=_guidance_for_company(
+                            db, company.id, as_of_session, cutoff_at
+                        ),
+                        catalyst_features=catalyst_features,
+                        price_response_quality=(
+                            price_result.quality if price_result is not None else None
+                        ),
+                        price_response_parent_event_id=(
+                            price_feature.event_id if price_feature is not None else None
+                        ),
+                        price_response_parent_type=(
+                            price_feature.event_type if price_feature is not None else None
+                        ),
+                        price_response_unavailable_reason=(
+                            price_result.unavailable_reason
+                            if price_result is not None
+                            else "NO_ACCEPTED_EVENT"
+                        ),
+                        conflict_penalty=min(3.0, float(company_conflicted)),
+                        as_of_session=as_of_session,
+                    )
+                    volatility_config = consumer["volatility"]
+                    volatility_risk = (
+                        options_event_premium_score(
+                            volatility_feature,
+                            maximum=float(volatility_config.get("ceri_risk_max_contribution", 1.5)),
+                        )
+                        if volatility_feature is not None
+                        else None
+                    )
+                    risk = self.risk.calculate(
+                        as_of_session=as_of_session,
+                        next_earnings_session=row.upcoming_earnings_date,
+                        catalyst_features=catalyst_features,
+                        stale=bool(company_stale),
+                        conflict_penalty=min(3.0, float(company_conflicted)),
+                        options_event_premium_score=volatility_risk,
+                        short_pressure_classification=(
+                            short_pressure_feature.classification
+                            if short_pressure_feature is not None
+                            else None
+                        ),
+                    )
+                    guidance_rows = _guidance_for_company(db, company.id, as_of_session, cutoff_at)
+                    catalyst_lineage = _catalyst_lineage(db, company.id, as_of_session, cutoff_at)
+                    evidence_lineage = {
+                        CONTEXTUAL_ELIGIBILITY_KEY: contextual_permissions,
+                        "ib_context_selected_feature_ids": sorted(
+                            permission["source_feature_id"]
+                            for permission in contextual_permissions.values()
+                            if permission["source_feature_id"] is not None
+                            and permission["decision"]["producer_evidence_id"] is not None
+                        ),
+                        "historical_view_mode": "AS_KNOWN",
+                        "temporal_lineage": {
+                            "calculation_context_id": market_cutoff.context_id,
+                            "calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(
+                                market_cutoff.cutoff_at
+                            ),
+                            "input_as_of_session": as_of_session.isoformat(),
+                            "calendar_version": market_cutoff.calendar_version,
+                        },
+                        "revision_feature_ids": [feature.id for feature in features if feature.id],
+                        "revision_pairs": [
+                            {
+                                "feature_id": feature.id,
+                                "metric": feature.metric,
+                                "period_slot": feature.period_slot,
+                                "window_days": feature.window_days,
+                                "current_snapshot_id": feature.current_snapshot_id,
+                                "baseline_snapshot_id": feature.baseline_snapshot_id,
+                                "baseline_origin": feature.baseline_origin,
+                                "available": feature.pct_change is not None,
+                                "unavailable_reason": feature.unavailable_reason,
+                            }
+                            for feature in features
+                        ],
+                        "revision_source_ids": _source_ids(features),
+                        "earnings_ids": [item.id for item in earnings if item.id],
+                        "earnings_source_ids": [item.source_record_id for item in earnings],
+                        "guidance_ids": [item.id for item in guidance_rows if item.id],
+                        "guidance_selected_ids": sorted(
+                            evidence_id
+                            for component in opportunity.components
+                            if component.name == "guidance"
+                            for evidence_id in component.evidence_ids
+                        ),
+                        "guidance_rejected": [
+                            {"id": item.id, "reason": guidance_eligibility_reason(item)}
+                            for item in guidance_rows
+                            if item.accepted_for_scoring is not True
+                        ],
+                        "guidance_source_ids": [item.source_record_id for item in guidance_rows],
+                        "catalyst_event_ids": catalyst_lineage["event_ids"],
+                        "catalyst_revision_ids": catalyst_lineage["revision_ids"],
+                        "catalyst_selected_event_ids": list(risk.selected_event_ids),
+                        "catalyst_rejected_event_ids": list(risk.rejected_event_ids),
+                        "catalyst_rejected": list(risk.rejected_events),
+                        "catalyst_source_ids": catalyst_lineage["source_ids"],
+                        "price_response_feature_ids": [price_feature.id]
+                        if price_feature is not None and price_feature.id
+                        else [],
+                        "price_bar_ids": list(price_result.price_bar_ids)
+                        if price_result is not None
+                        else [],
+                        "ib_volatility_feature_ids": [volatility_feature.id]
+                        if volatility_feature is not None
+                        else [],
+                        "ib_short_pressure_feature_ids": [short_pressure_feature.id]
+                        if short_pressure_feature is not None
+                        else [],
+                        "warnings": sorted(
+                            set(
+                                warning
+                                for feature in features
+                                for warning in (feature.warnings_json or [])
+                            )
+                        ),
+                    }
+                    ceri_base_identity = consumer_context_identity(
+                        market_cutoff=market_cutoff,
+                        run_id=run_id,
+                        pipeline_id=pipeline_id,
+                        ticker=row.ticker,
+                        company_id=company.id,
+                    )
+                    ibmi_sources = []
+                    if volatility_feature is not None:
+                        ibmi_sources.append(
+                            (
+                                "IBMI-volatility",
+                                volatility_feature,
+                                volatility_feature.source_identity,
+                            )
+                        )
+                    if short_pressure_feature is not None:
+                        ibmi_sources.append(
+                            (
+                                "IBMI-short-pressure",
+                                short_pressure_feature,
+                                short_pressure_feature.source_identity,
+                            )
+                        )
+                    ceri_identity = build_contextual_result_identity(
+                        base=ceri_base_identity,
+                        namespace="ceri-context",
+                        config_hash=self.snapshot_service.config.config_hash,
+                        calculation_version=self.snapshot_service.config.engine.calculation_version,
+                        engine_version=self.snapshot_service.config.engine.calculation_version,
+                        source_artifacts=ibmi_sources,
+                        source_payload=evidence_lineage,
+                        company_id=company.id,
+                    )
+                    ceri_identity = self.snapshot_service.effective_configuration.bind(
+                        ceri_identity
+                    )
+                    evidence_lineage.update(
+                        identity_metadata(ceri_identity, policy=CERI_CONTEXT_COMPATIBILITY.name)
+                    )
+                    source_ids = sorted(
+                        set(
+                            _source_ids(features)
+                            + [item.source_record_id for item in earnings]
+                            + [item.source_record_id for item in guidance_rows]
+                            + catalyst_lineage["source_ids"]
+                        )
+                    )
+                    snapshot = self.snapshot_service.build_snapshot(
+                        run_id=run_id,
+                        source_run_id_text=str(run_id),
+                        company_id=company.id,
+                        ticker=row.ticker,
+                        as_of_session=as_of_session,
+                        cutoff_at=cutoff_at,
+                        opportunity=opportunity,
+                        event_risk=risk,
+                        confidence=confidence,
+                        source_ids=source_ids,
+                        alignment_inputs={
+                            "fundamentals": bool(row.raw_json.get("fundamental_score")),
+                            "technicals": bool(row.raw_json.get("technical_score")),
+                            "sector": bool(row.sector),
+                            "regime": bool(row.raw_json.get("market_regime")),
+                            "lifecycle": bool(row.raw_json.get("lifecycle_state")),
+                        },
+                        alignment_context=_alignment_context(db, row, run_id),
+                        evidence_lineage=evidence_lineage,
+                    )
+                    snapshot.calculation_context_id = market_cutoff.context_id
+                    snapshot.calendar_version = market_cutoff.calendar_version
+                    if not isinstance(db, Session):
+                        self.snapshot_service.persist_snapshot(db, snapshot)
+                    counts["score_snapshots"] += 1
+                    if not getattr(opportunity, "rated", opportunity.score is not None):
+                        counts["unrated"] += 1
+                    if isinstance(db, Session):
+                        captured_snapshots.append(snapshot)
+                    else:
+                        prior, comparison_state = _prior_snapshot(db, company.id, snapshot)
+                        changes = self.change_detection.detect_score_changes(
+                            db,
+                            current=snapshot,
+                            prior=prior,
+                            scope=f"run:{run_id}",
+                            comparison_state=comparison_state,
+                        )
+                        counts["change_events"] += changes.changes
+                        if changes.changes:
+                            new_changes = _latest_changes(db, company.id, changes.changes)
+                            alerts = self.alert_service.rebuild_alerts(
+                                db,
+                                changes=new_changes,
+                                ticker_by_company={company.id: row.ticker},
+                            )
+                            counts["alerts"] += alerts.alerts
+                except Exception:
+                    if isinstance(db, Session):
+                        # Financial writer rejection must leave the semantic root
+                        # failed and atomic, not become a successful partial capture.
+                        db.rollback()
+                        raise
+                    counts["failed"] += 1
+        if captured_snapshots:
+            from app.services.source_mutation_authority import prefetched_source_scope
+
+            try:
+                # Native source enrichment completes before freezing its SQL
+                # witness. No earlier witness survives a source-body mutation.
+                bundle = _capture_source_bundle(db, company_ids, run_id, market_cutoff)
+                with prefetched_source_scope(db, bundle):
+                    for snapshot in captured_snapshots:
+                        self.snapshot_service.persist_snapshot(db, snapshot)
+                _capture_score_comparisons(
+                    db, self, captured_snapshots, counts, run_id, market_cutoff
+                )
             except Exception:
-                counts["failed"] += 1
+                db.rollback()
+                raise
         return CeriRunCaptureResult(**counts)
 
 
@@ -592,6 +651,221 @@ def _raw_rows_for_run(db: Session, run_id: int) -> list[RawCompanyRow]:
         db,
         select(RawCompanyRow).where(RawCompanyRow.run_id == run_id),
     )
+
+
+def _capture_source_bundle(db, company_ids, run_id, market_cutoff, *, enrichment=False):
+    """Lock the admitted source population once using existing bundle rules."""
+    from app.services.source_mutation_authority import PrefetchedSourceBodies
+
+    bundle = PrefetchedSourceBodies(db)
+    sources = set()
+    for model in (
+        CeriRevisionFeature,
+        CeriEstimateSnapshot,
+        CeriEarningsActual,
+        CeriGuidanceEvent,
+        CeriCatalystEvent,
+        CeriPriceResponseFeature,
+    ):
+        statement = select(model).where(model.company_id.in_(company_ids))
+        rows = (
+            db.scalars(statement).all()
+            if enrichment and model in {CeriEarningsActual, CeriPriceResponseFeature}
+            else bundle.load(model, statement)
+        )
+        for row in rows:
+            for field in (
+                "source_record_id",
+                "current_source_record_id",
+                "baseline_source_record_id",
+                "provider_retrospective_source_record_id",
+                "conversion_source_record_id",
+            ):
+                source_id = getattr(row, field, None)
+                if source_id is not None:
+                    sources.add(source_id)
+            sources.update(getattr(row, "source_observation_ids_json", None) or [])
+    events = select(CeriCatalystEvent.id).where(CeriCatalystEvent.company_id.in_(company_ids))
+    revisions = bundle.load(
+        CeriCatalystEventRevision,
+        select(CeriCatalystEventRevision).where(
+            CeriCatalystEventRevision.catalyst_event_id.in_(events)
+        ),
+    )
+    attachments = bundle.load(
+        CeriCatalystSource,
+        select(CeriCatalystSource).where(
+            CeriCatalystSource.catalyst_revision_id.in_([row.id for row in revisions])
+        ),
+    )
+    sources.update(
+        row.source_record_id
+        for row in [*revisions, *attachments]
+        if row.source_record_id is not None
+    )
+    bundle.load(CeriSourceRecord, select(CeriSourceRecord).where(CeriSourceRecord.id.in_(sources)))
+    _capture_delivery_bundle(db, bundle, run_id, market_cutoff)
+    bundle.seal()
+    return bundle
+
+
+def _capture_delivery_bundle(db, bundle, run_id, market_cutoff):
+    from app.models.tables import (
+        EffectiveConfigurationRecord,
+        ExecutionConfigurationAnchor,
+        ExecutionConfigurationBinding,
+        MarketCalculationContext,
+        PipelineRun,
+        UploadRun,
+    )
+    from app.services.configuration_delivery import current_delivery
+    from app.services.domain_write_fence import current_domain_write_ownership
+
+    delivery = current_delivery()
+    if delivery is not None:
+        bundle.load(
+            EffectiveConfigurationRecord,
+            select(EffectiveConfigurationRecord).where(
+                EffectiveConfigurationRecord.resolution_hash.in_(
+                    [config.snapshot.resolution_hash for config in delivery.configurations.values()]
+                )
+            ),
+        )
+        bundle.load(
+            ExecutionConfigurationAnchor,
+            select(ExecutionConfigurationAnchor).where(
+                ExecutionConfigurationAnchor.anchor_id == delivery.anchor["anchor_id"]
+            ),
+        )
+        keys = []
+        ownership = current_domain_write_ownership()
+        if ownership is not None:
+            keys.append("job:" + str(ownership.job_id))
+        if market_cutoff.context_id is not None:
+            contexts = bundle.load(
+                MarketCalculationContext,
+                select(MarketCalculationContext).where(
+                    MarketCalculationContext.id == market_cutoff.context_id
+                ),
+            )
+            pipeline_ids = {row.pipeline_run_id for row in contexts if row.pipeline_run_id}
+            keys.extend("pipeline:" + str(value) for value in pipeline_ids)
+            bundle.load(PipelineRun, select(PipelineRun).where(PipelineRun.id.in_(pipeline_ids)))
+        bundle.load(
+            ExecutionConfigurationBinding,
+            select(ExecutionConfigurationBinding).where(
+                ExecutionConfigurationBinding.binding_key.in_(keys)
+            ),
+        )
+        bundle.load(UploadRun, select(UploadRun).where(UploadRun.id == run_id))
+
+
+def _capture_score_comparisons(
+    db: Session,
+    service: CeriRunCaptureService,
+    snapshots: list[CeriScoreSnapshot],
+    counts: dict[str, int],
+    run_id: int,
+    market_cutoff: MarketCalculationCutoff,
+):
+    """New scores and retained predecessors share one exact locked witness."""
+    from app.models.tables import CoreCalculationEvidence
+    from app.services.source_mutation_authority import (
+        PrefetchedSourceBodies,
+        prefetched_source_scope,
+    )
+
+    bundle = PrefetchedSourceBodies(db)
+    scores = bundle.load(
+        CeriScoreSnapshot,
+        select(CeriScoreSnapshot).where(
+            CeriScoreSnapshot.company_id.in_({score.company_id for score in snapshots})
+        ),
+    )
+    bundle.load(
+        CoreCalculationEvidence,
+        select(CoreCalculationEvidence).where(
+            CoreCalculationEvidence.id.in_({score.evidence_id for score in scores})
+        ),
+    )
+    _capture_delivery_bundle(db, bundle, run_id, market_cutoff)
+    bundle.seal()
+    scores_by_company: dict[int, list[CeriScoreSnapshot]] = {}
+    for score in scores:
+        scores_by_company.setdefault(score.company_id, []).append(score)
+    new_change_ids: set[int] = set()
+    ticker_by_company = {snapshot.company_id: snapshot.ticker for snapshot in snapshots}
+    with prefetched_source_scope(db, bundle):
+        for snapshot in snapshots:
+            prior, comparison_state = _prior_snapshot_from_candidates(
+                snapshot,
+                scores_by_company.get(snapshot.company_id, []),
+            )
+            changes = service.change_detection.detect_score_changes(
+                db,
+                current=snapshot,
+                prior=prior,
+                scope=f"run:{run_id}",
+                comparison_state=comparison_state,
+            )
+            counts["change_events"] += changes.changes
+            if changes.changes:
+                new_change_ids.update(changes.change_ids)
+    if new_change_ids:
+        alert_bundle, new_changes = _capture_alert_bundle(
+            db,
+            change_ids=new_change_ids,
+            scores=scores,
+            run_id=run_id,
+            market_cutoff=market_cutoff,
+        )
+        alerts = service.alert_service.rebuild_alerts(
+            db,
+            changes=new_changes,
+            ticker_by_company=ticker_by_company,
+            _source_bundle=alert_bundle,
+        )
+        counts["alerts"] += alerts.alerts
+
+
+def _capture_alert_bundle(db, *, change_ids, scores, run_id, market_cutoff):
+    """Retain exact alert inputs for the semantic writer to finish and seal."""
+    from app.models.tables import CoreCalculationEvidence
+    from app.services.source_mutation_authority import PrefetchedSourceBodies
+
+    bundle = PrefetchedSourceBodies(db)
+    retained_changes = bundle.load(
+        CeriChangeEvent,
+        select(CeriChangeEvent).where(CeriChangeEvent.id.in_(change_ids)),
+    )
+    if {change.id for change in retained_changes} != set(change_ids):
+        raise ValueError("CERI_CHANGE_SOURCE_SET_MISMATCH")
+    score_ids = {
+        value
+        for change in retained_changes
+        for value in (change.from_snapshot_id, change.to_snapshot_id)
+        if value is not None
+    }
+    retained_scores = bundle.load(
+        CeriScoreSnapshot,
+        select(CeriScoreSnapshot).where(CeriScoreSnapshot.id.in_(score_ids)),
+    )
+    bundle.load(
+        CoreCalculationEvidence,
+        select(CoreCalculationEvidence).where(
+            CoreCalculationEvidence.id.in_(
+                {score.evidence_id for score in retained_scores if score.evidence_id is not None}
+            )
+        ),
+    )
+    bundle.load(
+        CeriCompany,
+        select(CeriCompany).where(
+            CeriCompany.id.in_({change.company_id for change in retained_changes})
+        ),
+    )
+    _capture_delivery_bundle(db, bundle, run_id, market_cutoff)
+    return bundle, retained_changes
 
 
 def _company_for_ticker(db: Session, ticker: str) -> CeriCompany | None:
@@ -991,14 +1265,18 @@ def _eligible_source_backed_rows(
         for field in collection_fields
         for value in (getattr(row, field, None) or [])
     )
-    sources = (
-        _scalars(
-            db,
-            select(CeriSourceRecord).where(CeriSourceRecord.id.in_(sorted(source_ids))),
+    from app.services.source_mutation_authority import prefetched_source_rows
+
+    sources = prefetched_source_rows(db, CeriSourceRecord, source_ids)
+    if sources is None:
+        sources = (
+            _scalars(
+                db,
+                select(CeriSourceRecord).where(CeriSourceRecord.id.in_(sorted(source_ids))),
+            )
+            if source_ids
+            else []
         )
-        if source_ids
-        else []
-    )
     if not isinstance(db, Session) and not sources:
         # Legacy unit adapters do not model the source-record graph.  Real
         # pipeline sessions and explicit PIT fixtures always enforce it.
@@ -1095,6 +1373,21 @@ def _prior_snapshot(
             CeriScoreSnapshot.company_id == company_id,
         ),
     )
+    candidates = [
+        snapshot
+        for snapshot in snapshots
+        if snapshot is not current
+        and snapshot.id != current.id
+        and snapshot.as_of_session <= current.as_of_session
+    ]
+    prior, state, _excluded = select_prior_comparison(current, candidates)
+    return prior, state.value
+
+
+def _prior_snapshot_from_candidates(
+    current: CeriScoreSnapshot,
+    snapshots: list[CeriScoreSnapshot],
+) -> tuple[CeriScoreSnapshot | None, str]:
     candidates = [
         snapshot
         for snapshot in snapshots

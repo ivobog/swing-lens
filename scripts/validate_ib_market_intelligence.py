@@ -10,6 +10,7 @@ import json
 from typing import Any
 
 from app.db import SessionLocal
+from app.services.entrypoint_authority import require_disposable_tool_target
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_market_intelligence.adapters import (
@@ -26,6 +27,7 @@ from app.settings import get_settings
 
 
 def main() -> int:
+    require_disposable_tool_target(get_settings().database_url)
     parser = argparse.ArgumentParser(description="Run opt-in live IBMI capability validation")
     parser.add_argument(
         "--module",
@@ -66,9 +68,7 @@ def main() -> int:
                 attempts=settings.ib_flex_poll_attempts,
                 poll_seconds=settings.ib_flex_poll_seconds,
             )
-            rows = parse_flex_report(
-                content, report_timezone=settings.ib_flex_report_timezone
-            )
+            rows = parse_flex_report(content, report_timezone=settings.ib_flex_report_timezone)
             print(json.dumps({"module": "flex", "status": "AVAILABLE", "rows": len(rows)}))
             return 0
         except Exception as exc:

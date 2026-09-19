@@ -302,10 +302,35 @@ def diagnostic_population(db, population, outcome_id, *, as_of):
 
     rows = []
     seen = set()
-    for member in population.payload_json["members"]:
-        prediction = db.get(WinnerPredictionSnapshot, member["prediction_id"])
-        forward = db.get(WinnerForwardOutcome, member["outcome_id"])
-        target = db.get(WinnerTargetStopOutcome, member["target_stop_outcome_id"])
+    members = tuple(population.payload_json["members"])
+    transaction = db.get_transaction() if hasattr(db, "get_transaction") else None
+    cache_state = db.info.get("winner_diagnostic_population_cache")
+    if cache_state is None or cache_state["transaction"] is not transaction:
+        cache_state = {"transaction": transaction, "rows": {}}
+        db.info["winner_diagnostic_population_cache"] = cache_state
+    retained = cache_state["rows"]
+    model_ids = (
+        (WinnerPredictionSnapshot, {int(member["prediction_id"]) for member in members}),
+        (WinnerForwardOutcome, {int(member["outcome_id"]) for member in members}),
+        (
+            WinnerTargetStopOutcome,
+            {int(member["target_stop_outcome_id"]) for member in members},
+        ),
+    )
+    for model, ids in model_ids:
+        missing = ids - {row_id for cached_model, row_id in retained if cached_model is model}
+        if not missing:
+            continue
+        with db.no_autoflush:
+            loaded = list(db.scalars(select(model).where(model.id.in_(missing)).with_for_update()))
+        if len(loaded) != len(missing):
+            raise ValueError("MUTATION_WINNER_DIAGNOSTIC_MEMBER_MISMATCH")
+        retained.update({(model, int(row.id)): row for row in loaded})
+
+    for member in members:
+        prediction = retained[(WinnerPredictionSnapshot, int(member["prediction_id"]))]
+        forward = retained[(WinnerForwardOutcome, int(member["outcome_id"]))]
+        target = retained[(WinnerTargetStopOutcome, int(member["target_stop_outcome_id"]))]
         if (
             prediction is None
             or forward is None

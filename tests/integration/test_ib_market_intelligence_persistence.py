@@ -116,7 +116,19 @@ def test_metric_revision_and_flex_import_are_idempotent(
         assert second["status"] == "DUPLICATE_REPORT"
         assert len(db.scalars(select(IBExecutionFill)).all()) == 1
 
-        rebuild_trade_episodes(db)
+        rebuild_trade_episodes(
+            db,
+            fills=list(
+                db.scalars(
+                    select(IBExecutionFill).where(
+                        IBExecutionFill.is_superseded.is_(False),
+                        IBExecutionFill.is_excluded.is_(False),
+                    )
+                )
+            ),
+            operation_at=datetime(2026, 8, 9, tzinfo=UTC),
+            episode_policy="FIFO_POSITION_V1",
+        )
         db.commit()
         corrected_report = report.replace("BUY,10,25", "BUY,10,26")
         corrected = import_flex_report(
@@ -128,7 +140,19 @@ def test_metric_revision_and_flex_import_are_idempotent(
             now=datetime(2026, 8, 9, tzinfo=UTC),
         )
         assert corrected["corrected"] == 1
-        rebuilt = rebuild_trade_episodes(db)
+        rebuilt = rebuild_trade_episodes(
+            db,
+            fills=list(
+                db.scalars(
+                    select(IBExecutionFill).where(
+                        IBExecutionFill.is_superseded.is_(False),
+                        IBExecutionFill.is_excluded.is_(False),
+                    )
+                )
+            ),
+            operation_at=datetime(2026, 8, 9, tzinfo=UTC),
+            episode_policy="FIFO_POSITION_V1",
+        )
         db.commit()
         assert len(rebuilt) == 1
         episodes = (
@@ -378,7 +402,10 @@ def test_metric_revision_and_flex_import_are_idempotent(
         )
         db.add(episode)
         db.flush()
-        link = match_episode_to_research(db, episode)
+        db.refresh(episode)
+        link = match_episode_to_research(
+            db, episode, lookback_sessions=5, policy="latest-completed-before-entry-v1"
+        )
         assert link.matching_status == "MATCHED"
         assert link.upload_run_id == eligible_run.id
         assert link.leakage_check == "PASS"

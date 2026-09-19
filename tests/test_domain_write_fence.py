@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime
 from threading import Thread
 from types import SimpleNamespace
@@ -50,6 +51,9 @@ def fenced_sessions(tmp_path):
                 id INTEGER PRIMARY KEY,
                 status TEXT NOT NULL,
                 execution_token TEXT,
+                job_type TEXT,
+                payload_json JSON,
+                related_run_id INTEGER,
                 requested_cancel INTEGER NOT NULL DEFAULT 0
             )
             """
@@ -200,6 +204,8 @@ def test_ibmi_reclaim_between_tickers_fences_old_owner_and_new_owner_continues(
 
     def rebuild(db: Session, ticker: str, *_args, **_kwargs):
         nonlocal reclaim_before_second_commit
+        if db.scalar(select(_DomainMutation).where(_DomainMutation.name == ticker)):
+            return object(), False
         calls.append(ticker)
         db.add(_DomainMutation(name=ticker, kind="ibmi-feature"))
         if ticker == "BBB" and reclaim_before_second_commit:
@@ -237,6 +243,10 @@ def test_ibmi_reclaim_between_tickers_fences_old_owner_and_new_owner_continues(
             ],
         )
         old_job.payload_json = {**old_job.payload_json, ANCHOR_KEY: anchor}
+        db.execute(
+            text("UPDATE background_jobs SET job_type=:kind, payload_json=:payload WHERE id=1"),
+            {"kind": old_job.job_type, "payload": json.dumps(old_job.payload_json)},
+        )
         bind_job_configuration(db, old_job)
         db.commit()
     with fenced_sessions() as db:
@@ -252,7 +262,7 @@ def test_ibmi_reclaim_between_tickers_fences_old_owner_and_new_owner_continues(
     assert calls == ["AAA", "BBB"]
     assert _stored_mutations(fenced_sessions) == [("AAA", "ibmi-feature")]
 
-    new_job = _job(token="token-b", tickers=["BBB", "CCC"])
+    new_job = _job(token="token-b", tickers=["AAA", "BBB", "CCC"])
     new_job.job_type = old_job.job_type
     new_job.payload_json = {**new_job.payload_json, ANCHOR_KEY: anchor}
     with fenced_sessions() as db:

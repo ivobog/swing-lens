@@ -27,6 +27,8 @@ from app.models.ceri_tables import (
 from app.services.background_job_service import enqueue_job
 from app.services.ceri.export_policy import redact_sensitive
 from app.services.ceri.observability import ceri_log_event, ceri_metrics
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
 
 CERI_REBUILD_FEATURES_JOB_TYPE = "CERI_REBUILD_FEATURES"
 PURGED_SOURCE_EXPORT_POLICY = "purged"
@@ -114,6 +116,9 @@ class CeriPurgeService:
         )
         return audit
 
+    @source_mutation_writer(
+        MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE
+    )
     def execute(
         self,
         db: Session,
@@ -289,9 +294,7 @@ class CeriPurgeService:
                 revision_features or score_snapshots or change_events or alert_events
             ),
             "immutable_decision_evidence_ids": certified_decision_evidence_ids,
-            "purge_blocked_by_immutable_decision_evidence": bool(
-                certified_decision_evidence_ids
-            ),
+            "purge_blocked_by_immutable_decision_evidence": bool(certified_decision_evidence_ids),
         }
         return {
             "source_ids": source_ids,
@@ -422,9 +425,7 @@ def _manifest_hash_input(
                 "alert_events",
             )
         },
-        "certified_decision_evidence_ids": manifest[
-            "certified_decision_evidence_ids"
-        ],
+        "certified_decision_evidence_ids": manifest["certified_decision_evidence_ids"],
     }
 
 
@@ -433,6 +434,7 @@ def _manifest_hash(manifest: dict[str, Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+@source_writer_member("app.services.ceri.purge_service:CeriPurgeService.execute")
 def _apply_purge_lifecycle(
     manifest: dict[str, Any],
     *,
@@ -527,6 +529,7 @@ def _apply_purge_lifecycle(
     }
 
 
+@source_writer_member("app.services.ceri.purge_service:CeriPurgeService.execute")
 def _enqueue_rebuild_jobs(
     db: Session,
     *,

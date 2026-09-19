@@ -10,9 +10,11 @@ import inspect
 import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
 from sqlalchemy.orm import Session
+from test_ceri_batched_workflow_v2 import _new_job
 from test_t14b_writer_contract_adoption import HANDOFF, native_owner
 
 from app.models.tables import BackgroundJob, RawCompanyRow, UploadRun
+from app.services.background_job_service import JobStatus
 
 contextual_engine = contextual.contextual_engine
 
@@ -28,8 +30,16 @@ def test_every_assigned_source_adapter_rejects_malformed_authority_and_rolls_bac
         db.flush()
         raw = RawCompanyRow(run_id=7, row_number=1, ticker="ACME", raw_json={"Symbol": "ACME"})
         db.add(raw)
-        job = BackgroundJob(job_type="IB_FETCH", status="QUEUED", payload_json={})
-        db.add(job)
+        # The source-declaration attack must reach that guard through a genuine
+        # production configuration anchor, rather than fail on an earlier
+        # missing durable-authority prerequisite.
+        job = _new_job(
+            db,
+            job_type="CERI_NORMALIZE",
+            payload_json={},
+            status=JobStatus.RUNNING,
+            request_key="t14b-source-declaration",
+        )
         db.commit()
         job_id = job.id
         raw_id = raw.id

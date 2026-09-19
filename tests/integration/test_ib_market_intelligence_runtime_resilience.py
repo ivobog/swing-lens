@@ -10,12 +10,13 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
+from test_sec_readiness_repair_postgresql import _claim_target
 
 from app.models.ib_market_intelligence_tables import (
     IBHistoricalMetricBar,
     IBIntelligenceRun,
 )
-from app.models.tables import BackgroundJob
+from app.services.background_job_service import enqueue_job
 from app.services.background_worker import CancelRequested
 from app.services.ib_market_intelligence import orchestration
 from app.services.ib_market_intelligence.adapters import (
@@ -361,12 +362,12 @@ def test_restart_consumes_date_checkpoint_and_flex_cancellation_resumes_get_stat
 
     now = datetime.now(UTC)
     with Session(engine) as db:
-        historical_job = BackgroundJob(
+        historical_job = enqueue_job(
+            db,
             job_type=IB_INTELLIGENCE_HISTORICAL_REFRESH,
             request_key="resumable-history",
-            status="RUNNING",
             priority=100,
-            payload_json={
+            payload={
                 "module": "LIQUIDITY",
                 "tickers": ["AAPL"],
                 "start_date": "2026-07-31",
@@ -375,8 +376,7 @@ def test_restart_consumes_date_checkpoint_and_flex_cancellation_resumes_get_stat
             max_retries=3,
             run_after=now,
         )
-        db.add(historical_job)
-        db.commit()
+        historical_job = _claim_target(db, historical_job)
         first_ib = HistoricalIB(failing_end=datetime(2026, 8, 4).date())
         with pytest.raises(RetryExhausted):
             orchestration.execute_historical_refresh(
@@ -388,6 +388,7 @@ def test_restart_consumes_date_checkpoint_and_flex_cancellation_resumes_get_stat
         assert len(checkpoint["completed_ranges"]) == 1
 
         resumed_ib = HistoricalIB()
+        historical_job = _claim_target(db, historical_job)
         result = orchestration.execute_historical_refresh(
             db, historical_job, settings=settings, ib_factory=lambda: resumed_ib
         )
@@ -397,17 +398,16 @@ def test_restart_consumes_date_checkpoint_and_flex_cancellation_resumes_get_stat
         db.refresh(historical_job)
         assert historical_job.payload_json["checkpoint"]["completed_tickers"] == ["AAPL"]
 
-        flex_job = BackgroundJob(
+        flex_job = enqueue_job(
+            db,
             job_type=IB_FLEX_IMPORT,
             request_key="resumable-flex",
-            status="RUNNING",
             priority=100,
-            payload_json={"query_type": "TRADE_CONFIRMATIONS", "dry_run": False},
+            payload={"query_type": "TRADE_CONFIRMATIONS", "dry_run": False},
             max_retries=3,
             run_after=now,
         )
-        db.add(flex_job)
-        db.commit()
+        flex_job = _claim_target(db, flex_job)
         first_urls: list[str] = []
 
         def cancelling_transport(url: str, _timeout: float) -> str:
@@ -451,6 +451,7 @@ def test_restart_consumes_date_checkpoint_and_flex_cancellation_resumes_get_stat
 
         flex_job.requested_cancel = False
         db.commit()
+        flex_job = _claim_target(db, flex_job)
         resumed_urls: list[str] = []
 
         def resumed_transport(url: str, _timeout: float) -> str:

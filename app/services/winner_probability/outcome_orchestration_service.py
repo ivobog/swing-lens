@@ -84,6 +84,7 @@ class H5NextOpenOrchestrationService:
         db: Session,
         *,
         now: datetime | None = None,
+        operation_cutoff_at: datetime | None = None,
         batch_size: int = 500,
         max_batches: int = 10,
         due_session: date | None = None,
@@ -91,8 +92,12 @@ class H5NextOpenOrchestrationService:
         lease_guard: Callable[[], None] | None = None,
     ) -> H5DrainResult:
         now = now or datetime.now(UTC)
+        operation_cutoff_at = operation_cutoff_at or now
+        if operation_cutoff_at.tzinfo is None:
+            raise ValueError("MUTATION_WINNER_OUTCOME_EXPLICIT_OPERATION_TIME_REQUIRED")
         completed_on = min(
-            latest_completed_session(now), due_session or latest_completed_session(now)
+            latest_completed_session(operation_cutoff_at),
+            due_session or latest_completed_session(operation_cutoff_at),
         )
         before = self._queue_state(db, completed_on=completed_on, retry_as_of=now)
         processed_ids: list[int] = []
@@ -120,10 +125,12 @@ class H5NextOpenOrchestrationService:
                     raise OutcomeMaturationCancelled("winner H5 NEXT_OPEN drain was cancelled")
                 processed_ids.append(row.id)
                 if context is None:
-                    result = self.maturation_service.process_forward_outcome(db, row, now=now)
+                    result = self.maturation_service.process_forward_outcome(
+                        db, row, now=operation_cutoff_at
+                    )
                 else:
                     result = self.maturation_service.process_forward_outcome(
-                        db, row, now=now, context=context
+                        db, row, now=operation_cutoff_at, context=context
                     )
                 processed += result.processed
                 matured += result.matured

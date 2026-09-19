@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCompany
-from app.models.tables import RawCompanyRow
+from app.models.tables import MarketCalculationContext, RawCompanyRow
 from app.services.background_job_service import enqueue_job
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.config import load_ceri_config
@@ -21,8 +21,12 @@ from app.services.ceri.sec.readiness_diagnostics import (
     SecTickerReadinessCategory,
     diagnose_sec_readiness,
 )
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.entrypoint_authority import EntryPointAuthorityError
+from app.services.market_calculation_context_service import resolve_pipeline_market_context
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.pipeline_prerequisites import CeriBootstrapRequiredError
+from app.services.source_mutation_authority import source_mutation_writer
 from app.settings import (
     SecDocumentIncrementalMode,
     SecReadinessPolicy,
@@ -226,6 +230,45 @@ def schedule_ceri_batched_workflow(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
 ) -> CeriBatchedWorkflowPlan:
+    pipeline_authority = {}
+    if isinstance(db, Session):
+        try:
+            if market_cutoff is None or market_cutoff.context_id is None:
+                raise EntryPointAuthorityError(
+                    "CERI_BATCH_CONTEXT_REQUIRED",
+                    "Batched pipeline work requires its exact retained market context.",
+                )
+            row = db.scalar(
+                select(MarketCalculationContext)
+                .where(MarketCalculationContext.id == market_cutoff.context_id)
+                .with_for_update()
+            )
+            if row is None or row.pipeline_run_id is None:
+                raise EntryPointAuthorityError(
+                    "CERI_BATCH_PIPELINE_REQUIRED",
+                    "Batched pipeline work requires a retained pipeline owner.",
+                )
+            from app.services.source_mutation_authority import _source_value
+
+            _source_value(db, row)
+            resolved = resolve_pipeline_market_context(
+                db,
+                calculation_context_id=row.id,
+                upload_run_id=run_id,
+                pipeline_run_id=row.pipeline_run_id,
+                expected_cutoff_at=market_cutoff.cutoff_at,
+                expected_latest_completed_session=market_cutoff.latest_completed_session,
+                expected_calendar_version=market_cutoff.calendar_version,
+            )
+            if resolved != market_cutoff:
+                raise EntryPointAuthorityError(
+                    "CERI_BATCH_CONTEXT_MISMATCH",
+                    "The supplied cutoff differs from its exact retained context.",
+                )
+            pipeline_authority = {"pipeline_run_id": row.pipeline_run_id}
+        except Exception:
+            db.rollback()
+            raise
     runtime_settings = get_settings()
     tickers = sorted(
         {
@@ -310,7 +353,7 @@ def schedule_ceri_batched_workflow(
         enqueue_job(
             db,
             spec.job_type,
-            {**spec.payload, **temporal_payload},
+            {**spec.payload, **temporal_payload, **pipeline_authority},
             related_run_id=run_id,
             priority=spec.priority,
             request_key=spec.request_key,
@@ -343,6 +386,9 @@ def sec_readiness_coverage(
     )
 
 
+@source_mutation_writer(
+    MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.BOOTSTRAP
+)
 def _ensure_ceri_companies(db: Session, tickers: Iterable[str]) -> None:
     existing = {company.ticker.upper() for company in db.scalars(select(CeriCompany))}
     for ticker in tickers:

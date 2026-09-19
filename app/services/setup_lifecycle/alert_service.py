@@ -65,9 +65,30 @@ class SetupLifecycleAlertService:
         self.config = self.effective_configuration.setup_config()
         self.repository = repository or SetupLifecycleRepository()
 
+    def adopt_delivered_configuration(self) -> None:
+        """Bind a composed service to the retained alert operation at entry."""
+
+        from app.services.configuration_delivery import current_delivery, delivered_configuration
+
+        if current_delivery() is None:
+            return
+        delivered = delivered_configuration("decision.alerts.setup")
+        if (
+            hasattr(self, "_frozen_rules")
+            and self.effective_configuration.snapshot.resolution_hash
+            != delivered.snapshot.resolution_hash
+        ):
+            del self._frozen_rules
+        self.effective_configuration = delivered
+        self.config = delivered.setup_config()
+
     @anchored_decision_calculator
     @core_writer_transaction
     def seed_builtin_rules(self, db) -> tuple[SignalAlertRule, ...]:
+        from app.services.configuration_delivery import current_delivery
+
+        if current_delivery() is not None:
+            self.adopt_delivered_configuration()
         self.effective_configuration.require_family("decision.alerts.setup")
         self.config = self.effective_configuration.setup_config()
         if not self.config.alerts.built_in_rules_enabled:
@@ -95,8 +116,6 @@ class SetupLifecycleAlertService:
                 "SETUP_ALERT_REBUILD",
             ),
         )
-        from app.services.configuration_delivery import current_delivery
-
         if current_delivery() is not None:
             from sqlalchemy.dialects.postgresql import insert
 

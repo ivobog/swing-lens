@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session
 
 from app.models.ib_market_intelligence_tables import (
+    IBExecutionFill,
     IBFlexImportRun,
     IBHistogramBin,
     IBHistogramSnapshot,
@@ -1079,7 +1080,25 @@ def execute_flex_import(
             report_timezone=settings.ib_flex_report_timezone,
         )
         if not job.payload_json.get("dry_run", False) and result["status"] != "DUPLICATE_REPORT":
-            episodes = rebuild_trade_episodes(db)
+            # Capture a new current journal projection population after import.
+            # The writer receives exact retained fill bodies, never a latest lookup.
+            episode_operation_at = datetime.now(UTC)
+            episode_fills = list(
+                db.scalars(
+                    select(IBExecutionFill)
+                    .where(IBExecutionFill.is_superseded.is_(False))
+                    .where(IBExecutionFill.is_excluded.is_(False))
+                    .where(IBExecutionFill.execution_time <= episode_operation_at)
+                    .order_by(IBExecutionFill.id)
+                    .with_for_update()
+                )
+            )
+            episodes = rebuild_trade_episodes(
+                db,
+                fills=episode_fills,
+                operation_at=episode_operation_at,
+                episode_policy="FIFO_POSITION_V1",
+            )
             for episode in episodes:
                 match_episode_to_research(
                     db,

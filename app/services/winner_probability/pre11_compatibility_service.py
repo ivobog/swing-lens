@@ -23,6 +23,7 @@ from app.models.tables import (
     WinnerTrainingEligibilityDecision,
     WinnerTrainingOutcomeReplay,
 )
+from app.services.entrypoint_authority import reject_legacy_mutation
 from app.services.price_bar_repository import load_preferred_price_bar_rows
 from app.services.winner_probability.config import (
     SAME_BAR_CONSERVATIVE_STOP_FIRST,
@@ -763,6 +764,7 @@ class Pre11CompatibilityWriteService:
     ]:
         if not approve_write:
             raise PermissionError("explicit approve_write=True is required")
+        reject_legacy_mutation("pre-1.1 training replay")
         dry_run.scope.validate()
         if request_key != dry_run.scope.request_key:
             raise ValueError("request key does not match the reviewed dry-run scope")

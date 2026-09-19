@@ -6,7 +6,13 @@ from datetime import UTC, date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.tables import MarketCalculationContext, PipelineRun
+from app.models.tables import (
+    BackgroundJob,
+    ExecutionConfigurationBinding,
+    MarketCalculationContext,
+    PipelineRun,
+    PipelineStep,
+)
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.calculation_identity import (
     PIPELINE_CONTEXT_COMPATIBILITY,
@@ -49,6 +55,36 @@ def create_pipeline_market_context(
     existing = pipeline.market_calculation_context
     if existing is not None:
         return cutoff_from_row(existing)
+    if isinstance(db, Session):
+        from app.services.source_mutation_authority import _source_value
+
+        with db.no_autoflush:
+            _source_value(db, pipeline)
+            bound = db.scalar(
+                select(ExecutionConfigurationBinding.binding_key)
+                .where(ExecutionConfigurationBinding.pipeline_run_id == pipeline.id)
+                .limit(1)
+            )
+            delivered = db.scalar(
+                select(BackgroundJob.id)
+                .where(BackgroundJob.payload_json["pipeline_run_id"].as_integer() == pipeline.id)
+                .limit(1)
+            )
+            advanced = db.scalar(
+                select(PipelineStep.id)
+                .where(
+                    PipelineStep.pipeline_run_id == pipeline.id,
+                    PipelineStep.status.not_in(("PENDING", "QUEUED")),
+                )
+                .limit(1)
+            )
+        if bound is not None or delivered is not None or advanced is not None:
+            db.rollback()
+            raise PipelineCalculationContextError(
+                "PIPELINE_FROZEN_CONTEXT_REQUIRED: authority creation is limited to "
+                "a new undelivered calculation; existing delivery cannot be repaired "
+                "with a new current cutoff."
+            )
     cutoff = (clock or MarketClockService()).cutoff_for(
         cutoff_at or datetime.now(UTC), reason="FULL_PIPELINE_FROZEN_AT_ENQUEUE"
     )
@@ -152,8 +188,10 @@ def market_context_for_pipeline(db: Session, pipeline: PipelineRun) -> MarketCal
         )
     )
     if row is None:
-        # Legacy queued pipeline rows are frozen once, at their first execution.
-        return create_pipeline_market_context(db, pipeline)
+        raise PipelineCalculationContextError(
+            "PIPELINE_FROZEN_CONTEXT_REQUIRED: existing pipeline has no retained context; "
+            "start a new calculation instead of reconstructing authority at execution."
+        )
     return cutoff_from_row(row)
 
 
@@ -195,7 +233,14 @@ def resolve_pipeline_market_context(
         raise PipelineCalculationContextError(
             "Pipeline-owned operation is missing calculation_context_id."
         )
-    row = db.get(MarketCalculationContext, int(calculation_context_id))
+    from app.services.source_mutation_authority import prefetched_source_rows
+
+    prefetched = prefetched_source_rows(db, MarketCalculationContext, [int(calculation_context_id)])
+    row = (
+        prefetched[0]
+        if prefetched is not None
+        else db.get(MarketCalculationContext, int(calculation_context_id))
+    )
     if row is None:
         raise PipelineCalculationContextError(
             f"Market calculation context {calculation_context_id} was not found."
@@ -214,14 +259,25 @@ def resolve_pipeline_market_context(
             f"Market calculation context {row.id} belongs to upload run "
             f"{row.upload_run_id}, not upload run {upload_run_id}."
         )
-    pipeline = db.get(PipelineRun, row.pipeline_run_id)
+    prefetched_pipeline = prefetched_source_rows(db, PipelineRun, [row.pipeline_run_id])
+    pipeline = (
+        prefetched_pipeline[0]
+        if prefetched_pipeline is not None
+        else db.get(PipelineRun, row.pipeline_run_id)
+    )
     if pipeline is None or pipeline.upload_run_id != upload_run_id:
         raise PipelineCalculationContextError(
             f"Pipeline {row.pipeline_run_id} does not own upload run {upload_run_id}."
         )
-    authoritative_id = db.scalar(
-        select(MarketCalculationContext.id).where(
-            MarketCalculationContext.pipeline_run_id == row.pipeline_run_id
+    authoritative_id = (
+        row.id
+        if prefetched is not None
+        # pipeline_run_id is UNIQUE. The exact locked row and native owner
+        # checks above prove the same membership as the scalar lookup.
+        else db.scalar(
+            select(MarketCalculationContext.id).where(
+                MarketCalculationContext.pipeline_run_id == row.pipeline_run_id
+            )
         )
     )
     if authoritative_id != row.id:
@@ -440,14 +496,10 @@ def calculation_identity_from_market_context(
         ),
         subject=CalculationSubject(
             ticker=(
-                IdentityDimension.known(ticker.upper())
-                if ticker is not None
-                else not_applicable
+                IdentityDimension.known(ticker.upper()) if ticker is not None else not_applicable
             ),
             company_id=(
-                IdentityDimension.known(company_id)
-                if company_id is not None
-                else not_applicable
+                IdentityDimension.known(company_id) if company_id is not None else not_applicable
             ),
         ),
         calculation_context=CalculationContextIdentity(

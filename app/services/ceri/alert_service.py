@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -62,39 +63,123 @@ class CeriAlertService:
         *,
         changes: list[CeriChangeEvent],
         ticker_by_company: dict[int, str] | None = None,
+        _source_bundle=None,
     ) -> AlertRebuildResult:
         alerts = duplicates = skipped = 0
         self._ensure_rule_configuration(db)
         if not self.alerts_enabled:
             return AlertRebuildResult(alerts=0, duplicates=0, skipped=len(changes))
+        if isinstance(db, Session):
+            self._materialize_rule_addresses(db, changes)
         ticker_by_company = ticker_by_company or {}
-        referenced_snapshot_ids = {
-            int(snapshot_id)
-            for change in changes
-            for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
-            if snapshot_id is not None
-        }
-        dispositions = effective_disposition_by_snapshot(db, referenced_snapshot_ids)
-        for change in changes:
-            if any(
-                snapshot_id is not None and dispositions.get(int(snapshot_id)) == EXCLUDED
-                for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
-            ):
-                skipped += 1
-                continue
-            if not self._eligible_change(db, change):
-                skipped += 1
-                continue
-            event = self.persist_alert_for_change(
-                db,
-                change=change,
-                ticker=ticker_by_company.get(change.company_id, "UNKNOWN"),
+        source_scope = nullcontext()
+        if _source_bundle is not None:
+            from app.services.source_mutation_authority import prefetched_source_scope
+
+            rule_ids = {rule.id for rule in getattr(self, "_rule_addresses", {}).values()}
+            retained_rules = _source_bundle.load(
+                CeriAlertRule,
+                select(CeriAlertRule).where(CeriAlertRule.id.in_(rule_ids)),
             )
-            if event is None:
-                duplicates += 1
-            else:
-                alerts += 1
+            if {rule.id for rule in retained_rules} != rule_ids:
+                raise ValueError("MUTATION_CERI_ALERT_RULE_SOURCE_SET_MISMATCH")
+            _source_bundle.seal()
+            source_scope = prefetched_source_scope(db, _source_bundle)
+        try:
+            with source_scope:
+                referenced_snapshot_ids = {
+                    int(snapshot_id)
+                    for change in changes
+                    for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
+                    if snapshot_id is not None
+                }
+                dispositions = effective_disposition_by_snapshot(db, referenced_snapshot_ids)
+                self._prefetched_dispositions = dispositions
+                for change in changes:
+                    if any(
+                        snapshot_id is not None
+                        and dispositions.get(int(snapshot_id)) == EXCLUDED
+                        for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
+                    ):
+                        skipped += 1
+                        continue
+                    if not self._eligible_change(db, change):
+                        skipped += 1
+                        continue
+                    event = self.persist_alert_for_change(
+                        db,
+                        change=change,
+                        ticker=ticker_by_company.get(change.company_id, "UNKNOWN"),
+                    )
+                    if event is None:
+                        duplicates += 1
+                    else:
+                        alerts += 1
+        finally:
+            if hasattr(self, "_prefetched_dispositions"):
+                del self._prefetched_dispositions
+            if hasattr(self, "_rule_addresses"):
+                del self._rule_addresses
         return AlertRebuildResult(alerts=alerts, duplicates=duplicates, skipped=skipped)
+
+    @core_writer_member("app.services.ceri.alert_service:CeriAlertService.rebuild_alerts")
+    def _materialize_rule_addresses(
+        self,
+        db: Session,
+        changes: list[CeriChangeEvent],
+    ) -> None:
+        """Create the bounded FK address set before sealing alert sources."""
+        self._ensure_rule_configuration(db)
+        rule_types = sorted(
+            {
+                change.change_type
+                for change in changes
+                if change.change_type in {kind.value for kind in self.config.alerts.rules}
+                and self.config.alerts.rules[CeriChangeType(change.change_type)].enabled
+            }
+        )
+        if not rule_types:
+            self._rule_addresses = {}
+            return
+        if set(getattr(self, "_rule_addresses", {})) == set(rule_types):
+            return
+        existing = list(
+            db.scalars(select(CeriAlertRule).where(CeriAlertRule.rule_id.in_(rule_types)))
+        )
+        missing = set(rule_types) - {rule.rule_id for rule in existing}
+        if missing:
+            values = []
+            for rule_id in sorted(missing):
+                native = self.config.alerts.rules[CeriChangeType(rule_id)]
+                values.append(
+                    {
+                        "rule_id": rule_id,
+                        "enabled": True,
+                        "severity": native.severity,
+                        "thresholds_json": {},
+                        "scope_json": {},
+                        "cooldown_sessions": native.cooldown_sessions,
+                        "config_version": self.config.engine.config_version,
+                        "source_event_types_json": [rule_id],
+                    }
+                )
+            if db.connection().dialect.name == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert
+
+                db.execute(
+                    insert(CeriAlertRule)
+                    .values(values)
+                    .on_conflict_do_nothing(index_elements=[CeriAlertRule.rule_id])
+                )
+            else:
+                db.add_all(CeriAlertRule(**value) for value in values)
+            db.flush()
+            existing = list(
+                db.scalars(select(CeriAlertRule).where(CeriAlertRule.rule_id.in_(rule_types)))
+            )
+        self._rule_addresses = {rule.rule_id: rule for rule in existing}
+        if set(self._rule_addresses) != set(rule_types):
+            raise ValueError("MUTATION_CERI_ALERT_RULE_ADDRESS_SET_MISMATCH")
 
     def _eligible_change(self, db: Session, change: CeriChangeEvent) -> bool:
         if change.comparison_state and change.comparison_state != ComparisonState.COMPARABLE.value:
@@ -176,7 +261,12 @@ class CeriAlertService:
                     "session": cutoff.latest_completed_session,
                     "configuration": self.effective_configuration.snapshot.as_dict(),
                 },
-                job_types=("CERI_ALERT_REBUILD", "FULL_PIPELINE", "REPAIR_TICKER"),
+                job_types=(
+                    "CERI_ALERT_REBUILD",
+                    "CERI_CAPTURE_RUN",
+                    "FULL_PIPELINE",
+                    "REPAIR_TICKER",
+                ),
             )
         self._ensure_rule_configuration(db)
         rule = self._rule_for_change(db, change)
@@ -306,10 +396,12 @@ class CeriAlertService:
         rule_config = self.config.alerts.rules.get(change_type)
         if rule_config is None or not rule_config.enabled:
             return None
-        existing = _maybe_scalar(
-            db,
-            select(CeriAlertRule).where(CeriAlertRule.rule_id == change_type.value),
-        )
+        existing = getattr(self, "_rule_addresses", {}).get(change_type.value)
+        if existing is None:
+            existing = _maybe_scalar(
+                db,
+                select(CeriAlertRule).where(CeriAlertRule.rule_id == change_type.value),
+            )
         if existing is not None:
             from types import SimpleNamespace
 

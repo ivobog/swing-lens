@@ -26,6 +26,7 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.entrypoint_authority import reject_legacy_mutation
 from app.services.setup_lifecycle.config import load_setup_lifecycle_config
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
 from app.services.setup_lifecycle.purge_service import (
@@ -54,6 +55,7 @@ UPSTREAM_MODELS = (
 
 
 def main() -> int:
+    reject_legacy_mutation("historical SLSE development reconstruction")
     parser = argparse.ArgumentParser(description="Audited dev-only SLSE clean rebuild")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--database-name", required=True)

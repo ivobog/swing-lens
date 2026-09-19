@@ -39,7 +39,7 @@ from app.services.winner_probability.evidence_service import (
 
 
 class CohortMaterializationCancelled(RuntimeError):
-    pass
+    preserve_semantic_state_on_raise = True
 
 
 @dataclass(frozen=True)
@@ -265,6 +265,10 @@ class CohortMaterializationService:
         generation.metrics_json = metrics
         remaining = self._remaining_from_checkpoint(generation, ordered)
         completed_group_count = int(generation.completed_group_count or 0)
+        fresh_generation = completed_group_count == 0 and not (
+            (generation.checkpoint_json or {}).get("last_cohort_level")
+            or (generation.checkpoint_json or {}).get("last_cohort_key")
+        )
         generation.checkpoint_json = {
             **(generation.checkpoint_json or {}),
             "phase": "PLAN_GROUPS",
@@ -314,51 +318,56 @@ class CohortMaterializationService:
             manifest_members_inserted += self.manifest_service.persist_manifest_members(
                 db, manifest=manifest.manifest, evidence=evidence
             )
-            existing = db.scalar(
-                select(WinnerCohortStatistic)
-                .where(WinnerCohortStatistic.generation_id == generation_id)
-                .where(WinnerCohortStatistic.cohort_definition_id == definition.id)
+            existing = (
+                None
+                if fresh_generation
+                else db.scalar(
+                    select(WinnerCohortStatistic)
+                    .where(WinnerCohortStatistic.generation_id == generation_id)
+                    .where(WinnerCohortStatistic.cohort_definition_id == definition.id)
+                )
             )
             if existing is None:
-                db.add(
-                    WinnerCohortStatistic(
-                        generation_id=generation_id,
-                        cohort_definition_id=definition.id,
-                        outcome_definition_id=outcome_identity.id,
-                        evidence_manifest_id=manifest.manifest.id,
-                        statistic_as_of=operation_at or datetime.now(UTC),
-                        training_cutoff_at=training_cutoff_at,
-                        sample_n=statistics.sample_n,
-                        effective_n=statistics.effective_n,
-                        wins=statistics.wins,
-                        raw_rate=statistics.raw_rate,
-                        posterior_probability=statistics.posterior_probability,
-                        lower_bound=statistics.lower_bound,
-                        upper_bound=statistics.upper_bound,
-                        median_return_pct=statistics.median_return_pct,
-                        median_mfe_pct=statistics.median_mfe_pct,
-                        median_mae_pct=statistics.median_mae_pct,
-                        evidence_grade=statistics.evidence_grade,
-                        config_hash=config.config_hash,
-                        evidence_manifest_hash=manifest.manifest_hash,
-                        metadata_json={
-                            "effective_configuration_at_creation": _cohort_configuration(config),
-                            "configuration_execution_semantics": getattr(
-                                config, "_configuration_execution_semantics", "FROZEN_GENERATION"
-                            ),
-                            "mean_return_pct": _str_or_none(statistics.mean_return_pct),
-                            "target_first_rate": _str_or_none(statistics.target_first_rate),
-                            "interval_width": str(statistics.interval_width),
-                            "materialization_order": "L5_TO_L0",
-                            "cohort_level": cohort_key.level,
-                            "cohort_key": cohort_key.key,
-                        },
-                    )
+                statistic_row = WinnerCohortStatistic(
+                    generation_id=generation_id,
+                    cohort_definition_id=definition.id,
+                    outcome_definition_id=outcome_identity.id,
+                    evidence_manifest_id=manifest.manifest.id,
+                    statistic_as_of=operation_at or datetime.now(UTC),
+                    training_cutoff_at=training_cutoff_at,
+                    sample_n=statistics.sample_n,
+                    effective_n=statistics.effective_n,
+                    wins=statistics.wins,
+                    raw_rate=statistics.raw_rate,
+                    posterior_probability=statistics.posterior_probability,
+                    lower_bound=statistics.lower_bound,
+                    upper_bound=statistics.upper_bound,
+                    median_return_pct=statistics.median_return_pct,
+                    median_mfe_pct=statistics.median_mfe_pct,
+                    median_mae_pct=statistics.median_mae_pct,
+                    evidence_grade=statistics.evidence_grade,
+                    config_hash=config.config_hash,
+                    evidence_manifest_hash=manifest.manifest_hash,
+                    metadata_json={
+                        "effective_configuration_at_creation": _cohort_configuration(config),
+                        "configuration_execution_semantics": getattr(
+                            config, "_configuration_execution_semantics", "FROZEN_GENERATION"
+                        ),
+                        "mean_return_pct": _str_or_none(statistics.mean_return_pct),
+                        "target_first_rate": _str_or_none(statistics.target_first_rate),
+                        "interval_width": str(statistics.interval_width),
+                        "materialization_order": "L5_TO_L0",
+                        "cohort_level": cohort_key.level,
+                        "cohort_key": cohort_key.key,
+                    },
                 )
+                db.add(statistic_row)
             elif existing.evidence_manifest_hash != manifest.manifest_hash:
                 raise GenerationInvariantViolation(
                     "generation cohort statistic has corrupted evidence identity"
                 )
+            else:
+                statistic_row = existing
             db.flush()
             if isinstance(db, Session):
                 from app.services.winner_probability.cohort_authority import (
@@ -366,12 +375,6 @@ class CohortMaterializationService:
                     validate_statistic,
                 )
 
-                statistic_row = db.scalar(
-                    select(WinnerCohortStatistic).where(
-                        WinnerCohortStatistic.generation_id == generation_id,
-                        WinnerCohortStatistic.cohort_definition_id == definition.id,
-                    )
-                )
                 if existing is None:
                     seal_statistic(
                         db, statistic_row, evidence=evidence, config=config, statistics=statistics
@@ -379,14 +382,8 @@ class CohortMaterializationService:
                     db.flush()
                 else:
                     validate_statistic(db, statistic_row, config)
-            completed_group_count = int(
-                db.scalar(
-                    select(func.count(WinnerCohortStatistic.id)).where(
-                        WinnerCohortStatistic.generation_id == generation_id
-                    )
-                )
-                or 0
-            )
+            if existing is None:
+                completed_group_count += 1
             generation.completed_group_count = completed_group_count
             generation.checkpoint_json = {
                 "phase": "MATERIALIZE_GROUPS",
@@ -471,7 +468,7 @@ class CohortMaterializationService:
     )
     def _seal_completion(self, db, generation, config):
         from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
-        from app.services.winner_probability.cohort_authority import validate_statistic
+        from app.services.winner_probability.cohort_authority import validate_statistic_proof
 
         rows = list(
             db.scalars(
@@ -481,7 +478,7 @@ class CohortMaterializationService:
             )
         )
         for row in rows:
-            validate_statistic(db, row, config)
+            validate_statistic_proof(row, config)
         generation.metrics_json = {
             **generation.metrics_json,
             "native_generation_completion": {

@@ -123,6 +123,18 @@ def build_sector_rotation_snapshot(
     effective_configuration=None,
     expected_calculation_identity=None,
 ) -> SectorRotationSnapshotDto:
+    if persist and isinstance(db, Session):
+        from app.services.configuration_delivery import current_delivery
+        from app.services.entrypoint_authority import EntryPointAuthorityError
+
+        if market_cutoff is None or (
+            effective_configuration is None and current_delivery() is None
+        ):
+            raise EntryPointAuthorityError(
+                "SECTOR_EXPLICIT_CALCULATION_AUTHORITY_REQUIRED",
+                "Persisted Sector calculation requires an explicit cutoff and frozen "
+                "effective configuration or canonical pipeline delivery.",
+            )
     from app.services.configuration_source_values import SourcedConfigurationValues
     from app.services.contextual_effective_configuration import resolve_sector_configuration
 

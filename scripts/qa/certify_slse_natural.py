@@ -21,6 +21,7 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.entrypoint_authority import reject_legacy_mutation
 from app.services.setup_lifecycle.config import load_setup_lifecycle_config
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
 from app.services.setup_lifecycle.query_service import snapshot_payload
@@ -28,6 +29,7 @@ from app.settings import Settings
 
 
 def main() -> int:
+    reject_legacy_mutation("historical SLSE development reconstruction")
     parser = argparse.ArgumentParser(
         description="Certify SLSE against chronological preserved SwingLens source runs."
     )

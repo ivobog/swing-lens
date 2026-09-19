@@ -18,6 +18,7 @@ from app.models.tables import (
     WinnerProbabilityEstimate,
     WinnerTrainingEligibilityDecision,
 )
+from app.services.entrypoint_authority import reject_legacy_mutation
 from app.services.winner_probability.cohort_definition import (
     COHORT_BASELINE_SOURCE_VERSION,
     CohortDefinitionService,
@@ -80,6 +81,7 @@ class Pre11L5ActivationService:
     ) -> Pre11L5ActivationResult:
         if not approve_write:
             raise PermissionError("explicit approve_write=True is required")
+        reject_legacy_mutation("pre-1.1 Winner activation")
         if not actor.strip():
             raise ValueError("actor is required")
         if training_cutoff_at.tzinfo is None:
@@ -99,9 +101,7 @@ class Pre11L5ActivationService:
             training_cutoff_at=training_cutoff_at,
             config=config,
         )
-        reviewed_hash = self.reviewed_manifest_hash(
-            db, evidence=evidence, request_key=request_key
-        )
+        reviewed_hash = self.reviewed_manifest_hash(db, evidence=evidence, request_key=request_key)
         if reviewed_hash != expected_reviewed_manifest_hash:
             raise ValueError("persisted eligible-member hash differs from the reviewed set")
         statistics = self.statistics_service.calculate(evidence, config)

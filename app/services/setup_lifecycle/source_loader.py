@@ -34,7 +34,6 @@ from app.services.contextual_calculation_identity import (
     pipeline_id_for_cutoff,
 )
 from app.services.market_calculation_context_service import (
-    market_context_for_upload_run,
     standalone_market_context,
 )
 from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
@@ -117,6 +116,15 @@ class SetupLifecycleSourceLoader:
         if str(upload_run.status).upper() != "COMPLETED":
             raise ValueError(f"Upload run {run_id} is not completed.")
 
+        if isinstance(db, Session) and market_cutoff is None:
+            from app.services.entrypoint_authority import EntryPointAuthorityError
+
+            raise EntryPointAuthorityError(
+                "SETUP_EXPLICIT_CALCULATION_AUTHORITY_REQUIRED",
+                "Setup source selection requires an explicit frozen cutoff; the newest "
+                "context for an upload run cannot stand in for caller authority.",
+            )
+
         raw_statement = select(RawCompanyRow).where(RawCompanyRow.run_id == run_id)
         if tickers:
             raw_statement = raw_statement.where(
@@ -124,13 +132,9 @@ class SetupLifecycleSourceLoader:
             )
         raw_rows = tuple(db.scalars(raw_statement.order_by(RawCompanyRow.row_number)))
         tickers = tuple(row.ticker.upper() for row in raw_rows if row.ticker)
-        market_cutoff = (
-            market_cutoff
-            or market_context_for_upload_run(db, run_id)
-            or standalone_market_context(
-                reason="STANDALONE_SETUP_LIFECYCLE",
-                cutoff_at=upload_run.processed_at or upload_run.uploaded_at,
-            )
+        market_cutoff = market_cutoff or standalone_market_context(
+            reason="STANDALONE_SETUP_LIFECYCLE",
+            cutoff_at=upload_run.processed_at or upload_run.uploaded_at,
         )
         source_cutoff = market_cutoff.latest_completed_session
         price_bars = self._load_price_bars(

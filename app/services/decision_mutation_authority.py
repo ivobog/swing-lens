@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 
 from app.models.tables import PriceBar
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
@@ -174,6 +174,7 @@ def validate_setup_inputs(
         raise ValueError("MUTATION_SETUP_PIT_PRICE_AUTHORITY_REQUIRED")
     rows = []
     seen = set()
+    addresses = []
     for pin in price_manifest["bars"]:
         fields = pin["fields"]
         scope = (fields["ticker"], fields["bar_date"], fields["timeframe"], fields["what_to_show"])
@@ -181,26 +182,47 @@ def validate_setup_inputs(
             raise ValueError("MUTATION_SETUP_PRICE_SCOPE_MISMATCH")
         seen.add(scope)
         session = date.fromisoformat(fields["bar_date"])
-        row = db.scalar(
-            select(PriceBar)
-            .where(
-                PriceBar.ticker == fields["ticker"],
-                PriceBar.bar_date == session,
-                PriceBar.timeframe == fields["timeframe"],
-                PriceBar.what_to_show == fields["what_to_show"],
-            )
-            .with_for_update()
-        )
-        if row is None or session > identity.temporal.as_of_session.value:
+        if session > identity.temporal.as_of_session.value:
             raise ValueError("MUTATION_SETUP_PRICE_ADDRESS_MISSING")
-        projected = project_price_bar_rows_as_of(
-            db, [row], as_of=identity.temporal.calculation_cutoff.value
+        addresses.append((fields["ticker"], session, fields["timeframe"], fields["what_to_show"]))
+    # Retain the same exact addresses and row locks, then project all of their
+    # immutable observations at the declared cutoff in one native batch.
+    retained = (
+        list(
+            db.scalars(
+                select(PriceBar)
+                .where(
+                    tuple_(
+                        PriceBar.ticker,
+                        PriceBar.bar_date,
+                        PriceBar.timeframe,
+                        PriceBar.what_to_show,
+                    ).in_(addresses)
+                )
+                .with_for_update()
+            )
         )
-        if len(projected) != 1 or Canonical.fingerprint(
-            price_bar_immutable_evidence_manifest(projected[0])
+        if addresses
+        else []
+    )
+    projected = project_price_bar_rows_as_of(
+        db, retained, as_of=identity.temporal.calculation_cutoff.value
+    )
+    by_address = {}
+    for row in projected:
+        address = (row.ticker, row.bar_date, row.timeframe, row.what_to_show)
+        if address in by_address:
+            raise ValueError("MUTATION_SETUP_PRICE_SCOPE_MISMATCH")
+        by_address[address] = row
+    for pin, address in zip(price_manifest["bars"], addresses, strict=True):
+        row = by_address.get(address)
+        if row is None:
+            raise ValueError("MUTATION_SETUP_PRICE_ADDRESS_MISSING")
+        if Canonical.fingerprint(
+            price_bar_immutable_evidence_manifest(row)
         ) != Canonical.fingerprint(pin):
             raise ValueError("MUTATION_SETUP_PIT_PRICE_FINGERPRINT_MISMATCH")
-        rows.append(projected[0])
+        rows.append(row)
     if price_bar_immutable_evidence_set_hash(rows) != price_manifest.get("series_fingerprint"):
         raise ValueError("MUTATION_SETUP_PRICE_SET_MISMATCH")
     if not declaration_only:
@@ -372,7 +394,8 @@ def validate_setup_projection(db, snapshot):
             evidence.ticker != snapshot.ticker
             or evidence.run_id != snapshot.run_id
             or evidence.payload_json.get("timeframe") != snapshot.timeframe
-            or identity.temporal.as_of_session.value != snapshot.data_as_of_date
+            or identity.temporal.as_of_session.value
+            != (snapshot.input_as_of_session or snapshot.data_as_of_date)
             or identity.temporal.calculation_cutoff.value != snapshot.calculation_cutoff_at
         ):
             raise ValueError("MUTATION_SETUP_PROJECTION_SCOPE_MISMATCH")
@@ -1102,7 +1125,12 @@ def _alert_decision_authority(
             raise ValueError("MUTATION_ALERT_SETUP_KIND_MISMATCH")
         base = CalculationIdentity.from_canonical_payload(setup.calculation_identity_json)
         evaluation = setup
-    native_session = getattr(evaluation, "decision_session", base.temporal.as_of_session.value)
+    if isinstance(evaluation, CoreCalculationEvidence):
+        native_session = evaluation.payload_json.get("data_as_of_date")
+        if native_session is not None and not isinstance(native_session, date):
+            native_session = date.fromisoformat(str(native_session))
+    else:
+        native_session = evaluation.decision_session
     if evaluation.ticker != ticker.upper() or native_session != session:
         raise ValueError("MUTATION_ALERT_SOURCE_SCOPE_OR_TIME_MISMATCH")
     if (

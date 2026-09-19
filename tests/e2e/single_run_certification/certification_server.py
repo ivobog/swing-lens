@@ -213,6 +213,81 @@ def _install_deterministic_outcome_clock() -> None:
     # same explicit simulation clock at the normal operation-clock source.
     job_handlers._utcnow = lambda: fixed_now + timedelta(microseconds=1)
 
+    # Maturation is a new operation, whose business cutoff is frozen when it
+    # is enqueued. Advancing only worker time cannot make a C1 job observe C2.
+    # The disposable simulation must supply its future clock at admission too.
+    from app.routers import winner_probability_routes
+
+    real_enqueue = winner_probability_routes.enqueue_outcome_maturation_workflow
+
+    def enqueue_at_simulated_cutoff(db, *, payload, **kwargs):
+        return real_enqueue(
+            db,
+            payload={**payload, "operation_cutoff_at": fixed_now.isoformat()},
+            **kwargs,
+        )
+
+    winner_probability_routes.enqueue_outcome_maturation_workflow = enqueue_at_simulated_cutoff
+
+
+def _install_pipeline_profiler() -> None:
+    """Opt-in timings/SQL counts around real stages; no business replacements."""
+    if os.environ.get("CERTIFICATION_PROFILE") != "1":
+        return
+    import cProfile
+    import time
+    from collections import Counter
+    from contextlib import contextmanager
+
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    from app.services import pipeline_executor
+
+    output = Path(os.environ["CERTIFICATION_IB_LOG"]).parent
+    original_step = pipeline_executor._pipeline_step
+    active = None
+
+    def count_sql(_conn, _cursor, statement, _params, _context, _many):
+        if active is not None:
+            active[statement.lstrip().split(None, 1)[0].upper()] += 1
+
+    event.listen(Engine, "before_cursor_execute", count_sql)
+
+    @contextmanager
+    def profiled_step(*args, **kwargs):
+        nonlocal active
+        counts = Counter()
+        previous = active
+        active = counts
+        started = time.perf_counter()
+        profile = cProfile.Profile() if os.environ.get("CERTIFICATION_CPROFILE") == "1" else None
+        if profile is not None:
+            profile.enable()
+        name = kwargs.get("step_name", args[2] if len(args) > 2 else "UNKNOWN")
+        try:
+            with original_step(*args, **kwargs) as step:
+                yield step
+        finally:
+            if profile is not None:
+                profile.disable()
+                profile.dump_stats(str(output / f"pipeline-{name}.prof"))
+            active = previous
+            with (output / "pipeline-profile.jsonl").open("a", encoding="utf-8") as handle:
+                handle.write(
+                    json.dumps(
+                        {
+                            "stage": name,
+                            "seconds": time.perf_counter() - started,
+                            "sql": dict(counts),
+                            "total_sql": sum(counts.values()),
+                        }
+                    )
+                    + "\n"
+                )
+
+    pipeline_executor._pipeline_step = profiled_step
+
 
 def _install_native_configuration_profile() -> None:
     # Select an actual disposable YAML profile before app/worker imports. The
@@ -231,6 +306,7 @@ def _install_native_configuration_profile() -> None:
 _install_native_configuration_profile()
 _install_deterministic_fetch_dependency()
 _install_deterministic_outcome_clock()
+_install_pipeline_profiler()
 
 from app.main import app  # noqa: E402  (environment and dependency must be installed first)
 from app.routers import ib_gateway_admin_routes, run_routes  # noqa: E402

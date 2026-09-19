@@ -220,6 +220,7 @@ def estimate_body(estimate):
 @core_writer_member(
     (
         "app.services.winner_probability.probability_estimator:ProbabilityEstimator._create_estimate",
+        "app.services.winner_probability.probability_estimator:ProbabilityEstimator._create_candidate_decision_reconstruction",
         "app.services.winner_probability.probability_estimator:ProbabilityEstimator.create_latest_rescore_from_generation",
     )
 )

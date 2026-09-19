@@ -12,7 +12,7 @@ import argparse
 import hashlib
 import json
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -160,6 +160,7 @@ def execute(
         approve_write=approve_write,
         actor=actor,
         request_key=request_key,
+        now=datetime.now(UTC),
     )
     payload = canonicalize_manifest_value(
         {

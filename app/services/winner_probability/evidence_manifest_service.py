@@ -52,7 +52,7 @@ class EvidenceManifestService:
         )
         if existing is not None:
             if isinstance(db, Session):
-                self.validate_manifest(db, existing, payload=payload)
+                self.validate_manifest_content(existing, payload=payload)
             return EvidenceManifestResult(
                 manifest=existing,
                 manifest_hash=manifest_hash,
@@ -219,8 +219,13 @@ class EvidenceManifestService:
         from app.services.winner_probability.cohort_authority import retained_row
 
         retained_row(db, manifest)
+        return EvidenceManifestService.validate_manifest_content(manifest, payload=payload)
+
+    @staticmethod
+    def validate_manifest_content(manifest, *, payload=None):
         if (
-            _hash_payload(manifest.payload_json) != manifest.manifest_hash
+            manifest is None
+            or _hash_payload(manifest.payload_json) != manifest.manifest_hash
             or manifest.member_count != len(manifest.payload_json.get("members", []))
             or (payload is not None and payload != manifest.payload_json)
         ):

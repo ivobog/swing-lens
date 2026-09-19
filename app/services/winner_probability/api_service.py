@@ -306,19 +306,36 @@ class WinnerProbabilityApiService:
         model_id: int,
         actor: str,
         reason: str,
+        operation_at: datetime | None = None,
     ) -> dict[str, Any]:
         try:
+            authority = {}
+            if isinstance(db, Session):
+                authority = _retirement_authority(
+                    db, model_id=model_id, actor=actor, reason=reason, operation_at=operation_at
+                )
             model, event = ModelRegistry().retire_model(
                 db,
                 model_id=model_id,
                 actor=actor,
                 reason=reason,
+                **authority,
             )
         except ModelRegistryError as exc:
+            if isinstance(db, Session):
+                db.rollback()
             raise WinnerProbabilityApiError(
                 exc.code,
                 str(exc),
                 status_code=409 if exc.code == ERROR_MODEL_RETIREMENT_BLOCKED else 400,
+            ) from exc
+        except ValueError as exc:
+            if isinstance(db, Session):
+                db.rollback()
+            if not str(exc).startswith("MUTATION_"):
+                raise
+            raise WinnerProbabilityApiError(
+                str(exc).split(":", 1)[0], str(exc), status_code=409
             ) from exc
         return {"model": _model_payload(model), "lifecycle_event_id": event.id}
 
@@ -501,6 +518,75 @@ class WinnerProbabilityApiService:
                 .limit(500)
             )
         )
+
+
+def _retirement_authority(db, *, model_id, actor, reason, operation_at):
+    """Declare this new governance request against an exact retained model."""
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+    from app.services.decision_effective_configuration import resolve_winner_configuration
+    from app.services.domain_mutation import (
+        DomainMutationContext,
+        MutationDomain,
+        MutationEntryPointDescriptor,
+        MutationEvidenceReference,
+        MutationSemanticMode,
+        MutationWriterDescriptor,
+    )
+    from app.services.domain_write_fence import current_domain_write_ownership
+    from app.services.market_clock_service import MarketClockService
+    from app.services.source_mutation_authority import _source_value
+    from app.services.winner_probability.model_authority import model_body
+
+    if (
+        not isinstance(operation_at, datetime)
+        or operation_at.tzinfo is None
+        or operation_at.utcoffset() is None
+    ):
+        raise ValueError("MUTATION_WINNER_MODEL_AWARE_OPERATION_TIME_REQUIRED")
+    if not actor.strip() or not reason.strip():
+        raise ValueError("MUTATION_WINNER_MODEL_ACTOR_AND_REASON_REQUIRED")
+    with db.no_autoflush:
+        model = db.scalar(
+            select(WinnerModelVersion).where(WinnerModelVersion.id == model_id).with_for_update()
+        )
+        if model is None:
+            raise WinnerProbabilityApiError(
+                "MODEL_NOT_FOUND", "Model was not found.", status_code=404
+            )
+        _source_value(db, model)
+    effective = resolve_winner_configuration(load_winner_probability_config(), family="generation")
+    action = {
+        "action": "retire_model",
+        "actor": actor,
+        "reason": reason,
+        "model_key": model.model_key,
+        "model_id": model.id,
+        "replacement_id": None,
+        "allow_without_active_fallback": False,
+    }
+    ownership = current_domain_write_ownership()
+    context = DomainMutationContext(
+        domain=MutationDomain.WINNER_MODEL,
+        semantic_mode=MutationSemanticMode.MAINTENANCE,
+        entrypoint=MutationEntryPointDescriptor("winner-model-retirement", "APPLICATION_SERVICE"),
+        writer=MutationWriterDescriptor(
+            "ModelRegistry.retire_model", "phase5-winner-model-v1", MutationDomain.WINNER_MODEL
+        ),
+        reason=reason,
+        configuration=effective.snapshot.identity,
+        temporal=MarketClockService().cutoff_for(
+            operation_at, reason="NEW_MODEL_GOVERNANCE_OPERATION"
+        ),
+        evidence=tuple(
+            MutationEvidenceReference(
+                role, "native_manifest", Canonical.fingerprint(body), Canonical.fingerprint(body)
+            )
+            for role, body in (("model_version", model_body(model)), ("governance_action", action))
+        ),
+        execution=ownership,
+        durable=ownership is not None,
+    )
+    return {"config": effective.winner_config(), "mutation_context": context}
 
 
 def _require_model(db: Session, model_id: int) -> WinnerModelVersion:

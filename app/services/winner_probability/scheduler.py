@@ -23,7 +23,10 @@ def schedule_primary_h5_maturation(
     max_batches: int = 10,
 ) -> BackgroundJob:
     """Idempotently schedule one durable primary-H5 drain per completed US session."""
-    completed_session = latest_completed_session(now or datetime.now(UTC))
+    operation_at = now or datetime.now(UTC)
+    if operation_at.tzinfo is None or operation_at.utcoffset() is None:
+        raise ValueError("MUTATION_AWARE_OPERATION_CUTOFF_REQUIRED")
+    completed_session = latest_completed_session(operation_at)
     request_key = f"winner:h5-next-open:session:{completed_session.isoformat()}"
     session_info = getattr(db, "info", None)
     if session_info is None:
@@ -66,6 +69,8 @@ def schedule_primary_h5_maturation(
                 "entry_model": "NEXT_OPEN",
                 "horizon_sessions": 5,
                 "due_session": completed_session.isoformat(),
+                "operation_cutoff_at": operation_at.isoformat(),
+                "semantic_mode": "OUTCOME_MATURATION",
                 "limit": batch_size,
                 "max_batches": max_batches,
             },

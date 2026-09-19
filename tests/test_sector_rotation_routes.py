@@ -224,32 +224,23 @@ def test_sector_rotation_snapshot_api_returns_rows(monkeypatch) -> None:
 
 
 def test_recalculate_api_commits_and_returns_dto(monkeypatch) -> None:
-    fake_service = FakeSectorRotationService()
-    monkeypatch.setattr(sector_rotation_routes, "SectorRotationService", lambda: fake_service)
     db = RouteFakeDb()
-
-    payload = sector_rotation_routes.recalculate_run_sector_rotation_api(run_id=7, db=db)
-
-    assert payload["snapshot"]["run_id"] == 7
-    assert fake_service.calls == [{"run_id": 7, "persist": True}]
-    assert db.commits == 1
+    with pytest.raises(HTTPException) as error:
+        sector_rotation_routes.recalculate_run_sector_rotation_api(run_id=7, db=db)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
+    assert db.commits == 0
     assert db.rollbacks == 0
 
 
 def test_recalculate_api_rolls_back_value_error(monkeypatch) -> None:
-    monkeypatch.setattr(
-        sector_rotation_routes,
-        "SectorRotationService",
-        lambda: FakeSectorRotationService(error=ValueError("bad sector data")),
-    )
     db = RouteFakeDb()
-
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(HTTPException) as error:
         sector_rotation_routes.recalculate_run_sector_rotation_api(run_id=7, db=db)
-
-    assert exc.value.status_code == 400
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
     assert db.commits == 0
-    assert db.rollbacks == 1
+    assert db.rollbacks == 0
 
 
 def test_export_routes_return_attachments(monkeypatch) -> None:

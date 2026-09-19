@@ -31,7 +31,10 @@ from app.services.resource_limits import (
     limit_error_payload,
 )
 from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
-from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
+from app.services.setup_lifecycle.caller_authority import (
+    evaluate_setup_run_with_authority,
+    setup_run_cutoff,
+)
 from app.services.setup_lifecycle.export_service import (
     export_alerts_csv,
     export_changes_csv,
@@ -451,9 +454,7 @@ def export_setup_lifecycle_csv(db: DbSession) -> Response:
     payload = setup_lifecycle_changes(db=db, limit=500)
     payload = _collect_export_pages(
         payload,
-        lambda next_cursor: setup_lifecycle_changes(
-            db=db, limit=500, cursor=next_cursor
-        ),
+        lambda next_cursor: setup_lifecycle_changes(db=db, limit=500, cursor=next_cursor),
         resource="setup lifecycle changes",
     )
     return attachment_response(
@@ -468,9 +469,7 @@ def export_setup_lifecycle_json(db: DbSession) -> Response:
     payload = setup_lifecycle_changes(db=db, limit=500)
     payload = _collect_export_pages(
         payload,
-        lambda next_cursor: setup_lifecycle_changes(
-            db=db, limit=500, cursor=next_cursor
-        ),
+        lambda next_cursor: setup_lifecycle_changes(db=db, limit=500, cursor=next_cursor),
         resource="setup lifecycle changes",
     )
     return attachment_response(
@@ -712,6 +711,7 @@ def evaluate_setup_lifecycle_run(
     db: DbSession,
     request: Request,
     run_id: int | None = None,
+    pipeline_run_id: int | None = None,
     async_: Annotated[bool, Query(alias="async")] = True,
 ) -> Any:
     payload_run_id = int((run_id or 0) or request.query_params.get("run_id") or 0)
@@ -721,13 +721,19 @@ def evaluate_setup_lifecycle_run(
             detail={"code": "INVALID_CONFIGURATION", "message": "run_id is required."},
         )
     _require_run(db, payload_run_id)
+    setup_run_cutoff(db, run_id=payload_run_id, pipeline_run_id=pipeline_run_id)
     if async_:
         job = enqueue_job(
             db,
             SETUP_LIFECYCLE_EVALUATE_RUN,
-            {"run_id": payload_run_id, "requester": "api"},
+            {
+                "run_id": payload_run_id,
+                "pipeline_run_id": pipeline_run_id,
+                "requester": "api",
+                "semantic_mode": "CANONICAL_CALCULATION",
+            },
             related_run_id=payload_run_id,
-            request_key=f"setup-lifecycle:evaluate-run:{payload_run_id}",
+            request_key=f"setup-lifecycle:evaluate-run:{payload_run_id}:pipeline:{pipeline_run_id}",
         )
         db.commit()
         return JSONResponse(
@@ -739,7 +745,9 @@ def evaluate_setup_lifecycle_run(
             },
             status_code=http_status.HTTP_202_ACCEPTED,
         )
-    result = SetupLifecycleEvaluationService().evaluate_run(db, payload_run_id, requester="api")
+    result = evaluate_setup_run_with_authority(
+        db, pipeline_run_id, run_id=payload_run_id, requester="api"
+    )
     db.commit()
     return result.as_dict()
 
@@ -762,6 +770,12 @@ def queue_setup_lifecycle_evaluation(
     as_of_date: date | None = None,
 ) -> JSONResponse:
     normalized_scope = scope.strip().upper()
+    if normalized_scope == "RUN":
+        from app.services.entrypoint_authority import reject_unbound_standalone
+
+        reject_unbound_standalone(
+            "Setup RUN evaluation; use the explicit pipeline continuation endpoint"
+        )
     if normalized_scope not in EVALUATION_SCOPES:
         raise HTTPException(
             status_code=400,
@@ -1080,9 +1094,7 @@ def export_setup_lifecycle_changes_csv(
         direction=direction,
         limit=500,
     )
-    export_params = {
-        key: value for key, value in locals().items() if key not in {"db", "payload"}
-    }
+    export_params = {key: value for key, value in locals().items() if key not in {"db", "payload"}}
     payload = _collect_export_pages(
         payload,
         lambda next_cursor: setup_lifecycle_changes(
@@ -1169,9 +1181,7 @@ def export_setup_lifecycle_changes_json(
         direction=direction,
         limit=500,
     )
-    export_params = {
-        key: value for key, value in locals().items() if key not in {"db", "payload"}
-    }
+    export_params = {key: value for key, value in locals().items() if key not in {"db", "payload"}}
     payload = _collect_export_pages(
         payload,
         lambda next_cursor: setup_lifecycle_changes(
@@ -1220,9 +1230,7 @@ def export_setup_lifecycle_alerts_csv(
         direction=direction,
         limit=500,
     )
-    export_params = {
-        key: value for key, value in locals().items() if key not in {"db", "payload"}
-    }
+    export_params = {key: value for key, value in locals().items() if key not in {"db", "payload"}}
     payload = _collect_export_pages(
         payload,
         lambda next_cursor: setup_lifecycle_alerts(
@@ -1271,9 +1279,7 @@ def export_setup_lifecycle_alerts_json(
         direction=direction,
         limit=500,
     )
-    export_params = {
-        key: value for key, value in locals().items() if key not in {"db", "payload"}
-    }
+    export_params = {key: value for key, value in locals().items() if key not in {"db", "payload"}}
     payload = _collect_export_pages(
         payload,
         lambda next_cursor: setup_lifecycle_alerts(
@@ -1505,9 +1511,7 @@ def _changes_template_context(
         "filters": filters,
         "diagnostics": diagnostics,
         "summary": summary,
-        "quick_filters": _quick_filters(
-            filters.get("quick_filter", ""), base_path=base_path
-        ),
+        "quick_filters": _quick_filters(filters.get("quick_filter", ""), base_path=base_path),
         "state_tones": _STATE_TONES,
         "actionability_tones": _ACTIONABILITY_TONES,
         "confidence_tones": _CONFIDENCE_TONES,

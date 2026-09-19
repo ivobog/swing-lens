@@ -301,7 +301,8 @@ DOMAIN_OWNERS = {
     "CONFIGURATION": "app/services/configuration_delivery.py:persist_configuration_anchor",
     "PIPELINE": "app/services/pipeline_service.py:start_pipeline",
     "WINNER_ESTIMATE": (
-        "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._create_estimate"
+        "app/services/winner_probability/probability_estimator.py:"
+        "ProbabilityEstimator._create_estimate"
     ),
     "FUNDAMENTAL": "app/services/fundamental_score_service.py:recalculate_run_fundamentals",
     "TECHNICAL": "app/services/technical_score_service.py:finalize_technical_scores",

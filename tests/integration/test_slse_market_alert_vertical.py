@@ -14,9 +14,12 @@ from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    CoreCalculationEvidence,
     SetupLifecycleEpisode,
+    SetupLifecycleEvaluationEvidence,
     SetupLifecycleEvaluationRun,
     SetupLifecycleEvent,
+    SetupLifecycleTransitionEvidence,
     SetupSignalSnapshot,
     SetupSignalSnapshotCurrentSelection,
     SignalAlertEvent,
@@ -24,6 +27,9 @@ from app.models.tables import (
     SignalChangeEvent,
     UploadRun,
 )
+from app.services.calculation_identity import CalculationIdentity
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.core_calculation_evidence import calculation_evidence_payload
 from app.services.setup_lifecycle.export_service import export_alerts_csv, export_changes_csv
 from app.services.setup_lifecycle.query_service import (
     SetupLifecycleFilters,
@@ -166,6 +172,9 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
         )
         db.add_all([lifecycle, change])
         db.flush()
+        _retain_legacy_setup_snapshot(db, previous)
+        _retain_legacy_setup_snapshot(db, current)
+        _retain_legacy_lifecycle_event(db, current, lifecycle)
         trigger_rule = _rule("NEW_TRIGGER", "ACTIONABLE", "lifecycle_transition")
         score_rule = _rule("SCORE_ACCELERATION", "NOTABLE", "signal_change")
         db.add_all([trigger_rule, score_rule])
@@ -403,6 +412,8 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
             )
             db.add_all([historical_lifecycle, historical_change])
             db.flush()
+            _retain_legacy_setup_snapshot(db, snapshot)
+            _retain_legacy_lifecycle_event(db, snapshot, historical_lifecycle)
             historical_keys.update(
                 {
                     ("LIFECYCLE_EVENT", historical_lifecycle.id),
@@ -455,6 +466,94 @@ def test_combined_changes_alert_dtos_full_scope_counts_and_exports_use_postgres(
                 assert page_count == 4
                 assert len(observed) == len(set(observed)) == 52
                 assert set(observed) == historical_keys
+
+
+def _retain_legacy_setup_snapshot(db: Session, snapshot: SetupSignalSnapshot) -> None:
+    """Declare retained reader-only history; this is not live writer certification."""
+
+    identity = CalculationIdentity.legacy_unknown(
+        run_id=snapshot.run_id,
+        ticker=snapshot.ticker,
+    )
+    payload = Canonical.canonicalize(calculation_evidence_payload(snapshot))
+    payload["_test_fixture_semantics"] = "RETAINED_PRE_PHASE5_READER_ONLY"
+    fingerprint = Canonical.fingerprint(payload)
+    evidence = CoreCalculationEvidence(
+        artifact_kind="SETUP",
+        run_id=snapshot.run_id,
+        ticker=snapshot.ticker,
+        calculation_identity_fingerprint=str(identity.fingerprint()),
+        calculation_identity_json=identity.canonical_payload(),
+        payload_json=payload,
+        payload_fingerprint=fingerprint,
+        source_evidence_ids_json={},
+        evidence_key=Canonical.fingerprint(
+            {"fixture": "slse-market-alert", "snapshot": snapshot.id, "payload": fingerprint}
+        ),
+        calculated_at=snapshot.calculated_at,
+    )
+    db.add(evidence)
+    db.flush()
+    snapshot.evidence_id = evidence.id
+
+
+def _retain_legacy_lifecycle_event(
+    db: Session,
+    snapshot: SetupSignalSnapshot,
+    event: SetupLifecycleEvent,
+) -> None:
+    payload = Canonical.canonicalize(calculation_evidence_payload(event))
+    payload["_test_fixture_semantics"] = "RETAINED_PRE_PHASE5_READER_ONLY"
+    fingerprint = Canonical.fingerprint(payload)
+    evaluation = SetupLifecycleEvaluationEvidence(
+        setup_evidence_id=snapshot.evidence_id,
+        evaluation_run_id=event.evaluation_run_id,
+        ticker=event.ticker,
+        timeframe=event.timeframe,
+        setup_family=event.setup_family,
+        decision_session=event.effective_date,
+        calculation_cutoff_at=snapshot.calculated_at,
+        calendar_version="swinglens-us-equities-v1",
+        calculation_identity_fingerprint="a" * 64,
+        execution_mode="RETAINED_FIXTURE",
+        previous_state=event.from_state,
+        output_state=event.to_state,
+        output_phase=event.to_phase,
+        transition_eligible=True,
+        engine_version=event.engine_version,
+        config_version=event.config_version,
+        config_hash=event.config_hash,
+        payload_json=payload,
+        payload_fingerprint=fingerprint,
+        evidence_key=Canonical.fingerprint(
+            {"fixture": "slse-market-alert-evaluation", "event": event.id}
+        ),
+    )
+    db.add(evaluation)
+    db.flush()
+    transition = SetupLifecycleTransitionEvidence(
+        evaluation_evidence_id=evaluation.id,
+        setup_evidence_id=snapshot.evidence_id,
+        ticker=event.ticker,
+        timeframe=event.timeframe,
+        setup_family=event.setup_family,
+        effective_session=event.effective_date,
+        event_type=event.event_type,
+        from_state=event.from_state,
+        to_state=event.to_state,
+        from_phase=event.from_phase,
+        to_phase=event.to_phase,
+        config_hash=event.config_hash,
+        reasons_json=list(event.reason_codes_json),
+        payload_json=payload,
+        payload_fingerprint=fingerprint,
+        evidence_key=Canonical.fingerprint(
+            {"fixture": "slse-market-alert-transition", "event": event.id}
+        ),
+    )
+    db.add(transition)
+    db.flush()
+    event.transition_evidence_id = transition.id
 
 
 def _snapshot(

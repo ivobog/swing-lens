@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    BackgroundJob,
     EffectiveConfigurationRecord,
     ExecutionConfigurationAnchor,
     ExecutionConfigurationBinding,
@@ -46,26 +47,64 @@ def current_delivery():
 def anchored_job_configuration(calculation):
     """Also preserve authority when a native handler is invoked directly.
 
-    Unanchored direct legacy APIs are current-rules entry points; the durable
-    worker independently rejects unanchored business jobs before invoking them.
+    Direct calls with a real Session are durable delivery too. They cannot turn
+    missing retained job authority into a new operation under current rules.
     """
 
     @wraps(calculation)
     def execute(db, job, *args, **kwargs):
         reference = (job.payload_json or {}).get(ANCHOR_KEY)
-        if not isinstance(db, Session) or reference is None:
+        if not isinstance(db, Session):
             return calculation(db, job, *args, **kwargs)
-        expected = binding_reference(db, job_id=job.id)
-        if reference != expected:
-            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
-        current = current_delivery()
-        if current is not None:
-            if current.anchor != expected:
-                raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
-            return calculation(db, job, *args, **kwargs)
-        delivery = load_configuration_delivery(db, reference, expected_anchor=expected)
-        with configuration_delivery_scope(delivery):
-            return calculation(db, job, *args, **kwargs)
+        from app.observability.correlation import worker_job_scope
+        from app.services.domain_write_fence import (
+            assert_current_execution_ownership,
+            fence_domain_commits,
+        )
+
+        try:
+            if reference is None:
+                raise ValueError("MISSING_CONFIGURATION_ANCHOR")
+            token = getattr(job, "execution_token", None)
+            if not getattr(job, "id", None) or not token:
+                raise ValueError("MUTATION_DURABLE_EXECUTION_AUTHORITY_REQUIRED")
+            assert_current_execution_ownership(db, job_id=job.id, execution_token=token)
+            with db.no_autoflush:
+                retained = db.execute(
+                    select(
+                        BackgroundJob.job_type,
+                        BackgroundJob.payload_json,
+                        BackgroundJob.related_run_id,
+                    ).where(BackgroundJob.id == job.id)
+                ).one()
+            if (
+                retained.job_type != job.job_type
+                or retained.payload_json != job.payload_json
+                or retained.related_run_id != job.related_run_id
+            ):
+                raise ValueError("MUTATION_DURABLE_RETAINED_SCOPE_MISMATCH")
+            with (
+                fence_domain_commits(job_id=job.id, execution_token=token),
+                worker_job_scope(job),
+            ):
+                expected = binding_reference(db, job_id=job.id)
+                if reference != expected:
+                    raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+                current = current_delivery()
+                if current is not None:
+                    if current.anchor != expected:
+                        raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+                    return calculation(db, job, *args, **kwargs)
+                delivery = load_configuration_delivery(db, reference, expected_anchor=expected)
+                with configuration_delivery_scope(delivery):
+                    return calculation(db, job, *args, **kwargs)
+        except Exception as exc:
+            from app.services.background_worker import JobDeferred
+
+            if isinstance(exc, JobDeferred):
+                raise
+            db.rollback()
+            raise
 
     return execute
 
@@ -159,7 +198,7 @@ def validate_anchor(anchor):
         raise ValueError("CONFIGURATION_ANCHOR_INTEGRITY_MISMATCH")
 
 
-def load_configuration_delivery(db, anchor, *, expected_anchor=None):
+def load_configuration_delivery(db, anchor, *, expected_anchor=None, resolution_hash=None):
     if expected_anchor is not None and anchor != expected_anchor:
         raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
     reference = anchor
@@ -173,13 +212,28 @@ def load_configuration_delivery(db, anchor, *, expected_anchor=None):
     if anchor["integrity"] != retained.anchor_id:
         raise ValueError("CONFIGURATION_ANCHOR_INTEGRITY_MISMATCH")
     references = anchor["configurations"]
-    rows = db.scalars(
-        select(EffectiveConfigurationRecord).where(
-            EffectiveConfigurationRecord.resolution_hash.in_(
-                {ref["record"] for ref in references.values()}
+    if resolution_hash is not None:
+        # A semantic writer consumes one exact configuration. Initial durable
+        # admission still validates the complete anchor; revalidation must not
+        # decode every unrelated domain for each company. Select by retained
+        # record identity, never by current configuration or a namespace guess.
+        references = {
+            namespace: ref
+            for namespace, ref in references.items()
+            if ref["record"] == resolution_hash
+        }
+        if not references:
+            raise ValueError("MUTATION_RETAINED_CONFIGURATION_MISMATCH")
+    from app.services.source_mutation_authority import prefetched_source_rows
+
+    record_ids = {ref["record"] for ref in references.values()}
+    rows = prefetched_source_rows(db, EffectiveConfigurationRecord, record_ids)
+    if rows is None:
+        rows = db.scalars(
+            select(EffectiveConfigurationRecord).where(
+                EffectiveConfigurationRecord.resolution_hash.in_(record_ids)
             )
-        )
-    ).all()
+        ).all()
     by_hash = {row.resolution_hash: row for row in rows}
     configs = {}
     for namespace, ref in references.items():
@@ -214,10 +268,16 @@ def binding_reference(db, *, job_id=None, pipeline_run_id=None, winner_cohort_ge
         key = "winner-generation:" + str(winner_cohort_generation_id)
     else:
         key = "job:" + str(job_id) if job_id is not None else "pipeline:" + str(pipeline_run_id)
-    binding = db.get(ExecutionConfigurationBinding, key)
+    from app.services.source_mutation_authority import prefetched_source_rows
+
+    rows = prefetched_source_rows(db, ExecutionConfigurationBinding, [key])
+    binding = rows[0] if rows is not None else db.get(ExecutionConfigurationBinding, key)
     if binding is None:
         raise ValueError("MISSING_CONFIGURATION_ANCHOR_BINDING")
-    anchor = db.get(ExecutionConfigurationAnchor, binding.anchor_id)
+    rows = prefetched_source_rows(db, ExecutionConfigurationAnchor, [binding.anchor_id])
+    anchor = (
+        rows[0] if rows is not None else db.get(ExecutionConfigurationAnchor, binding.anchor_id)
+    )
     if (
         anchor is None
         or binding.job_id != job_id
@@ -602,7 +662,7 @@ def durable_business_job(job_type):
     return (
         job_type == "FULL_PIPELINE"
         or job_type.startswith(("SETUP_", "WINNER_", "CERI_", "IB_INTELLIGENCE_"))
-        or job_type == "IB_HISTOGRAM_FETCH"
+        or job_type in {"IB_HISTOGRAM_FETCH", "IB_FLEX_IMPORT"}
     )
 
 
@@ -612,6 +672,34 @@ def anchor_enqueue_payload(db, job_type, payload, *, parent_job_id=None):
     if not durable_business_job(job_type) and not helper:
         return payload
     from app.models.tables import BackgroundJob
+
+    operation_modes = {
+        "CERI_CAPTURE_RUN": "CANONICAL_CALCULATION",
+        "WINNER_OUTCOME_MATURATION": "OUTCOME_MATURATION",
+        "WINNER_OUTCOME_REVISION_CHECK": "OUTCOME_MATURATION",
+        "WINNER_COHORT_REFRESH": "CURRENT_RULES_RETROSPECTIVE",
+        "WINNER_LATEST_RESCORE": "CURRENT_RULES_RETROSPECTIVE",
+    }
+    if job_type in operation_modes:
+        from datetime import UTC, datetime
+
+        inherited_cutoff = None
+        if parent_job_id is not None:
+            parent_operation = db.get(BackgroundJob, parent_job_id)
+            if parent_operation is None:
+                raise ValueError("MISSING_CONFIGURATION_ANCHOR_PARENT")
+            inherited_cutoff = (parent_operation.payload_json or {}).get("operation_cutoff_at")
+        supplied_cutoff = payload.get("operation_cutoff_at")
+        if inherited_cutoff is not None and supplied_cutoff not in {None, inherited_cutoff}:
+            raise ValueError("MUTATION_CHILD_OPERATION_CUTOFF_MISMATCH")
+        cutoff = inherited_cutoff or supplied_cutoff or datetime.now(UTC).isoformat()
+        parsed = datetime.fromisoformat(str(cutoff))
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("MUTATION_AWARE_OPERATION_CUTOFF_REQUIRED")
+        mode = operation_modes[job_type]
+        if payload.get("semantic_mode", mode) != mode:
+            raise ValueError("MUTATION_JOB_SEMANTIC_MODE_MISMATCH")
+        payload = {**payload, "operation_cutoff_at": cutoff, "semantic_mode": mode}
 
     delivery = current_delivery()
     expected = delivery.anchor if delivery is not None else None

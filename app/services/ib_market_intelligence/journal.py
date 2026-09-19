@@ -28,9 +28,48 @@ from app.models.tables import (
 )
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.ceri.evidence_eligibility import eligible_snapshot_select
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.entrypoint_authority import EntryPointAuthorityError
+from app.services.source_mutation_authority import source_mutation_writer
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 
 ZERO = Decimal("0")
+
+
+@source_mutation_writer(
+    MutationDomain.TRADE_JOURNAL, "execution_source", mode=MutationSemanticMode.MAINTENANCE
+)
+def exclude_execution_fill(
+    db: Session, *, fill: IBExecutionFill, excluded: bool, reason: str | None
+):
+    """Change journal selection flags while retaining original broker observations."""
+    if excluded and not (reason or "").strip():
+        raise EntryPointAuthorityError(
+            "TRADE_JOURNAL_EXCLUSION_REASON_REQUIRED", "Excluding a fill requires a reason."
+        )
+    db.execute(select(IBExecutionFill.id).where(IBExecutionFill.id == fill.id).with_for_update())
+    from app.services.source_mutation_authority import _source_value
+
+    _source_value(db, fill)
+    fill.is_excluded = excluded
+    fill.exclusion_reason = reason if excluded else None
+    affected = 0
+    for episode in db.scalars(select(IBTradeEpisode).with_for_update()):
+        if fill.id in (episode.fill_ids_json or []):
+            episode.is_excluded = excluded or bool(
+                db.scalar(
+                    select(IBExecutionFill.id)
+                    .where(
+                        IBExecutionFill.id.in_(episode.fill_ids_json),
+                        IBExecutionFill.id != fill.id,
+                        IBExecutionFill.is_excluded.is_(True),
+                    )
+                    .limit(1)
+                )
+            )
+            affected += 1
+    db.flush()
+    return affected
 
 
 @dataclass
@@ -53,22 +92,37 @@ class EpisodeDraft:
     closed_at: datetime | None = None
 
 
-def rebuild_trade_episodes(db: Session) -> list[IBTradeEpisode]:
-    fills = db.scalars(
-        select(IBExecutionFill)
-        .where(IBExecutionFill.is_superseded.is_(False))
-        .where(IBExecutionFill.is_excluded.is_(False))
-        .order_by(
-            IBExecutionFill.account_hash.asc().nullsfirst(),
-            IBExecutionFill.symbol,
-            IBExecutionFill.execution_time,
-            IBExecutionFill.id,
-        )
-    ).all()
+@source_mutation_writer(
+    MutationDomain.TRADE_JOURNAL, "execution_source", mode=MutationSemanticMode.MAINTENANCE
+)
+def rebuild_trade_episodes(
+    db: Session,
+    *,
+    fills: list[IBExecutionFill],
+    operation_at: datetime,
+    episode_policy: str,
+) -> list[IBTradeEpisode]:
+    """Rebuild mutable journal state from an explicitly captured fill population."""
+    if (
+        not isinstance(operation_at, datetime)
+        or operation_at.tzinfo is None
+        or operation_at.utcoffset() is None
+    ):
+        raise ValueError("TRADE_EPISODE_AWARE_OPERATION_TIME_REQUIRED")
+    if episode_policy != "FIFO_POSITION_V1":
+        raise ValueError("TRADE_EPISODE_POLICY_UNSUPPORTED")
+    if len({fill.id for fill in fills}) != len(fills):
+        raise ValueError("TRADE_EPISODE_DUPLICATE_FILL")
+    if any(
+        fill.id is None
+        or fill.is_superseded
+        or fill.is_excluded
+        or fill.execution_time > operation_at
+        for fill in fills
+    ):
+        raise ValueError("TRADE_EPISODE_ACTIVE_FILL_AUTHORITY_REQUIRED")
     drafts = construct_trade_episodes(fills)
-    existing_rows = {
-        row.episode_key: row for row in db.scalars(select(IBTradeEpisode)).all()
-    }
+    existing_rows = {row.episode_key: row for row in db.scalars(select(IBTradeEpisode)).all()}
     active_keys: set[str] = set()
     persisted: list[IBTradeEpisode] = []
     for draft in drafts:
@@ -136,13 +190,20 @@ def construct_trade_episodes(fills: list[IBExecutionFill]) -> list[EpisodeDraft]
     return sorted(completed, key=lambda item: (item.opened_at, item.ticker))
 
 
+@source_mutation_writer(
+    MutationDomain.TRADE_JOURNAL, "execution_source", mode=MutationSemanticMode.MAINTENANCE
+)
 def match_episode_to_research(
     db: Session,
     episode: IBTradeEpisode,
     *,
-    lookback_sessions: int = 5,
-    policy: str = "latest-completed-before-entry-v1",
+    lookback_sessions: int,
+    policy: str,
 ) -> IBTradeResearchLink:
+    # Diagnostic association under explicitly supplied current matching rules.
+    # This link never reconstructs original Calculation Identity or readiness.
+    if lookback_sessions < 1 or policy != "latest-completed-before-entry-v1":
+        raise ValueError("TRADE_RESEARCH_MATCHING_POLICY_UNSUPPORTED")
     cutoff = episode.opened_at
     earliest = cutoff - timedelta(days=max(lookback_sessions * 2, 7))
     candidates = db.execute(
@@ -208,9 +269,7 @@ def match_episode_to_research(
         ]
         if existing is None:
             db.add(link)
-        publish_after_commit(
-            db, "increment", "swinglens_ibmi_ambiguous_research_links_total"
-        )
+        publish_after_commit(db, "increment", "swinglens_ibmi_ambiguous_research_links_total")
         db.flush()
         return link
     run, combined, technical, fundamental = candidates[0]
@@ -223,9 +282,7 @@ def match_episode_to_research(
     )
     winner_estimate = None
     if winner is not None:
-        winner_estimate = _serving_winner_estimate(
-            db, prediction_id=winner.id, cutoff=cutoff
-        )
+        winner_estimate = _serving_winner_estimate(db, prediction_id=winner.id, cutoff=cutoff)
     setup = db.scalar(
         select(SetupSignalSnapshot)
         .where(SetupSignalSnapshot.run_id == run.id)
@@ -275,6 +332,8 @@ def match_episode_to_research(
                 / decision_reference
             )
     context: dict[str, Any] = {
+        "semantic_mode": "CURRENT_RULES_RETROSPECTIVE",
+        "certified_calculation_authority": False,
         "final_score": _string(combined.final_score),
         "combined_decision": combined.combined_decision,
         "fundamental_score": _string(fundamental.fundamental_score) if fundamental else None,
@@ -289,11 +348,7 @@ def match_episode_to_research(
         else None,
         "winner_evidence_grade": winner_estimate.evidence_grade if winner_estimate else None,
         "ranking_profile": (
-            winner.ranking_profile
-            if winner
-            else ranking.ranking_profile
-            if ranking
-            else None
+            winner.ranking_profile if winner else ranking.ranking_profile if ranking else None
         ),
         "ranking_profile_score": _string(ranking.profile_score) if ranking else None,
         "ranking_profile_rank": ranking.profile_rank if ranking else None,

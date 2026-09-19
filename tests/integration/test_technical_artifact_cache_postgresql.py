@@ -11,7 +11,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.models.tables import TechnicalFeatureArtifact, TechnicalScore, UploadRun
-from app.services import technical_score_service
 from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.operational_metrics import operational_metrics
 from app.services.technical_artifact_cache import (
@@ -103,40 +102,62 @@ def test_only_shadow_certified_artifacts_can_be_active_hits(
         assert artifact.last_shadow_mismatch_json["run_id"] == 8
         assert get_local_artifact(db, key, usage="active") is None
 
-    assert operational_metrics.total(
-        "swinglens_technical_artifact_cache_total", result="hit"
-    ) == 1
+    assert operational_metrics.total("swinglens_technical_artifact_cache_total", result="hit") == 1
     engine.dispose()
 
 
 def test_overlap_workers_publish_final_scores_only_in_parent_postgresql_session(
     disposable_postgres_database: str,
-    monkeypatch,
 ) -> None:
+    from native_mutation_support import bound_pipeline, seed_price_frame
+
+    from app.services.core_effective_configuration import resolve_technical_configuration
+    from app.services.technical_indicators import load_pine_defaults
+    from app.services.technical_scoring_config import load_technical_scoring_v4_config
+    from app.services.technical_scoring_v5_config import load_technical_scoring_v5_config
+
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     frame = _synthetic_frame()
-    monkeypatch.setattr(
-        technical_score_service,
-        "load_preferred_ohlcv_frames",
-        lambda _db, _ticker: (frame, frame),
-    )
     with Session(engine) as db:
         run = UploadRun(filename="phase8-overlap.csv", row_count=2, status="COMPLETED")
         db.add(run)
         db.commit()
         run_id = run.id
+        settings = Settings(
+            _env_file=None,
+            technical_process_pool_enabled=True,
+            technical_worker_processes=1,
+            technical_max_in_flight=2,
+        )
+        configuration = resolve_technical_configuration(
+            pine=load_pine_defaults(),
+            v4=load_technical_scoring_v4_config(),
+            v5=load_technical_scoring_v5_config(),
+            settings=settings,
+        )
+        market_cutoff, pipeline_run_id = bound_pipeline(
+            db,
+            run_id,
+            (configuration,),
+            cutoff_at=datetime(2026, 9, 16, 21, tzinfo=UTC),
+        )
+        frame["date"] = pd.bdate_range(
+            end=market_cutoff.latest_completed_session,
+            periods=len(frame),
+        )
+        for ticker in ("AAA", "BBB", "SPY", "QQQ", "XLK"):
+            seed_price_frame(db, ticker, frame, market_cutoff.cutoff_at)
+        db.commit()
 
         coordinator = TechnicalScoringOverlapCoordinator(
             db,
             run_id=run_id,
             tickers=["BBB", "AAA"],
-            settings=Settings(
-                _env_file=None,
-                technical_process_pool_enabled=True,
-                technical_worker_processes=1,
-                technical_max_in_flight=2,
-            ),
+            settings=settings,
+            market_cutoff=market_cutoff,
+            pipeline_run_id=pipeline_run_id,
+            effective_configuration=configuration,
         )
         coordinator.on_ticker_ready(_ready_event("AAA"))
         coordinator.on_ticker_ready(_ready_event("BBB"))

@@ -19,8 +19,8 @@ from app.models.tables import (
 from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.core_calculation_evidence import EvidenceUnavailableError
+from app.services.entrypoint_authority import EntryPointAuthorityError, reject_unbound_standalone
 from app.services.historical_read_service import ReadMode, evidence_view
-from app.services.redaction import redact_text
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.sector_rotation_export_service import (
     export_sector_rotation_csv,
@@ -29,7 +29,6 @@ from app.services.sector_rotation_export_service import (
     snapshot_to_payload,
 )
 from app.services.sector_rotation_repository import SectorRotationRepository
-from app.services.sector_rotation_service import SectorRotationService
 from app.services.sector_taxonomy import (
     SectorNormalizationResult,
     normalize_sector_result,
@@ -102,19 +101,9 @@ def api_sector_rotation_evidence(evidence_id: int, db: DbSession) -> dict:
 def recalculate_run_sector_rotation_api(run_id: int, db: DbSession) -> dict:
     _require_run(db, run_id)
     try:
-        dto = SectorRotationService().build_sector_rotation_snapshot(
-            db,
-            run_id=run_id,
-            persist=True,
-        )
-        db.commit()
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=redact_text(str(exc))) from exc
-    except Exception:
-        db.rollback()
-        raise
-    return snapshot_to_payload(dto)
+        reject_unbound_standalone("Sector")
+    except EntryPointAuthorityError as exc:
+        raise HTTPException(status_code=409, detail=exc.to_dict()) from exc
 
 
 @router.get("/runs/{run_id}/sector-rotation/export.csv")
@@ -175,22 +164,9 @@ def sector_rotation_drilldown(
 
 
 def _run_payload_or_calculate(db: Session, run_id: int) -> dict:
-    repo = SectorRotationRepository()
-    snapshot = repo.latest_for_run(db, run_id)
-    if snapshot is not None:
-        return snapshot_to_payload(snapshot, repo.get_snapshot_rows(db, snapshot.id))
-
-    try:
-        dto = SectorRotationService().build_sector_rotation_snapshot(
-            db,
-            run_id=run_id,
-            persist=True,
-        )
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    return snapshot_to_payload(dto)
+    """Read-only: missing snapshots require a new Full Pipeline calculation."""
+    snapshot, rows = _run_snapshot_and_rows_or_404(db, run_id)
+    return snapshot_to_payload(snapshot, rows)
 
 
 def _run_snapshot_and_rows_or_404(

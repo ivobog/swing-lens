@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from threading import Barrier
@@ -49,6 +50,28 @@ from app.services.background_job_service import (
     recover_stale_jobs,
 )
 from app.services.background_worker import JobDeferred
+from app.services.bar_cache_service import cache_bars
+from app.services.calculation_identity import (
+    AlgorithmIdentity,
+    CalculationContextIdentity,
+    CalculationIdentity,
+    CalculationOwnership,
+    CalculationSubject,
+    CalendarIdentity,
+    ConfigurationIdentity,
+    GenerationIdentity,
+    IdentityDimension,
+    TemporalIdentity,
+    VersionIdentity,
+)
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.combined_ranking_identity import embed_calculation_identity
+from app.services.decision_effective_configuration import (
+    resolve_winner_configuration,
+    winner_outcome_reference_configuration,
+)
+from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+from app.services.ib_data_fetcher import HistoricalBar
 from app.services.ib_market_intelligence.journal import _serving_winner_estimate
 from app.services.winner_probability.api_service import WinnerProbabilityApiService
 from app.services.winner_probability.cohort_generation_service import (
@@ -63,7 +86,10 @@ from app.services.winner_probability.cohort_materialization_service import (
     CohortMaterializationService,
 )
 from app.services.winner_probability.cohort_refresh_planner import CohortRefreshPlanner
-from app.services.winner_probability.config import load_winner_probability_config
+from app.services.winner_probability.config import (
+    load_winner_probability_config,
+    winner_probability_config_hash,
+)
 from app.services.winner_probability.dtos import WinnerProbabilityApiQuery
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 from app.services.winner_probability.estimate_publication_service import (
@@ -79,14 +105,38 @@ from app.services.winner_probability.job_handlers import (
     execute_latest_rescore_job,
     execute_outcome_maturation_job,
 )
+from app.services.winner_probability.outcome_authority import outcome_body
 from app.services.winner_probability.outcome_orchestration_service import (
     H5DrainResult,
 )
-from app.services.winner_probability.outcome_service import WinnerOutcomeRepository
+from app.services.winner_probability.outcome_service import (
+    OutcomeMaturationService,
+    WinnerOutcomeRepository,
+)
+from app.services.winner_probability.prediction_authority import seal_capture
 from app.services.winner_probability.probability_estimator import ProbabilityEstimator
 from app.services.winner_probability.reproduction_service import ReproductionService
 from app.services.winner_probability.scheduler import schedule_primary_h5_maturation
 from app.settings import Settings
+
+
+@pytest.fixture(autouse=True)
+def _enable_winner_operation_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _enabled_winner_config()
+    monkeypatch.setattr(
+        "app.services.winner_probability.config.load_winner_probability_config",
+        lambda: config,
+    )
+    monkeypatch.setattr(
+        "app.services.winner_probability.job_handlers.load_winner_probability_config",
+        lambda: config,
+    )
+
+
+def _enabled_winner_config():
+    config = load_winner_probability_config()
+    config = replace(config, engine=replace(config.engine, enabled=True), config_hash="")
+    return replace(config, config_hash=winner_probability_config_hash(config))
 
 
 def test_estimate_lifecycle_is_persisted_and_candidates_are_not_serving(
@@ -94,8 +144,8 @@ def test_estimate_lifecycle_is_persisted_and_candidates_are_not_serving(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    observed = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
-    config = load_winner_probability_config()
+    observed = datetime(2026, 10, 6, 12, 0, tzinfo=UTC)
+    config = _enabled_winner_config()
     with Session(engine) as db:
         definition = _seed_material_evidence(db, observed=observed)
         prediction = db.scalar(select(WinnerPredictionSnapshot))
@@ -106,10 +156,23 @@ def test_estimate_lifecycle_is_persisted_and_candidates_are_not_serving(
             db,
             state=advance.state,
             contract=contract_for(definition, config),
-            requested_at=observed,
+            requested_at=observed + timedelta(microseconds=1),
+            config=config,
         )
-        ready_generation.status = CohortGenerationStatus.READY
-        ready_generation.ready_at = observed
+        db.commit()
+        prediction = db.get(WinnerPredictionSnapshot, prediction.id)
+        definition = db.get(WinnerOutcomeDefinition, definition.id)
+        ready_generation = db.get(WinnerCohortGeneration, ready_generation.id)
+        CohortMaterializationService().materialize_slice(
+            db,
+            generation=ready_generation,
+            outcome_definition=definition,
+            config=config,
+            lease_guard=lambda: None,
+            should_cancel=lambda: False,
+            publish_when_ready=False,
+            operation_at=observed + timedelta(microseconds=2),
+        )
 
         common = {
             "prediction_id": prediction.id,
@@ -148,26 +211,31 @@ def test_estimate_lifecycle_is_persisted_and_candidates_are_not_serving(
         )
         db.add_all([published, candidate, ready_backed])
         db.flush()
+        published_id, candidate_id, ready_backed_id = (
+            published.id,
+            candidate.id,
+            ready_backed.id,
+        )
+        db.commit()
+        prediction = db.get(WinnerPredictionSnapshot, prediction.id)
+        definition = db.get(WinnerOutcomeDefinition, definition.id)
+        ready_generation = db.get(WinnerCohortGeneration, ready_generation.id)
 
-        generated_candidate = ProbabilityEstimator().create_candidate_rescore_from_generation(
-            db,
-            prediction=prediction,
-            outcome_definition=definition,
-            generation=ready_generation,
-            source_version="clean-candidate-test-v1",
-            config=config,
-        )
-        assert generated_candidate.estimate.lifecycle_status == EstimateLifecycleStatus.CANDIDATE
-        duplicate_candidate = ProbabilityEstimator().create_candidate_rescore_from_generation(
-            db,
-            prediction=prediction,
-            outcome_definition=definition,
-            generation=ready_generation,
-            source_version="clean-candidate-test-v1",
-            config=config,
-        )
-        assert duplicate_candidate.status == "duplicate"
-        assert duplicate_candidate.estimate.id == generated_candidate.estimate.id
+        with pytest.raises(
+            ValueError,
+            match="MUTATION_WINNER_CANDIDATE_EXACT_SERVING_PREDECESSOR_REQUIRED",
+        ):
+            ProbabilityEstimator().create_candidate_rescore_from_generation(
+                db,
+                prediction=prediction,
+                outcome_definition=definition,
+                generation=ready_generation,
+                source_version="clean-candidate-test-v1",
+                config=config,
+            )
+        published = db.get(WinnerProbabilityEstimate, published_id)
+        candidate = db.get(WinnerProbabilityEstimate, candidate_id)
+        ready_backed = db.get(WinnerProbabilityEstimate, ready_backed_id)
 
         serving_ids = tuple(
             db.scalars(
@@ -179,7 +247,6 @@ def test_estimate_lifecycle_is_persisted_and_candidates_are_not_serving(
         assert serving_ids == (published.id,)
         assert candidate.id not in serving_ids
         assert ready_backed.id not in serving_ids
-        assert generated_candidate.estimate.id not in serving_ids
         assert (
             _serving_winner_estimate(
                 db,
@@ -222,8 +289,8 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
     monkeypatch.setattr(winner_api_service, "get_settings", lambda: api_settings)
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    observed = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
-    config = load_winner_probability_config()
+    observed = datetime(2026, 10, 6, 12, 0, tzinfo=UTC)
+    config = _enabled_winner_config()
     with Session(engine) as db:
         definition = _seed_material_evidence(db, observed=observed)
         prediction = db.scalar(select(WinnerPredictionSnapshot))
@@ -234,113 +301,89 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
             db,
             state=advance.state,
             contract=contract_for(definition, config),
-            requested_at=observed,
+            requested_at=observed + timedelta(microseconds=1),
+            config=config,
         )
-        previous.status = CohortGenerationStatus.PUBLISHED
-        previous.published_at = observed
-        previous.completed_at = observed
-        previous.root_manifest_hash = "old-root"
-        advance.state.published_generation_id = previous.id
-        advance.state.published_watermark_hash = previous.watermark_hash
-        generation = WinnerCohortGeneration(
-            generation_key="clean-publication-generation",
-            refresh_state_id=advance.state.id,
-            outcome_definition_id=definition.id,
-            watermark_hash="clean-watermark",
-            watermark_json={"clean": True},
-            feature_schema_version=config.feature_schema.version,
-            calculation_version=config.engine.calculation_version,
-            config_hash=config.config_hash,
-            eligibility_policy_version=previous.eligibility_policy_version,
-            compatibility_policy_version=previous.compatibility_policy_version,
-            cohort_algorithm_version=previous.cohort_algorithm_version,
-            status=CohortGenerationStatus.READY,
-            training_cutoff_at=observed + timedelta(hours=2),
-            requested_at=observed + timedelta(hours=1),
-            ready_at=observed + timedelta(hours=2),
-            planned_group_count=1,
-            completed_group_count=1,
-            failed_group_count=0,
-            evidence_row_count=1,
-            root_manifest_hash="clean-root",
-            checkpoint_json={},
-            metrics_json={},
+        db.commit()
+        previous = db.get(WinnerCohortGeneration, previous.id)
+        definition = db.get(WinnerOutcomeDefinition, definition.id)
+        CohortMaterializationService().materialize_slice(
+            db,
+            generation=previous,
+            outcome_definition=definition,
+            config=config,
+            lease_guard=lambda: None,
+            should_cancel=lambda: False,
+            operation_at=observed + timedelta(microseconds=2),
         )
-        db.add(generation)
-        db.flush()
-        common = {
-            "prediction_id": prediction.id,
-            "outcome_definition_id": definition.id,
-            "config_hash": config.config_hash,
-            "feature_schema_version": config.feature_schema.version,
-            "sample_n": 0,
-            "effective_n": Decimal("0"),
-            "metadata_json": {"reviewed_manifest_hash": "candidate-manifest"},
-        }
-        old_decision = WinnerProbabilityEstimate(
-            **common,
-            estimate_kind="DECISION_TIME",
-            source="COHORT",
-            source_version="old-decision",
-            training_cutoff_at=observed - timedelta(days=1),
-            created_at=observed - timedelta(hours=2),
-            lifecycle_status=EstimateLifecycleStatus.PUBLISHED,
-            published_at=observed - timedelta(hours=2),
-            point_probability=Decimal("0.75"),
-            evidence_grade="Low",
-            insufficient_reasons_json=[],
+        db.commit()
+        estimator = ProbabilityEstimator()
+        old_decision = estimator.create_decision_time_estimate(
+            db, prediction=prediction, outcome_definition=definition, config=config
+        ).estimate
+        old_latest = estimator.create_latest_rescore_from_generation(
+            db,
+            prediction=prediction,
+            outcome_definition=definition,
+            generation=previous,
+            config=config,
+        ).estimate
+        db.commit()
+
+        changed = replace(
+            config, cohort=replace(config.cohort, prior_strength=config.cohort.prior_strength + 1)
         )
-        db.add(old_decision)
-        db.flush()
-        clean_decision = WinnerProbabilityEstimate(
-            **common,
-            estimate_kind="DECISION_TIME",
-            source="INSUFFICIENT",
-            source_version="clean-candidate",
-            cohort_generation_id=generation.id,
-            training_cutoff_at=old_decision.training_cutoff_at,
-            created_at=observed,
-            lifecycle_status=EstimateLifecycleStatus.CANDIDATE,
-            supersedes_estimate_id=old_decision.id,
+        changed = replace(changed, config_hash=winner_probability_config_hash(changed))
+        monkeypatch.setattr(winner_api_service, "load_winner_probability_config", lambda: changed)
+        target = EvidenceWatermarkService().advance_to_current_material_evidence(
+            db,
+            outcome_definition=definition,
+            config=changed,
+            observed_at=observed + timedelta(seconds=10),
+        )
+        db.commit()
+        generation = CohortGenerationService().capture_or_resume(
+            db,
+            state=target.state,
+            contract=contract_for(definition, changed),
+            requested_at=observed + timedelta(seconds=11),
+            config=changed,
+        )
+        db.commit()
+        CohortMaterializationService().materialize_slice(
+            db,
+            generation=generation,
+            outcome_definition=definition,
+            config=changed,
+            lease_guard=lambda: None,
+            should_cancel=lambda: False,
+            publish_when_ready=False,
+            operation_at=observed + timedelta(seconds=12),
+        )
+        db.commit()
+        candidate_review = hashlib.sha256(b"clean-publication-candidates").hexdigest()
+        clean_decision = estimator._create_candidate_decision_reconstruction(
+            db,
+            prediction=prediction,
+            outcome_definition=definition,
+            generation=generation,
+            predecessor=old_decision,
             reconstruction_category="DIRECTLY_CONTAMINATED",
-            point_probability=None,
-            lower_bound=None,
-            upper_bound=None,
-            interval_width=None,
-            evidence_grade="Insufficient",
-            insufficient_reasons_json=["no_clean_evidence_at_original_decision_cutoff"],
-        )
-        old_latest = WinnerProbabilityEstimate(
-            **common,
-            estimate_kind="LATEST_RESCORE",
-            source="COHORT",
-            source_version="old-latest",
-            training_cutoff_at=observed,
-            created_at=observed - timedelta(hours=1),
-            lifecycle_status=EstimateLifecycleStatus.PUBLISHED,
-            published_at=observed - timedelta(hours=1),
-            point_probability=Decimal("0.40"),
-            evidence_grade="Low",
-            insufficient_reasons_json=[],
-        )
-        db.add(old_latest)
-        db.flush()
-        clean_latest = WinnerProbabilityEstimate(
-            **common,
-            estimate_kind="LATEST_RESCORE",
-            source="COHORT",
-            source_version="clean-candidate",
-            cohort_generation_id=generation.id,
-            training_cutoff_at=generation.training_cutoff_at,
-            created_at=observed + timedelta(minutes=1),
-            lifecycle_status=EstimateLifecycleStatus.CANDIDATE,
+            reviewed_manifest_hash=candidate_review,
+            source_version="clean-candidate-decision",
+            config=changed,
+        ).estimate
+        clean_latest = estimator.create_candidate_rescore_from_generation(
+            db,
+            prediction=prediction,
+            outcome_definition=definition,
+            generation=generation,
+            source_version="clean-candidate-latest",
+            config=changed,
             supersedes_estimate_id=old_latest.id,
-            point_probability=Decimal("0.60"),
-            evidence_grade="Medium",
-            insufficient_reasons_json=[],
-        )
-        db.add_all([clean_decision, clean_latest])
-        db.flush()
+            reviewed_manifest_hash=candidate_review,
+        ).estimate
+        db.commit()
         before = serving_id_snapshot(db)
         after_ids = tuple(
             sorted(
@@ -359,7 +402,7 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
                 "id": previous.id,
                 "generation_key": previous.generation_key,
             },
-            "candidate_manifest_hash": "candidate-manifest",
+            "candidate_manifest_hash": candidate_review,
             "candidate_count": 2,
             "quarantined_prediction_count": 0,
             "serving_before": _snapshot_without_ids(before),
@@ -408,12 +451,13 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
                     db,
                     manifest=manifest,
                     reviewed_manifest_hash=manifest["artifact_hash"],
-                    candidate_manifest_hash="candidate-manifest",
+                    candidate_manifest_hash=candidate_review,
                     actor="integration-test",
                     request_key="clean-publication-request",
                     approve_write=True,
                     published_at=observed + timedelta(hours=3),
                     stage_hook=fail_at,
+                    config=changed,
                 )
             db.rollback()
         with Session(engine) as db:
@@ -434,11 +478,12 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
             db,
             manifest=manifest,
             reviewed_manifest_hash=manifest["artifact_hash"],
-            candidate_manifest_hash="candidate-manifest",
+            candidate_manifest_hash=candidate_review,
             actor="integration-test",
             request_key="clean-publication-request",
             approve_write=True,
             published_at=observed + timedelta(hours=3),
+            config=changed,
         )
         db.commit()
         assert result["published_candidates"] == 2
@@ -448,10 +493,12 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
             db,
             manifest=manifest,
             reviewed_manifest_hash=manifest["artifact_hash"],
-            candidate_manifest_hash="candidate-manifest",
+            candidate_manifest_hash=candidate_review,
             actor="integration-test",
             request_key="clean-publication-request",
             approve_write=True,
+            published_at=observed + timedelta(hours=3),
+            config=changed,
         )
         assert replay == result
         assert db.scalar(select(func.count(WinnerEstimatePublicationRequest.id))) == 1
@@ -473,20 +520,18 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
             query=WinnerProbabilityApiQuery(estimate_view="LATEST_RESCORE"),
         )
         assert latest.id == ids["clean_latest"]
-        assert latest.point_probability == Decimal("0.600000")
+        assert latest.point_probability is None
         journal = _serving_winner_estimate(
             db,
             prediction_id=ids["prediction"],
             cutoff=observed + timedelta(seconds=30),
         )
-        assert journal.id == ids["clean_decision"]
+        assert journal.id == ids["clean_latest"]
         assert journal.point_probability is None
         summary = _winner_probability_context(db, ids["run"])
         assert summary["estimate_count"] == 2
-        assert summary["insufficient_count"] == 1
-        assert db.get(WinnerProbabilityEstimate, ids["old_decision"]).point_probability == Decimal(
-            "0.750000"
-        )
+        assert summary["insufficient_count"] == 2
+        assert db.get(WinnerProbabilityEstimate, ids["old_decision"]).point_probability is None
         assert (
             db.get(WinnerProbabilityEstimate, ids["old_decision"]).lifecycle_status == "SUPERSEDED"
         )
@@ -801,18 +846,18 @@ def test_manual_race_with_continuation_has_one_active_workflow(
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     with Session(engine) as db:
-        parent = BackgroundJob(
-            job_type=WINNER_OUTCOME_MATURATION,
-            status=JobStatus.PARTIAL,
+        parent = enqueue_job(
+            db,
+            WINNER_OUTCOME_MATURATION,
+            {},
             workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
             request_key="parent",
-            payload_json={},
-            run_after=datetime.now(UTC),
+            single_flight_workflow=True,
             continuation_depth=0,
             trigger_source="MANUAL",
         )
-        db.add(parent)
         db.flush()
+        parent.status = JobStatus.PARTIAL
         parent.root_job_id = parent.id
         db.commit()
         parent_id = parent.id
@@ -924,8 +969,8 @@ def test_watermark_generation_idempotency_and_material_revision(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    observed = datetime(2026, 8, 17, 10, 33, 9, 896000, tzinfo=UTC)
-    config = load_winner_probability_config()
+    observed = datetime(2026, 10, 17, 10, 33, 9, 896000, tzinfo=UTC)
+    config = _enabled_winner_config()
     with Session(engine) as db:
         definition = _seed_material_evidence(db, observed=observed)
         db.commit()
@@ -944,7 +989,8 @@ def test_watermark_generation_idempotency_and_material_revision(
             db,
             state=first.state,
             contract=contract_for(definition, config),
-            requested_at=observed,
+            requested_at=observed + timedelta(microseconds=1),
+            config=config,
         )
         db.commit()
         generation_id = generation.id
@@ -964,6 +1010,7 @@ def test_watermark_generation_idempotency_and_material_revision(
             state=repeated.state,
             contract=contract_for(definition, config),
             requested_at=observed + timedelta(milliseconds=227),
+            config=config,
         )
         assert not repeated.advanced
         assert repeated.state.desired_watermark_hash == first_hash
@@ -991,7 +1038,7 @@ def test_concurrent_refresh_requests_coalesce_without_losing_desired_state(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    config = load_winner_probability_config()
+    config = _enabled_winner_config()
     observed = datetime(2026, 8, 17, 12, 0, tzinfo=UTC)
     with Session(engine) as db:
         definition = _seed_material_evidence(db, observed=observed)
@@ -1036,7 +1083,7 @@ def test_partial_generation_cannot_publish_and_recovery_closes_attempt(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    config = load_winner_probability_config()
+    config = _enabled_winner_config()
     observed = datetime(2026, 8, 17, 13, 0, tzinfo=UTC)
     with Session(engine) as db:
         definition = _seed_material_evidence(db, observed=observed)
@@ -1047,13 +1094,16 @@ def test_partial_generation_cannot_publish_and_recovery_closes_attempt(
             db,
             state=watermark.state,
             contract=contract_for(definition, config),
-            requested_at=observed,
+            requested_at=observed + timedelta(microseconds=1),
+            config=config,
         )
-        generation.status = CohortGenerationStatus.READY
-        generation.planned_group_count = 2
-        generation.completed_group_count = 1
         publication = CohortGenerationService().publish(
-            db, generation=generation, lease_guard=lambda: None
+            db,
+            generation=generation,
+            lease_guard=lambda: None,
+            config=config,
+            published_at=observed + timedelta(microseconds=2),
+            predecessor_id=None,
         )
         assert publication.status == GenerationPublicationStatus.REJECTED_INCOMPLETE
 
@@ -1099,8 +1149,8 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    config = load_winner_probability_config()
-    observed = datetime(2026, 8, 17, 14, 0, tzinfo=UTC)
+    config = _enabled_winner_config()
+    observed = datetime(2026, 10, 17, 14, 0, tzinfo=UTC)
     watermark_service = EvidenceWatermarkService()
     generation_service = CohortGenerationService()
     materializer = CohortMaterializationService(generation_service=generation_service)
@@ -1113,7 +1163,8 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             db,
             state=advance.state,
             contract=contract_for(definition, config),
-            requested_at=observed,
+            requested_at=observed + timedelta(microseconds=1),
+            config=config,
         )
         db.commit()
         generation_id = generation.id
@@ -1127,10 +1178,11 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             generation=generation,
             outcome_definition=definition,
             config=config,
-            lease_guard=db.commit,
+            lease_guard=lambda: None,
             should_cancel=lambda: False,
             max_groups=1,
             max_wall_seconds=60,
+            operation_at=observed + timedelta(microseconds=2),
         )
         assert first_slice.continuation_required
         assert first_slice.completed_groups == 1
@@ -1140,6 +1192,7 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             )
         )
         assert first_statistic.metadata_json["cohort_level"] == "L5"
+        db.commit()
 
         _append_material_revision(db, definition_id, observed + timedelta(hours=1))
         db.commit()
@@ -1158,10 +1211,11 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             generation=generation,
             outcome_definition=definition,
             config=config,
-            lease_guard=db.commit,
+            lease_guard=lambda: None,
             should_cancel=lambda: False,
             max_groups=100,
             max_wall_seconds=60,
+            operation_at=observed + timedelta(hours=1, microseconds=1),
         )
         assert completed.status == CohortGenerationStatus.READY
         assert completed.publication_status == GenerationPublicationStatus.REJECTED_STALE
@@ -1176,7 +1230,8 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             db,
             state=state,
             contract=contract_for(definition, config),
-            requested_at=observed + timedelta(hours=1),
+            requested_at=observed + timedelta(hours=1, microseconds=2),
+            config=config,
         )
         db.commit()
         replacement_id = replacement.id
@@ -1186,10 +1241,14 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             generation=replacement,
             outcome_definition=definition,
             config=config,
-            lease_guard=db.commit,
+            lease_guard=lambda: None,
             should_cancel=lambda: False,
             max_groups=100,
             max_wall_seconds=60,
+            operation_at=observed + timedelta(hours=1, microseconds=3),
+        )
+        assert caught_up.evidence_rows_loaded == 1, Canonical.dumps(
+            replacement.metrics_json["evidence_funnel"]
         )
         assert caught_up.status == CohortGenerationStatus.PUBLISHED
         assert not caught_up.continuation_required
@@ -1215,7 +1274,10 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             run_id=source_prediction.run_id,
             ticker="CURRENT",
             prediction_as_of_date=date(2026, 8, 17),
-            source_data_cutoff_at=observed + timedelta(hours=2),
+            source_data_cutoff_at=observed + timedelta(minutes=30),
+            decision_at=observed + timedelta(minutes=30),
+            captured_at=observed + timedelta(minutes=30),
+            planned_entry_session=date(2026, 8, 18),
             entry_schedule_status="RESOLVED",
             entry_data_status="AVAILABLE",
             eligibility_status="ELIGIBLE",
@@ -1223,11 +1285,14 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             feature_vector_hash="current-vector",
             config_hash=config.config_hash,
             calculation_version=config.engine.calculation_version,
+            revision=1,
             feature_json={"setup_family": "breakout"},
             source_ids_json={},
             warning_flags_json=[],
             lineage_json={"point_in_time_validated": True},
+            retention_class="permanent",
         )
+        _seal_reliability_prediction(current_prediction, config=config)
         db.add(current_prediction)
         db.flush()
         decision_time_before = db.scalar(
@@ -1287,6 +1352,7 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
                 },
                 "batch_size": 1,
             },
+            related_run_id=source_prediction.run_id,
             request_key=f"winner:latest-rescore:generation:{replacement_id}:fixture",
         )
         db.commit()
@@ -1325,6 +1391,8 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
             db,
             state=latest.state,
             contract=contract_for(definition, config),
+            requested_at=observed + timedelta(hours=2, microseconds=1),
+            config=config,
         )
         db.commit()
         decision_time_before_cancel = db.scalar(
@@ -1344,8 +1412,9 @@ def test_bounded_generation_resume_coalescing_and_atomic_publication(
                 generation=cancelled,
                 outcome_definition=definition,
                 config=config,
-                lease_guard=db.commit,
+                lease_guard=lambda: None,
                 should_cancel=cancel_during_evidence_load,
+                operation_at=observed + timedelta(hours=2, microseconds=2),
             )
         state = db.get(WinnerCohortRefreshState, latest.state.id)
         assert state.published_generation_id == replacement_id
@@ -1366,7 +1435,7 @@ def test_controlled_materialization_can_stop_at_ready_without_serving(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    config = load_winner_probability_config()
+    config = _enabled_winner_config()
     observed = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
     with Session(engine) as db:
         definition = _seed_material_evidence(db, observed=observed)
@@ -1377,7 +1446,8 @@ def test_controlled_materialization_can_stop_at_ready_without_serving(
             db,
             state=advance.state,
             contract=contract_for(definition, config),
-            requested_at=observed,
+            requested_at=observed + timedelta(microseconds=1),
+            config=config,
         )
         generation_id = generation.id
         refresh_state_id = generation.refresh_state_id
@@ -1391,11 +1461,12 @@ def test_controlled_materialization_can_stop_at_ready_without_serving(
             generation=generation,
             outcome_definition=definition,
             config=config,
-            lease_guard=db.commit,
+            lease_guard=lambda: None,
             should_cancel=lambda: False,
             max_groups=100,
             max_wall_seconds=60,
             publish_when_ready=False,
+            operation_at=observed + timedelta(microseconds=2),
         )
         db.commit()
 
@@ -1427,10 +1498,12 @@ def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    config = load_winner_probability_config()
+    config = _enabled_winner_config()
     observed = datetime(2026, 8, 17, 14, 30, tzinfo=UTC)
     with Session(engine) as db:
-        definition = _seed_material_evidence(db, observed=observed)
+        definition = _seed_material_evidence(
+            db, observed=observed, feature_json=_incident_feature_pattern(0)
+        )
         _expand_material_evidence(db, definition=definition, observed=observed, row_count=390)
         advance = EvidenceWatermarkService().advance_to_current_material_evidence(
             db, outcome_definition=definition, config=config, observed_at=observed
@@ -1439,7 +1512,8 @@ def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
             db,
             state=advance.state,
             contract=contract_for(definition, config),
-            requested_at=observed,
+            requested_at=observed + timedelta(microseconds=1),
+            config=config,
         )
         db.commit()
         generation_id = generation.id
@@ -1464,10 +1538,11 @@ def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
                 generation=generation,
                 outcome_definition=definition,
                 config=config,
-                lease_guard=db.commit,
+                lease_guard=lambda: None,
                 should_cancel=lambda: False,
                 max_groups=100,
                 max_wall_seconds=45,
+                operation_at=observed + timedelta(microseconds=2),
             )
             elapsed = perf_counter() - started
             prediction_selects = sum(
@@ -1510,7 +1585,7 @@ def test_stale_lease_owner_cannot_publish_generation(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    config = load_winner_probability_config()
+    config = _enabled_winner_config()
     observed = datetime(2026, 8, 17, 16, 0, tzinfo=UTC)
     with Session(engine) as setup:
         definition = _seed_material_evidence(setup, observed=observed)
@@ -1521,10 +1596,22 @@ def test_stale_lease_owner_cannot_publish_generation(
             setup,
             state=advance.state,
             contract=contract_for(definition, config),
+            requested_at=observed + timedelta(microseconds=1),
+            config=config,
         )
-        generation.status = CohortGenerationStatus.READY
-        generation.planned_group_count = 1
-        generation.completed_group_count = 1
+        setup.commit()
+        definition = setup.get(WinnerOutcomeDefinition, definition.id)
+        generation = setup.get(WinnerCohortGeneration, generation.id)
+        CohortMaterializationService().materialize_slice(
+            setup,
+            generation=generation,
+            outcome_definition=definition,
+            config=config,
+            lease_guard=lambda: None,
+            should_cancel=lambda: False,
+            publish_when_ready=False,
+            operation_at=observed + timedelta(microseconds=2),
+        )
         job = BackgroundJob(
             job_type="WINNER_COHORT_REFRESH",
             status=JobStatus.RUNNING,
@@ -1558,6 +1645,9 @@ def test_stale_lease_owner_cannot_publish_generation(
                 stale,
                 generation=generation,
                 lease_guard=lambda: heartbeat_job(stale, stale_job, execution_token="old-token"),
+                config=config,
+                published_at=observed + timedelta(microseconds=3),
+                predecessor_id=None,
             )
         stale.rollback()
     finally:
@@ -1646,8 +1736,13 @@ def test_h5_batch_context_prefetch_is_constant_query_count_for_thousands(
     engine.dispose()
 
 
-def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcomeDefinition:
-    config = load_winner_probability_config()
+def _seed_material_evidence(
+    db: Session,
+    *,
+    observed: datetime,
+    feature_json: dict[str, str] | None = None,
+) -> WinnerOutcomeDefinition:
+    config = _enabled_winner_config()
     upload = UploadRun(
         filename="winner-reliability.csv",
         uploaded_at=observed - timedelta(days=30),
@@ -1687,7 +1782,8 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
         feature_vector_hash="fixture-vector",
         config_hash=config.config_hash,
         calculation_version=config.engine.calculation_version,
-        feature_json={"setup_family": "breakout"},
+        revision=1,
+        feature_json=feature_json or {"setup_family": "breakout"},
         source_ids_json={},
         warning_flags_json=[],
         lineage_json={
@@ -1697,7 +1793,9 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
             "evidence_training_eligible": True,
             "training_rejection_reasons": [],
         },
+        retention_class="permanent",
     )
+    _seal_reliability_prediction(prediction, config=config)
     db.add(prediction)
     db.flush()
     forward = WinnerForwardOutcome(
@@ -1705,7 +1803,7 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
         entry_model=definition.entry_model,
         horizon_sessions=definition.horizon_sessions,
         entry_session=date(2026, 7, 2),
-        due_session=date(2026, 7, 8),
+        due_session=date(2026, 7, 9),
         status="MATURED",
         revision=1,
         is_current_revision=True,
@@ -1717,6 +1815,7 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
         matured_at=observed - timedelta(days=10),
         metadata_json={},
     )
+    _seal_reliability_outcome(forward)
     db.add(forward)
     db.flush()
     target = WinnerTargetStopOutcome(
@@ -1733,6 +1832,7 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
         target_hit=True,
         stop_hit=False,
         first_event="TARGET_FIRST",
+        same_bar_conflict=False,
         primary_winner=True,
         optimistic_winner=True,
         conservative_winner=True,
@@ -1740,9 +1840,85 @@ def _seed_material_evidence(db: Session, *, observed: datetime) -> WinnerOutcome
         evaluated_at=observed - timedelta(days=10),
         metadata_json={},
     )
+    _seal_reliability_outcome(target)
     db.add(target)
     db.flush()
     return definition
+
+
+def _seal_reliability_prediction(prediction, *, config) -> None:
+    reference_policy = {
+        "version": "winner-outcome-reference-v1",
+        "sector_proxy": None,
+        "benchmark_ticker": "SPY",
+    }
+    outcome_configuration = winner_outcome_reference_configuration(
+        resolve_winner_configuration(config, family="outcome"), reference_policy
+    )
+    prediction.lineage_json = {
+        **prediction.lineage_json,
+        CONFIGURATION_PAYLOAD_KEY: resolve_winner_configuration(config).snapshot.as_dict(),
+        "outcome_effective_configuration": outcome_configuration.snapshot.as_dict(),
+        "outcome_reference_policy": reference_policy,
+        "estimate_effective_configuration": resolve_winner_configuration(
+            config, family="cohort"
+        ).snapshot.as_dict(),
+    }
+    na = IdentityDimension.not_applicable()
+    adapter_identity = CalculationIdentity(
+        ownership=CalculationOwnership(
+            run_id=IdentityDimension.known(prediction.run_id), pipeline_id=na
+        ),
+        subject=CalculationSubject(
+            ticker=IdentityDimension.known(prediction.ticker), company_id=na
+        ),
+        calculation_context=CalculationContextIdentity(na, na),
+        temporal=TemporalIdentity(
+            IdentityDimension.known(prediction.prediction_as_of_date),
+            IdentityDimension.known(prediction.source_data_cutoff_at),
+            IdentityDimension.known(
+                CalendarIdentity(
+                    "SWINGLENS_US_EQUITIES",
+                    "swinglens-us-equities-v1",
+                    "America/New_York",
+                    IdentityDimension.known(
+                        VersionIdentity("market-bar-readiness", "daily-close-plus-15m-v1")
+                    ),
+                )
+            ),
+        ),
+        configuration=ConfigurationIdentity(na),
+        algorithm=AlgorithmIdentity(
+            calculation_version=IdentityDimension.known(
+                VersionIdentity("winner-reliability-adapter", config.engine.calculation_version)
+            ),
+            model_version=na,
+            schema_version=IdentityDimension.known(
+                VersionIdentity("winner-feature-schema", config.feature_schema.version)
+            ),
+            engine_version=na,
+            components=na,
+        ),
+        source_lineage=na,
+        generation=GenerationIdentity(na, na, na, na),
+    )
+    prediction.lineage_json = embed_calculation_identity(
+        prediction.lineage_json,
+        adapter_identity,
+        policy="T14D_WINNER_RELIABILITY_ADAPTER",
+    )
+    seal_capture(prediction)
+
+
+def _seal_reliability_outcome(outcome) -> None:
+    outcome.metadata_json = {
+        **(outcome.metadata_json or {}),
+        "native_outcome_proof": {
+            "contract": "winner-native-outcome-v1",
+            "body_fingerprint": Canonical.fingerprint(outcome_body(outcome)),
+            "fixture_semantics": "T14D_WINNER_RELIABILITY_ADAPTER",
+        },
+    }
 
 
 class _StaticDrain:
@@ -1760,7 +1936,7 @@ def _seed_retry_deferred_outcomes(
     retry_at: datetime,
     row_count: int,
 ) -> None:
-    config = load_winner_probability_config()
+    config = _enabled_winner_config()
     upload = UploadRun(
         filename="winner-maturation-reliability.csv",
         uploaded_at=observed - timedelta(days=30),
@@ -1850,98 +2026,95 @@ def _expand_material_evidence(
     """Expand the one-row fixture to the incident's exact 390/42/2,340 shape."""
     if row_count < 1:
         raise ValueError("row_count must include the existing fixture row")
-    config = load_winner_probability_config()
+    config = _enabled_winner_config()
     existing = db.scalar(select(WinnerPredictionSnapshot).limit(1))
-    existing.feature_json = _incident_feature_pattern(0)
-    db.flush()
-    prediction_values = [
-        {
-            "run_id": existing.run_id,
-            "ticker": f"Q{index:04d}",
-            "prediction_as_of_date": date(2026, 7, 1),
-            "source_data_cutoff_at": datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
-            "decision_at": datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
-            "captured_at": datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
-            "planned_entry_session": date(2026, 7, 2),
-            "entry_schedule_status": "RESOLVED",
-            "entry_data_status": "AVAILABLE",
-            "eligibility_status": "ELIGIBLE",
-            "feature_schema_version": config.feature_schema.version,
-            "feature_vector_hash": f"incident-vector-{index}",
-            "config_hash": config.config_hash,
-            "calculation_version": config.engine.calculation_version,
-            "feature_json": _incident_feature_pattern(index),
-            "source_ids_json": {},
-            "warning_flags_json": [],
-            "lineage_json": {
+    predictions = []
+    for index in range(1, row_count):
+        prediction = WinnerPredictionSnapshot(
+            run_id=existing.run_id,
+            ticker=f"Q{index:04d}",
+            prediction_as_of_date=date(2026, 7, 1),
+            source_data_cutoff_at=datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
+            decision_at=datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
+            captured_at=datetime(2026, 7, 1, 20, 0, tzinfo=UTC),
+            planned_entry_session=date(2026, 7, 2),
+            entry_schedule_status="RESOLVED",
+            entry_data_status="AVAILABLE",
+            eligibility_status="ELIGIBLE",
+            feature_schema_version=config.feature_schema.version,
+            feature_vector_hash=f"incident-vector-{index}",
+            config_hash=config.config_hash,
+            calculation_version=config.engine.calculation_version,
+            revision=1,
+            feature_json=_incident_feature_pattern(index),
+            source_ids_json={},
+            warning_flags_json=[],
+            lineage_json={
                 "point_in_time_validated": True,
                 "point_in_time_validation": {"semantic_input_time": "VALID"},
                 "capture_training_candidate": True,
                 "evidence_training_eligible": True,
                 "training_rejection_reasons": [],
             },
-        }
-        for index in range(1, row_count)
-    ]
-    prediction_ids = list(
-        db.scalars(
-            insert(WinnerPredictionSnapshot).returning(WinnerPredictionSnapshot.id),
-            prediction_values,
+            retention_class="permanent",
         )
-    )
-    forward_values = [
-        {
-            "prediction_id": prediction_id,
-            "entry_model": definition.entry_model,
-            "horizon_sessions": definition.horizon_sessions,
-            "entry_session": date(2026, 7, 2),
-            "due_session": date(2026, 7, 8),
-            "status": "MATURED",
-            "revision": 1,
-            "is_current_revision": True,
-            "close_return_pct": Decimal(str((index % 11) - 5)),
-            "mfe_pct": Decimal(str((index % 9) + 1)),
-            "mae_pct": Decimal(str(-((index % 7) + 1))),
-            "source_bar_lineage_hash": f"incident-lineage-{index}",
-            "source_revision_cutoff_at": observed - timedelta(days=10),
-            "matured_at": observed - timedelta(days=10),
-            "metadata_json": {},
-        }
-        for index, prediction_id in enumerate(prediction_ids, start=1)
-    ]
-    forward_ids = list(
-        db.scalars(
-            insert(WinnerForwardOutcome).returning(WinnerForwardOutcome.id),
-            forward_values,
+        _seal_reliability_prediction(prediction, config=config)
+        predictions.append(prediction)
+    db.add_all(predictions)
+    db.flush()
+
+    forwards = []
+    for index, prediction in enumerate(predictions, start=1):
+        forward = WinnerForwardOutcome(
+            prediction_id=prediction.id,
+            entry_model=definition.entry_model,
+            horizon_sessions=definition.horizon_sessions,
+            entry_session=date(2026, 7, 2),
+            due_session=date(2026, 7, 9),
+            status="MATURED",
+            revision=1,
+            is_current_revision=True,
+            close_return_pct=Decimal(str((index % 11) - 5)),
+            mfe_pct=Decimal(str((index % 9) + 1)),
+            mae_pct=Decimal(str(-((index % 7) + 1))),
+            source_bar_lineage_hash=f"incident-lineage-{index}",
+            source_revision_cutoff_at=observed - timedelta(days=10),
+            matured_at=observed - timedelta(days=10),
+            metadata_json={},
         )
-    )
-    target_values = [
-        {
-            "prediction_id": prediction_id,
-            "outcome_definition_id": definition.id,
-            "forward_outcome_id": forward_id,
-            "entry_model": definition.entry_model,
-            "horizon_sessions": definition.horizon_sessions,
-            "status": "MATURED",
-            "revision": 1,
-            "is_current_revision": True,
-            "target_pct": definition.target_pct,
-            "stop_pct": definition.stop_pct,
-            "target_hit": index % 2 == 0,
-            "stop_hit": index % 2 != 0,
-            "first_event": "TARGET_FIRST" if index % 2 == 0 else "STOP_FIRST",
-            "primary_winner": index % 2 == 0,
-            "optimistic_winner": index % 2 == 0,
-            "conservative_winner": index % 2 == 0,
-            "source_bar_lineage_hash": f"incident-lineage-{index}",
-            "evaluated_at": observed - timedelta(days=10),
-            "metadata_json": {},
-        }
-        for index, (prediction_id, forward_id) in enumerate(
-            zip(prediction_ids, forward_ids, strict=True), start=1
+        _seal_reliability_outcome(forward)
+        forwards.append(forward)
+    db.add_all(forwards)
+    db.flush()
+
+    targets = []
+    for index, (prediction, forward) in enumerate(zip(predictions, forwards, strict=True), start=1):
+        won = index % 2 == 0
+        target = WinnerTargetStopOutcome(
+            prediction_id=prediction.id,
+            outcome_definition_id=definition.id,
+            forward_outcome_id=forward.id,
+            entry_model=definition.entry_model,
+            horizon_sessions=definition.horizon_sessions,
+            status="MATURED",
+            revision=1,
+            is_current_revision=True,
+            target_pct=definition.target_pct,
+            stop_pct=definition.stop_pct,
+            target_hit=won,
+            stop_hit=not won,
+            first_event="TARGET_FIRST" if won else "STOP_FIRST",
+            same_bar_conflict=False,
+            primary_winner=won,
+            optimistic_winner=won,
+            conservative_winner=won,
+            source_bar_lineage_hash=f"incident-lineage-{index}",
+            evaluated_at=observed - timedelta(days=10),
+            metadata_json={},
         )
-    ]
-    db.execute(insert(WinnerTargetStopOutcome), target_values)
+        _seal_reliability_outcome(target)
+        targets.append(target)
+    db.add_all(targets)
     db.flush()
 
 
@@ -1980,57 +2153,57 @@ def _append_material_revision(db: Session, definition_id: int, observed: datetim
     current_forward = db.scalar(
         select(WinnerForwardOutcome).where(WinnerForwardOutcome.is_current_revision.is_(True))
     )
-    current_target = db.scalar(
-        select(WinnerTargetStopOutcome).where(WinnerTargetStopOutcome.is_current_revision.is_(True))
+    prediction = db.get(WinnerPredictionSnapshot, current_forward.prediction_id)
+    next_revision = current_forward.revision + 1
+    sessions = (
+        date(2026, 7, 2),
+        date(2026, 7, 6),
+        date(2026, 7, 7),
+        date(2026, 7, 8),
+        date(2026, 7, 9),
     )
-    current_forward.is_current_revision = False
-    current_forward.superseded_at = observed
-    current_target.is_current_revision = False
-    current_target.superseded_at = observed
-    revision = current_forward.revision + 1
-    lineage_hash = f"lineage-{revision}"
-    revised_forward = WinnerForwardOutcome(
-        prediction_id=current_forward.prediction_id,
-        entry_model=current_forward.entry_model,
-        horizon_sessions=current_forward.horizon_sessions,
-        entry_session=current_forward.entry_session,
-        due_session=current_forward.due_session,
-        status="MATURED",
-        revision=revision,
-        is_current_revision=True,
-        close_return_pct=Decimal("-1.0"),
-        mfe_pct=Decimal("1.0"),
-        mae_pct=Decimal("-3.0"),
-        source_bar_lineage_hash=lineage_hash,
-        source_revision_cutoff_at=observed,
-        matured_at=observed,
-        metadata_json={},
-    )
-    db.add(revised_forward)
+    bars = []
+    for ticker in (prediction.ticker, "SPY"):
+        for session in sessions:
+            if ticker == prediction.ticker:
+                if current_forward.revision == 1:
+                    open_value, high_value, low_value, close_value = 100, 101, 90, 99
+                else:
+                    open_value, high_value, low_value, close_value = 100, 110, 99, 108
+            else:
+                open_value, high_value, low_value, close_value = 100, 101, 99, 100
+            bars.append(
+                HistoricalBar(
+                    ticker=ticker,
+                    bar_date=session,
+                    timeframe="1 day",
+                    what_to_show="ADJUSTED_LAST",
+                    open=open_value,
+                    high=high_value,
+                    low=low_value,
+                    close=close_value,
+                    volume=100_000,
+                    source="T14D_WINNER_RELIABILITY_ADAPTER",
+                    adjustment_type=None,
+                )
+            )
+    cache_bars(db, bars)
     db.flush()
-    db.add(
-        WinnerTargetStopOutcome(
-            prediction_id=current_target.prediction_id,
-            outcome_definition_id=definition_id,
-            forward_outcome_id=revised_forward.id,
-            entry_model=current_target.entry_model,
-            horizon_sessions=current_target.horizon_sessions,
-            status="MATURED",
-            revision=current_target.revision + 1,
-            is_current_revision=True,
-            target_pct=current_target.target_pct,
-            stop_pct=current_target.stop_pct,
-            target_hit=False,
-            stop_hit=True,
-            first_event="STOP_FIRST",
-            primary_winner=False,
-            optimistic_winner=False,
-            conservative_winner=False,
-            source_bar_lineage_hash=lineage_hash,
-            evaluated_at=observed,
-            metadata_json={},
+    db.expire_all()
+    result = OutcomeMaturationService().process_current_revisions(
+        db,
+        now=observed,
+        forward_outcome_ids=(current_forward.id,),
+    )
+    assert result.revised == 1
+    revised_target = db.scalar(
+        select(WinnerTargetStopOutcome).where(
+            WinnerTargetStopOutcome.prediction_id == prediction.id,
+            WinnerTargetStopOutcome.outcome_definition_id == definition_id,
+            WinnerTargetStopOutcome.is_current_revision.is_(True),
         )
     )
+    assert revised_target.revision == next_revision
 
 
 def _upgrade(database_url: str, revision: str = "head") -> None:
