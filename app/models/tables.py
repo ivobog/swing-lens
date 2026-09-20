@@ -1341,6 +1341,15 @@ class IBFetchRun(Base):
     __tablename__ = "ib_fetch_runs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    refresh_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
     run_id: Mapped[int | None] = mapped_column(ForeignKey("upload_runs.id", ondelete="CASCADE"))
     requested_tickers: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     symbols_including_benchmarks: Mapped[list[str]] = mapped_column(
@@ -1441,6 +1450,8 @@ class IBFetchRun(Base):
         back_populates="fetch_run",
         cascade="all, delete-orphan",
     )
+
+    __table_args__ = (Index("idx_ib_fetch_runs_scope_refresh", "scope_id", "refresh_cycle_id"),)
 
 
 class IBFetchItem(Base):
@@ -1558,6 +1569,15 @@ class PipelineRun(Base):
     __tablename__ = "pipeline_runs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    refresh_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
     upload_run_id: Mapped[int] = mapped_column(
         ForeignKey("upload_runs.id", ondelete="CASCADE"),
         nullable=False,
@@ -1590,6 +1610,7 @@ class PipelineRun(Base):
         Index("idx_pipeline_runs_upload_run_id", "upload_run_id"),
         Index("idx_pipeline_runs_status", "status"),
         Index("idx_pipeline_runs_created_at", "created_at"),
+        Index("idx_pipeline_runs_scope_refresh", "scope_id", "refresh_cycle_id"),
     )
 
 
@@ -1632,6 +1653,18 @@ class BackgroundJob(Base):
     __tablename__ = "background_jobs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    refresh_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
+    required_for_parent_completion: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     job_type: Mapped[str] = mapped_column(Text, nullable=False)
     related_run_id: Mapped[int | None] = mapped_column(BigInteger)
     request_key: Mapped[str | None] = mapped_column(Text)
@@ -1768,6 +1801,7 @@ class BackgroundJob(Base):
     )
 
     __table_args__ = (
+        Index("idx_background_jobs_scope_refresh", "scope_id", "refresh_cycle_id"),
         Index(
             "idx_background_jobs_status_priority",
             "status",

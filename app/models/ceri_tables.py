@@ -134,6 +134,15 @@ class CeriIngestionRun(Base):
     __tablename__ = "ceri_ingestion_runs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    refresh_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     provider_terms_version: Mapped[str | None] = mapped_column(Text)
     dataset: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -168,6 +177,11 @@ class CeriIngestionRun(Base):
     __table_args__ = (
         UniqueConstraint("request_key", name="uq_ceri_ingestion_runs_request_key"),
         Index("ix_ceri_ingestion_runs_provider_dataset_status", "provider", "dataset", "status"),
+        Index(
+            "idx_ceri_ingestion_runs_scope_refresh",
+            "scope_id",
+            "refresh_cycle_id",
+        ),
     )
 
 
@@ -175,6 +189,15 @@ class CeriProcessingRun(Base):
     __tablename__ = "ceri_processing_runs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    refresh_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
     job_type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
     deterministic_request_key: Mapped[str] = mapped_column(Text, nullable=False)
@@ -221,6 +244,11 @@ class CeriProcessingRun(Base):
         Index("ix_ceri_processing_runs_status_checkpoint", "status", "job_type"),
         Index("ix_ceri_processing_runs_heartbeat", "heartbeat_at"),
         Index("ix_ceri_processing_runs_root", "root_correlation_id", "created_at"),
+        Index(
+            "idx_ceri_processing_runs_scope_refresh",
+            "scope_id",
+            "refresh_cycle_id",
+        ),
     )
 
 

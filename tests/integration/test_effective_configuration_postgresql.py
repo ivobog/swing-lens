@@ -39,7 +39,7 @@ from app.services.effective_configuration_families import resolve_ranking_profil
 
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
-CURRENT_HEAD = "0081_scope_refresh_identity"
+CURRENT_HEAD = "0082_pipeline_ceri_scope"
 
 
 def test_configuration_embedded_evidence_round_trip_retry_drift_and_immutability(

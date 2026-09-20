@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, RawCompanyRow
+from app.models.tables import BackgroundJob, PipelineRun, PipelineStep
 from app.services.background_job_service import enqueue_job, fence_job_execution
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
@@ -124,6 +124,12 @@ def schedule_sec_readiness_repair(
     diagnostics: dict[str, Any],
     resume_from_step: str | None = None,
 ) -> BackgroundJob:
+    from app.services.scope_refresh_adoption import (
+        bind_semantic_authority,
+        require_semantic_authority,
+    )
+
+    authority = require_semantic_authority(pipeline)
     readiness = dict(diagnostics.get("readiness") or {})
     processor = dict(diagnostics.get("processor") or {})
     signature = str(
@@ -148,6 +154,7 @@ def schedule_sec_readiness_repair(
         request_key=request_key,
         workflow_key=f"pipeline:{pipeline.id}:sec-readiness",
     )
+    bind_semantic_authority(job, authority, required_for_parent_completion=True)
     now = _utcnow().isoformat()
     initial_ready = int(readiness.get("ready_tickers") or 0)
     total = int(readiness.get("requested_tickers") or 0)
@@ -205,7 +212,17 @@ def execute_sec_readiness_repair(
     pipeline = db.get(PipelineRun, pipeline_id)
     if pipeline is None:
         raise ValueError(f"Pipeline run {pipeline_id} was not found.")
-    tickers = _tickers_for_run(db, pipeline.upload_run_id)
+    from app.services.scope_refresh_adoption import (
+        retained_scope_members,
+        validate_same_authority,
+    )
+
+    authority = validate_same_authority(pipeline, job)
+    tickers = [
+        member.subject_id
+        for member in retained_scope_members(db, authority.scope_id)
+        if member.subject_type == "TICKER"
+    ]
     lifecycle = require_deployed_processor_active(db)
     signature = str(lifecycle.active_signature or lifecycle.deployed_signature)
     if (job.payload_json or {}).get("processor_signature") != signature:
@@ -628,15 +645,6 @@ def _guard_cancel(
         pipeline.message = "Pipeline was cancelled during SEC preparation."
         db.commit()
         raise SecReadinessRepairCancelled("SEC readiness repair cancelled")
-
-
-def _tickers_for_run(db: Session, run_id: int) -> list[str]:
-    values = db.scalars(
-        select(RawCompanyRow.ticker)
-        .where(RawCompanyRow.run_id == run_id)
-        .order_by(RawCompanyRow.row_number)
-    )
-    return list(dict.fromkeys(str(value).strip().upper() for value in values if value))
 
 
 def _validation_step(db: Session, pipeline_id: int) -> PipelineStep | None:

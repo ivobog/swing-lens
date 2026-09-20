@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal
-from app.models.tables import BackgroundJob
+from app.models.tables import BackgroundJob, PipelineRun
 from app.observability.correlation import worker_job_scope
 from app.observability.db_monitor import background_job_scope, job_phase
 from app.services.background_job_service import (
@@ -743,6 +743,12 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
     pipeline_run_id = job.payload_json.get("pipeline_run_id")
     if pipeline_run_id is None:
         raise ValueError("FULL_PIPELINE job payload is missing pipeline_run_id.")
+    from app.services.scope_refresh_adoption import validate_same_authority
+
+    pipeline = db.get(PipelineRun, int(pipeline_run_id))
+    if pipeline is None:
+        raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
+    validate_same_authority(pipeline, job)
     market_cutoff = validate_pipeline_job_market_context(
         db,
         pipeline_run_id=int(pipeline_run_id),

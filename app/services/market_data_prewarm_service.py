@@ -24,8 +24,19 @@ from app.services.background_job_service import (
 )
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.ib_fetch_executor import execute_fetch_plan
-from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, build_fetch_plan
+from app.services.ib_fetch_job_service import FetchJobOptions, _admit_fetch_authority
+from app.services.ib_fetch_plan_service import (
+    FetchAction,
+    FetchPlan,
+    build_fetch_plan,
+    fetch_plan_from_dict,
+    fetch_plan_to_dict,
+)
 from app.services.ohlcv_coverage_service import summarize_ohlcv_coverage
+from app.services.scope_refresh_adoption import (
+    bind_semantic_authority,
+    require_semantic_authority,
+)
 from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.settings import Settings, get_settings
 
@@ -207,6 +218,21 @@ def enqueue_market_data_prewarm(
             "max_tickers": settings.market_data_prewarm_max_tickers,
         }
     )
+    authority = None
+    if isinstance(db, Session):
+        plan = build_fetch_plan(
+            db=db,
+            tickers=list(universe.tickers),
+            include_benchmarks=universe.include_benchmarks,
+            settings=settings,
+        )
+        authority = _admit_fetch_authority(
+            db,
+            plan,
+            FetchJobOptions(include_benchmarks=universe.include_benchmarks),
+        )
+        payload["fetch_plan"] = fetch_plan_to_dict(plan)
+        payload.update(authority.as_dict())
     job = enqueue_job(
         db,
         MARKET_DATA_PREWARM,
@@ -214,6 +240,8 @@ def enqueue_market_data_prewarm(
         request_key=universe.request_key,
         priority=PREWARM_JOB_PRIORITY,
     )
+    if authority is not None:
+        bind_semantic_authority(job, authority)
     return job, universe
 
 
@@ -239,12 +267,19 @@ def execute_market_data_prewarm(
     if should_cancel():
         raise MarketDataPrewarmCancelled("Market-data prewarm cancellation requested.")
 
-    plan = build_fetch_plan(
-        db=db,
-        tickers=list(tickers),
-        include_benchmarks=request.include_benchmarks,
-        settings=settings,
-    )
+    authority = require_semantic_authority(job) if isinstance(db, Session) else None
+    plan_payload = (job.payload_json or {}).get("fetch_plan")
+    if isinstance(db, Session):
+        if not isinstance(plan_payload, dict):
+            raise ValueError("LEGACY_UNKNOWN_ACQUISITION_PLAN")
+        plan = fetch_plan_from_dict(plan_payload)
+    else:
+        plan = build_fetch_plan(
+            db=db,
+            tickers=list(tickers),
+            include_benchmarks=request.include_benchmarks,
+            settings=settings,
+        )
     planned_coverage = _classify_plan_coverage(plan, tickers)
     fetch_run = execute_fetch_plan(
         db=db,
@@ -253,6 +288,8 @@ def execute_market_data_prewarm(
         include_benchmarks=request.include_benchmarks,
         should_cancel=should_cancel,
     )
+    if authority is not None:
+        bind_semantic_authority(fetch_run, authority)
     if fetch_run.status == "CANCELLED":
         raise MarketDataPrewarmCancelled("Market-data prewarm was cancelled.")
 

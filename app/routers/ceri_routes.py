@@ -17,6 +17,7 @@ from app.models.ceri_tables import (
     CeriAlertEvent,
     CeriCatalystEvent,
     CeriCatalystEventRevision,
+    CeriCompany,
     CeriManualReview,
     CeriProcessingRun,
     CeriPurgeAudit,
@@ -62,7 +63,14 @@ from app.services.resource_limits import (
     enforce_row_limit,
     limit_error_payload,
 )
+from app.services.scope_refresh_adoption import (
+    SemanticWorkAuthority,
+    admit_frozen_operation,
+    bind_semantic_authority,
+    ceri_cycle_key,
+)
 from app.services.supporting_mutation_authority import supporting_mutation_operation
+from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 from app.settings import get_settings
 from app.templates import templates
 
@@ -739,12 +747,25 @@ def create_ceri_ingestion_run(
         raise _structured_http_error(
             "INVALID_FILTER", "ticker and dataset are required.", status_code=400
         )
+    authority = (
+        _admit_ceri_job_authority(db, payload, operation_kind="ceri-source-acquisition")
+        if isinstance(db, Session)
+        else None
+    )
+    if authority is not None:
+        payload.update(authority.as_dict())
+        payload["request_key"] = (
+            f"{_stable_request_key({'job_type': CERI_PROVIDER_INGEST, **payload})}:"
+            f"refresh:{authority.refresh_cycle_id}"
+        )
     job = _enqueue_job_once(
         db,
         CERI_PROVIDER_INGEST,
         payload,
         related_run_id=payload.get("run_id"),
     )
+    if authority is not None:
+        bind_semantic_authority(job, authority)
     db.commit()
     return _job_response(job, coalesced=getattr(job, "_coalesced", False))
 
@@ -889,8 +910,21 @@ def create_ceri_backfill(
         mode=str(payload.get("mode") or "AS_KNOWN"),
         tickers=tuple(str(ticker) for ticker in payload.get("tickers", []) if str(ticker).strip()),
         actor=payload.get("actor"),
+        refresh_cycle_key=payload.get("refresh_cycle_key"),
     )
-    request_key = CeriBackfillService().request_key(backfill_request)
+    authority = (
+        _admit_ceri_job_authority(db, payload, operation_kind="ceri-backfill")
+        if isinstance(db, Session)
+        else None
+    )
+    if authority is not None:
+        payload.update(authority.as_dict())
+        request_key = (
+            f"{CeriBackfillService().request_key(backfill_request)}:"
+            f"refresh:{authority.refresh_cycle_id}"
+        )
+    else:
+        request_key = CeriBackfillService().request_key(backfill_request)
     if _active_processing_run(db, "CERI_BACKFILL", request_key):
         raise _structured_http_error(
             "BACKFILL_ALREADY_ACTIVE",
@@ -899,6 +933,8 @@ def create_ceri_backfill(
         )
     payload["request_key"] = request_key
     job = _enqueue_job_once(db, CERI_BACKFILL, payload)
+    if authority is not None:
+        bind_semantic_authority(job, authority)
     db.commit()
     return _job_response(job, coalesced=getattr(job, "_coalesced", False))
 
@@ -1203,6 +1239,66 @@ def _enqueue_job_once(
         payload,
         related_run_id=related_run_id,
         request_key=request_key,
+    )
+
+
+def _admit_ceri_job_authority(
+    db: Session,
+    payload: dict[str, Any],
+    *,
+    operation_kind: str,
+) -> SemanticWorkAuthority:
+    provider = str(payload.get("provider") or "manual")
+    dataset = str(payload.get("dataset") or "estimates")
+    tickers = tuple(
+        dict.fromkeys(
+            str(value).strip().upper()
+            for value in (
+                payload.get("tickers") or ([payload.get("ticker")] if payload.get("ticker") else [])
+            )
+            if str(value).strip()
+        )
+    )
+    if not tickers and operation_kind == "ceri-backfill" and provider == "eodhd":
+        tickers = tuple(
+            str(value).upper()
+            for value in db.scalars(select(CeriCompany.ticker).order_by(CeriCompany.ticker))
+            if str(value).strip()
+        )
+        payload["tickers"] = list(tickers)
+    cutoff = _optional_date_payload(payload.get("end")) or datetime.now(UTC).date()
+    ticker_key = tickers[0] if len(tickers) == 1 else f"population-{len(tickers)}"
+    cycle_key = ceri_cycle_key(
+        provider=provider,
+        dataset=dataset,
+        ticker=ticker_key,
+        cutoff=cutoff,
+        explicit_cycle_key=payload.get("refresh_cycle_key"),
+    )
+    payload["refresh_cycle_key"] = cycle_key
+    policy_identity = hashlib.sha256(
+        json.dumps(
+            {"provider": provider, "dataset": dataset, "operation_kind": operation_kind},
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    return admit_frozen_operation(
+        db,
+        operation_kind=operation_kind,
+        subject_kind="ticker",
+        members=tuple(ScopeMember("TICKER", ticker) for ticker in tickers),
+        cycle_key=cycle_key,
+        business_cutoff=cutoff,
+        provider_source_class=provider,
+        request_type=dataset,
+        requirements=(AcquisitionRequirement(dataset),),
+        policy_identity=policy_identity,
+        scope_definition={
+            "window_start": payload.get("start"),
+            "window_end": payload.get("end"),
+            "mode": payload.get("mode"),
+        },
+        refresh_reason="CERI_JOB_ADMISSION",
     )
 
 

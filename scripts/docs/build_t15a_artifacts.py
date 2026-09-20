@@ -12,6 +12,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "docs" / "remediation" / "calculation-lineage"
 T14D = OUT / "T14D_operation_family_certification.json"
+FROZEN_INVENTORY = OUT / "T15A_scope_operation_inventory.json"
+FROZEN_INVENTORY_SHA256 = "caddc1a79b84bd1fd81ab131fdfe062188fe94d9ae88c45757c261f38cd2c5e4"
+FROZEN_T14D_SHA256 = "d4eb2bb9a3f49f8343431e457fac67f9ec848a2aa3ac68b90748ed0c44bbf8c0"
 T14E_FINDINGS = OUT / "T14E_finding_status_after_phase5.csv"
 
 STARTING_HEAD = "f587b63e4e35e81486e53ffa0f13b9cd7369f963"
@@ -594,6 +597,26 @@ TRUTH_SOURCES = [
 def build_artifacts() -> dict[str, str]:
     source = json.loads(T14D.read_text(encoding="utf-8"))
     families = {item["operation_family_id"]: item for item in source["families"]}
+    # T15A is a frozen handoff. Later adoption tasks legitimately refresh the
+    # current-source T14D operation-family certificate, so retain the original
+    # T15A input records embedded by that certificate's preservation field.
+    historical = {
+        item["operation_family_id"]: item
+        for item in source.get("previous_operation_family_records", [])
+    }
+    families = {**families, **historical}
+    if _sha(T14D) != FROZEN_T14D_SHA256:
+        if _sha(FROZEN_INVENTORY) != FROZEN_INVENTORY_SHA256:
+            raise ValueError("frozen T15A inventory changed after handoff")
+        for item in json.loads(FROZEN_INVENTORY.read_text(encoding="utf-8"))["records"]:
+            families.setdefault(
+                item["operation_family_id"],
+                {
+                    "domains": item["domain"],
+                    "semantic_service": item["semantic_service"],
+                    "final_status": item["t14d_authority_status"],
+                },
+            )
     records = []
     seen = set()
     for spec in SPECS:
@@ -638,8 +661,8 @@ def build_artifacts() -> dict[str, str]:
         "schema_version": "t15a-scope-operation-inventory-v1",
         "source": {
             "t14d_operation_family_certificate": T14D.name,
-            "t14d_certificate_sha256": _sha(T14D),
-            "t14d_certified_family_count": source["operation_family_count"],
+            "t14d_certificate_sha256": FROZEN_T14D_SHA256,
+            "t14d_certified_family_count": 220,
             "t14e_finding_snapshot": T14E_FINDINGS.name,
             "t14e_finding_snapshot_sha256": _sha(T14E_FINDINGS),
         },

@@ -41,12 +41,17 @@ class CeriSourceRecordService:
         config_version: str | None,
         config_hash: str | None,
         calculation_version: str | None = None,
+        semantic_authority=None,
     ) -> CeriIngestionRun:
         existing = _maybe_scalar(
             db,
             select(CeriIngestionRun).where(CeriIngestionRun.request_key == request_key),
         )
         if existing is not None:
+            if semantic_authority is not None:
+                from app.services.scope_refresh_adoption import bind_semantic_authority
+
+                bind_semantic_authority(existing, semantic_authority)
             return existing
 
         run = CeriIngestionRun(
@@ -64,6 +69,11 @@ class CeriSourceRecordService:
                 provider_signatures={provider: provider_terms_version or "unknown"},
             ),
             started_at=_utcnow(),
+            scope_id=(semantic_authority.scope_id if semantic_authority else None),
+            refresh_cycle_id=(semantic_authority.refresh_cycle_id if semantic_authority else None),
+            acquisition_plan_id=(
+                semantic_authority.acquisition_plan_id if semantic_authority else None
+            ),
         )
         db.add(run)
         db.flush()

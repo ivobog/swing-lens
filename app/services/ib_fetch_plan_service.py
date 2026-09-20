@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import IBContract, IBFetchItem
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ib_historical_request_scope import (
     build_historical_request_scope,
     reviewed_start_for_duration,
@@ -181,7 +182,46 @@ def fetch_plan_to_dict(plan: FetchPlan) -> dict[str, object]:
         }
         for item in plan.items
     ]
-    return payload
+    return CanonicalEvidenceSerializer.canonicalize(payload)
+
+
+def fetch_plan_from_dict(payload: dict[str, object]) -> FetchPlan:
+    """Restore the exact admitted plan without consulting current coverage."""
+
+    items: list[FetchPlanItem] = []
+    for raw in payload.get("items", []):
+        values = dict(raw)
+        values["action"] = FetchAction(str(values["action"]))
+        for name in (
+            "first_bar_date",
+            "latest_bar_date",
+            "freshness_threshold_date",
+            "missing_start_date",
+            "missing_end_date",
+            "request_start_date",
+            "request_end_date",
+            "reviewed_session_expiry",
+        ):
+            if isinstance(values.get(name), str):
+                values[name] = date.fromisoformat(values[name])
+        values["dependency_roles"] = tuple(values.get("dependency_roles") or ())
+        items.append(FetchPlanItem(**values))
+    return FetchPlan(
+        run_id=payload.get("run_id"),
+        requested_tickers=list(payload.get("requested_tickers") or []),
+        symbols_including_benchmarks=list(payload.get("symbols_including_benchmarks") or []),
+        items=items,
+        estimated_request_count=int(payload.get("estimated_request_count") or 0),
+        estimated_full_backfills=int(payload.get("estimated_full_backfills") or 0),
+        estimated_top_ups=int(payload.get("estimated_top_ups") or 0),
+        estimated_refreshes=int(payload.get("estimated_refreshes") or 0),
+        estimated_skips=int(payload.get("estimated_skips") or 0),
+        warnings=list(payload.get("warnings") or []),
+        decision_counts={
+            str(key): int(value)
+            for key, value in dict(payload.get("decision_counts") or {}).items()
+        },
+    )
 
 
 def _benchmark_coverage_items(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -30,6 +30,8 @@ class CeriBackfillRequest:
     mode: str = "AS_KNOWN"
     actor: str | None = None
     tickers: tuple[str, ...] = ()
+    refresh_cycle_key: str | None = None
+    semantic_authority: Any | None = None
 
 
 @dataclass(frozen=True)
@@ -81,29 +83,6 @@ class CeriBackfillService:
             raise ValueError(
                 "SEC historical backfill requires explicit bounded start and end dates"
             )
-        run, created = self.processing_runs.create_or_get(
-            db,
-            job_type="CERI_BACKFILL",
-            request_key=self.request_key(request),
-            scope={
-                "provider": request.provider,
-                "dataset": request.dataset,
-                "ticker": request.ticker,
-                "start": request.start.isoformat() if request.start else None,
-                "end": request.end.isoformat() if request.end else None,
-                "mode": request.mode,
-            },
-            config_version=self.config.engine.config_version,
-            config_hash=self.config.config_hash,
-            actor=request.actor,
-        )
-        if not created and run.status == "COMPLETED":
-            return CeriBackfillResult(
-                processing_run_id=run.id,
-                status=run.status,
-                checkpoints=run.checkpoint_json or {},
-                skipped=1,
-            )
         tickers = tuple(
             dict.fromkeys(
                 ticker.upper()
@@ -118,6 +97,70 @@ class CeriBackfillService:
                     key=lambda company: (company.ticker.upper(), company.id or 0),
                 )
                 if company.ticker
+            )
+        authority = request.semantic_authority
+        processing_request_key = self.request_key(request)
+        if isinstance(db, Session) and authority is None:
+            from app.services.canonical_evidence import CanonicalEvidenceSerializer
+            from app.services.scope_refresh_adoption import admit_frozen_operation
+            from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
+
+            cutoff = request.end or datetime.now(UTC).date()
+            cycle_key = request.refresh_cycle_key or (
+                f"{processing_request_key}:session:{cutoff.isoformat()}"
+            )
+            authority = admit_frozen_operation(
+                db,
+                operation_kind="ceri-backfill",
+                subject_kind="ticker",
+                members=tuple(ScopeMember("TICKER", ticker) for ticker in tickers),
+                cycle_key=cycle_key,
+                business_cutoff=cutoff,
+                provider_source_class=request.provider,
+                request_type=request.dataset,
+                requirements=(AcquisitionRequirement(request.dataset),),
+                policy_identity=CanonicalEvidenceSerializer.fingerprint(
+                    {
+                        "provider": request.provider,
+                        "dataset": request.dataset,
+                        "mode": request.mode,
+                        "config_hash": self.config.config_hash,
+                    }
+                ),
+                scope_definition={
+                    "window_start": request.start,
+                    "window_end": request.end,
+                    "mode": request.mode,
+                },
+                refresh_reason="CERI_BACKFILL_ADMISSION",
+            )
+        if authority is not None:
+            refresh_suffix = f":refresh:{authority.refresh_cycle_id}"
+            if not processing_request_key.endswith(refresh_suffix):
+                processing_request_key = f"{processing_request_key}{refresh_suffix}"
+        run, created = self.processing_runs.create_or_get(
+            db,
+            job_type="CERI_BACKFILL",
+            request_key=processing_request_key,
+            scope={
+                "provider": request.provider,
+                "dataset": request.dataset,
+                "ticker": request.ticker,
+                "start": request.start.isoformat() if request.start else None,
+                "end": request.end.isoformat() if request.end else None,
+                "mode": request.mode,
+            },
+            config_version=self.config.engine.config_version,
+            config_hash=self.config.config_hash,
+            actor=request.actor,
+            semantic_authority=authority,
+        )
+        if not created and run.status == "COMPLETED":
+            return CeriBackfillResult(
+                processing_run_id=run.id,
+                status=run.status,
+                checkpoints=run.checkpoint_json or {},
+                skipped=1,
             )
         checkpoint = dict(run.checkpoint_json or {})
         completed_tickers = {
@@ -175,6 +218,7 @@ class CeriBackfillService:
                             start=request.start,
                             end=request.end,
                             scope={"ticker": ticker, "backfill": True},
+                            semantic_authority=authority,
                         ),
                     )
                     if result.ingestion_run_id:

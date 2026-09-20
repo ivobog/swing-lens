@@ -49,7 +49,14 @@ from app.services.core_calculation_evidence import (
 )
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
-from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, build_fetch_plan
+from app.services.ib_fetch_job_service import FetchJobOptions, _admit_fetch_authority
+from app.services.ib_fetch_plan_service import (
+    FetchAction,
+    FetchPlan,
+    build_fetch_plan,
+    fetch_plan_from_dict,
+    fetch_plan_to_dict,
+)
 from app.services.ib_gateway_health_service import (
     IBGatewayHealthStatus,
     is_api_ready_status,
@@ -88,6 +95,11 @@ from app.services.ranking_profile_service import (
     execute_ranking_pipeline_step,
 )
 from app.services.redaction import redact_sensitive
+from app.services.scope_refresh_adoption import (
+    SemanticWorkAuthority,
+    bind_semantic_authority,
+    require_semantic_authority,
+)
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 from app.services.sector_rotation_service import SectorRotationService
 from app.services.setup_lifecycle.constants import (
@@ -374,7 +386,7 @@ def execute_full_pipeline(
         with _pipeline_step(
             db, pipeline, "VALIDATING_RUN", lease_guard=lease_guard, performance=performance
         ):
-            tickers = _tickers_for_run(db, upload_run.id)
+            tickers = _pipeline_scope_tickers(db, pipeline)
             if not tickers:
                 raise ValueError("No uploaded tickers are available for this run.")
             result["uploaded_rows"] = upload_run.row_count or len(tickers)
@@ -417,13 +429,48 @@ def execute_full_pipeline(
                 result["degraded"] = True
             else:
                 result["market_data_mode"] = "IB_GATEWAY"
-            plan = dependencies.build_fetch_plan(
-                db=db,
-                tickers=tickers,
-                run_id=upload_run.id,
-                include_benchmarks=True,
-                what_to_show_values=DEFAULT_WHAT_TO_SHOW,
-            )
+            retained_plan = (pipeline.result_json or {}).get("ib_fetch_plan")
+            retained_authority = (pipeline.result_json or {}).get("ib_fetch_authority")
+            fetch_authority = None
+            if isinstance(db, Session) and isinstance(retained_plan, dict):
+                plan = fetch_plan_from_dict(retained_plan)
+                if isinstance(retained_authority, dict):
+                    fetch_authority = SemanticWorkAuthority(**retained_authority)
+                else:
+                    # Some interrupted pre-T15B checkpoints retained the exact
+                    # immutable FetchPlan but not its child authority references.
+                    # Re-admit only from that retained plan; never query current
+                    # coverage or membership to fabricate the stage scope.
+                    fetch_authority = _admit_fetch_authority(
+                        db,
+                        plan,
+                        FetchJobOptions(include_benchmarks=True),
+                        parent_scope_id=require_semantic_authority(pipeline).scope_id,
+                    )
+                    pipeline.result_json = {
+                        **(pipeline.result_json or {}),
+                        "ib_fetch_authority": fetch_authority.as_dict(),
+                    }
+            else:
+                plan = dependencies.build_fetch_plan(
+                    db=db,
+                    tickers=tickers,
+                    run_id=upload_run.id,
+                    include_benchmarks=True,
+                    what_to_show_values=DEFAULT_WHAT_TO_SHOW,
+                )
+                if isinstance(db, Session):
+                    fetch_authority = _admit_fetch_authority(
+                        db,
+                        plan,
+                        FetchJobOptions(include_benchmarks=True),
+                        parent_scope_id=require_semantic_authority(pipeline).scope_id,
+                    )
+                    pipeline.result_json = {
+                        **(pipeline.result_json or {}),
+                        "ib_fetch_plan": fetch_plan_to_dict(plan),
+                        "ib_fetch_authority": fetch_authority.as_dict(),
+                    }
             prewarm_context = resolve_pipeline_prewarm_context(db, tickers)
             prewarm_skipped_tickers = {
                 ticker
@@ -503,6 +550,10 @@ def execute_full_pipeline(
                     select(IBFetchRun.id)
                     .where(IBFetchRun.run_id == upload_run.id)
                     .where(IBFetchRun.status == "RUNNING")
+                    .where(
+                        IBFetchRun.scope_id
+                        == (fetch_authority.scope_id if fetch_authority is not None else None)
+                    )
                     .order_by(IBFetchRun.id.desc())
                     .limit(1)
                 )
@@ -519,6 +570,8 @@ def execute_full_pipeline(
                 if overlap_coordinator is not None:
                     fetch_kwargs["on_ticker_ready"] = overlap_coordinator.on_ticker_ready
                 fetch_run = dependencies.execute_fetch_plan(**fetch_kwargs)
+                if fetch_authority is not None:
+                    bind_semantic_authority(fetch_run, fetch_authority)
                 _apply_fetch_result(result, fetch_run)
                 _apply_fetch_performance(performance, fetch_run)
                 if fetch_run.status == "CANCELLED":
@@ -976,7 +1029,7 @@ def _execute_resumed_pipeline(
         }
     )
     try:
-        tickers = _tickers_for_run(db, upload_run.id)
+        tickers = _pipeline_scope_tickers(db, pipeline)
         validate_checkpoint = dependencies.validate_resume_checkpoint
         checkpoint = (
             validate_checkpoint(db, upload_run.id, resume_from_step)
@@ -1145,7 +1198,7 @@ def _validate_resume_checkpoint(
             "Cannot resume because prior stages are not complete: " + ", ".join(invalid)
         )
 
-    expected = len(_tickers_for_run(db, upload_run_id))
+    expected = len(_pipeline_scope_tickers(db, pipeline))
     checks = {
         "fundamental_scores": _run_ticker_count(db, FundamentalScore, upload_run_id),
         "technical_scores": _run_ticker_count(db, TechnicalScore, upload_run_id),
@@ -1688,6 +1741,22 @@ def _tickers_for_run(db: Session, upload_run_id: int) -> list[str]:
     return tickers
 
 
+def _pipeline_scope_tickers(db: Session, pipeline: PipelineRun) -> list[str]:
+    if not isinstance(db, Session):
+        return _tickers_for_run(db, pipeline.upload_run_id)
+    from app.services.scope_refresh_adoption import (
+        require_semantic_authority,
+        retained_scope_members,
+    )
+
+    authority = require_semantic_authority(pipeline)
+    return [
+        member.subject_id
+        for member in retained_scope_members(db, authority.scope_id)
+        if member.subject_type == "TICKER"
+    ]
+
+
 def _mark_pipeline_running(
     db: Session,
     pipeline: PipelineRun,
@@ -1711,6 +1780,14 @@ def _mark_pipeline_finished(
     *,
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
+    if isinstance(db, Session):
+        from app.services.scope_refresh_adoption import (
+            require_children_terminal,
+            require_semantic_authority,
+        )
+
+        authority = require_semantic_authority(pipeline)
+        result["semantic_child_accounting"] = require_children_terminal(db, authority.scope_id)
     pipeline.status = status
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 0)
     pipeline.current_step = None

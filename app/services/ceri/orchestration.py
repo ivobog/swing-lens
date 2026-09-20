@@ -41,6 +41,9 @@ class CeriIngestionRequest:
     scope: dict[str, Any] | None = None
     start: date | None = None
     end: date | None = None
+    refresh_cycle_key: str | None = None
+    business_cutoff: date | datetime | None = None
+    semantic_authority: Any | None = None
 
 
 @dataclass(frozen=True)
@@ -93,7 +96,54 @@ class CeriIngestionService:
     ) -> CeriIngestionResult:
         provider = self.registry.get(request.provider)
         dataset_policy = self.registry.license_policy(request.provider, request.dataset.value)
+        authority = request.semantic_authority
         request_key = request.request_key or self.request_key(request)
+        if isinstance(db, Session) and authority is None:
+            from app.services.canonical_evidence import CanonicalEvidenceSerializer
+            from app.services.scope_refresh_adoption import (
+                admit_frozen_operation,
+                ceri_cycle_key,
+            )
+            from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
+
+            cutoff = request.business_cutoff or request.end or datetime.now(UTC).date()
+            cycle_key = ceri_cycle_key(
+                provider=request.provider,
+                dataset=request.dataset.value,
+                ticker=request.ticker,
+                cutoff=cutoff,
+                explicit_cycle_key=request.refresh_cycle_key,
+            )
+            policy_identity = CanonicalEvidenceSerializer.fingerprint(
+                {
+                    "provider": request.provider,
+                    "dataset": request.dataset.value,
+                    "config_hash": self.config.config_hash,
+                }
+            )
+            authority = admit_frozen_operation(
+                db,
+                operation_kind="ceri-source-acquisition",
+                subject_kind="ticker",
+                members=(ScopeMember("TICKER", request.ticker),),
+                cycle_key=cycle_key,
+                business_cutoff=cutoff,
+                provider_source_class=request.provider,
+                request_type=request.dataset.value,
+                requirements=(AcquisitionRequirement(request.dataset.value),),
+                policy_identity=policy_identity,
+                scope_definition={
+                    "provider": request.provider,
+                    "dataset": request.dataset.value,
+                    "window_start": request.start,
+                    "window_end": request.end,
+                },
+                refresh_reason="CERI_PROVIDER_OBSERVATION",
+            )
+        if authority is not None:
+            refresh_suffix = f":refresh:{authority.refresh_cycle_id}"
+            if not request_key.endswith(refresh_suffix):
+                request_key = f"{request_key}{refresh_suffix}"
         ingestion_run = self.source_records.create_ingestion_run(
             db,
             provider=request.provider,
@@ -106,6 +156,7 @@ class CeriIngestionService:
             config_version=self.config.engine.config_version,
             config_hash=self.config.config_hash,
             calculation_version=self.config.engine.calculation_version,
+            semantic_authority=authority,
         )
         if ingestion_run.status in {"COMPLETED", "PARTIAL"}:
             return self._result_from_run(ingestion_run)

@@ -69,7 +69,7 @@ def _scope(plan_id: str, size: int = 3) -> WorkScopeSnapshot:
 def scope_engine(disposable_postgres_database):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", disposable_postgres_database)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0081_scope_refresh_identity"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0082_pipeline_ceri_scope"]
     command.upgrade(config, "head")
     command.check(config)
     engine = create_engine(disposable_postgres_database)

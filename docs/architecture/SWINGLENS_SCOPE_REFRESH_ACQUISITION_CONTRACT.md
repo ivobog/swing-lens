@@ -166,6 +166,87 @@ is one batched statement; validation is set-based, so persistence uses a constan
 T15A implements the shared types, validation, immutable persistence, and adversarial tests. These
 invariants are only partially enforced until T15B/T15C/T15D adopt them at domain entrypoints.
 
+## T15B certified Pipeline and CERI adoption
+
+### Pipeline root scopes and subscopes
+
+Full Pipeline admission freezes the normalized ticker membership from the selected upload after the
+market calculation context is fixed and before the durable root job is enqueued. The pipeline row and
+root job carry the same `scope_id`, `refresh_cycle_id`, and `acquisition_plan_id`. A stage that has a
+legitimate subset persists a separate frozen scope with `parent_scope_id` pointing to the root; it
+does not rewrite root membership. The market-data stage persists the exact admitted `FetchPlan` as
+its child authority.
+
+### Retry, resume, reclaim, and continuation
+
+Retry, resume, SEC-repair continuation, prewarm execution, and durable IB fetch execution require the
+retained authority. They may replace a lease, worker, execution token, or attempt counter, but cannot
+replace scope, refresh, plan, cutoff, or policy. Durable fetch jobs restore the serialized admitted
+plan rather than resolving current coverage again. An interrupted pre-binding pipeline may
+deterministically admit missing child authority only from an already retained exact immutable plan
+and retained root scope. Every other legacy operation without complete authority fails closed; no
+compatibility path resolves current coverage.
+
+Frozen continuation is set subtraction over persisted members:
+
+```text
+remaining = persisted scope members - completed members
+```
+
+A newly eligible database row is therefore excluded from an old continuation. If remaining work is
+non-empty and an attempt processes zero members, the operation becomes `BLOCKED` with the reason and
+remaining membership persisted; it does not enqueue an equivalent unbounded continuation.
+
+### Parent-child accounting
+
+Every semantic child explicitly declares whether it is required for parent completion. Required
+Pipeline, SEC-repair, and CERI-derived children inherit canonical authority. Counts expose planned,
+completed, failed, cancelled, and remaining work. The parent cannot become complete while a required
+child is non-terminal. Optional work remains explicitly optional rather than being inferred from its
+job type.
+
+### CERI refresh cycles and idempotency
+
+CERI admission freezes the ticker/source population and acquisition semantics before enqueue. The
+cycle key is an explicit scheduler/operator cycle when supplied, otherwise a deterministic
+provider/dataset/ticker/business-session key. Retries of one cycle converge on the same refresh ID.
+A later cycle creates another refresh ID even when the provider record key is stable.
+
+The ingestion request key is namespaced by `refresh_cycle_id`. Within one refresh, the same source
+and revision remain idempotent. Across refreshes, the stable provider key is allowed to produce a new
+observation or a superseding source revision. No timestamp randomness is used to bypass deduplication.
+CERI processing children inherit the same authority unless an explicitly admitted child scope is
+needed.
+
+### Acquisition-plan adoption and replanning
+
+Pipeline, CERI, SEC repair, IB fetch, and prewarm operations assigned to T15B persist the canonical
+T15A acquisition plan. It records exact subjects, provider/source class, request type, business
+cutoff, range, policy, and requirements. A transport retry retains P1. A semantic change to subjects,
+provider policy, date range, or requirements creates immutable P2 with `previous_plan_id = P1` and a
+typed revision reason. Provider results report received/missing work but never redefine the plan.
+
+### Checkpoint and scope relationships
+
+Checkpoint and progress ownership is scoped by the durable owner's `scope_id` and, for refreshable
+work, `refresh_cycle_id`. A checkpoint for S1/R1 cannot advance S2/R2. Shared immutable evidence may
+be reused according to its own identity; mutable work progress may not. PostgreSQL foreign keys and
+single-assignment triggers reject authority references that are missing or rebound after admission.
+
+### Performance constraints
+
+Authority persistence remains set-based: member insertion and validation use bounded statements for
+1, 50, and 200 members. Pipeline admission, remainder calculation, CERI refresh admission, and plan
+persistence do not issue per-member authority lookups. T14D query bounds remain the regression gates:
+capture 29/29, pipeline 70/70, and material 29/29 for populations 1/50.
+
+### T15B closure boundary
+
+T15B enforces `INV-SCOPE-001` and `INV-REFRESH-001` for Pipeline/CERI, closes the assigned Pipeline,
+IB/prewarm, CERI refresh, and acquisition-plan paths, and leaves repository-wide status partial.
+Winner adoption and exact Winner source-revision lineage remain T15C work; other provenance and
+algorithm-specific gaps remain T15D work.
+
 ## Relationship to Phases 0-5
 
 Phase 1 calculation identity, Phase 2 immutable evidence, Phase 3 consumer eligibility, Phase 4

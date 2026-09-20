@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import date
 from typing import Any
 
 from sqlalchemy import select
@@ -16,8 +17,14 @@ from app.services.background_job_service import (
     record_job_progress,
     request_job_cancel,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ib_fetch_executor import execute_fetch_plan
-from app.services.ib_fetch_plan_service import FetchPlan, build_fetch_plan
+from app.services.ib_fetch_plan_service import (
+    FetchPlan,
+    build_fetch_plan,
+    fetch_plan_from_dict,
+    fetch_plan_to_dict,
+)
 from app.services.operational_metrics import operational_metrics
 from app.services.process_memory import (
     WorkerMemoryCritical,
@@ -25,6 +32,14 @@ from app.services.process_memory import (
     process_memory_snapshot,
     runtime_memory_diagnostics,
 )
+from app.services.scope_refresh_adoption import (
+    SemanticWorkAuthority,
+    admit_frozen_operation,
+    bind_semantic_authority,
+    require_semantic_authority,
+    validate_same_authority,
+)
+from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 from app.settings import get_settings
 
 FETCH_TERMINAL_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}
@@ -44,7 +59,11 @@ def create_queued_fetch_run(
     db: Session,
     plan: FetchPlan,
     options: FetchJobOptions,
+    *,
+    semantic_authority: SemanticWorkAuthority | None = None,
 ) -> IBFetchRun:
+    if isinstance(db, Session) and semantic_authority is None:
+        semantic_authority = _admit_fetch_authority(db, plan, options)
     fetch_run = IBFetchRun(
         run_id=plan.run_id,
         requested_tickers=plan.requested_tickers,
@@ -56,6 +75,11 @@ def create_queued_fetch_run(
         planned_request_count=plan.estimated_request_count,
         status="QUEUED",
         message="IB fetch is queued.",
+        scope_id=(semantic_authority.scope_id if semantic_authority else None),
+        refresh_cycle_id=(semantic_authority.refresh_cycle_id if semantic_authority else None),
+        acquisition_plan_id=(
+            semantic_authority.acquisition_plan_id if semantic_authority else None
+        ),
     )
     db.add(fetch_run)
     db.flush()
@@ -70,7 +94,12 @@ def submit_fetch_job(
 ) -> BackgroundJob:
     """Queue an IB fetch durably; the web process never executes broker work."""
     what_to_show_values = sorted({item.what_to_show for item in plan.items})
-    return enqueue_job(
+    authority = (
+        require_semantic_authority(db.get(IBFetchRun, fetch_run_id))
+        if isinstance(db, Session)
+        else None
+    )
+    job = enqueue_job(
         db,
         IB_FETCH_JOB_TYPE,
         {
@@ -81,11 +110,15 @@ def submit_fetch_job(
             "force_refresh": options.force_refresh,
             "force_full_backfill": options.force_full_backfill,
             "what_to_show_values": what_to_show_values,
+            "fetch_plan": fetch_plan_to_dict(plan),
         },
         related_run_id=plan.run_id,
         request_key=_request_key(fetch_run_id),
         max_retries=3,
     )
+    if authority is not None:
+        bind_semantic_authority(job, authority)
+    return job
 
 
 def cancel_fetch_job(db: Session, fetch_run_id: int) -> dict[str, Any]:
@@ -119,6 +152,30 @@ def resume_fetch_job(
         raise ValueError(f"IB fetch run {fetch_run_id} cannot be resumed from {previous.status}.")
 
     failed_items = [item for item in previous.items if item.status == "FAILED"]
+    if isinstance(db, Session):
+        authority = require_semantic_authority(previous)
+        prior_job = db.scalar(
+            select(BackgroundJob)
+            .where(BackgroundJob.job_type == IB_FETCH_JOB_TYPE)
+            .where(BackgroundJob.payload_json["fetch_run_id"].astext == str(previous.id))
+            .order_by(BackgroundJob.id.desc())
+            .limit(1)
+        )
+        if prior_job is None or not isinstance(
+            (prior_job.payload_json or {}).get("fetch_plan"), dict
+        ):
+            raise ValueError("LEGACY_UNKNOWN_ACQUISITION_PLAN")
+        validate_same_authority(previous, prior_job)
+        admitted_plan = fetch_plan_from_dict(prior_job.payload_json["fetch_plan"])
+        failed_keys = {(item.ticker, item.what_to_show) for item in failed_items}
+        plan = _subset_fetch_plan(admitted_plan, failed_keys) if failed_keys else admitted_plan
+        options = FetchJobOptions(
+            include_benchmarks=previous.include_benchmarks,
+            force_refresh=previous.force_refresh,
+            force_full_backfill=previous.force_full_backfill,
+        )
+        fetch_run = create_queued_fetch_run(db, plan, options, semantic_authority=authority)
+        return fetch_run, plan, options
     tickers = _unique_tickers([item.ticker for item in failed_items]) or previous.requested_tickers
     what_to_show_values = _unique_values([item.what_to_show for item in failed_items])
     resume_what_to_show = (
@@ -209,17 +266,14 @@ def fetch_progress(fetch_run: IBFetchRun, cancel_requested: bool = False) -> dic
 def execute_durable_fetch_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     payload = job.payload_json or {}
     fetch_run_id = int(payload["fetch_run_id"])
-    plan = build_fetch_plan(
-        db=db,
-        tickers=[str(value) for value in payload.get("tickers", [])],
-        run_id=payload.get("run_id"),
-        include_benchmarks=bool(payload.get("include_benchmarks", True)),
-        force_refresh=bool(payload.get("force_refresh", False)),
-        force_full_backfill=bool(payload.get("force_full_backfill", False)),
-        what_to_show_values=tuple(
-            payload.get("what_to_show_values") or ("ADJUSTED_LAST", "TRADES")
-        ),
-    )
+    fetch_run = _load_fetch_run(db, fetch_run_id)
+    if fetch_run is None:
+        raise ValueError(f"IB fetch run {fetch_run_id} was not found.")
+    validate_same_authority(fetch_run, job)
+    plan_payload = payload.get("fetch_plan")
+    if not isinstance(plan_payload, dict):
+        raise ValueError("LEGACY_UNKNOWN_ACQUISITION_PLAN")
+    plan = fetch_plan_from_dict(plan_payload)
     execution_token = str(job.execution_token or "")
 
     def should_cancel() -> bool:
@@ -280,6 +334,83 @@ def execute_durable_fetch_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         memory_probe=memory_probe,
     )
     return fetch_progress(fetch_run)
+
+
+def _admit_fetch_authority(
+    db: Session,
+    plan: FetchPlan,
+    options: FetchJobOptions,
+    *,
+    parent_scope_id: str | None = None,
+) -> SemanticWorkAuthority:
+    cutoff_candidates = [
+        value
+        for item in plan.items
+        for value in (item.request_end_date, item.freshness_threshold_date)
+        if value is not None
+    ]
+    cutoff = max(cutoff_candidates, default=date.today())
+    serialized = fetch_plan_to_dict(plan)
+    cycle_key = "ib-fetch:" + CanonicalEvidenceSerializer.fingerprint(
+        {"plan": serialized, "cutoff": cutoff}
+    )
+    requirements = tuple(
+        AcquisitionRequirement(
+            f"{item.ticker}:{item.what_to_show}:{item.bar_size}:{item.action.value}"
+        )
+        for item in plan.items
+    )
+    return admit_frozen_operation(
+        db,
+        operation_kind="ib-price-acquisition",
+        subject_kind="ticker",
+        members=tuple(
+            ScopeMember("TICKER", ticker) for ticker in plan.symbols_including_benchmarks
+        ),
+        cycle_key=cycle_key,
+        business_cutoff=cutoff,
+        provider_source_class="INTERACTIVE_BROKERS",
+        request_type="HISTORICAL_BARS",
+        requirements=requirements,
+        policy_identity=CanonicalEvidenceSerializer.fingerprint(
+            {
+                "include_benchmarks": options.include_benchmarks,
+                "force_refresh": options.force_refresh,
+                "force_full_backfill": options.force_full_backfill,
+            }
+        ),
+        scope_definition={
+            "run_id": plan.run_id,
+            "window_start": min(
+                (item.request_start_date for item in plan.items if item.request_start_date),
+                default=None,
+            ),
+            "window_end": max(
+                (item.request_end_date for item in plan.items if item.request_end_date),
+                default=None,
+            ),
+            "exact_fetch_plan_hash": CanonicalEvidenceSerializer.fingerprint(serialized),
+        },
+        parent_scope_id=parent_scope_id,
+        refresh_reason="IB_FETCH_ADMISSION",
+    )
+
+
+def _subset_fetch_plan(plan: FetchPlan, failed_keys: set[tuple[str, str]]) -> FetchPlan:
+    items = [item for item in plan.items if (item.ticker, item.what_to_show) in failed_keys]
+    return replace(
+        plan,
+        requested_tickers=sorted({item.ticker for item in items}),
+        symbols_including_benchmarks=sorted({item.ticker for item in items}),
+        items=items,
+        estimated_request_count=sum(item.estimated_request_count for item in items),
+        estimated_full_backfills=sum(
+            item.action.value in {"FULL_BACKFILL", "FORCE_REFRESH"} for item in items
+        ),
+        estimated_top_ups=sum(item.action.value == "TOP_UP_RECENT" for item in items),
+        estimated_refreshes=sum(item.action.value == "REFRESH_RECENT" for item in items),
+        estimated_skips=sum(item.action.value == "SKIP" for item in items),
+    )
 
 
 def _request_key(fetch_run_id: int) -> str:

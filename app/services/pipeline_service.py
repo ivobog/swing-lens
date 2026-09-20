@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
+from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, RawCompanyRow, UploadRun
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import (
     JobStatus,
@@ -20,7 +20,14 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI_PIPELINE_STEPS
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.market_data_prewarm_service import request_active_prewarm_preemption
+from app.services.scope_refresh_adoption import (
+    SemanticWorkAuthority,
+    admit_frozen_operation,
+    bind_semantic_authority,
+    require_semantic_authority,
+)
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
+from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 from app.settings import RuntimeMode, get_settings
 
 FULL_PIPELINE_JOB_TYPE = "FULL_PIPELINE"
@@ -114,6 +121,11 @@ class PipelineStatusDto:
     background_job_id: int | None
     steps: list[PipelineStepStatusDto]
     result_json: dict[str, Any] | None = None
+    scope_id: str | None = None
+    refresh_cycle_id: str | None = None
+    acquisition_plan_id: str | None = None
+    scope_size: int | None = None
+    required_child_counts: dict[str, int] | None = None
 
 
 def start_pipeline(
@@ -277,6 +289,16 @@ def start_pipeline(
             pipeline=pipeline,
         )
 
+    if isinstance(db, Session):
+        authority = _admit_pipeline_authority(
+            db,
+            pipeline=pipeline,
+            step_names=step_names,
+            policy=policy,
+            market_cutoff=market_cutoff,
+        )
+        bind_semantic_authority(pipeline, authority)
+
     for step_order, step_name in enumerate(step_names, start=1):
         db.add(
             PipelineStep(
@@ -320,6 +342,8 @@ def start_pipeline(
         max_retries=PIPELINE_JOB_MAX_RETRIES,
         request_key=request_key,
     )
+    if isinstance(db, Session):
+        bind_semantic_authority(job, require_semantic_authority(pipeline))
     if getattr(job, "_coalesced", False):
         existing_pipeline = _pipeline_for_job(db, job)
         if existing_pipeline is not None:
@@ -422,6 +446,16 @@ def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
         raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
 
     steps = _load_pipeline_steps(db, pipeline_run_id)
+    scope_size = None
+    child_counts = None
+    if isinstance(db, Session) and pipeline.scope_id:
+        from app.services.scope_refresh_adoption import (
+            required_child_counts,
+            retained_scope_members,
+        )
+
+        scope_size = len(retained_scope_members(db, pipeline.scope_id))
+        child_counts = required_child_counts(db, pipeline.scope_id)
     status = PipelineStatusDto(
         pipeline_run_id=pipeline.id,
         upload_run_id=pipeline.upload_run_id,
@@ -448,6 +482,11 @@ def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
             for step in steps
         ],
         result_json=pipeline.result_json,
+        scope_id=pipeline.scope_id,
+        refresh_cycle_id=pipeline.refresh_cycle_id,
+        acquisition_plan_id=pipeline.acquisition_plan_id,
+        scope_size=scope_size,
+        required_child_counts=child_counts,
     )
     failed_repair = _failed_sec_repair(db, pipeline)
     if failed_repair is not None:
@@ -631,6 +670,7 @@ def resume_pipeline(
     pipeline = db.get(PipelineRun, pipeline_run_id)
     if pipeline is None:
         raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
+    authority = require_semantic_authority(pipeline) if isinstance(db, Session) else None
     failed_repair = _failed_sec_repair(db, pipeline)
     if failed_repair is not None:
         from app.services.background_job_service import classify_job_failure
@@ -702,6 +742,8 @@ def resume_pipeline(
         max_retries=PIPELINE_JOB_MAX_RETRIES,
         request_key=request_key,
     )
+    if authority is not None:
+        bind_semantic_authority(job, authority)
     pipeline.status = PipelineStatus.PENDING
     pipeline.current_step = target
     pipeline.completed_at = None
@@ -751,6 +793,7 @@ def enqueue_pipeline_after_sec_repair(
     processor_signature: str,
     resume_from_step: str = "VALIDATING_RUN",
 ) -> BackgroundJob:
+    authority = require_semantic_authority(pipeline) if isinstance(db, Session) else None
     if isinstance(db, Session):
         db.execute(select(PipelineRun.id).where(PipelineRun.id == pipeline.id).with_for_update())
     step = next(
@@ -771,6 +814,8 @@ def enqueue_pipeline_after_sec_repair(
         db, pipeline, processor_signature=processor_signature, resume_from_step=resume_from_step
     )
     if existing is not None:
+        if authority is not None:
+            bind_semantic_authority(existing, authority)
         return existing
     job = enqueue_job(
         db,
@@ -786,6 +831,8 @@ def enqueue_pipeline_after_sec_repair(
         request_key=request_key,
         workflow_key=f"pipeline:{pipeline.id}:sec-continuation",
     )
+    if authority is not None:
+        bind_semantic_authority(job, authority)
     if getattr(job, "_coalesced", False):
         return job
     pipeline.status = PipelineStatus.PENDING
@@ -835,13 +882,66 @@ def _pipeline_context_payload(db: Session, pipeline: PipelineRun) -> dict[str, A
     from app.services.market_calculation_context_service import market_context_for_pipeline
 
     context = market_context_for_pipeline(db, pipeline)
-    return {
+    payload = {
         "market_calculation_context_id": context.context_id,
         "market_cutoff_at": CanonicalEvidenceSerializer.canonicalize(context.cutoff_at),
         "input_as_of_session": context.latest_completed_session.isoformat(),
         "market_calendar_version": context.calendar_version,
         "bar_readiness_version": context.bar_readiness_version,
     }
+    if isinstance(db, Session):
+        payload.update(require_semantic_authority(pipeline).as_dict())
+    return payload
+
+
+def _admit_pipeline_authority(
+    db: Session,
+    *,
+    pipeline: PipelineRun,
+    step_names: tuple[str, ...],
+    policy: MarketDataPolicy,
+    market_cutoff: Any,
+) -> SemanticWorkAuthority:
+    tickers = tuple(
+        dict.fromkeys(
+            str(value).strip().upper()
+            for value in db.scalars(
+                select(RawCompanyRow.ticker)
+                .where(RawCompanyRow.run_id == pipeline.upload_run_id)
+                .order_by(RawCompanyRow.row_number)
+            )
+            if str(value).strip()
+        )
+    )
+    members = tuple(ScopeMember("TICKER", ticker) for ticker in tickers)
+    cutoff = market_cutoff.cutoff_at
+    cycle_key = f"pipeline-market-context:{market_cutoff.context_id}"
+    policy_identity = CanonicalEvidenceSerializer.fingerprint(
+        {
+            "kind": "full-pipeline-admission",
+            "market_data_policy": policy.value,
+            "steps": list(step_names),
+        }
+    )
+    return admit_frozen_operation(
+        db,
+        operation_kind="full-pipeline-run",
+        subject_kind="ticker",
+        members=members,
+        cycle_key=cycle_key,
+        business_cutoff=cutoff,
+        provider_source_class="PIPELINE_INPUTS",
+        request_type="FULL_PIPELINE",
+        requirements=tuple(AcquisitionRequirement(step) for step in step_names),
+        policy_identity=policy_identity,
+        scope_definition={
+            "upload_run_id": pipeline.upload_run_id,
+            "market_calculation_context_id": market_cutoff.context_id,
+            "market_data_policy": policy.value,
+            "stages": list(step_names),
+        },
+        refresh_reason="FULL_PIPELINE_ADMISSION",
+    )
 
 
 def _pipeline_request_key(

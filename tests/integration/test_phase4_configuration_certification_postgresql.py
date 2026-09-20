@@ -434,7 +434,11 @@ def test_populated_0080_downgrade_reupgrade_preserves_business_history_and_fails
         db.add(UploadRun(id=1, filename="pre-0080.csv", status="COMPLETED"))
         db.flush()
         db.add(RawCompanyRow(run_id=1, row_number=1, ticker="ACME", raw_json={"Symbol": "ACME"}))
-        db.add(PipelineRun(id=1, upload_run_id=1, status="PENDING"))
+        # Seed through the historical schema: the current ORM intentionally has
+        # later T15B binding columns that do not exist at revision 0079.
+        db.execute(
+            text("INSERT INTO pipeline_runs (id, upload_run_id, status) VALUES (1, 1, 'PENDING')")
+        )
         db.commit()
     command.upgrade(config, "head")
     command.check(config)

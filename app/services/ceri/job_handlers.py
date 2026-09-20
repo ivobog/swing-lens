@@ -95,6 +95,9 @@ def execute_provider_ingest_job(
     dataset = _dataset(payload)
     provider = str(payload.get("provider") or "manual")
     ticker = _required_text(payload, "ticker")
+    from app.services.scope_refresh_adoption import require_semantic_authority
+
+    authority = require_semantic_authority(job) if isinstance(db, Session) else None
 
     if ingestion_service is None:
         ingestion_service = _ingestion_service_from_payload(payload, dataset)
@@ -108,6 +111,9 @@ def execute_provider_ingest_job(
                 ticker=ticker,
                 request_key=payload.get("request_key"),
                 scope=payload.get("scope") or {"ticker": ticker},
+                refresh_cycle_key=payload.get("refresh_cycle_key"),
+                business_cutoff=_optional_date(payload.get("business_cutoff")),
+                semantic_authority=authority,
             ),
             should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
         )
@@ -197,6 +203,9 @@ def execute_normalize_job(
         actor=payload.get("actor"),
         checkpoint_json={"phase": "phase_4_normalization_started"},
         started_at=started_at,
+        scope_id=job.scope_id,
+        refresh_cycle_id=job.refresh_cycle_id,
+        acquisition_plan_id=job.acquisition_plan_id,
     )
     db.add(processing_run)
     db.flush()
@@ -539,6 +548,9 @@ def execute_backfill_job(
     if not ceri_flags().backfill:
         return _skipped_job(CERI_BACKFILL, "backfill_disabled")
     payload = job.payload_json or {}
+    from app.services.scope_refresh_adoption import require_semantic_authority
+
+    authority = require_semantic_authority(job) if isinstance(db, Session) else None
     result = (backfill_service or CeriBackfillService()).run(
         db,
         CeriBackfillRequest(
@@ -552,6 +564,8 @@ def execute_backfill_job(
             tickers=tuple(
                 str(ticker) for ticker in payload.get("tickers", []) if str(ticker).strip()
             ),
+            refresh_cycle_key=payload.get("refresh_cycle_key"),
+            semantic_authority=authority,
         ),
     )
     if result.status == "PARTIAL":
@@ -752,6 +766,15 @@ def _processing_run(
     default_request_key: str,
 ) -> tuple[CeriProcessingRun, bool]:
     config = load_ceri_config()
+    semantic_authority = None
+    if all(payload.get(key) for key in ("scope_id", "refresh_cycle_id", "acquisition_plan_id")):
+        from app.services.scope_refresh_adoption import SemanticWorkAuthority
+
+        semantic_authority = SemanticWorkAuthority(
+            scope_id=str(payload["scope_id"]),
+            refresh_cycle_id=str(payload["refresh_cycle_id"]),
+            acquisition_plan_id=str(payload["acquisition_plan_id"]),
+        )
     return CeriProcessingRunService().create_or_get(
         db,
         job_type=job_type,
@@ -761,6 +784,7 @@ def _processing_run(
         config_hash=str(payload.get("config_hash") or config.config_hash),
         actor=payload.get("actor"),
         cutoff_at=_optional_datetime(payload.get("cutoff_at")),
+        semantic_authority=semantic_authority,
     )
 
 
@@ -849,6 +873,7 @@ def _enqueue_normalize_job(
         .where(BackgroundJob.payload_json["request_key"].astext == request_key),
     )
     if existing is not None:
+        _bind_semantic_child(source_job, existing)
         return existing.id
 
     job = enqueue_job(
@@ -872,6 +897,7 @@ def _enqueue_normalize_job(
         max_retries=source_job.max_retries or 3,
         request_key=request_key,
     )
+    _bind_semantic_child(source_job, job)
     return job.id
 
 
@@ -905,6 +931,7 @@ def _enqueue_feature_rebuild_after_normalize(
         max_retries=source_job.max_retries or 3,
         request_key=request_key,
     )
+    _bind_semantic_child(source_job, job)
     return job.id
 
 
@@ -935,6 +962,7 @@ def _enqueue_capture_after_features(
         max_retries=job.max_retries or 3,
         request_key=request_key,
     )
+    _bind_semantic_child(job, capture_job)
     return capture_job.id
 
 
@@ -957,6 +985,7 @@ def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: in
         request_key=request_key,
         workflow_key=job.workflow_key,
     )
+    _bind_semantic_child(job, change_job)
     return change_job.id
 
 
@@ -991,6 +1020,7 @@ def _enqueue_alert_after_change(
         request_key=request_key,
         workflow_key=job.workflow_key,
     )
+    _bind_semantic_child(job, alert_job)
     return alert_job.id
 
 
@@ -1020,9 +1050,26 @@ def _temporal_context_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "cutoff_at",
             "as_of_session",
             "calendar_version",
+            "scope_id",
+            "refresh_cycle_id",
+            "acquisition_plan_id",
         )
         if payload.get(key) not in (None, "")
     }
+
+
+def _bind_semantic_child(source: BackgroundJob, child: BackgroundJob) -> None:
+    from app.services.scope_refresh_adoption import (
+        LegacySemanticAuthorityError,
+        bind_semantic_authority,
+        require_semantic_authority,
+    )
+
+    try:
+        authority = require_semantic_authority(source)
+    except LegacySemanticAuthorityError:
+        return
+    bind_semantic_authority(child, authority, required_for_parent_completion=True)
 
 
 def _safe_job_error(exc: Exception) -> str:

@@ -324,8 +324,40 @@ def _freeze_pipeline(db, pipeline):
     from datetime import UTC, datetime
 
     from app.services.market_calculation_context_service import create_pipeline_market_context
+    from app.services.scope_refresh_adoption import (
+        admit_frozen_operation,
+        bind_semantic_authority,
+    )
+    from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 
     cutoff = create_pipeline_market_context(db, pipeline, cutoff_at=datetime.now(UTC))
+    tickers = tuple(
+        str(value).strip().upper()
+        for value in db.scalars(
+            select(RawCompanyRow.ticker)
+            .where(RawCompanyRow.run_id == pipeline.upload_run_id)
+            .order_by(RawCompanyRow.row_number)
+        )
+        if str(value).strip()
+    )
+    authority = admit_frozen_operation(
+        db,
+        operation_kind="full-pipeline-run",
+        subject_kind="ticker",
+        members=tuple(ScopeMember("TICKER", ticker) for ticker in tickers),
+        cycle_key=f"pipeline-market-context:{cutoff.context_id}",
+        business_cutoff=cutoff.cutoff_at,
+        provider_source_class="PIPELINE_INPUTS",
+        request_type="FULL_PIPELINE",
+        requirements=(AcquisitionRequirement("VALIDATING_RUN"),),
+        policy_identity="pytest-sec-readiness-repair",
+        scope_definition={
+            "upload_run_id": pipeline.upload_run_id,
+            "market_calculation_context_id": cutoff.context_id,
+        },
+        refresh_reason="FULL_PIPELINE_ADMISSION",
+    )
+    bind_semantic_authority(pipeline, authority)
     payload = {
         "pipeline_run_id": pipeline.id,
         "market_calculation_context_id": cutoff.context_id,
@@ -333,8 +365,10 @@ def _freeze_pipeline(db, pipeline):
         "input_as_of_session": cutoff.latest_completed_session.isoformat(),
         "market_calendar_version": cutoff.calendar_version,
         "bar_readiness_version": cutoff.bar_readiness_version,
+        **authority.as_dict(),
     }
     root = enqueue_job(db, "FULL_PIPELINE", payload, related_run_id=pipeline.upload_run_id)
+    bind_semantic_authority(root, authority)
     root.status = JobStatus.COMPLETED
     db.flush()
     return root

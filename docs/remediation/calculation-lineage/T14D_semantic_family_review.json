@@ -69,105 +69,6 @@
   "continuation_wave8_numeric_retention_review": "Native browser observation identified a NUMERIC scale-six tie: owned pre-SQL exit_price 74.2934325 sealed with half-even 74.293432, while PostgreSQL retained half-away-from-zero 74.293433. Outcome body sealing now uses ROUND_HALF_UP to match actual retained SQL numeric values. Outcome formulas, proof fields and financial validation are unchanged; observation hooks removed; actual native H5 SQL-reload regression added without authority substitutions.",
   "continuation_wave8_replay_review": "Native replay validates the retained setup financial proof and the current replay run full configuration/job binding. Its retrospective ownership explicitly makes the original setup pipeline not applicable, preserving original C1 source scope without claiming it owns the replay C2 configuration. LIVE ownership and financial math are unchanged. Native retrospective isolation and native C1/C2 delivery cases pass.",
   "entry_families": {
-    "EF_T15A_ACQUISITION_PLAN_PERSIST": {
-      "adoption_status": "SUPPORTED_DISTINCT_SEMANTICS",
-      "authority_proof": "Typed content-addressed plan construction, immutable insert, and retained-payload collision validation in one Session.",
-      "authority_review_is_foundation_gate": false,
-      "authority_supplied": "db, plan: AcquisitionPlanSnapshot",
-      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
-      "decorators": [],
-      "discovery_status": "DISCOVERED",
-      "disposition": "SUPPORTED_DISTINCT_SEMANTICS",
-      "domains": [
-        "CONFIGURATION"
-      ],
-      "entry_point_family_id": "EF_T15A_ACQUISITION_PLAN_PERSIST",
-      "entrypoints": [
-        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan"
-      ],
-      "kind": "SERVICE_PUBLIC",
-      "modes": [
-        "BOOTSTRAP"
-      ],
-      "proof_boundary": "T15A foundation persistence only; no production acquisition caller adopts this entrypoint yet.",
-      "reachability": "Public shared service intended for explicit T15B/T15C/T15D adoption.",
-      "semantic_adoption_status": "FOUNDATION_IMPLEMENTED_ADOPTION_PENDING",
-      "semantic_review_complete": true,
-      "source_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
-      "status": "SUPPORTED_DISTINCT_SEMANTICS",
-      "writer_adoption_dependencies": [
-        "WF_SCOPE_IDENTITY_FOUNDATION"
-      ],
-      "writer_families": [
-        "WF_SCOPE_IDENTITY_FOUNDATION"
-      ]
-    },
-    "EF_T15A_REFRESH_CYCLE_PERSIST": {
-      "adoption_status": "SUPPORTED_DISTINCT_SEMANTICS",
-      "authority_proof": "Typed content-addressed refresh-cycle construction, immutable insert, and retained-payload collision validation in one Session.",
-      "authority_review_is_foundation_gate": false,
-      "authority_supplied": "db, refresh: RefreshCycleIdentity",
-      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
-      "decorators": [],
-      "discovery_status": "DISCOVERED",
-      "disposition": "SUPPORTED_DISTINCT_SEMANTICS",
-      "domains": [
-        "CONFIGURATION"
-      ],
-      "entry_point_family_id": "EF_T15A_REFRESH_CYCLE_PERSIST",
-      "entrypoints": [
-        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle"
-      ],
-      "kind": "SERVICE_PUBLIC",
-      "modes": [
-        "BOOTSTRAP"
-      ],
-      "proof_boundary": "T15A foundation persistence only; no production refresh caller adopts this entrypoint yet.",
-      "reachability": "Public shared service intended for explicit T15B/T15C/T15D adoption.",
-      "semantic_adoption_status": "FOUNDATION_IMPLEMENTED_ADOPTION_PENDING",
-      "semantic_review_complete": true,
-      "source_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
-      "status": "SUPPORTED_DISTINCT_SEMANTICS",
-      "writer_adoption_dependencies": [
-        "WF_SCOPE_IDENTITY_FOUNDATION"
-      ],
-      "writer_families": [
-        "WF_SCOPE_IDENTITY_FOUNDATION"
-      ]
-    },
-    "EF_T15A_WORK_SCOPE_PERSIST": {
-      "adoption_status": "SUPPORTED_DISTINCT_SEMANTICS",
-      "authority_proof": "Typed content-addressed scope construction, batched exact membership insert, and retained set verification in one Session.",
-      "authority_review_is_foundation_gate": false,
-      "authority_supplied": "db, scope: WorkScopeSnapshot",
-      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
-      "decorators": [],
-      "discovery_status": "DISCOVERED",
-      "disposition": "SUPPORTED_DISTINCT_SEMANTICS",
-      "domains": [
-        "CONFIGURATION"
-      ],
-      "entry_point_family_id": "EF_T15A_WORK_SCOPE_PERSIST",
-      "entrypoints": [
-        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope"
-      ],
-      "kind": "SERVICE_PUBLIC",
-      "modes": [
-        "BOOTSTRAP"
-      ],
-      "proof_boundary": "T15A foundation persistence only; no production work-scope caller adopts this entrypoint yet.",
-      "reachability": "Public shared service intended for explicit T15B/T15C/T15D adoption.",
-      "semantic_adoption_status": "FOUNDATION_IMPLEMENTED_ADOPTION_PENDING",
-      "semantic_review_complete": true,
-      "source_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
-      "status": "SUPPORTED_DISTINCT_SEMANTICS",
-      "writer_adoption_dependencies": [
-        "WF_SCOPE_IDENTITY_FOUNDATION"
-      ],
-      "writer_families": [
-        "WF_SCOPE_IDENTITY_FOUNDATION"
-      ]
-    },
     "EF_021cfb93d6813955": {
       "adoption_status": "T14B_ADOPTION",
       "authority_proof": "Assigned native writer dependencies enforce persisted core/contextual authority, or their explicit source/cache/legacy operation policy. Construction and discovery do not grant authority. Exact family-specific proof is recorded in T14B_core_contextual_writer_certification.json.",
@@ -246,7 +147,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "82cf1c28c6f4ee72da8fce44e8530e1578451d5489f6066c69985d320a6d621b",
+      "source_sha256": "472b333063ebfef733941c4bab4f529cef64c30b61e599d535b82daef4cd115f",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -1296,7 +1197,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "0c8d4fa417cb5563fe3bc6a1c644ff81b1102690a75c49850d659104d51f718a",
+      "source_sha256": "c1fa08b620437d940292ebd30e26f9a77613d21afec6e5676455843e7684a561",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -1832,7 +1733,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "aa5ea2f88bb2154de8149cd00e0e3fde389914f4f143ba28c9d14f530405f6c0",
+      "source_sha256": "1a201cfaebe515f4e08e1e233699f7521afb59909b226f2ce557bf8d92beb485",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -2488,7 +2389,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "401577235d9ff6d424bf9ce8756d6279ee86c2473d77361f5a4043d93a35753e",
+      "source_sha256": "a23fbe59f93b09df5ad06d216c7ff94d9ac876f8e270b9d7d2568aa0e9326a55",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14B",
@@ -2529,7 +2430,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "88bbc18dae640fecf768c487acbcf8fd5b1d632bfab3258602673e93c534ecd3",
+      "source_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
       "status": "MANUAL_ALERT_STATUS",
       "writer_adoption_dependencies": [
         "T14C"
@@ -2916,7 +2817,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "699041406a1a4127596aeafb0e170eecc2356539817c40f42c0211ab75086113",
+      "source_sha256": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -3144,7 +3045,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "7d77fcb04062b4c10ef859bd88e282daf57c1dcc5a11b961502088d3c6f096cd",
+      "source_sha256": "a3601e34df2966692308f135867dd30b9248c66128c55efad2efe5e2ca87406f",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -4202,7 +4103,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "0c8d4fa417cb5563fe3bc6a1c644ff81b1102690a75c49850d659104d51f718a",
+      "source_sha256": "c1fa08b620437d940292ebd30e26f9a77613d21afec6e5676455843e7684a561",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -4424,7 +4325,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "3970f19c6d4dbb28d64b4c114dcf41d62c56fb574c92b084df739da605c0386a",
+      "source_sha256": "0d8f677784062be755369447423d4b9e506900cbe5c4f861dc02900e4dd6a4ca",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -4597,7 +4498,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "82cf1c28c6f4ee72da8fce44e8530e1578451d5489f6066c69985d320a6d621b",
+      "source_sha256": "472b333063ebfef733941c4bab4f529cef64c30b61e599d535b82daef4cd115f",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -4877,7 +4778,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3a4a73bf3ebcf9389f9b0d5f6e9c362dd1e3e0f9531895c1cd8bd92e0fb98ee4",
+      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -4964,7 +4865,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "699041406a1a4127596aeafb0e170eecc2356539817c40f42c0211ab75086113",
+      "source_sha256": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -5007,7 +4908,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "aa5ea2f88bb2154de8149cd00e0e3fde389914f4f143ba28c9d14f530405f6c0",
+      "source_sha256": "1a201cfaebe515f4e08e1e233699f7521afb59909b226f2ce557bf8d92beb485",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14B",
@@ -5167,7 +5068,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "88bbc18dae640fecf768c487acbcf8fd5b1d632bfab3258602673e93c534ecd3",
+      "source_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
       "status": "PURGE_PREVIEW_ENQUEUE",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE"
@@ -5423,7 +5324,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "88bbc18dae640fecf768c487acbcf8fd5b1d632bfab3258602673e93c534ecd3",
+      "source_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
       "status": "DURABLE_NATIVE_ENQUEUE",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -5688,7 +5589,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "88bbc18dae640fecf768c487acbcf8fd5b1d632bfab3258602673e93c534ecd3",
+      "source_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
       "status": "DURABLE_NATIVE_ENQUEUE",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -5751,7 +5652,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "88bbc18dae640fecf768c487acbcf8fd5b1d632bfab3258602673e93c534ecd3",
+      "source_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
       "status": "LICENSED_SOURCE_MAINTENANCE",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -6457,7 +6358,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3a4a73bf3ebcf9389f9b0d5f6e9c362dd1e3e0f9531895c1cd8bd92e0fb98ee4",
+      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -6559,7 +6460,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "fdb0b9fe1e9af8f56d333c0d52d43326518e89f8b91f64e19d040ad92a9c1acf",
+      "source_sha256": "0f98601066a8f3592512ec0f638d7310c30e82cd8d5c5c5646107bc8210126da",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -7153,7 +7054,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3a4a73bf3ebcf9389f9b0d5f6e9c362dd1e3e0f9531895c1cd8bd92e0fb98ee4",
+      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -7337,7 +7238,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "401577235d9ff6d424bf9ce8756d6279ee86c2473d77361f5a4043d93a35753e",
+      "source_sha256": "a23fbe59f93b09df5ad06d216c7ff94d9ac876f8e270b9d7d2568aa0e9326a55",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B",
@@ -7542,7 +7443,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "401577235d9ff6d424bf9ce8756d6279ee86c2473d77361f5a4043d93a35753e",
+      "source_sha256": "a23fbe59f93b09df5ad06d216c7ff94d9ac876f8e270b9d7d2568aa0e9326a55",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -7810,7 +7711,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "7d77fcb04062b4c10ef859bd88e282daf57c1dcc5a11b961502088d3c6f096cd",
+      "source_sha256": "a3601e34df2966692308f135867dd30b9248c66128c55efad2efe5e2ca87406f",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -8148,7 +8049,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3a4a73bf3ebcf9389f9b0d5f6e9c362dd1e3e0f9531895c1cd8bd92e0fb98ee4",
+      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -8459,6 +8360,184 @@
         "WF_WINNER_WATERMARK"
       ]
     },
+    "EF_T15A_ACQUISITION_PLAN_PERSIST": {
+      "adoption_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "authority_proof": "Typed content-addressed plan construction, immutable insert, and retained-payload collision validation in one Session.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db, plan: AcquisitionPlanSnapshot",
+      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "SUPPORTED_DISTINCT_SEMANTICS",
+      "domains": [
+        "CONFIGURATION"
+      ],
+      "entry_point_family_id": "EF_T15A_ACQUISITION_PLAN_PERSIST",
+      "entrypoints": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "proof_boundary": "T15A foundation persistence only; no production acquisition caller adopts this entrypoint yet.",
+      "reachability": "Public shared service intended for explicit T15B/T15C/T15D adoption.",
+      "semantic_adoption_status": "FOUNDATION_IMPLEMENTED_ADOPTION_PENDING",
+      "semantic_review_complete": true,
+      "source_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
+      "status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "writer_adoption_dependencies": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ],
+      "writer_families": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ]
+    },
+    "EF_T15A_REFRESH_CYCLE_PERSIST": {
+      "adoption_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "authority_proof": "Typed content-addressed refresh-cycle construction, immutable insert, and retained-payload collision validation in one Session.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db, refresh: RefreshCycleIdentity",
+      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "SUPPORTED_DISTINCT_SEMANTICS",
+      "domains": [
+        "CONFIGURATION"
+      ],
+      "entry_point_family_id": "EF_T15A_REFRESH_CYCLE_PERSIST",
+      "entrypoints": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "proof_boundary": "T15A foundation persistence only; no production refresh caller adopts this entrypoint yet.",
+      "reachability": "Public shared service intended for explicit T15B/T15C/T15D adoption.",
+      "semantic_adoption_status": "FOUNDATION_IMPLEMENTED_ADOPTION_PENDING",
+      "semantic_review_complete": true,
+      "source_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
+      "status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "writer_adoption_dependencies": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ],
+      "writer_families": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ]
+    },
+    "EF_T15A_WORK_SCOPE_PERSIST": {
+      "adoption_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "authority_proof": "Typed content-addressed scope construction, batched exact membership insert, and retained set verification in one Session.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db, scope: WorkScopeSnapshot",
+      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "SUPPORTED_DISTINCT_SEMANTICS",
+      "domains": [
+        "CONFIGURATION"
+      ],
+      "entry_point_family_id": "EF_T15A_WORK_SCOPE_PERSIST",
+      "entrypoints": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "proof_boundary": "T15A foundation persistence only; no production work-scope caller adopts this entrypoint yet.",
+      "reachability": "Public shared service intended for explicit T15B/T15C/T15D adoption.",
+      "semantic_adoption_status": "FOUNDATION_IMPLEMENTED_ADOPTION_PENDING",
+      "semantic_review_complete": true,
+      "source_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
+      "status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "writer_adoption_dependencies": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ],
+      "writer_families": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ]
+    },
+    "EF_T15B_IB_FETCH_AUTHORITY": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "T15B persists canonical T15A plan, frozen scope membership, and refresh cycle in the same Session before durable work; retries reuse retained IDs and legacy work fails closed. PostgreSQL and focused negative tests certify the boundary.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, retained FetchPlan/FetchJobOptions, optional canonical semantic authority",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": [
+        "CONFIGURATION",
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "entry_point_family_id": "EF_T15B_IB_FETCH_AUTHORITY",
+      "entrypoints": [
+        "app/services/ib_fetch_job_service.py:create_queued_fetch_run",
+        "app/services/ib_fetch_job_service.py:resume_fetch_job"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Reviewed T15B scope-authority admission only; calculation writer authority and domain-specific truth contracts remain independently certified.",
+      "reachability": "Public service invoked by reviewed Pipeline/CERI/IB admission paths.",
+      "selectors": [],
+      "semantic_adoption_status": "T15B_SCOPE_AUTHORITY_ADOPTED",
+      "semantic_review_complete": true,
+      "source_sha256": "1a201cfaebe515f4e08e1e233699f7521afb59909b226f2ce557bf8d92beb485",
+      "status": "T15B_SCOPE_AUTHORITY_ADOPTED",
+      "writer_adoption_dependencies": [
+        "T14B",
+        "T14C",
+        "T14D",
+        "T15A"
+      ],
+      "writer_families": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ]
+    },
+    "EF_T15B_SCOPE_ADMISSION": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "T15B persists canonical T15A plan, frozen scope membership, and refresh cycle in the same Session before durable work; retries reuse retained IDs and legacy work fails closed. PostgreSQL and focused negative tests certify the boundary.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, exact members, cycle key, cutoff, policy, requirements, and lineage",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": [
+        "CONFIGURATION"
+      ],
+      "entry_point_family_id": "EF_T15B_SCOPE_ADMISSION",
+      "entrypoints": [
+        "app/services/scope_refresh_adoption.py:admit_frozen_operation"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Reviewed T15B scope-authority admission only; calculation writer authority and domain-specific truth contracts remain independently certified.",
+      "reachability": "Public service invoked by reviewed Pipeline/CERI/IB admission paths.",
+      "selectors": [],
+      "semantic_adoption_status": "T15B_SCOPE_AUTHORITY_ADOPTED",
+      "semantic_review_complete": true,
+      "source_sha256": "6eb41bdd1e326f1beadeda2444ab436ee43650277f9a385e0ec73e8fd77481fc",
+      "status": "T15B_SCOPE_AUTHORITY_ADOPTED",
+      "writer_adoption_dependencies": [
+        "T14B",
+        "T14C",
+        "T14D",
+        "T15A"
+      ],
+      "writer_families": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ]
+    },
     "EF_a005dd81d77d51c6": {
       "adoption_status": "T14D_ADOPTION",
       "authority_proof": "Concrete native arguments and decorators retained. Direct invocation and current/ambient delivery are exposed as a potential authority variant, not assumed equivalent to certified pipeline delivery.",
@@ -8597,7 +8676,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "0c8d4fa417cb5563fe3bc6a1c644ff81b1102690a75c49850d659104d51f718a",
+      "source_sha256": "c1fa08b620437d940292ebd30e26f9a77613d21afec6e5676455843e7684a561",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -9035,7 +9114,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3a4a73bf3ebcf9389f9b0d5f6e9c362dd1e3e0f9531895c1cd8bd92e0fb98ee4",
+      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -9152,7 +9231,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "88bbc18dae640fecf768c487acbcf8fd5b1d632bfab3258602673e93c534ecd3",
+      "source_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
       "status": "DURABLE_NATIVE_ENQUEUE",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -9338,7 +9417,7 @@
       ],
       "semantic_adoption_status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "semantic_review_complete": true,
-      "source_sha256": "35b91d604ef4077af24620fd3463c927b6c2f51db8933a63e4b15ef0fb08fd4e",
+      "source_sha256": "478d0e98419d7efcd240bcef79d1e057d3357bb73b8b580df38b28f802bb2e03",
       "status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "t14b_reconciled_writer_families": [
         "WF_CERI_RAW_SOURCE"
@@ -9542,7 +9621,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3a4a73bf3ebcf9389f9b0d5f6e9c362dd1e3e0f9531895c1cd8bd92e0fb98ee4",
+      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14C"
@@ -9680,7 +9759,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "88bbc18dae640fecf768c487acbcf8fd5b1d632bfab3258602673e93c534ecd3",
+      "source_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
       "status": "DURABLE_NATIVE_ENQUEUE",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -9875,7 +9954,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "82cf1c28c6f4ee72da8fce44e8530e1578451d5489f6066c69985d320a6d621b",
+      "source_sha256": "472b333063ebfef733941c4bab4f529cef64c30b61e599d535b82daef4cd115f",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -10033,7 +10112,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "7d77fcb04062b4c10ef859bd88e282daf57c1dcc5a11b961502088d3c6f096cd",
+      "source_sha256": "a3601e34df2966692308f135867dd30b9248c66128c55efad2efe5e2ca87406f",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -10859,7 +10938,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "82cf1c28c6f4ee72da8fce44e8530e1578451d5489f6066c69985d320a6d621b",
+      "source_sha256": "472b333063ebfef733941c4bab4f529cef64c30b61e599d535b82daef4cd115f",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -13111,7 +13190,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "88bbc18dae640fecf768c487acbcf8fd5b1d632bfab3258602673e93c534ecd3",
+      "source_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
       "status": "MANUAL_REVIEW_METADATA",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -13146,7 +13225,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "88bbc18dae640fecf768c487acbcf8fd5b1d632bfab3258602673e93c534ecd3",
+      "source_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
       "status": "MANUAL_ALERT_STATUS",
       "writer_adoption_dependencies": [
         "T14C"
@@ -13749,7 +13828,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "699041406a1a4127596aeafb0e170eecc2356539817c40f42c0211ab75086113",
+      "source_sha256": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -13924,7 +14003,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3a4a73bf3ebcf9389f9b0d5f6e9c362dd1e3e0f9531895c1cd8bd92e0fb98ee4",
+      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -14126,7 +14205,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "82cf1c28c6f4ee72da8fce44e8530e1578451d5489f6066c69985d320a6d621b",
+      "source_sha256": "472b333063ebfef733941c4bab4f529cef64c30b61e599d535b82daef4cd115f",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -14312,7 +14391,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3a4a73bf3ebcf9389f9b0d5f6e9c362dd1e3e0f9531895c1cd8bd92e0fb98ee4",
+      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14B"
@@ -14813,21 +14892,6 @@
     }
   ],
   "sink_reviews": {
-    "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan": {
-      "family_id": "WF_SCOPE_IDENTITY_FOUNDATION",
-      "proof": "Content-addressed immutable acquisition-plan identity and explicit predecessor lineage; foundation metadata, not a domain calculation.",
-      "role": "SEMANTIC_WRITER_MEMBER"
-    },
-    "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle": {
-      "family_id": "WF_SCOPE_IDENTITY_FOUNDATION",
-      "proof": "Content-addressed immutable refresh-cycle identity bound to a retained work scope; foundation metadata, not a domain calculation.",
-      "role": "SEMANTIC_WRITER_MEMBER"
-    },
-    "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope": {
-      "family_id": "WF_SCOPE_IDENTITY_FOUNDATION",
-      "proof": "Content-addressed immutable work-scope record and set-based exact membership persistence; foundation metadata, not a domain calculation.",
-      "role": "CANONICAL_SEMANTIC_WRITER"
-    },
     "app/routers/ceri_routes.py:review_ceri_event": {
       "family_id": "WF_CERI_REVIEW_METADATA",
       "proof": "Human audit and review_state only; distinct from source override and score calculation.",
@@ -15705,15 +15769,15 @@
       "proof": "Explicit compatibility decisions/replays, separate from capture metadata-only training decision.",
       "role": "CURRENT_RULES_WRITER"
     },
-    "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._create_estimate": {
-      "family_id": "WF_WINNER_ESTIMATOR",
-      "proof": "Native estimate creation/insufficient artifact/current rescore; inline cohort statistic algorithm split below.",
-      "role": "CANONICAL_SEMANTIC_WRITER"
-    },
     "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._create_candidate_decision_reconstruction": {
       "family_id": "WF_WINNER_ESTIMATOR",
       "proof": "Explicit candidate-only reconstruction retains the predecessor decision-time configuration and creates a sealed non-serving replacement through the native estimate authority.",
       "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._create_estimate": {
+      "family_id": "WF_WINNER_ESTIMATOR",
+      "proof": "Native estimate creation/insufficient artifact/current rescore; inline cohort statistic algorithm split below.",
+      "role": "CANONICAL_SEMANTIC_WRITER"
     },
     "app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._materialize_cohort_statistic": {
       "family_id": "WF_WINNER_INLINE_COHORT",
@@ -15765,6 +15829,21 @@
       "proof": "Only prediction lineage_json; dedicated training decision/replay tables are written by pre11 compatibility service.",
       "role": "DOMAIN_SUPPORTING_STATE"
     },
+    "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan": {
+      "family_id": "WF_SCOPE_IDENTITY_FOUNDATION",
+      "proof": "Content-addressed immutable acquisition-plan identity and explicit predecessor lineage; foundation metadata, not a domain calculation.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle": {
+      "family_id": "WF_SCOPE_IDENTITY_FOUNDATION",
+      "proof": "Content-addressed immutable refresh-cycle identity bound to a retained work scope; foundation metadata, not a domain calculation.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope": {
+      "family_id": "WF_SCOPE_IDENTITY_FOUNDATION",
+      "proof": "Content-addressed immutable work-scope record and set-based exact membership persistence; foundation metadata, not a domain calculation.",
+      "role": "CANONICAL_SEMANTIC_WRITER"
+    },
     "scripts/resolve_sec_ciks.py:main": {
       "family_id": "WF_SEC_CIK_CLI",
       "proof": "Explicit command repairs current company CIK identity; not financial evidence.",
@@ -15788,8 +15867,8 @@
   },
   "source_pins": {
     "app/main.py": "1ed01b12d1870c1575986c82568b100153b600f76003a1e6ab209afa6fb5a743",
-    "app/models/tables.py": "1371a3d5900a3545b5b5fa6847d87bb7b52c7156923128b6e49f3295d76561d2",
-    "app/routers/ceri_routes.py": "5d3a98ae6de9aaee6c4cebe2757e7f640a8907a290745a3cf24a7d5cd15539f6",
+    "app/models/tables.py": "91439113b3e3779dd7e8c6cb44fd709c5dbb8beec582b9b33c8dcd5acb459ed4",
+    "app/routers/ceri_routes.py": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
     "app/routers/ib_market_intelligence_routes.py": "3c1c4f75e700f7114c10dabb000c03e7c1e7ae78600ce0387354515e4d44e65f",
     "app/routers/ib_routes.py": "5f67384f0a09483f5aaea032aacd032c0d340c9cb7c1a7604588559b01994b9e",
     "app/routers/market_data_routes.py": "fcbfcb9d4c63cfcb1fe8138dfe334f4b20e7cd6c4aa50484fdda67811fd4ea27",
@@ -15798,14 +15877,13 @@
     "app/routers/sector_rotation_routes.py": "dde004a45ba3f5adb035c71ad041fac0b08614aee3fe47fb78c22e577e948d5f",
     "app/routers/setup_lifecycle_routes.py": "6eda8dcaf30d36d9c6f78e4cea5f4c4c3b9ed2de33b68d3a8c66607bb6980561",
     "app/routers/upload_routes.py": "4d77447d09725c09e86a3903f3048f1dcdc4a740c6d7b3e74d18ef90cb59f15f",
-    "app/services/work_scope_identity.py": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
     "app/routers/winner_probability_routes.py": "b779c2885b3723cc848501e18442ef3b7a013d18e5a7ecd66dc9225753deb3e6",
     "app/services/background_job_service.py": "b931f237b12e6710cc9a643c4751dcd056ba8e49ecd6a90b369059791ad76d68",
-    "app/services/background_worker.py": "7d77fcb04062b4c10ef859bd88e282daf57c1dcc5a11b961502088d3c6f096cd",
+    "app/services/background_worker.py": "a3601e34df2966692308f135867dd30b9248c66128c55efad2efe5e2ca87406f",
     "app/services/bar_cache_service.py": "6e3b1a78774502d2a2d5b1b184e416837c59b597e58b5535ccbc3f682a723ead",
     "app/services/ceri/alert_authority.py": "06a4a748c6a5b0f0502c81b26ee33fc429236117c13ed9d94b66cf03aa3e4ddc",
     "app/services/ceri/alert_service.py": "4e80827a87f3eda0b9dfedf344f85d94f0e4e4eddd0dfe9ef6b531b7a3dbd8be",
-    "app/services/ceri/backfill_service.py": "3970f19c6d4dbb28d64b4c114dcf41d62c56fb574c92b084df739da605c0386a",
+    "app/services/ceri/backfill_service.py": "0d8f677784062be755369447423d4b9e506900cbe5c4f861dc02900e4dd6a4ca",
     "app/services/ceri/batched_job_handlers.py": "7c76c6b5066604b6b860ec35dcc270769ca126f7a11c1b2be2cf7b25743318f5",
     "app/services/ceri/batched_workflow.py": "df493397de17db386283541d6e05304ecb59d0994a40c4188020eabc07bc5986",
     "app/services/ceri/capture_service.py": "242fa2cc68941f81168539c4aa9e03b36a7ff3e7a346f54849f48ee36650f76e",
@@ -15818,19 +15896,19 @@
     "app/services/ceri/feature_rebuild_service.py": "223e816e06f2eb715c30ed2cbd5387fb16d404d2523ccf8931b935c8060fea09",
     "app/services/ceri/guidance_normalizer.py": "86631f29105e117cfc9fd2f779cdc6305b4165e2f634134a373035aea6938ef8",
     "app/services/ceri/identity_resolver.py": "ce691a8e3852c22e9b7edd3366ee787c66935ccf0951f3151e07ab72ad723cab",
-    "app/services/ceri/job_handlers.py": "4c388adc21a61ef00299292af2ff89a8a0135af15119b650f89b6529bbc6f02f",
+    "app/services/ceri/job_handlers.py": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
     "app/services/ceri/manual_review_service.py": "342c20b815db376690ce3f606e85b3fcd175593b5cb28992313c52919bc76d8a",
     "app/services/ceri/normalization_service.py": "9a05ea47d1667da44ae43ea442b3b334630b74d04f53785cb72109f3028caaf0",
-    "app/services/ceri/orchestration.py": "fdb0b9fe1e9af8f56d333c0d52d43326518e89f8b91f64e19d040ad92a9c1acf",
+    "app/services/ceri/orchestration.py": "0f98601066a8f3592512ec0f638d7310c30e82cd8d5c5c5646107bc8210126da",
     "app/services/ceri/price_response_service.py": "c89da1d639f29f9a4e7c169a21ffb40db1ec7eed34ffc9819eb3cae2a5e1fc50",
     "app/services/ceri/purge_service.py": "e140b501d17001efa8a2f0a44286464881459a970ffacc896197b64f193caafc",
     "app/services/ceri/revision_feature_service.py": "431588baa5433ee5c80fd04a7485509e41b453a2b8c93d6b666f3b7b0f89eb94",
     "app/services/ceri/sec/identity_repair.py": "44ceb72fc89a0d9b32e83ad5f0814759e578794d453092670a42bf12cb0b02c7",
     "app/services/ceri/sec/incremental_ingestion.py": "79bb017d5395a11828352cefc0cd9161945111c2c5e564b8525f76f6c9bf0949",
-    "app/services/ceri/sec/readiness_repair.py": "0c8d4fa417cb5563fe3bc6a1c644ff81b1102690a75c49850d659104d51f718a",
+    "app/services/ceri/sec/readiness_repair.py": "c1fa08b620437d940292ebd30e26f9a77613d21afec6e5676455843e7684a561",
     "app/services/ceri/sec/state_service.py": "1147d6e746997fa39513c995ed82de90d5d7711ce44210443d4da7cf5097622c",
     "app/services/ceri/snapshot_service.py": "3b366b08621eba8769e27d79916e060207b610c950c1225a0ff63c9749e55872",
-    "app/services/ceri/source_record_service.py": "35b91d604ef4077af24620fd3463c927b6c2f51db8933a63e4b15ef0fb08fd4e",
+    "app/services/ceri/source_record_service.py": "478d0e98419d7efcd240bcef79d1e057d3357bb73b8b580df38b28f802bb2e03",
     "app/services/ceri/surprise_feature_service.py": "783c720ce39c5c96467ba512e182be6a9d2f9d565f19a6d6005faf591bb0de89",
     "app/services/combined_decision.py": "6f68285731babdcee93f53469572b0992c968f985cadfcb22b76877c4229ddb4",
     "app/services/configuration_delivery.py": "d2d7424731ef811392d92f9bf0193f192c1327c2213cf6e3821e87eff84538c6",
@@ -15843,21 +15921,22 @@
     "app/services/fundamental_score_service.py": "4afda4bbe69f9134da569b6ece45f96f18e9b674ee44fc49ecc323ffe8b5cf14",
     "app/services/ib_contract_resolver.py": "0c9e58815f10b8657f5ead6e8418f31dcca48627d0abb367cef37e890c107f30",
     "app/services/ib_fetch_executor.py": "3f4fa34c855a85bde5fd0a1c0bc74001f262202ccb922816dee8852caeec33da",
-    "app/services/ib_fetch_job_service.py": "aa5ea2f88bb2154de8149cd00e0e3fde389914f4f143ba28c9d14f530405f6c0",
+    "app/services/ib_fetch_job_service.py": "1a201cfaebe515f4e08e1e233699f7521afb59909b226f2ce557bf8d92beb485",
     "app/services/ib_market_intelligence/decision_evidence.py": "863d8b3fcca8b2e7f8861d3db8a0046e316634ced651b747b17c0932f9a845e9",
     "app/services/ib_market_intelligence/flex.py": "677f73dc0fe1a7e6a065550921678c8adaa8fada53d11e6385710b13048018b3",
     "app/services/ib_market_intelligence/journal.py": "f593aae222615ec082ed40e2161c5e62bc861b25c76ebc18ac2b42a44374795e",
     "app/services/ib_market_intelligence/orchestration.py": "80ec90070712f697ef756f33c09ea5c1a75d692170ec3f76edc71dde4d34bfaa",
     "app/services/ib_market_intelligence/repository.py": "12498b4e5586bc06aaf06b6e1abc92b9ebf3e15dbb5bd360055583e323f52786",
     "app/services/market_calculation_context_service.py": "9974c5a5216715ebd29146ece7d6514d386ed5e35107d1abda0f714abf3435c2",
-    "app/services/market_data_prewarm_service.py": "401577235d9ff6d424bf9ce8756d6279ee86c2473d77361f5a4043d93a35753e",
+    "app/services/market_data_prewarm_service.py": "a23fbe59f93b09df5ad06d216c7ff94d9ac876f8e270b9d7d2568aa0e9326a55",
     "app/services/market_regime_command_center.py": "974a387531dae834a6693b280c18e9e093e856c6a657e8464b182b4c3c843909",
     "app/services/market_regime_repository.py": "724ada94f986e7a245db2410f6d328814a6c48c23ed2b34354327c02c60d3223",
-    "app/services/pipeline_executor.py": "699041406a1a4127596aeafb0e170eecc2356539817c40f42c0211ab75086113",
-    "app/services/pipeline_service.py": "82cf1c28c6f4ee72da8fce44e8530e1578451d5489f6066c69985d320a6d621b",
+    "app/services/pipeline_executor.py": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
+    "app/services/pipeline_service.py": "472b333063ebfef733941c4bab4f529cef64c30b61e599d535b82daef4cd115f",
     "app/services/pre_enqueue_operational_gate.py": "9329953b5939de23f9f7a8ebba04dc952fed40354f1a79ccedbec24fb6984c1d",
     "app/services/price_series_version_service.py": "7adee83f07b1eaf0949af56f9cd7c92e7891492bd0f81050595b924c206ae443",
     "app/services/ranking_profile_service.py": "10c75f68d7fc9a4d267428781258e9ca1b8352f31a0a8b6dfac5048d7513e522",
+    "app/services/scope_refresh_adoption.py": "6eb41bdd1e326f1beadeda2444ab436ee43650277f9a385e0ec73e8fd77481fc",
     "app/services/sector_rotation_repository.py": "db760484d8e30ed3cfc527c14b1fa98e9847c797e48a5333c7f23a0c7b0c17a4",
     "app/services/sector_rotation_service.py": "343990527cdc71cbc42dc3c621d3596966259a155a2513e5febdeb918c6c174c",
     "app/services/sector_universe_service.py": "7766b706581b67c2e5d02d122d2b7d073b53b4e6c4bb5faabca93053bd970e2f",
@@ -15920,6 +15999,7 @@
     "app/services/winner_probability/target_stop_scope_repair_service.py": "5e6447478770410414e827b6db3497a91cf172bfba9e4d5cefa7f490b53c72de",
     "app/services/winner_probability/temporal_validation_service.py": "bdb7b9186c6d33dc07c9e622dfa68b17e583a0ca24a25a1434b85c9005e3c387",
     "app/services/winner_probability/training_eligibility.py": "6029caeb4e048d2431a0b39f2d8c3285fefb373986bdbdd8857ceb861520c6ef",
+    "app/services/work_scope_identity.py": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
     "app/templates/run_detail.html": "3b5b5f7dccee6b07c64cf22bae0f78c05ddceaebc87cf04390fe5c5cbd8ba5fe",
     "app/templates/sector_rotation_dashboard.html": "88312b8378165dda520090b2542991af92160e7c26debcafd53fb363127187e8",
     "app/templates/upload.html": "806909b7c9bd78dd5fa6faab8ceba477a2353864770ba0b1a4e2cf8cc538f61d",
@@ -16082,40 +16162,26 @@
     "scripts/winner_clean_reconstruction.py",
     "scripts/winner_maturation_canary.py"
   ],
+  "t15b_reviewed_source_delta": {
+    "reviewed_sources": [
+      "app/models/tables.py",
+      "app/routers/ceri_routes.py",
+      "app/services/background_worker.py",
+      "app/services/ceri/backfill_service.py",
+      "app/services/ceri/job_handlers.py",
+      "app/services/ceri/orchestration.py",
+      "app/services/ceri/sec/readiness_repair.py",
+      "app/services/ceri/source_record_service.py",
+      "app/services/ib_fetch_job_service.py",
+      "app/services/market_data_prewarm_service.py",
+      "app/services/pipeline_executor.py",
+      "app/services/pipeline_service.py",
+      "app/services/scope_refresh_adoption.py"
+    ],
+    "scope": "Canonical scope/refresh/acquisition metadata adoption; no weakening of Phase-5 calculation/source mutation authority.",
+    "task": "T15B"
+  },
   "writer_families": {
-    "WF_SCOPE_IDENTITY_FOUNDATION": {
-      "authority": "Only typed content-addressed T15A constructors may create immutable scope, refresh-cycle, membership, and acquisition-plan identity records; application adoption is deferred to T15B/T15C/T15D.",
-      "disposition": "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
-      "domains": [
-        "CONFIGURATION"
-      ],
-      "known_alternate_families": [],
-      "known_callers": [
-        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan",
-        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle",
-        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope"
-      ],
-      "member_sites": [
-        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan",
-        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle",
-        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope"
-      ],
-      "modes": [
-        "BOOTSTRAP"
-      ],
-      "owner": "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope",
-      "phase5_status": "T15A_FOUNDATION_REVIEWED",
-      "proof": "New immutable shared semantic identity ledger. No production caller adopts it in T15A; writes are content-addressed, collision-checked, and PostgreSQL-immutable.",
-      "semantic_review_complete": true,
-      "status": "DOMAIN_SUPPORTING_STATE",
-      "tables": [
-        "acquisition_plan_records",
-        "refresh_cycle_records",
-        "work_scope_members",
-        "work_scope_records"
-      ],
-      "writer_family_id": "WF_SCOPE_IDENTITY_FOUNDATION"
-    },
     "WF_CERI_ALERT_CREATION": {
       "authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
       "disposition": "T14C",
@@ -18568,6 +18634,39 @@
         "market_regime_snapshots"
       ],
       "writer_family_id": "WF_REGIME_SNAPSHOT"
+    },
+    "WF_SCOPE_IDENTITY_FOUNDATION": {
+      "authority": "Only typed content-addressed T15A constructors may create immutable scope, refresh-cycle, membership, and acquisition-plan identity records; application adoption is deferred to T15B/T15C/T15D.",
+      "disposition": "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
+      "domains": [
+        "CONFIGURATION"
+      ],
+      "known_alternate_families": [],
+      "known_callers": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan",
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle",
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope"
+      ],
+      "member_sites": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan",
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle",
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope"
+      ],
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "owner": "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope",
+      "phase5_status": "T15A_FOUNDATION_REVIEWED",
+      "proof": "New immutable shared semantic identity ledger. No production caller adopts it in T15A; writes are content-addressed, collision-checked, and PostgreSQL-immutable.",
+      "semantic_review_complete": true,
+      "status": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "acquisition_plan_records",
+        "refresh_cycle_records",
+        "work_scope_members",
+        "work_scope_records"
+      ],
+      "writer_family_id": "WF_SCOPE_IDENTITY_FOUNDATION"
     },
     "WF_SECTOR_SNAPSHOT": {
       "authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
