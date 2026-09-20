@@ -1,0 +1,51 @@
+{
+  "final_verdict": "PASS",
+  "foundation": {
+    "deterministic_membership_hash": true,
+    "explicit_replan_lineage": true,
+    "legacy_unknown_not_certified": true,
+    "parent_child_accounting_contract": true,
+    "typed_acquisition_plan_identity": true,
+    "typed_refresh_cycle_identity": true,
+    "typed_work_scope_identity": true,
+    "zero_progress_guard_contract": true
+  },
+  "inventory": {
+    "all_have_target_task": true,
+    "selected_phase6_families": 41,
+    "t14d_total_families": 220,
+    "unknown_scope_models": 0
+  },
+  "migration": {
+    "additive_only": true,
+    "head": "0081_scope_refresh_identity",
+    "legacy_backfill": false,
+    "production_rewrite": false,
+    "required": true
+  },
+  "regression": {
+    "frozen_authority_suites": "75 passed",
+    "non_database": "385 passed",
+    "phase2_migration_round_trip": "3 passed",
+    "postgresql": "80 distinct tests passed"
+  },
+  "schema_version": "t15a-validation-summary-v1",
+  "starting_head": "f587b63e4e35e81486e53ffa0f13b9cd7369f963",
+  "static_gates": {
+    "changed_file_format": "PASS",
+    "changed_file_ruff": "PASS",
+    "compileall": "PASS",
+    "diff_whitespace": "PASS",
+    "repository_wide_ruff_advisory": "24 pre-existing violations in historical migration files; no T15A violation",
+    "schema_model_drift": "PASS: no new upgrade operations detected",
+    "secret_scan": "PASS",
+    "single_migration_head": "PASS: 0081_scope_refresh_identity"
+  },
+  "tests": {
+    "inventory": "2 passed",
+    "postgresql": "80 distinct tests passed across the selected PostgreSQL regression suites on a disposable PostgreSQL 18 container",
+    "query_bound": "constant statement bound certified for 1/50/200 members",
+    "unit": "17 passed"
+  },
+  "verdict": "PASS"
+}

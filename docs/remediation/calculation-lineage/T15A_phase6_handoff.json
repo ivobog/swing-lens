@@ -1,0 +1,125 @@
+{
+  "baselines": {
+    "phase5_source_sha256": "f273e9a61b0a363d873b9f58cf0d702c976f5361a29eb56c2e480fa61b20a5d7",
+    "t14e_finding_snapshot_sha256": "404223301729227b9b679f4e28135d701754f71c6ef71a7b33ce867a807779da",
+    "t15a_starting_head": "f587b63e4e35e81486e53ffa0f13b9cd7369f963"
+  },
+  "decomposition": {
+    "T15B": {
+      "contracts": [
+        "persist scope and refresh IDs at root admission",
+        "bind child/retry/continuation work to exact retained IDs",
+        "version CERI request keys by refresh cycle",
+        "persist IB/CERI acquisition plan and explicit replan lineage"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-004",
+        "PIPE-005",
+        "CERI-012",
+        "XINT-007",
+        "XINT-012"
+      ],
+      "scope": "Pipeline and CERI scope/refresh/acquisition adoption"
+    },
+    "T15C": {
+      "contracts": [
+        "freeze exact due forward-outcome IDs before first maturation batch",
+        "continuations consume only the frozen remainder",
+        "bind cohort refresh/generation manifests to refresh-cycle identity",
+        "persist exact PriceBar revision IDs or explicit lineage-unavailable state"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008"
+      ],
+      "scope": "Winner target-scope, maturation, cohort, and revision-truth adoption"
+    },
+    "T15D": {
+      "contracts": [
+        "complete provider/currency/publication/revision provenance",
+        "remediate algorithm-specific CERI/core/ranking findings",
+        "adopt scope identity where refresh populations remain live queries"
+      ],
+      "finding_ids": [
+        "CERI-001",
+        "CERI-002",
+        "CERI-004",
+        "CERI-005",
+        "CERI-006",
+        "CERI-007",
+        "CERI-008",
+        "CERI-009",
+        "CERI-010",
+        "CERI-011",
+        "CORE-002",
+        "CORE-003",
+        "CORE-004",
+        "CORE-005",
+        "RANK-007",
+        "RANK-008",
+        "XINT-003"
+      ],
+      "scope": "Remaining provenance and algorithm-specific Phase-6 correctness"
+    }
+  },
+  "operation_family_counts": {
+    "acquisition_plan_missing": 23,
+    "dynamic": 0,
+    "frozen": 7,
+    "refresh_identity_missing": 41,
+    "revision_incomplete": 36,
+    "scope_missing": 40,
+    "total": 41,
+    "unknown": 0
+  },
+  "phase7_exclusion": "Original-context reconstruction remains Phase 7; current state is never used to fabricate a certified historical scope or configuration.",
+  "schema_version": "t15a-phase6-handoff-v1",
+  "truth_revision_inventory": [
+    {
+      "content_hash": "price_bars.data_hash and PriceBarRevision.new_data_hash",
+      "gap": "initial/birth consumption does not always persist exact PriceBarRevision IDs",
+      "revision_id": "PriceBarRevision.id/revision_number when a change is recorded",
+      "row_id": "price_bars.id",
+      "source": "PriceBar",
+      "target_task": "T15C",
+      "times": "first_seen_at/last_seen_at/revised_at; revision observed_at"
+    },
+    {
+      "content_hash": "content_hash/normalized_hash",
+      "gap": "refresh cycle and acquisition plan are not attached to source identity",
+      "revision_id": "supersedes_id plus provider_record_id/content_hash",
+      "row_id": "ceri_source_records.id",
+      "source": "CeriSourceRecord",
+      "target_task": "T15B",
+      "times": "published_at/observed_at/source_timestamp/retrieved_at/ingested_at"
+    },
+    {
+      "content_hash": "source record hash; selected derived hashes vary",
+      "gap": "provider/currency/publication/revision proof is not uniform across consumers",
+      "revision_id": "source record or supersedes link depending artifact",
+      "row_id": "normalized row id plus source_record_id",
+      "source": "CERI normalized estimates/earnings/guidance",
+      "target_task": "T15D",
+      "times": "known/effective/report/provider-observed/retrieved fields vary by artifact"
+    },
+    {
+      "content_hash": "feature_vector_hash and native capture proof",
+      "gap": "source_ids_json can omit exact source PriceBar revision IDs",
+      "revision_id": "natural revision plus active supersession",
+      "row_id": "winner_prediction_snapshots.id",
+      "source": "WinnerPredictionSnapshot",
+      "target_task": "T15C",
+      "times": "source_data_cutoff_at/decision_at/captured_at"
+    },
+    {
+      "content_hash": "source_bar_lineage_hash/member_hash/manifest_hash",
+      "gap": "lineage hash does not always enumerate exact birth bar revisions",
+      "revision_id": "forward/target-stop revision pinned in manifest",
+      "row_id": "outcome id and manifest member IDs",
+      "source": "WinnerForwardOutcome / WinnerEvidenceManifest",
+      "target_task": "T15C",
+      "times": "source_revision_cutoff_at/matured_at/training_cutoff_at"
+    }
+  ]
+}

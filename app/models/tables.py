@@ -4765,6 +4765,120 @@ for _immutable_configuration_model in (ExecutionConfigurationAnchor, ExecutionCo
     event.listen(_immutable_configuration_model, "before_delete", _reject_core_evidence_mutation)
 
 
+class AcquisitionPlanRecord(Base):
+    """Immutable semantic acquisition plan; transport attempts live elsewhere."""
+
+    __tablename__ = "acquisition_plan_records"
+    plan_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    plan_kind: Mapped[str] = mapped_column(String(160), nullable=False)
+    plan_version: Mapped[str] = mapped_column(String(160), nullable=False)
+    previous_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
+    revision_reason: Mapped[str | None] = mapped_column(String(64))
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "(previous_plan_id IS NULL) = (revision_reason IS NULL)",
+            name="ck_acquisition_plan_revision_lineage",
+        ),
+        CheckConstraint(
+            "previous_plan_id IS NULL OR previous_plan_id <> plan_id",
+            name="ck_acquisition_plan_not_self_referential",
+        ),
+    )
+
+
+class WorkScopeRecord(Base):
+    """Immutable definition plus exact membership identity for one unit of work."""
+
+    __tablename__ = "work_scope_records"
+    scope_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    scope_kind: Mapped[str] = mapped_column(String(160), nullable=False)
+    subject_kind: Mapped[str] = mapped_column(String(160), nullable=False)
+    membership_policy: Mapped[str] = mapped_column(String(32), nullable=False)
+    membership_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    parent_scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "membership_policy IN ('FROZEN', 'DECLARED_DYNAMIC')",
+            name="ck_work_scope_membership_policy",
+        ),
+        CheckConstraint(
+            "parent_scope_id IS NULL OR parent_scope_id <> scope_id",
+            name="ck_work_scope_not_self_referential",
+        ),
+    )
+
+
+class WorkScopeMember(Base):
+    __tablename__ = "work_scope_members"
+    scope_id: Mapped[str] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT"), primary_key=True
+    )
+    subject_type: Mapped[str] = mapped_column(String(64), primary_key=True)
+    subject_id: Mapped[str] = mapped_column(String(512), primary_key=True)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    membership_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("scope_id", "ordinal", name="uq_work_scope_member_ordinal"),
+        Index("idx_work_scope_members_scope", "scope_id", "ordinal"),
+    )
+
+
+class RefreshCycleRecord(Base):
+    """Immutable refresh cycle identity; retries point to the same record."""
+
+    __tablename__ = "refresh_cycle_records"
+    refresh_cycle_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    refresh_kind: Mapped[str] = mapped_column(String(160), nullable=False)
+    scope_id: Mapped[str] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT"), nullable=False
+    )
+    prior_refresh_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    observation_cycle_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "prior_refresh_id IS NULL OR prior_refresh_id <> refresh_cycle_id",
+            name="ck_refresh_cycle_not_self_referential",
+        ),
+        UniqueConstraint(
+            "scope_id",
+            "refresh_kind",
+            "observation_cycle_key",
+            name="uq_refresh_cycle_semantic_key",
+        ),
+    )
+
+
+for _immutable_scope_model in (
+    AcquisitionPlanRecord,
+    WorkScopeRecord,
+    WorkScopeMember,
+    RefreshCycleRecord,
+):
+    event.listen(_immutable_scope_model, "before_update", _reject_core_evidence_mutation)
+    event.listen(_immutable_scope_model, "before_delete", _reject_core_evidence_mutation)
+
+
 class SetupLifecycleAdministrativeAuditEvent(Base):
     __tablename__ = "setup_lifecycle_administrative_audit_events"
 

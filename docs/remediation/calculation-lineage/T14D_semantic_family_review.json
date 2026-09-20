@@ -69,6 +69,105 @@
   "continuation_wave8_numeric_retention_review": "Native browser observation identified a NUMERIC scale-six tie: owned pre-SQL exit_price 74.2934325 sealed with half-even 74.293432, while PostgreSQL retained half-away-from-zero 74.293433. Outcome body sealing now uses ROUND_HALF_UP to match actual retained SQL numeric values. Outcome formulas, proof fields and financial validation are unchanged; observation hooks removed; actual native H5 SQL-reload regression added without authority substitutions.",
   "continuation_wave8_replay_review": "Native replay validates the retained setup financial proof and the current replay run full configuration/job binding. Its retrospective ownership explicitly makes the original setup pipeline not applicable, preserving original C1 source scope without claiming it owns the replay C2 configuration. LIVE ownership and financial math are unchanged. Native retrospective isolation and native C1/C2 delivery cases pass.",
   "entry_families": {
+    "EF_T15A_ACQUISITION_PLAN_PERSIST": {
+      "adoption_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "authority_proof": "Typed content-addressed plan construction, immutable insert, and retained-payload collision validation in one Session.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db, plan: AcquisitionPlanSnapshot",
+      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "SUPPORTED_DISTINCT_SEMANTICS",
+      "domains": [
+        "CONFIGURATION"
+      ],
+      "entry_point_family_id": "EF_T15A_ACQUISITION_PLAN_PERSIST",
+      "entrypoints": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "proof_boundary": "T15A foundation persistence only; no production acquisition caller adopts this entrypoint yet.",
+      "reachability": "Public shared service intended for explicit T15B/T15C/T15D adoption.",
+      "semantic_adoption_status": "FOUNDATION_IMPLEMENTED_ADOPTION_PENDING",
+      "semantic_review_complete": true,
+      "source_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
+      "status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "writer_adoption_dependencies": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ],
+      "writer_families": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ]
+    },
+    "EF_T15A_REFRESH_CYCLE_PERSIST": {
+      "adoption_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "authority_proof": "Typed content-addressed refresh-cycle construction, immutable insert, and retained-payload collision validation in one Session.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db, refresh: RefreshCycleIdentity",
+      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "SUPPORTED_DISTINCT_SEMANTICS",
+      "domains": [
+        "CONFIGURATION"
+      ],
+      "entry_point_family_id": "EF_T15A_REFRESH_CYCLE_PERSIST",
+      "entrypoints": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "proof_boundary": "T15A foundation persistence only; no production refresh caller adopts this entrypoint yet.",
+      "reachability": "Public shared service intended for explicit T15B/T15C/T15D adoption.",
+      "semantic_adoption_status": "FOUNDATION_IMPLEMENTED_ADOPTION_PENDING",
+      "semantic_review_complete": true,
+      "source_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
+      "status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "writer_adoption_dependencies": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ],
+      "writer_families": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ]
+    },
+    "EF_T15A_WORK_SCOPE_PERSIST": {
+      "adoption_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "authority_proof": "Typed content-addressed scope construction, batched exact membership insert, and retained set verification in one Session.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db, scope: WorkScopeSnapshot",
+      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "SUPPORTED_DISTINCT_SEMANTICS",
+      "domains": [
+        "CONFIGURATION"
+      ],
+      "entry_point_family_id": "EF_T15A_WORK_SCOPE_PERSIST",
+      "entrypoints": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "proof_boundary": "T15A foundation persistence only; no production work-scope caller adopts this entrypoint yet.",
+      "reachability": "Public shared service intended for explicit T15B/T15C/T15D adoption.",
+      "semantic_adoption_status": "FOUNDATION_IMPLEMENTED_ADOPTION_PENDING",
+      "semantic_review_complete": true,
+      "source_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
+      "status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "writer_adoption_dependencies": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ],
+      "writer_families": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ]
+    },
     "EF_021cfb93d6813955": {
       "adoption_status": "T14B_ADOPTION",
       "authority_proof": "Assigned native writer dependencies enforce persisted core/contextual authority, or their explicit source/cache/legacy operation policy. Construction and discovery do not grant authority. Exact family-specific proof is recorded in T14B_core_contextual_writer_certification.json.",
@@ -14714,6 +14813,21 @@
     }
   ],
   "sink_reviews": {
+    "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan": {
+      "family_id": "WF_SCOPE_IDENTITY_FOUNDATION",
+      "proof": "Content-addressed immutable acquisition-plan identity and explicit predecessor lineage; foundation metadata, not a domain calculation.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle": {
+      "family_id": "WF_SCOPE_IDENTITY_FOUNDATION",
+      "proof": "Content-addressed immutable refresh-cycle identity bound to a retained work scope; foundation metadata, not a domain calculation.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope": {
+      "family_id": "WF_SCOPE_IDENTITY_FOUNDATION",
+      "proof": "Content-addressed immutable work-scope record and set-based exact membership persistence; foundation metadata, not a domain calculation.",
+      "role": "CANONICAL_SEMANTIC_WRITER"
+    },
     "app/routers/ceri_routes.py:review_ceri_event": {
       "family_id": "WF_CERI_REVIEW_METADATA",
       "proof": "Human audit and review_state only; distinct from source override and score calculation.",
@@ -15674,7 +15788,7 @@
   },
   "source_pins": {
     "app/main.py": "1ed01b12d1870c1575986c82568b100153b600f76003a1e6ab209afa6fb5a743",
-    "app/models/tables.py": "36a9b0e9406c5d2c22a926ccd4863194a6a8ab4d8fd46c4cd2ee328d745249d7",
+    "app/models/tables.py": "1371a3d5900a3545b5b5fa6847d87bb7b52c7156923128b6e49f3295d76561d2",
     "app/routers/ceri_routes.py": "5d3a98ae6de9aaee6c4cebe2757e7f640a8907a290745a3cf24a7d5cd15539f6",
     "app/routers/ib_market_intelligence_routes.py": "3c1c4f75e700f7114c10dabb000c03e7c1e7ae78600ce0387354515e4d44e65f",
     "app/routers/ib_routes.py": "5f67384f0a09483f5aaea032aacd032c0d340c9cb7c1a7604588559b01994b9e",
@@ -15684,6 +15798,7 @@
     "app/routers/sector_rotation_routes.py": "dde004a45ba3f5adb035c71ad041fac0b08614aee3fe47fb78c22e577e948d5f",
     "app/routers/setup_lifecycle_routes.py": "6eda8dcaf30d36d9c6f78e4cea5f4c4c3b9ed2de33b68d3a8c66607bb6980561",
     "app/routers/upload_routes.py": "4d77447d09725c09e86a3903f3048f1dcdc4a740c6d7b3e74d18ef90cb59f15f",
+    "app/services/work_scope_identity.py": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
     "app/routers/winner_probability_routes.py": "b779c2885b3723cc848501e18442ef3b7a013d18e5a7ecd66dc9225753deb3e6",
     "app/services/background_job_service.py": "b931f237b12e6710cc9a643c4751dcd056ba8e49ecd6a90b369059791ad76d68",
     "app/services/background_worker.py": "7d77fcb04062b4c10ef859bd88e282daf57c1dcc5a11b961502088d3c6f096cd",
@@ -15819,7 +15934,7 @@
     "scripts/qa/certify_slse_natural.py": "f71b23d61d7eefe91ac1878106b77de3d715958c63a04931c182cca6d79ad8e0",
     "scripts/qa/rebuild_slse_dev_history.py": "f21e18e16f6492a6f07d8d8ff12ccf254c72ce587723e3dfb2acade07b59de42",
     "scripts/qa/t13e_deployed_probe.py": "c4c225bbe4ebac3b10773ad66fe14f6d9dd3c49ed85a01e14c03506a11985d5e",
-    "scripts/qa/t14a_reviewed_inventory.py": "669482961080a0979440f1ffaff099214b3ba19c7c66ac3e339878b44b5c9835",
+    "scripts/qa/t14a_reviewed_inventory.py": "49da330892d7fe48ac99131e4313746759619e703fb3ce80910224cdd485df64",
     "scripts/qa/t14a_semantic_completeness.py": "69f772d81ad5f69fe411c42a43b3e42f1441e0f59b4d581883b412feaadcb1b3",
     "scripts/qa/t14a_semantic_families.py": "9279ecb048c26df82166fb9db2df5ee4b59080d9ddd69a041d989793735fad81",
     "scripts/qa/t14b_semantic_review.py": "b9e868ffa27753a1573c54d66cf460c9638e84cb7f1ed1b6d4d0ed1c1968d1e9",
@@ -15968,6 +16083,39 @@
     "scripts/winner_maturation_canary.py"
   ],
   "writer_families": {
+    "WF_SCOPE_IDENTITY_FOUNDATION": {
+      "authority": "Only typed content-addressed T15A constructors may create immutable scope, refresh-cycle, membership, and acquisition-plan identity records; application adoption is deferred to T15B/T15C/T15D.",
+      "disposition": "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
+      "domains": [
+        "CONFIGURATION"
+      ],
+      "known_alternate_families": [],
+      "known_callers": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan",
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle",
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope"
+      ],
+      "member_sites": [
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_acquisition_plan",
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_refresh_cycle",
+        "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope"
+      ],
+      "modes": [
+        "BOOTSTRAP"
+      ],
+      "owner": "app/services/work_scope_identity.py:ScopeIdentityStore.persist_scope",
+      "phase5_status": "T15A_FOUNDATION_REVIEWED",
+      "proof": "New immutable shared semantic identity ledger. No production caller adopts it in T15A; writes are content-addressed, collision-checked, and PostgreSQL-immutable.",
+      "semantic_review_complete": true,
+      "status": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "acquisition_plan_records",
+        "refresh_cycle_records",
+        "work_scope_members",
+        "work_scope_records"
+      ],
+      "writer_family_id": "WF_SCOPE_IDENTITY_FOUNDATION"
+    },
     "WF_CERI_ALERT_CREATION": {
       "authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
       "disposition": "T14C",

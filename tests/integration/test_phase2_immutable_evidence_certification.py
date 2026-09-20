@@ -72,6 +72,8 @@ PHASE2_REVISIONS = (
     "0078_ibmi_constituent_evidence",
     "0079_setup_lifecycle_alert_ev",
 )
+CURRENT_HEAD = "0081_scope_refresh_identity"
+EFFECTIVE_CONFIGURATION_REVISION = "0080_effective_configuration"
 SESSION = date(2026, 9, 15)
 
 
@@ -80,8 +82,11 @@ def test_phase2_postgresql_migration_chain_round_trip_and_schema_contract(
 ) -> None:
     config = _config(disposable_postgres_database)
     script = ScriptDirectory.from_config(config)
-    assert tuple(script.get_heads()) == ("0080_effective_configuration",)
-    assert script.get_revision("0080_effective_configuration").down_revision == PHASE2_REVISIONS[-1]
+    assert tuple(script.get_heads()) == (CURRENT_HEAD,)
+    assert script.get_revision(CURRENT_HEAD).down_revision == EFFECTIVE_CONFIGURATION_REVISION
+    assert (
+        script.get_revision(EFFECTIVE_CONFIGURATION_REVISION).down_revision == PHASE2_REVISIONS[-1]
+    )
     phase2_chain = tuple(
         revision.revision for revision in script.walk_revisions(PHASE2_BASE, PHASE2_REVISIONS[-1])
     )
@@ -104,7 +109,7 @@ def test_phase2_postgresql_migration_chain_round_trip_and_schema_contract(
         "signal_alert_decision_evidence",
     }
     assert expected_tables <= set(schema.get_table_names())
-    assert _alembic_revision(engine) == "0080_effective_configuration"
+    assert _alembic_revision(engine) == CURRENT_HEAD
 
     for table_name, column_name in {
         "fundamental_scores": "evidence_id",
@@ -154,7 +159,7 @@ def test_phase2_postgresql_migration_chain_round_trip_and_schema_contract(
     assert _alembic_revision(engine) == PHASE2_BASE
 
     command.upgrade(config, "head")
-    assert _alembic_revision(engine) == "0080_effective_configuration"
+    assert _alembic_revision(engine) == CURRENT_HEAD
     engine.dispose()
 
 
@@ -336,7 +341,7 @@ def test_phase2_integrated_evidence_graph_survives_a_new_world(
     command.downgrade(config, PHASE2_BASE)
     assert _alembic_revision(engine) == PHASE2_BASE
     command.upgrade(config, "head")
-    assert _alembic_revision(engine) == "0080_effective_configuration"
+    assert _alembic_revision(engine) == CURRENT_HEAD
     engine.dispose()
 
 

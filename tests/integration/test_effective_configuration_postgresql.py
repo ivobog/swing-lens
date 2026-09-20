@@ -39,13 +39,15 @@ from app.services.effective_configuration_families import resolve_ranking_profil
 
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
+CURRENT_HEAD = "0081_scope_refresh_identity"
+
 
 def test_configuration_embedded_evidence_round_trip_retry_drift_and_immutability(
     disposable_postgres_database,
 ):
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", disposable_postgres_database)
-    assert ScriptDirectory.from_config(config).get_heads() == ["0080_effective_configuration"]
+    assert ScriptDirectory.from_config(config).get_heads() == [CURRENT_HEAD]
     command.upgrade(config, "head")
     command.check(config)
     engine = create_engine(disposable_postgres_database)

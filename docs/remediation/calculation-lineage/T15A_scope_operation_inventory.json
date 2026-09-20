@@ -1,0 +1,1460 @@
+{
+  "counts": {
+    "acquisition_plan_missing": 23,
+    "dynamic": 0,
+    "frozen": 7,
+    "refresh_identity_missing": 41,
+    "revision_incomplete": 36,
+    "scope_missing": 40,
+    "total": 41,
+    "unknown": 0
+  },
+  "records": [
+    {
+      "acquisition_plan_model": "market-data requirements implicit or separately queued",
+      "continuation_model": "population queries are not bound to a scope snapshot",
+      "current_defect_risk": "capture/backfill/pending materialization population is not reproducibly frozen",
+      "domain": [
+        "PRICE",
+        "WINNER_COHORT",
+        "WINNER_ESTIMATE",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run/current eligibility query or single ticker; no shared exact population identity",
+      "operation_family_id": "AF_00e602453a046eb8",
+      "phase6_target_task": "T15C",
+      "refresh_model": "job/run identity only",
+      "retry_model": "current prediction/outcome state may change between attempts",
+      "revision_model": "prediction revision exists; birth PriceBar revision IDs remain incomplete",
+      "scope_kind": "winner-prediction-population",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "backfill selects current eligible historical predictions",
+      "semantic_service": "app/services/winner_probability/backfill.py:WinnerProbabilityBackfillService.execute_backfill",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "not validated by generic retry",
+      "continuation_model": "not applicable to the retry decision itself",
+      "current_defect_risk": "operational retry can be mistaken for semantic retry",
+      "domain": [
+        "PIPELINE"
+      ],
+      "finding_ids": [
+        "PIPE-004",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "job payload retained without a shared scope identity",
+      "operation_family_id": "AF_06fd3d113b34f83e",
+      "phase6_target_task": "T15B",
+      "refresh_model": "retry count and job ID are operational only",
+      "retry_model": "same job payload is retried but semantic scope is not validated",
+      "revision_model": "not validated by generic retry",
+      "scope_kind": "background-job-retry",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "failed leased job",
+      "semantic_service": "app/services/background_job_service.py:mark_job_failed_or_retry",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING"
+      ],
+      "t14d_authority_status": "CURRENT_STATE_REPAIR_EXPLICIT"
+    },
+    {
+      "acquisition_plan_model": "market-data needs are discovered while processing",
+      "continuation_model": "continuation reruns live due query and can expand/shrink membership",
+      "current_defect_risk": "newly eligible rows can enter an old cycle and current-state changes can remove rows",
+      "domain": [
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-008",
+        "WIN-006",
+        "PIPE-001",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live due-row query; processed IDs are only local to one drain call",
+      "operation_family_id": "AF_07d5132ea4950d61",
+      "phase6_target_task": "T15C",
+      "refresh_model": "session request key/workflow key, not refresh-cycle identity",
+      "retry_model": "retry can see newly due or newly eligible rows",
+      "revision_model": "outcome lineage hash/cutoff exist; exact birth bar revision IDs can be absent",
+      "scope_kind": "winner-h5-maturation",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "single current prediction/outcome pair",
+      "semantic_service": "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_forward_outcome",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "batch/rebuild selection is not a frozen shared remainder",
+      "current_defect_risk": "rebuild population may expand/shrink between attempts",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "finding_ids": [
+        "CERI-001",
+        "CERI-008",
+        "CERI-010"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live database query under cutoff/context; exact target IDs not retained as scope",
+      "operation_family_id": "AF_09185dfbe8dc8ae9",
+      "phase6_target_task": "T15D",
+      "refresh_model": "processing run identity, not observation-cycle identity",
+      "retry_model": "retry can reread a changed eligible set",
+      "revision_model": "source IDs/hashes vary by derived artifact; coverage is incomplete",
+      "scope_kind": "ceri-derived-rebuild",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "context rebuild selects eligible source rows",
+      "semantic_service": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService.rebuild_from_context",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "batch/rebuild selection is not a frozen shared remainder",
+      "current_defect_risk": "rebuild population may expand/shrink between attempts",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "finding_ids": [
+        "CERI-001",
+        "CERI-008",
+        "CERI-010"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live database query under cutoff/context; exact target IDs not retained as scope",
+      "operation_family_id": "AF_095460ea3293f382",
+      "phase6_target_task": "T15D",
+      "refresh_model": "processing run identity, not observation-cycle identity",
+      "retry_model": "retry can reread a changed eligible set",
+      "revision_model": "source IDs/hashes vary by derived artifact; coverage is incomplete",
+      "scope_kind": "ceri-derived-rebuild",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "feature rebuild selects source rows/current context",
+      "semantic_service": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService.rebuild",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "market-data needs are discovered while processing",
+      "continuation_model": "continuation reruns live due query and can expand/shrink membership",
+      "current_defect_risk": "newly eligible rows can enter an old cycle and current-state changes can remove rows",
+      "domain": [
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-008",
+        "WIN-006",
+        "PIPE-001",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live due-row query; processed IDs are only local to one drain call",
+      "operation_family_id": "AF_181b495253d9c9f3",
+      "phase6_target_task": "T15C",
+      "refresh_model": "session request key/workflow key, not refresh-cycle identity",
+      "retry_model": "retry can see newly due or newly eligible rows",
+      "revision_model": "outcome lineage hash/cutoff exist; exact birth bar revision IDs can be absent",
+      "scope_kind": "winner-h5-maturation",
+      "scope_model": "RESELECTS_ON_CONTINUATION",
+      "scope_selection_point": "each batch queries current due pending outcomes",
+      "semantic_service": "app/services/winner_probability/outcome_orchestration_service.py:H5NextOpenOrchestrationService.drain_due",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "no shared frozen remainder contract",
+      "current_defect_risk": "algorithm refresh population is not independently reproducible",
+      "domain": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "RANK-007",
+        "RANK-008",
+        "CORE-005"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run-scoped live query without independent population identity",
+      "operation_family_id": "AF_2071f64f2b1f231c",
+      "phase6_target_task": "T15D",
+      "refresh_model": "route/job identity only",
+      "retry_model": "retry can observe changed current rows",
+      "revision_model": "domain evidence exists but population/revision coverage is incomplete",
+      "scope_kind": "combined-ranking-refresh",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "run route selects current run rows",
+      "semantic_service": "app/routers/run_routes.py:refresh_combined_results_action",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "RETIRED"
+    },
+    {
+      "acquisition_plan_model": "FetchPlan is typed in memory but has no immutable semantic identity",
+      "continuation_model": "item progress exists without shared remaining-scope identity",
+      "current_defect_risk": "changed current coverage/provider settings can silently constitute replanning",
+      "domain": [
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "CORE-002",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "requested symbols/items exist in mutable job/plan payload",
+      "operation_family_id": "AF_23acb094fb6bb85b",
+      "phase6_target_task": "T15B",
+      "refresh_model": "force flags and request keys, not typed refresh identity",
+      "retry_model": "execution can reuse/rebuild plan depending entrypoint",
+      "revision_model": "PriceBarRevision captures arrived changes, not the original acquisition plan",
+      "scope_kind": "ib-price-acquisition",
+      "scope_model": "REMAINDER_OF_FROZEN_SCOPE",
+      "scope_selection_point": "prewarm job loads payload",
+      "semantic_service": "app/services/market_data_prewarm_service.py:execute_market_data_prewarm_job",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "materialization slices are generation-bound",
+      "current_defect_risk": "generation population is strong after capture, but refresh/idempotency is not a general cycle contract",
+      "domain": [
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "WINNER_COHORT",
+        "WINNER_GENERATION"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "desired_watermark_hash",
+      "membership_model": "watermark-bound desired population before exact manifest capture",
+      "operation_family_id": "AF_28a02ef387a2cf02",
+      "phase6_target_task": "T15C",
+      "refresh_model": "desired watermark/generation key tracks truth change but no shared refresh-cycle identity",
+      "retry_model": "generation capture can resume exact generation; request coalescing is stable by definition",
+      "revision_model": "manifest pins outcome revisions/eligibility decisions; upstream price revision gap remains",
+      "scope_kind": "winner-cohort-generation",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "planner advances current material-evidence watermark",
+      "semantic_service": "app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "request fields exist but have no immutable plan record",
+      "continuation_model": "provider/document iteration follows current response or checkpoint",
+      "current_defect_risk": "stable ingestion identity can suppress a legitimate later refresh",
+      "domain": [
+        "CERI_SOURCE",
+        "CONFIGURATION"
+      ],
+      "finding_ids": [
+        "CERI-012",
+        "PIPE-005",
+        "XINT-012",
+        "CERI-002",
+        "CERI-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "ticker/dataset scope or live provider/document discovery; no exact cycle manifest",
+      "operation_family_id": "AF_2ac7e305c24865bb",
+      "phase6_target_task": "T15B",
+      "refresh_model": "stable provider/dataset/ticker request key omits refresh cycle",
+      "retry_model": "completed ingestion run may short-circuit by stable key",
+      "revision_model": "CeriSourceRecord has row/content/provider/time identity after arrival",
+      "scope_kind": "ceri-source-acquisition",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "backfill route declares range/ticker",
+      "semantic_service": "app/routers/ceri_routes.py:create_ceri_backfill",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CURRENT_RULES_RETROSPECTIVE_EXPLICIT"
+    },
+    {
+      "acquisition_plan_model": "FetchPlan is typed in memory but has no immutable semantic identity",
+      "continuation_model": "item progress exists without shared remaining-scope identity",
+      "current_defect_risk": "changed current coverage/provider settings can silently constitute replanning",
+      "domain": [
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "CORE-002",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "requested symbols/items exist in mutable job/plan payload",
+      "operation_family_id": "AF_33bdca96240039c6",
+      "phase6_target_task": "T15B",
+      "refresh_model": "force flags and request keys, not typed refresh identity",
+      "retry_model": "execution can reuse/rebuild plan depending entrypoint",
+      "revision_model": "PriceBarRevision captures arrived changes, not the original acquisition plan",
+      "scope_kind": "ib-price-acquisition",
+      "scope_model": "REMAINDER_OF_FROZEN_SCOPE",
+      "scope_selection_point": "execute_fetch_plan iterates serialized plan items",
+      "semantic_service": "app/services/ib_fetch_executor.py:execute_fetch_plan",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "market-data needs are discovered while processing",
+      "continuation_model": "continuation reruns live due query and can expand/shrink membership",
+      "current_defect_risk": "newly eligible rows can enter an old cycle and current-state changes can remove rows",
+      "domain": [
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "WINNER_COHORT",
+        "WINNER_GENERATION",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-008",
+        "WIN-006",
+        "PIPE-001",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live due-row query; processed IDs are only local to one drain call",
+      "operation_family_id": "AF_370448d4d5b97745",
+      "phase6_target_task": "T15C",
+      "refresh_model": "session request key/workflow key, not refresh-cycle identity",
+      "retry_model": "retry can see newly due or newly eligible rows",
+      "revision_model": "outcome lineage hash/cutoff exist; exact birth bar revision IDs can be absent",
+      "scope_kind": "winner-h5-maturation",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "scheduler checks current due queue for completed session",
+      "semantic_service": "app/services/winner_probability/scheduler.py:schedule_primary_h5_maturation",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "market-data needs are discovered while processing",
+      "continuation_model": "continuation reruns live due query and can expand/shrink membership",
+      "current_defect_risk": "newly eligible rows can enter an old cycle and current-state changes can remove rows",
+      "domain": [
+        "WINNER_OUTCOME"
+      ],
+      "finding_ids": [
+        "WIN-008",
+        "WIN-006",
+        "PIPE-001",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live due-row query; processed IDs are only local to one drain call",
+      "operation_family_id": "AF_391cc87ab4acf60e",
+      "phase6_target_task": "T15C",
+      "refresh_model": "session request key/workflow key, not refresh-cycle identity",
+      "retry_model": "retry can see newly due or newly eligible rows",
+      "revision_model": "outcome lineage hash/cutoff exist; exact birth bar revision IDs can be absent",
+      "scope_kind": "winner-h5-maturation",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "single current forward outcome",
+      "semantic_service": "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_forward_outcome",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "FetchPlan is typed in memory but has no immutable semantic identity",
+      "continuation_model": "item progress exists without shared remaining-scope identity",
+      "current_defect_risk": "changed current coverage/provider settings can silently constitute replanning",
+      "domain": [
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "CORE-002",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "requested symbols/items exist in mutable job/plan payload",
+      "operation_family_id": "AF_406e161ff5c7157e",
+      "phase6_target_task": "T15B",
+      "refresh_model": "force flags and request keys, not typed refresh identity",
+      "retry_model": "execution can reuse/rebuild plan depending entrypoint",
+      "revision_model": "PriceBarRevision captures arrived changes, not the original acquisition plan",
+      "scope_kind": "ib-price-acquisition",
+      "scope_model": "REMAINDER_OF_FROZEN_SCOPE",
+      "scope_selection_point": "durable fetch job loads serialized plan",
+      "semantic_service": "app/services/ib_fetch_job_service.py:execute_durable_fetch_job",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "market-data requirements implicit or separately queued",
+      "continuation_model": "population queries are not bound to a scope snapshot",
+      "current_defect_risk": "capture/backfill/pending materialization population is not reproducibly frozen",
+      "domain": [
+        "CONFIGURATION",
+        "PRICE",
+        "WINNER_COHORT",
+        "WINNER_ESTIMATE",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run/current eligibility query or single ticker; no shared exact population identity",
+      "operation_family_id": "AF_5e9c7f4b54deade3",
+      "phase6_target_task": "T15C",
+      "refresh_model": "job/run identity only",
+      "retry_model": "current prediction/outcome state may change between attempts",
+      "revision_model": "prediction revision exists; birth PriceBar revision IDs remain incomplete",
+      "scope_kind": "winner-prediction-population",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "HTTP route selects run/ticker capture request",
+      "semantic_service": "app/routers/winner_probability_routes.py:queue_winner_prediction_capture",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    },
+    {
+      "acquisition_plan_model": "request fields exist but have no immutable plan record",
+      "continuation_model": "provider/document iteration follows current response or checkpoint",
+      "current_defect_risk": "stable ingestion identity can suppress a legitimate later refresh",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "finding_ids": [
+        "CERI-012",
+        "PIPE-005",
+        "XINT-012",
+        "CERI-002",
+        "CERI-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "ticker/dataset scope or live provider/document discovery; no exact cycle manifest",
+      "operation_family_id": "AF_61d58568e4195b40",
+      "phase6_target_task": "T15B",
+      "refresh_model": "stable provider/dataset/ticker request key omits refresh cycle",
+      "retry_model": "completed ingestion run may short-circuit by stable key",
+      "revision_model": "CeriSourceRecord has row/content/provider/time identity after arrival",
+      "scope_kind": "ceri-source-acquisition",
+      "scope_model": "RESELECTS_ON_CONTINUATION",
+      "scope_selection_point": "backfill service iterates requested current acquisition",
+      "semantic_service": "app/services/ceri/backfill_service.py:CeriBackfillService.run",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "request fields exist but have no immutable plan record",
+      "continuation_model": "provider/document iteration follows current response or checkpoint",
+      "current_defect_risk": "stable ingestion identity can suppress a legitimate later refresh",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "finding_ids": [
+        "CERI-012",
+        "PIPE-005",
+        "XINT-012",
+        "CERI-002",
+        "CERI-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "ticker/dataset scope or live provider/document discovery; no exact cycle manifest",
+      "operation_family_id": "AF_63eb3b146ad2e615",
+      "phase6_target_task": "T15B",
+      "refresh_model": "stable provider/dataset/ticker request key omits refresh cycle",
+      "retry_model": "completed ingestion run may short-circuit by stable key",
+      "revision_model": "CeriSourceRecord has row/content/provider/time identity after arrival",
+      "scope_kind": "ceri-source-acquisition",
+      "scope_model": "RESELECTS_ON_CONTINUATION",
+      "scope_selection_point": "SEC incremental service discovers current filings",
+      "semantic_service": "app/services/ceri/sec/incremental_ingestion.py:SecGuidanceIncrementalIngestionService.ingest",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "FetchPlan is typed in memory but has no immutable semantic identity",
+      "continuation_model": "item progress exists without shared remaining-scope identity",
+      "current_defect_risk": "changed current coverage/provider settings can silently constitute replanning",
+      "domain": [
+        "CONFIGURATION",
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "CORE-002",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "requested symbols/items exist in mutable job/plan payload",
+      "operation_family_id": "AF_671f857a0f5339d6",
+      "phase6_target_task": "T15B",
+      "refresh_model": "force flags and request keys, not typed refresh identity",
+      "retry_model": "execution can reuse/rebuild plan depending entrypoint",
+      "revision_model": "PriceBarRevision captures arrived changes, not the original acquisition plan",
+      "scope_kind": "ib-price-acquisition",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "prewarm enqueue selects requested universe",
+      "semantic_service": "app/services/market_data_prewarm_service.py:enqueue_market_data_prewarm",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "market-data requirements implicit or separately queued",
+      "continuation_model": "population queries are not bound to a scope snapshot",
+      "current_defect_risk": "capture/backfill/pending materialization population is not reproducibly frozen",
+      "domain": [
+        "PRICE",
+        "WINNER_COHORT",
+        "WINNER_ESTIMATE",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run/current eligibility query or single ticker; no shared exact population identity",
+      "operation_family_id": "AF_6b6a709b24cfa078",
+      "phase6_target_task": "T15C",
+      "refresh_model": "job/run identity only",
+      "retry_model": "current prediction/outcome state may change between attempts",
+      "revision_model": "prediction revision exists; birth PriceBar revision IDs remain incomplete",
+      "scope_kind": "winner-prediction-population",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "pending outcome service selects current predictions",
+      "semantic_service": "app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService.materialize_pending_outcomes",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "SEC repair request is payload-only",
+      "continuation_model": "re-enters pipeline by current step state",
+      "current_defect_risk": "child/background repair can outlive parent accounting and alter resumed membership",
+      "domain": [
+        "CERI",
+        "CERI_ALERT",
+        "CERI_CHANGE",
+        "CERI_SOURCE",
+        "COMBINED",
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "IBMI_SOURCE",
+        "PIPELINE",
+        "PRICE",
+        "RANKING",
+        "RAW",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-004",
+        "PIPE-005"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "pipeline reference retained; repaired document/target manifest absent",
+      "operation_family_id": "AF_716a8499b1e111d4",
+      "phase6_target_task": "T15B",
+      "refresh_model": "repair job identity is used as control identity",
+      "retry_model": "same repair may return to changed current pipeline state",
+      "revision_model": "document processor/source identity exists but cycle membership is absent",
+      "scope_kind": "pipeline-after-sec-repair",
+      "scope_model": "RESELECTS_ON_CONTINUATION",
+      "scope_selection_point": "repair completion requeues pipeline",
+      "semantic_service": "app/services/pipeline_service.py:enqueue_pipeline_after_sec_repair",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "market-data requirements implicit or separately queued",
+      "continuation_model": "population queries are not bound to a scope snapshot",
+      "current_defect_risk": "capture/backfill/pending materialization population is not reproducibly frozen",
+      "domain": [
+        "WINNER_COHORT",
+        "WINNER_ESTIMATE",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run/current eligibility query or single ticker; no shared exact population identity",
+      "operation_family_id": "AF_79c791f0e8421e6e",
+      "phase6_target_task": "T15C",
+      "refresh_model": "job/run identity only",
+      "retry_model": "current prediction/outcome state may change between attempts",
+      "revision_model": "prediction revision exists; birth PriceBar revision IDs remain incomplete",
+      "scope_kind": "winner-prediction-population",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "capture service processes one current ticker",
+      "semantic_service": "app/services/winner_probability/capture_service.py:WinnerPredictionCaptureService._capture_ticker",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "document acquisition policy is implicit",
+      "continuation_model": "repair completion may requeue pipeline",
+      "current_defect_risk": "repair and later legitimate reacquisition are not formally distinct",
+      "domain": [
+        "CERI",
+        "CERI_ALERT",
+        "CERI_CHANGE",
+        "CERI_SOURCE",
+        "COMBINED",
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "IBMI_SOURCE",
+        "PIPELINE",
+        "PRICE",
+        "RANKING",
+        "RAW",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "pipeline/ticker hints only; no exact document manifest",
+      "operation_family_id": "AF_7c7a11f09af2e09e",
+      "phase6_target_task": "T15B",
+      "refresh_model": "request key coalesces repair work without refresh identity",
+      "retry_model": "same request key may suppress a later observation cycle",
+      "revision_model": "processor signature exists; exact planned document revisions do not",
+      "scope_kind": "sec-readiness-repair-scheduling",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "current readiness failure",
+      "semantic_service": "app/services/ceri/sec/readiness_repair.py:schedule_sec_readiness_repair",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "materialization slices are generation-bound",
+      "current_defect_risk": "generation population is strong after capture, but refresh/idempotency is not a general cycle contract",
+      "domain": [
+        "CURRENT_PROJECTION",
+        "WINNER_COHORT",
+        "WINNER_GENERATION"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "WinnerEvidenceManifest.manifest_hash",
+      "membership_model": "WinnerEvidenceManifest and members persist exact realized membership",
+      "operation_family_id": "AF_8b743894024472f7",
+      "phase6_target_task": "T15C",
+      "refresh_model": "desired watermark/generation key tracks truth change but no shared refresh-cycle identity",
+      "retry_model": "generation capture can resume exact generation; request coalescing is stable by definition",
+      "revision_model": "manifest pins outcome revisions/eligibility decisions; upstream price revision gap remains",
+      "scope_kind": "winner-cohort-generation",
+      "scope_model": "REMAINDER_OF_FROZEN_SCOPE",
+      "scope_selection_point": "materialize_slice operates on captured generation/group",
+      "semantic_service": "app/services/winner_probability/cohort_materialization_service.py:CohortMaterializationService.materialize_slice",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    },
+    {
+      "acquisition_plan_model": "FetchPlan is typed in memory but has no immutable semantic identity",
+      "continuation_model": "item progress exists without shared remaining-scope identity",
+      "current_defect_risk": "changed current coverage/provider settings can silently constitute replanning",
+      "domain": [
+        "CONFIGURATION",
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "CORE-002",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "requested symbols/items exist in mutable job/plan payload",
+      "operation_family_id": "AF_962bfc6f0968f82d",
+      "phase6_target_task": "T15B",
+      "refresh_model": "force flags and request keys, not typed refresh identity",
+      "retry_model": "execution can reuse/rebuild plan depending entrypoint",
+      "revision_model": "PriceBarRevision captures arrived changes, not the original acquisition plan",
+      "scope_kind": "ib-price-acquisition",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "run action builds plan from current coverage",
+      "semantic_service": "app/routers/run_routes.py:fetch_run_ib_bars_action",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "batch/rebuild selection is not a frozen shared remainder",
+      "current_defect_risk": "rebuild population may expand/shrink between attempts",
+      "domain": [
+        "CERI_CHANGE"
+      ],
+      "finding_ids": [
+        "CERI-001",
+        "CERI-008",
+        "CERI-010"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live database query under cutoff/context; exact target IDs not retained as scope",
+      "operation_family_id": "AF_9701990a1bad3828",
+      "phase6_target_task": "T15D",
+      "refresh_model": "processing run identity, not observation-cycle identity",
+      "retry_model": "retry can reread a changed eligible set",
+      "revision_model": "source IDs/hashes vary by derived artifact; coverage is incomplete",
+      "scope_kind": "ceri-derived-rebuild",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "change rebuild selects current comparable events",
+      "semantic_service": "app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "materialization slices are generation-bound",
+      "current_defect_risk": "generation population is strong after capture, but refresh/idempotency is not a general cycle contract",
+      "domain": [
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "WINNER_COHORT",
+        "WINNER_GENERATION"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "generation_key/root_manifest_hash",
+      "membership_model": "generation/group plan retained; evidence manifests freeze realized population",
+      "operation_family_id": "AF_9f421f6c2c6dc73f",
+      "phase6_target_task": "T15C",
+      "refresh_model": "desired watermark/generation key tracks truth change but no shared refresh-cycle identity",
+      "retry_model": "generation capture can resume exact generation; request coalescing is stable by definition",
+      "revision_model": "manifest pins outcome revisions/eligibility decisions; upstream price revision gap remains",
+      "scope_kind": "winner-cohort-generation",
+      "scope_model": "REMAINDER_OF_FROZEN_SCOPE",
+      "scope_selection_point": "refresh service captures/resumes generation contract",
+      "semantic_service": "app/services/winner_probability/job_handlers.py:WinnerCohortRefreshService.refresh_cohorts",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "market-data requirements implicit or separately queued",
+      "continuation_model": "population queries are not bound to a scope snapshot",
+      "current_defect_risk": "capture/backfill/pending materialization population is not reproducibly frozen",
+      "domain": [
+        "WINNER_COHORT",
+        "WINNER_ESTIMATE",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run/current eligibility query or single ticker; no shared exact population identity",
+      "operation_family_id": "AF_a1a274f9c73e3fa0",
+      "phase6_target_task": "T15C",
+      "refresh_model": "job/run identity only",
+      "retry_model": "current prediction/outcome state may change between attempts",
+      "revision_model": "prediction revision exists; birth PriceBar revision IDs remain incomplete",
+      "scope_kind": "winner-prediction-population",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "capture/pending service uses current prediction state",
+      "semantic_service": "app/services/winner_probability/capture_service.py:WinnerPredictionCaptureService._capture_ticker|app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService.materialize_pending_outcomes",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "FetchPlan is typed in memory but has no immutable semantic identity",
+      "continuation_model": "item progress exists without shared remaining-scope identity",
+      "current_defect_risk": "changed current coverage/provider settings can silently constitute replanning",
+      "domain": [
+        "CONFIGURATION",
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "CORE-002",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "requested symbols/items exist in mutable job/plan payload",
+      "operation_family_id": "AF_a22cc94c8ff55c85",
+      "phase6_target_task": "T15B",
+      "refresh_model": "force flags and request keys, not typed refresh identity",
+      "retry_model": "execution can reuse/rebuild plan depending entrypoint",
+      "revision_model": "PriceBarRevision captures arrived changes, not the original acquisition plan",
+      "scope_kind": "ib-price-acquisition",
+      "scope_model": "RESELECTS_ON_RETRY",
+      "scope_selection_point": "retry action rebuilds selection from failures/current state",
+      "semantic_service": "app/routers/run_routes.py:retry_failed_run_ib_fetch_action",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    },
+    {
+      "acquisition_plan_model": "market-data needs are discovered while processing",
+      "continuation_model": "continuation reruns live due query and can expand/shrink membership",
+      "current_defect_risk": "newly eligible rows can enter an old cycle and current-state changes can remove rows",
+      "domain": [
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "WINNER_COHORT",
+        "WINNER_GENERATION",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-008",
+        "WIN-006",
+        "PIPE-001",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live due-row query; processed IDs are only local to one drain call",
+      "operation_family_id": "AF_ab5b156dc59c02ff",
+      "phase6_target_task": "T15C",
+      "refresh_model": "session request key/workflow key, not refresh-cycle identity",
+      "retry_model": "retry can see newly due or newly eligible rows",
+      "revision_model": "outcome lineage hash/cutoff exist; exact birth bar revision IDs can be absent",
+      "scope_kind": "winner-h5-maturation",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "workflow enqueue records due session/limits but no target IDs",
+      "semantic_service": "app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "FetchPlan is typed in memory but has no immutable semantic identity",
+      "continuation_model": "item progress exists without shared remaining-scope identity",
+      "current_defect_risk": "changed current coverage/provider settings can silently constitute replanning",
+      "domain": [
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "CORE-002",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "requested symbols/items exist in mutable job/plan payload",
+      "operation_family_id": "AF_acf7c620df460e47",
+      "phase6_target_task": "T15B",
+      "refresh_model": "force flags and request keys, not typed refresh identity",
+      "retry_model": "execution can reuse/rebuild plan depending entrypoint",
+      "revision_model": "PriceBarRevision captures arrived changes, not the original acquisition plan",
+      "scope_kind": "ib-price-acquisition",
+      "scope_model": "REMAINDER_OF_FROZEN_SCOPE",
+      "scope_selection_point": "prewarm execution iterates current payload",
+      "semantic_service": "app/services/market_data_prewarm_service.py:execute_market_data_prewarm",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "FetchPlan is typed in memory but has no immutable semantic identity",
+      "continuation_model": "item progress exists without shared remaining-scope identity",
+      "current_defect_risk": "changed current coverage/provider settings can silently constitute replanning",
+      "domain": [
+        "CONFIGURATION",
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "CORE-002",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "requested symbols/items exist in mutable job/plan payload",
+      "operation_family_id": "AF_b10d4ec2fa456ce6",
+      "phase6_target_task": "T15B",
+      "refresh_model": "force flags and request keys, not typed refresh identity",
+      "retry_model": "execution can reuse/rebuild plan depending entrypoint",
+      "revision_model": "PriceBarRevision captures arrived changes, not the original acquisition plan",
+      "scope_kind": "ib-price-acquisition",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "submit_fetch_job builds/serializes current FetchPlan",
+      "semantic_service": "app/services/ib_fetch_job_service.py:submit_fetch_job",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "created later from current coverage",
+      "continuation_model": "downstream stages select from current state",
+      "current_defect_risk": "legacy full-run path cannot prove an exact original population",
+      "domain": [
+        "CERI",
+        "CERI_ALERT",
+        "CERI_CHANGE",
+        "CERI_SOURCE",
+        "COMBINED",
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "IBMI_SOURCE",
+        "PIPELINE",
+        "PRICE",
+        "RANKING",
+        "RAW",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-004",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "legacy route does not retain an exact target manifest",
+      "operation_family_id": "AF_b579e27f1696a70d",
+      "phase6_target_task": "T15B",
+      "refresh_model": "pipeline run/job identity only",
+      "retry_model": "not certified as same semantic scope",
+      "revision_model": "price revisions exist but are not a pipeline scope contract",
+      "scope_kind": "full-pipeline-run",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "run route dispatch",
+      "semantic_service": "app/routers/run_routes.py:run_full_pipeline_action",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING"
+      ],
+      "t14d_authority_status": "LEGACY_NONCERTIFIED"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "no shared frozen remainder contract",
+      "current_defect_risk": "algorithm refresh population is not independently reproducible",
+      "domain": [
+        "ALERT_DECISION",
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "LIFECYCLE_EVALUATION",
+        "LIFECYCLE_TRANSITION",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "SETUP",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "XINT-003"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run-scoped live query without independent population identity",
+      "operation_family_id": "AF_be5ed7d8ee0c3e0c",
+      "phase6_target_task": "T15D",
+      "refresh_model": "route/job identity only",
+      "retry_model": "retry can observe changed current rows",
+      "revision_model": "domain evidence exists but population/revision coverage is incomplete",
+      "scope_kind": "setup-snapshot-capture",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "capture service selects current compatible run artifacts",
+      "semantic_service": "app/services/setup_lifecycle/snapshot_builder.py:SetupLifecycleSnapshotCaptureService.capture_snapshots_for_run",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "no shared frozen remainder contract",
+      "current_defect_risk": "algorithm refresh population is not independently reproducible",
+      "domain": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "CORE-003",
+        "CORE-004",
+        "CORE-005"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run-scoped live query without independent population identity",
+      "operation_family_id": "AF_c6cbaf3f7ed57e8e",
+      "phase6_target_task": "T15D",
+      "refresh_model": "route/job identity only",
+      "retry_model": "retry can observe changed current rows",
+      "revision_model": "domain evidence exists but population/revision coverage is incomplete",
+      "scope_kind": "technical-refresh",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "run route selects current run tickers",
+      "semantic_service": "app/routers/run_routes.py:refresh_technicals_action",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "RETIRED"
+    },
+    {
+      "acquisition_plan_model": "request fields exist but have no immutable plan record",
+      "continuation_model": "provider/document iteration follows current response or checkpoint",
+      "current_defect_risk": "stable ingestion identity can suppress a legitimate later refresh",
+      "domain": [
+        "CERI",
+        "CERI_ALERT",
+        "CERI_CHANGE",
+        "CERI_SOURCE",
+        "COMBINED",
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "CERI-012",
+        "PIPE-005",
+        "XINT-012",
+        "CERI-002",
+        "CERI-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "ticker/dataset scope or live provider/document discovery; no exact cycle manifest",
+      "operation_family_id": "AF_ca4f55dcf09b6d51",
+      "phase6_target_task": "T15B",
+      "refresh_model": "stable provider/dataset/ticker request key omits refresh cycle",
+      "retry_model": "completed ingestion run may short-circuit by stable key",
+      "revision_model": "CeriSourceRecord has row/content/provider/time identity after arrival",
+      "scope_kind": "ceri-source-acquisition",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "HTTP route accepts ticker/provider/dataset",
+      "semantic_service": "app/routers/ceri_routes.py:create_ceri_ingestion_run",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    },
+    {
+      "acquisition_plan_model": "no immutable plan lineage",
+      "continuation_model": "resumes current step and may reconstruct current downstream work",
+      "current_defect_risk": "resume can mean same step under a different current population",
+      "domain": [
+        "CERI",
+        "CERI_ALERT",
+        "CERI_CHANGE",
+        "CERI_SOURCE",
+        "COMBINED",
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "IBMI_SOURCE",
+        "PIPELINE",
+        "PRICE",
+        "RANKING",
+        "RAW",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "PIPE-004",
+        "PIPE-005",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "pipeline/step identity retained; target population is not",
+      "operation_family_id": "AF_ce350b6feeb50432",
+      "phase6_target_task": "T15B",
+      "refresh_model": "no refresh-cycle record",
+      "retry_model": "configuration and operation time retained, target set not frozen",
+      "revision_model": "source revisions delegated to downstream services",
+      "scope_kind": "pipeline-resume",
+      "scope_model": "RESELECTS_ON_RETRY",
+      "scope_selection_point": "resume_pipeline loads current failed/blocked step",
+      "semantic_service": "app/services/pipeline_service.py:resume_pipeline",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "market-data needs are discovered while processing",
+      "continuation_model": "continuation reruns live due query and can expand/shrink membership",
+      "current_defect_risk": "newly eligible rows can enter an old cycle and current-state changes can remove rows",
+      "domain": [
+        "CONFIGURATION",
+        "CURRENT_PROJECTION",
+        "WINNER_COHORT",
+        "WINNER_GENERATION",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "finding_ids": [
+        "WIN-008",
+        "WIN-006",
+        "PIPE-001",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live due-row query; processed IDs are only local to one drain call",
+      "operation_family_id": "AF_d07e72b38c67920a",
+      "phase6_target_task": "T15C",
+      "refresh_model": "session request key/workflow key, not refresh-cycle identity",
+      "retry_model": "retry can see newly due or newly eligible rows",
+      "revision_model": "outcome lineage hash/cutoff exist; exact birth bar revision IDs can be absent",
+      "scope_kind": "winner-h5-maturation",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "HTTP route enqueues maturation without exact membership",
+      "semantic_service": "app/routers/winner_probability_routes.py:queue_winner_outcome_maturation",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "no shared frozen remainder contract",
+      "current_defect_risk": "algorithm refresh population is not independently reproducible",
+      "domain": [
+        "ALERT_DECISION",
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "LIFECYCLE_EVALUATION",
+        "LIFECYCLE_TRANSITION",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "SETUP",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "XINT-003"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run-scoped live query without independent population identity",
+      "operation_family_id": "AF_ddaa57ad85ff8bf7",
+      "phase6_target_task": "T15D",
+      "refresh_model": "route/job identity only",
+      "retry_model": "retry can observe changed current rows",
+      "revision_model": "domain evidence exists but population/revision coverage is incomplete",
+      "scope_kind": "setup-current-state-repair",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "repair_ticker selects current state",
+      "semantic_service": "app/services/setup_lifecycle/maintenance_service.py:SetupLifecycleMaintenanceService.repair_ticker",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "FetchPlan is typed in memory but has no immutable semantic identity",
+      "continuation_model": "item progress exists without shared remaining-scope identity",
+      "current_defect_risk": "changed current coverage/provider settings can silently constitute replanning",
+      "domain": [
+        "CONFIGURATION",
+        "IBMI_SOURCE",
+        "PRICE"
+      ],
+      "finding_ids": [
+        "PIPE-001",
+        "PIPE-005",
+        "CORE-002",
+        "XINT-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "requested symbols/items exist in mutable job/plan payload",
+      "operation_family_id": "AF_e6476331f05f5ec2",
+      "phase6_target_task": "T15B",
+      "refresh_model": "force flags and request keys, not typed refresh identity",
+      "retry_model": "execution can reuse/rebuild plan depending entrypoint",
+      "revision_model": "PriceBarRevision captures arrived changes, not the original acquisition plan",
+      "scope_kind": "ib-price-acquisition",
+      "scope_model": "RESELECTS_ON_RETRY",
+      "scope_selection_point": "resume action evaluates failed/current fetch state",
+      "semantic_service": "app/routers/run_routes.py:resume_run_ib_fetch_action",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    },
+    {
+      "acquisition_plan_model": "request fields exist but have no immutable plan record",
+      "continuation_model": "provider/document iteration follows current response or checkpoint",
+      "current_defect_risk": "stable ingestion identity can suppress a legitimate later refresh",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "finding_ids": [
+        "CERI-012",
+        "PIPE-005",
+        "XINT-012",
+        "CERI-002",
+        "CERI-007"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "ticker/dataset scope or live provider/document discovery; no exact cycle manifest",
+      "operation_family_id": "AF_e7cf2bc4f3753200",
+      "phase6_target_task": "T15B",
+      "refresh_model": "stable provider/dataset/ticker request key omits refresh cycle",
+      "retry_model": "completed ingestion run may short-circuit by stable key",
+      "revision_model": "CeriSourceRecord has row/content/provider/time identity after arrival",
+      "scope_kind": "ceri-source-acquisition",
+      "scope_model": "RESELECTS_ON_RETRY",
+      "scope_selection_point": "ingest derives stable request key and fetches provider records",
+      "semantic_service": "app/services/ceri/orchestration.py:CeriIngestionService.ingest",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "ACQUISITION_PLAN_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "materialization slices are generation-bound",
+      "current_defect_risk": "generation population is strong after capture, but refresh/idempotency is not a general cycle contract",
+      "domain": [
+        "WINNER_COHORT"
+      ],
+      "finding_ids": [
+        "WIN-006",
+        "WIN-008",
+        "XINT-012"
+      ],
+      "membership_fingerprint": "WinnerEvidenceManifest.manifest_hash",
+      "membership_model": "exact WinnerEvidenceManifest members with outcome revision numbers",
+      "operation_family_id": "AF_f23925ce093d1da1",
+      "phase6_target_task": "T15C",
+      "refresh_model": "desired watermark/generation key tracks truth change but no shared refresh-cycle identity",
+      "retry_model": "generation capture can resume exact generation; request coalescing is stable by definition",
+      "revision_model": "manifest pins outcome revisions/eligibility decisions; upstream price revision gap remains",
+      "scope_kind": "winner-cohort-generation",
+      "scope_model": "FROZEN_CERTIFIED",
+      "scope_selection_point": "cohort statistic/estimate consumes evidence manifest",
+      "semantic_service": "app/services/winner_probability/cohort_materialization_service.py:CohortMaterializationService.materialize_slice|app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._create_estimate|app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._materialize_cohort_statistic",
+      "status": [
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    }
+  ],
+  "schema_version": "t15a-scope-operation-inventory-v1",
+  "selection_rule": "From the 220 T14D certified families, include operations whose concrete semantics select/iterate a population, refresh/retry/resume/continue work, acquire provider data, mature outcomes, materialize generations, or consume truth revisions.",
+  "source": {
+    "t14d_certificate_sha256": "d4eb2bb9a3f49f8343431e457fac67f9ec848a2aa3ac68b90748ed0c44bbf8c0",
+    "t14d_certified_family_count": 220,
+    "t14d_operation_family_certificate": "T14D_operation_family_certification.json",
+    "t14e_finding_snapshot": "T14E_finding_status_after_phase5.csv",
+    "t14e_finding_snapshot_sha256": "404223301729227b9b679f4e28135d701754f71c6ef71a7b33ce867a807779da"
+  }
+}
