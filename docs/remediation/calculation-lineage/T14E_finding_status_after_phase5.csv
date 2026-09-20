@@ -1,0 +1,71 @@
+finding_id,severity,domain,status,closed_or_last_addressed_by,evidence,remaining_scope,next_phase
+PIPE-001,P1,Pipeline,OPEN,Phase 4,"Original audit definition; Phase-5 authority certificates do not remediate background refresh/target selection semantics",Background refresh and target-scope semantics,Phase 6
+PIPE-002,P1,Pipeline,CLOSED,Phase 4,"Phase-4 configuration authority certificate and T14D exact handoff",,None
+PIPE-003,P2,Pipeline,CLOSED,T14D,"T14D caller certificate; reduced and standalone selectors fail before mutation",,None
+PIPE-004,P2,Pipeline,OPEN,Phase 4,"Original audit definition; not changed by Phase 5",Algorithm-specific pipeline scope,Phase 6
+PIPE-005,P2,Pipeline,PARTIAL,T14D,"T14D durable configuration delivery and acquisition-plan authority evidence",Acquisition-plan replanning semantics,Phase 6
+PIPE-006,P2,Pipeline,CLOSED,T14D,"T14D cross-phase identity/evidence/configuration checkpoint tests",,None
+PIPE-007,P2,Pipeline,CLOSED,T14D,"T14D exact caller/family certificate; mutation-capable latest/current fallback scan",,None
+PIPE-008,P2,Pipeline,CLOSED,T14E,"252 callers converge on 220 certified operation families and certified writers",,None
+PIPE-009,P2,Pipeline,CLOSED,Phase 4,"Phase-4 effective-configuration certification retained on frozen source",,None
+CORE-001,P1,Core,CLOSED,T14B,"T14B core/contextual writer certification",,None
+CORE-002,P1,Core,PARTIAL,T14B,"Immutable core evidence and projection authority certified",Remaining temporal/provider provenance completeness,Phase 6
+CORE-003,P2,Core,OPEN,Phase 4,"Original audit definition; no Phase-5 algorithm change",Algorithm-specific core finding,Phase 6
+CORE-004,P2,Core,OPEN,Phase 4,"Original audit definition; no Phase-5 algorithm change",Algorithm-specific core finding,Phase 6
+CORE-005,P2,Core,PARTIAL,T14B,"Certified core writer and evidence boundaries",Remaining source/provenance completeness,Phase 6
+CORE-006,P2,Core,CLOSED,T14B,"Certified Fundamental writer boundary and immutable evidence",,None
+CORE-007,P2,Core,CLOSED,T14B,"Certified Technical writer boundary and immutable evidence",,None
+CORE-008,P2,Core,CLOSED,T14B,"Certified Combined writer boundary and immutable evidence",,None
+CORE-009,P2,Core,PARTIAL,T14B,"Certified current projection semantics",Remaining historical/original-context completeness,Phase 7
+CERI-001,P1,CERI,PARTIAL,T14B,"Certified CERI writer authority and bounded authority queries",Algorithm-specific CERI correctness remains,Phase 6
+CERI-002,P1,CERI,PARTIAL,T14B,"Certified CERI temporal/source authority",Remaining provider provenance completeness,Phase 6
+CERI-003,P2,CERI,CLOSED,T14B,"Certified CERI immutable evidence boundary",,None
+CERI-004,P1,CERI,PARTIAL,T14B,"Certified CERI configuration and writer authority",Remaining algorithm-specific behavior,Phase 6
+CERI-005,P2,CERI,OPEN,Original audit,"Phase 5 intentionally did not change financial formulas",CERI algorithm defect,Phase 6
+CERI-006,P2,CERI,OPEN,Original audit,"Phase 5 intentionally did not change financial formulas",CERI algorithm defect,Phase 6
+CERI-007,P2,CERI,PARTIAL,T14B,"Certified source identity and transaction authority",Remaining source/provider provenance,Phase 6
+CERI-008,P2,CERI,PARTIAL,T14B,"Certified point-in-time authority",Remaining algorithm-specific temporal semantics,Phase 6
+CERI-009,P2,CERI,OPEN,Original audit,"Phase 5 intentionally did not change financial formulas",CERI algorithm defect,Phase 6
+CERI-010,P2,CERI,PARTIAL,T14B,"Certified CERI change/alert writer authority",Remaining algorithm-specific semantics,Phase 6
+CERI-011,P1,CERI,OPEN,Original audit,"Phase 5 intentionally did not change financial formulas",CERI algorithm defect,Phase 6
+CERI-012,P1,CERI,OPEN,Original audit,"Phase 5 intentionally did not change financial formulas",CERI algorithm defect,Phase 6
+RANK-001,P1,Ranking,CLOSED,T14B,"Certified Ranking writer and immutable input authority",,None
+RANK-002,P1,Ranking,CLOSED,T14B,"Certified Ranking writer and effective configuration",,None
+RANK-003,P1,Ranking,CLOSED,T14B,"Certified exact evidence/readiness consumption",,None
+RANK-004,P1,Ranking,CLOSED,T14B,"Certified current projection monotonicity",,None
+RANK-005,P1,Ranking,CLOSED,T14D,"Standalone mutation retired; callers converge on native writer",,None
+RANK-006,P1,Ranking,CLOSED,T14B,"Certified Ranking persistence authority",,None
+RANK-007,P1,Ranking,OPEN,Original audit,"Phase 5 does not solve the original algorithm/scope finding",Ranking algorithm/scope finding,Phase 6
+RANK-008,P2,Ranking,OPEN,Original audit,"Phase 5 does not solve the original algorithm/scope finding",Ranking algorithm/scope finding,Phase 6
+SETUP-001,P1,Setup,CLOSED,T14C,"Certified Setup writer authority and immutable decision evidence",,None
+SETUP-002,P1,Setup,CLOSED,T14C,"Certified lifecycle transition writer authority",,None
+SETUP-003,P1,Setup,CLOSED,T14C,"Certified alert decision evidence and writer boundary",,None
+SETUP-004,P1,Setup,PARTIAL,T14C,"Certified explicit temporal and evidence authority",Remaining original-context reconstruction,Phase 7
+SETUP-005,P1,Setup,CLOSED,T14D,"All supported Setup mutation callers use exact delivered authority or fail closed",,None
+SETUP-006,P2,Setup,PARTIAL,T14D,"Current-rules retrospective is explicit and cannot claim original replay",True original-context reconstruction remains,Phase 7
+SETUP-007,P1,Setup,PARTIAL,T14D,"Rule/cooldown/config authority is certified",Unanchored legacy original-rule reconstruction remains,Phase 7
+SETUP-008,P2,Setup,CLOSED,T14C,"Lifecycle and alert transactional writer tests",,None
+SETUP-009,P2,Setup,CLOSED,T14C,"Immutable decision evidence and projection selection tests",,None
+SETUP-010,P2,Setup,PARTIAL,T14D,"Maintenance/current-context authority is explicit",Original-context reconstruction remains,Phase 7
+WIN-001,P1,Winner,CLOSED,T14C,"Certified Winner prediction capture authority",,None
+WIN-002,P1,Winner,CLOSED,T14C,"Certified estimate creation and retained evidence",,None
+WIN-003,P2,Winner,CLOSED,T14C,"Certified model training/promotion/retirement authority",,None
+WIN-004,P2,Winner,CLOSED,T14C,"Certified diagnostic gates and retained artifacts",,None
+WIN-005,P2,Winner,CLOSED,T14C,"Certified Winner writer boundaries; producer-specific residuals tracked separately",,None
+WIN-006,P2,Winner,PARTIAL,T14C,"Outcome lineage and immutable birth evidence certified",Birth price bars may lack exact revision IDs,Phase 6
+WIN-007,P1,Winner,CLOSED,T14C,"Monotonic publication is certified and regression-tested",,None
+WIN-008,P2,Winner,OPEN,T14C,"Explicitly deferred in T14D handoff",Target-scope freezing,Phase 6
+WIN-009,P2,Winner,CLOSED,T14C,"Idempotent publication is certified and regression-tested",,None
+WIN-010,P2,Winner,CLOSED,T14C,"Supporting diagnostics and retirement retain distinct native semantics",,None
+XINT-001,P1,Cross-integration,CLOSED,Phase 1,"Calculation Identity certification retained",,None
+XINT-002,P1,Cross-integration,CLOSED,Phase 2,"Immutable evidence certification retained",,None
+XINT-003,P1,Cross-integration,PARTIAL,Phase 3,"Readiness/eligibility authority certified",Remaining producer-specific readiness semantics,Phase 6
+XINT-004,P1,Cross-integration,CLOSED,Phase 4,"Effective configuration authority certified",,None
+XINT-005,P1,Cross-integration,CLOSED,Phase 0,"Durable execution fencing certified",,None
+XINT-006,P1,Cross-integration,CLOSED,T14E,"252/252 callers and 220/220 operation families converge on certified writer authority",,None
+XINT-007,P2,Cross-integration,PARTIAL,T14D,"Semantic authority survives retry/resume/reclaim",Background refresh and target-scope semantics remain,Phase 6
+XINT-008,P1,Cross-integration,CLOSED,T14E,"Cross-phase attack matrix passes on frozen source",,None
+XINT-009,P1,Cross-integration,CLOSED,T14E,"Negative dependency graph unchanged",,None
+XINT-010,P2,Cross-integration,PARTIAL,T14D,"Admin/CLI/scheduler application paths certified",Privileged external SQL governance remains,Governance
+XINT-011,P1,Cross-integration,CLOSED,T14E,"Business parity fingerprint and golden tests pass",,None
+XINT-012,P2,Cross-integration,OPEN,Original audit,"Phase 5 intentionally leaves remaining algorithm-specific work visible",Remaining algorithm-specific integration finding,Phase 6

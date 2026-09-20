@@ -1,0 +1,130 @@
+{
+  "phase5_certified": true,
+  "source_sha256": "f273e9a61b0a363d873b9f58cf0d702c976f5361a29eb56c2e480fa61b20a5d7",
+  "test_source_sha256": "a126764b74b5d13905ad7bf06a3f8e8459015520374a961f5756e39b330a5b47",
+  "t14a_sha": "5eef0d08d783de132fecb14c5dedd66821f0949f",
+  "t14b_sha": "d56fe385e29b7b6233d2df5031a40a576db0ca7f",
+  "t14c_sha": "8f8b09d0b30cd0dee54328e7ad18619b09ed2a94",
+  "t14d_sha": "9d4b2dba6829c8c41e8c56d563b06b3d7d065364",
+  "caller_count": 252,
+  "certified_caller_count": 252,
+  "operation_family_count": 220,
+  "certified_operation_family_count": 220,
+  "writer_graph_status": "CERTIFIED: 99 writer families; core/contextual and decision/Winner writer-side enforcement retained; no application bypass",
+  "partial_authority_count": 0,
+  "potential_bypass_count": 0,
+  "confirmed_application_bypass_count": 0,
+  "unknown_count": 0,
+  "ceri_query_scaling": {
+    "status": "PASS",
+    "reuse_basis": "T14D exact certificate reused after complete frozen-source hash verification; fresh six-case PostgreSQL performance file also passed",
+    "capture": {
+      "population_1_authority_selects": 29,
+      "population_50_authority_selects": 29
+    },
+    "pipeline": {
+      "population_1_authority_selects": 70,
+      "population_50_authority_selects": 70
+    },
+    "material_change": {
+      "population_1_authority_selects": 29,
+      "population_50_authority_selects": 29
+    }
+  },
+  "postgresql_status": "PASS: task-owned PostgreSQL 16; fresh upgrade/current/check at sole head 0080_effective_configuration; migration plus populated restore 8 passed",
+  "browser_status": "PASS: final isolated complete Chromium/Firefox and Windows recovery/lifecycle E2E, 49 passed, 2 warnings in 1167.17s; unchanged 900-second budget",
+  "ci_status": "PASS: established non-E2E/non-external selection, 3858 passed, 2 skipped, 38 deselected, 0 failed, 0 errors in 6821.15s",
+  "parity_status": "PASS: canonical fingerprint 0ac9d0ecc7bf981916dcaa4310043f446fc3d2aeaae07fdaf65509ff7293547c unchanged; golden suite 3 passed",
+  "finding_status_summary": {
+    "closed": 39,
+    "partial": 18,
+    "open": 13,
+    "total": 70,
+    "xint_006": "CLOSED",
+    "inv_entry_001": "ENFORCED"
+  },
+  "residual_scope": [
+    "background refresh and target-scope semantics",
+    "WIN-008 target-scope freezing",
+    "original-context and legacy reconstruction",
+    "WIN-006 PriceBar revision completeness",
+    "CERI and remaining algorithm-specific findings",
+    "acquisition-plan replanning semantics",
+    "privileged external SQL governance",
+    "remaining temporal and provider provenance"
+  ],
+  "tests": [
+    {
+      "gate": "T14A inventory plus T14D caller and operation-family certification",
+      "command": "pytest -q tests/test_t14a_mutation_inventory.py tests/test_t14d_caller_authority.py tests/test_t14d_operation_families.py",
+      "result": "62 passed, 1 warning"
+    },
+    {
+      "gate": "CERI population scaling",
+      "command": "pytest -q -x tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py",
+      "result": "6 passed, 19 warnings"
+    },
+    {
+      "gate": "Suspect PostgreSQL block reproduction",
+      "command": "pytest -q -x tests/integration/test_transition_preflight_plan_postgresql.py tests/integration/test_winner_capture_recovery_postgresql.py tests/integration/test_winner_consumer_eligibility_postgresql.py tests/integration/test_winner_jobs_reliability_postgresql.py tests/integration/test_winner_maturation_canary_postgresql.py tests/integration/test_winner_temporal_integrity_postgresql.py tests/integration/test_worker_progress_reliability_postgresql.py tests/integration/test_worker_quiesce_postgresql.py",
+      "result": "75 passed, 45 warnings"
+    },
+    {
+      "gate": "Migration and populated restore",
+      "command": "pytest -q tests/test_migration_remediation.py tests/integration/test_populated_restore.py",
+      "result": "8 passed; restore rerun with matching PostgreSQL 16 client"
+    },
+    {
+      "gate": "Fresh migration and schema/model drift",
+      "command": "alembic upgrade head; alembic current; alembic check",
+      "result": "0080_effective_configuration; no new upgrade operations detected"
+    },
+    {
+      "gate": "Established full CI selection",
+      "command": "pytest -q -m 'not e2e and not external' --ignore=tests/integration/test_populated_restore.py",
+      "result": "3858 passed, 2 skipped, 38 deselected; zero failures/errors in 6821.15s"
+    },
+    {
+      "gate": "Complete browser and Windows E2E",
+      "command": "pytest tests/e2e -q --browser chromium --browser firefox",
+      "result": "49 passed, 2 warnings in 1167.17s; final isolated full-suite rerun"
+    },
+    {
+      "gate": "Business parity capture",
+      "command": "python scripts/qa/t14b_business_parity_capture.py --output <temporary>",
+      "result": "0ac9d0ecc7bf981916dcaa4310043f446fc3d2aeaae07fdaf65509ff7293547c; exact match"
+    },
+    {
+      "gate": "Golden scoring",
+      "command": "pytest -q tests/test_golden_pipeline.py tests/test_ranking_profiles_golden.py",
+      "result": "3 passed, 1 warning"
+    },
+    {
+      "gate": "Static and repository governance",
+      "command": "ruff check; compileall; secret scan; route inventory; alembic heads; git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "static_advisories": [
+    "Repository-wide ruff format --check reports 201 pre-existing historical files. CI does not enforce this formatter check; T14E changes no Python and does not reformat unrelated historical files."
+  ],
+  "validation_notes": [
+    "An initial browser suite run concurrently with full CI produced 47 passes and two comprehensive-flow failures: one 900-second progress-budget expiry and one teardown artifact loss. Both browser flows and the full 49-case suite passed when rerun in isolation with unchanged budgets and selection.",
+    "A coverage-instrumented CI attempt was interrupted after extreme slowdown and one unidentified marker. The exact count-comparable selection passed, and the surrounding 75-test PostgreSQL block separately passed."
+  ],
+  "artifact_hashes": {
+    "T14D_continuation_final_source.json": "894a7d24455f6db9bea06c00c29ffdf5f9b816f590d6f3398d622c8a270b5c13",
+    "T14D_caller_unification_certification.json": "35ed07bc7716d648f413ea5c4325d2debc97c596628ee9091877e22c2ed4cb15",
+    "T14D_operation_family_certification.json": "d4eb2bb9a3f49f8343431e457fac67f9ec848a2aa3ac68b90748ed0c44bbf8c0",
+    "T14D_T14E_exact_handoff.json": "7042b96d7aa86ce9ffcad1e970f6f5d4587231e7110e29000958157cb5fb33a5",
+    "T14D_validation_summary.json": "9e2531d1153afb54bf422028f76858292386c1e55ce416176debd7a2b7af3e28",
+    "T14E_phase5_integration_certification.md": "233829176ba4d2721b723c971bd93877b5cf467d109d6ed9f0f38660b24f275a",
+    "T14E_finding_status_after_phase5.csv": "404223301729227b9b679f4e28135d701754f71c6ef71a7b33ce867a807779da"
+  },
+  "implementation_changes": "NONE",
+  "migration_required": false,
+  "production_rewrite": false,
+  "legacy_backfill": false,
+  "production_runtime_mutations": "NONE",
+  "final_verdict": "PASS: PHASE-5 OVERALL CERTIFIED; XINT-006 CLOSED; INV-ENTRY-001 ENFORCED"
+}
