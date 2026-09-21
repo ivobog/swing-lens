@@ -568,7 +568,19 @@ def _to_ranking_model(
     decision: RankingProfileDecision,
     calculation_identity: CalculationIdentity | None = None,
 ) -> RankingResult:
-    debug_json = decision.debug
+    debug_json = {
+        **decision.debug,
+        "market_regime_consumer_contract": {
+            "status": "NON_AUTHORITATIVE_FOR_RANKING",
+            "policy_version": "ranking-regime-independence-v1",
+            "applied_sources": ["fundamental", "technical", "optional_ibmi_liquidity"],
+            "excluded_sources": ["ceri", "market_regime_snapshot", "same_run_sector"],
+            "reason": (
+                "Ranking uses its frozen Technical readiness and profile policy; "
+                "command-center Regime is a sibling decision artifact."
+            ),
+        },
+    }
     if calculation_identity is not None:
         debug_json = embed_calculation_identity(
             debug_json,

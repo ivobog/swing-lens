@@ -174,6 +174,7 @@ class CeriRevisionFeatureService:
                 "provider_retrospective_source_record_id": (
                     feature.provider_retrospective_source_record_id
                 ),
+                "provider_selection_reason": feature.provider_selection_reason,
                 "known_at": feature.known_at,
                 "reference_at": feature.reference_at,
             }
@@ -240,14 +241,22 @@ class CeriRevisionFeatureService:
             if current is not None
             else f"{company_id}:{metric}:{period_slot or 'unresolved'}:unavailable"
         )
-        source_ids = [
-            source_id
-            for source_id in (
-                baseline.source_record_id if baseline is not None else None,
-                current.source_record_id if current is not None else None,
-            )
-            if source_id is not None
-        ]
+        source_ids = sorted(
+            {
+                *selection.baseline_candidate_source_ids,
+                *selection.current_candidate_source_ids,
+                *(
+                    (baseline.source_record_id,)
+                    if baseline is not None and not selection.baseline_candidate_source_ids
+                    else ()
+                ),
+                *(
+                    (current.source_record_id,)
+                    if current is not None and not selection.current_candidate_source_ids
+                    else ()
+                ),
+            }
+        )
         feature = CeriRevisionFeature(
             company_id=company_id,
             metric=metric,
@@ -298,7 +307,7 @@ class CeriRevisionFeatureService:
             provider_selection_reason=(
                 "same_provider_retrospective_window"
                 if comparison_mode == "SAME_PROVIDER_RELATIVE"
-                else "point_in_time_latest_effective_at"
+                else selection.provider_selection_reason or "point_in_time_single_observation"
             ),
             unavailable_reason=unavailable_reason,
             config_version=self.config.engine.config_version,

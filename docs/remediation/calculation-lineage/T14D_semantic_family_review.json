@@ -841,7 +841,7 @@
       "selectors": [],
       "semantic_adoption_status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "semantic_review_complete": true,
-      "source_sha256": "431588baa5433ee5c80fd04a7485509e41b453a2b8c93d6b666f3b7b0f89eb94",
+      "source_sha256": "cf9d4bedf55784bf25383e1667da6ff9605fd54621ed323786588ca8c1ba0f1b",
       "status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "t14b_reconciled_writer_families": [
         "WF_CERI_REVISION_FEATURE"
@@ -1385,7 +1385,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "fd5da628c07287e834fa932460852568e8c79ec9e27af7b4beacd9478f3d39c0",
+      "source_sha256": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -1582,7 +1582,7 @@
       ],
       "semantic_adoption_status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "semantic_review_complete": true,
-      "source_sha256": "c89da1d639f29f9a4e7c169a21ffb40db1ec7eed34ffc9819eb3cae2a5e1fc50",
+      "source_sha256": "201f9f925c2a7e11c5b421fd8b71eca8fe83424bec69198f5d9c0a53dfa4cd34",
       "status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "t14b_reconciled_writer_families": [
         "WF_CERI_PRICE_RESPONSE"
@@ -2094,7 +2094,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "124bc4f090d94ca4b7e93ad64ea708b6ff43bbfaf827a5f4a0fc86f957910678",
+      "source_sha256": "48a3e9e58eef0eb36d32e60a114536238db1938eb9f11487432e265ea8a654b9",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -2590,7 +2590,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "fd5da628c07287e834fa932460852568e8c79ec9e27af7b4beacd9478f3d39c0",
+      "source_sha256": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14B"
@@ -2770,7 +2770,7 @@
       "selectors": [],
       "semantic_adoption_status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "semantic_review_complete": true,
-      "source_sha256": "431588baa5433ee5c80fd04a7485509e41b453a2b8c93d6b666f3b7b0f89eb94",
+      "source_sha256": "cf9d4bedf55784bf25383e1667da6ff9605fd54621ed323786588ca8c1ba0f1b",
       "status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "t14b_reconciled_writer_families": [
         "WF_CERI_REVISION_FEATURE"
@@ -2817,7 +2817,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
+      "source_sha256": "32ba3eb0703e01426e299d1f2f534e5e5b2bcf5ed39786fd913ccfd648c11dcd",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -3710,7 +3710,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "fd5da628c07287e834fa932460852568e8c79ec9e27af7b4beacd9478f3d39c0",
+      "source_sha256": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14B"
@@ -4325,7 +4325,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "0d8f677784062be755369447423d4b9e506900cbe5c4f861dc02900e4dd6a4ca",
+      "source_sha256": "85794336f39af8a78a5835240f3a5beadf01b3cb5a81d7971ea68940140033fd",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -4570,7 +4570,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "9b56bd040ed68877669764a7b75052c1385efad8bc9f8a1994c103220f94f708",
+      "source_sha256": "ef782e14123335ce1f34aa351dc78ca313994566eb3341c54ee1ad75cb696707",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -4710,7 +4710,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "9b56bd040ed68877669764a7b75052c1385efad8bc9f8a1994c103220f94f708",
+      "source_sha256": "ef782e14123335ce1f34aa351dc78ca313994566eb3341c54ee1ad75cb696707",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -4778,7 +4778,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+      "source_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -4865,7 +4865,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
+      "source_sha256": "32ba3eb0703e01426e299d1f2f534e5e5b2bcf5ed39786fd913ccfd648c11dcd",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -5764,7 +5764,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "96b65c5d09334a227dd53bfa8d4f20f275e9cd310a1a9f3e2a011c311e1f0965",
+      "source_sha256": "0083468becf2e45038f9e0756bb8a64e295bd604953771705c3d8ba2f9116927",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -5808,7 +5808,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "65d9fe92861bd78b5424f570501022834a1f100cadc82b2535bcaaa0057b1251",
+      "source_sha256": "58820302c609cc1b5e6ac3fc9a390e0f2e66656732291b4b460c286ee7b31203",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14C"
@@ -6358,7 +6358,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+      "source_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -7054,7 +7054,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+      "source_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -8049,7 +8049,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+      "source_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -8920,7 +8920,7 @@
       ],
       "semantic_adoption_status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "semantic_review_complete": true,
-      "source_sha256": "10c75f68d7fc9a4d267428781258e9ca1b8352f31a0a8b6dfac5048d7513e522",
+      "source_sha256": "24b132831750968b984e192baea7fd4f21882032fcfbd6f1ed4b6c8d25f1fb9f",
       "status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "t14b_reconciled_writer_families": [
         "WF_CORE_CURRENT_PROJECTION",
@@ -9110,7 +9110,7 @@
       ],
       "semantic_adoption_status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "semantic_review_complete": true,
-      "source_sha256": "10c75f68d7fc9a4d267428781258e9ca1b8352f31a0a8b6dfac5048d7513e522",
+      "source_sha256": "24b132831750968b984e192baea7fd4f21882032fcfbd6f1ed4b6c8d25f1fb9f",
       "status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "t14b_reconciled_writer_families": [
         "WF_CORE_CURRENT_PROJECTION",
@@ -9159,7 +9159,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+      "source_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -9666,7 +9666,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+      "source_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14C"
@@ -11292,7 +11292,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "fd5da628c07287e834fa932460852568e8c79ec9e27af7b4beacd9478f3d39c0",
+      "source_sha256": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14B"
@@ -11749,7 +11749,7 @@
       ],
       "semantic_adoption_status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "semantic_review_complete": true,
-      "source_sha256": "10c75f68d7fc9a4d267428781258e9ca1b8352f31a0a8b6dfac5048d7513e522",
+      "source_sha256": "24b132831750968b984e192baea7fd4f21882032fcfbd6f1ed4b6c8d25f1fb9f",
       "status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "t14b_reconciled_writer_families": [
         "WF_CORE_CURRENT_PROJECTION",
@@ -13041,7 +13041,7 @@
       ],
       "semantic_adoption_status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "semantic_review_complete": true,
-      "source_sha256": "4afda4bbe69f9134da569b6ece45f96f18e9b674ee44fc49ecc323ffe8b5cf14",
+      "source_sha256": "ac9b6cccc80c6c0626d35494c4f0e3d7f72d3bffb126854f20f39385ecf4da60",
       "status": "T14B_NATIVE_BOUNDARY_RECONCILED",
       "t14b_reconciled_writer_families": [
         "WF_CORE_CURRENT_PROJECTION",
@@ -13534,7 +13534,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "124bc4f090d94ca4b7e93ad64ea708b6ff43bbfaf827a5f4a0fc86f957910678",
+      "source_sha256": "48a3e9e58eef0eb36d32e60a114536238db1938eb9f11487432e265ea8a654b9",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "T14B"
@@ -13873,7 +13873,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
+      "source_sha256": "32ba3eb0703e01426e299d1f2f534e5e5b2bcf5ed39786fd913ccfd648c11dcd",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -14048,7 +14048,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+      "source_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -14436,7 +14436,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+      "source_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14B"
@@ -14503,7 +14503,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "10edd50779b8448525e8396a783301075c9384e05bb9e2079ba1d6e44c85d50c",
+      "source_sha256": "6bb8cbbef1fd00bd81e14a53abdf0361b1a30d3779d8c40a26590bf8a7bb5a53",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE"
@@ -15928,26 +15928,27 @@
     "app/services/bar_cache_service.py": "6e3b1a78774502d2a2d5b1b184e416837c59b597e58b5535ccbc3f682a723ead",
     "app/services/ceri/alert_authority.py": "06a4a748c6a5b0f0502c81b26ee33fc429236117c13ed9d94b66cf03aa3e4ddc",
     "app/services/ceri/alert_service.py": "4e80827a87f3eda0b9dfedf344f85d94f0e4e4eddd0dfe9ef6b531b7a3dbd8be",
-    "app/services/ceri/backfill_service.py": "0d8f677784062be755369447423d4b9e506900cbe5c4f861dc02900e4dd6a4ca",
-    "app/services/ceri/batched_job_handlers.py": "7c76c6b5066604b6b860ec35dcc270769ca126f7a11c1b2be2cf7b25743318f5",
-    "app/services/ceri/batched_workflow.py": "df493397de17db386283541d6e05304ecb59d0994a40c4188020eabc07bc5986",
+    "app/services/ceri/backfill_service.py": "85794336f39af8a78a5835240f3a5beadf01b3cb5a81d7971ea68940140033fd",
+    "app/services/ceri/batched_job_handlers.py": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
+    "app/services/ceri/batched_workflow.py": "6bb8cbbef1fd00bd81e14a53abdf0361b1a30d3779d8c40a26590bf8a7bb5a53",
     "app/services/ceri/capture_service.py": "242fa2cc68941f81168539c4aa9e03b36a7ff3e7a346f54849f48ee36650f76e",
     "app/services/ceri/change_authority.py": "00a86dae52b7f5e6ad7bf4b9aae90b1d13c7c2a2b1d12eba98e9c98b47c876d8",
     "app/services/ceri/change_detection_service.py": "4dc53175735671a19719b62d901078702f99171d4dfa7ac4f0fe4b42903e14ca",
-    "app/services/ceri/change_rebuild_service.py": "ed8519f619cd3b45fb6da81db63eb74c8cb35794c6819a84891383757e614ba6",
+    "app/services/ceri/change_rebuild_service.py": "58820302c609cc1b5e6ac3fc9a390e0f2e66656732291b4b460c286ee7b31203",
     "app/services/ceri/controlled_replay_service.py": "a8583c89ff4954dc5c3a810dbdc72b456525a2b796da536f83763f56e77087c3",
     "app/services/ceri/decision_evidence.py": "e7f058d3413d252b80a6aa505f04782c792a0dc8b04b2246c4ddf3e3f5ada4d4",
     "app/services/ceri/evidence_eligibility.py": "ec94a2880ea6665de602660c616a3b115648d8536e5bbfaf7471f7b0c3a036fe",
-    "app/services/ceri/feature_rebuild_service.py": "223e816e06f2eb715c30ed2cbd5387fb16d404d2523ccf8931b935c8060fea09",
+    "app/services/ceri/feature_rebuild_service.py": "48a3e9e58eef0eb36d32e60a114536238db1938eb9f11487432e265ea8a654b9",
     "app/services/ceri/guidance_normalizer.py": "86631f29105e117cfc9fd2f779cdc6305b4165e2f634134a373035aea6938ef8",
     "app/services/ceri/identity_resolver.py": "ce691a8e3852c22e9b7edd3366ee787c66935ccf0951f3151e07ab72ad723cab",
-    "app/services/ceri/job_handlers.py": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+    "app/services/ceri/job_handlers.py": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
     "app/services/ceri/manual_review_service.py": "342c20b815db376690ce3f606e85b3fcd175593b5cb28992313c52919bc76d8a",
     "app/services/ceri/normalization_service.py": "9a05ea47d1667da44ae43ea442b3b334630b74d04f53785cb72109f3028caaf0",
     "app/services/ceri/orchestration.py": "0f98601066a8f3592512ec0f638d7310c30e82cd8d5c5c5646107bc8210126da",
-    "app/services/ceri/price_response_service.py": "c89da1d639f29f9a4e7c169a21ffb40db1ec7eed34ffc9819eb3cae2a5e1fc50",
+    "app/services/ceri/point_in_time_query.py": "580aa65036deb8852760013cd6f3b2af0df7ef0cb8a0985d6b4883b9c7eff3db",
+    "app/services/ceri/price_response_service.py": "201f9f925c2a7e11c5b421fd8b71eca8fe83424bec69198f5d9c0a53dfa4cd34",
     "app/services/ceri/purge_service.py": "e140b501d17001efa8a2f0a44286464881459a970ffacc896197b64f193caafc",
-    "app/services/ceri/revision_feature_service.py": "431588baa5433ee5c80fd04a7485509e41b453a2b8c93d6b666f3b7b0f89eb94",
+    "app/services/ceri/revision_feature_service.py": "cf9d4bedf55784bf25383e1667da6ff9605fd54621ed323786588ca8c1ba0f1b",
     "app/services/ceri/sec/identity_repair.py": "44ceb72fc89a0d9b32e83ad5f0814759e578794d453092670a42bf12cb0b02c7",
     "app/services/ceri/sec/incremental_ingestion.py": "79bb017d5395a11828352cefc0cd9161945111c2c5e564b8525f76f6c9bf0949",
     "app/services/ceri/sec/readiness_repair.py": "c1fa08b620437d940292ebd30e26f9a77613d21afec6e5676455843e7684a561",
@@ -15963,7 +15964,7 @@
     "app/services/domain_mutation.py": "246995e2bd1345fb061e528c92ceebfbb78cba01aa31eb4c9b43c35707f9b44c",
     "app/services/domain_write_fence.py": "dc86fed79edbb854d58f93485df0813e675bb8bd356606fb32378ddddf23b0d4",
     "app/services/entrypoint_authority.py": "165307dacac85fce70a4739a652b7ec6bd49e9db91e093da9c54c4c81ff49178",
-    "app/services/fundamental_score_service.py": "4afda4bbe69f9134da569b6ece45f96f18e9b674ee44fc49ecc323ffe8b5cf14",
+    "app/services/fundamental_score_service.py": "ac9b6cccc80c6c0626d35494c4f0e3d7f72d3bffb126854f20f39385ecf4da60",
     "app/services/ib_contract_resolver.py": "0c9e58815f10b8657f5ead6e8418f31dcca48627d0abb367cef37e890c107f30",
     "app/services/ib_fetch_executor.py": "3f4fa34c855a85bde5fd0a1c0bc74001f262202ccb922816dee8852caeec33da",
     "app/services/ib_fetch_job_service.py": "1a201cfaebe515f4e08e1e233699f7521afb59909b226f2ce557bf8d92beb485",
@@ -15974,13 +15975,14 @@
     "app/services/ib_market_intelligence/repository.py": "12498b4e5586bc06aaf06b6e1abc92b9ebf3e15dbb5bd360055583e323f52786",
     "app/services/market_calculation_context_service.py": "9974c5a5216715ebd29146ece7d6514d386ed5e35107d1abda0f714abf3435c2",
     "app/services/market_data_prewarm_service.py": "a23fbe59f93b09df5ad06d216c7ff94d9ac876f8e270b9d7d2568aa0e9326a55",
-    "app/services/market_regime_command_center.py": "974a387531dae834a6693b280c18e9e093e856c6a657e8464b182b4c3c843909",
+    "app/services/market_regime_command_center.py": "0083468becf2e45038f9e0756bb8a64e295bd604953771705c3d8ba2f9116927",
     "app/services/market_regime_repository.py": "724ada94f986e7a245db2410f6d328814a6c48c23ed2b34354327c02c60d3223",
-    "app/services/pipeline_executor.py": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
+    "app/services/ohlcv_coverage_service.py": "238ed5855c84963a5f213aacdf234334db5bbe65b1babd4125d47ed7c5778207",
+    "app/services/pipeline_executor.py": "32ba3eb0703e01426e299d1f2f534e5e5b2bcf5ed39786fd913ccfd648c11dcd",
     "app/services/pipeline_service.py": "472b333063ebfef733941c4bab4f529cef64c30b61e599d535b82daef4cd115f",
     "app/services/pre_enqueue_operational_gate.py": "9329953b5939de23f9f7a8ebba04dc952fed40354f1a79ccedbec24fb6984c1d",
     "app/services/price_series_version_service.py": "7adee83f07b1eaf0949af56f9cd7c92e7891492bd0f81050595b924c206ae443",
-    "app/services/ranking_profile_service.py": "10c75f68d7fc9a4d267428781258e9ca1b8352f31a0a8b6dfac5048d7513e522",
+    "app/services/ranking_profile_service.py": "24b132831750968b984e192baea7fd4f21882032fcfbd6f1ed4b6c8d25f1fb9f",
     "app/services/scope_refresh_adoption.py": "6eb41bdd1e326f1beadeda2444ab436ee43650277f9a385e0ec73e8fd77481fc",
     "app/services/sector_rotation_repository.py": "db760484d8e30ed3cfc527c14b1fa98e9847c797e48a5333c7f23a0c7b0c17a4",
     "app/services/sector_rotation_service.py": "343990527cdc71cbc42dc3c621d3596966259a155a2513e5febdeb918c6c174c",
@@ -15999,10 +16001,11 @@
     "app/services/setup_lifecycle/purge_service.py": "f13c4eb7dd555c3596757666062e4d3098300cab939b96a7cda63209d6c1f0e4",
     "app/services/setup_lifecycle/replay_service.py": "c159823668384c0394aafa3e616342a1bf25ff5053953515cd73f2b7d79afb08",
     "app/services/setup_lifecycle/repository.py": "8bc25295189e0669c9468b063fec6bc42685d9069087f18ed0218e2a384aa44c",
-    "app/services/setup_lifecycle/snapshot_builder.py": "13888ac8b12c6d331a94f1d63b5d9a7eaeb301cc988c4a893197a9d4a9bcf0c4",
+    "app/services/setup_lifecycle/snapshot_builder.py": "ef782e14123335ce1f34aa351dc78ca313994566eb3341c54ee1ad75cb696707",
     "app/services/source_mutation_authority.py": "f35320176b04a22682d5a1f4b77f1061a5f5019ea95cb9e674d2cce8349866fc",
     "app/services/supporting_mutation_authority.py": "98cd2fd43fb66371d6c0cd0e8c1c0843f6fcc5d99717a8c087ebbab824c97c9d",
     "app/services/technical_artifact_cache.py": "9cc22668060ca66da09592cbd87a67eea603246022aaa640dc961e78ff91fefd",
+    "app/services/technical_indicators.py": "98adbb9849c42d2056fd5ea95ef3b23df503f6b2f60a88583b9f4b17f61d1599",
     "app/services/technical_score_service.py": "f9bf63dc208462a329a6fe00f4b84436153d0dafbc7aa6f25385c52a769f5a54",
     "app/services/transition_preflight_plan_service.py": "809f304b2af07ca967c7a93d90f42d11f4687eaa56174b52c6787d94fed64f24",
     "app/services/upload_service.py": "1298ecfd315c73159370192d818ebdfb7ff0a06b80308e70475c6c9a9a9a40e1",
@@ -16059,7 +16062,7 @@
     "scripts/profile_sec_performance.py": "2eb1a4ae74b897539718805a676ea500c2e4b66f78fb8cd9b0438bec2b0e4658",
     "scripts/qa/certify_slse_natural.py": "f71b23d61d7eefe91ac1878106b77de3d715958c63a04931c182cca6d79ad8e0",
     "scripts/qa/rebuild_slse_dev_history.py": "f21e18e16f6492a6f07d8d8ff12ccf254c72ce587723e3dfb2acade07b59de42",
-    "scripts/qa/t13e_deployed_probe.py": "c4c225bbe4ebac3b10773ad66fe14f6d9dd3c49ed85a01e14c03506a11985d5e",
+    "scripts/qa/t13e_deployed_probe.py": "a44fb37f8780e53b1f96e412ab08e9486e7949e2f5344b2bcff0679d09c6fd8f",
     "scripts/qa/t14a_reviewed_inventory.py": "49da330892d7fe48ac99131e4313746759619e703fb3ce80910224cdd485df64",
     "scripts/qa/t14a_semantic_completeness.py": "69f772d81ad5f69fe411c42a43b3e42f1441e0f59b4d581883b412feaadcb1b3",
     "scripts/qa/t14a_semantic_families.py": "9279ecb048c26df82166fb9db2df5ee4b59080d9ddd69a041d989793735fad81",
@@ -16243,6 +16246,29 @@
     ],
     "scope": "Winner population scope/refresh/checkpoint and exact-or-unavailable price revision binding; no weakening of Phase-5 financial mutation authority.",
     "task": "T15C"
+  },
+  "t15d_reviewed_source_delta": {
+    "reviewed_sources": [
+      "app/services/ceri/backfill_service.py",
+      "app/services/ceri/batched_job_handlers.py",
+      "app/services/ceri/batched_workflow.py",
+      "app/services/ceri/change_rebuild_service.py",
+      "app/services/ceri/feature_rebuild_service.py",
+      "app/services/ceri/job_handlers.py",
+      "app/services/ceri/point_in_time_query.py",
+      "app/services/ceri/price_response_service.py",
+      "app/services/ceri/revision_feature_service.py",
+      "app/services/fundamental_score_service.py",
+      "app/services/market_regime_command_center.py",
+      "app/services/ohlcv_coverage_service.py",
+      "app/services/pipeline_executor.py",
+      "app/services/ranking_profile_service.py",
+      "app/services/setup_lifecycle/snapshot_builder.py",
+      "app/services/technical_indicators.py",
+      "scripts/qa/t13e_deployed_probe.py"
+    ],
+    "scope": "Provider/source provenance, historical temporal eligibility, bounded frozen-scope selection, calculation correctness, and exact semantic-authority propagation; no weakening of Phase-5 financial mutation authority.",
+    "task": "T15D"
   },
   "writer_families": {
     "WF_CERI_ALERT_CREATION": {

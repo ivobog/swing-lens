@@ -606,8 +606,14 @@ def _seed_ceri_manual_evidence(
     as_of_session: date,
     baseline_tickers: tuple[str, ...] = ("ALFA",),
 ) -> tuple[list[int], list[int], int]:
-    recent_guidance_at = (
-        datetime.now(UTC).replace(hour=20, minute=15, second=0, microsecond=0) - timedelta(days=3)
+    # Anchor the fixture to its explicit completed market session. A wall-clock
+    # "three days ago" lands after Friday close when the suite runs on Monday,
+    # making guidance knowable only on the following session and flaking the
+    # historical performance certificate.
+    recent_guidance_at = datetime.combine(
+        previous_us_trading_day(as_of_session),
+        datetime.min.time().replace(hour=20, minute=15),
+        tzinfo=UTC,
     ).isoformat()
     for ticker in CANONICAL_TICKERS:
         db.add(

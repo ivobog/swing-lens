@@ -180,6 +180,10 @@ def main(mode: str) -> dict:
                 from app.services.market_calculation_context_service import (
                     resolve_pipeline_market_context,
                 )
+                from app.services.scope_refresh_adoption import (
+                    bind_semantic_authority,
+                    require_semantic_authority,
+                )
 
                 cutoff = resolve_pipeline_market_context(
                     db,
@@ -242,7 +246,8 @@ def main(mode: str) -> dict:
                                     canonical_scale=Decimal(1),
                                 )
                             )
-                enqueue_job(
+                authority = require_semantic_authority(job)
+                ceri_job = enqueue_job(
                     db,
                     "CERI_REBUILD_FEATURES",
                     {
@@ -257,12 +262,22 @@ def main(mode: str) -> dict:
                     related_run_id=run_id,
                     parent_job_id=job.id,
                 )
-                enqueue_job(
+                bind_semantic_authority(
+                    ceri_job,
+                    authority,
+                    required_for_parent_completion=True,
+                )
+                ib_job = enqueue_job(
                     db,
                     "IB_INTELLIGENCE_REBUILD_FEATURES",
                     {"module": "LIQUIDITY", "tickers": [fixture_ticker]},
                     related_run_id=run_id,
                     parent_job_id=job.id,
+                )
+                bind_semantic_authority(
+                    ib_job,
+                    authority,
+                    required_for_parent_completion=True,
                 )
                 db.commit()
             return {
@@ -284,11 +299,22 @@ def main(mode: str) -> dict:
             db.commit()
     if mode == "queue-downstream":
         from app.services.background_job_service import enqueue_job
+        from app.services.scope_refresh_adoption import bind_semantic_authority
+        from app.services.winner_probability.scope_refresh import admit_prediction_capture
 
         with SessionLocal() as db:
             parent_id = int(os.environ["T13E_PARENT_JOB_ID"])
             parent = db.get(BackgroundJob, parent_id)
             run_id = parent.related_run_id
+            winner_authority = admit_prediction_capture(
+                db,
+                run_id=run_id,
+                cycle_key=f"t13e:winner-capture:{run_id}:{parent_id}",
+                cutoff=datetime.fromisoformat(parent.payload_json["market_cutoff_at"]),
+                configuration_identity=parent.payload_json["effective_configuration_anchor"][
+                    "fingerprint"
+                ],
+            )
             enqueue_job(
                 db,
                 "SETUP_LIFECYCLE_DAILY_MAINTENANCE",
@@ -304,7 +330,7 @@ def main(mode: str) -> dict:
                 parent_job_id=parent_id,
                 priority=200,
             )
-            enqueue_job(
+            winner_job = enqueue_job(
                 db,
                 "WINNER_PREDICTION_CAPTURE",
                 {
@@ -327,6 +353,11 @@ def main(mode: str) -> dict:
                 related_run_id=run_id,
                 parent_job_id=parent_id,
                 priority=200,
+            )
+            bind_semantic_authority(
+                winner_job,
+                winner_authority,
+                required_for_parent_completion=True,
             )
             db.commit()
     if mode == "claim":

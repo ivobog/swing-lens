@@ -55,6 +55,13 @@ from app.services.ceri.job_handlers import (
     execute_rebuild_features_job,
 )
 from app.services.market_calculation_context_service import create_pipeline_market_context
+from app.services.scope_refresh_adoption import (
+    LegacySemanticAuthorityError,
+    admit_frozen_operation,
+    bind_semantic_authority,
+    require_semantic_authority,
+)
+from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 from app.services.worker_registry import register_worker
 from app.settings import Settings
 
@@ -403,7 +410,9 @@ def _execute_legacy_fixture(database_url: str) -> dict:
     engine = create_engine(database_url)
     with Session(engine) as db:
         run_id, ingestion_run_id = _seed_fixture(db, request_key="legacy:ingest:MSFT")
+        authority = _fixture_authority(db, run_id=run_id, cycle_key="legacy-parity")
         pipeline = PipelineRun(upload_run_id=run_id, status="RUNNING")
+        bind_semantic_authority(pipeline, authority)
         db.add(pipeline)
         db.flush()
         cutoff = create_pipeline_market_context(
@@ -435,6 +444,7 @@ def _execute_legacy_fixture(database_url: str) -> dict:
             },
             max_retries=3,
         )
+        bind_semantic_authority(normalize, authority)
         db.add(normalize)
         db.flush()
         _execute_handler(db, normalize, execute_normalize_job)
@@ -463,7 +473,9 @@ def _execute_batched_fixture(database_url: str) -> dict:
             db,
             request_key="ceri:fixture:ingest:eodhd:estimates:MSFT",
         )
+        authority = _fixture_authority(db, run_id=run_id, cycle_key="batched-parity")
         pipeline = PipelineRun(upload_run_id=run_id, status="RUNNING")
+        bind_semantic_authority(pipeline, authority)
         db.add(pipeline)
         db.flush()
         cutoff = create_pipeline_market_context(
@@ -509,6 +521,8 @@ def _execute_batched_fixture(database_url: str) -> dict:
             },
             max_retries=3,
         )
+        bind_semantic_authority(provider, authority)
+        bind_semantic_authority(normalize, authority)
         db.add_all([provider, normalize])
         db.commit()
         _execute_handler(db, normalize, execute_normalize_batch_job)
@@ -530,6 +544,7 @@ def _execute_batched_fixture(database_url: str) -> dict:
             },
             max_retries=3,
         )
+        bind_semantic_authority(feature, authority)
         db.add(feature)
         db.commit()
         _execute_handler(db, feature, execute_feature_batch_job)
@@ -549,6 +564,7 @@ def _execute_batched_fixture(database_url: str) -> dict:
             },
             max_retries=3,
         )
+        bind_semantic_authority(finalizer, authority)
         db.add(finalizer)
         db.commit()
         _execute_handler(db, finalizer, execute_run_finalize_job)
@@ -568,6 +584,22 @@ def _execute_batched_fixture(database_url: str) -> dict:
         fingerprint = _parity_fingerprint(db)
     engine.dispose()
     return fingerprint
+
+
+def _fixture_authority(db: Session, *, run_id: int, cycle_key: str):
+    return admit_frozen_operation(
+        db,
+        operation_kind="ceri-parity-fixture",
+        subject_kind="ticker",
+        members=(ScopeMember("TICKER", "MSFT"),),
+        cycle_key=f"ceri-parity:{cycle_key}:{run_id}",
+        business_cutoff=date(2026, 8, 12),
+        provider_source_class="CERI",
+        request_type="FEATURE_REBUILD",
+        requirements=(AcquisitionRequirement("CERI_SOURCE_RECORDS"),),
+        policy_identity="ceri-parity-fixture-v1",
+        scope_definition={"run_id": run_id, "tickers": ["MSFT"]},
+    )
 
 
 def _seed_fixture(db: Session, *, request_key: str) -> tuple[int, int]:
@@ -695,16 +727,23 @@ def _execute_handler(db: Session, job: BackgroundJob, handler) -> dict:
     if job.status == JobStatus.COMPLETED:
         # A new retained delivery of the same business request obtains a real
         # current attempt; a completed historical job is not made authoritative.
+        completed_job = job
         job = enqueue_job(
             db,
-            job.job_type,
-            dict(job.payload_json),
-            request_key=f"{job.request_key}:redelivery:{job.id}",
-            related_run_id=job.related_run_id,
-            workflow_key=job.workflow_key,
-            priority=job.priority,
-            max_retries=job.max_retries,
+            completed_job.job_type,
+            dict(completed_job.payload_json),
+            request_key=f"{completed_job.request_key}:redelivery:{completed_job.id}",
+            related_run_id=completed_job.related_run_id,
+            workflow_key=completed_job.workflow_key,
+            priority=completed_job.priority,
+            max_retries=completed_job.max_retries,
         )
+        try:
+            authority = require_semantic_authority(completed_job)
+        except LegacySemanticAuthorityError:
+            pass
+        else:
+            bind_semantic_authority(job, authority)
         db.commit()
     _claim_native_fixture_job(db, job)
     result = handler(db, job)

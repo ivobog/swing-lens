@@ -121,6 +121,18 @@ class MarketRegimeCommandCenterService:
             risk_proxy.features if risk_proxy is not None else None,
             config.market_regime_params,
         )
+        source_sessions = {
+            item.symbol: item.as_of_date
+            for item in (primary, risk_proxy)
+            if item is not None and item.as_of_date is not None
+        }
+        mixed_sessions = len(set(source_sessions.values())) > 1
+        if mixed_sessions:
+            regime_result = replace(
+                regime_result,
+                confidence="low",
+                reasons=_unique_list([*regime_result.reasons, "mixed_benchmark_sessions"]),
+            )
         freshness = self._freshness_for([primary, risk_proxy], config, today)
         policy = self.policy_service.policy_for(regime_result, config, freshness=freshness)
         index_health = {
@@ -128,6 +140,8 @@ class MarketRegimeCommandCenterService:
             **({risk_proxy.symbol: risk_proxy.health} if risk_proxy is not None else {}),
         }
         warnings = self._combined_warnings(policy, index_health)
+        if mixed_sessions:
+            warnings = _unique_list([*warnings, "mixed_benchmark_sessions"])
         as_of_date = self._snapshot_date([primary, risk_proxy], today)
         action_summary = self._action_summary(regime_result, policy)
         input_symbols = {
@@ -167,6 +181,10 @@ class MarketRegimeCommandCenterService:
                         for item in [primary, risk_proxy]
                         if item is not None
                     },
+                    "effective_common_session": (
+                        min(source_sessions.values()).isoformat() if source_sessions else None
+                    ),
+                    "mixed_benchmark_sessions": mixed_sessions,
                 },
                 "input_symbols": input_symbols,
                 "market_inputs": {
@@ -345,7 +363,10 @@ class MarketRegimeCommandCenterService:
 
     def _snapshot_date(self, inputs: list[MarketInput | None], today: date) -> date:
         dates = [item.as_of_date for item in inputs if item is not None and item.as_of_date]
-        return max(dates) if dates else today
+        # The result cannot claim a business date later than its oldest
+        # required benchmark input. Individual source sessions remain in the
+        # immutable debug/evidence payload.
+        return min(dates) if dates else today
 
     def _action_summary(
         self,

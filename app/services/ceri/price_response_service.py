@@ -160,7 +160,9 @@ class CeriPriceResponseService:
                 cutoff_at=cutoff_at,
             )
         )
-        if not stock:
+        stock_price, stock_volume, stock_basis = _preferred_ohlcv_rows(stock)
+        benchmark_price, benchmark_volume, benchmark_basis = _preferred_ohlcv_rows(benchmark)
+        if not stock_price:
             return PriceResponseResult(
                 None,
                 event_key,
@@ -172,7 +174,7 @@ class CeriPriceResponseService:
                 (),
                 "PRICE_DATA_MISSING",
             )
-        if not benchmark:
+        if not benchmark_price:
             return PriceResponseResult(
                 None,
                 event_key,
@@ -185,8 +187,8 @@ class CeriPriceResponseService:
                 "PRICE_DATA_MISSING",
             )
 
-        stock_by_date = {bar.bar_date: bar for bar in stock}
-        benchmark_by_date = {bar.bar_date: bar for bar in benchmark}
+        stock_by_date = {bar.bar_date: bar for bar in stock_price}
+        benchmark_by_date = {bar.bar_date: bar for bar in benchmark_price}
         prior_date = previous_us_trading_day(reaction)
         reaction_date = reaction
         if prior_date not in stock_by_date or reaction_date not in stock_by_date:
@@ -225,12 +227,16 @@ class CeriPriceResponseService:
             "reaction_session": reaction_date.isoformat(),
             "gap_pct": _return(first.open, prior.close),
             "volume_ratio": _volume_ratio(
-                stock, reaction_date, self.config.price_response.trailing_volume_sessions
+                stock_volume, reaction_date, self.config.price_response.trailing_volume_sessions
             ),
             "close_location": _close_location(first),
             "benchmark": self.config.price_response.benchmark,
             "prior_reference_session": prior_date.isoformat(),
             "reaction_policy_version": REACTION_POLICY_VERSION,
+            "price_basis": stock_basis,
+            "volume_basis": "TRADES" if stock_volume else None,
+            "benchmark_price_basis": benchmark_basis,
+            "benchmark_volume_basis": "TRADES" if benchmark_volume else None,
             "window_session_map": {},
         }
         reasons: list[str] = []
@@ -265,6 +271,18 @@ class CeriPriceResponseService:
             if relative is None:
                 warnings.append(f"relative_return_{window}d_unavailable")
 
+        consumed_ids = _consumed_bar_ids(
+            stock_price,
+            stock_volume,
+            benchmark_price,
+            reaction_date,
+            self.config.price_response.windows,
+            self.config.price_response.trailing_volume_sessions,
+        )
+        consumed_rows = [
+            row for row in [*stock_price, *stock_volume, *benchmark_price] if row.id in consumed_ids
+        ]
+        metrics["price_source_manifest"] = _bar_source_manifest(consumed_rows)
         one_day = metrics.get("relative_return_1d")
         volume_ratio = metrics.get("volume_ratio")
         close_location = metrics.get("close_location")
@@ -277,7 +295,7 @@ class CeriPriceResponseService:
                 metrics,
                 tuple(reasons),
                 tuple(sorted(set(warnings))),
-                _bar_ids(stock, benchmark, reaction_date, self.config.price_response.windows),
+                consumed_ids,
                 "WINDOW_NOT_ELAPSED",
             )
         score = 5.0
@@ -314,7 +332,7 @@ class CeriPriceResponseService:
             metrics,
             tuple(reasons),
             tuple(sorted(set(warnings))),
-            _bar_ids(stock, benchmark, reaction_date, self.config.price_response.windows),
+            consumed_ids,
         )
 
     def unavailable(
@@ -540,6 +558,29 @@ class CeriPriceResponseService:
         )
 
 
+def _preferred_ohlcv_rows(
+    rows: list[PriceBar],
+) -> tuple[list[PriceBar], list[PriceBar], str | None]:
+    """Apply the canonical adjusted-price/TRADES-volume basis contract."""
+
+    adjusted = sorted(
+        [row for row in rows if (row.what_to_show or "").upper() == "ADJUSTED_LAST"],
+        key=lambda row: (row.bar_date, row.id or 0),
+    )
+    trades = sorted(
+        [row for row in rows if (row.what_to_show or "TRADES").upper() == "TRADES"],
+        key=lambda row: (row.bar_date, row.id or 0),
+    )
+    adjusted_dates = {row.bar_date for row in adjusted}
+    trades_dates = {row.bar_date for row in trades}
+    adjusted_complete = bool(adjusted) and (not trades or adjusted_dates >= trades_dates)
+    if adjusted_complete:
+        return adjusted, trades, "ADJUSTED_LAST"
+    if trades:
+        return trades, trades, "TRADES"
+    return [], [], None
+
+
 def _return(end: Decimal | float | None, start: Decimal | float | None) -> float | None:
     if end is None or start in (None, 0):
         return None
@@ -598,17 +639,55 @@ def _close_location(bar: PriceBar) -> float | None:
     )
 
 
-def _bar_ids(
-    stock: list[PriceBar], benchmark: list[PriceBar], reaction: date, windows: tuple[int, ...]
+def _consumed_bar_ids(
+    stock_price: list[PriceBar],
+    stock_volume: list[PriceBar],
+    benchmark_price: list[PriceBar],
+    reaction: date,
+    windows: tuple[int, ...],
+    trailing_volume_sessions: int,
 ) -> tuple[int, ...]:
-    dates = {reaction}
+    price_dates = {previous_us_trading_day(reaction), reaction}
     for window in windows:
-        dates.add(_trading_window_session(reaction, window - 1))
+        price_dates.add(_trading_window_session(reaction, window - 1))
+    prior_volume_dates = [
+        row.bar_date for row in stock_volume if row.bar_date < reaction and row.volume is not None
+    ][-trailing_volume_sessions:]
+    volume_dates = {reaction, *prior_volume_dates}
     return tuple(
         sorted(
-            {row.id for row in [*stock, *benchmark] if row.id is not None and row.bar_date in dates}
+            {
+                row.id
+                for row in [*stock_price, *benchmark_price]
+                if row.id is not None and row.bar_date in price_dates
+            }
+            | {
+                row.id
+                for row in stock_volume
+                if row.id is not None and row.bar_date in volume_dates
+            }
         )
     )
+
+
+def _bar_source_manifest(rows: list[PriceBar]) -> list[dict[str, Any]]:
+    unique = {row.id: row for row in rows if row.id is not None}
+    return [
+        {
+            "price_bar_id": row.id,
+            "ticker": row.ticker.upper(),
+            "session": row.bar_date.isoformat(),
+            "basis": (row.what_to_show or "TRADES").upper(),
+            "content_hash": row.data_hash,
+            "revision_number": row.revision_count,
+            "first_seen_at": row.first_seen_at.isoformat() if row.first_seen_at else None,
+            "revised_at": row.revised_at.isoformat() if row.revised_at else None,
+            "revision_identity": (
+                "CONTENT_ADDRESSED_EXACT" if row.data_hash else "REVISION_IDENTITY_UNAVAILABLE"
+            ),
+        }
+        for row in sorted(unique.values(), key=lambda item: item.id)
+    ]
 
 
 def _event_key(*parts: Any) -> str:

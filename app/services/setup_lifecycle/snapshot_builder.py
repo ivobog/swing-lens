@@ -926,6 +926,7 @@ class SetupLifecycleSnapshotCaptureService:
         requester: str | None = None,
         finalize_evaluation_run: bool = True,
         market_cutoff=None,
+        frozen_tickers: tuple[str, ...] | None = None,
     ) -> SnapshotCaptureResult:
         from sqlalchemy.orm import Session
 
@@ -941,7 +942,18 @@ class SetupLifecycleSnapshotCaptureService:
             if market_cutoff is None:
                 run_context = self.loader.load_run_context(db, run_id)
             else:
-                run_context = self.loader.load_run_context(db, run_id, market_cutoff=market_cutoff)
+                load_kwargs = {"market_cutoff": market_cutoff}
+                if frozen_tickers is not None:
+                    load_kwargs["tickers"] = {ticker.upper() for ticker in frozen_tickers}
+                run_context = self.loader.load_run_context(db, run_id, **load_kwargs)
+            if frozen_tickers is not None:
+                expected = tuple(dict.fromkeys(ticker.upper() for ticker in frozen_tickers))
+                actual = tuple(context.ticker for context in run_context.tickers)
+                if set(actual) != set(expected) or len(actual) != len(expected):
+                    raise EntryPointAuthorityError(
+                        "SETUP_FROZEN_SCOPE_MEMBERSHIP_MISMATCH",
+                        "Setup capture source membership differs from the parent frozen scope.",
+                    )
         except Exception:
             if evaluation_run is not None:
                 self.repository.complete_evaluation_run(

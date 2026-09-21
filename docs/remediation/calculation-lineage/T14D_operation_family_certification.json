@@ -8289,7 +8289,7 @@
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+            "file_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -8512,7 +8512,7 @@
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+            "file_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -8726,7 +8726,7 @@
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+            "file_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -8838,9 +8838,11 @@
       ],
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "b94176f15e470222484abc60615a0a16416d551b8e8cf4f2e50f955e5939379a",
+        "authority_branch_fingerprint": "20c93347b4d420184d9e6b7682eb0940ab7f6f8d78955f0dd727804c1cba3b68",
         "authority_requirement_set": "843ae09f14262431be7c558f559597275040bd1f9b12e8dc20e11e5391698f9f",
         "domains": [
           "CERI",
@@ -8857,7 +8859,7 @@
           "SECTOR",
           "TECHNICAL"
         ],
-        "error_mapping": "afb2969b257454a5751f48999f5a73c686e77d367a2819121f85e4c56056c9c5",
+        "error_mapping": "34cf5b537a6cb91ba36791af8140c379b437ec9bbe58b40f9dd8e62afb2a48b9",
         "execution_model": "durable",
         "semantic_modes": [
           "BOOTSTRAP",
@@ -8912,23 +8914,25 @@
             "authority_branches": [
               "not ceri_flags().enabled"
             ],
-            "body_sha256": "63e2680ca2d80c6002a445fcfe383421fe716a7645927e8c5ec757f554f538ed",
+            "body_sha256": "9a7e24434ddf4ff190778ed3602bdea77ee9b4f56adf322f047aa4e218ae41d4",
             "calls": [
               "_require_terminal_stage",
               "_skipped",
               "_workflow_key",
+              "bind_semantic_authority",
               "bool",
               "ceri_flags",
               "enqueue_job",
               "getattr",
               "int",
               "max",
-              "payload.get"
+              "payload.get",
+              "require_semantic_authority"
             ],
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "7c76c6b5066604b6b860ec35dcc270769ca126f7a11c1b2be2cf7b25743318f5",
+            "file_sha256": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -8990,6 +8994,7 @@
             "address": "app/services/ceri/job_handlers.py:execute_rebuild_features_job",
             "authority_branches": [
               "not ceri_flags().enabled",
+              "isinstance(db, Session)",
               "pipeline_owned",
               "not created and processing.status == 'COMPLETED'",
               "result.failed",
@@ -8997,7 +9002,7 @@
               "missing_context",
               "capture_job_id is not None"
             ],
-            "body_sha256": "747c2920ab489354a7b9ecd44b9e806f66de57a6a6761d2a88564e4e00f109ae",
+            "body_sha256": "ce245a0d35541585d67e8d1982c795c8c4b3175fefe53877c8d20e2f2bdd9b14",
             "calls": [
               "', '.join",
               "(feature_service or CeriFeatureRebuildService()).rebuild",
@@ -9016,16 +9021,18 @@
               "_scope_key",
               "_skipped_job",
               "ceri_flags",
+              "isinstance",
               "list",
               "payload.get",
               "publish_after_commit",
+              "require_semantic_authority",
               "result.as_dict",
               "str"
             ],
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+            "file_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -9092,13 +9099,14 @@
         "tests/test_t14d_caller_authority.py::test_direct_durable_handler_rejects_missing_anchor",
         "tests/integration/test_decision_configuration_delivery_postgresql.py::test_worker_rejects_valid_other_anchor_before_handler"
       ],
-      "operation_family_id": "AF_783f63bd6ad9af37",
+      "operation_family_id": "AF_a1a3696c9861b5f9",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation",
         "tests/integration/test_decision_configuration_delivery_postgresql.py::test_queued_job_retry_and_resume_keep_c1_after_current_drift"
       ],
       "previous_operation_family_ids": [
+        "AF_783f63bd6ad9af37",
         "AF_814796bd0950299b",
         "AF_e23d973feb1088b8",
         "OP_EXECUTE_REBUILD_FEATURES_JOB_8c34bf02",
@@ -9253,7 +9261,7 @@
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+            "file_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -10166,7 +10174,7 @@
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+            "file_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -10265,9 +10273,10 @@
       ],
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "b4e68f69a27713567691de0c684096a43f36ce6ad8c22e2d8500ca4bb0300704",
+        "authority_branch_fingerprint": "24f909725fdf125c0554f0a758187e733d7343677294ea095f880a048a356dbf",
         "authority_requirement_set": "61ba050dddb9fcea0a0f70ca63825bdd89ca782b7b9922c7769e23e12d6b5562",
         "domains": [
           "CERI_ALERT",
@@ -10309,12 +10318,13 @@
             "address": "app/services/ceri/job_handlers.py:execute_change_detection_job",
             "authority_branches": [
               "not ceri_flags().enabled",
+              "isinstance(db, Session)",
               "not created and processing.status == 'COMPLETED'",
               "result.failed",
               "alert_job_id is not None",
               "alert_job_id is not None"
             ],
-            "body_sha256": "45d98945786d0fe923b4941f56c6df18edced84f5d010a7d31ae40935d8562e7",
+            "body_sha256": "cea235d6911a46b35fc955332f7d6b90340305297eb9af05ecf0aed4c0111986",
             "calls": [
               "(change_service or CeriChangeRebuildService()).rebuild",
               "(processing.checkpoint_json or {}).get",
@@ -10333,16 +10343,18 @@
               "ceri_flags",
               "getattr",
               "int",
+              "isinstance",
               "job_phase",
               "list",
               "payload.get",
+              "require_semantic_authority",
               "result.as_dict",
               "tuple"
             ],
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+            "file_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -10408,13 +10420,14 @@
         "tests/test_t14d_caller_authority.py::test_direct_durable_handler_rejects_missing_anchor",
         "tests/integration/test_decision_configuration_delivery_postgresql.py::test_worker_rejects_valid_other_anchor_before_handler"
       ],
-      "operation_family_id": "AF_a603976be1343a23",
+      "operation_family_id": "AF_40fb480e20914a3c",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation",
         "tests/integration/test_decision_configuration_delivery_postgresql.py::test_queued_job_retry_and_resume_keep_c1_after_current_drift"
       ],
       "previous_operation_family_ids": [
+        "AF_a603976be1343a23",
         "AF_aff4a10ea076922f",
         "OP_EXECUTE_CHANGE_DETECTION_JOB_a858bf76"
       ],
@@ -10513,7 +10526,7 @@
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "3f765f591733d9a0588686f9ea22e4d6a3ec503d24d9f15f31dc62cbc9d15d24",
+            "file_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -10623,9 +10636,10 @@
       ],
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "59b92ed56daa9c1b58daa55e86f942bee4a99ba61110e7040af0ae3a2c41258e",
+        "authority_branch_fingerprint": "a24358f623ec485c2fcce71a296000c4197038a4a012fbc0cee6dac7d890969e",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -10663,6 +10677,7 @@
             "address": "app/services/ceri/batched_job_handlers.py:execute_feature_batch_job",
             "authority_branches": [
               "not ceri_flags().enabled",
+              "isinstance(db, Session)",
               "missing_context",
               "hasattr(db, 'expire_on_commit')",
               "remaining_tickers and hasattr(service, 'prepare_batch')",
@@ -10672,7 +10687,7 @@
               "processing.status in {'COMPLETED', 'PARTIAL'}",
               "_heartbeat_and_cancel(db, job)"
             ],
-            "body_sha256": "7f3c32c35ccdfd5231e8825174be45f7878525bb6218c0c5ba92e4307d93ae18",
+            "body_sha256": "cf5f96205bc05fd95c95e91d88a8ca012f02d1eb5ad3f1d35e305099b6271b15",
             "calls": [
               "', '.join",
               "(value.get('family_runtime_ms') or {}).items",
@@ -10701,11 +10716,13 @@
               "getattr",
               "hasattr",
               "int",
+              "isinstance",
               "len",
               "list",
               "load_ceri_config",
               "payload.get",
               "perf_counter",
+              "require_semantic_authority",
               "result.as_dict",
               "results.values",
               "service.prepare_batch",
@@ -10719,7 +10736,7 @@
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "7c76c6b5066604b6b860ec35dcc270769ca126f7a11c1b2be2cf7b25743318f5",
+            "file_sha256": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -10779,7 +10796,7 @@
         "tests/test_t14d_caller_authority.py::test_direct_durable_handler_rejects_missing_anchor",
         "tests/integration/test_decision_configuration_delivery_postgresql.py::test_worker_rejects_valid_other_anchor_before_handler"
       ],
-      "operation_family_id": "AF_c443168c381a5897",
+      "operation_family_id": "AF_d71ce6ad4a66d9e5",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation",
@@ -10787,6 +10804,7 @@
       ],
       "previous_operation_family_ids": [
         "AF_b57273d00dbe3bbe",
+        "AF_c443168c381a5897",
         "OP_EXECUTE_FEATURE_BATCH_JOB_396637ef"
       ],
       "query_budget_tests": [
@@ -10901,7 +10919,7 @@
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "7c76c6b5066604b6b860ec35dcc270769ca126f7a11c1b2be2cf7b25743318f5",
+            "file_sha256": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -10997,9 +11015,10 @@
       ],
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "0de78d0f16eb2e7a21928b2c16accb0c29f430a897b6318e228e7e7347b55681",
+        "authority_branch_fingerprint": "1aaafcffe347884960b144dbb9c312b8a0210d09664cd4c57335d0a0a406cdb0",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -11037,13 +11056,14 @@
             "address": "app/services/ceri/batched_job_handlers.py:execute_provider_ingest_batch_job",
             "authority_branches": [
               "not ceri_flags().provider_ingest",
+              "isinstance(db, Session)",
               "failed",
               "ticker in completed",
               "_heartbeat_and_cancel(db, job, heartbeat=False)",
               "index % checkpoint_interval == 0",
               "_heartbeat_and_cancel(db, job)"
             ],
-            "body_sha256": "d41c2fc6d2c45d3921d54f53517b6657fe4875bb5232cffe218d435e41ef2edf",
+            "body_sha256": "a5722384a5fe116f99d32dd99c937f10842adbaf0e3a134ef2d1274c8f2972b9",
             "calls": [
               "CancelRequested",
               "CeriDataset",
@@ -11063,9 +11083,11 @@
               "completed.add",
               "enumerate",
               "int",
+              "isinstance",
               "job_phase",
               "len",
               "load_ceri_config",
+              "require_semantic_authority",
               "result.as_dict",
               "result_values.get",
               "service.ingest",
@@ -11074,7 +11096,7 @@
             "decorators": [
               "anchored_job_configuration"
             ],
-            "file_sha256": "7c76c6b5066604b6b860ec35dcc270769ca126f7a11c1b2be2cf7b25743318f5",
+            "file_sha256": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -11134,13 +11156,14 @@
         "tests/test_t14d_caller_authority.py::test_direct_durable_handler_rejects_missing_anchor",
         "tests/integration/test_decision_configuration_delivery_postgresql.py::test_worker_rejects_valid_other_anchor_before_handler"
       ],
-      "operation_family_id": "AF_92c66465b4b4dda2",
+      "operation_family_id": "AF_01c2d73e5c26b6c4",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation",
         "tests/integration/test_decision_configuration_delivery_postgresql.py::test_queued_job_retry_and_resume_keep_c1_after_current_drift"
       ],
       "previous_operation_family_ids": [
+        "AF_92c66465b4b4dda2",
         "AF_e762383087dbb767",
         "OP_EXECUTE_PROVIDER_INGEST_BATCH_JOB_cbb83268"
       ],
@@ -19437,16 +19460,19 @@
       ],
       "authority_equivalence_key": {
         "authority_adapters": [
+          "bind_semantic_authority",
+          "require_semantic_authority",
           "resolve_pipeline_market_context",
-          "select(MarketCalculationContext).where(MarketCalculationContext.id == market_cutoff.context_id).with_for_update"
+          "select(MarketCalculationContext).where(MarketCalculationContext.id == market_cutoff.context_id).with_for_update",
+          "semantic_authority.as_dict"
         ],
-        "authority_branch_fingerprint": "5e71f78d5e3b00d7cafbfd3640cc62829197d6e508c181eb3c5291c4f181b317",
+        "authority_branch_fingerprint": "e7ab6b6c51ba453447eb6e9c218203ce21f79d7020374881b246de5240138a47",
         "authority_requirement_set": "ae9087f16ce20802d2b89f586e91467b9742b16903d05fc3eca9810e43b78da6",
         "domains": [
           "CERI_SOURCE",
           "CONFIGURATION"
         ],
-        "error_mapping": "8456353760345e8c1f72875a0a12aa96aaeda397ad02398c340a575ac370fa8e",
+        "error_mapping": "20174152f18c3a70be122eb8f235e50d527de3811833c7709e435e1679b85931",
         "execution_model": "synchronous",
         "semantic_modes": [
           "BOOTSTRAP"
@@ -19480,11 +19506,13 @@
               "isinstance(db, Session)",
               "CeriDataset.GUIDANCE in provider_datasets.get('sec', ())",
               "runtime_settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE and runtime_settings.sec_readiness_policy is SecReadinessPolicy.REQUIRE_READY and (not readiness.complete)",
+              "semantic_authority is not None",
               "market_cutoff is None or market_cutoff.context_id is None",
               "row is None or row.pipeline_run_id is None",
-              "resolved != market_cutoff"
+              "resolved != market_cutoff",
+              "pipeline is None"
             ],
-            "body_sha256": "b4122cf8def400f3153add47071e0bd6c7235ac00dd9474067ef19f32e26443a",
+            "body_sha256": "4a449eb0b7ce6b18b1b8cfffdf92408c85dbc090943d189eb1fa454448c5c73f",
             "calls": [
               "', '.join",
               "CanonicalEvidenceSerializer.canonicalize",
@@ -19494,8 +19522,10 @@
               "EntryPointAuthorityError",
               "_ensure_ceri_companies",
               "_source_value",
+              "bind_semantic_authority",
               "build_ceri_batched_workflow_plan",
               "db.flush",
+              "db.get",
               "db.rollback",
               "db.scalar",
               "db.scalars",
@@ -19514,17 +19544,19 @@
               "readiness.counts",
               "registry.capabilities",
               "require_deployed_processor_active",
+              "require_semantic_authority",
               "resolve_pipeline_market_context",
               "row.ticker.upper",
               "select",
               "select(MarketCalculationContext).where",
               "select(MarketCalculationContext).where(MarketCalculationContext.id == market_cutoff.context_id).with_for_update",
               "select(RawCompanyRow).where",
+              "semantic_authority.as_dict",
               "sorted",
               "tuple"
             ],
             "decorators": [],
-            "file_sha256": "df493397de17db386283541d6e05304ecb59d0994a40c4188020eabc07bc5986",
+            "file_sha256": "6bb8cbbef1fd00bd81e14a53abdf0361b1a30d3779d8c40a26590bf8a7bb5a53",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -19540,6 +19572,7 @@
               "MarketCalculationCutoff": "app.services.market_clock_service.MarketCalculationCutoff",
               "MutationDomain": "app.services.domain_mutation.MutationDomain",
               "MutationSemanticMode": "app.services.domain_mutation.MutationSemanticMode",
+              "PipelineRun": "app.models.tables.PipelineRun",
               "RawCompanyRow": "app.models.tables.RawCompanyRow",
               "SecDocumentIncrementalMode": "app.settings.SecDocumentIncrementalMode",
               "SecReadinessPolicy": "app.settings.SecReadinessPolicy",
@@ -19571,12 +19604,13 @@
         "tests/test_domain_mutation.py::test_numeric_survival_cannot_replace_frozen_eligibility",
         "tests/integration/test_t14d_caller_postgresql.py::test_setup_source_loader_never_substitutes_newest_context_for_missing_authority"
       ],
-      "operation_family_id": "AF_27f76b361d63009e",
+      "operation_family_id": "AF_1ce97aac351365aa",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation"
       ],
       "previous_operation_family_ids": [
+        "AF_27f76b361d63009e",
         "AF_c0d66929e4817cbd",
         "OP_SCHEDULE_CERI_BATCHED_WORKFLOW_fb3da895"
       ],
@@ -19613,7 +19647,7 @@
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by",
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by(IBFetchRun.id.desc()).limit"
         ],
-        "authority_branch_fingerprint": "640b1022531f3f7f30b8575fc8ad24e9dadedd7969c278a6d159946453476279",
+        "authority_branch_fingerprint": "87f1a7829344a24b6efa96d3341833c130fc20cf98f95273b6860d508edf0de7",
         "authority_requirement_set": "c415982d5bd350252565fd1f5a59f2895cf602772c2eb6799e49676b40de498d",
         "domains": [
           "CERI",
@@ -19756,7 +19790,7 @@
               "market_data_policy is MarketDataPolicy.REQUIRE_IB",
               "should_cancel()"
             ],
-            "body_sha256": "4766314dadb99af46d2d948169916f4906f5d6fe29cc7a500b40d96a5bdf0b83",
+            "body_sha256": "e782e3a4c78b302faa109a185e12dcbed8fbdabf9f3468a2e5b02d9be603ea74",
             "calls": [
               "(fetch_run.decision_counts_json or {}).get",
               "(pipeline.result_json or {}).get",
@@ -19865,6 +19899,7 @@
               "should_cancel",
               "sorted",
               "sum",
+              "tuple",
               "validate",
               "validate_sec_pipeline_preflight",
               "{'BENCHMARK', 'SECTOR'}.intersection"
@@ -19872,7 +19907,7 @@
             "decorators": [
               "pipeline_configuration_delivery"
             ],
-            "file_sha256": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
+            "file_sha256": "32ba3eb0703e01426e299d1f2f534e5e5b2bcf5ed39786fd913ccfd648c11dcd",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -19979,12 +20014,13 @@
         "tests/test_domain_mutation.py::test_numeric_survival_cannot_replace_frozen_eligibility",
         "tests/integration/test_t14d_caller_postgresql.py::test_setup_source_loader_never_substitutes_newest_context_for_missing_authority"
       ],
-      "operation_family_id": "AF_7debad667394f7d3",
+      "operation_family_id": "AF_57090e3c1c60a552",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation"
       ],
       "previous_operation_family_ids": [
+        "AF_7debad667394f7d3",
         "AF_8d84446ab7b00f3b",
         "AF_a0d3efae8c1c6752",
         "AF_f7416b02ff7a2171",
@@ -23480,6 +23516,158 @@
         "WF_SETUP_PERSISTENCE",
         "WF_SETUP_TRANSITION_EVENT_STATE",
         "WF_SETUP_TYPED_REPOSITORY"
+      ],
+      "transaction_boundary": "Same validating Session, native transaction and applicable durable fence"
+    },
+    {
+      "authority_adapter": [
+        "AuthorityDeliveryBoundary=self._authority_tickers",
+        "boundary_certificate=EXPLICIT_NATIVE_AUTHORITY_OPERATION"
+      ],
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "self._authority_tickers"
+        ],
+        "authority_branch_fingerprint": "04202f753d749dc98a375e25cf827b3e526c53d52a52fa988dde28578ab17004",
+        "authority_requirement_set": "1d9e1c3cdea249b62f3670cbff10e8df67b3232e7d6b54bcbcdd76231fad03ff",
+        "domains": [
+          "CERI_CHANGE"
+        ],
+        "error_mapping": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "CANONICAL_CALCULATION"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:self._authority_tickers:WF_CERI_CHANGE",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_CHANGE"
+        ]
+      },
+      "domains": [
+        "CERI_CHANGE"
+      ],
+      "failure_behavior": "Rollback or explicit FAILED/PARTIAL; runtime transport proof required",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "inheritance_proofs": [
+        {
+          "authority_delivery_boundary": "self._authority_tickers",
+          "boundary_certificate": "EXPLICIT_NATIVE_AUTHORITY_OPERATION",
+          "caller_specific_branch": true,
+          "convergence_kind": "DISTINCT_AUTHORITY_OPERATION",
+          "inheritance_basis": "Distinct operation; its authority branches are recorded.",
+          "initiator_id": "EF_7a4eefa3be56b725",
+          "service_source": null,
+          "shared_service": "self._authority_tickers",
+          "source": {
+            "address": "app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild",
+            "authority_branches": [
+              "not isinstance(db, Session)",
+              "request.company_ids",
+              "request.ticker",
+              "authority_tickers",
+              "request.run_id is not None"
+            ],
+            "body_sha256": "b99f52fc004b2dfe5712765b54d224540ab0404e2977bcb526bf9e7025362f4f",
+            "calls": [
+              "CeriCatalystEvent.company_id.in_",
+              "CeriCatalystEventRevision.catalyst_event_id.in_",
+              "CeriCompany.id.in_",
+              "CeriGuidanceEvent.company_id.in_",
+              "CeriScoreSnapshot.company_id.in_",
+              "CeriSourceRecord.id.in_",
+              "CoreCalculationEvidence.id.in_",
+              "PrefetchedSourceBodies",
+              "_required_boundary",
+              "bundle.load",
+              "bundle.seal",
+              "companies.where",
+              "events.with_only_columns",
+              "func.upper",
+              "func.upper(CeriCompany.ticker).in_",
+              "guidance.with_only_columns",
+              "isinstance",
+              "prefetched_source_scope",
+              "request.ticker.upper",
+              "revisions.with_only_columns",
+              "scores.with_only_columns",
+              "select",
+              "select(CeriCatalystEvent).where",
+              "select(CeriCatalystEventRevision).where",
+              "select(CeriGuidanceEvent).where",
+              "select(CeriScoreSnapshot).where",
+              "select(CeriScoreSnapshot.company_id).where",
+              "select(CeriSourceRecord).where",
+              "select(CoreCalculationEvidence).where",
+              "self._authority_tickers",
+              "self._rebuild",
+              "set",
+              "union"
+            ],
+            "decorators": [],
+            "file_sha256": "58820302c609cc1b5e6ac3fc9a390e0f2e66656732291b4b460c286ee7b31203",
+            "guard_owners": [],
+            "import_bindings": {
+              "Any": "typing.Any",
+              "CeriCatalystEvent": "app.models.ceri_tables.CeriCatalystEvent",
+              "CeriCatalystEventRevision": "app.models.ceri_tables.CeriCatalystEventRevision",
+              "CeriChangeDetectionService": "app.services.ceri.change_detection_service.CeriChangeDetectionService",
+              "CeriCompany": "app.models.ceri_tables.CeriCompany",
+              "CeriConfig": "app.services.ceri.config.CeriConfig",
+              "CeriGuidanceEvent": "app.models.ceri_tables.CeriGuidanceEvent",
+              "CeriScoreSnapshot": "app.models.ceri_tables.CeriScoreSnapshot",
+              "CeriSourceRecord": "app.models.ceri_tables.CeriSourceRecord",
+              "CoreCalculationEvidence": "app.models.tables.CoreCalculationEvidence",
+              "MarketClockService": "app.services.market_clock_service.MarketClockService",
+              "Session": "sqlalchemy.orm.Session",
+              "SessionTimestampPolicy": "app.services.market_clock_service.SessionTimestampPolicy",
+              "annotations": "__future__.annotations",
+              "asdict": "dataclasses.asdict",
+              "dataclass": "dataclasses.dataclass",
+              "date": "datetime.date",
+              "datetime": "datetime.datetime",
+              "filter_eligible_snapshots": "app.services.ceri.evidence_eligibility.filter_eligible_snapshots",
+              "func": "sqlalchemy.func",
+              "load_ceri_config": "app.services.ceri.config.load_ceri_config",
+              "redact_text": "app.services.redaction.redact_text",
+              "select": "sqlalchemy.select",
+              "select_prior_comparison": "app.services.ceri.change_semantics.select_prior_comparison",
+              "source_record_is_eligible": "app.services.ceri.pit_eligibility.source_record_is_eligible",
+              "union": "sqlalchemy.union"
+            },
+            "signature": "self, db: Session, request: CeriChangeRebuildRequest"
+          }
+        }
+      ],
+      "member_initiator_ids": [
+        "EF_7a4eefa3be56b725"
+      ],
+      "negative_tests": [
+        "tests/test_domain_mutation.py::test_missing_or_mismatched_authority_fails_without_reconstruction",
+        "tests/test_domain_mutation.py::test_numeric_survival_cannot_replace_frozen_eligibility",
+        "tests/integration/test_t14d_caller_postgresql.py::test_setup_source_loader_never_substitutes_newest_context_for_missing_authority"
+      ],
+      "operation_family_id": "AF_c194fd2a7ed181c0",
+      "positive_tests": [
+        "tests/test_domain_mutation.py::test_representative_contexts",
+        "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation"
+      ],
+      "previous_operation_family_ids": [
+        "AF_2774353def311655",
+        "AF_9701990a1bad3828",
+        "OP_CERICHANGEREBUILDSERVICE_REBUILD_7a4eefa3"
+      ],
+      "query_budget_tests": [],
+      "remaining_requirements": [],
+      "semantic_mode": [
+        "CANONICAL_CALCULATION"
+      ],
+      "semantic_service": "self._authority_tickers",
+      "surfaces": [
+        "SERVICE_PUBLIC"
+      ],
+      "target_writer_families": [
+        "WF_CERI_CHANGE"
       ],
       "transaction_boundary": "Same validating Session, native transaction and applicable durable fence"
     },
@@ -28873,7 +29061,7 @@
           "effective_configuration.require_retry_identity",
           "standalone_market_context"
         ],
-        "authority_branch_fingerprint": "c6af4d88dfaaaaab0da1fefeccf3e9d8abf16f51b834c60929297b764fb6ab7e",
+        "authority_branch_fingerprint": "980104a00ea673705a4f6adb9b8d799f8f19d869a51b9907e9e9ad168472a3f1",
         "authority_requirement_set": "3781a66138cecf6e0d1597ab108729a09b8f8b34c6b71fe474f2034add27c382",
         "domains": [
           "CERI",
@@ -28926,13 +29114,16 @@
             "authority_branches": [
               "isinstance(db, Session)",
               "expected_calculation_identity is not None",
+              "mixed_sessions",
+              "mixed_sessions",
               "market_cutoff is None or (effective_configuration is None and current_delivery() is None)"
             ],
-            "body_sha256": "a133dd12f0095a3e61e56fec1eba4f18deea29a72793783822d67df946442705",
+            "body_sha256": "2d0b51ed0c6b9348d774674755709d4e2163ffb8d8965090ffe2bc871883fddd",
             "calls": [
               "EntryPointAuthorityError",
               "MarketRegimeCommandCenterDto",
               "Path",
+              "_unique_list",
               "asdict",
               "bool",
               "build_regime_identity",
@@ -28948,10 +29139,13 @@
               "float",
               "isinstance",
               "item.as_of_date.isoformat",
+              "len",
               "list",
               "load_market_regime_command_center_config",
               "market_cutoff.cutoff_at.isoformat",
               "market_cutoff.latest_completed_session.isoformat",
+              "min",
+              "min(source_sessions.values()).isoformat",
               "object.__setattr__",
               "pipeline_id_for_cutoff",
               "replace",
@@ -28966,6 +29160,8 @@
               "self.policy_service.policy_for",
               "self.repository.upsert_snapshot",
               "self.sector_service.build",
+              "set",
+              "source_sessions.values",
               "standalone_market_context",
               "str",
               "str(config.symbols.get('risk_proxy') or '').strip",
@@ -28974,7 +29170,7 @@
               "str(config.symbols['primary_market']).strip().upper"
             ],
             "decorators": [],
-            "file_sha256": "974a387531dae834a6693b280c18e9e093e856c6a657e8464b182b4c3c843909",
+            "file_sha256": "0083468becf2e45038f9e0756bb8a64e295bd604953771705c3d8ba2f9116927",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -29027,7 +29223,7 @@
               "MarketRegimeCommandCenterService().build_snapshot"
             ],
             "decorators": [],
-            "file_sha256": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
+            "file_sha256": "32ba3eb0703e01426e299d1f2f534e5e5b2bcf5ed39786fd913ccfd648c11dcd",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -29137,13 +29333,16 @@
             "authority_branches": [
               "isinstance(db, Session)",
               "expected_calculation_identity is not None",
+              "mixed_sessions",
+              "mixed_sessions",
               "market_cutoff is None or (effective_configuration is None and current_delivery() is None)"
             ],
-            "body_sha256": "a133dd12f0095a3e61e56fec1eba4f18deea29a72793783822d67df946442705",
+            "body_sha256": "2d0b51ed0c6b9348d774674755709d4e2163ffb8d8965090ffe2bc871883fddd",
             "calls": [
               "EntryPointAuthorityError",
               "MarketRegimeCommandCenterDto",
               "Path",
+              "_unique_list",
               "asdict",
               "bool",
               "build_regime_identity",
@@ -29159,10 +29358,13 @@
               "float",
               "isinstance",
               "item.as_of_date.isoformat",
+              "len",
               "list",
               "load_market_regime_command_center_config",
               "market_cutoff.cutoff_at.isoformat",
               "market_cutoff.latest_completed_session.isoformat",
+              "min",
+              "min(source_sessions.values()).isoformat",
               "object.__setattr__",
               "pipeline_id_for_cutoff",
               "replace",
@@ -29177,6 +29379,8 @@
               "self.policy_service.policy_for",
               "self.repository.upsert_snapshot",
               "self.sector_service.build",
+              "set",
+              "source_sessions.values",
               "standalone_market_context",
               "str",
               "str(config.symbols.get('risk_proxy') or '').strip",
@@ -29185,7 +29389,7 @@
               "str(config.symbols['primary_market']).strip().upper"
             ],
             "decorators": [],
-            "file_sha256": "974a387531dae834a6693b280c18e9e093e856c6a657e8464b182b4c3c843909",
+            "file_sha256": "0083468becf2e45038f9e0756bb8a64e295bd604953771705c3d8ba2f9116927",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -29234,13 +29438,16 @@
             "authority_branches": [
               "isinstance(db, Session)",
               "expected_calculation_identity is not None",
+              "mixed_sessions",
+              "mixed_sessions",
               "market_cutoff is None or (effective_configuration is None and current_delivery() is None)"
             ],
-            "body_sha256": "a133dd12f0095a3e61e56fec1eba4f18deea29a72793783822d67df946442705",
+            "body_sha256": "2d0b51ed0c6b9348d774674755709d4e2163ffb8d8965090ffe2bc871883fddd",
             "calls": [
               "EntryPointAuthorityError",
               "MarketRegimeCommandCenterDto",
               "Path",
+              "_unique_list",
               "asdict",
               "bool",
               "build_regime_identity",
@@ -29256,10 +29463,13 @@
               "float",
               "isinstance",
               "item.as_of_date.isoformat",
+              "len",
               "list",
               "load_market_regime_command_center_config",
               "market_cutoff.cutoff_at.isoformat",
               "market_cutoff.latest_completed_session.isoformat",
+              "min",
+              "min(source_sessions.values()).isoformat",
               "object.__setattr__",
               "pipeline_id_for_cutoff",
               "replace",
@@ -29274,6 +29484,8 @@
               "self.policy_service.policy_for",
               "self.repository.upsert_snapshot",
               "self.sector_service.build",
+              "set",
+              "source_sessions.values",
               "standalone_market_context",
               "str",
               "str(config.symbols.get('risk_proxy') or '').strip",
@@ -29282,7 +29494,7 @@
               "str(config.symbols['primary_market']).strip().upper"
             ],
             "decorators": [],
-            "file_sha256": "974a387531dae834a6693b280c18e9e093e856c6a657e8464b182b4c3c843909",
+            "file_sha256": "0083468becf2e45038f9e0756bb8a64e295bd604953771705c3d8ba2f9116927",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -29336,13 +29548,14 @@
         "tests/test_domain_mutation.py::test_numeric_survival_cannot_replace_frozen_eligibility",
         "tests/integration/test_t14d_caller_postgresql.py::test_setup_source_loader_never_substitutes_newest_context_for_missing_authority"
       ],
-      "operation_family_id": "AF_bf2a94a37d93a2ec",
+      "operation_family_id": "AF_bbb558d96e7418d9",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation"
       ],
       "previous_operation_family_ids": [
         "AF_0da6fb162863bfe5",
+        "AF_bf2a94a37d93a2ec",
         "AF_c9fbb19d81e255f5",
         "OP_BUILD_MARKET_REGIME_SNAPSHOT_FOR_RUN_63314018",
         "OP_MARKETREGIMECOMMANDCENTERSERVICE_BUILD_SNAPSHOT_791a604a"
@@ -29574,7 +29787,7 @@
               "SectorRotationService().build_sector_rotation_snapshot"
             ],
             "decorators": [],
-            "file_sha256": "0c870d8d03501859f57276bb1f2120065141b0ffc0c780cfa2bc5b7f1fcfaa58",
+            "file_sha256": "32ba3eb0703e01426e299d1f2f534e5e5b2bcf5ed39786fd913ccfd648c11dcd",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -30609,7 +30822,7 @@
           "build_run_context_snapshots",
           "self.loader.load_run_context"
         ],
-        "authority_branch_fingerprint": "7630c85cf0aee436ef9e8122737c4c237fb1f7814f34e923cd5ab252973048e3",
+        "authority_branch_fingerprint": "bd629b90eea83638ab76241dce9aeca16449f4aaccf4131b33ef625f77d2f551",
         "authority_requirement_set": "3cce3ce38a90265a022a06b7d43c8fe7b1e57b6a0e3610654f9de08935fa27b5",
         "domains": [
           "ALERT_DECISION",
@@ -30626,7 +30839,7 @@
           "SETUP",
           "TECHNICAL"
         ],
-        "error_mapping": "042d69864791339cee3aacab13ee9f0b26a99f43f4bd314b2a454ca5c6404bb1",
+        "error_mapping": "588fbafe7e9029fa3fba6f2bd80ef044e930ac59ac7bf5a596a9b904e1486260",
         "execution_model": "synchronous",
         "semantic_modes": [
           "CANONICAL_CALCULATION",
@@ -30676,6 +30889,9 @@
               "batch_upsert is not None",
               "finalize_evaluation_run",
               "market_cutoff is None",
+              "frozen_tickers is not None",
+              "frozen_tickers is not None",
+              "set(actual) != set(expected) or len(actual) != len(expected)",
               "evaluation_run is not None",
               "evaluation_run is not None",
               "dto.effective_configuration is not None",
@@ -30684,13 +30900,14 @@
               "evaluation_run is not None",
               "isinstance(db, Session)"
             ],
-            "body_sha256": "c388a1eed4104642366000f8cb4916931a859585097d88032875aa692b8ce989",
+            "body_sha256": "a67ba32de68ed20cb2961ea189619be3ee81f1001861403705ebda3f267181ea",
             "calls": [
               "EntryPointAuthorityError",
               "SnapshotCaptureResult",
               "batch_upsert",
               "build_run_context_snapshots",
               "dict",
+              "dict.fromkeys",
               "enumerate",
               "getattr",
               "isinstance",
@@ -30704,9 +30921,11 @@
               "self.repository.complete_evaluation_run",
               "self.repository.create_evaluation_run",
               "self.repository.upsert_snapshot",
+              "set",
               "snapshot_ids.append",
               "str",
               "sum",
+              "ticker.upper",
               "tuple",
               "verify_transition_decision_manifests_before_mutation",
               "warnings_by_ticker.values"
@@ -30714,7 +30933,7 @@
             "decorators": [
               "anchored_decision_calculator"
             ],
-            "file_sha256": "13888ac8b12c6d331a94f1d63b5d9a7eaeb301cc988c4a893197a9d4a9bcf0c4",
+            "file_sha256": "ef782e14123335ce1f34aa351dc78ca313994566eb3341c54ee1ad75cb696707",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -30763,7 +30982,7 @@
               "us_trading_sessions_between": "app.services.us_market_calendar.us_trading_sessions_between",
               "velocity_by_window": "app.services.setup_lifecycle.change_detector.velocity_by_window"
             },
-            "signature": "self, db, run_id: int, *, evaluation_run: SetupLifecycleEvaluationRun | None=None, requester: str | None=None, finalize_evaluation_run: bool=True, market_cutoff=None"
+            "signature": "self, db, run_id: int, *, evaluation_run: SetupLifecycleEvaluationRun | None=None, requester: str | None=None, finalize_evaluation_run: bool=True, market_cutoff=None, frozen_tickers: tuple[str, ...] | None=None"
           },
           "shared_service": "app/services/setup_lifecycle/snapshot_builder.py:SetupLifecycleSnapshotCaptureService.capture_snapshots_for_run",
           "source": {
@@ -30775,6 +30994,9 @@
               "batch_upsert is not None",
               "finalize_evaluation_run",
               "market_cutoff is None",
+              "frozen_tickers is not None",
+              "frozen_tickers is not None",
+              "set(actual) != set(expected) or len(actual) != len(expected)",
               "evaluation_run is not None",
               "evaluation_run is not None",
               "dto.effective_configuration is not None",
@@ -30783,13 +31005,14 @@
               "evaluation_run is not None",
               "isinstance(db, Session)"
             ],
-            "body_sha256": "c388a1eed4104642366000f8cb4916931a859585097d88032875aa692b8ce989",
+            "body_sha256": "a67ba32de68ed20cb2961ea189619be3ee81f1001861403705ebda3f267181ea",
             "calls": [
               "EntryPointAuthorityError",
               "SnapshotCaptureResult",
               "batch_upsert",
               "build_run_context_snapshots",
               "dict",
+              "dict.fromkeys",
               "enumerate",
               "getattr",
               "isinstance",
@@ -30803,9 +31026,11 @@
               "self.repository.complete_evaluation_run",
               "self.repository.create_evaluation_run",
               "self.repository.upsert_snapshot",
+              "set",
               "snapshot_ids.append",
               "str",
               "sum",
+              "ticker.upper",
               "tuple",
               "verify_transition_decision_manifests_before_mutation",
               "warnings_by_ticker.values"
@@ -30813,7 +31038,7 @@
             "decorators": [
               "anchored_decision_calculator"
             ],
-            "file_sha256": "13888ac8b12c6d331a94f1d63b5d9a7eaeb301cc988c4a893197a9d4a9bcf0c4",
+            "file_sha256": "ef782e14123335ce1f34aa351dc78ca313994566eb3341c54ee1ad75cb696707",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -30862,7 +31087,7 @@
               "us_trading_sessions_between": "app.services.us_market_calendar.us_trading_sessions_between",
               "velocity_by_window": "app.services.setup_lifecycle.change_detector.velocity_by_window"
             },
-            "signature": "self, db, run_id: int, *, evaluation_run: SetupLifecycleEvaluationRun | None=None, requester: str | None=None, finalize_evaluation_run: bool=True, market_cutoff=None"
+            "signature": "self, db, run_id: int, *, evaluation_run: SetupLifecycleEvaluationRun | None=None, requester: str | None=None, finalize_evaluation_run: bool=True, market_cutoff=None, frozen_tickers: tuple[str, ...] | None=None"
           }
         },
         {
@@ -30881,6 +31106,9 @@
               "batch_upsert is not None",
               "finalize_evaluation_run",
               "market_cutoff is None",
+              "frozen_tickers is not None",
+              "frozen_tickers is not None",
+              "set(actual) != set(expected) or len(actual) != len(expected)",
               "evaluation_run is not None",
               "evaluation_run is not None",
               "dto.effective_configuration is not None",
@@ -30889,13 +31117,14 @@
               "evaluation_run is not None",
               "isinstance(db, Session)"
             ],
-            "body_sha256": "c388a1eed4104642366000f8cb4916931a859585097d88032875aa692b8ce989",
+            "body_sha256": "a67ba32de68ed20cb2961ea189619be3ee81f1001861403705ebda3f267181ea",
             "calls": [
               "EntryPointAuthorityError",
               "SnapshotCaptureResult",
               "batch_upsert",
               "build_run_context_snapshots",
               "dict",
+              "dict.fromkeys",
               "enumerate",
               "getattr",
               "isinstance",
@@ -30909,9 +31138,11 @@
               "self.repository.complete_evaluation_run",
               "self.repository.create_evaluation_run",
               "self.repository.upsert_snapshot",
+              "set",
               "snapshot_ids.append",
               "str",
               "sum",
+              "ticker.upper",
               "tuple",
               "verify_transition_decision_manifests_before_mutation",
               "warnings_by_ticker.values"
@@ -30919,7 +31150,7 @@
             "decorators": [
               "anchored_decision_calculator"
             ],
-            "file_sha256": "13888ac8b12c6d331a94f1d63b5d9a7eaeb301cc988c4a893197a9d4a9bcf0c4",
+            "file_sha256": "ef782e14123335ce1f34aa351dc78ca313994566eb3341c54ee1ad75cb696707",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -30968,7 +31199,7 @@
               "us_trading_sessions_between": "app.services.us_market_calendar.us_trading_sessions_between",
               "velocity_by_window": "app.services.setup_lifecycle.change_detector.velocity_by_window"
             },
-            "signature": "self, db, run_id: int, *, evaluation_run: SetupLifecycleEvaluationRun | None=None, requester: str | None=None, finalize_evaluation_run: bool=True, market_cutoff=None"
+            "signature": "self, db, run_id: int, *, evaluation_run: SetupLifecycleEvaluationRun | None=None, requester: str | None=None, finalize_evaluation_run: bool=True, market_cutoff=None, frozen_tickers: tuple[str, ...] | None=None"
           },
           "shared_service": "app/services/setup_lifecycle/snapshot_builder.py:SetupLifecycleSnapshotCaptureService.capture_snapshots_for_run",
           "source": {
@@ -30980,7 +31211,7 @@
               "SetupLifecycleSnapshotCaptureService(config=config).capture_snapshots_for_run"
             ],
             "decorators": [],
-            "file_sha256": "13888ac8b12c6d331a94f1d63b5d9a7eaeb301cc988c4a893197a9d4a9bcf0c4",
+            "file_sha256": "ef782e14123335ce1f34aa351dc78ca313994566eb3341c54ee1ad75cb696707",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -31042,13 +31273,14 @@
         "tests/test_domain_mutation.py::test_numeric_survival_cannot_replace_frozen_eligibility",
         "tests/integration/test_t14d_caller_postgresql.py::test_setup_source_loader_never_substitutes_newest_context_for_missing_authority"
       ],
-      "operation_family_id": "AF_be5ed7d8ee0c3e0c",
+      "operation_family_id": "AF_efecf5419500e7cf",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation"
       ],
       "previous_operation_family_ids": [
         "AF_afac6a5ab9c706ba",
+        "AF_be5ed7d8ee0c3e0c",
         "OP_SETUPLIFECYCLESNAPSHOTCAPTURESERVICE_CAPTURE_SNAPSHOTS_FOR_RUN_5ecffaf3"
       ],
       "query_budget_tests": [],
@@ -38530,7 +38762,7 @@
         "authority_adapters": [
           "No authority adapter; exact executable operation reviewed separately"
         ],
-        "authority_branch_fingerprint": "d5b4e4532f54c13936349da34a8d79a4d2bc97755b47d81ef29c40b8b564e55b",
+        "authority_branch_fingerprint": "9f8dfc51b1d5009a707df62575b75567984146113b0122522a87c37d89a60e3b",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -38583,7 +38815,7 @@
               "not processing_request_key.endswith(refresh_suffix)",
               "result.ingestion_run_id"
             ],
-            "body_sha256": "d09fc42c5af0160d7667ca5358c9919a04bd6013bf658933056913b1feaa0579",
+            "body_sha256": "1d3252e6d3a36e3d09a16d713d88a7a6dee49114a658d1c12f855d1200c13d45",
             "calls": [
               "AcquisitionRequirement",
               "CanonicalEvidenceSerializer.fingerprint",
@@ -38605,6 +38837,8 @@
               "company.ticker.upper",
               "completed_tickers.add",
               "cutoff.isoformat",
+              "datetime.combine",
+              "datetime.max.time",
               "datetime.now",
               "datetime.now(UTC).date",
               "dict",
@@ -38641,7 +38875,7 @@
               "tuple"
             ],
             "decorators": [],
-            "file_sha256": "0d8f677784062be755369447423d4b9e506900cbe5c4f861dc02900e4dd6a4ca",
+            "file_sha256": "85794336f39af8a78a5835240f3a5beadf01b3cb5a81d7971ea68940140033fd",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -38676,13 +38910,14 @@
         "tests/test_domain_mutation.py::test_numeric_survival_cannot_replace_frozen_eligibility",
         "tests/integration/test_t14d_caller_postgresql.py::test_setup_source_loader_never_substitutes_newest_context_for_missing_authority"
       ],
-      "operation_family_id": "AF_04dfa77d85566ac5",
+      "operation_family_id": "AF_ed1e56146adbba38",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation",
         "tests/integration/test_t14d_caller_postgresql.py::test_new_root_and_child_preserve_frozen_rules_mode_and_operation_time"
       ],
       "previous_operation_family_ids": [
+        "AF_04dfa77d85566ac5",
         "AF_17ca39387430b453",
         "AF_61d58568e4195b40",
         "OP_CERIBACKFILLSERVICE_RUN_57e42943"
@@ -38708,154 +38943,6 @@
         "WF_CERI_SOURCE_NORMALIZATION",
         "WF_SEC_DOCUMENT_SOURCE",
         "WF_SEC_INCREMENTAL_IDENTITY"
-      ],
-      "transaction_boundary": "Same validating Session, native transaction and applicable durable fence"
-    },
-    {
-      "authority_adapter": [
-        "AuthorityDeliveryBoundary=app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild",
-        "boundary_certificate=REVIEWED_TRANSPORT_TO_NATIVE_OPERATION"
-      ],
-      "authority_equivalence_key": {
-        "authority_adapters": [
-          "No authority adapter; exact executable operation reviewed separately"
-        ],
-        "authority_branch_fingerprint": "d9408f8f371683208911d8829e91e0240998c92a7b56ee14398f0a8821bcda84",
-        "authority_requirement_set": "1d9e1c3cdea249b62f3670cbff10e8df67b3232e7d6b54bcbcdd76231fad03ff",
-        "domains": [
-          "CERI_CHANGE"
-        ],
-        "error_mapping": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "execution_model": "synchronous",
-        "semantic_modes": [
-          "CANONICAL_CALCULATION"
-        ],
-        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild:WF_CERI_CHANGE",
-        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
-        "writer_families": [
-          "WF_CERI_CHANGE"
-        ]
-      },
-      "domains": [
-        "CERI_CHANGE"
-      ],
-      "failure_behavior": "Rollback or explicit FAILED/PARTIAL; runtime transport proof required",
-      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
-      "inheritance_proofs": [
-        {
-          "authority_delivery_boundary": "app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild",
-          "boundary_certificate": "REVIEWED_TRANSPORT_TO_NATIVE_OPERATION",
-          "caller_specific_branch": true,
-          "convergence_kind": "DISTINCT_AUTHORITY_OPERATION",
-          "inheritance_basis": "Distinct operation; its authority branches are recorded.",
-          "initiator_id": "EF_7a4eefa3be56b725",
-          "service_source": null,
-          "shared_service": "app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild",
-          "source": {
-            "address": "app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild",
-            "authority_branches": [
-              "not isinstance(db, Session)",
-              "request.company_ids",
-              "request.ticker",
-              "request.run_id is not None"
-            ],
-            "body_sha256": "859dd32a83c3f131e1989eb780ee9bf92b8b553bd41c3fcd459ea435c5e58c8b",
-            "calls": [
-              "CeriCatalystEvent.company_id.in_",
-              "CeriCatalystEventRevision.catalyst_event_id.in_",
-              "CeriCompany.id.in_",
-              "CeriGuidanceEvent.company_id.in_",
-              "CeriScoreSnapshot.company_id.in_",
-              "CeriSourceRecord.id.in_",
-              "CoreCalculationEvidence.id.in_",
-              "PrefetchedSourceBodies",
-              "_required_boundary",
-              "bundle.load",
-              "bundle.seal",
-              "companies.where",
-              "events.with_only_columns",
-              "func.upper",
-              "guidance.with_only_columns",
-              "isinstance",
-              "prefetched_source_scope",
-              "request.ticker.upper",
-              "revisions.with_only_columns",
-              "scores.with_only_columns",
-              "select",
-              "select(CeriCatalystEvent).where",
-              "select(CeriCatalystEventRevision).where",
-              "select(CeriGuidanceEvent).where",
-              "select(CeriScoreSnapshot).where",
-              "select(CeriScoreSnapshot.company_id).where",
-              "select(CeriSourceRecord).where",
-              "select(CoreCalculationEvidence).where",
-              "self._rebuild",
-              "union"
-            ],
-            "decorators": [],
-            "file_sha256": "ed8519f619cd3b45fb6da81db63eb74c8cb35794c6819a84891383757e614ba6",
-            "guard_owners": [],
-            "import_bindings": {
-              "Any": "typing.Any",
-              "CeriCatalystEvent": "app.models.ceri_tables.CeriCatalystEvent",
-              "CeriCatalystEventRevision": "app.models.ceri_tables.CeriCatalystEventRevision",
-              "CeriChangeDetectionService": "app.services.ceri.change_detection_service.CeriChangeDetectionService",
-              "CeriCompany": "app.models.ceri_tables.CeriCompany",
-              "CeriConfig": "app.services.ceri.config.CeriConfig",
-              "CeriGuidanceEvent": "app.models.ceri_tables.CeriGuidanceEvent",
-              "CeriScoreSnapshot": "app.models.ceri_tables.CeriScoreSnapshot",
-              "CeriSourceRecord": "app.models.ceri_tables.CeriSourceRecord",
-              "CoreCalculationEvidence": "app.models.tables.CoreCalculationEvidence",
-              "MarketClockService": "app.services.market_clock_service.MarketClockService",
-              "Session": "sqlalchemy.orm.Session",
-              "SessionTimestampPolicy": "app.services.market_clock_service.SessionTimestampPolicy",
-              "annotations": "__future__.annotations",
-              "asdict": "dataclasses.asdict",
-              "dataclass": "dataclasses.dataclass",
-              "date": "datetime.date",
-              "datetime": "datetime.datetime",
-              "filter_eligible_snapshots": "app.services.ceri.evidence_eligibility.filter_eligible_snapshots",
-              "func": "sqlalchemy.func",
-              "load_ceri_config": "app.services.ceri.config.load_ceri_config",
-              "redact_text": "app.services.redaction.redact_text",
-              "select": "sqlalchemy.select",
-              "select_prior_comparison": "app.services.ceri.change_semantics.select_prior_comparison",
-              "source_record_is_eligible": "app.services.ceri.pit_eligibility.source_record_is_eligible",
-              "union": "sqlalchemy.union"
-            },
-            "signature": "self, db: Session, request: CeriChangeRebuildRequest"
-          }
-        }
-      ],
-      "member_initiator_ids": [
-        "EF_7a4eefa3be56b725"
-      ],
-      "negative_tests": [
-        "tests/test_domain_mutation.py::test_missing_or_mismatched_authority_fails_without_reconstruction",
-        "tests/test_domain_mutation.py::test_numeric_survival_cannot_replace_frozen_eligibility",
-        "tests/integration/test_t14d_caller_postgresql.py::test_setup_source_loader_never_substitutes_newest_context_for_missing_authority"
-      ],
-      "operation_family_id": "AF_9701990a1bad3828",
-      "positive_tests": [
-        "tests/test_domain_mutation.py::test_representative_contexts",
-        "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation",
-        "tests/integration/test_t14d_caller_postgresql.py::test_new_root_and_child_preserve_frozen_rules_mode_and_operation_time"
-      ],
-      "previous_operation_family_ids": [
-        "AF_2774353def311655",
-        "OP_CERICHANGEREBUILDSERVICE_REBUILD_7a4eefa3"
-      ],
-      "query_budget_tests": [],
-      "remaining_requirements": [],
-      "semantic_mode": [
-        "CANONICAL_CALCULATION"
-      ],
-      "semantic_service": "app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild",
-      "surfaces": [
-        "SERVICE_PUBLIC"
-      ],
-      "target_writer_families": [
-        "WF_CERI_CHANGE"
       ],
       "transaction_boundary": "Same validating Session, native transaction and applicable durable fence"
     },
@@ -38920,7 +39007,7 @@
               "self.rebuild_from_context"
             ],
             "decorators": [],
-            "file_sha256": "223e816e06f2eb715c30ed2cbd5387fb16d404d2523ccf8931b935c8060fea09",
+            "file_sha256": "48a3e9e58eef0eb36d32e60a114536238db1938eb9f11487432e265ea8a654b9",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -39090,7 +39177,7 @@
               "self._rebuild_company"
             ],
             "decorators": [],
-            "file_sha256": "223e816e06f2eb715c30ed2cbd5387fb16d404d2523ccf8931b935c8060fea09",
+            "file_sha256": "48a3e9e58eef0eb36d32e60a114536238db1938eb9f11487432e265ea8a654b9",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -48603,9 +48690,11 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "b94176f15e470222484abc60615a0a16416d551b8e8cf4f2e50f955e5939379a",
+        "authority_branch_fingerprint": "20c93347b4d420184d9e6b7682eb0940ab7f6f8d78955f0dd727804c1cba3b68",
         "authority_requirement_set": "843ae09f14262431be7c558f559597275040bd1f9b12e8dc20e11e5391698f9f",
         "domains": [
           "CERI",
@@ -48622,7 +48711,7 @@
           "SECTOR",
           "TECHNICAL"
         ],
-        "error_mapping": "afb2969b257454a5751f48999f5a73c686e77d367a2819121f85e4c56056c9c5",
+        "error_mapping": "34cf5b537a6cb91ba36791af8140c379b437ec9bbe58b40f9dd8e62afb2a48b9",
         "execution_model": "durable",
         "semantic_modes": [
           "BOOTSTRAP",
@@ -48649,7 +48738,65 @@
         "EF_1b91db6627789dc6",
         "EF_8c34bf021c5cd042"
       ],
-      "normalized_operation_family_id": "AF_783f63bd6ad9af37",
+      "normalized_operation_family_id": "AF_a1a3696c9861b5f9",
+      "old_operation_family_id": "AF_783f63bd6ad9af37",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded.",
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
+        ],
+        "authority_branch_fingerprint": "20c93347b4d420184d9e6b7682eb0940ab7f6f8d78955f0dd727804c1cba3b68",
+        "authority_requirement_set": "843ae09f14262431be7c558f559597275040bd1f9b12e8dc20e11e5391698f9f",
+        "domains": [
+          "CERI",
+          "CERI_ALERT",
+          "CERI_CHANGE",
+          "CERI_SOURCE",
+          "COMBINED",
+          "CONFIGURATION",
+          "CURRENT_PROJECTION",
+          "FUNDAMENTAL",
+          "IBMI",
+          "RANKING",
+          "REGIME",
+          "SECTOR",
+          "TECHNICAL"
+        ],
+        "error_mapping": "34cf5b537a6cb91ba36791af8140c379b437ec9bbe58b40f9dd8e62afb2a48b9",
+        "execution_model": "durable",
+        "semantic_modes": [
+          "BOOTSTRAP",
+          "CANONICAL_CALCULATION",
+          "CURRENT_PROJECTION_ADVANCE",
+          "MAINTENANCE"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:anchored_job_configuration:WF_CERI_ALERT_CREATION|WF_CERI_CHANGE|WF_CERI_CONSENSUS_ATTACH|WF_CERI_FEATURE_BUILD|WF_CERI_PRICE_RESPONSE|WF_CERI_REVISION_FEATURE|WF_CERI_SCORE|WF_CONFIGURATION_DELIVERY|WF_CORE_CURRENT_PROJECTION|WF_CORE_RETAINED_EVIDENCE",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_ALERT_CREATION",
+          "WF_CERI_CHANGE",
+          "WF_CERI_CONSENSUS_ATTACH",
+          "WF_CERI_FEATURE_BUILD",
+          "WF_CERI_PRICE_RESPONSE",
+          "WF_CERI_REVISION_FEATURE",
+          "WF_CERI_SCORE",
+          "WF_CONFIGURATION_DELIVERY",
+          "WF_CORE_CURRENT_PROJECTION",
+          "WF_CORE_RETAINED_EVIDENCE"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_1b91db6627789dc6",
+        "EF_8c34bf021c5cd042"
+      ],
+      "normalized_operation_family_id": "AF_a1a3696c9861b5f9",
       "old_operation_family_id": "AF_814796bd0950299b",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded.",
@@ -48659,9 +48806,11 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "b94176f15e470222484abc60615a0a16416d551b8e8cf4f2e50f955e5939379a",
+        "authority_branch_fingerprint": "20c93347b4d420184d9e6b7682eb0940ab7f6f8d78955f0dd727804c1cba3b68",
         "authority_requirement_set": "843ae09f14262431be7c558f559597275040bd1f9b12e8dc20e11e5391698f9f",
         "domains": [
           "CERI",
@@ -48678,7 +48827,7 @@
           "SECTOR",
           "TECHNICAL"
         ],
-        "error_mapping": "afb2969b257454a5751f48999f5a73c686e77d367a2819121f85e4c56056c9c5",
+        "error_mapping": "34cf5b537a6cb91ba36791af8140c379b437ec9bbe58b40f9dd8e62afb2a48b9",
         "execution_model": "durable",
         "semantic_modes": [
           "BOOTSTRAP",
@@ -48705,7 +48854,7 @@
         "EF_1b91db6627789dc6",
         "EF_8c34bf021c5cd042"
       ],
-      "normalized_operation_family_id": "AF_783f63bd6ad9af37",
+      "normalized_operation_family_id": "AF_a1a3696c9861b5f9",
       "old_operation_family_id": "AF_e23d973feb1088b8",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded.",
@@ -48715,9 +48864,11 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "b94176f15e470222484abc60615a0a16416d551b8e8cf4f2e50f955e5939379a",
+        "authority_branch_fingerprint": "20c93347b4d420184d9e6b7682eb0940ab7f6f8d78955f0dd727804c1cba3b68",
         "authority_requirement_set": "843ae09f14262431be7c558f559597275040bd1f9b12e8dc20e11e5391698f9f",
         "domains": [
           "CERI",
@@ -48734,7 +48885,7 @@
           "SECTOR",
           "TECHNICAL"
         ],
-        "error_mapping": "afb2969b257454a5751f48999f5a73c686e77d367a2819121f85e4c56056c9c5",
+        "error_mapping": "34cf5b537a6cb91ba36791af8140c379b437ec9bbe58b40f9dd8e62afb2a48b9",
         "execution_model": "durable",
         "semantic_modes": [
           "BOOTSTRAP",
@@ -48761,7 +48912,7 @@
         "EF_1b91db6627789dc6",
         "EF_8c34bf021c5cd042"
       ],
-      "normalized_operation_family_id": "AF_783f63bd6ad9af37",
+      "normalized_operation_family_id": "AF_a1a3696c9861b5f9",
       "old_operation_family_id": "OP_EXECUTE_REBUILD_FEATURES_JOB_8c34bf02",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded.",
@@ -48771,9 +48922,11 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "b94176f15e470222484abc60615a0a16416d551b8e8cf4f2e50f955e5939379a",
+        "authority_branch_fingerprint": "20c93347b4d420184d9e6b7682eb0940ab7f6f8d78955f0dd727804c1cba3b68",
         "authority_requirement_set": "843ae09f14262431be7c558f559597275040bd1f9b12e8dc20e11e5391698f9f",
         "domains": [
           "CERI",
@@ -48790,7 +48943,7 @@
           "SECTOR",
           "TECHNICAL"
         ],
-        "error_mapping": "afb2969b257454a5751f48999f5a73c686e77d367a2819121f85e4c56056c9c5",
+        "error_mapping": "34cf5b537a6cb91ba36791af8140c379b437ec9bbe58b40f9dd8e62afb2a48b9",
         "execution_model": "durable",
         "semantic_modes": [
           "BOOTSTRAP",
@@ -48817,7 +48970,7 @@
         "EF_1b91db6627789dc6",
         "EF_8c34bf021c5cd042"
       ],
-      "normalized_operation_family_id": "AF_783f63bd6ad9af37",
+      "normalized_operation_family_id": "AF_a1a3696c9861b5f9",
       "old_operation_family_id": "OP_EXECUTE_RUN_FINALIZE_JOB_1b91db66",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded.",
@@ -49261,9 +49414,10 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "b4e68f69a27713567691de0c684096a43f36ce6ad8c22e2d8500ca4bb0300704",
+        "authority_branch_fingerprint": "24f909725fdf125c0554f0a758187e733d7343677294ea095f880a048a356dbf",
         "authority_requirement_set": "61ba050dddb9fcea0a0f70ca63825bdd89ca782b7b9922c7769e23e12d6b5562",
         "domains": [
           "CERI_ALERT",
@@ -49287,7 +49441,43 @@
       "exact_member_caller_ids": [
         "EF_a858bf7694ca75d1"
       ],
-      "normalized_operation_family_id": "AF_a603976be1343a23",
+      "normalized_operation_family_id": "AF_40fb480e20914a3c",
+      "old_operation_family_id": "AF_a603976be1343a23",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "anchored_job_configuration",
+          "require_semantic_authority"
+        ],
+        "authority_branch_fingerprint": "24f909725fdf125c0554f0a758187e733d7343677294ea095f880a048a356dbf",
+        "authority_requirement_set": "61ba050dddb9fcea0a0f70ca63825bdd89ca782b7b9922c7769e23e12d6b5562",
+        "domains": [
+          "CERI_ALERT",
+          "CERI_CHANGE",
+          "CONFIGURATION"
+        ],
+        "error_mapping": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "execution_model": "durable",
+        "semantic_modes": [
+          "BOOTSTRAP",
+          "CANONICAL_CALCULATION"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:anchored_job_configuration:WF_CERI_ALERT_CREATION|WF_CERI_CHANGE|WF_CONFIGURATION_DELIVERY",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_ALERT_CREATION",
+          "WF_CERI_CHANGE",
+          "WF_CONFIGURATION_DELIVERY"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_a858bf7694ca75d1"
+      ],
+      "normalized_operation_family_id": "AF_40fb480e20914a3c",
       "old_operation_family_id": "AF_aff4a10ea076922f",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -49296,9 +49486,10 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "b4e68f69a27713567691de0c684096a43f36ce6ad8c22e2d8500ca4bb0300704",
+        "authority_branch_fingerprint": "24f909725fdf125c0554f0a758187e733d7343677294ea095f880a048a356dbf",
         "authority_requirement_set": "61ba050dddb9fcea0a0f70ca63825bdd89ca782b7b9922c7769e23e12d6b5562",
         "domains": [
           "CERI_ALERT",
@@ -49322,7 +49513,7 @@
       "exact_member_caller_ids": [
         "EF_a858bf7694ca75d1"
       ],
-      "normalized_operation_family_id": "AF_a603976be1343a23",
+      "normalized_operation_family_id": "AF_40fb480e20914a3c",
       "old_operation_family_id": "OP_EXECUTE_CHANGE_DETECTION_JOB_a858bf76",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -49454,9 +49645,10 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "59b92ed56daa9c1b58daa55e86f942bee4a99ba61110e7040af0ae3a2c41258e",
+        "authority_branch_fingerprint": "a24358f623ec485c2fcce71a296000c4197038a4a012fbc0cee6dac7d890969e",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -49478,7 +49670,7 @@
       "exact_member_caller_ids": [
         "EF_396637ef05c88e25"
       ],
-      "normalized_operation_family_id": "AF_c443168c381a5897",
+      "normalized_operation_family_id": "AF_d71ce6ad4a66d9e5",
       "old_operation_family_id": "AF_b57273d00dbe3bbe",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -49487,9 +49679,10 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "59b92ed56daa9c1b58daa55e86f942bee4a99ba61110e7040af0ae3a2c41258e",
+        "authority_branch_fingerprint": "a24358f623ec485c2fcce71a296000c4197038a4a012fbc0cee6dac7d890969e",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -49511,7 +49704,41 @@
       "exact_member_caller_ids": [
         "EF_396637ef05c88e25"
       ],
-      "normalized_operation_family_id": "AF_c443168c381a5897",
+      "normalized_operation_family_id": "AF_d71ce6ad4a66d9e5",
+      "old_operation_family_id": "AF_c443168c381a5897",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "anchored_job_configuration",
+          "require_semantic_authority"
+        ],
+        "authority_branch_fingerprint": "a24358f623ec485c2fcce71a296000c4197038a4a012fbc0cee6dac7d890969e",
+        "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
+        "domains": [
+          "CERI_SOURCE"
+        ],
+        "error_mapping": "a85f36576c855b084348231e35cd0b70b8f6f88331411690a9f852f135f0949e",
+        "execution_model": "durable",
+        "semantic_modes": [
+          "CANONICAL_CALCULATION",
+          "MAINTENANCE"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:anchored_job_configuration:WF_CERI_CONSENSUS_ATTACH|WF_CERI_FEATURE_BUILD|WF_CERI_REVISION_FEATURE",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_CONSENSUS_ATTACH",
+          "WF_CERI_FEATURE_BUILD",
+          "WF_CERI_REVISION_FEATURE"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_396637ef05c88e25"
+      ],
+      "normalized_operation_family_id": "AF_d71ce6ad4a66d9e5",
       "old_operation_family_id": "OP_EXECUTE_FEATURE_BATCH_JOB_396637ef",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -49586,9 +49813,10 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "0de78d0f16eb2e7a21928b2c16accb0c29f430a897b6318e228e7e7347b55681",
+        "authority_branch_fingerprint": "1aaafcffe347884960b144dbb9c312b8a0210d09664cd4c57335d0a0a406cdb0",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -49610,7 +49838,41 @@
       "exact_member_caller_ids": [
         "EF_cbb8326842449165"
       ],
-      "normalized_operation_family_id": "AF_92c66465b4b4dda2",
+      "normalized_operation_family_id": "AF_01c2d73e5c26b6c4",
+      "old_operation_family_id": "AF_92c66465b4b4dda2",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "anchored_job_configuration",
+          "require_semantic_authority"
+        ],
+        "authority_branch_fingerprint": "1aaafcffe347884960b144dbb9c312b8a0210d09664cd4c57335d0a0a406cdb0",
+        "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
+        "domains": [
+          "CERI_SOURCE"
+        ],
+        "error_mapping": "8b06e56e9f6427c24fd0f20501abd9d68757d111cd0f74c21fd0e387cb47a4b4",
+        "execution_model": "durable",
+        "semantic_modes": [
+          "CANONICAL_CALCULATION",
+          "MAINTENANCE"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:anchored_job_configuration:WF_CERI_RAW_SOURCE|WF_SEC_DOCUMENT_SOURCE|WF_SEC_INCREMENTAL_IDENTITY",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_RAW_SOURCE",
+          "WF_SEC_DOCUMENT_SOURCE",
+          "WF_SEC_INCREMENTAL_IDENTITY"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_cbb8326842449165"
+      ],
+      "normalized_operation_family_id": "AF_01c2d73e5c26b6c4",
       "old_operation_family_id": "AF_e762383087dbb767",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -49619,9 +49881,10 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "0de78d0f16eb2e7a21928b2c16accb0c29f430a897b6318e228e7e7347b55681",
+        "authority_branch_fingerprint": "1aaafcffe347884960b144dbb9c312b8a0210d09664cd4c57335d0a0a406cdb0",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -49643,7 +49906,7 @@
       "exact_member_caller_ids": [
         "EF_cbb8326842449165"
       ],
-      "normalized_operation_family_id": "AF_92c66465b4b4dda2",
+      "normalized_operation_family_id": "AF_01c2d73e5c26b6c4",
       "old_operation_family_id": "OP_EXECUTE_PROVIDER_INGEST_BATCH_JOB_cbb83268",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -52840,16 +53103,19 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
+          "bind_semantic_authority",
+          "require_semantic_authority",
           "resolve_pipeline_market_context",
-          "select(MarketCalculationContext).where(MarketCalculationContext.id == market_cutoff.context_id).with_for_update"
+          "select(MarketCalculationContext).where(MarketCalculationContext.id == market_cutoff.context_id).with_for_update",
+          "semantic_authority.as_dict"
         ],
-        "authority_branch_fingerprint": "5e71f78d5e3b00d7cafbfd3640cc62829197d6e508c181eb3c5291c4f181b317",
+        "authority_branch_fingerprint": "e7ab6b6c51ba453447eb6e9c218203ce21f79d7020374881b246de5240138a47",
         "authority_requirement_set": "ae9087f16ce20802d2b89f586e91467b9742b16903d05fc3eca9810e43b78da6",
         "domains": [
           "CERI_SOURCE",
           "CONFIGURATION"
         ],
-        "error_mapping": "8456353760345e8c1f72875a0a12aa96aaeda397ad02398c340a575ac370fa8e",
+        "error_mapping": "20174152f18c3a70be122eb8f235e50d527de3811833c7709e435e1679b85931",
         "execution_model": "synchronous",
         "semantic_modes": [
           "BOOTSTRAP"
@@ -52864,7 +53130,43 @@
       "exact_member_caller_ids": [
         "EF_fb3da89576a5f670"
       ],
-      "normalized_operation_family_id": "AF_27f76b361d63009e",
+      "normalized_operation_family_id": "AF_1ce97aac351365aa",
+      "old_operation_family_id": "AF_27f76b361d63009e",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "bind_semantic_authority",
+          "require_semantic_authority",
+          "resolve_pipeline_market_context",
+          "select(MarketCalculationContext).where(MarketCalculationContext.id == market_cutoff.context_id).with_for_update",
+          "semantic_authority.as_dict"
+        ],
+        "authority_branch_fingerprint": "e7ab6b6c51ba453447eb6e9c218203ce21f79d7020374881b246de5240138a47",
+        "authority_requirement_set": "ae9087f16ce20802d2b89f586e91467b9742b16903d05fc3eca9810e43b78da6",
+        "domains": [
+          "CERI_SOURCE",
+          "CONFIGURATION"
+        ],
+        "error_mapping": "20174152f18c3a70be122eb8f235e50d527de3811833c7709e435e1679b85931",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "BOOTSTRAP"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:EntryPointAuthorityError:WF_CERI_COMPANY_BOOTSTRAP|WF_CONFIGURATION_DELIVERY",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_COMPANY_BOOTSTRAP",
+          "WF_CONFIGURATION_DELIVERY"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_fb3da89576a5f670"
+      ],
+      "normalized_operation_family_id": "AF_1ce97aac351365aa",
       "old_operation_family_id": "AF_c0d66929e4817cbd",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -52873,16 +53175,19 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
+          "bind_semantic_authority",
+          "require_semantic_authority",
           "resolve_pipeline_market_context",
-          "select(MarketCalculationContext).where(MarketCalculationContext.id == market_cutoff.context_id).with_for_update"
+          "select(MarketCalculationContext).where(MarketCalculationContext.id == market_cutoff.context_id).with_for_update",
+          "semantic_authority.as_dict"
         ],
-        "authority_branch_fingerprint": "5e71f78d5e3b00d7cafbfd3640cc62829197d6e508c181eb3c5291c4f181b317",
+        "authority_branch_fingerprint": "e7ab6b6c51ba453447eb6e9c218203ce21f79d7020374881b246de5240138a47",
         "authority_requirement_set": "ae9087f16ce20802d2b89f586e91467b9742b16903d05fc3eca9810e43b78da6",
         "domains": [
           "CERI_SOURCE",
           "CONFIGURATION"
         ],
-        "error_mapping": "8456353760345e8c1f72875a0a12aa96aaeda397ad02398c340a575ac370fa8e",
+        "error_mapping": "20174152f18c3a70be122eb8f235e50d527de3811833c7709e435e1679b85931",
         "execution_model": "synchronous",
         "semantic_modes": [
           "BOOTSTRAP"
@@ -52897,7 +53202,7 @@
       "exact_member_caller_ids": [
         "EF_fb3da89576a5f670"
       ],
-      "normalized_operation_family_id": "AF_27f76b361d63009e",
+      "normalized_operation_family_id": "AF_1ce97aac351365aa",
       "old_operation_family_id": "OP_SCHEDULE_CERI_BATCHED_WORKFLOW_fb3da895",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -52917,7 +53222,7 @@
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by",
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by(IBFetchRun.id.desc()).limit"
         ],
-        "authority_branch_fingerprint": "640b1022531f3f7f30b8575fc8ad24e9dadedd7969c278a6d159946453476279",
+        "authority_branch_fingerprint": "87f1a7829344a24b6efa96d3341833c130fc20cf98f95273b6860d508edf0de7",
         "authority_requirement_set": "c415982d5bd350252565fd1f5a59f2895cf602772c2eb6799e49676b40de498d",
         "domains": [
           "CERI",
@@ -52985,7 +53290,95 @@
       "exact_member_caller_ids": [
         "EF_f3e3fc7ce827f01c"
       ],
-      "normalized_operation_family_id": "AF_7debad667394f7d3",
+      "normalized_operation_family_id": "AF_57090e3c1c60a552",
+      "old_operation_family_id": "AF_7debad667394f7d3",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "_admit_fetch_authority",
+          "bind_semantic_authority",
+          "delivered_configuration",
+          "fetch_authority.as_dict",
+          "market_context_for_pipeline",
+          "pipeline_configuration_delivery",
+          "require_semantic_authority",
+          "resolve_pipeline_prewarm_context",
+          "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by",
+          "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by(IBFetchRun.id.desc()).limit"
+        ],
+        "authority_branch_fingerprint": "87f1a7829344a24b6efa96d3341833c130fc20cf98f95273b6860d508edf0de7",
+        "authority_requirement_set": "c415982d5bd350252565fd1f5a59f2895cf602772c2eb6799e49676b40de498d",
+        "domains": [
+          "CERI",
+          "CERI_ALERT",
+          "CERI_CHANGE",
+          "CERI_SOURCE",
+          "COMBINED",
+          "CONFIGURATION",
+          "CURRENT_PROJECTION",
+          "FUNDAMENTAL",
+          "IBMI",
+          "IBMI_SOURCE",
+          "PIPELINE",
+          "PRICE",
+          "RANKING",
+          "RAW",
+          "REGIME",
+          "SECTOR",
+          "TECHNICAL"
+        ],
+        "error_mapping": "95fe335366cc6cd146e0146e2a7f0d72bb01b5da67706d4051b1c8391e366295",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "BOOTSTRAP",
+          "CANONICAL_CALCULATION",
+          "CURRENT_PROJECTION_ADVANCE",
+          "LEGACY_UNCERTIFIED",
+          "MAINTENANCE"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:SemanticWorkAuthority:WF_CERI_ALERT_CREATION|WF_CERI_CHANGE|WF_CERI_CONSENSUS_ATTACH|WF_CERI_FEATURE_BUILD|WF_CERI_GUIDANCE_ELIGIBILITY|WF_CERI_PRICE_RESPONSE|WF_CERI_RAW_SOURCE|WF_CERI_REVISION_FEATURE|WF_CERI_SCORE|WF_CERI_SOURCE_IDENTITY|WF_CERI_SOURCE_NORMALIZATION|WF_COMBINED_REFRESH|WF_CONFIGURATION_DELIVERY|WF_CORE_CURRENT_PROJECTION|WF_CORE_RETAINED_EVIDENCE|WF_FUNDAMENTAL_RECALCULATION|WF_IB_CONTRACT_IDENTITY|WF_MARKET_CONTEXT_AUTHORITY|WF_PIPELINE_STAGE_STATE|WF_PRICE_INGESTION|WF_PRICE_SERIES_VERSION|WF_RANKING_LEGACY_REPLACEMENT|WF_RANKING_PERSISTENCE|WF_REGIME_SNAPSHOT|WF_SECTOR_SNAPSHOT|WF_SEC_DOCUMENT_SOURCE|WF_SEC_INCREMENTAL_IDENTITY|WF_TECHNICAL_FEATURE_CACHE|WF_TECHNICAL_FINALIZATION|WF_WINNER_MARKET_DATA_OBLIGATION",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_ALERT_CREATION",
+          "WF_CERI_CHANGE",
+          "WF_CERI_CONSENSUS_ATTACH",
+          "WF_CERI_FEATURE_BUILD",
+          "WF_CERI_GUIDANCE_ELIGIBILITY",
+          "WF_CERI_PRICE_RESPONSE",
+          "WF_CERI_RAW_SOURCE",
+          "WF_CERI_REVISION_FEATURE",
+          "WF_CERI_SCORE",
+          "WF_CERI_SOURCE_IDENTITY",
+          "WF_CERI_SOURCE_NORMALIZATION",
+          "WF_COMBINED_REFRESH",
+          "WF_CONFIGURATION_DELIVERY",
+          "WF_CORE_CURRENT_PROJECTION",
+          "WF_CORE_RETAINED_EVIDENCE",
+          "WF_FUNDAMENTAL_RECALCULATION",
+          "WF_IB_CONTRACT_IDENTITY",
+          "WF_MARKET_CONTEXT_AUTHORITY",
+          "WF_PIPELINE_STAGE_STATE",
+          "WF_PRICE_INGESTION",
+          "WF_PRICE_SERIES_VERSION",
+          "WF_RANKING_LEGACY_REPLACEMENT",
+          "WF_RANKING_PERSISTENCE",
+          "WF_REGIME_SNAPSHOT",
+          "WF_SECTOR_SNAPSHOT",
+          "WF_SEC_DOCUMENT_SOURCE",
+          "WF_SEC_INCREMENTAL_IDENTITY",
+          "WF_TECHNICAL_FEATURE_CACHE",
+          "WF_TECHNICAL_FINALIZATION",
+          "WF_WINNER_MARKET_DATA_OBLIGATION"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_f3e3fc7ce827f01c"
+      ],
+      "normalized_operation_family_id": "AF_57090e3c1c60a552",
       "old_operation_family_id": "AF_8d84446ab7b00f3b",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -53005,7 +53398,7 @@
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by",
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by(IBFetchRun.id.desc()).limit"
         ],
-        "authority_branch_fingerprint": "640b1022531f3f7f30b8575fc8ad24e9dadedd7969c278a6d159946453476279",
+        "authority_branch_fingerprint": "87f1a7829344a24b6efa96d3341833c130fc20cf98f95273b6860d508edf0de7",
         "authority_requirement_set": "c415982d5bd350252565fd1f5a59f2895cf602772c2eb6799e49676b40de498d",
         "domains": [
           "CERI",
@@ -53073,7 +53466,7 @@
       "exact_member_caller_ids": [
         "EF_f3e3fc7ce827f01c"
       ],
-      "normalized_operation_family_id": "AF_7debad667394f7d3",
+      "normalized_operation_family_id": "AF_57090e3c1c60a552",
       "old_operation_family_id": "AF_a0d3efae8c1c6752",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -53093,7 +53486,7 @@
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by",
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by(IBFetchRun.id.desc()).limit"
         ],
-        "authority_branch_fingerprint": "640b1022531f3f7f30b8575fc8ad24e9dadedd7969c278a6d159946453476279",
+        "authority_branch_fingerprint": "87f1a7829344a24b6efa96d3341833c130fc20cf98f95273b6860d508edf0de7",
         "authority_requirement_set": "c415982d5bd350252565fd1f5a59f2895cf602772c2eb6799e49676b40de498d",
         "domains": [
           "CERI",
@@ -53161,7 +53554,7 @@
       "exact_member_caller_ids": [
         "EF_f3e3fc7ce827f01c"
       ],
-      "normalized_operation_family_id": "AF_7debad667394f7d3",
+      "normalized_operation_family_id": "AF_57090e3c1c60a552",
       "old_operation_family_id": "AF_f7416b02ff7a2171",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -53181,7 +53574,7 @@
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by",
           "select(IBFetchRun.id).where(IBFetchRun.run_id == upload_run.id).where(IBFetchRun.status == 'RUNNING').where(IBFetchRun.scope_id == (fetch_authority.scope_id if fetch_authority is not None else None)).order_by(IBFetchRun.id.desc()).limit"
         ],
-        "authority_branch_fingerprint": "640b1022531f3f7f30b8575fc8ad24e9dadedd7969c278a6d159946453476279",
+        "authority_branch_fingerprint": "87f1a7829344a24b6efa96d3341833c130fc20cf98f95273b6860d508edf0de7",
         "authority_requirement_set": "c415982d5bd350252565fd1f5a59f2895cf602772c2eb6799e49676b40de498d",
         "domains": [
           "CERI",
@@ -53249,7 +53642,7 @@
       "exact_member_caller_ids": [
         "EF_f3e3fc7ce827f01c"
       ],
-      "normalized_operation_family_id": "AF_7debad667394f7d3",
+      "normalized_operation_family_id": "AF_57090e3c1c60a552",
       "old_operation_family_id": "OP_EXECUTE_FULL_PIPELINE_f3e3fc7c",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -56056,6 +56449,96 @@
       ],
       "normalized_operation_family_id": "AF_d73d5c1718033e8e",
       "old_operation_family_id": "OP_EVALUATE_SETUP_LIFECYCLE_RUN_7344c72b",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "self._authority_tickers"
+        ],
+        "authority_branch_fingerprint": "04202f753d749dc98a375e25cf827b3e526c53d52a52fa988dde28578ab17004",
+        "authority_requirement_set": "1d9e1c3cdea249b62f3670cbff10e8df67b3232e7d6b54bcbcdd76231fad03ff",
+        "domains": [
+          "CERI_CHANGE"
+        ],
+        "error_mapping": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "CANONICAL_CALCULATION"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:self._authority_tickers:WF_CERI_CHANGE",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_CHANGE"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_7a4eefa3be56b725"
+      ],
+      "normalized_operation_family_id": "AF_c194fd2a7ed181c0",
+      "old_operation_family_id": "AF_2774353def311655",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "self._authority_tickers"
+        ],
+        "authority_branch_fingerprint": "04202f753d749dc98a375e25cf827b3e526c53d52a52fa988dde28578ab17004",
+        "authority_requirement_set": "1d9e1c3cdea249b62f3670cbff10e8df67b3232e7d6b54bcbcdd76231fad03ff",
+        "domains": [
+          "CERI_CHANGE"
+        ],
+        "error_mapping": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "CANONICAL_CALCULATION"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:self._authority_tickers:WF_CERI_CHANGE",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_CHANGE"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_7a4eefa3be56b725"
+      ],
+      "normalized_operation_family_id": "AF_c194fd2a7ed181c0",
+      "old_operation_family_id": "AF_9701990a1bad3828",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "self._authority_tickers"
+        ],
+        "authority_branch_fingerprint": "04202f753d749dc98a375e25cf827b3e526c53d52a52fa988dde28578ab17004",
+        "authority_requirement_set": "1d9e1c3cdea249b62f3670cbff10e8df67b3232e7d6b54bcbcdd76231fad03ff",
+        "domains": [
+          "CERI_CHANGE"
+        ],
+        "error_mapping": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "CANONICAL_CALCULATION"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:self._authority_tickers:WF_CERI_CHANGE",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_CHANGE"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_7a4eefa3be56b725"
+      ],
+      "normalized_operation_family_id": "AF_c194fd2a7ed181c0",
+      "old_operation_family_id": "OP_CERICHANGEREBUILDSERVICE_REBUILD_7a4eefa3",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
       ]
@@ -58955,7 +59438,7 @@
           "effective_configuration.require_retry_identity",
           "standalone_market_context"
         ],
-        "authority_branch_fingerprint": "c6af4d88dfaaaaab0da1fefeccf3e9d8abf16f51b834c60929297b764fb6ab7e",
+        "authority_branch_fingerprint": "980104a00ea673705a4f6adb9b8d799f8f19d869a51b9907e9e9ad168472a3f1",
         "authority_requirement_set": "3781a66138cecf6e0d1597ab108729a09b8f8b34c6b71fe474f2034add27c382",
         "domains": [
           "CERI",
@@ -58986,7 +59469,7 @@
         "EF_633140182b79ba72",
         "EF_791a604abef6589e"
       ],
-      "normalized_operation_family_id": "AF_bf2a94a37d93a2ec",
+      "normalized_operation_family_id": "AF_bbb558d96e7418d9",
       "old_operation_family_id": "AF_0da6fb162863bfe5",
       "safe_equivalence_reason": [
         "Reviewed constructor and argument forwarding; no selector or branch.",
@@ -59000,7 +59483,7 @@
           "effective_configuration.require_retry_identity",
           "standalone_market_context"
         ],
-        "authority_branch_fingerprint": "c6af4d88dfaaaaab0da1fefeccf3e9d8abf16f51b834c60929297b764fb6ab7e",
+        "authority_branch_fingerprint": "980104a00ea673705a4f6adb9b8d799f8f19d869a51b9907e9e9ad168472a3f1",
         "authority_requirement_set": "3781a66138cecf6e0d1597ab108729a09b8f8b34c6b71fe474f2034add27c382",
         "domains": [
           "CERI",
@@ -59031,7 +59514,52 @@
         "EF_633140182b79ba72",
         "EF_791a604abef6589e"
       ],
-      "normalized_operation_family_id": "AF_bf2a94a37d93a2ec",
+      "normalized_operation_family_id": "AF_bbb558d96e7418d9",
+      "old_operation_family_id": "AF_bf2a94a37d93a2ec",
+      "safe_equivalence_reason": [
+        "Reviewed constructor and argument forwarding; no selector or branch.",
+        "Native transaction owner; members reuse its authority."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "effective_configuration.regime_config",
+          "effective_configuration.require_retry_identity",
+          "standalone_market_context"
+        ],
+        "authority_branch_fingerprint": "980104a00ea673705a4f6adb9b8d799f8f19d869a51b9907e9e9ad168472a3f1",
+        "authority_requirement_set": "3781a66138cecf6e0d1597ab108729a09b8f8b34c6b71fe474f2034add27c382",
+        "domains": [
+          "CERI",
+          "COMBINED",
+          "CURRENT_PROJECTION",
+          "FUNDAMENTAL",
+          "IBMI",
+          "RANKING",
+          "REGIME",
+          "SECTOR",
+          "TECHNICAL"
+        ],
+        "error_mapping": "e8418707b9a61e81acbd530c02a01c48dbf91bb94042bdd16038d58c02f63645",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "CANONICAL_CALCULATION",
+          "CURRENT_PROJECTION_ADVANCE"
+        ],
+        "semantic_operation": "REVIEWED_EXACT_FORWARDER:app/services/market_regime_command_center.py:MarketRegimeCommandCenterService.build_snapshot:WF_CORE_CURRENT_PROJECTION|WF_CORE_RETAINED_EVIDENCE|WF_REGIME_SNAPSHOT",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CORE_CURRENT_PROJECTION",
+          "WF_CORE_RETAINED_EVIDENCE",
+          "WF_REGIME_SNAPSHOT"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_633140182b79ba72",
+        "EF_791a604abef6589e"
+      ],
+      "normalized_operation_family_id": "AF_bbb558d96e7418d9",
       "old_operation_family_id": "AF_c9fbb19d81e255f5",
       "safe_equivalence_reason": [
         "Reviewed constructor and argument forwarding; no selector or branch.",
@@ -59045,7 +59573,7 @@
           "effective_configuration.require_retry_identity",
           "standalone_market_context"
         ],
-        "authority_branch_fingerprint": "c6af4d88dfaaaaab0da1fefeccf3e9d8abf16f51b834c60929297b764fb6ab7e",
+        "authority_branch_fingerprint": "980104a00ea673705a4f6adb9b8d799f8f19d869a51b9907e9e9ad168472a3f1",
         "authority_requirement_set": "3781a66138cecf6e0d1597ab108729a09b8f8b34c6b71fe474f2034add27c382",
         "domains": [
           "CERI",
@@ -59076,7 +59604,7 @@
         "EF_633140182b79ba72",
         "EF_791a604abef6589e"
       ],
-      "normalized_operation_family_id": "AF_bf2a94a37d93a2ec",
+      "normalized_operation_family_id": "AF_bbb558d96e7418d9",
       "old_operation_family_id": "OP_BUILD_MARKET_REGIME_SNAPSHOT_FOR_RUN_63314018",
       "safe_equivalence_reason": [
         "Reviewed constructor and argument forwarding; no selector or branch.",
@@ -59090,7 +59618,7 @@
           "effective_configuration.require_retry_identity",
           "standalone_market_context"
         ],
-        "authority_branch_fingerprint": "c6af4d88dfaaaaab0da1fefeccf3e9d8abf16f51b834c60929297b764fb6ab7e",
+        "authority_branch_fingerprint": "980104a00ea673705a4f6adb9b8d799f8f19d869a51b9907e9e9ad168472a3f1",
         "authority_requirement_set": "3781a66138cecf6e0d1597ab108729a09b8f8b34c6b71fe474f2034add27c382",
         "domains": [
           "CERI",
@@ -59121,7 +59649,7 @@
         "EF_633140182b79ba72",
         "EF_791a604abef6589e"
       ],
-      "normalized_operation_family_id": "AF_bf2a94a37d93a2ec",
+      "normalized_operation_family_id": "AF_bbb558d96e7418d9",
       "old_operation_family_id": "OP_MARKETREGIMECOMMANDCENTERSERVICE_BUILD_SNAPSHOT_791a604a",
       "safe_equivalence_reason": [
         "Reviewed constructor and argument forwarding; no selector or branch.",
@@ -59521,7 +60049,7 @@
           "build_run_context_snapshots",
           "self.loader.load_run_context"
         ],
-        "authority_branch_fingerprint": "7630c85cf0aee436ef9e8122737c4c237fb1f7814f34e923cd5ab252973048e3",
+        "authority_branch_fingerprint": "bd629b90eea83638ab76241dce9aeca16449f4aaccf4131b33ef625f77d2f551",
         "authority_requirement_set": "3cce3ce38a90265a022a06b7d43c8fe7b1e57b6a0e3610654f9de08935fa27b5",
         "domains": [
           "ALERT_DECISION",
@@ -59538,7 +60066,7 @@
           "SETUP",
           "TECHNICAL"
         ],
-        "error_mapping": "042d69864791339cee3aacab13ee9f0b26a99f43f4bd314b2a454ca5c6404bb1",
+        "error_mapping": "588fbafe7e9029fa3fba6f2bd80ef044e930ac59ac7bf5a596a9b904e1486260",
         "execution_model": "synchronous",
         "semantic_modes": [
           "CANONICAL_CALCULATION",
@@ -59558,7 +60086,7 @@
         "EF_5ecffaf35b261ecd",
         "EF_60948ade054ed19a"
       ],
-      "normalized_operation_family_id": "AF_be5ed7d8ee0c3e0c",
+      "normalized_operation_family_id": "AF_efecf5419500e7cf",
       "old_operation_family_id": "AF_afac6a5ab9c706ba",
       "safe_equivalence_reason": [
         "Native transaction owner; members reuse its authority.",
@@ -59572,7 +60100,7 @@
           "build_run_context_snapshots",
           "self.loader.load_run_context"
         ],
-        "authority_branch_fingerprint": "7630c85cf0aee436ef9e8122737c4c237fb1f7814f34e923cd5ab252973048e3",
+        "authority_branch_fingerprint": "bd629b90eea83638ab76241dce9aeca16449f4aaccf4131b33ef625f77d2f551",
         "authority_requirement_set": "3cce3ce38a90265a022a06b7d43c8fe7b1e57b6a0e3610654f9de08935fa27b5",
         "domains": [
           "ALERT_DECISION",
@@ -59589,7 +60117,7 @@
           "SETUP",
           "TECHNICAL"
         ],
-        "error_mapping": "042d69864791339cee3aacab13ee9f0b26a99f43f4bd314b2a454ca5c6404bb1",
+        "error_mapping": "588fbafe7e9029fa3fba6f2bd80ef044e930ac59ac7bf5a596a9b904e1486260",
         "execution_model": "synchronous",
         "semantic_modes": [
           "CANONICAL_CALCULATION",
@@ -59609,7 +60137,58 @@
         "EF_5ecffaf35b261ecd",
         "EF_60948ade054ed19a"
       ],
-      "normalized_operation_family_id": "AF_be5ed7d8ee0c3e0c",
+      "normalized_operation_family_id": "AF_efecf5419500e7cf",
+      "old_operation_family_id": "AF_be5ed7d8ee0c3e0c",
+      "safe_equivalence_reason": [
+        "Native transaction owner; members reuse its authority.",
+        "Reviewed constructor and argument forwarding; no selector or branch."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "anchored_decision_calculator",
+          "build_run_context_snapshots",
+          "self.loader.load_run_context"
+        ],
+        "authority_branch_fingerprint": "bd629b90eea83638ab76241dce9aeca16449f4aaccf4131b33ef625f77d2f551",
+        "authority_requirement_set": "3cce3ce38a90265a022a06b7d43c8fe7b1e57b6a0e3610654f9de08935fa27b5",
+        "domains": [
+          "ALERT_DECISION",
+          "CERI",
+          "COMBINED",
+          "CURRENT_PROJECTION",
+          "FUNDAMENTAL",
+          "IBMI",
+          "LIFECYCLE_EVALUATION",
+          "LIFECYCLE_TRANSITION",
+          "RANKING",
+          "REGIME",
+          "SECTOR",
+          "SETUP",
+          "TECHNICAL"
+        ],
+        "error_mapping": "588fbafe7e9029fa3fba6f2bd80ef044e930ac59ac7bf5a596a9b904e1486260",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "CANONICAL_CALCULATION",
+          "CURRENT_PROJECTION_ADVANCE"
+        ],
+        "semantic_operation": "REVIEWED_EXACT_FORWARDER:app/services/setup_lifecycle/snapshot_builder.py:SetupLifecycleSnapshotCaptureService.capture_snapshots_for_run:WF_CORE_CURRENT_PROJECTION|WF_CORE_RETAINED_EVIDENCE|WF_SETUP_EVALUATION_RUN_STATE|WF_SETUP_PERSISTENCE|WF_SETUP_TYPED_REPOSITORY",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CORE_CURRENT_PROJECTION",
+          "WF_CORE_RETAINED_EVIDENCE",
+          "WF_SETUP_EVALUATION_RUN_STATE",
+          "WF_SETUP_PERSISTENCE",
+          "WF_SETUP_TYPED_REPOSITORY"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_5ecffaf35b261ecd",
+        "EF_60948ade054ed19a"
+      ],
+      "normalized_operation_family_id": "AF_efecf5419500e7cf",
       "old_operation_family_id": "OP_SETUPLIFECYCLESNAPSHOTCAPTURESERVICE_CAPTURE_SNAPSHOTS_FOR_RUN_5ecffaf3",
       "safe_equivalence_reason": [
         "Native transaction owner; members reuse its authority.",
@@ -63441,7 +64020,7 @@
         "authority_adapters": [
           "No authority adapter; exact executable operation reviewed separately"
         ],
-        "authority_branch_fingerprint": "d5b4e4532f54c13936349da34a8d79a4d2bc97755b47d81ef29c40b8b564e55b",
+        "authority_branch_fingerprint": "9f8dfc51b1d5009a707df62575b75567984146113b0122522a87c37d89a60e3b",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -63470,7 +64049,47 @@
       "exact_member_caller_ids": [
         "EF_57e42943795f68d5"
       ],
-      "normalized_operation_family_id": "AF_04dfa77d85566ac5",
+      "normalized_operation_family_id": "AF_ed1e56146adbba38",
+      "old_operation_family_id": "AF_04dfa77d85566ac5",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "No authority adapter; exact executable operation reviewed separately"
+        ],
+        "authority_branch_fingerprint": "9f8dfc51b1d5009a707df62575b75567984146113b0122522a87c37d89a60e3b",
+        "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
+        "domains": [
+          "CERI_SOURCE"
+        ],
+        "error_mapping": "fc32f1f9b09023b85714858aecf49d8c4411edc8b1b380f51eb3f4a8882a4ec0",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "CANONICAL_CALCULATION",
+          "CURRENT_RULES_RETROSPECTIVE",
+          "MAINTENANCE"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:app/services/ceri/backfill_service.py:CeriBackfillService.run:WF_CERI_CONSENSUS_ATTACH|WF_CERI_FEATURE_BUILD|WF_CERI_GUIDANCE_ELIGIBILITY|WF_CERI_RAW_SOURCE|WF_CERI_REVISION_FEATURE|WF_CERI_SOURCE_IDENTITY|WF_CERI_SOURCE_NORMALIZATION|WF_SEC_DOCUMENT_SOURCE|WF_SEC_INCREMENTAL_IDENTITY",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_CONSENSUS_ATTACH",
+          "WF_CERI_FEATURE_BUILD",
+          "WF_CERI_GUIDANCE_ELIGIBILITY",
+          "WF_CERI_RAW_SOURCE",
+          "WF_CERI_REVISION_FEATURE",
+          "WF_CERI_SOURCE_IDENTITY",
+          "WF_CERI_SOURCE_NORMALIZATION",
+          "WF_SEC_DOCUMENT_SOURCE",
+          "WF_SEC_INCREMENTAL_IDENTITY"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_57e42943795f68d5"
+      ],
+      "normalized_operation_family_id": "AF_ed1e56146adbba38",
       "old_operation_family_id": "AF_17ca39387430b453",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -63481,7 +64100,7 @@
         "authority_adapters": [
           "No authority adapter; exact executable operation reviewed separately"
         ],
-        "authority_branch_fingerprint": "d5b4e4532f54c13936349da34a8d79a4d2bc97755b47d81ef29c40b8b564e55b",
+        "authority_branch_fingerprint": "9f8dfc51b1d5009a707df62575b75567984146113b0122522a87c37d89a60e3b",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -63510,7 +64129,7 @@
       "exact_member_caller_ids": [
         "EF_57e42943795f68d5"
       ],
-      "normalized_operation_family_id": "AF_04dfa77d85566ac5",
+      "normalized_operation_family_id": "AF_ed1e56146adbba38",
       "old_operation_family_id": "AF_61d58568e4195b40",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -63521,7 +64140,7 @@
         "authority_adapters": [
           "No authority adapter; exact executable operation reviewed separately"
         ],
-        "authority_branch_fingerprint": "d5b4e4532f54c13936349da34a8d79a4d2bc97755b47d81ef29c40b8b564e55b",
+        "authority_branch_fingerprint": "9f8dfc51b1d5009a707df62575b75567984146113b0122522a87c37d89a60e3b",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -63550,68 +64169,8 @@
       "exact_member_caller_ids": [
         "EF_57e42943795f68d5"
       ],
-      "normalized_operation_family_id": "AF_04dfa77d85566ac5",
+      "normalized_operation_family_id": "AF_ed1e56146adbba38",
       "old_operation_family_id": "OP_CERIBACKFILLSERVICE_RUN_57e42943",
-      "safe_equivalence_reason": [
-        "Distinct operation; its authority branches are recorded."
-      ]
-    },
-    {
-      "authority_equivalence_key": {
-        "authority_adapters": [
-          "No authority adapter; exact executable operation reviewed separately"
-        ],
-        "authority_branch_fingerprint": "d9408f8f371683208911d8829e91e0240998c92a7b56ee14398f0a8821bcda84",
-        "authority_requirement_set": "1d9e1c3cdea249b62f3670cbff10e8df67b3232e7d6b54bcbcdd76231fad03ff",
-        "domains": [
-          "CERI_CHANGE"
-        ],
-        "error_mapping": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "execution_model": "synchronous",
-        "semantic_modes": [
-          "CANONICAL_CALCULATION"
-        ],
-        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild:WF_CERI_CHANGE",
-        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
-        "writer_families": [
-          "WF_CERI_CHANGE"
-        ]
-      },
-      "exact_member_caller_ids": [
-        "EF_7a4eefa3be56b725"
-      ],
-      "normalized_operation_family_id": "AF_9701990a1bad3828",
-      "old_operation_family_id": "AF_2774353def311655",
-      "safe_equivalence_reason": [
-        "Distinct operation; its authority branches are recorded."
-      ]
-    },
-    {
-      "authority_equivalence_key": {
-        "authority_adapters": [
-          "No authority adapter; exact executable operation reviewed separately"
-        ],
-        "authority_branch_fingerprint": "d9408f8f371683208911d8829e91e0240998c92a7b56ee14398f0a8821bcda84",
-        "authority_requirement_set": "1d9e1c3cdea249b62f3670cbff10e8df67b3232e7d6b54bcbcdd76231fad03ff",
-        "domains": [
-          "CERI_CHANGE"
-        ],
-        "error_mapping": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "execution_model": "synchronous",
-        "semantic_modes": [
-          "CANONICAL_CALCULATION"
-        ],
-        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild:WF_CERI_CHANGE",
-        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
-        "writer_families": [
-          "WF_CERI_CHANGE"
-        ]
-      },
-      "exact_member_caller_ids": [
-        "EF_7a4eefa3be56b725"
-      ],
-      "normalized_operation_family_id": "AF_9701990a1bad3828",
-      "old_operation_family_id": "OP_CERICHANGEREBUILDSERVICE_REBUILD_7a4eefa3",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
       ]

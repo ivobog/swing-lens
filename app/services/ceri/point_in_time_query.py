@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriEstimateSnapshot, CeriSourceRecord
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import HistoricalViewMode
+from app.services.ceri.estimate_deduplicator import CeriEstimateDeduplicator
 from app.services.ceri.pit_eligibility import source_record_known_at
+from app.services.ceri.provider_conflict_service import CeriProviderConflictService
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,17 @@ class BaselineSelection:
     actual_elapsed_days: int | None
     unavailable_reason: str | None = None
     comparison_mode: str | None = None
+    current_candidate_source_ids: tuple[int, ...] = ()
+    baseline_candidate_source_ids: tuple[int, ...] = ()
+    provider_selection_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class EstimateProviderSelection:
+    selected: CeriEstimateSnapshot
+    candidate_source_ids: tuple[int, ...]
+    conflict_type: str
+    resolution_reason: str
 
 
 class CeriPointInTimeQuery:
@@ -35,6 +48,9 @@ class CeriPointInTimeQuery:
         self.config = config or load_ceri_config()
         self._snapshots = snapshots
         self._source_records = source_records or {}
+        self._provider_conflicts = CeriProviderConflictService(config=self.config)
+        self._deduplicator = CeriEstimateDeduplicator()
+        self._provider_selections: dict[int, EstimateProviderSelection] = {}
         self._snapshot_index: dict[tuple[int, str], tuple[CeriEstimateSnapshot, ...]] = {}
         if snapshots is not None:
             indexed: dict[tuple[int, str], list[CeriEstimateSnapshot]] = {}
@@ -64,7 +80,7 @@ class CeriPointInTimeQuery:
             and _is_current_observation(snapshot)
         ]
         if mode is HistoricalViewMode.AS_KNOWN:
-            return sorted(
+            eligible = sorted(
                 [
                     snapshot
                     for snapshot in snapshots
@@ -73,12 +89,14 @@ class CeriPointInTimeQuery:
                 ],
                 key=_snapshot_sort,
             )
-        if mode is HistoricalViewMode.LATEST_CORRECTED:
-            return sorted(
+        elif mode is HistoricalViewMode.LATEST_CORRECTED:
+            eligible = sorted(
                 self._latest_corrected_estimates(snapshots, cutoff_at),
                 key=_snapshot_sort,
             )
-        raise ValueError(f"Unsupported historical view mode: {mode}")
+        else:
+            raise ValueError(f"Unsupported historical view mode: {mode}")
+        return self._resolve_provider_candidates(eligible)
 
     def current_snapshot(
         self,
@@ -123,6 +141,13 @@ class CeriPointInTimeQuery:
                 eligible = []
         return eligible[-1] if eligible else None
 
+    def provider_selection_for(
+        self, snapshot: CeriEstimateSnapshot | None
+    ) -> EstimateProviderSelection | None:
+        if snapshot is None:
+            return None
+        return self._provider_selections.get(id(snapshot))
+
     def select_baseline(
         self,
         db: Session,
@@ -144,6 +169,7 @@ class CeriPointInTimeQuery:
                 actual_elapsed_days=None,
                 unavailable_reason="current_snapshot_unavailable",
             )
+        current_selection = self.provider_selection_for(current)
         key = canonical_estimate_key(current)
         semantic_candidates = [
             snapshot
@@ -179,6 +205,9 @@ class CeriPointInTimeQuery:
                 target_baseline_date=target_date,
                 actual_elapsed_days=window_days,
                 comparison_mode="SAME_PROVIDER_RELATIVE",
+                current_candidate_source_ids=_candidate_ids(current_selection, current),
+                baseline_candidate_source_ids=(baseline.source_record_id,),
+                provider_selection_reason=_selection_reason(current_selection),
             )
         canonical_semantic_baselines = [
             snapshot
@@ -195,6 +224,9 @@ class CeriPointInTimeQuery:
                 target_baseline_date=target_date,
                 actual_elapsed_days=window_days,
                 comparison_mode="ABSOLUTE_CANONICAL",
+                current_candidate_source_ids=_candidate_ids(current_selection, current),
+                baseline_candidate_source_ids=(baseline.source_record_id,),
+                provider_selection_reason=_selection_reason(current_selection),
             )
         eligible = [
             snapshot
@@ -254,12 +286,15 @@ class CeriPointInTimeQuery:
                         else "baseline_unavailable"
                     )
                 ),
+                current_candidate_source_ids=_candidate_ids(current_selection, current),
+                provider_selection_reason=_selection_reason(current_selection),
             )
         elapsed = (
             (current.effective_session - baseline.effective_session).days
             if current.effective_session is not None and baseline.effective_session is not None
             else window_days
         )
+        baseline_selection = self.provider_selection_for(baseline)
         return BaselineSelection(
             current=current,
             baseline=baseline,
@@ -268,7 +303,37 @@ class CeriPointInTimeQuery:
             comparison_mode=(
                 "HISTORICAL_OBSERVATION" if metric == "REVENUE" else "ABSOLUTE_CANONICAL"
             ),
+            current_candidate_source_ids=_candidate_ids(current_selection, current),
+            baseline_candidate_source_ids=_candidate_ids(baseline_selection, baseline),
+            provider_selection_reason=_combined_selection_reason(
+                current_selection, baseline_selection
+            ),
         )
+
+    def _resolve_provider_candidates(
+        self, snapshots: list[CeriEstimateSnapshot]
+    ) -> list[CeriEstimateSnapshot]:
+        grouped: dict[tuple[Any, ...], list[CeriEstimateSnapshot]] = {}
+        for snapshot in snapshots:
+            grouped.setdefault(_provider_conflict_key(snapshot), []).append(snapshot)
+
+        selected: list[CeriEstimateSnapshot] = []
+        for candidates in grouped.values():
+            # Collapse economically identical duplicates first, then apply the
+            # configured provider policy across the remaining competing facts.
+            representatives = [group.canonical for group in self._deduplicator.group(candidates)]
+            resolution = self._provider_conflicts.resolve_estimate(
+                representatives, self._source_records
+            )
+            selection = EstimateProviderSelection(
+                selected=resolution.selected,
+                candidate_source_ids=tuple(sorted({row.source_record_id for row in candidates})),
+                conflict_type=resolution.conflict_type,
+                resolution_reason=resolution.resolution_reason,
+            )
+            self._provider_selections[id(resolution.selected)] = selection
+            selected.append(resolution.selected)
+        return sorted(selected, key=_snapshot_sort)
 
     def source_record(self, db: Session, source_record_id: int) -> CeriSourceRecord | None:
         if source_record_id in self._source_records:
@@ -386,6 +451,45 @@ def canonical_estimate_key(snapshot: CeriEstimateSnapshot) -> str:
             str((snapshot.canonical_scale or Decimal("1")).normalize()),
         ]
     )
+
+
+def _provider_conflict_key(snapshot: CeriEstimateSnapshot) -> tuple[Any, ...]:
+    """The business observation whose competing providers must be resolved."""
+
+    return (
+        snapshot.company_id,
+        snapshot.metric,
+        snapshot.period_type,
+        snapshot.fiscal_period_end,
+        snapshot.canonical_period_slot,
+        snapshot.effective_session,
+        snapshot.trend_baseline_window_days,
+        snapshot.baseline_origin,
+        snapshot.current_observation_reference,
+    )
+
+
+def _candidate_ids(
+    selection: EstimateProviderSelection | None,
+    fallback: CeriEstimateSnapshot,
+) -> tuple[int, ...]:
+    if selection is not None:
+        return selection.candidate_source_ids
+    return (fallback.source_record_id,)
+
+
+def _selection_reason(selection: EstimateProviderSelection | None) -> str:
+    return (
+        selection.resolution_reason if selection is not None else "point_in_time_single_observation"
+    )
+
+
+def _combined_selection_reason(
+    current: EstimateProviderSelection | None,
+    baseline: EstimateProviderSelection | None,
+) -> str:
+    reasons = {_selection_reason(current), _selection_reason(baseline)}
+    return "+".join(sorted(reasons))
 
 
 def _select_baseline_candidate(

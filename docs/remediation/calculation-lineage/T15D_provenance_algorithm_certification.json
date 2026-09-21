@@ -1,0 +1,138 @@
+{
+  "schema_version": "t15d-provenance-algorithm-certification-v1",
+  "baseline": {
+    "original_audit": "3a9d47063be996908b7d5d1cc5769e0bbd033546",
+    "phase5": "f587b63e4e35e81486e53ffa0f13b9cd7369f963",
+    "t15a": "8188f1ac3e7e3a8f93ff75c2cf10019d9c5935f8",
+    "t15b": "0c8e5664c52ff19d80d30f33c64ade8772c955a8",
+    "t15c": "65284b3f1cc4321618bff439d53bf7f12a3d409f",
+    "migration_head": "0083_winner_scope_truth"
+  },
+  "operation_families": [
+    {
+      "operation_family_id": "AF_09185dfbe8dc8ae9",
+      "scope_status": "FROZEN_CERTIFIED_PARENT_SCOPE_OR_EXPLICIT_FIXED_TARGET",
+      "refresh_status": "PARENT_REFRESH_REUSED_ON_RETRY_LATER_REFRESH_DISTINCT",
+      "provider_provenance": "Complete eligible estimate candidate source IDs, selected source/provider and policy reason retained",
+      "temporal_provenance": "Explicit cutoff; source known-at eligibility; post-cutoff facts rejected",
+      "currency_provenance": "Selected estimate retains canonical currency/scale; no FX conversion claimed",
+      "revision_status": "EXACT_SOURCE_RECORD_AND_CONTENT_HASH_OR_EXPLICIT_UNAVAILABLE",
+      "algorithm_findings": ["CERI-001", "CERI-008", "CERI-010"],
+      "algorithm_status": "CERI-001 CLOSED; current rule/hash invariants certified; legacy CERI-008/CERI-010 residuals explicit",
+      "legacy_behavior": "LEGACY_UNKNOWN; no current rule/provider/purge state substituted",
+      "performance_tests": ["test_t14d_ceri_end_to_end_performance_postgresql.py population 1/50", "test_t14d_source_bundle_postgresql.py population 1/50"],
+      "correctness_tests": ["test_t15d_provenance_algorithm_remediation.py provider conflict and cutoff attacks", "test_t15d_provenance_algorithm_postgresql.py retained-scope attack"],
+      "status": "PASS"
+    },
+    {
+      "operation_family_id": "AF_095460ea3293f382",
+      "scope_status": "FROZEN_CERTIFIED_PARENT_SCOPE_OR_IMMUTABLE_UPLOAD_RUN_TARGET",
+      "refresh_status": "PARENT_REFRESH_REUSED_ON_RETRY_LATER_REFRESH_DISTINCT",
+      "provider_provenance": "Complete candidate set and selected provider policy retained in derived revision evidence",
+      "temporal_provenance": "Explicit as-of session/cutoff and source-specific known-at eligibility",
+      "currency_provenance": "Canonical source currency/scale retained; no synthetic conversion metadata",
+      "revision_status": "EXACT_SOURCE_RECORD_CONTENT_HASH_AND_CONSUMED_PRICE_MANIFEST_WHERE_AVAILABLE",
+      "algorithm_findings": ["CERI-001", "CERI-002", "CERI-008", "CERI-010"],
+      "algorithm_status": "Provider selection and adjusted-price/TRADES-volume algorithms certified",
+      "legacy_behavior": "Legacy rule/purge identity remains explicit PARTIAL; immutable upload-run population never expands",
+      "performance_tests": ["capture 29/29, pipeline 70/70, material 29/29 for populations 1/50"],
+      "correctness_tests": ["provider priority inversion", "price basis order independence", "historical revision replacement"],
+      "status": "PASS"
+    },
+    {
+      "operation_family_id": "AF_2071f64f2b1f231c",
+      "scope_status": "NOT_APPLICABLE_RETIRED",
+      "refresh_status": "NOT_APPLICABLE_RETIRED",
+      "provider_provenance": "No live writer; retained Fundamental evidence explicitly records raw-upload source and unavailable provider dimensions",
+      "temporal_provenance": "Obsolete wall-clock refresh remains retired; active Ranking uses explicit calculation business time",
+      "currency_provenance": "Legacy upload currency/FX dimensions explicitly unavailable; no conversion claimed",
+      "revision_status": "CONTENT_ADDRESSED_RAW_UPLOAD_ROW_PLUS_REVISION_IDENTITY_UNAVAILABLE",
+      "algorithm_findings": ["RANK-007", "RANK-008", "CORE-005"],
+      "algorithm_status": "RANK-008 CLOSED; RANK-007 and CORE-005 supported PARTIAL at legacy source boundary",
+      "legacy_behavior": "No provider, time, revision or currency facts reconstructed from current rows",
+      "performance_tests": ["Ranking golden/profile regression suites"],
+      "correctness_tests": ["explicit Ranking Regime negative-dependency contract", "retired-route certification"],
+      "status": "PASS"
+    },
+    {
+      "operation_family_id": "AF_9701990a1bad3828",
+      "scope_status": "FROZEN_CERTIFIED_PARENT_SCOPE_OR_EXPLICIT_TICKER_TARGET",
+      "refresh_status": "PARENT_REFRESH_REUSED_ON_RETRY_LATER_REFRESH_DISTINCT",
+      "provider_provenance": "Change inputs resolve only retained-scope companies and certified source bundles",
+      "temporal_provenance": "Explicit as-of/cutoff bounds current and prior comparable events",
+      "currency_provenance": "Inherited exact CERI source currency; no implicit conversion",
+      "revision_status": "EXACT_IMMUTABLE_SCORE_EVIDENCE_AND_SOURCE_BUNDLE",
+      "algorithm_findings": ["CERI-001", "CERI-008", "CERI-010"],
+      "algorithm_status": "Scope/provenance adoption certified; current source mutation protections retained",
+      "legacy_behavior": "Legacy invalidated evidence remains forensic and is not promoted to current authority",
+      "performance_tests": ["test_t14d_score_change_performance_postgresql.py population 1/50 <= 12 authority SELECTs", "feature rebuild population 1/50 = 13 SELECTs after one required set-based scope-membership read"],
+      "correctness_tests": ["source-body tamper rejection", "retained-scope selection"],
+      "status": "PASS"
+    },
+    {
+      "operation_family_id": "AF_be5ed7d8ee0c3e0c",
+      "scope_status": "FROZEN_CERTIFIED_PARENT_PIPELINE_TICKERS",
+      "refresh_status": "INHERITS_PARENT_PIPELINE_REFRESH",
+      "provider_provenance": "Exact compatible run artifacts and source IDs retained by existing immutable Setup evidence",
+      "temporal_provenance": "Explicit parent MarketCalculationContext and business cutoff",
+      "currency_provenance": "No currency normalization performed by Setup capture",
+      "revision_status": "EXACT_REFERENCED_ARTIFACT_OR_EXPLICIT_UNAVAILABLE_STATUS",
+      "algorithm_findings": ["XINT-003"],
+      "algorithm_status": "Mutable run membership cannot expand or shrink the frozen parent ticker set",
+      "legacy_behavior": "Missing parent authority is not reconstructed from current state",
+      "performance_tests": ["set membership validation; no per-ticker authority query introduced"],
+      "correctness_tests": ["freeze A/B, loader returns A/C, capture rejects drift"],
+      "status": "PASS"
+    },
+    {
+      "operation_family_id": "AF_c6cbaf3f7ed57e8e",
+      "scope_status": "NOT_APPLICABLE_RETIRED",
+      "refresh_status": "NOT_APPLICABLE_RETIRED",
+      "provider_provenance": "No live technical-refresh writer; active pipeline sources remain immutable evidence inputs",
+      "temporal_provenance": "Mixed benchmark sessions retain both dates and use the older effective session",
+      "currency_provenance": "No currency conversion in technical/regime calculation",
+      "revision_status": "CONTENT_ADDRESSED_PRICE_BARS_OR_REVISION_IDENTITY_UNAVAILABLE",
+      "algorithm_findings": ["CORE-003", "CORE-004", "CORE-005"],
+      "algorithm_status": "CORE-003 and CORE-004 CLOSED; CORE-005 legacy provenance residual explicit",
+      "legacy_behavior": "No revision/provider/currency backfill from current state",
+      "performance_tests": ["OHLCV session loading is one bounded set query for the requested symbols"],
+      "correctness_tests": ["mixed-session degradation", "internal US-session gap", "aligned and holiday controls"],
+      "status": "PASS"
+    },
+    {
+      "operation_family_id": "AF_ddaa57ad85ff8bf7",
+      "scope_status": "EXPLICIT_SINGLE_ARTIFACT_NON_POPULATION",
+      "refresh_status": "EXPLICIT_DATED_REPAIR_NON_REFRESH",
+      "provider_provenance": "Repair references the selected ticker's canonical Setup artifacts",
+      "temporal_provenance": "Explicit repair as-of date; no wall-clock historical reconstruction",
+      "currency_provenance": "Not applicable; repair performs no currency conversion",
+      "revision_status": "EXACT_REFERENCED_SETUP_ARTIFACTS_OR_LEGACY_UNKNOWN",
+      "algorithm_findings": ["XINT-003"],
+      "algorithm_status": "Certified as a bounded single-ticker repair rather than a population refresh",
+      "legacy_behavior": "Original-context reconstruction remains Phase 7",
+      "performance_tests": ["single-ticker bounded repair regression"],
+      "correctness_tests": ["explicit dated repair classification", "no live-population continuation"],
+      "status": "PASS"
+    }
+  ],
+  "findings": {
+    "closed": ["CORE-001", "CORE-003", "CORE-004", "CERI-001", "CERI-002", "RANK-001", "RANK-008", "XINT-003"],
+    "partial": ["CORE-005", "CERI-008", "CERI-010", "RANK-007", "WIN-006", "INV-REVISION-001"],
+    "open": []
+  },
+  "invariants": {
+    "INV-SCOPE-001": "ENFORCED_REPOSITORY_WIDE_FOR_INVENTORIED_SCOPE_CAPABLE_OPERATIONS",
+    "INV-REFRESH-001": "ENFORCED_REPOSITORY_WIDE_FOR_INVENTORIED_REFRESH_CAPABLE_OPERATIONS",
+    "INV-REVISION-001": "PARTIAL_EXACT_OR_EXPLICIT_UNAVAILABLE_LEGACY_BOUNDARY",
+    "XINT-012": "CLOSED"
+  },
+  "summary": {
+    "assigned": 7,
+    "reconciled": 7,
+    "unreconciled": 0,
+    "defect": 0,
+    "unknown": 0
+  },
+  "migration": {"required": false, "head": "0083_winner_scope_truth", "production_rewrite": false},
+  "verdict": "PASS"
+}

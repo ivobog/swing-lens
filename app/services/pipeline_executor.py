@@ -131,6 +131,7 @@ def _call_market_sensitive(
     market_cutoff: MarketCalculationCutoff,
     *,
     pipeline_run_id: int | None = None,
+    frozen_tickers: tuple[str, ...] | None = None,
 ) -> Any:
     """Pass the frozen cutoff without breaking narrow test doubles."""
     parameters = signature(function).parameters
@@ -140,6 +141,8 @@ def _call_market_sensitive(
         kwargs["market_cutoff"] = market_cutoff
     if pipeline_run_id is not None and ("pipeline_run_id" in parameters or accepts_kwargs):
         kwargs["pipeline_run_id"] = pipeline_run_id
+    if frozen_tickers is not None and ("frozen_tickers" in parameters or accepts_kwargs):
+        kwargs["frozen_tickers"] = frozen_tickers
     if "effective_configuration" in parameters:
         from app.services.configuration_delivery import delivered_configuration
         from app.services.core_effective_configuration import CoreEffectiveConfiguration
@@ -846,7 +849,13 @@ def execute_full_pipeline(
                 performance=performance,
             ):
                 capture = dependencies.capture_setup_signals or _capture_setup_signals
-                capture_result = _call_market_sensitive(capture, db, upload_run.id, market_cutoff)
+                capture_result = _call_market_sensitive(
+                    capture,
+                    db,
+                    upload_run.id,
+                    market_cutoff,
+                    frozen_tickers=tuple(tickers),
+                )
                 _apply_setup_lifecycle_capture_result(
                     result,
                     capture_result,
@@ -1074,7 +1083,11 @@ def _execute_resumed_pipeline(
                 if dependencies.market_cutoff is None:
                     raise RuntimeError("resumed pipeline is missing its frozen market cutoff")
                 capture_result = _call_market_sensitive(
-                    capture, db, upload_run.id, dependencies.market_cutoff
+                    capture,
+                    db,
+                    upload_run.id,
+                    dependencies.market_cutoff,
+                    frozen_tickers=tuple(tickers),
                 )
                 _apply_setup_lifecycle_capture_result(
                     result,
@@ -2495,13 +2508,17 @@ def _capture_setup_signals(
     run_id: int,
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
+    frozen_tickers: tuple[str, ...] | None = None,
 ):
     from app.services.setup_lifecycle.snapshot_builder import (
         SetupLifecycleSnapshotCaptureService,
     )
 
     return SetupLifecycleSnapshotCaptureService().capture_snapshots_for_run(
-        db, run_id, market_cutoff=market_cutoff
+        db,
+        run_id,
+        market_cutoff=market_cutoff,
+        frozen_tickers=frozen_tickers,
     )
 
 

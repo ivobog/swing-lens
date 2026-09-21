@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import FundamentalScore, RawCompanyRow
 from app.services.calculation_identity import CalculationIdentity
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.column_mapper import MappedCsvRow, map_csv_rows
 from app.services.combined_ranking_identity import (
     build_fundamental_score_identity,
@@ -79,6 +80,45 @@ def recalculate_run_fundamentals(
                 pipeline_run_id=pipeline_run_id,
             )
             identity = effective_configuration.bind(identity)
+            score.debug_json = {
+                **(score.debug_json or {}),
+                "fundamental_source_provenance": {
+                    "raw_company_row_id": raw_row.id,
+                    "source_identity": "CONTENT_ADDRESSED_RAW_UPLOAD_ROW",
+                    "source_content_hash": CanonicalEvidenceSerializer.fingerprint(
+                        {
+                            "run_id": raw_row.run_id,
+                            "row_number": raw_row.row_number,
+                            "ticker": raw_row.ticker.upper(),
+                            "raw_json": raw_row.raw_json,
+                        }
+                    ),
+                    "provider": None,
+                    "provider_record_key": None,
+                    "source_revision_id": None,
+                    "published_at": None,
+                    "observed_at": None,
+                    "retrieved_at": None,
+                    "ingested_at": (
+                        raw_row.created_at.isoformat() if raw_row.created_at is not None else None
+                    ),
+                    "fiscal_period_end": None,
+                    "revision_status": "REVISION_IDENTITY_UNAVAILABLE",
+                    "temporal_status": "PROVIDER_TIME_UNAVAILABLE",
+                    "currency": {
+                        "native_reported_currency": None,
+                        "normalized_currency": None,
+                        "conversion_applied": False,
+                        "conversion_rate": None,
+                        "conversion_source": None,
+                        "conversion_effective_at": None,
+                        "status": "CURRENCY_PROVENANCE_UNAVAILABLE_NO_FX_CLAIM",
+                    },
+                    "legacy_behavior": (
+                        "Current source metadata is never substituted for absent upload-time facts."
+                    ),
+                },
+            }
             score.debug_json = embed_calculation_identity(
                 score.debug_json,
                 identity,

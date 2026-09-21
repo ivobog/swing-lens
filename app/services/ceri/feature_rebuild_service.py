@@ -76,6 +76,7 @@ class CeriFeatureRebuildRequest:
     calculation_context_id: int | None = None
     calendar_version: str | None = None
     ownership_mode: str = CeriArtifactOwnership.STANDALONE.value
+    semantic_authority: Any | None = None
 
 
 @dataclass(frozen=True)
@@ -1324,6 +1325,17 @@ class CeriFeatureRebuildService:
         tickers = {ticker.upper() for ticker in (request.tickers or ())}
         if request.ticker:
             tickers.add(request.ticker.upper())
+        if isinstance(db, Session) and request.semantic_authority is not None:
+            from app.services.scope_refresh_adoption import retained_scope_members
+
+            retained_tickers = {
+                member.subject_id.upper()
+                for member in retained_scope_members(db, request.semantic_authority.scope_id)
+                if member.subject_type == "TICKER"
+            }
+            if not retained_tickers:
+                raise ValueError("CERI_FROZEN_SCOPE_HAS_NO_TICKER_MEMBERS")
+            tickers = tickers & retained_tickers if tickers else retained_tickers
         if request.run_id is not None and not isinstance(db, Session):
             run_tickers = {
                 row.ticker.upper()

@@ -35,6 +35,7 @@ class CeriChangeRebuildRequest:
     changed_since: datetime | None = None
     as_of_session: date | None = None
     cutoff_at: datetime | None = None
+    semantic_authority: Any | None = None
 
 
 @dataclass(frozen=True)
@@ -67,7 +68,7 @@ class CeriChangeRebuildService:
     def rebuild(self, db: Session, request: CeriChangeRebuildRequest) -> CeriChangeRebuildResult:
         _required_boundary(request)
         if not isinstance(db, Session):
-            return self._rebuild(db, request)
+            return self._rebuild(db, request, authority_tickers=set())
         from app.services.source_mutation_authority import (
             PrefetchedSourceBodies,
             prefetched_source_scope,
@@ -75,10 +76,13 @@ class CeriChangeRebuildService:
 
         bundle = PrefetchedSourceBodies(db)
         companies = select(CeriCompany.id)
+        authority_tickers = self._authority_tickers(db, request)
         if request.company_ids:
             companies = companies.where(CeriCompany.id.in_(request.company_ids))
         elif request.ticker:
             companies = companies.where(func.upper(CeriCompany.ticker) == request.ticker.upper())
+        elif authority_tickers:
+            companies = companies.where(func.upper(CeriCompany.ticker).in_(authority_tickers))
         elif request.run_id is not None:
             companies = select(CeriScoreSnapshot.company_id).where(
                 CeriScoreSnapshot.run_id == request.run_id
@@ -113,15 +117,26 @@ class CeriChangeRebuildService:
             bundle.load(model, statement)
         bundle.seal()
         with db.no_autoflush, prefetched_source_scope(db, bundle):
-            return self._rebuild(db, request)
+            return self._rebuild(db, request, authority_tickers=authority_tickers)
 
-    def _rebuild(self, db: Session, request: CeriChangeRebuildRequest) -> CeriChangeRebuildResult:
+    def _rebuild(
+        self,
+        db: Session,
+        request: CeriChangeRebuildRequest,
+        *,
+        authority_tickers: set[str],
+    ) -> CeriChangeRebuildResult:
         target_session, cutoff_at = _required_boundary(request)
         market_cutoff = MarketClockService().cutoff_for(
             cutoff_at, reason="EXPLICIT_CERI_CHANGE_REBUILD"
         )
-        snapshots = self._snapshots(db, request)
-        scoped_company_ids = self._scoped_company_ids(db, request, snapshots)
+        snapshots = self._snapshots(db, request, authority_tickers=authority_tickers)
+        scoped_company_ids = self._scoped_company_ids(
+            db,
+            request,
+            snapshots,
+            authority_tickers=authority_tickers,
+        )
         changes = duplicates = failed = 0
         change_ids: list[int] = []
         errors: list[dict[str, Any]] = []
@@ -227,13 +242,21 @@ class CeriChangeRebuildService:
             change_ids=tuple(dict.fromkeys(change_ids)),
         )
 
-    def _snapshots(self, db: Session, request: CeriChangeRebuildRequest) -> list[CeriScoreSnapshot]:
+    def _snapshots(
+        self,
+        db: Session,
+        request: CeriChangeRebuildRequest,
+        *,
+        authority_tickers: set[str],
+    ) -> list[CeriScoreSnapshot]:
         rows = filter_eligible_snapshots(db, _load(db, CeriScoreSnapshot))
         ids = set(request.company_ids or ())
         if ids:
             rows = [row for row in rows if row.company_id in ids]
         if request.ticker:
             rows = [row for row in rows if row.ticker.upper() == request.ticker.upper()]
+        if authority_tickers:
+            rows = [row for row in rows if row.ticker.upper() in authority_tickers]
         if request.run_id is not None:
             rows = [row for row in rows if row.run_id == request.run_id]
         if request.from_session:
@@ -255,6 +278,8 @@ class CeriChangeRebuildService:
         db: Session,
         request: CeriChangeRebuildRequest,
         snapshots: list[CeriScoreSnapshot],
+        *,
+        authority_tickers: set[str],
     ) -> set[int] | None:
         if request.company_ids:
             return set(request.company_ids)
@@ -266,7 +291,27 @@ class CeriChangeRebuildService:
             }
         if request.run_id is not None:
             return {snapshot.company_id for snapshot in snapshots}
+        if authority_tickers:
+            return {
+                company.id
+                for company in _load(db, CeriCompany)
+                if company.ticker.upper() in authority_tickers
+            }
         return None
+
+    def _authority_tickers(self, db: Session, request: CeriChangeRebuildRequest) -> set[str]:
+        if request.semantic_authority is None or not isinstance(db, Session):
+            return set()
+        from app.services.scope_refresh_adoption import retained_scope_members
+
+        tickers = {
+            member.subject_id.upper()
+            for member in retained_scope_members(db, request.semantic_authority.scope_id)
+            if member.subject_type == "TICKER"
+        }
+        if not tickers:
+            raise ValueError("CERI_FROZEN_SCOPE_HAS_NO_TICKER_MEMBERS")
+        return tickers
 
     def _eligible_revisions(
         self,

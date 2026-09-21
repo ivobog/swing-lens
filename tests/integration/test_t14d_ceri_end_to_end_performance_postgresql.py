@@ -238,13 +238,7 @@ def test_capture_authority_scaling(
                 assert all(change.comparison_state == "COMPARABLE" for change in material)
                 record_property("material_changes", len(material))
             capture_authority_measurements[delivery, population] = sum(authority.values())
-            if population == 50:
-                assert (delivery, 1) in capture_authority_measurements, (
-                    "Population 1 baseline required"
-                )
-                baseline = capture_authority_measurements[delivery, 1]
-                # The same admitted tables and native branches must not add
-                # authority lookups when the writer population grows fiftyfold.
-                assert sum(authority.values()) <= baseline, dict(authority)
+            expected_authority_selects = {"capture": 29, "pipeline": 70, "material": 29}
+            assert sum(authority.values()) == expected_authority_selects[delivery], dict(authority)
     finally:
         get_settings.cache_clear()

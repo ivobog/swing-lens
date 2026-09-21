@@ -679,13 +679,30 @@ def test_public_resume_pipeline_preserves_c1_and_temporal_context(delivery_db, m
     from app.models.tables import PipelineStep
     from app.services.market_calculation_context_service import create_pipeline_market_context
     from app.services.pipeline_service import resume_pipeline
+    from app.services.scope_refresh_adoption import admit_frozen_operation, bind_semantic_authority
+    from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 
     db = delivery_db
     pipeline = db.get(PipelineRun, 1)
+    authority = admit_frozen_operation(
+        db,
+        operation_kind="configuration-delivery-resume-fixture",
+        subject_kind="ticker",
+        members=(ScopeMember("TICKER", "MSFT"),),
+        cycle_key="configuration-delivery-resume:1",
+        business_cutoff=datetime(2026, 9, 15, 22, tzinfo=UTC),
+        provider_source_class="UPLOAD",
+        request_type="FULL_PIPELINE",
+        requirements=(AcquisitionRequirement("CONFIGURATION_DELIVERY"),),
+        policy_identity="configuration-delivery-resume-v1",
+        scope_definition={"pipeline_run_id": pipeline.id},
+    )
+    bind_semantic_authority(pipeline, authority)
     temporal = create_pipeline_market_context(
         db, pipeline, cutoff_at=datetime(2026, 9, 15, 22, tzinfo=UTC)
     )
     root = enqueue_job(db, "FULL_PIPELINE", {"pipeline_run_id": 1}, coalesce=False)
+    bind_semantic_authority(root, authority)
     db.add(
         PipelineStep(pipeline_run_id=1, step_name="SETUP_LIFECYCLE", step_order=1, status="FAILED")
     )

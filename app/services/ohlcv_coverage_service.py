@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import IBContract, PriceBar, RawCompanyRow
 from app.services.technical_indicators import load_pine_defaults
-from app.services.us_market_calendar import is_latest_daily_bar_current
+from app.services.us_market_calendar import is_latest_daily_bar_current, is_us_trading_day
 from app.settings import Settings, get_settings
 
 
@@ -20,6 +20,7 @@ class OhlcvCoverageStatus(StrEnum):
     INSUFFICIENT_HISTORY = "insufficient"
     MISSING_VOLUME = "missing_volume"
     CONTRACT_FAILED = "contract_failed"
+    INCOMPLETE_SESSIONS = "incomplete_sessions"
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,9 @@ class OhlcvCoverageItem:
     has_trades_volume: bool = False
     latest_bar_current: bool = False
     reason: str = ""
+    session_complete: bool = True
+    missing_price_sessions: tuple[date, ...] = ()
+    missing_volume_sessions: tuple[date, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -86,6 +90,7 @@ def summarize_ohlcv_coverage(
     normalized_tickers = _normalize_tickers(tickers)
     symbols = _normalize_tickers([*normalized_tickers, *benchmark_symbols])
     stats = _bar_stats(db, symbols)
+    sessions = _bar_sessions(db, symbols) if isinstance(db, Session) else {}
     failed_contracts = _failed_contract_tickers(db, symbols)
     items = [
         _coverage_item(
@@ -95,6 +100,7 @@ def summarize_ohlcv_coverage(
             stale_after_days=stale_days,
             today=today,
             contract_failed=ticker in failed_contracts,
+            sessions=sessions,
         )
         for ticker in normalized_tickers
     ]
@@ -106,12 +112,12 @@ def summarize_ohlcv_coverage(
             stale_after_days=stale_days,
             today=today,
             contract_failed=ticker in failed_contracts,
+            sessions=sessions,
         )
         for ticker in benchmark_symbols
     }
     benchmark_ready = {
-        ticker: item.status == OhlcvCoverageStatus.READY
-        for ticker, item in benchmark_items.items()
+        ticker: item.status == OhlcvCoverageStatus.READY for ticker, item in benchmark_items.items()
     }
 
     return OhlcvCoverageSummary(
@@ -143,6 +149,7 @@ def _coverage_item(
     stale_after_days: int = 3,
     today: date | None = None,
     contract_failed: bool = False,
+    sessions: dict[tuple[str, str], tuple[date, ...]] | None = None,
 ) -> OhlcvCoverageItem:
     normalized = ticker.upper()
     adjusted = stats.get((normalized, "ADJUSTED_LAST"), BarSeriesCoverage())
@@ -158,6 +165,12 @@ def _coverage_item(
         latest_price_date,
         now=_coverage_now(today),
     )
+    missing_price_sessions, missing_volume_sessions = _missing_required_sessions(
+        normalized,
+        sessions or {},
+        required_rows=required_rows,
+    )
+    session_complete = not missing_price_sessions and not missing_volume_sessions
 
     if contract_failed:
         status = OhlcvCoverageStatus.CONTRACT_FAILED
@@ -171,6 +184,12 @@ def _coverage_item(
     elif not has_volume:
         status = OhlcvCoverageStatus.MISSING_VOLUME
         reason = "TRADES bars are missing, so volume coverage is unavailable."
+    elif not session_complete:
+        status = OhlcvCoverageStatus.INCOMPLETE_SESSIONS
+        reason = (
+            "Cached OHLCV has internal US-market session gaps: "
+            f"price={len(missing_price_sessions)}, volume={len(missing_volume_sessions)}."
+        )
     elif not latest_bar_current:
         status = OhlcvCoverageStatus.STALE
         reason = "Latest cached price bar is older than the latest completed US trading day."
@@ -194,6 +213,9 @@ def _coverage_item(
         has_trades_volume=has_volume,
         latest_bar_current=latest_bar_current,
         reason=reason,
+        session_complete=session_complete,
+        missing_price_sessions=missing_price_sessions,
+        missing_volume_sessions=missing_volume_sessions,
     )
 
 
@@ -243,6 +265,48 @@ def _bar_stats(db: Session, tickers: list[str]) -> dict[tuple[str, str], BarSeri
         )
         for ticker, what_to_show, count, first_date, latest_date in rows
     }
+
+
+def _bar_sessions(db: Session, tickers: list[str]) -> dict[tuple[str, str], tuple[date, ...]]:
+    if not tickers:
+        return {}
+    rows = db.execute(
+        select(PriceBar.ticker, PriceBar.what_to_show, PriceBar.bar_date)
+        .where(PriceBar.ticker.in_(tickers), PriceBar.timeframe == "1 day")
+        .order_by(PriceBar.ticker, PriceBar.what_to_show, PriceBar.bar_date)
+    ).all()
+    grouped: dict[tuple[str, str], list[date]] = {}
+    for ticker, basis, session in rows:
+        grouped.setdefault((str(ticker).upper(), str(basis)), []).append(session)
+    return {key: tuple(dict.fromkeys(values)) for key, values in grouped.items()}
+
+
+def _missing_required_sessions(
+    ticker: str,
+    sessions: dict[tuple[str, str], tuple[date, ...]],
+    *,
+    required_rows: int,
+) -> tuple[tuple[date, ...], tuple[date, ...]]:
+    adjusted = sessions.get((ticker, "ADJUSTED_LAST"), ())
+    trades = sessions.get((ticker, "TRADES"), ())
+    adjusted_complete = bool(adjusted) and (not trades or set(adjusted) >= set(trades))
+    price = adjusted if adjusted_complete else trades
+    if not price or not trades:
+        return (), ()
+    relevant_price = price[-required_rows:]
+    start = relevant_price[0]
+    end = relevant_price[-1]
+    expected: list[date] = []
+    current = start
+    while current <= end:
+        if is_us_trading_day(current):
+            expected.append(current)
+        current = date.fromordinal(current.toordinal() + 1)
+    expected_set = set(expected)
+    return (
+        tuple(sorted(expected_set - set(price))),
+        tuple(sorted(expected_set - set(trades))),
+    )
 
 
 def _failed_contract_tickers(db: Session, tickers: list[str]) -> set[str]:

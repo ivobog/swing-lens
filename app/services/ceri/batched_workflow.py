@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCompany
-from app.models.tables import MarketCalculationContext, RawCompanyRow
+from app.models.tables import MarketCalculationContext, PipelineRun, RawCompanyRow
 from app.services.background_job_service import enqueue_job
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.config import load_ceri_config
@@ -231,6 +231,7 @@ def schedule_ceri_batched_workflow(
     market_cutoff: MarketCalculationCutoff | None = None,
 ) -> CeriBatchedWorkflowPlan:
     pipeline_authority = {}
+    semantic_authority = None
     if isinstance(db, Session):
         try:
             if market_cutoff is None or market_cutoff.context_id is None:
@@ -265,7 +266,19 @@ def schedule_ceri_batched_workflow(
                     "CERI_BATCH_CONTEXT_MISMATCH",
                     "The supplied cutoff differs from its exact retained context.",
                 )
-            pipeline_authority = {"pipeline_run_id": row.pipeline_run_id}
+            from app.services.scope_refresh_adoption import require_semantic_authority
+
+            pipeline = db.get(PipelineRun, row.pipeline_run_id)
+            if pipeline is None:
+                raise EntryPointAuthorityError(
+                    "CERI_BATCH_PIPELINE_REQUIRED",
+                    "Batched pipeline work requires its retained pipeline owner.",
+                )
+            semantic_authority = require_semantic_authority(pipeline)
+            pipeline_authority = {
+                "pipeline_run_id": row.pipeline_run_id,
+                **semantic_authority.as_dict(),
+            }
         except Exception:
             db.rollback()
             raise
@@ -350,7 +363,7 @@ def schedule_ceri_batched_workflow(
             if market_cutoff is not None
             else {}
         )
-        enqueue_job(
+        job = enqueue_job(
             db,
             spec.job_type,
             {**spec.payload, **temporal_payload, **pipeline_authority},
@@ -359,6 +372,10 @@ def schedule_ceri_batched_workflow(
             request_key=spec.request_key,
             workflow_key=plan.workflow_key,
         )
+        if semantic_authority is not None:
+            from app.services.scope_refresh_adoption import bind_semantic_authority
+
+            bind_semantic_authority(job, semantic_authority, required_for_parent_completion=True)
     db.flush()
     return plan
 

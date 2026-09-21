@@ -241,6 +241,11 @@ def execute_rebuild_features_job(
     if not ceri_flags().enabled:
         return _skipped_job(CERI_REBUILD_FEATURES, "ceri_disabled")
     payload = job.payload_json or {}
+    semantic_authority = None
+    if isinstance(db, Session):
+        from app.services.scope_refresh_adoption import require_semantic_authority
+
+        semantic_authority = require_semantic_authority(job)
     pipeline_owned = _is_pipeline_owned_ceri_job(job, payload)
     if pipeline_owned:
         missing_context = [
@@ -297,6 +302,7 @@ def execute_rebuild_features_job(
                 if pipeline_owned
                 else CeriArtifactOwnership.STANDALONE.value
             ),
+            semantic_authority=semantic_authority,
         ),
         processing_run=processing,
     )
@@ -456,6 +462,11 @@ def execute_change_detection_job(
     if not ceri_flags().enabled:
         return _skipped_job(CERI_CHANGE_DETECTION, "ceri_disabled")
     payload = job.payload_json or {}
+    semantic_authority = None
+    if isinstance(db, Session):
+        from app.services.scope_refresh_adoption import require_semantic_authority
+
+        semantic_authority = require_semantic_authority(job)
     processing, created = _processing_run(
         db,
         CERI_CHANGE_DETECTION,
@@ -494,6 +505,7 @@ def execute_change_detection_job(
                 changed_since=_optional_datetime(payload.get("changed_since")),
                 as_of_session=_optional_date(payload.get("as_of_session")),
                 cutoff_at=_optional_datetime(payload.get("cutoff_at")),
+                semantic_authority=semantic_authority,
             ),
         )
     raw_change_ids = getattr(result, "change_ids", None)

@@ -320,3 +320,64 @@ identities; it does not replace them or weaken their proof boundaries.
 Phase 7 remains separate because original-context reconstruction asks what historical configuration,
 rules, sources, and context originally existed. Phase 6 asks which work and refresh cycle were
 intended. A scope record cannot reconstruct historical facts that were never retained.
+
+## T15D certified provenance and algorithm contract
+
+### Provider provenance
+
+Every new CERI estimate calculation resolves all eligible observations for one canonical business
+observation key with the frozen provider-conflict policy. Evidence retains the complete candidate
+source-record set, selected source record, selected provider, configuration identity and selection
+reason. Provider priority is therefore executable semantics, not descriptive metadata. A later
+policy applies only to a new calculation/refresh and never rewrites prior evidence. Operational
+request IDs, credentials and connection details are excluded from semantic identity.
+
+### Revision identity
+
+Truth-bearing inputs use one of four explicit states: `EXACT_REVISION`,
+`CONTENT_ADDRESSED_EXACT`, `REVISION_IDENTITY_UNAVAILABLE`, or `LEGACY_UNKNOWN`. Exact source-row or
+revision IDs are retained when they exist. Content-addressed PriceBars retain their row ID and
+content hash. If a historical revision row never existed, the consumer records unavailability and
+must not substitute a current revision. Legacy rows without enough original facts remain unknown;
+current database state is never used as a semantic backfill.
+
+### Temporal known-at semantics
+
+`published_at`, `observed_at`, `retrieved_at`, `ingested_at`, business effective period and
+calculation cutoff are distinct meanings. A CERI fact is eligible only under the source-specific
+point-in-time rules at the explicit cutoff. Later corrections can enter a later calculation but
+cannot enter or mutate an earlier calculation. Core mixed-benchmark snapshots use the older common
+source session as their effective date and lower confidence when required benchmarks disagree.
+
+### Currency provenance
+
+New structured CERI estimates retain canonical currency and scale on the selected source fact.
+Legacy uploaded Fundamental values do not contain reliable native currency, normalized currency,
+FX rate, source or effective time; immutable evidence records those dimensions as unavailable. No
+conversion metadata is synthesized. Any future conversion must retain native and normalized
+currencies, rate, provider, effective time and canonical rounding.
+
+### Algorithm correctness and immutable evidence
+
+Immutable evidence proves what a calculation used; it does not prove that the algorithm was right.
+T15D therefore independently certifies provider conflict resolution, adjusted-price/TRADES-volume
+basis, complete exchange-session history, mixed-benchmark session semantics and Ranking's explicit
+non-dependency on command-center Regime and same-run Sector. A corrected defective fixture may
+change; unaffected controls must remain stable. New results receive new evidence lineage while old
+evidence remains unchanged.
+
+### Legacy and unavailable revisions
+
+`REVISION_IDENTITY_UNAVAILABLE` is a supported truthful state, not an invitation to infer a
+revision. `LEGACY_UNKNOWN` means the original provider, rule, revision, timestamp or currency cannot
+be recovered. CERI pre-certification rule/purge history, legacy Fundamental uploads and Winner birth
+bars without revision rows keep these explicit limitations. They are not silently promoted to exact
+provenance.
+
+### Phase 7 boundary
+
+Phase 6 closes population and refresh identity for every inventoried refresh-capable family and
+defines truthful provenance behavior for new calculations. Phase 7 remains responsible for
+`SETUP-006`, `SETUP-007` and `SETUP-010` original-context reconstruction, plus external governance
+of source contracts. It may use retained Phase-6 identities, but it may not reconstruct absent
+historical rules or source facts from today's state.

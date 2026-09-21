@@ -78,6 +78,11 @@ def execute_provider_ingest_batch_job(
     if not ceri_flags().provider_ingest:
         return _skipped(CERI_PROVIDER_INGEST_BATCH, "provider_ingest_disabled")
     payload = job.payload_json or {}
+    semantic_authority = None
+    if isinstance(db, Session):
+        from app.services.scope_refresh_adoption import require_semantic_authority
+
+        semantic_authority = require_semantic_authority(job)
     workflow_key = _workflow_key(job, payload)
     provider = _required_text(payload, "provider")
     dataset = CeriDataset(_required_text(payload, "dataset"))
@@ -113,6 +118,7 @@ def execute_provider_ingest_batch_job(
                             "run_id": job.related_run_id,
                             "worker_id": job.worker_id,
                         },
+                        semantic_authority=semantic_authority,
                     ),
                     should_cancel=lambda: _heartbeat_and_cancel(db, job),
                 )
@@ -260,6 +266,11 @@ def execute_feature_batch_job(
     if not ceri_flags().enabled:
         return _skipped(CERI_FEATURE_BATCH, "ceri_disabled")
     payload = job.payload_json or {}
+    semantic_authority = None
+    if isinstance(db, Session):
+        from app.services.scope_refresh_adoption import require_semantic_authority
+
+        semantic_authority = require_semantic_authority(job)
     missing_context = [
         key
         for key in ("calculation_context_id", "cutoff_at", "as_of_session", "calendar_version")
@@ -301,6 +312,7 @@ def execute_feature_batch_job(
                 calculation_context_id=int(payload["calculation_context_id"]),
                 calendar_version=str(payload["calendar_version"]),
                 ownership_mode=CeriArtifactOwnership.PIPELINE.value,
+                semantic_authority=semantic_authority,
             ),
         )
     failed = 0
@@ -325,6 +337,7 @@ def execute_feature_batch_job(
             config_hash=config.config_hash,
             actor=None,
             cutoff_at=_optional_datetime(payload.get("cutoff_at")),
+            semantic_authority=semantic_authority,
         )
         if processing.status in {"COMPLETED", "PARTIAL"}:
             values = {
@@ -345,6 +358,7 @@ def execute_feature_batch_job(
                     calculation_context_id=int(payload["calculation_context_id"]),
                     calendar_version=str(payload["calendar_version"]),
                     ownership_mode=CeriArtifactOwnership.PIPELINE.value,
+                    semantic_authority=semantic_authority,
                 ),
                 processing_run=processing,
                 **({"batch_context": batch_context} if batch_context is not None else {}),
@@ -476,6 +490,24 @@ def execute_run_finalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         request_key=request_key,
         workflow_key=workflow_key,
     )
+    from app.services.scope_refresh_adoption import (
+        LegacySemanticAuthorityError,
+        bind_semantic_authority,
+        require_semantic_authority,
+    )
+
+    try:
+        semantic_authority = require_semantic_authority(job)
+    except LegacySemanticAuthorityError:
+        # Historical finalizers predate T15B. They remain executable, but they
+        # cannot manufacture semantic authority for their child after the fact.
+        pass
+    else:
+        bind_semantic_authority(
+            capture_job,
+            semantic_authority,
+            required_for_parent_completion=True,
+        )
     return {
         "job_type": CERI_RUN_FINALIZE,
         "status": "COMPLETED",

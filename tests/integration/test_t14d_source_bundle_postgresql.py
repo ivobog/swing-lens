@@ -18,7 +18,9 @@ from app.services.ceri.feature_rebuild_service import (
 )
 from app.services.ceri.job_handlers import execute_normalize_job, execute_rebuild_features_job
 from app.services.market_calculation_context_service import create_pipeline_market_context
+from app.services.scope_refresh_adoption import admit_frozen_operation, bind_semantic_authority
 from app.services.source_mutation_authority import _source_value, prefetched_source_scope
+from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 
 contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
@@ -238,7 +240,9 @@ def test_physical_connection_commit_invalidates_source_locks(contextual_engine):
 
 
 @pytest.mark.parametrize("company_count", [1, 50])
-def test_pipeline_feature_authority_selects_remain_within_12(contextual_engine, company_count):
+def test_pipeline_feature_authority_selects_remain_within_13_after_scope_membership(
+    contextual_engine, company_count
+):
     statements = []
 
     def record(_conn, _cursor, sql, _parameters, _context, _many):
@@ -261,7 +265,27 @@ def test_pipeline_feature_authority_selects_remain_within_12(contextual_engine, 
                 )
                 for i in range(company_count - 1)
             )
+        db.flush()
+        authority = admit_frozen_operation(
+            db,
+            operation_kind="t14d-pipeline-feature-budget",
+            subject_kind="ticker",
+            members=tuple(
+                ScopeMember("TICKER", ticker)
+                for ticker in db.scalars(
+                    select(RawCompanyRow.ticker).where(RawCompanyRow.run_id == request.run_id)
+                )
+            ),
+            cycle_key=f"t14d-pipeline-budget:{company_count}",
+            business_cutoff=date(2026, 8, 12),
+            provider_source_class="CERI",
+            request_type="FEATURE_REBUILD",
+            requirements=(AcquisitionRequirement("CERI_SOURCE_RECORDS"),),
+            policy_identity="t14d-pipeline-budget-v1",
+            scope_definition={"run_id": request.run_id},
+        )
         pipeline = PipelineRun(upload_run_id=request.run_id, status="RUNNING")
+        bind_semantic_authority(pipeline, authority)
         db.add(pipeline)
         db.flush()
         cutoff = create_pipeline_market_context(
@@ -285,10 +309,14 @@ def test_pipeline_feature_authority_selects_remain_within_12(contextual_engine, 
                 "calendar_version": cutoff.calendar_version,
             },
         )
+        bind_semantic_authority(job, authority)
+        db.flush()
         event.listen(contextual_engine, "before_cursor_execute", record)
         try:
             result = _execute_handler(db, job, execute_rebuild_features_job)
         finally:
             event.remove(contextual_engine, "before_cursor_execute", record)
         assert result["companies_rebuilt"] == company_count, result
-        assert len(statements) <= 12, len(statements)
+        # T15D adds exactly one set-based retained WorkScopeMember read. The
+        # 1/50 bound must remain identical and no per-company query may appear.
+        assert len(statements) <= 13, len(statements)

@@ -1,0 +1,69 @@
+{
+  "schema_version": "t15d-algorithm-delta-certification-v1",
+  "baseline": "65284b3f1cc4321618bff439d53bf7f12a3d409f",
+  "changes": [
+    {
+      "finding_id": "CERI-001",
+      "fixture": "competing EPS observations under provider-priority inversion",
+      "inputs": {
+        "candidates": [
+          {"source_record_id": 1, "provider": "primary", "consensus": "12"},
+          {"source_record_id": 2, "provider": "manual", "consensus": "10"}
+        ],
+        "policy": "manual > primary"
+      },
+      "before": {"selected_source_record_id": 1, "selected_value": "12", "basis": "row/effective-time order"},
+      "after": {"selected_source_record_id": 2, "selected_value": "10", "candidate_source_ids": [1, 2], "basis": "provider_priority_then_quality_then_freshness"},
+      "expected_change": true,
+      "reason": "The configured provider policy now executes for one canonical business observation and its complete candidate set is retained.",
+      "unaffected_controls": ["single-provider observations", "post-cutoff observations remain ineligible", "old selected evidence objects remain unchanged"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "CERI-002",
+      "fixture": "duplicate adjusted and TRADES daily bars supplied in opposite orders",
+      "inputs": {"adjusted_closes": [50, 55], "adjusted_volumes": [999, 999], "trades_closes": [100, 110], "trades_volumes": [10, 20]},
+      "before": {"price_basis": "query-order dependent", "volume_ratio_possible": 1.0},
+      "after": {"price_basis": "ADJUSTED_LAST", "volume_basis": "TRADES", "volume_ratio": 2.0},
+      "expected_change": true,
+      "reason": "Returns use a complete adjusted series while volume always uses the unadjusted TRADES series; source manifests include only consumed bars.",
+      "unaffected_controls": ["10 percent price return is unchanged for proportionally adjusted fixtures", "TRADES-only data falls back to TRADES", "reversing input order is identical"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "CORE-003",
+      "fixture": "required benchmark inputs on 2026-08-04 and 2026-08-03",
+      "inputs": {"primary_session": "2026-08-04", "risk_proxy_session": "2026-08-03"},
+      "before": {"snapshot_as_of_date": "2026-08-04", "mixed_session_warning": false},
+      "after": {"snapshot_as_of_date": "2026-08-03", "confidence": "low", "mixed_session_warning": true},
+      "expected_change": true,
+      "reason": "The snapshot can claim no date later than its oldest required benchmark and explicitly degrades mixed-session evidence.",
+      "unaffected_controls": ["aligned-session snapshot date", "missing optional input handling", "regime scoring for aligned inputs"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "CORE-004",
+      "fixture": "four cached rows spanning 2026-08-03 through 2026-08-07 with 2026-08-05 absent",
+      "inputs": {"present_sessions": ["2026-08-03", "2026-08-04", "2026-08-06", "2026-08-07"], "required_rows": 4},
+      "before": {"coverage_status": "ready", "insufficient_history": false},
+      "after": {"coverage_status": "incomplete_sessions", "insufficient_history": true, "missing_sessions": ["2026-08-05"]},
+      "expected_change": true,
+      "reason": "Count and endpoints no longer conceal an internal US-market session gap.",
+      "unaffected_controls": ["weekends and exchange holidays are not gaps", "complete history remains ready", "short history remains insufficient"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "RANK-008",
+      "fixture": "valid Ranking profile decision with sibling command-center Regime and same-run Sector artifacts",
+      "inputs": {"ranking_sources": ["fundamental", "technical", "optional_ibmi_liquidity"]},
+      "before": {"profile_score": 8.0, "regime_contract": null},
+      "after": {"profile_score": 8.0, "regime_contract": "NON_AUTHORITATIVE_FOR_RANKING"},
+      "expected_change": false,
+      "reason": "The verified negative dependency is now explicit evidence; no invented Regime or same-run Sector input changes the number.",
+      "unaffected_controls": ["profile score", "rank order", "CERI-to-Ranking remains absent", "same-run Sector-to-Ranking remains absent"],
+      "status": "PASS"
+    }
+  ],
+  "unexpected_numeric_changes": [],
+  "verdict": "PASS"
+}

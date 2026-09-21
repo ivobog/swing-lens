@@ -13,6 +13,7 @@ from app.services.climax_risk import add_climax_risk_features
 from app.services.configuration_source_values import SourcedConfigurationValues, winning_sources
 from app.services.stage_analysis import add_stage_features
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
+from app.services.us_market_calendar import is_us_trading_day
 from app.services.volatility_contraction import add_contraction_features
 
 REQUIRED_COLUMNS = ("date", "open", "high", "low", "close", "volume")
@@ -847,12 +848,15 @@ def _missing_data(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     high_low_len = int(params["trend"]["highLow52Len"])
     roc_long_len = int(params["market_rs"]["rocLongLen"])
     required = max(slow_len, high_low_len, roc_long_len)
+    bar_quality = _bar_quality_summary(df, required_rows=required)
     return {
         "row_count": len(df),
         "required_rows": required,
-        "insufficient_history": len(df) < required,
+        "insufficient_history": (
+            len(df) < required or bar_quality["missing_trading_session_count"] > 0
+        ),
         "missing_columns": [column for column in REQUIRED_COLUMNS if column not in df.columns],
-        "bar_quality": _bar_quality_summary(df),
+        "bar_quality": bar_quality,
     }
 
 
@@ -891,14 +895,27 @@ def _validate_bar_quality(df: pd.DataFrame, *, frame_name: str) -> None:
         raise ValueError(f"{frame_name} OHLCV frame has negative volume: {sample}")
 
 
-def _bar_quality_summary(df: pd.DataFrame) -> dict[str, Any]:
+def _bar_quality_summary(df: pd.DataFrame, *, required_rows: int | None = None) -> dict[str, Any]:
     sorted_dates = pd.to_datetime(df["date"]).sort_values()
     gaps = sorted_dates.diff().dt.days.dropna()
     max_gap = int(gaps.max()) if not gaps.empty else 0
+    relevant = sorted_dates.iloc[-required_rows:] if required_rows else sorted_dates
+    missing_sessions: list[str] = []
+    if len(relevant) >= 2:
+        present = {value.date() for value in relevant}
+        current = min(present)
+        end = max(present)
+        while current <= end:
+            if is_us_trading_day(current) and current not in present:
+                missing_sessions.append(current.isoformat())
+            current = date.fromordinal(current.toordinal() + 1)
     return {
         "duplicate_date_count": int(df["date"].duplicated().sum()),
         "max_calendar_gap_days": max_gap,
         "has_calendar_gap": max_gap > 5,
+        "missing_trading_session_count": len(missing_sessions),
+        "missing_trading_sessions": missing_sessions,
+        "session_complete": not missing_sessions,
     }
 
 

@@ -230,6 +230,7 @@ class CeriBackfillService:
                             config_version=self.config.engine.config_version,
                             config_hash=self.config.config_hash,
                             actor=request.actor,
+                            semantic_authority=authority,
                         )
                         normalizer.normalize(
                             db,
@@ -238,7 +239,16 @@ class CeriBackfillService:
                         )
                     feature_rebuild.rebuild(
                         db,
-                        CeriFeatureRebuildRequest(ticker=ticker, mode=request.mode),
+                        CeriFeatureRebuildRequest(
+                            ticker=ticker,
+                            mode=request.mode,
+                            cutoff_at=datetime.combine(
+                                request.end or datetime.now(UTC).date(),
+                                datetime.max.time(),
+                                tzinfo=UTC,
+                            ),
+                            semantic_authority=authority,
+                        ),
                         processing_run=run,
                     )
                     completed_tickers.add(ticker)
