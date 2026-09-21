@@ -90,6 +90,7 @@ class H5NextOpenOrchestrationService:
         due_session: date | None = None,
         should_cancel: Callable[[], bool] | None = None,
         lease_guard: Callable[[], None] | None = None,
+        prediction_ids: tuple[int, ...] | None = None,
     ) -> H5DrainResult:
         now = now or datetime.now(UTC)
         operation_cutoff_at = operation_cutoff_at or now
@@ -99,23 +100,30 @@ class H5NextOpenOrchestrationService:
             latest_completed_session(operation_cutoff_at),
             due_session or latest_completed_session(operation_cutoff_at),
         )
-        before = self._queue_state(db, completed_on=completed_on, retry_as_of=now)
+        before = self._queue_state(
+            db,
+            completed_on=completed_on,
+            retry_as_of=now,
+            prediction_ids=prediction_ids,
+        )
         processed_ids: list[int] = []
         processed = matured = excluded = failed = target_stop_matured = deferred = 0
         material_changes = 0
         reason_counts: dict[str, int] = {}
 
         for _ in range(max_batches):
-            rows = self.repository.get_due_pending_forward_outcomes(
-                db,
-                completed_on=completed_on,
-                limit=batch_size,
-                entry_model=EntryModel.NEXT_OPEN,
-                horizon_sessions=5,
-                due_session=completed_on,
-                exclude_ids=tuple(processed_ids),
-                retry_as_of=now,
-            )
+            selector = {
+                "completed_on": completed_on,
+                "limit": batch_size,
+                "entry_model": EntryModel.NEXT_OPEN,
+                "horizon_sessions": 5,
+                "due_session": completed_on,
+                "exclude_ids": tuple(processed_ids),
+                "retry_as_of": now,
+            }
+            if prediction_ids is not None:
+                selector["prediction_ids"] = prediction_ids
+            rows = self.repository.get_due_pending_forward_outcomes(db, **selector)
             if not rows:
                 break
             build_context = getattr(self.maturation_service, "build_batch_context", None)
@@ -145,12 +153,18 @@ class H5NextOpenOrchestrationService:
             if lease_guard is not None:
                 lease_guard()
 
-        after = self._queue_state(db, completed_on=completed_on, retry_as_of=now)
+        after = self._queue_state(
+            db,
+            completed_on=completed_on,
+            retry_as_of=now,
+            prediction_ids=prediction_ids,
+        )
         unvisited = self._queue_state(
             db,
             completed_on=completed_on,
             retry_as_of=now,
             exclude_ids=tuple(processed_ids),
+            prediction_ids=prediction_ids,
         )
         scan_completed = unvisited.due_total == 0
         full_scan_at = now.isoformat() if scan_completed else None
@@ -209,15 +223,18 @@ class H5NextOpenOrchestrationService:
         completed_on: date,
         retry_as_of: datetime,
         exclude_ids: tuple[int, ...] = (),
+        prediction_ids: tuple[int, ...] | None = None,
     ) -> H5QueueState:
         custom = getattr(self.repository, "h5_queue_state", None)
         if callable(custom):
-            value = custom(
-                db,
-                completed_on=completed_on,
-                retry_as_of=retry_as_of,
-                exclude_ids=exclude_ids,
-            )
+            kwargs = {
+                "completed_on": completed_on,
+                "retry_as_of": retry_as_of,
+                "exclude_ids": exclude_ids,
+            }
+            if prediction_ids is not None:
+                kwargs["prediction_ids"] = prediction_ids
+            value = custom(db, **kwargs)
             if isinstance(value, H5QueueState):
                 return value
             return H5QueueState(**value)
@@ -247,6 +264,10 @@ class H5NextOpenOrchestrationService:
         )
         if exclude_ids:
             statement = statement.where(WinnerForwardOutcome.id.not_in(exclude_ids))
+        if prediction_ids is not None:
+            if not prediction_ids:
+                return H5QueueState(0, 0, 0, None, None)
+            statement = statement.where(WinnerForwardOutcome.prediction_id.in_(prediction_ids))
         row = db.execute(statement).one()
         return H5QueueState(
             due_total=int(row[0] or 0),

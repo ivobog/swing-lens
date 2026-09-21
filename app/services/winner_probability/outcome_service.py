@@ -624,6 +624,7 @@ class WinnerOutcomeRepository:
         due_session: date | None = None,
         exclude_ids: tuple[int, ...] = (),
         retry_as_of: datetime | None = None,
+        prediction_ids: tuple[int, ...] | None = None,
     ) -> list[WinnerForwardOutcome]:
         retry_as_of = retry_as_of or _utcnow()
         statement = (
@@ -635,7 +636,6 @@ class WinnerOutcomeRepository:
             .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
             .where(WinnerForwardOutcome.is_current_revision.is_(True))
             .where(WinnerForwardOutcome.due_session <= completed_on)
-            .where(temporal_eligibility_sql(WinnerPredictionSnapshot))
             .where(
                 (WinnerForwardOutcome.entry_model != "NEXT_OPEN")
                 | (WinnerForwardOutcome.horizon_sessions != 5)
@@ -666,6 +666,15 @@ class WinnerOutcomeRepository:
             )
             .limit(limit)
         )
+        # A pre-admitted T15C maturation population is authoritative. Its
+        # immutable prediction membership must not be re-evaluated against a
+        # later current-state eligibility projection.
+        if prediction_ids is None:
+            statement = statement.where(temporal_eligibility_sql(WinnerPredictionSnapshot))
+        else:
+            if not prediction_ids:
+                return []
+            statement = statement.where(WinnerForwardOutcome.prediction_id.in_(prediction_ids))
         if entry_model is not None:
             statement = statement.where(WinnerForwardOutcome.entry_model == entry_model)
         if horizon_sessions is not None:

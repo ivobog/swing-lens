@@ -72,7 +72,7 @@ PHASE2_REVISIONS = (
     "0078_ibmi_constituent_evidence",
     "0079_setup_lifecycle_alert_ev",
 )
-CURRENT_HEAD = "0082_pipeline_ceri_scope"
+CURRENT_HEAD = "0083_winner_scope_truth"
 SCOPE_IDENTITY_REVISION = "0081_scope_refresh_identity"
 EFFECTIVE_CONFIGURATION_REVISION = "0080_effective_configuration"
 SESSION = date(2026, 9, 15)

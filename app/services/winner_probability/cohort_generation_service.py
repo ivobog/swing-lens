@@ -195,6 +195,7 @@ class EvidenceWatermarkService:
         outcome_definition: WinnerOutcomeDefinition,
         config: WinnerProbabilityConfig,
         observed_at: datetime | None = None,
+        maturation_counts: dict | None = None,
     ) -> WatermarkAdvanceResult:
         if isinstance(db, Session):
             from app.services.domain_mutation import MutationDomain
@@ -216,7 +217,24 @@ class EvidenceWatermarkService:
         watermark = self.current_material_watermark(db, outcome_definition_id=outcome_definition.id)
         current = watermark_from_state(state)
         ordering = _compare_watermarks(watermark, current)
+        if maturation_counts is not None:
+            observed = observed_at or datetime.now(UTC)
+            if maturation_counts.get("scan_completed"):
+                state.last_full_scan_at = observed
+            if not maturation_counts.get("pending_h5_after_cycle", 0):
+                state.last_zero_due_backlog_at = observed
+            state.current_due_count = int(
+                maturation_counts.get("pending_h5_after_cycle", 0) or 0
+            )
+            state.current_deferred_count = int(
+                maturation_counts.get("retry_deferred", 0) or 0
+            )
+            oldest_due = maturation_counts.get("oldest_due_h5_session")
+            state.oldest_due_session = (
+                datetime.fromisoformat(str(oldest_due)).date() if oldest_due else None
+            )
         if ordering == 0:
+            db.flush()
             return WatermarkAdvanceResult(state=state, watermark=watermark, advanced=False)
         if ordering != 1:
             raise GenerationInvariantViolation(
@@ -351,6 +369,7 @@ class CohortGenerationService:
         contract: WinnerCohortContract,
         requested_at: datetime | None = None,
         config: WinnerProbabilityConfig | None = None,
+        semantic_authority: Any | None = None,
         mutation_context=None,
     ) -> WinnerCohortGeneration:
         authority = None
@@ -389,6 +408,11 @@ class CohortGenerationService:
             select(WinnerCohortGeneration).where(WinnerCohortGeneration.generation_key == key)
         )
         if generation is not None:
+            if semantic_authority is not None:
+                from app.services.scope_refresh_adoption import bind_semantic_authority
+
+                bind_semantic_authority(generation, semantic_authority)
+                db.flush()
             if isinstance(db, Session):
                 from app.services.winner_probability.cohort_authority import validate_generation
 
@@ -405,6 +429,7 @@ class CohortGenerationService:
                 db.flush()
             return generation
         values = {
+            **(semantic_authority.as_dict() if semantic_authority is not None else {}),
             "generation_key": key,
             "refresh_state_id": state.id,
             "outcome_definition_id": contract.outcome_definition_id,

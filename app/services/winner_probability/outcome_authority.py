@@ -399,6 +399,9 @@ def price_manifest(db, rows, *, clock):
                 "id": row.id,
                 "values": dict(stored),
                 "price_bar_revision_id": revision.id if revision is not None else None,
+                "revision_identity_status": (
+                    "EXACT" if revision is not None else "REVISION_IDENTITY_UNAVAILABLE"
+                ),
                 "price_bar_revision": dict(revision_values)
                 if revision_values is not None
                 else None,

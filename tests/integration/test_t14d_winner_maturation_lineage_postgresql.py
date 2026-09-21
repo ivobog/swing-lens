@@ -7,7 +7,7 @@ import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session
-from test_ceri_batched_workflow_v2 import _execute_handler, _new_job
+from test_ceri_batched_workflow_v2 import _claim_native_fixture_job, _execute_handler
 from test_winner_maturation_canary_postgresql import (
     _native_operation_at,
     _seed_native_ready_outcome,
@@ -19,13 +19,15 @@ from app.models.tables import (
     WinnerProcessingRun,
     WinnerTargetStopOutcome,
 )
-from app.services.background_job_service import JobStatus
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.configuration_delivery import ANCHOR_KEY
 from app.services.domain_write_fence import current_domain_write_ownership
 from app.services.winner_probability import config as native_config
 from app.services.winner_probability import outcome_authority
-from app.services.winner_probability.job_handlers import execute_outcome_maturation_job
+from app.services.winner_probability.job_handlers import (
+    enqueue_outcome_maturation_workflow,
+    execute_outcome_maturation_job,
+)
 from app.services.winner_probability.outcome_authority import PROOF_KEY
 
 contextual_engine = contextual.contextual_engine
@@ -51,13 +53,14 @@ def test_delayed_worker_preserves_cutoff_and_new_operation_seals_exact_lineage(
         assert c1.date() < outcome.due_session <= c2.date()
 
         def enqueue(cutoff, key):
-            return _new_job(
+            job = enqueue_outcome_maturation_workflow(
                 db,
-                job_type="WINNER_OUTCOME_MATURATION",
-                status=JobStatus.RUNNING,
+                payload={"operation_cutoff_at": cutoff.isoformat()},
+                trigger_source="TEST",
                 request_key=key,
-                payload_json={"operation_cutoff_at": cutoff.isoformat()},
             )
+            _claim_native_fixture_job(db, job)
+            return job
 
         early = enqueue(c1, "t14d-maturation-frozen-C1")
         early_id, early_token = early.id, early.execution_token

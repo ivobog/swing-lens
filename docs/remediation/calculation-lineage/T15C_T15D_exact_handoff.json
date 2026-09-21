@@ -1,0 +1,276 @@
+{
+  "remaining_findings": {
+    "WIN-006": "birth PriceBar rows without exact PriceBarRevision primary keys",
+    "algorithm_specific": [
+      "CERI-001",
+      "CERI-002",
+      "CORE-001",
+      "RANK-001",
+      "RANK-008"
+    ],
+    "provider_source_provenance": [
+      "CORE-005",
+      "INV-REVISION-001"
+    ]
+  },
+  "schema_version": "t15c-t15d-exact-handoff-v1",
+  "source_task": "T15C",
+  "t15d_operation_families": [
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "batch/rebuild selection is not a frozen shared remainder",
+      "current_defect_risk": "rebuild population may expand/shrink between attempts",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "finding_ids": [
+        "CERI-001",
+        "CERI-008",
+        "CERI-010"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live database query under cutoff/context; exact target IDs not retained as scope",
+      "operation_family_id": "AF_09185dfbe8dc8ae9",
+      "phase6_target_task": "T15D",
+      "refresh_model": "processing run identity, not observation-cycle identity",
+      "retry_model": "retry can reread a changed eligible set",
+      "revision_model": "source IDs/hashes vary by derived artifact; coverage is incomplete",
+      "scope_kind": "ceri-derived-rebuild",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "context rebuild selects eligible source rows",
+      "semantic_service": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService.rebuild_from_context",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "batch/rebuild selection is not a frozen shared remainder",
+      "current_defect_risk": "rebuild population may expand/shrink between attempts",
+      "domain": [
+        "CERI_SOURCE"
+      ],
+      "finding_ids": [
+        "CERI-001",
+        "CERI-008",
+        "CERI-010"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live database query under cutoff/context; exact target IDs not retained as scope",
+      "operation_family_id": "AF_095460ea3293f382",
+      "phase6_target_task": "T15D",
+      "refresh_model": "processing run identity, not observation-cycle identity",
+      "retry_model": "retry can reread a changed eligible set",
+      "revision_model": "source IDs/hashes vary by derived artifact; coverage is incomplete",
+      "scope_kind": "ceri-derived-rebuild",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "feature rebuild selects source rows/current context",
+      "semantic_service": "app/services/ceri/feature_rebuild_service.py:CeriFeatureRebuildService.rebuild",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "no shared frozen remainder contract",
+      "current_defect_risk": "algorithm refresh population is not independently reproducible",
+      "domain": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "RANK-007",
+        "RANK-008",
+        "CORE-005"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run-scoped live query without independent population identity",
+      "operation_family_id": "AF_2071f64f2b1f231c",
+      "phase6_target_task": "T15D",
+      "refresh_model": "route/job identity only",
+      "retry_model": "retry can observe changed current rows",
+      "revision_model": "domain evidence exists but population/revision coverage is incomplete",
+      "scope_kind": "combined-ranking-refresh",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "run route selects current run rows",
+      "semantic_service": "app/routers/run_routes.py:refresh_combined_results_action",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "RETIRED"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "batch/rebuild selection is not a frozen shared remainder",
+      "current_defect_risk": "rebuild population may expand/shrink between attempts",
+      "domain": [
+        "CERI_CHANGE"
+      ],
+      "finding_ids": [
+        "CERI-001",
+        "CERI-008",
+        "CERI-010"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "live database query under cutoff/context; exact target IDs not retained as scope",
+      "operation_family_id": "AF_9701990a1bad3828",
+      "phase6_target_task": "T15D",
+      "refresh_model": "processing run identity, not observation-cycle identity",
+      "retry_model": "retry can reread a changed eligible set",
+      "revision_model": "source IDs/hashes vary by derived artifact; coverage is incomplete",
+      "scope_kind": "ceri-derived-rebuild",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "change rebuild selects current comparable events",
+      "semantic_service": "app/services/ceri/change_rebuild_service.py:CeriChangeRebuildService.rebuild",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "CANONICAL_AUTHORITY_DELIVERED"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "no shared frozen remainder contract",
+      "current_defect_risk": "algorithm refresh population is not independently reproducible",
+      "domain": [
+        "ALERT_DECISION",
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "LIFECYCLE_EVALUATION",
+        "LIFECYCLE_TRANSITION",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "SETUP",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "XINT-003"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run-scoped live query without independent population identity",
+      "operation_family_id": "AF_be5ed7d8ee0c3e0c",
+      "phase6_target_task": "T15D",
+      "refresh_model": "route/job identity only",
+      "retry_model": "retry can observe changed current rows",
+      "revision_model": "domain evidence exists but population/revision coverage is incomplete",
+      "scope_kind": "setup-snapshot-capture",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "capture service selects current compatible run artifacts",
+      "semantic_service": "app/services/setup_lifecycle/snapshot_builder.py:SetupLifecycleSnapshotCaptureService.capture_snapshots_for_run",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "no shared frozen remainder contract",
+      "current_defect_risk": "algorithm refresh population is not independently reproducible",
+      "domain": [
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "CORE-003",
+        "CORE-004",
+        "CORE-005"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run-scoped live query without independent population identity",
+      "operation_family_id": "AF_c6cbaf3f7ed57e8e",
+      "phase6_target_task": "T15D",
+      "refresh_model": "route/job identity only",
+      "retry_model": "retry can observe changed current rows",
+      "revision_model": "domain evidence exists but population/revision coverage is incomplete",
+      "scope_kind": "technical-refresh",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "run route selects current run tickers",
+      "semantic_service": "app/routers/run_routes.py:refresh_technicals_action",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "RETIRED"
+    },
+    {
+      "acquisition_plan_model": "NOT_APPLICABLE",
+      "continuation_model": "no shared frozen remainder contract",
+      "current_defect_risk": "algorithm refresh population is not independently reproducible",
+      "domain": [
+        "ALERT_DECISION",
+        "CERI",
+        "COMBINED",
+        "CURRENT_PROJECTION",
+        "FUNDAMENTAL",
+        "IBMI",
+        "LIFECYCLE_EVALUATION",
+        "LIFECYCLE_TRANSITION",
+        "RANKING",
+        "REGIME",
+        "SECTOR",
+        "SETUP",
+        "TECHNICAL"
+      ],
+      "finding_ids": [
+        "XINT-003"
+      ],
+      "membership_fingerprint": "MISSING",
+      "membership_model": "run-scoped live query without independent population identity",
+      "operation_family_id": "AF_ddaa57ad85ff8bf7",
+      "phase6_target_task": "T15D",
+      "refresh_model": "route/job identity only",
+      "retry_model": "retry can observe changed current rows",
+      "revision_model": "domain evidence exists but population/revision coverage is incomplete",
+      "scope_kind": "setup-current-state-repair",
+      "scope_model": "CURRENT_SELECTION_UNCERTIFIED",
+      "scope_selection_point": "repair_ticker selects current state",
+      "semantic_service": "app/services/setup_lifecycle/maintenance_service.py:SetupLifecycleMaintenanceService.repair_ticker",
+      "status": [
+        "SCOPE_IDENTITY_MISSING",
+        "REFRESH_IDENTITY_MISSING",
+        "REVISION_IDENTITY_INCOMPLETE"
+      ],
+      "t14d_authority_status": "SUPPORTED_DISTINCT_SEMANTICS"
+    }
+  ],
+  "t15d_operation_family_ids": [
+    "AF_09185dfbe8dc8ae9",
+    "AF_095460ea3293f382",
+    "AF_2071f64f2b1f231c",
+    "AF_9701990a1bad3828",
+    "AF_be5ed7d8ee0c3e0c",
+    "AF_c6cbaf3f7ed57e8e",
+    "AF_ddaa57ad85ff8bf7"
+  ],
+  "winner_scope_work_remaining": []
+}

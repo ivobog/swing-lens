@@ -143,6 +143,7 @@ class WinnerPredictionCaptureService:
         lease_guard: Callable[[], None] | None = None,
         progress_callback: Callable[..., None] | None = None,
         memory_probe: Callable[[Session, int, int, str], None] | None = None,
+        target_raw_row_ids: tuple[int, ...] | None = None,
     ) -> WinnerPredictionCaptureResult:
         config = config or load_winner_probability_config()
         from app.services.decision_effective_configuration import resolve_winner_configuration
@@ -197,6 +198,18 @@ class WinnerPredictionCaptureService:
         else:
             run_context = self.repository.load_run_context(db, run_id)
         ticker_contexts = list(run_context.tickers)
+        if target_raw_row_ids is not None:
+            retained_ids = set(target_raw_row_ids)
+            available_ids = {int(item.raw_row.id) for item in ticker_contexts}
+            missing = retained_ids - available_ids
+            if missing:
+                raise WinnerCalculationIdentityError(
+                    "WINNER_CAPTURE_FROZEN_SCOPE_MEMBER_MISSING:"
+                    + ",".join(str(value) for value in sorted(missing))
+                )
+            ticker_contexts = [
+                item for item in ticker_contexts if int(item.raw_row.id) in retained_ids
+            ]
         total_tickers = len(ticker_contexts)
         totals = _MutableCaptureCounts(planned=total_tickers)
         primary_definition = self.repository.get_outcome_definition(

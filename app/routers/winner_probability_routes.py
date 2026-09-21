@@ -24,10 +24,13 @@ from app.services.resource_limits import (
     enforce_row_limit,
     limit_error_payload,
 )
+from app.services.scope_refresh_adoption import bind_semantic_authority
 from app.services.winner_probability.api_service import (
     WinnerProbabilityApiError,
     WinnerProbabilityApiService,
 )
+from app.services.winner_probability.cohort_refresh_planner import CohortRefreshPlanner
+from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.dtos import (
     WinnerProbabilityApiQuery,
     WinnerProbabilityFilterError,
@@ -51,7 +54,9 @@ from app.services.winner_probability.outcome_explorer_service import (
     OutcomeExplorerQuery,
     OutcomeExplorerService,
 )
+from app.services.winner_probability.repository import WinnerProbabilityRepository
 from app.services.winner_probability.reproduction_service import ReproductionService
+from app.services.winner_probability.scope_refresh import admit_prediction_capture
 from app.settings import get_settings
 from app.templates import templates
 
@@ -582,16 +587,31 @@ def queue_winner_prediction_capture(
             "bar_readiness_version": context.bar_readiness_version,
         }
     try:
+        request_key = (
+            f"winner:prediction-capture:run:{run_id}:"
+            f"handoff:{payload.get('decision_handoff_manifest_id', 'test')}"
+        )
+        authority = (
+            admit_prediction_capture(
+                db,
+                run_id=run_id,
+                cycle_key=request_key,
+                cutoff=context.cutoff_at,
+                configuration_identity=load_winner_probability_config().config_hash,
+            )
+            if isinstance(db, Session)
+            else None
+        )
         job = enqueue_job(
             db,
             job_type=WINNER_PREDICTION_CAPTURE,
             payload=payload,
             related_run_id=run_id,
-            request_key=(
-                f"winner:prediction-capture:run:{run_id}:"
-                f"handoff:{payload.get('decision_handoff_manifest_id', 'test')}"
-            ),
+            request_key=request_key,
         )
+        if authority is not None:
+            bind_semantic_authority(job, authority)
+            db.flush()
         db.commit()
     except Exception:
         db.rollback()
@@ -653,28 +673,38 @@ def queue_winner_cohort_refresh(
     outcome_definition_id: str | None = None,
 ) -> dict:
     _require_local_admin(request)
-    payload = {
-        key: value
-        for key, value in {"outcome_definition_id": outcome_definition_id}.items()
-        if value is not None
-    }
     try:
-        job = enqueue_job(
+        config = load_winner_probability_config()
+        definition_key = outcome_definition_id or config.primary_outcome_definition.id
+        definition = WinnerProbabilityRepository().get_outcome_definition(
             db,
-            job_type=WINNER_COHORT_REFRESH,
-            payload=payload,
-            request_key=f"winner:cohort-refresh:{outcome_definition_id or 'all'}",
+            definition_id=definition_key,
+            calculation_version=config.engine.calculation_version,
         )
+        if definition is None:
+            raise HTTPException(status_code=409, detail="Winner outcome definition was not found")
+        planned = CohortRefreshPlanner().request_for_current_evidence(
+            db,
+            outcome_definition=definition,
+            config=config,
+            observed_at=datetime.now(UTC),
+            enqueue_refresh=True,
+        )
+        job = planned.job
         db.commit()
     except Exception:
         db.rollback()
         raise
     return {
-        "job_id": job.id,
-        "job_type": job.job_type,
-        "status": job.status,
-        "payload": payload,
-        "coalesced": bool(getattr(job, "_coalesced", False)),
+        "job_id": job.id if job is not None else None,
+        "job_type": job.job_type if job is not None else WINNER_COHORT_REFRESH,
+        "status": job.status if job is not None else "NO_MATERIAL_CHANGE",
+        "payload": (
+            job.payload_json
+            if job is not None
+            else {"outcome_definition_id": definition_key}
+        ),
+        "coalesced": bool(getattr(job, "_coalesced", False)) if job is not None else False,
     }
 
 

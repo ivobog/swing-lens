@@ -1,0 +1,323 @@
+{
+  "artifact_integrity": {
+    "reconciliation_sha256": "49ac42e7a3c69920bab085d6cfde1a0b4928b8785474003cc7278cfaec6b699c",
+    "t15a_inventory_sha256": "caddc1a79b84bd1fd81ab131fdfe062188fe94d9ae88c45757c261f38cd2c5e4",
+    "t15b_certificate_sha256": "a41b3632ccbb90cfb5126b20edb6a5b7ccc9f64956c40f9ed7b05a3003cf86f3"
+  },
+  "baseline": {
+    "commit": "0c8e5664c52ff19d80d30f33c64ade8772c955a8",
+    "incoming_migration_head": "0082_pipeline_ceri_scope",
+    "migration_head": "0083_winner_scope_truth",
+    "tree": "8ef7a81f8392810786ada89560847a4359a393cd"
+  },
+  "findings": {
+    "INV-REFRESH-001": "CLOSED_FOR_WINNER_PARTIAL_REPOSITORY_WIDE",
+    "INV-REVISION-001": "PARTIAL",
+    "INV-SCOPE-001": "CLOSED_FOR_WINNER_PARTIAL_REPOSITORY_WIDE",
+    "WIN-006": "PARTIAL_EXACT_WHERE_AVAILABLE_BIRTH_REVISION_IDENTITY_UNAVAILABLE",
+    "WIN-008": "CLOSED",
+    "XINT-012": "CLOSED_FOR_PIPELINE_CERI_WINNER_PARTIAL_OVERALL"
+  },
+  "migration": {
+    "additive": true,
+    "legacy_backfill": false,
+    "production_rewrite": false,
+    "required": true
+  },
+  "operation_families": [
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "retained capture/backfill population only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_00e602453a046eb8",
+      "parent_child_policy": "capture children remain inside admitted owner scope",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner capture/backfill exact source-row or explicit-run members",
+      "semantic_service": "app/services/winner_probability/backfill.py:WinnerProbabilityBackfillService.execute_backfill",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "pending remainder of retained prediction IDs only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_07d5132ea4950d61",
+      "parent_child_policy": "required continuation inherits identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner-h5-maturation exact WINNER_PREDICTION members",
+      "semantic_service": "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_forward_outcome",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "pending remainder of retained prediction IDs only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_181b495253d9c9f3",
+      "parent_child_policy": "required continuation inherits identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner-h5-maturation exact WINNER_PREDICTION members",
+      "semantic_service": "app/services/winner_probability/outcome_orchestration_service.py:H5NextOpenOrchestrationService.drain_due",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "captured generation/manifest remainder only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_28a02ef387a2cf02",
+      "parent_child_policy": "generation/job share identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "exact outcome revisions; upstream birth-bar gap remains explicit",
+      "scope_identity": "winner-cohort-generation exact typed evidence members",
+      "semantic_service": "app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "watermark-bound Winner outcome/eligibility evidence manifests"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "pending remainder of retained prediction IDs only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_370448d4d5b97745",
+      "parent_child_policy": "required continuation inherits identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner-h5-maturation exact WINNER_PREDICTION members",
+      "semantic_service": "app/services/winner_probability/scheduler.py:schedule_primary_h5_maturation",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "pending remainder of retained prediction IDs only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_391cc87ab4acf60e",
+      "parent_child_policy": "required continuation inherits identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner-h5-maturation exact WINNER_PREDICTION members",
+      "semantic_service": "app/services/winner_probability/outcome_service.py:OutcomeMaturationService.process_forward_outcome",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "retained capture/backfill population only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_5e9c7f4b54deade3",
+      "parent_child_policy": "capture children remain inside admitted owner scope",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner capture/backfill exact source-row or explicit-run members",
+      "semantic_service": "app/routers/winner_probability_routes.py:queue_winner_prediction_capture",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "retained capture/backfill population only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_6b6a709b24cfa078",
+      "parent_child_policy": "capture children remain inside admitted owner scope",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner capture/backfill exact source-row or explicit-run members",
+      "semantic_service": "app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService.materialize_pending_outcomes",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "retained capture/backfill population only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_79c791f0e8421e6e",
+      "parent_child_policy": "capture children remain inside admitted owner scope",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner capture/backfill exact source-row or explicit-run members",
+      "semantic_service": "app/services/winner_probability/capture_service.py:WinnerPredictionCaptureService._capture_ticker",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "captured generation/manifest remainder only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_8b743894024472f7",
+      "parent_child_policy": "generation/job share identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "exact outcome revisions; upstream birth-bar gap remains explicit",
+      "scope_identity": "winner-cohort-generation exact typed evidence members",
+      "semantic_service": "app/services/winner_probability/cohort_materialization_service.py:CohortMaterializationService.materialize_slice",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "watermark-bound Winner outcome/eligibility evidence manifests"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "captured generation/manifest remainder only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_9f421f6c2c6dc73f",
+      "parent_child_policy": "generation/job share identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "exact outcome revisions; upstream birth-bar gap remains explicit",
+      "scope_identity": "winner-cohort-generation exact typed evidence members",
+      "semantic_service": "app/services/winner_probability/job_handlers.py:WinnerCohortRefreshService.refresh_cohorts",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "watermark-bound Winner outcome/eligibility evidence manifests"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "retained capture/backfill population only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_a1a274f9c73e3fa0",
+      "parent_child_policy": "capture children remain inside admitted owner scope",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner capture/backfill exact source-row or explicit-run members",
+      "semantic_service": "app/services/winner_probability/capture_service.py:WinnerPredictionCaptureService._capture_ticker|app/services/winner_probability/pending_outcome_service.py:PendingOutcomeService.materialize_pending_outcomes",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "pending remainder of retained prediction IDs only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_ab5b156dc59c02ff",
+      "parent_child_policy": "required continuation inherits identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner-h5-maturation exact WINNER_PREDICTION members",
+      "semantic_service": "app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "pending remainder of retained prediction IDs only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_d07e72b38c67920a",
+      "parent_child_policy": "required continuation inherits identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "EXACT or REVISION_IDENTITY_UNAVAILABLE; never inferred",
+      "scope_identity": "winner-h5-maturation exact WINNER_PREDICTION members",
+      "semantic_service": "app/routers/winner_probability_routes.py:queue_winner_outcome_maturation",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "retained PriceBar bodies and exact PriceBarRevision when available"
+    },
+    {
+      "checkpoint_binding": "scope_id and refresh_cycle_id persisted on processing run",
+      "continuation_semantics": "captured generation/manifest remainder only",
+      "legacy_behavior": "LEGACY_UNKNOWN; no semantic backfill from current tables",
+      "membership_policy": "FROZEN",
+      "operation_family_id": "AF_f23925ce093d1da1",
+      "parent_child_policy": "generation/job share identical authority",
+      "refresh_identity": "canonical RefreshCycleIdentity; same cycle converges",
+      "retry_semantics": "retains scope/refresh/plan/cutoff/configuration",
+      "revision_identity_policy": "exact outcome revisions; upstream birth-bar gap remains explicit",
+      "scope_identity": "winner-cohort-generation exact typed evidence members",
+      "semantic_service": "app/services/winner_probability/cohort_materialization_service.py:CohortMaterializationService.materialize_slice|app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._create_estimate|app/services/winner_probability/probability_estimator.py:ProbabilityEstimator._materialize_cohort_statistic",
+      "status": "T15C_CERTIFIED",
+      "tests": [
+        "tests/test_t15c_winner_scope_truth.py",
+        "tests/integration/test_t15c_winner_scope_truth_postgresql.py"
+      ],
+      "truth_source": "watermark-bound Winner outcome/eligibility evidence manifests"
+    }
+  ],
+  "schema_version": "t15c-winner-scope-truth-certification-v1",
+  "summary": {
+    "assigned_operation_families": 15,
+    "certified_operation_families": 15,
+    "scope_refresh_defects": 0,
+    "t15d_remaining_operation_families": 7,
+    "unreconciled_operation_families": 0
+  },
+  "verdict": "PASS"
+}

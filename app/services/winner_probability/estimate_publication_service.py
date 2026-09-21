@@ -145,6 +145,7 @@ class WinnerEstimatePublicationService:
             raise PublicationInvariantViolation("manifest does not identify the reviewed hash")
         if manifest.get("candidate_manifest_hash") != candidate_manifest_hash:
             raise PublicationInvariantViolation("candidate manifest hash mismatch")
+        publication_authority = None
         if isinstance(db, Session):
             from app.services.decision_effective_configuration import configuration_from_payload
             from app.services.domain_mutation import MutationDomain
@@ -159,6 +160,13 @@ class WinnerEstimatePublicationService:
             scoped_generation = db.get(WinnerCohortGeneration, int(manifest["generation"]["id"]))
             if scoped_generation is None:
                 raise ValueError("MUTATION_WINNER_PUBLICATION_GENERATION_REQUIRED")
+            if all(
+                getattr(scoped_generation, name, None)
+                for name in ("scope_id", "refresh_cycle_id", "acquisition_plan_id")
+            ):
+                from app.services.scope_refresh_adoption import require_semantic_authority
+
+                publication_authority = require_semantic_authority(scoped_generation)
             operation_authority(
                 db,
                 domain=MutationDomain.WINNER_PUBLICATION,
@@ -218,6 +226,10 @@ class WinnerEstimatePublicationService:
                 raise PublicationInvariantViolation(
                     "request key was already used for different publication inputs"
                 )
+            if publication_authority is not None:
+                from app.services.scope_refresh_adoption import validate_same_authority
+
+                validate_same_authority(existing_request, scoped_generation)
             return dict(existing_request.result_json)
 
         records = list(manifest.get("records") or ())
@@ -339,6 +351,10 @@ class WinnerEstimatePublicationService:
             completed_at=at,
         )
         db.add(request)
+        if publication_authority is not None:
+            from app.services.scope_refresh_adoption import bind_semantic_authority
+
+            bind_semantic_authority(request, publication_authority)
         db.flush()
         _call_hook(stage_hook, "request_recorded")
         return result

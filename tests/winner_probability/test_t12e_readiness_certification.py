@@ -236,12 +236,19 @@ def test_certification_adds_no_columns_or_table_constraints():
         node.name for node in ast.parse(baseline).body if isinstance(node, ast.ClassDef)
     }
 
-    later_additive_binding_models = {"IBFetchRun", "PipelineRun", "BackgroundJob"}
+    later_additive_binding_models = {
+        "IBFetchRun",
+        "PipelineRun",
+        "BackgroundJob",
+        "WinnerCohortGeneration",
+        "WinnerEstimatePublicationRequest",
+        "WinnerProcessingRun",
+    }
 
     def schema_nodes(source):
         # T13D adds separate configuration tables. This Phase-3 guard continues
-        # to protect pre-existing models except the three owners explicitly
-        # extended by the later T15B additive semantic-authority migration.
+        # to protect pre-existing models except the owners explicitly extended
+        # by the later T15B/T15C additive semantic-authority migrations.
         models = [
             node
             for node in ast.parse(source).body

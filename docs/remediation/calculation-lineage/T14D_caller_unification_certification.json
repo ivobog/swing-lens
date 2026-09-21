@@ -10,10 +10,12 @@
       "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=core_writer_transaction; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
+          "bind_semantic_authority",
           "core_writer_transaction",
-          "operation_authority"
+          "operation_authority",
+          "semantic_authority.as_dict"
         ],
-        "authority_branch_fingerprint": "badbdf7d29c71795445ee439004b71439d1209d3f00db6db32ed5a7a155aaf86",
+        "authority_branch_fingerprint": "10e16729b79d4973a9c0658ec92b48205669f39821363ab8400b6fc1744702e2",
         "authority_requirement_set": "de00a73e72815129af283fa8c8be3a4edde54cb21566422b54dcb01a1e4294dc",
         "domains": [
           "CURRENT_PROJECTION",
@@ -49,18 +51,20 @@
             "any((getattr(state, key) != value for key, value in contract.as_dict().items()))",
             "definition is None or contract != contract_for(definition, config)",
             "requested_at <= state.updated_at",
+            "semantic_authority is not None",
             "isinstance(db, Session)",
             "generation.status in {CohortGenerationStatus.CANCELLED, CohortGenerationStatus.FAILED}",
             "generation is None",
             "authority is not None and generation_id is not None",
             "authority is not None"
           ],
-          "body_sha256": "6699773e3c4288d067e0dd806f3f6275145071001617a7f9d84e228557ac6deb",
+          "body_sha256": "df633b4986b5c5d55131945bed5caa6f04296c29d26c2261b3f335c40ed1cfde",
           "calls": [
             "GenerationInvariantViolation",
             "ValueError",
             "WinnerCohortGeneration",
             "any",
+            "bind_semantic_authority",
             "canonical_generation_key",
             "canonical_watermark_hash",
             "contract.as_dict",
@@ -83,6 +87,7 @@
             "select",
             "select(WinnerCohortGeneration).where",
             "self._seal_creation",
+            "semantic_authority.as_dict",
             "timedelta",
             "validate_generation",
             "validate_generation_transition",
@@ -92,7 +97,7 @@
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "4f2896aba7094e730a12d8ca6cff60f1edd77a3e856c354a5be2f2b579b683dd",
+          "file_sha256": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -128,7 +133,7 @@
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta"
           },
-          "signature": "self, db: Session, *, state: WinnerCohortRefreshState, contract: WinnerCohortContract, requested_at: datetime | None=None, config: WinnerProbabilityConfig | None=None, mutation_context=None"
+          "signature": "self, db: Session, *, state: WinnerCohortRefreshState, contract: WinnerCohortContract, requested_at: datetime | None=None, config: WinnerProbabilityConfig | None=None, semantic_authority: Any | None=None, mutation_context=None"
         }
       },
       "certified_family_status": "CANONICAL_AUTHORITY_DELIVERED",
@@ -196,7 +201,7 @@
       "initiator_id": "EF_0a056737ae51257a",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_988163cefed12f8f",
+      "operation_family_id": "AF_d2dec3cd06447d4e",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_GENERATION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact native retained source bodies/IDs and immutable proofs; full executable configuration; explicit aware temporal/session authority; exact predecessor, target/model/generation/rule/manifest and native readiness where applicable; same validating Session and current durable execution token/configuration/run binding"
@@ -219,6 +224,7 @@
       },
       "previous_operation_family_ids": [
         "AF_71fcbb9fb89f6ecd",
+        "AF_988163cefed12f8f",
         "AF_b8623e55e1c45b5a",
         "OP_COHORTGENERATIONSERVICE_CAPTURE_OR_RESUME_0a056737",
         "OP_COHORTGENERATIONSERVICE_PUBLISH_e1279389"
@@ -3145,7 +3151,7 @@
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "bdec6678c9ebfe16f363f9a8dc36527623be17c8df195ffe90c1c91119f69d83",
+          "file_sha256": "cb0e494018be4a4a13ba1dbec6a705b1c7e6d591ec340623487bb665e63ac1fe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -3415,7 +3421,7 @@
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "0ae16305197a8d53a8662b52499d9e11a38453882d10927d5ef8eb65c96ffeac",
+          "file_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -3978,13 +3984,16 @@
       "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=app/services/winner_probability/estimate_publication_service.py:WinnerEstimatePublicationService.publish; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
+          "bind_semantic_authority",
           "configuration_from_payload",
           "configuration_from_payload(birth).winner_config",
           "configuration_from_payload(birth['configuration']).winner_config",
           "core_writer_transaction",
-          "operation_authority"
+          "operation_authority",
+          "require_semantic_authority",
+          "validate_same_authority"
         ],
-        "authority_branch_fingerprint": "4b0826e1c674a4085a562a538728dd55f6ddd65fa4a34d531705e3e8394e79aa",
+        "authority_branch_fingerprint": "c7b19f43e8f843a780977152e31001f0469cbcf890c0c0e491595c683a9c5abb",
         "authority_requirement_set": "c053da5eb1c4ca0f3f85d69ce8714e76e613a1905023e508c4aeb55d3e499ce8",
         "domains": [
           "CURRENT_PROJECTION",
@@ -4033,15 +4042,18 @@
             "publication.status != GenerationPublicationStatus.PUBLISHED",
             "serving_after['ids'] != expected_after",
             "_without_ids(serving_after) != manifest['serving_after']",
+            "publication_authority is not None",
             "scoped_generation is None",
+            "all((getattr(scoped_generation, name, None) for name in ('scope_id', 'refresh_cycle_id', 'acquisition_plan_id')))",
             "isinstance(db, Session)",
             "existing_request.transition_manifest_hash != reviewed_manifest_hash or existing_request.candidate_manifest_hash != candidate_manifest_hash or existing_request.generation_key != manifest['generation']['generation_key']",
+            "publication_authority is not None",
             "source_generation is None",
             "birth is None",
             "estimate is None",
             "birth is None"
           ],
-          "body_sha256": "3a4908b6ce6a895a7a98cf0f03f4687b262b4d02e5f0385891e995a01e5687ef",
+          "body_sha256": "3357288a634101cb9afe01c6ae401d2881cd5c6001e57a6794c97df0dcfe4b93",
           "calls": [
             "(estimate.metadata_json or {}).get",
             "(source_generation.metrics_json or {}).get",
@@ -4053,6 +4065,8 @@
             "_call_hook",
             "_without_ids",
             "actor.strip",
+            "all",
+            "bind_semantic_authority",
             "candidates.values",
             "configuration_from_payload",
             "configuration_from_payload(birth).winner_config",
@@ -4064,6 +4078,7 @@
             "db.scalar",
             "db.scalars",
             "dict",
+            "getattr",
             "int",
             "isinstance",
             "len",
@@ -4073,6 +4088,7 @@
             "originals.values",
             "refresh_states.get",
             "request_key.strip",
+            "require_semantic_authority",
             "retained_row",
             "select",
             "select(WinnerCohortGeneration).where",
@@ -4094,12 +4110,13 @@
             "tuple",
             "validate_completion",
             "validate_estimate",
-            "validate_generation"
+            "validate_generation",
+            "validate_same_authority"
           ],
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "4d4c5189c9ce30cdf25046bee69d1645d99e9ed8f77aae7fb5c9b15756a3cb79",
+          "file_sha256": "4442daa21fd46a2b2868225b2e3118afc77345b5000d00b6e1f8504e90ae2726",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -4152,15 +4169,18 @@
             "publication.status != GenerationPublicationStatus.PUBLISHED",
             "serving_after['ids'] != expected_after",
             "_without_ids(serving_after) != manifest['serving_after']",
+            "publication_authority is not None",
             "scoped_generation is None",
+            "all((getattr(scoped_generation, name, None) for name in ('scope_id', 'refresh_cycle_id', 'acquisition_plan_id')))",
             "isinstance(db, Session)",
             "existing_request.transition_manifest_hash != reviewed_manifest_hash or existing_request.candidate_manifest_hash != candidate_manifest_hash or existing_request.generation_key != manifest['generation']['generation_key']",
+            "publication_authority is not None",
             "source_generation is None",
             "birth is None",
             "estimate is None",
             "birth is None"
           ],
-          "body_sha256": "3a4908b6ce6a895a7a98cf0f03f4687b262b4d02e5f0385891e995a01e5687ef",
+          "body_sha256": "3357288a634101cb9afe01c6ae401d2881cd5c6001e57a6794c97df0dcfe4b93",
           "calls": [
             "(estimate.metadata_json or {}).get",
             "(source_generation.metrics_json or {}).get",
@@ -4172,6 +4192,8 @@
             "_call_hook",
             "_without_ids",
             "actor.strip",
+            "all",
+            "bind_semantic_authority",
             "candidates.values",
             "configuration_from_payload",
             "configuration_from_payload(birth).winner_config",
@@ -4183,6 +4205,7 @@
             "db.scalar",
             "db.scalars",
             "dict",
+            "getattr",
             "int",
             "isinstance",
             "len",
@@ -4192,6 +4215,7 @@
             "originals.values",
             "refresh_states.get",
             "request_key.strip",
+            "require_semantic_authority",
             "retained_row",
             "select",
             "select(WinnerCohortGeneration).where",
@@ -4213,12 +4237,13 @@
             "tuple",
             "validate_completion",
             "validate_estimate",
-            "validate_generation"
+            "validate_generation",
+            "validate_same_authority"
           ],
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "4d4c5189c9ce30cdf25046bee69d1645d99e9ed8f77aae7fb5c9b15756a3cb79",
+          "file_sha256": "4442daa21fd46a2b2868225b2e3118afc77345b5000d00b6e1f8504e90ae2726",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -4341,7 +4366,7 @@
       "initiator_id": "EF_2bf8cff4ba3b4f20",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_1f737487d9fb5850",
+      "operation_family_id": "AF_09228611e7dfa830",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_GENERATION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact native retained source bodies/IDs and immutable proofs; full executable configuration; explicit aware temporal/session authority; exact predecessor, target/model/generation/rule/manifest and native readiness where applicable; same validating Session and current durable execution token/configuration/run binding",
@@ -4365,6 +4390,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_1f737487d9fb5850",
         "AF_fa5b15e99d789a21",
         "OP_WINNERESTIMATEPUBLICATIONSERVICE_PUBLISH_2bf8cff4"
       ],
@@ -4627,7 +4653,7 @@
         "authority_adapters": [
           "bind_winner_generation_configuration"
         ],
-        "authority_branch_fingerprint": "4fcd54b50c67048b0d01cd7bb8b32d2e600bcf3a6d1ebbc758bcc654193816ad",
+        "authority_branch_fingerprint": "ba024de67655fe4be664a7718c25314f04df895411846dab020bbb1b7ff83762",
         "authority_requirement_set": "85f00211ce6a1be5c0977c8c3140acc267597c27e33a397cbb6f3ef81e0cdd40",
         "domains": [
           "CONFIGURATION",
@@ -4635,7 +4661,7 @@
           "WINNER_COHORT",
           "WINNER_GENERATION"
         ],
-        "error_mapping": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "error_mapping": "35a76614161c5d94e03c37f3703929b9eb675da2b5aa653ce09dc7f90795149d",
         "execution_model": "synchronous",
         "semantic_modes": [
           "BOOTSTRAP",
@@ -4665,16 +4691,22 @@
         "source": {
           "address": "app/services/winner_probability/job_handlers.py:WinnerCohortRefreshService.refresh_cohorts",
           "authority_branches": [
-            "state.published_generation_id is not None and state.published_watermark_hash == state.desired_watermark_hash",
+            "generation_id is not None and generation is None",
+            "generation is not None",
+            "generation is None and (state.published_generation_id is not None and state.published_watermark_hash == state.desired_watermark_hash)",
             "isinstance(db, Session)",
             "on_generation_captured is not None",
+            "state is None",
             "published is not None"
           ],
-          "body_sha256": "c270c13430fc5fb5f546bb3c3c7eb54a06143da5a5709c111617cac2debf7c6f",
+          "body_sha256": "e294f64ad7c5c7770fc4f665506381f80a77349c03725d3c8b0f81ee5d332699",
           "calls": [
+            "ValueError",
+            "WatermarkAdvanceResult",
             "WinnerCohortRefreshResult",
             "bind_winner_generation_configuration",
             "contract_for",
+            "db.get",
             "int",
             "isinstance",
             "load_winner_probability_config",
@@ -4684,10 +4716,11 @@
             "self.generation_service.published_for_state",
             "self.materialization_service.materialize_slice",
             "self.watermark_service.advance_to_current_material_evidence",
-            "timedelta"
+            "timedelta",
+            "watermark_from_state"
           ],
           "decorators": [],
-          "file_sha256": "08cf988c6bd0a1647faddfb364d8ce0cc37af2c2ecbda45d847a61b20b9fa7ff",
+          "file_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -4706,14 +4739,17 @@
             "H5NextOpenOrchestrationService": "app.services.winner_probability.outcome_orchestration_service.H5NextOpenOrchestrationService",
             "JobDeferred": "app.services.background_worker.JobDeferred",
             "JobStatus": "app.services.background_job_service.JobStatus",
+            "LegacySemanticAuthorityError": "app.services.scope_refresh_adoption.LegacySemanticAuthorityError",
             "OutcomeMaturationCancelled": "app.services.winner_probability.outcome_service.OutcomeMaturationCancelled",
             "OutcomeMaturationService": "app.services.winner_probability.outcome_service.OutcomeMaturationService",
             "PredictionEligibility": "app.models.tables.PredictionEligibility",
             "ProbabilityEstimator": "app.services.winner_probability.probability_estimator.ProbabilityEstimator",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
+            "WatermarkAdvanceResult": "app.services.winner_probability.cohort_generation_service.WatermarkAdvanceResult",
             "WinnerBackfillCancelled": "app.services.winner_probability.backfill.WinnerBackfillCancelled",
             "WinnerCohortGeneration": "app.models.tables.WinnerCohortGeneration",
+            "WinnerCohortRefreshState": "app.models.tables.WinnerCohortRefreshState",
             "WinnerOutcomeDefinition": "app.models.tables.WinnerOutcomeDefinition",
             "WinnerPredictionCaptureCancelled": "app.services.winner_probability.capture_service.WinnerPredictionCaptureCancelled",
             "WinnerPredictionCaptureService": "app.services.winner_probability.capture_service.WinnerPredictionCaptureService",
@@ -4722,8 +4758,13 @@
             "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
             "WinnerProcessingRun": "app.models.tables.WinnerProcessingRun",
             "active_job_for_type": "app.services.background_job_service.active_job_for_type",
+            "admit_historical_backfill": "app.services.winner_probability.scope_refresh.admit_historical_backfill",
+            "admit_maturation": "app.services.winner_probability.scope_refresh.admit_maturation",
             "anchored_job_configuration": "app.services.configuration_delivery.anchored_job_configuration",
             "annotations": "__future__.annotations",
+            "backfill_run_ids": "app.services.winner_probability.scope_refresh.backfill_run_ids",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
+            "capture_source_row_ids": "app.services.winner_probability.scope_refresh.capture_source_row_ids",
             "contract_for": "app.services.winner_probability.cohort_generation_service.contract_for",
             "dataclass": "dataclasses.dataclass",
             "date": "datetime.date",
@@ -4736,16 +4777,22 @@
             "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "logging": "logging",
             "math": "math",
+            "maturation_prediction_ids": "app.services.winner_probability.scope_refresh.maturation_prediction_ids",
+            "maturation_remaining_members": "app.services.winner_probability.scope_refresh.maturation_remaining_members",
             "publish_after_commit": "app.observability.transaction_metrics.publish_after_commit",
             "record_coalesced_enqueue_attempt": "app.services.background_job_service.record_coalesced_enqueue_attempt",
+            "record_zero_progress": "app.services.scope_refresh_adoption.record_zero_progress",
             "redact_sensitive": "app.services.redaction.redact_sensitive",
             "redacted_token_metadata": "app.services.redaction.redacted_token_metadata",
+            "require_semantic_authority": "app.services.scope_refresh_adoption.require_semantic_authority",
             "resolve_pipeline_market_context": "app.services.market_calculation_context_service.resolve_pipeline_market_context",
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta",
-            "uuid4": "uuid.uuid4"
+            "uuid4": "uuid.uuid4",
+            "validate_generation_scope": "app.services.winner_probability.scope_refresh.validate_generation_scope",
+            "watermark_from_state": "app.services.winner_probability.cohort_generation_service.watermark_from_state"
           },
-          "signature": "self, db: Session, *, outcome_definition_id: str | None=None, training_cutoff_at: datetime | None=None, should_cancel: Callable[[], bool] | None=None, lease_guard: Callable[[], None] | None=None, on_generation_captured: Callable[[WinnerCohortGeneration], None] | None=None, max_groups: int=100, max_wall_seconds: float=45.0, operation_at: datetime | None=None"
+          "signature": "self, db: Session, *, outcome_definition_id: str | None=None, training_cutoff_at: datetime | None=None, should_cancel: Callable[[], bool] | None=None, lease_guard: Callable[[], None] | None=None, on_generation_captured: Callable[[WinnerCohortGeneration], None] | None=None, max_groups: int=100, max_wall_seconds: float=45.0, operation_at: datetime | None=None, generation_id: int | None=None"
         }
       },
       "certified_family_status": "SUPPORTED_DISTINCT_SEMANTICS",
@@ -4792,7 +4839,7 @@
       "initiator_id": "EF_33499b0639d00900",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_9f421f6c2c6dc73f",
+      "operation_family_id": "AF_2b6a77bfa40ea9cc",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_COHORT_DEFINITION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -4823,6 +4870,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_9f421f6c2c6dc73f",
         "AF_cda0317e5d1a38f9",
         "OP_WINNERCOHORTREFRESHSERVICE_REFRESH_COHORTS_33499b06"
       ],
@@ -5480,7 +5528,7 @@
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "0ae16305197a8d53a8662b52499d9e11a38453882d10927d5ef8eb65c96ffeac",
+          "file_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -5583,7 +5631,7 @@
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "0ae16305197a8d53a8662b52499d9e11a38453882d10927d5ef8eb65c96ffeac",
+          "file_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -6230,15 +6278,15 @@
     },
     {
       "authority_adapter": [
-        "AuthorityDeliveryBoundary=app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence",
-        "boundary_certificate=REVIEWED_TRANSPORT_TO_NATIVE_OPERATION"
+        "AuthorityDeliveryBoundary=bind_semantic_authority",
+        "boundary_certificate=EXPLICIT_NATIVE_AUTHORITY_OPERATION"
       ],
-      "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
+      "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=bind_semantic_authority; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
-          "No authority adapter; exact executable operation reviewed separately"
+          "bind_semantic_authority"
         ],
-        "authority_branch_fingerprint": "b7f4bcb347e2bb8c5931bea9b036a545190b49c9845fe58b6fe1c53feadf0516",
+        "authority_branch_fingerprint": "2a47abd43d6a3b481dddd01c1572e7115f578e1c197f12b34d5f9085e3b28fa8",
         "authority_requirement_set": "85f00211ce6a1be5c0977c8c3140acc267597c27e33a397cbb6f3ef81e0cdd40",
         "domains": [
           "CONFIGURATION",
@@ -6254,7 +6302,7 @@
           "CURRENT_PROJECTION_ADVANCE",
           "CURRENT_RULES_RETROSPECTIVE"
         ],
-        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence:WF_CONFIGURATION_DELIVERY|WF_WINNER_COHORT_DEFINITION|WF_WINNER_COHORT_MATERIALIZATION|WF_WINNER_EVIDENCE_MANIFEST|WF_WINNER_GENERATION|WF_WINNER_WATERMARK",
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:bind_semantic_authority:WF_CONFIGURATION_DELIVERY|WF_WINNER_COHORT_DEFINITION|WF_WINNER_COHORT_MATERIALIZATION|WF_WINNER_EVIDENCE_MANIFEST|WF_WINNER_GENERATION|WF_WINNER_WATERMARK",
         "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
         "writer_families": [
           "WF_CONFIGURATION_DELIVERY",
@@ -6266,41 +6314,55 @@
         ]
       },
       "certification_inheritance_proof": {
-        "authority_delivery_boundary": "app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence",
-        "boundary_certificate": "REVIEWED_TRANSPORT_TO_NATIVE_OPERATION",
+        "authority_delivery_boundary": "bind_semantic_authority",
+        "boundary_certificate": "EXPLICIT_NATIVE_AUTHORITY_OPERATION",
         "caller_specific_branch": true,
         "convergence_kind": "DISTINCT_AUTHORITY_OPERATION",
         "inheritance_basis": "Distinct operation; its authority branches are recorded.",
         "initiator_id": "EF_4401e1a8a0cd2743",
         "service_source": null,
-        "shared_service": "app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence",
+        "shared_service": "bind_semantic_authority",
         "source": {
           "address": "app/services/winner_probability/cohort_refresh_planner.py:CohortRefreshPlanner.request_for_current_evidence",
           "authority_branches": [
             "not enqueue_refresh or (caught_up and (not advance.advanced))"
           ],
-          "body_sha256": "6c3a719a4d72da2c4bfe159de8ba58a7cf3806d98fd4ba80870201ba117923d1",
+          "body_sha256": "641e89f91e3c3d828ae0c4e964ac1b02c20ea1a6ee240db7d076a8a6f7734a15",
           "calls": [
             "CohortRefreshRequestResult",
+            "admit_cohort_refresh",
+            "bind_semantic_authority",
+            "contract_for",
+            "datetime.now",
             "enqueue_job",
-            "self.watermark_service.advance_to_current_material_evidence"
+            "max",
+            "observed_at.isoformat",
+            "self.generation_service.capture_or_resume",
+            "self.watermark_service.advance_to_current_material_evidence",
+            "timedelta"
           ],
           "decorators": [],
-          "file_sha256": "2baf78cf98e6b558d36b49b4692788586a2227a182965b2f39530c31e2147723",
+          "file_sha256": "660ba76493acc241e8b084809e1794fddfb74273d1734e7c256abed56608a1c5",
           "guard_owners": [],
           "import_bindings": {
             "BackgroundJob": "app.models.tables.BackgroundJob",
+            "CohortGenerationService": "app.services.winner_probability.cohort_generation_service.CohortGenerationService",
             "EvidenceWatermarkService": "app.services.winner_probability.cohort_generation_service.EvidenceWatermarkService",
             "Session": "sqlalchemy.orm.Session",
+            "UTC": "datetime.UTC",
             "WatermarkAdvanceResult": "app.services.winner_probability.cohort_generation_service.WatermarkAdvanceResult",
             "WinnerOutcomeDefinition": "app.models.tables.WinnerOutcomeDefinition",
             "WinnerProbabilityConfig": "app.services.winner_probability.config.WinnerProbabilityConfig",
+            "admit_cohort_refresh": "app.services.winner_probability.scope_refresh.admit_cohort_refresh",
             "annotations": "__future__.annotations",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
+            "contract_for": "app.services.winner_probability.cohort_generation_service.contract_for",
             "dataclass": "dataclasses.dataclass",
             "datetime": "datetime.datetime",
-            "enqueue_job": "app.services.background_job_service.enqueue_job"
+            "enqueue_job": "app.services.background_job_service.enqueue_job",
+            "timedelta": "datetime.timedelta"
           },
-          "signature": "self, db: Session, *, outcome_definition: WinnerOutcomeDefinition, config: WinnerProbabilityConfig, observed_at: datetime | None=None, priority: int=100, enqueue_refresh: bool=True"
+          "signature": "self, db: Session, *, outcome_definition: WinnerOutcomeDefinition, config: WinnerProbabilityConfig, observed_at: datetime | None=None, priority: int=100, enqueue_refresh: bool=True, maturation_counts: dict | None=None"
         }
       },
       "certified_family_status": "SUPPORTED_DISTINCT_SEMANTICS",
@@ -6337,7 +6399,7 @@
       "initiator_id": "EF_4401e1a8a0cd2743",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_28a02ef387a2cf02",
+      "operation_family_id": "AF_59fb09f190518de8",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_COHORT_DEFINITION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -6368,7 +6430,9 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_28a02ef387a2cf02",
         "AF_396d92531cc968a0",
+        "AF_4ae5fbeffb62629f",
         "OP_COHORTREFRESHPLANNER_REQUEST_FOR_CURRENT_EVIDENCE_4401e1a8"
       ],
       "semantic_mode": [
@@ -10054,7 +10118,7 @@
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "0ae16305197a8d53a8662b52499d9e11a38453882d10927d5ef8eb65c96ffeac",
+          "file_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -11287,7 +11351,7 @@
           "core_writer_transaction",
           "operation_authority"
         ],
-        "authority_branch_fingerprint": "cc8f1aaefc581c0adb5cfef80059ac0d4edcf9c567ec57c7047549642f97cc49",
+        "authority_branch_fingerprint": "026c9e8a0d5037f7cf76e755a5294073dabe52b772a8b00b4cf9c410bd280b8c",
         "authority_requirement_set": "a43b5cb0e98a29de8eabce8df974b4c19ff17c4f0b2af6fefd3369a526e5f3cd",
         "domains": [
           "CURRENT_PROJECTION"
@@ -11316,10 +11380,13 @@
           "address": "app/services/winner_probability/cohort_generation_service.py:EvidenceWatermarkService.advance_to_current_material_evidence",
           "authority_branches": [
             "isinstance(db, Session)",
+            "maturation_counts is not None",
             "ordering == 0",
-            "ordering != 1"
+            "ordering != 1",
+            "maturation_counts.get('scan_completed')",
+            "not maturation_counts.get('pending_h5_after_cycle', 0)"
           ],
-          "body_sha256": "5ef2f1c6b89c621e16432d83f8e624d35a72ac6df505677cbfb0f7aa4c47394b",
+          "body_sha256": "040c9be3b3261e0bf2b88f2df7e43ed4752e0442cd20a7b017636c91396bcd21",
           "calls": [
             "GenerationInvariantViolation",
             "WatermarkAdvanceResult",
@@ -11327,18 +11394,23 @@
             "canonical_watermark_hash",
             "contract_for",
             "contract_for(outcome_definition, config).as_dict",
+            "datetime.fromisoformat",
+            "datetime.fromisoformat(str(oldest_due)).date",
             "datetime.now",
             "db.flush",
+            "int",
             "isinstance",
+            "maturation_counts.get",
             "operation_authority",
             "self._locked_state",
             "self.current_material_watermark",
+            "str",
             "watermark_from_state"
           ],
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "4f2896aba7094e730a12d8ca6cff60f1edd77a3e856c354a5be2f2b579b683dd",
+          "file_sha256": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -11374,7 +11446,7 @@
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta"
           },
-          "signature": "self, db: Session, *, outcome_definition: WinnerOutcomeDefinition, config: WinnerProbabilityConfig, observed_at: datetime | None=None"
+          "signature": "self, db: Session, *, outcome_definition: WinnerOutcomeDefinition, config: WinnerProbabilityConfig, observed_at: datetime | None=None, maturation_counts: dict | None=None"
         }
       },
       "certified_family_status": "SUPPORTED_DISTINCT_SEMANTICS",
@@ -11422,7 +11494,7 @@
       "initiator_id": "EF_8e47858541189c36",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_faa5cf2dc3c6e62c",
+      "operation_family_id": "AF_96fef63653b2e4ca",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_WATERMARK": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned"
@@ -11445,6 +11517,7 @@
       },
       "previous_operation_family_ids": [
         "AF_c907160eeb5862e8",
+        "AF_faa5cf2dc3c6e62c",
         "OP_EVIDENCEWATERMARKSERVICE_ADVANCE_TO_CURRENT_MATERIAL_EVIDENCE_8e478585"
       ],
       "semantic_mode": [
@@ -11598,7 +11671,7 @@
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "0ae16305197a8d53a8662b52499d9e11a38453882d10927d5ef8eb65c96ffeac",
+          "file_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -12745,14 +12818,17 @@
       "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=app/services/winner_probability/estimate_publication_service.py:WinnerEstimatePublicationService.publish; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
+          "bind_semantic_authority",
           "configuration_from_payload",
           "configuration_from_payload(birth).winner_config",
           "configuration_from_payload(birth['configuration']).winner_config",
           "core_writer_member('app.services.winner_probability.estimate_publication_service:WinnerEstimatePublicationService.publish')",
           "core_writer_transaction",
-          "operation_authority"
+          "operation_authority",
+          "require_semantic_authority",
+          "validate_same_authority"
         ],
-        "authority_branch_fingerprint": "5d46c04e0bda81b0a82a686d7829c1d21b0e19ca92fed3f010acb6fc43214e0f",
+        "authority_branch_fingerprint": "a200ddc72ee22b90981a3ff343bae6606372864ff9fa71d5aff4edd72874a9ad",
         "authority_requirement_set": "de00a73e72815129af283fa8c8be3a4edde54cb21566422b54dcb01a1e4294dc",
         "domains": [
           "CURRENT_PROJECTION",
@@ -12798,15 +12874,18 @@
             "publication.status != GenerationPublicationStatus.PUBLISHED",
             "serving_after['ids'] != expected_after",
             "_without_ids(serving_after) != manifest['serving_after']",
+            "publication_authority is not None",
             "scoped_generation is None",
+            "all((getattr(scoped_generation, name, None) for name in ('scope_id', 'refresh_cycle_id', 'acquisition_plan_id')))",
             "isinstance(db, Session)",
             "existing_request.transition_manifest_hash != reviewed_manifest_hash or existing_request.candidate_manifest_hash != candidate_manifest_hash or existing_request.generation_key != manifest['generation']['generation_key']",
+            "publication_authority is not None",
             "source_generation is None",
             "birth is None",
             "estimate is None",
             "birth is None"
           ],
-          "body_sha256": "3a4908b6ce6a895a7a98cf0f03f4687b262b4d02e5f0385891e995a01e5687ef",
+          "body_sha256": "3357288a634101cb9afe01c6ae401d2881cd5c6001e57a6794c97df0dcfe4b93",
           "calls": [
             "(estimate.metadata_json or {}).get",
             "(source_generation.metrics_json or {}).get",
@@ -12818,6 +12897,8 @@
             "_call_hook",
             "_without_ids",
             "actor.strip",
+            "all",
+            "bind_semantic_authority",
             "candidates.values",
             "configuration_from_payload",
             "configuration_from_payload(birth).winner_config",
@@ -12829,6 +12910,7 @@
             "db.scalar",
             "db.scalars",
             "dict",
+            "getattr",
             "int",
             "isinstance",
             "len",
@@ -12838,6 +12920,7 @@
             "originals.values",
             "refresh_states.get",
             "request_key.strip",
+            "require_semantic_authority",
             "retained_row",
             "select",
             "select(WinnerCohortGeneration).where",
@@ -12859,12 +12942,13 @@
             "tuple",
             "validate_completion",
             "validate_estimate",
-            "validate_generation"
+            "validate_generation",
+            "validate_same_authority"
           ],
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "4d4c5189c9ce30cdf25046bee69d1645d99e9ed8f77aae7fb5c9b15756a3cb79",
+          "file_sha256": "4442daa21fd46a2b2868225b2e3118afc77345b5000d00b6e1f8504e90ae2726",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -12936,7 +13020,7 @@
           "decorators": [
             "core_writer_member('app.services.winner_probability.estimate_publication_service:WinnerEstimatePublicationService.publish')"
           ],
-          "file_sha256": "4f2896aba7094e730a12d8ca6cff60f1edd77a3e856c354a5be2f2b579b683dd",
+          "file_sha256": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
           "guard_owners": [
             "app/services/winner_probability/estimate_publication_service.py:WinnerEstimatePublicationService.publish"
           ],
@@ -13027,7 +13111,7 @@
       "initiator_id": "EF_9de871e1a7416925",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_669d1249d016911d",
+      "operation_family_id": "AF_cebc7b8259bc93f7",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_GENERATION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact native retained source bodies/IDs and immutable proofs; full executable configuration; explicit aware temporal/session authority; exact predecessor, target/model/generation/rule/manifest and native readiness where applicable; same validating Session and current durable execution token/configuration/run binding"
@@ -13049,6 +13133,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_669d1249d016911d",
         "AF_fa5b15e99d789a21",
         "OP_WINNERESTIMATEPUBLICATIONSERVICE_PUBLISH_2bf8cff4"
       ],
@@ -18678,15 +18763,16 @@
     },
     {
       "authority_adapter": [
-        "AuthorityDeliveryBoundary=app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow",
-        "boundary_certificate=REVIEWED_TRANSPORT_TO_NATIVE_OPERATION"
+        "AuthorityDeliveryBoundary=authority.as_dict",
+        "boundary_certificate=EXPLICIT_NATIVE_AUTHORITY_OPERATION"
       ],
-      "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
+      "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=authority.as_dict; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
-          "No authority adapter; exact executable operation reviewed separately"
+          "authority.as_dict",
+          "bind_semantic_authority"
         ],
-        "authority_branch_fingerprint": "7d3e46f39be38116fae7b67dca214fe3da286310557e46b82a82a70430f56ebc",
+        "authority_branch_fingerprint": "9f4f8607afcab523c4cf073948435cdaa401f646040fb5c8363f5b795cec2734",
         "authority_requirement_set": "9bdad836eb6a1c9f22636f3cb8aed11f14b410e18a757c51561a12c3e8f31fa9",
         "domains": [
           "CONFIGURATION",
@@ -18704,7 +18790,7 @@
           "CURRENT_PROJECTION_ADVANCE",
           "OUTCOME_MATURATION"
         ],
-        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow:WF_CONFIGURATION_DELIVERY|WF_WINNER_COHORT_DEFINITION|WF_WINNER_COHORT_MATERIALIZATION|WF_WINNER_EVIDENCE_MANIFEST|WF_WINNER_FORWARD_MATURATION|WF_WINNER_GENERATION|WF_WINNER_OUTCOME_REVISION|WF_WINNER_WATERMARK",
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:authority.as_dict:WF_CONFIGURATION_DELIVERY|WF_WINNER_COHORT_DEFINITION|WF_WINNER_COHORT_MATERIALIZATION|WF_WINNER_EVIDENCE_MANIFEST|WF_WINNER_FORWARD_MATURATION|WF_WINNER_GENERATION|WF_WINNER_OUTCOME_REVISION|WF_WINNER_WATERMARK",
         "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
         "writer_families": [
           "WF_CONFIGURATION_DELIVERY",
@@ -18718,31 +18804,59 @@
         ]
       },
       "certification_inheritance_proof": {
-        "authority_delivery_boundary": "app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow",
-        "boundary_certificate": "REVIEWED_TRANSPORT_TO_NATIVE_OPERATION",
+        "authority_delivery_boundary": "authority.as_dict",
+        "boundary_certificate": "EXPLICIT_NATIVE_AUTHORITY_OPERATION",
         "caller_specific_branch": true,
         "convergence_kind": "DISTINCT_AUTHORITY_OPERATION",
         "inheritance_basis": "Distinct operation; its authority branches are recorded.",
         "initiator_id": "EF_ddff1e372aaee0e2",
         "service_source": null,
-        "shared_service": "app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow",
+        "shared_service": "authority.as_dict",
         "source": {
           "address": "app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow",
           "authority_branches": [
+            "isinstance(db, Session)",
             "existing is not None",
-            "not getattr(job, '_coalesced', False) and job.root_job_id is None"
+            "not getattr(job, '_coalesced', False) and job.root_job_id is None",
+            "authority is not None and (not getattr(job, '_coalesced', False))",
+            "db.get_bind().dialect.name == 'postgresql'",
+            "same_cycle is not None",
+            "existing is not None"
           ],
-          "body_sha256": "8e5c40cb7b1abd90aad251a67c37e2f5e8b7c95d5dc7e3adebf2fffed65fc66b",
+          "body_sha256": "b2978d6ae7b711df610b8b69cdf4e06e08b2b37cdf16c33e26d8439808f8700d",
           "calls": [
+            "BackgroundJob.id.desc",
+            "_parse_optional_datetime",
+            "_utcnow",
             "active_job_for_type",
+            "admit_maturation",
+            "authority.as_dict",
+            "bind_semantic_authority",
+            "date.fromisoformat",
+            "db.execute",
             "db.flush",
+            "db.get_bind",
+            "db.scalar",
+            "dict",
             "enqueue_job",
+            "func.pg_advisory_xact_lock",
             "getattr",
+            "isinstance",
+            "load_winner_probability_config",
+            "mutable_payload.get",
+            "mutable_payload.update",
+            "operation_cutoff.isoformat",
             "record_coalesced_enqueue_attempt",
+            "select",
+            "select(BackgroundJob).where",
+            "select(BackgroundJob).where(BackgroundJob.job_type == WINNER_OUTCOME_MATURATION).where",
+            "select(BackgroundJob).where(BackgroundJob.job_type == WINNER_OUTCOME_MATURATION).where(BackgroundJob.request_key == cycle_key).order_by",
+            "select(BackgroundJob).where(BackgroundJob.job_type == WINNER_OUTCOME_MATURATION).where(BackgroundJob.request_key == cycle_key).order_by(BackgroundJob.id.desc()).limit",
+            "str",
             "uuid4"
           ],
           "decorators": [],
-          "file_sha256": "08cf988c6bd0a1647faddfb364d8ce0cc37af2c2ecbda45d847a61b20b9fa7ff",
+          "file_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -18761,14 +18875,17 @@
             "H5NextOpenOrchestrationService": "app.services.winner_probability.outcome_orchestration_service.H5NextOpenOrchestrationService",
             "JobDeferred": "app.services.background_worker.JobDeferred",
             "JobStatus": "app.services.background_job_service.JobStatus",
+            "LegacySemanticAuthorityError": "app.services.scope_refresh_adoption.LegacySemanticAuthorityError",
             "OutcomeMaturationCancelled": "app.services.winner_probability.outcome_service.OutcomeMaturationCancelled",
             "OutcomeMaturationService": "app.services.winner_probability.outcome_service.OutcomeMaturationService",
             "PredictionEligibility": "app.models.tables.PredictionEligibility",
             "ProbabilityEstimator": "app.services.winner_probability.probability_estimator.ProbabilityEstimator",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
+            "WatermarkAdvanceResult": "app.services.winner_probability.cohort_generation_service.WatermarkAdvanceResult",
             "WinnerBackfillCancelled": "app.services.winner_probability.backfill.WinnerBackfillCancelled",
             "WinnerCohortGeneration": "app.models.tables.WinnerCohortGeneration",
+            "WinnerCohortRefreshState": "app.models.tables.WinnerCohortRefreshState",
             "WinnerOutcomeDefinition": "app.models.tables.WinnerOutcomeDefinition",
             "WinnerPredictionCaptureCancelled": "app.services.winner_probability.capture_service.WinnerPredictionCaptureCancelled",
             "WinnerPredictionCaptureService": "app.services.winner_probability.capture_service.WinnerPredictionCaptureService",
@@ -18777,8 +18894,13 @@
             "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
             "WinnerProcessingRun": "app.models.tables.WinnerProcessingRun",
             "active_job_for_type": "app.services.background_job_service.active_job_for_type",
+            "admit_historical_backfill": "app.services.winner_probability.scope_refresh.admit_historical_backfill",
+            "admit_maturation": "app.services.winner_probability.scope_refresh.admit_maturation",
             "anchored_job_configuration": "app.services.configuration_delivery.anchored_job_configuration",
             "annotations": "__future__.annotations",
+            "backfill_run_ids": "app.services.winner_probability.scope_refresh.backfill_run_ids",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
+            "capture_source_row_ids": "app.services.winner_probability.scope_refresh.capture_source_row_ids",
             "contract_for": "app.services.winner_probability.cohort_generation_service.contract_for",
             "dataclass": "dataclasses.dataclass",
             "date": "datetime.date",
@@ -18791,14 +18913,20 @@
             "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "logging": "logging",
             "math": "math",
+            "maturation_prediction_ids": "app.services.winner_probability.scope_refresh.maturation_prediction_ids",
+            "maturation_remaining_members": "app.services.winner_probability.scope_refresh.maturation_remaining_members",
             "publish_after_commit": "app.observability.transaction_metrics.publish_after_commit",
             "record_coalesced_enqueue_attempt": "app.services.background_job_service.record_coalesced_enqueue_attempt",
+            "record_zero_progress": "app.services.scope_refresh_adoption.record_zero_progress",
             "redact_sensitive": "app.services.redaction.redact_sensitive",
             "redacted_token_metadata": "app.services.redaction.redacted_token_metadata",
+            "require_semantic_authority": "app.services.scope_refresh_adoption.require_semantic_authority",
             "resolve_pipeline_market_context": "app.services.market_calculation_context_service.resolve_pipeline_market_context",
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta",
-            "uuid4": "uuid.uuid4"
+            "uuid4": "uuid.uuid4",
+            "validate_generation_scope": "app.services.winner_probability.scope_refresh.validate_generation_scope",
+            "watermark_from_state": "app.services.winner_probability.cohort_generation_service.watermark_from_state"
           },
           "signature": "db: Session, *, payload: dict[str, Any], trigger_source: str, request_key: str | None=None, priority: int=100"
         }
@@ -18840,7 +18968,7 @@
       "initiator_id": "EF_ddff1e372aaee0e2",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_ab5b156dc59c02ff",
+      "operation_family_id": "AF_9cdcd6a811c74c3f",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_COHORT_DEFINITION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -18875,6 +19003,8 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_80c6ce8b736fa5d6",
+        "AF_ab5b156dc59c02ff",
         "AF_ec521949dd9da4de",
         "OP_ENQUEUE_OUTCOME_MATURATION_WORKFLOW_ddff1e37"
       ],
@@ -18981,7 +19111,7 @@
           "resolve_winner_configuration",
           "self.repository.load_run_context"
         ],
-        "authority_branch_fingerprint": "ab948c2ae5d6250528ce231d3636b4c4dcc4b49c0c7f762720185e88c2125ad1",
+        "authority_branch_fingerprint": "a01db39eab09948b3a1331e54d283b6b89379ec3185179ea97a0e4450e14c93a",
         "authority_requirement_set": "4da88f23c3993e0f4b43d9ad320aceec33eb40006f4e668936db45b9c57cd551",
         "domains": [
           "PRICE",
@@ -18990,7 +19120,7 @@
           "WINNER_OUTCOME",
           "WINNER_PREDICTION"
         ],
-        "error_mapping": "ae38b3564ea611ce721a8bbb218251c37a9057bca65e4318cc7ab6e4d49bb8eb",
+        "error_mapping": "8844553fb59d4516f762a54bbff51a283bfb7081729cdcc809be0ad14efb15b1",
         "execution_model": "synchronous",
         "semantic_modes": [
           "CANONICAL_CALCULATION"
@@ -19026,9 +19156,11 @@
             "reconstruction_method is not None and market_cutoff is None",
             "market_cutoff is not None",
             "identity_enforced",
+            "target_raw_row_ids is not None",
             "progress_callback is not None",
             "decision_at is not None and _as_utc(decision_at) < market_cutoff.cutoff_at",
             "decision_at is None",
+            "missing",
             "primary_definition is not None and callable(prepare_run)",
             "callable(clear_run)",
             "item_session_factory is None",
@@ -19036,8 +19168,9 @@
             "item_session_factory is not None",
             "memory_probe is not None"
           ],
-          "body_sha256": "a1975f4d19e85e74ef717bfcc21786505ee4a0ab475ea915ec0fe617b572aa22",
+          "body_sha256": "010a8cd1052979b1097639bcfbc77cb4b7e3b97d54172a6a8ad832b740e31e17",
           "calls": [
+            "','.join",
             "WinnerCalculationIdentityError",
             "_MutableCaptureCounts",
             "_as_utc",
@@ -19055,6 +19188,7 @@
             "enumerate",
             "exc.metadata",
             "getattr",
+            "int",
             "isinstance",
             "item_db.commit",
             "item_session_factory",
@@ -19079,7 +19213,10 @@
             "self.repository.get_outcome_definition",
             "self.repository.load_run_context",
             "sessionmaker",
+            "set",
             "signature",
+            "sorted",
+            "str",
             "totals.add",
             "totals.readiness_rejections.append",
             "totals.record_exclusion",
@@ -19088,7 +19225,7 @@
             "validate_winner_handoff"
           ],
           "decorators": [],
-          "file_sha256": "bdec6678c9ebfe16f363f9a8dc36527623be17c8df195ffe90c1c91119f69d83",
+          "file_sha256": "cb0e494018be4a4a13ba1dbec6a705b1c7e6d591ec340623487bb665e63ac1fe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -19140,7 +19277,7 @@
             "validate_next_open_timing": "app.services.winner_probability.temporal_integrity.validate_next_open_timing",
             "validate_winner_handoff": "app.services.winner_probability.calculation_identity.validate_winner_handoff"
           },
-          "signature": "self, db: Session, *, run_id: int, config: WinnerProbabilityConfig | None=None, captured_at: datetime | None=None, decision_at: datetime | None=None, market_cutoff: MarketCalculationCutoff | None=None, decision_handoff_manifest_id: int | None=None, reconstruction_method: str | None=None, source_quality_flags: tuple[str, ...]=(), production_training_allowed: bool | None=None, should_cancel: Callable[[], bool] | None=None, lease_guard: Callable[[], None] | None=None, progress_callback: Callable[..., None] | None=None, memory_probe: Callable[[Session, int, int, str], None] | None=None"
+          "signature": "self, db: Session, *, run_id: int, config: WinnerProbabilityConfig | None=None, captured_at: datetime | None=None, decision_at: datetime | None=None, market_cutoff: MarketCalculationCutoff | None=None, decision_handoff_manifest_id: int | None=None, reconstruction_method: str | None=None, source_quality_flags: tuple[str, ...]=(), production_training_allowed: bool | None=None, should_cancel: Callable[[], bool] | None=None, lease_guard: Callable[[], None] | None=None, progress_callback: Callable[..., None] | None=None, memory_probe: Callable[[Session, int, int, str], None] | None=None, target_raw_row_ids: tuple[int, ...] | None=None"
         }
       },
       "certified_family_status": "CANONICAL_AUTHORITY_DELIVERED",
@@ -19229,7 +19366,7 @@
       "initiator_id": "EF_dfa047a276b66281",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_f4fe78539ca6b6d4",
+      "operation_family_id": "AF_44f84f22a471cd2f",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_CAPTURE_TRAINING_METADATA": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -19270,6 +19407,7 @@
       },
       "previous_operation_family_ids": [
         "AF_81bcb4b26523e3d7",
+        "AF_f4fe78539ca6b6d4",
         "OP_WINNERPREDICTIONCAPTURESERVICE_CAPTURE_RUN_dfa047a2"
       ],
       "semantic_mode": [
@@ -19590,7 +19728,7 @@
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "0ae16305197a8d53a8662b52499d9e11a38453882d10927d5ef8eb65c96ffeac",
+          "file_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -19767,10 +19905,12 @@
       "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=core_writer_transaction; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
+          "bind_semantic_authority",
           "core_writer_transaction",
-          "operation_authority"
+          "operation_authority",
+          "semantic_authority.as_dict"
         ],
-        "authority_branch_fingerprint": "badbdf7d29c71795445ee439004b71439d1209d3f00db6db32ed5a7a155aaf86",
+        "authority_branch_fingerprint": "10e16729b79d4973a9c0658ec92b48205669f39821363ab8400b6fc1744702e2",
         "authority_requirement_set": "de00a73e72815129af283fa8c8be3a4edde54cb21566422b54dcb01a1e4294dc",
         "domains": [
           "CURRENT_PROJECTION",
@@ -19856,7 +19996,7 @@
           "decorators": [
             "core_writer_transaction"
           ],
-          "file_sha256": "4f2896aba7094e730a12d8ca6cff60f1edd77a3e856c354a5be2f2b579b683dd",
+          "file_sha256": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -19954,7 +20094,7 @@
       "initiator_id": "EF_e127938927133466",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_988163cefed12f8f",
+      "operation_family_id": "AF_d2dec3cd06447d4e",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_GENERATION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact native retained source bodies/IDs and immutable proofs; full executable configuration; explicit aware temporal/session authority; exact predecessor, target/model/generation/rule/manifest and native readiness where applicable; same validating Session and current durable execution token/configuration/run binding"
@@ -19977,6 +20117,7 @@
       },
       "previous_operation_family_ids": [
         "AF_71fcbb9fb89f6ecd",
+        "AF_988163cefed12f8f",
         "AF_b8623e55e1c45b5a",
         "OP_COHORTGENERATIONSERVICE_CAPTURE_OR_RESUME_0a056737",
         "OP_COHORTGENERATIONSERVICE_PUBLISH_e1279389"
@@ -20025,7 +20166,7 @@
         "authority_adapters": [
           "build_context"
         ],
-        "authority_branch_fingerprint": "3d8a0077d69b7b9bb397375a9889b3a4794736fa1686a17ca773adeed66913e7",
+        "authority_branch_fingerprint": "9c912896f87a8531fef29d7c4d0b89b66c90afa0cfc7fd7e9da2af975f26381c",
         "authority_requirement_set": "55a44e187796f2fb2132558a62830dfa91d18e75009b7aa8c7beb9fd749fdc6c",
         "domains": [
           "WINNER_OUTCOME",
@@ -20056,12 +20197,13 @@
           "address": "app/services/winner_probability/outcome_orchestration_service.py:H5NextOpenOrchestrationService.drain_due",
           "authority_branches": [
             "operation_cutoff_at.tzinfo is None",
+            "prediction_ids is not None",
             "not rows",
             "lease_guard is not None",
             "should_cancel is not None and should_cancel()",
             "context is None"
           ],
-          "body_sha256": "ea09eed36dcf7c5471649b97643e17fed0bbaff71888ced14b183198ab773e63",
+          "body_sha256": "c325a819aa30b34093fd7d15c7d7bdb6a716f4d279b1cc5a4ed65b4022ab8470",
           "calls": [
             "H5DrainResult",
             "OutcomeMaturationCancelled",
@@ -20089,7 +20231,7 @@
             "us_trading_sessions_between"
           ],
           "decorators": [],
-          "file_sha256": "401dda90b0dc18fcd724aa6d62b5fe769b04cfd4fffc1da0f9f3cbc782a17378",
+          "file_sha256": "c7838feb4a3396ec17fd834ef22b1a2f463d0834bb4ffedffe6b766d1fa91d4f",
           "guard_owners": [],
           "import_bindings": {
             "Callable": "collections.abc.Callable",
@@ -20112,7 +20254,7 @@
             "temporal_eligibility_sql": "app.services.winner_probability.temporal_eligibility.temporal_eligibility_sql",
             "us_trading_sessions_between": "app.services.us_market_calendar.us_trading_sessions_between"
           },
-          "signature": "self, db: Session, *, now: datetime | None=None, operation_cutoff_at: datetime | None=None, batch_size: int=500, max_batches: int=10, due_session: date | None=None, should_cancel: Callable[[], bool] | None=None, lease_guard: Callable[[], None] | None=None"
+          "signature": "self, db: Session, *, now: datetime | None=None, operation_cutoff_at: datetime | None=None, batch_size: int=500, max_batches: int=10, due_session: date | None=None, should_cancel: Callable[[], bool] | None=None, lease_guard: Callable[[], None] | None=None, prediction_ids: tuple[int, ...] | None=None"
         }
       },
       "certified_family_status": "SUPPORTED_DISTINCT_SEMANTICS",
@@ -20171,7 +20313,7 @@
       "initiator_id": "EF_e53568287697baf9",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_181b495253d9c9f3",
+      "operation_family_id": "AF_bb97334a03d24dda",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_FORWARD_MATURATION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact native retained source bodies/IDs and immutable proofs; full executable configuration; explicit aware temporal/session authority; exact predecessor, target/model/generation/rule/manifest and native readiness where applicable; same validating Session and current durable execution token/configuration/run binding",
@@ -20196,6 +20338,7 @@
       },
       "previous_operation_family_ids": [
         "AF_0898f1d8010c5fd0",
+        "AF_181b495253d9c9f3",
         "OP_H5NEXTOPENORCHESTRATIONSERVICE_DRAIN_DUE_e5356828"
       ],
       "semantic_mode": [
@@ -24099,9 +24242,11 @@
       "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=anchored_job_configuration; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "8f9ed00c7cd8bd91f7e3b333d511923e599985dfaf4b7acaff0b2ec47cfc1b44",
+        "authority_branch_fingerprint": "6c5de09e2ee57005dcfb975b30e38ef31d62ac3d9917ac0485f3abbca2689725",
         "authority_requirement_set": "9bdad836eb6a1c9f22636f3cb8aed11f14b410e18a757c51561a12c3e8f31fa9",
         "domains": [
           "CONFIGURATION",
@@ -24146,23 +24291,24 @@
           "authority_branches": [
             "orchestration_service is None and outcome_service is None",
             "processed == 0",
+            "continuation_decision == 'STOP_ZERO_PROGRESS' and authority is not None",
             "isinstance(db, Session)",
-            "continuation_decision != 'DEFER_SAME_JOB' and status == JobStatus.PARTIAL",
+            "continuation_decision not in {'DEFER_SAME_JOB', 'STOP_ZERO_PROGRESS'} and status == JobStatus.PARTIAL",
             "continuation_decision == 'ENQUEUE_CONTINUATION'",
             "continuation_decision == 'DEFER_SAME_JOB' and defer_until is not None",
             "retry_deferred > 0",
             "eligible_remaining > 0",
+            "remaining_members",
             "definition is None",
-            "counts.get('scan_completed')",
-            "not counts.get('pending_h5_after_cycle', 0)",
             "counts.get('target_stop_matured', 0)",
+            "authority is not None",
             "orchestration_service is not None",
             "eligible_remaining > 0 or pending_after > 0",
             "depth >= MAX_MATURATION_CONTINUATION_DEPTH",
             "retry_deferred > 0",
             "pending_after > 0"
           ],
-          "body_sha256": "b42a34a8f8ad21930ee182a80f72e8e2c4efc109ab248ba5287211fadc867a2d",
+          "body_sha256": "7e70f4f32dcd278bc2c54461c19d751c7a03c4c7b4dcfb38978cda7c616df63c",
           "calls": [
             "(defer_until - observed).total_seconds",
             "CancelRequested",
@@ -24181,12 +24327,12 @@
             "_retained_operation_cutoff",
             "_start_processing_run",
             "_utcnow",
+            "bind_semantic_authority",
             "bool",
             "classify_maturation_status",
             "counts.get",
             "counts.update",
             "datetime.fromisoformat",
-            "datetime.fromisoformat(str(oldest_due)).date",
             "datetime.fromisoformat(str(payload['due_session'])).date",
             "db.flush",
             "enqueue_job",
@@ -24197,11 +24343,15 @@
             "load_winner_probability_config",
             "logger.info",
             "math.ceil",
+            "maturation_prediction_ids",
+            "maturation_remaining_members",
             "max",
             "orchestration_service.drain_due",
             "outcome_service.process_due_outcomes",
             "payload.get",
             "publish_after_commit",
+            "record_zero_progress",
+            "require_semantic_authority",
             "result.as_dict",
             "str",
             "type",
@@ -24210,7 +24360,7 @@
           "decorators": [
             "anchored_job_configuration"
           ],
-          "file_sha256": "08cf988c6bd0a1647faddfb364d8ce0cc37af2c2ecbda45d847a61b20b9fa7ff",
+          "file_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -24229,14 +24379,17 @@
             "H5NextOpenOrchestrationService": "app.services.winner_probability.outcome_orchestration_service.H5NextOpenOrchestrationService",
             "JobDeferred": "app.services.background_worker.JobDeferred",
             "JobStatus": "app.services.background_job_service.JobStatus",
+            "LegacySemanticAuthorityError": "app.services.scope_refresh_adoption.LegacySemanticAuthorityError",
             "OutcomeMaturationCancelled": "app.services.winner_probability.outcome_service.OutcomeMaturationCancelled",
             "OutcomeMaturationService": "app.services.winner_probability.outcome_service.OutcomeMaturationService",
             "PredictionEligibility": "app.models.tables.PredictionEligibility",
             "ProbabilityEstimator": "app.services.winner_probability.probability_estimator.ProbabilityEstimator",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
+            "WatermarkAdvanceResult": "app.services.winner_probability.cohort_generation_service.WatermarkAdvanceResult",
             "WinnerBackfillCancelled": "app.services.winner_probability.backfill.WinnerBackfillCancelled",
             "WinnerCohortGeneration": "app.models.tables.WinnerCohortGeneration",
+            "WinnerCohortRefreshState": "app.models.tables.WinnerCohortRefreshState",
             "WinnerOutcomeDefinition": "app.models.tables.WinnerOutcomeDefinition",
             "WinnerPredictionCaptureCancelled": "app.services.winner_probability.capture_service.WinnerPredictionCaptureCancelled",
             "WinnerPredictionCaptureService": "app.services.winner_probability.capture_service.WinnerPredictionCaptureService",
@@ -24245,8 +24398,13 @@
             "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
             "WinnerProcessingRun": "app.models.tables.WinnerProcessingRun",
             "active_job_for_type": "app.services.background_job_service.active_job_for_type",
+            "admit_historical_backfill": "app.services.winner_probability.scope_refresh.admit_historical_backfill",
+            "admit_maturation": "app.services.winner_probability.scope_refresh.admit_maturation",
             "anchored_job_configuration": "app.services.configuration_delivery.anchored_job_configuration",
             "annotations": "__future__.annotations",
+            "backfill_run_ids": "app.services.winner_probability.scope_refresh.backfill_run_ids",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
+            "capture_source_row_ids": "app.services.winner_probability.scope_refresh.capture_source_row_ids",
             "contract_for": "app.services.winner_probability.cohort_generation_service.contract_for",
             "dataclass": "dataclasses.dataclass",
             "date": "datetime.date",
@@ -24259,14 +24417,20 @@
             "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "logging": "logging",
             "math": "math",
+            "maturation_prediction_ids": "app.services.winner_probability.scope_refresh.maturation_prediction_ids",
+            "maturation_remaining_members": "app.services.winner_probability.scope_refresh.maturation_remaining_members",
             "publish_after_commit": "app.observability.transaction_metrics.publish_after_commit",
             "record_coalesced_enqueue_attempt": "app.services.background_job_service.record_coalesced_enqueue_attempt",
+            "record_zero_progress": "app.services.scope_refresh_adoption.record_zero_progress",
             "redact_sensitive": "app.services.redaction.redact_sensitive",
             "redacted_token_metadata": "app.services.redaction.redacted_token_metadata",
+            "require_semantic_authority": "app.services.scope_refresh_adoption.require_semantic_authority",
             "resolve_pipeline_market_context": "app.services.market_calculation_context_service.resolve_pipeline_market_context",
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta",
-            "uuid4": "uuid.uuid4"
+            "uuid4": "uuid.uuid4",
+            "validate_generation_scope": "app.services.winner_probability.scope_refresh.validate_generation_scope",
+            "watermark_from_state": "app.services.winner_probability.cohort_generation_service.watermark_from_state"
           },
           "signature": "db: Session, job: BackgroundJob, *, outcome_service: OutcomeMaturationService | None=None, orchestration_service: H5NextOpenOrchestrationService | None=None, now: datetime | None=None"
         }
@@ -24353,7 +24517,7 @@
       "initiator_id": "EF_0ef7906db6e76146",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_ebce648b9f7274c1",
+      "operation_family_id": "AF_43a7ebc35f56ba9f",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_COHORT_DEFINITION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -24389,7 +24553,10 @@
       },
       "previous_operation_family_ids": [
         "AF_3de010f4ed5bc4a3",
+        "AF_bfa52a0a9a802d44",
         "AF_c97d4de80eec5dfd",
+        "AF_ebce648b9f7274c1",
+        "AF_ef02aea4bea7c99c",
         "OP_EXECUTE_OUTCOME_MATURATION_JOB_0ef7906d",
         "OP_EXECUTE_OUTCOME_REVISION_CHECK_JOB_253b79a1"
       ],
@@ -27795,9 +27962,11 @@
       "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=anchored_job_configuration; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "8f9ed00c7cd8bd91f7e3b333d511923e599985dfaf4b7acaff0b2ec47cfc1b44",
+        "authority_branch_fingerprint": "6c5de09e2ee57005dcfb975b30e38ef31d62ac3d9917ac0485f3abbca2689725",
         "authority_requirement_set": "9bdad836eb6a1c9f22636f3cb8aed11f14b410e18a757c51561a12c3e8f31fa9",
         "domains": [
           "CONFIGURATION",
@@ -27873,7 +28042,7 @@
           "decorators": [
             "anchored_job_configuration"
           ],
-          "file_sha256": "08cf988c6bd0a1647faddfb364d8ce0cc37af2c2ecbda45d847a61b20b9fa7ff",
+          "file_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -27892,14 +28061,17 @@
             "H5NextOpenOrchestrationService": "app.services.winner_probability.outcome_orchestration_service.H5NextOpenOrchestrationService",
             "JobDeferred": "app.services.background_worker.JobDeferred",
             "JobStatus": "app.services.background_job_service.JobStatus",
+            "LegacySemanticAuthorityError": "app.services.scope_refresh_adoption.LegacySemanticAuthorityError",
             "OutcomeMaturationCancelled": "app.services.winner_probability.outcome_service.OutcomeMaturationCancelled",
             "OutcomeMaturationService": "app.services.winner_probability.outcome_service.OutcomeMaturationService",
             "PredictionEligibility": "app.models.tables.PredictionEligibility",
             "ProbabilityEstimator": "app.services.winner_probability.probability_estimator.ProbabilityEstimator",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
+            "WatermarkAdvanceResult": "app.services.winner_probability.cohort_generation_service.WatermarkAdvanceResult",
             "WinnerBackfillCancelled": "app.services.winner_probability.backfill.WinnerBackfillCancelled",
             "WinnerCohortGeneration": "app.models.tables.WinnerCohortGeneration",
+            "WinnerCohortRefreshState": "app.models.tables.WinnerCohortRefreshState",
             "WinnerOutcomeDefinition": "app.models.tables.WinnerOutcomeDefinition",
             "WinnerPredictionCaptureCancelled": "app.services.winner_probability.capture_service.WinnerPredictionCaptureCancelled",
             "WinnerPredictionCaptureService": "app.services.winner_probability.capture_service.WinnerPredictionCaptureService",
@@ -27908,8 +28080,13 @@
             "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
             "WinnerProcessingRun": "app.models.tables.WinnerProcessingRun",
             "active_job_for_type": "app.services.background_job_service.active_job_for_type",
+            "admit_historical_backfill": "app.services.winner_probability.scope_refresh.admit_historical_backfill",
+            "admit_maturation": "app.services.winner_probability.scope_refresh.admit_maturation",
             "anchored_job_configuration": "app.services.configuration_delivery.anchored_job_configuration",
             "annotations": "__future__.annotations",
+            "backfill_run_ids": "app.services.winner_probability.scope_refresh.backfill_run_ids",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
+            "capture_source_row_ids": "app.services.winner_probability.scope_refresh.capture_source_row_ids",
             "contract_for": "app.services.winner_probability.cohort_generation_service.contract_for",
             "dataclass": "dataclasses.dataclass",
             "date": "datetime.date",
@@ -27922,14 +28099,20 @@
             "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "logging": "logging",
             "math": "math",
+            "maturation_prediction_ids": "app.services.winner_probability.scope_refresh.maturation_prediction_ids",
+            "maturation_remaining_members": "app.services.winner_probability.scope_refresh.maturation_remaining_members",
             "publish_after_commit": "app.observability.transaction_metrics.publish_after_commit",
             "record_coalesced_enqueue_attempt": "app.services.background_job_service.record_coalesced_enqueue_attempt",
+            "record_zero_progress": "app.services.scope_refresh_adoption.record_zero_progress",
             "redact_sensitive": "app.services.redaction.redact_sensitive",
             "redacted_token_metadata": "app.services.redaction.redacted_token_metadata",
+            "require_semantic_authority": "app.services.scope_refresh_adoption.require_semantic_authority",
             "resolve_pipeline_market_context": "app.services.market_calculation_context_service.resolve_pipeline_market_context",
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta",
-            "uuid4": "uuid.uuid4"
+            "uuid4": "uuid.uuid4",
+            "validate_generation_scope": "app.services.winner_probability.scope_refresh.validate_generation_scope",
+            "watermark_from_state": "app.services.winner_probability.cohort_generation_service.watermark_from_state"
           },
           "signature": "db: Session, job: BackgroundJob, *, outcome_service: OutcomeMaturationService | None=None, now: datetime | None=None"
         }
@@ -27994,7 +28177,7 @@
       "initiator_id": "EF_253b79a161c2f85f",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_ebce648b9f7274c1",
+      "operation_family_id": "AF_43a7ebc35f56ba9f",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_COHORT_DEFINITION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -28030,7 +28213,10 @@
       },
       "previous_operation_family_ids": [
         "AF_3de010f4ed5bc4a3",
+        "AF_bfa52a0a9a802d44",
         "AF_c97d4de80eec5dfd",
+        "AF_ebce648b9f7274c1",
+        "AF_ef02aea4bea7c99c",
         "OP_EXECUTE_OUTCOME_MATURATION_JOB_0ef7906d",
         "OP_EXECUTE_OUTCOME_REVISION_CHECK_JOB_253b79a1"
       ],
@@ -32509,9 +32695,11 @@
       "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=anchored_job_configuration; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "e1bd84300e8b65efc2a8cc48a41bab30da814e020467eb13b7722278b7fc52a3",
+        "authority_branch_fingerprint": "507998feb1b5c17198772c22d620fca5a99bdd6b5be727af26b7b194c2bf1146",
         "authority_requirement_set": "85f00211ce6a1be5c0977c8c3140acc267597c27e33a397cbb6f3ef81e0cdd40",
         "domains": [
           "CONFIGURATION",
@@ -32519,7 +32707,7 @@
           "WINNER_COHORT",
           "WINNER_GENERATION"
         ],
-        "error_mapping": "44773171f4bf4504ce92e64793ea485d4d309e405ce217634a1bb8e46f7eed64",
+        "error_mapping": "b2f29e37d5b9681089caa6492b93124788770c15981dbbe2ee6d7a2f266583b4",
         "execution_model": "durable",
         "semantic_modes": [
           "BOOTSTRAP",
@@ -32550,13 +32738,17 @@
         "source": {
           "address": "app/services/winner_probability/job_handlers.py:execute_cohort_refresh_job",
           "authority_branches": [
+            "authority is not None and result.generation_id is not None",
             "status == JobStatus.PARTIAL",
-            "result.continuation_required"
+            "result.continuation_required",
+            "authority is not None",
+            "generation is None"
           ],
-          "body_sha256": "ba5aa0194709c3ab3866f937fd5e925c46469e2c6141dfbb3b82be63b350fa3e",
+          "body_sha256": "4809d4194a14b042c2c8f5c60816fc3e794e94c0bf8d835fa14ef2f145e6dc97",
           "calls": [
             "CancelRequested",
             "JobDeferred",
+            "ValueError",
             "WinnerCohortRefreshService",
             "_check_cancel_only",
             "_finish_processing_run",
@@ -32565,23 +32757,28 @@
             "_retained_operation_cutoff",
             "_start_processing_run",
             "_utcnow",
+            "bind_semantic_authority",
             "cohort_refresh_service.refresh_cohorts",
             "counts.get",
             "datetime.fromisoformat",
             "db.flush",
+            "db.get",
             "float",
             "get_settings",
+            "isinstance",
             "load_winner_probability_config",
             "payload.get",
+            "require_semantic_authority",
             "result.as_dict",
             "str",
             "type",
-            "type(exc).__name__.upper"
+            "type(exc).__name__.upper",
+            "validate_generation_scope"
           ],
           "decorators": [
             "anchored_job_configuration"
           ],
-          "file_sha256": "08cf988c6bd0a1647faddfb364d8ce0cc37af2c2ecbda45d847a61b20b9fa7ff",
+          "file_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -32600,14 +32797,17 @@
             "H5NextOpenOrchestrationService": "app.services.winner_probability.outcome_orchestration_service.H5NextOpenOrchestrationService",
             "JobDeferred": "app.services.background_worker.JobDeferred",
             "JobStatus": "app.services.background_job_service.JobStatus",
+            "LegacySemanticAuthorityError": "app.services.scope_refresh_adoption.LegacySemanticAuthorityError",
             "OutcomeMaturationCancelled": "app.services.winner_probability.outcome_service.OutcomeMaturationCancelled",
             "OutcomeMaturationService": "app.services.winner_probability.outcome_service.OutcomeMaturationService",
             "PredictionEligibility": "app.models.tables.PredictionEligibility",
             "ProbabilityEstimator": "app.services.winner_probability.probability_estimator.ProbabilityEstimator",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
+            "WatermarkAdvanceResult": "app.services.winner_probability.cohort_generation_service.WatermarkAdvanceResult",
             "WinnerBackfillCancelled": "app.services.winner_probability.backfill.WinnerBackfillCancelled",
             "WinnerCohortGeneration": "app.models.tables.WinnerCohortGeneration",
+            "WinnerCohortRefreshState": "app.models.tables.WinnerCohortRefreshState",
             "WinnerOutcomeDefinition": "app.models.tables.WinnerOutcomeDefinition",
             "WinnerPredictionCaptureCancelled": "app.services.winner_probability.capture_service.WinnerPredictionCaptureCancelled",
             "WinnerPredictionCaptureService": "app.services.winner_probability.capture_service.WinnerPredictionCaptureService",
@@ -32616,8 +32816,13 @@
             "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
             "WinnerProcessingRun": "app.models.tables.WinnerProcessingRun",
             "active_job_for_type": "app.services.background_job_service.active_job_for_type",
+            "admit_historical_backfill": "app.services.winner_probability.scope_refresh.admit_historical_backfill",
+            "admit_maturation": "app.services.winner_probability.scope_refresh.admit_maturation",
             "anchored_job_configuration": "app.services.configuration_delivery.anchored_job_configuration",
             "annotations": "__future__.annotations",
+            "backfill_run_ids": "app.services.winner_probability.scope_refresh.backfill_run_ids",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
+            "capture_source_row_ids": "app.services.winner_probability.scope_refresh.capture_source_row_ids",
             "contract_for": "app.services.winner_probability.cohort_generation_service.contract_for",
             "dataclass": "dataclasses.dataclass",
             "date": "datetime.date",
@@ -32630,14 +32835,20 @@
             "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "logging": "logging",
             "math": "math",
+            "maturation_prediction_ids": "app.services.winner_probability.scope_refresh.maturation_prediction_ids",
+            "maturation_remaining_members": "app.services.winner_probability.scope_refresh.maturation_remaining_members",
             "publish_after_commit": "app.observability.transaction_metrics.publish_after_commit",
             "record_coalesced_enqueue_attempt": "app.services.background_job_service.record_coalesced_enqueue_attempt",
+            "record_zero_progress": "app.services.scope_refresh_adoption.record_zero_progress",
             "redact_sensitive": "app.services.redaction.redact_sensitive",
             "redacted_token_metadata": "app.services.redaction.redacted_token_metadata",
+            "require_semantic_authority": "app.services.scope_refresh_adoption.require_semantic_authority",
             "resolve_pipeline_market_context": "app.services.market_calculation_context_service.resolve_pipeline_market_context",
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta",
-            "uuid4": "uuid.uuid4"
+            "uuid4": "uuid.uuid4",
+            "validate_generation_scope": "app.services.winner_probability.scope_refresh.validate_generation_scope",
+            "watermark_from_state": "app.services.winner_probability.cohort_generation_service.watermark_from_state"
           },
           "signature": "db: Session, job: BackgroundJob, *, cohort_refresh_service: WinnerCohortRefreshService | None=None"
         }
@@ -32698,7 +32909,7 @@
       "initiator_id": "EF_44af811a1c6f79b6",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_2295d134030fe3f0",
+      "operation_family_id": "AF_2bb2056bdbfaaabb",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_COHORT_DEFINITION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -32729,6 +32940,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_2295d134030fe3f0",
         "AF_670bc7d0d52efa66",
         "OP_EXECUTE_COHORT_REFRESH_JOB_44af811a"
       ],
@@ -32801,7 +33013,7 @@
         "authority_adapters": [
           "No authority adapter; exact executable operation reviewed separately"
         ],
-        "authority_branch_fingerprint": "6b56c3cdddfba509f324bc0e077547144c1f36509d2f8d452e41fb89fb90ddd4",
+        "authority_branch_fingerprint": "9b3c5096ccaf23d9a75d53ab7342202efa9659440273b3818a265acff6a08bbc",
         "authority_requirement_set": "85f00211ce6a1be5c0977c8c3140acc267597c27e33a397cbb6f3ef81e0cdd40",
         "domains": [
           "CONFIGURATION",
@@ -32809,7 +33021,7 @@
           "WINNER_COHORT",
           "WINNER_GENERATION"
         ],
-        "error_mapping": "e40d87e2dc1b0ec06c442bd18705ddf36e03d09d53f4c590516b880f53007653",
+        "error_mapping": "3c9a11855e6b68abdec3c5e5bc61f96f890b9e744122470328811bdfee05af25",
         "execution_model": "synchronous",
         "semantic_modes": [
           "BOOTSTRAP",
@@ -32837,28 +33049,36 @@
         "shared_service": "app/routers/winner_probability_routes.py:queue_winner_cohort_refresh",
         "source": {
           "address": "app/routers/winner_probability_routes.py:queue_winner_cohort_refresh",
-          "authority_branches": [],
-          "body_sha256": "e21d820c4b13b54a63da1fbbe2e87fb93aa2e470e4d272f669be46bb4b692ffc",
+          "authority_branches": [
+            "definition is None"
+          ],
+          "body_sha256": "5526b3bb2d72d1298621c37efa8d6f646aa0dae15f2b1176de22cc4b162b890e",
           "calls": [
+            "CohortRefreshPlanner",
+            "CohortRefreshPlanner().request_for_current_evidence",
+            "HTTPException",
+            "WinnerProbabilityRepository",
+            "WinnerProbabilityRepository().get_outcome_definition",
             "_require_local_admin",
             "bool",
+            "datetime.now",
             "db.commit",
             "db.rollback",
-            "enqueue_job",
             "getattr",
+            "load_winner_probability_config",
             "router.post",
-            "unsafe_route",
-            "{'outcome_definition_id': outcome_definition_id}.items"
+            "unsafe_route"
           ],
           "decorators": [
             "router.post('/api/winner-probability/cohorts/refresh')",
             "unsafe_route(ROUTE_CLASS_LOCAL_ADMIN, reason='queues winner-probability cohort rebuild', local_admin_required=True)"
           ],
-          "file_sha256": "b779c2885b3723cc848501e18442ef3b7a013d18e5a7ecd66dc9225753deb3e6",
+          "file_sha256": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
           "guard_owners": [],
           "import_bindings": {
             "APIRouter": "fastapi.APIRouter",
             "Annotated": "typing.Annotated",
+            "CohortRefreshPlanner": "app.services.winner_probability.cohort_refresh_planner.CohortRefreshPlanner",
             "Depends": "fastapi.Depends",
             "HTMLResponse": "fastapi.responses.HTMLResponse",
             "HTTPException": "fastapi.HTTPException",
@@ -32882,8 +33102,11 @@
             "WinnerProbabilityFilterError": "app.services.winner_probability.dtos.WinnerProbabilityFilterError",
             "WinnerProbabilityFilters": "app.services.winner_probability.dtos.WinnerProbabilityFilters",
             "WinnerProbabilityOperationsService": "app.services.winner_probability.operations_service.WinnerProbabilityOperationsService",
+            "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
+            "admit_prediction_capture": "app.services.winner_probability.scope_refresh.admit_prediction_capture",
             "annotations": "__future__.annotations",
             "attachment_response": "app.routers.export_responses.attachment_response",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
             "date": "datetime.date",
             "datetime": "datetime.datetime",
             "enforce_row_limit": "app.services.resource_limits.enforce_row_limit",
@@ -32896,6 +33119,7 @@
             "get_db": "app.db.get_db",
             "get_settings": "app.settings.get_settings",
             "limit_error_payload": "app.services.resource_limits.limit_error_payload",
+            "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "redact_text": "app.services.redaction.redact_text",
             "require_local_admin": "app.security.require_local_admin",
             "select": "sqlalchemy.select",
@@ -32947,7 +33171,7 @@
       "initiator_id": "EF_45b828a8ba71d319",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_7d01bd8d0c79aef5",
+      "operation_family_id": "AF_e444cc1ad2f15cc3",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_COHORT_DEFINITION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -32978,6 +33202,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_7d01bd8d0c79aef5",
         "AF_fa7f20854e77de37",
         "OP_QUEUE_WINNER_COHORT_REFRESH_45b828a8"
       ],
@@ -34547,9 +34772,11 @@
       "authority_equivalence_key": {
         "authority_adapters": [
           "_decision_contexts",
-          "anchored_job_configuration"
+          "anchored_job_configuration",
+          "bind_semantic_authority",
+          "require_semantic_authority"
         ],
-        "authority_branch_fingerprint": "37c713352dd9d323e23d8269ce149cf1f66513e11d48e9c43f44af2c563f2e91",
+        "authority_branch_fingerprint": "3fd339cb68214bca653c32d85110ce62e21184b930620b089e65798cd7265734",
         "authority_requirement_set": "4da88f23c3993e0f4b43d9ad320aceec33eb40006f4e668936db45b9c57cd551",
         "domains": [
           "PRICE",
@@ -34558,7 +34785,7 @@
           "WINNER_OUTCOME",
           "WINNER_PREDICTION"
         ],
-        "error_mapping": "208bd75ed0bdb7c8451ab2acb3156d6841bac62c230e3b63b7f2b9fdb789fd4a",
+        "error_mapping": "bfd54c91f7b70da1b8ca6470f88495c7c723b5a6b7a486d6f332760fd7ff0d3d",
         "execution_model": "durable",
         "semantic_modes": [
           "BOOTSTRAP",
@@ -34593,9 +34820,10 @@
         "source": {
           "address": "app/services/winner_probability/job_handlers.py:execute_historical_backfill_job",
           "authority_branches": [
+            "isinstance(db, Session)",
             "status == JobStatus.PARTIAL"
           ],
-          "body_sha256": "d006ef0d1d308664762775f228d237007a44513e805be12c0aa05a39c527f802",
+          "body_sha256": "7a40c4c81ae1ab2dd1cc716af912086e3d6b65476ce5161f58a1b7e2c3418bbd",
           "calls": [
             "BackfillRequest",
             "CancelRequested",
@@ -34605,14 +34833,22 @@
             "_heartbeat_and_check_cancel",
             "_int_list",
             "_optional_int",
+            "_parse_optional_datetime",
             "_start_processing_run",
             "_utcnow",
+            "admit_historical_backfill",
+            "backfill_run_ids",
             "backfill_service.execute_backfill",
+            "bind_semantic_authority",
             "bool",
             "counts.get",
+            "cutoff.isoformat",
+            "db.flush",
+            "isinstance",
             "len",
             "load_winner_probability_config",
             "payload.get",
+            "require_semantic_authority",
             "str",
             "tuple",
             "type",
@@ -34621,7 +34857,7 @@
           "decorators": [
             "anchored_job_configuration"
           ],
-          "file_sha256": "08cf988c6bd0a1647faddfb364d8ce0cc37af2c2ecbda45d847a61b20b9fa7ff",
+          "file_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -34640,14 +34876,17 @@
             "H5NextOpenOrchestrationService": "app.services.winner_probability.outcome_orchestration_service.H5NextOpenOrchestrationService",
             "JobDeferred": "app.services.background_worker.JobDeferred",
             "JobStatus": "app.services.background_job_service.JobStatus",
+            "LegacySemanticAuthorityError": "app.services.scope_refresh_adoption.LegacySemanticAuthorityError",
             "OutcomeMaturationCancelled": "app.services.winner_probability.outcome_service.OutcomeMaturationCancelled",
             "OutcomeMaturationService": "app.services.winner_probability.outcome_service.OutcomeMaturationService",
             "PredictionEligibility": "app.models.tables.PredictionEligibility",
             "ProbabilityEstimator": "app.services.winner_probability.probability_estimator.ProbabilityEstimator",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
+            "WatermarkAdvanceResult": "app.services.winner_probability.cohort_generation_service.WatermarkAdvanceResult",
             "WinnerBackfillCancelled": "app.services.winner_probability.backfill.WinnerBackfillCancelled",
             "WinnerCohortGeneration": "app.models.tables.WinnerCohortGeneration",
+            "WinnerCohortRefreshState": "app.models.tables.WinnerCohortRefreshState",
             "WinnerOutcomeDefinition": "app.models.tables.WinnerOutcomeDefinition",
             "WinnerPredictionCaptureCancelled": "app.services.winner_probability.capture_service.WinnerPredictionCaptureCancelled",
             "WinnerPredictionCaptureService": "app.services.winner_probability.capture_service.WinnerPredictionCaptureService",
@@ -34656,8 +34895,13 @@
             "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
             "WinnerProcessingRun": "app.models.tables.WinnerProcessingRun",
             "active_job_for_type": "app.services.background_job_service.active_job_for_type",
+            "admit_historical_backfill": "app.services.winner_probability.scope_refresh.admit_historical_backfill",
+            "admit_maturation": "app.services.winner_probability.scope_refresh.admit_maturation",
             "anchored_job_configuration": "app.services.configuration_delivery.anchored_job_configuration",
             "annotations": "__future__.annotations",
+            "backfill_run_ids": "app.services.winner_probability.scope_refresh.backfill_run_ids",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
+            "capture_source_row_ids": "app.services.winner_probability.scope_refresh.capture_source_row_ids",
             "contract_for": "app.services.winner_probability.cohort_generation_service.contract_for",
             "dataclass": "dataclasses.dataclass",
             "date": "datetime.date",
@@ -34670,14 +34914,20 @@
             "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "logging": "logging",
             "math": "math",
+            "maturation_prediction_ids": "app.services.winner_probability.scope_refresh.maturation_prediction_ids",
+            "maturation_remaining_members": "app.services.winner_probability.scope_refresh.maturation_remaining_members",
             "publish_after_commit": "app.observability.transaction_metrics.publish_after_commit",
             "record_coalesced_enqueue_attempt": "app.services.background_job_service.record_coalesced_enqueue_attempt",
+            "record_zero_progress": "app.services.scope_refresh_adoption.record_zero_progress",
             "redact_sensitive": "app.services.redaction.redact_sensitive",
             "redacted_token_metadata": "app.services.redaction.redacted_token_metadata",
+            "require_semantic_authority": "app.services.scope_refresh_adoption.require_semantic_authority",
             "resolve_pipeline_market_context": "app.services.market_calculation_context_service.resolve_pipeline_market_context",
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta",
-            "uuid4": "uuid.uuid4"
+            "uuid4": "uuid.uuid4",
+            "validate_generation_scope": "app.services.winner_probability.scope_refresh.validate_generation_scope",
+            "watermark_from_state": "app.services.winner_probability.cohort_generation_service.watermark_from_state"
           },
           "signature": "db: Session, job: BackgroundJob, *, backfill_service: WinnerProbabilityBackfillService | None=None"
         }
@@ -34734,7 +34984,7 @@
       "initiator_id": "EF_4e8e234f5820cedb",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_806047024969b47b",
+      "operation_family_id": "AF_f8c2fba8bd45b93d",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_CAPTURE_TRAINING_METADATA": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -34775,6 +35025,7 @@
       },
       "previous_operation_family_ids": [
         "AF_3664feaf3c10a30b",
+        "AF_806047024969b47b",
         "OP_EXECUTE_HISTORICAL_BACKFILL_JOB_4e8e234f"
       ],
       "semantic_mode": [
@@ -47138,7 +47389,7 @@
         "authority_adapters": [
           "anchored_job_configuration"
         ],
-        "authority_branch_fingerprint": "ea658112d0f26d5c663bbf566e0ee1d09f295b52d08297a100a1bd1297acf411",
+        "authority_branch_fingerprint": "3505d2003f3e738b7c414d5a0232dbc7b01e8b170e757d88327420c9b5e648dd",
         "authority_requirement_set": "24aee2d0b55c65247af8534dea8a366ecace331de9be5b69fb84c4d063b2bcb0",
         "domains": [
           "WINNER_ESTIMATE"
@@ -47218,7 +47469,7 @@
           "decorators": [
             "anchored_job_configuration"
           ],
-          "file_sha256": "08cf988c6bd0a1647faddfb364d8ce0cc37af2c2ecbda45d847a61b20b9fa7ff",
+          "file_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -47237,14 +47488,17 @@
             "H5NextOpenOrchestrationService": "app.services.winner_probability.outcome_orchestration_service.H5NextOpenOrchestrationService",
             "JobDeferred": "app.services.background_worker.JobDeferred",
             "JobStatus": "app.services.background_job_service.JobStatus",
+            "LegacySemanticAuthorityError": "app.services.scope_refresh_adoption.LegacySemanticAuthorityError",
             "OutcomeMaturationCancelled": "app.services.winner_probability.outcome_service.OutcomeMaturationCancelled",
             "OutcomeMaturationService": "app.services.winner_probability.outcome_service.OutcomeMaturationService",
             "PredictionEligibility": "app.models.tables.PredictionEligibility",
             "ProbabilityEstimator": "app.services.winner_probability.probability_estimator.ProbabilityEstimator",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
+            "WatermarkAdvanceResult": "app.services.winner_probability.cohort_generation_service.WatermarkAdvanceResult",
             "WinnerBackfillCancelled": "app.services.winner_probability.backfill.WinnerBackfillCancelled",
             "WinnerCohortGeneration": "app.models.tables.WinnerCohortGeneration",
+            "WinnerCohortRefreshState": "app.models.tables.WinnerCohortRefreshState",
             "WinnerOutcomeDefinition": "app.models.tables.WinnerOutcomeDefinition",
             "WinnerPredictionCaptureCancelled": "app.services.winner_probability.capture_service.WinnerPredictionCaptureCancelled",
             "WinnerPredictionCaptureService": "app.services.winner_probability.capture_service.WinnerPredictionCaptureService",
@@ -47253,8 +47507,13 @@
             "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
             "WinnerProcessingRun": "app.models.tables.WinnerProcessingRun",
             "active_job_for_type": "app.services.background_job_service.active_job_for_type",
+            "admit_historical_backfill": "app.services.winner_probability.scope_refresh.admit_historical_backfill",
+            "admit_maturation": "app.services.winner_probability.scope_refresh.admit_maturation",
             "anchored_job_configuration": "app.services.configuration_delivery.anchored_job_configuration",
             "annotations": "__future__.annotations",
+            "backfill_run_ids": "app.services.winner_probability.scope_refresh.backfill_run_ids",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
+            "capture_source_row_ids": "app.services.winner_probability.scope_refresh.capture_source_row_ids",
             "contract_for": "app.services.winner_probability.cohort_generation_service.contract_for",
             "dataclass": "dataclasses.dataclass",
             "date": "datetime.date",
@@ -47267,14 +47526,20 @@
             "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "logging": "logging",
             "math": "math",
+            "maturation_prediction_ids": "app.services.winner_probability.scope_refresh.maturation_prediction_ids",
+            "maturation_remaining_members": "app.services.winner_probability.scope_refresh.maturation_remaining_members",
             "publish_after_commit": "app.observability.transaction_metrics.publish_after_commit",
             "record_coalesced_enqueue_attempt": "app.services.background_job_service.record_coalesced_enqueue_attempt",
+            "record_zero_progress": "app.services.scope_refresh_adoption.record_zero_progress",
             "redact_sensitive": "app.services.redaction.redact_sensitive",
             "redacted_token_metadata": "app.services.redaction.redacted_token_metadata",
+            "require_semantic_authority": "app.services.scope_refresh_adoption.require_semantic_authority",
             "resolve_pipeline_market_context": "app.services.market_calculation_context_service.resolve_pipeline_market_context",
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta",
-            "uuid4": "uuid.uuid4"
+            "uuid4": "uuid.uuid4",
+            "validate_generation_scope": "app.services.winner_probability.scope_refresh.validate_generation_scope",
+            "watermark_from_state": "app.services.winner_probability.cohort_generation_service.watermark_from_state"
           },
           "signature": "db: Session, job: BackgroundJob, *, probability_estimator: ProbabilityEstimator | None=None"
         }
@@ -47349,7 +47614,7 @@
       "initiator_id": "EF_91d23aeb828f0378",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_730c1e06b1093610",
+      "operation_family_id": "AF_152becfd840c16ed",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_LATEST_RESCORE": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact native retained source bodies/IDs and immutable proofs; full executable configuration; explicit aware temporal/session authority; exact predecessor, target/model/generation/rule/manifest and native readiness where applicable; same validating Session and current durable execution token/configuration/run binding"
@@ -47371,6 +47636,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_730c1e06b1093610",
         "AF_d28afb678ec8dc37",
         "OP_EXECUTE_LATEST_RESCORE_JOB_91d23aeb"
       ],
@@ -56923,7 +57189,7 @@
         "authority_adapters": [
           "No authority adapter; exact executable operation reviewed separately"
         ],
-        "authority_branch_fingerprint": "0c0c5747af5e994cb59ff55d0699796e634a5e8f7d34b56725c84fbb2ecd3475",
+        "authority_branch_fingerprint": "c00dd109c67abe9aa8eac201aaa97af4136edb3203d9f91184def2c79bf77a37",
         "authority_requirement_set": "9bdad836eb6a1c9f22636f3cb8aed11f14b410e18a757c51561a12c3e8f31fa9",
         "domains": [
           "CONFIGURATION",
@@ -56981,11 +57247,12 @@
             "router.post('/api/winner-probability/outcomes/process')",
             "unsafe_route(ROUTE_CLASS_LOCAL_ADMIN, reason='queues winner-probability outcome maturation', local_admin_required=True)"
           ],
-          "file_sha256": "b779c2885b3723cc848501e18442ef3b7a013d18e5a7ecd66dc9225753deb3e6",
+          "file_sha256": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
           "guard_owners": [],
           "import_bindings": {
             "APIRouter": "fastapi.APIRouter",
             "Annotated": "typing.Annotated",
+            "CohortRefreshPlanner": "app.services.winner_probability.cohort_refresh_planner.CohortRefreshPlanner",
             "Depends": "fastapi.Depends",
             "HTMLResponse": "fastapi.responses.HTMLResponse",
             "HTTPException": "fastapi.HTTPException",
@@ -57009,8 +57276,11 @@
             "WinnerProbabilityFilterError": "app.services.winner_probability.dtos.WinnerProbabilityFilterError",
             "WinnerProbabilityFilters": "app.services.winner_probability.dtos.WinnerProbabilityFilters",
             "WinnerProbabilityOperationsService": "app.services.winner_probability.operations_service.WinnerProbabilityOperationsService",
+            "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
+            "admit_prediction_capture": "app.services.winner_probability.scope_refresh.admit_prediction_capture",
             "annotations": "__future__.annotations",
             "attachment_response": "app.routers.export_responses.attachment_response",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
             "date": "datetime.date",
             "datetime": "datetime.datetime",
             "enforce_row_limit": "app.services.resource_limits.enforce_row_limit",
@@ -57023,6 +57293,7 @@
             "get_db": "app.db.get_db",
             "get_settings": "app.settings.get_settings",
             "limit_error_payload": "app.services.resource_limits.limit_error_payload",
+            "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "redact_text": "app.services.redaction.redact_text",
             "require_local_admin": "app.security.require_local_admin",
             "select": "sqlalchemy.select",
@@ -57076,7 +57347,7 @@
       "initiator_id": "EF_b788f811597ea7c5",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_d07e72b38c67920a",
+      "operation_family_id": "AF_8e42b0d21449083c",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_COHORT_DEFINITION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -57112,6 +57383,7 @@
       },
       "previous_operation_family_ids": [
         "AF_bc08bb11c0bf0e81",
+        "AF_d07e72b38c67920a",
         "OP_QUEUE_WINNER_OUTCOME_MATURATION_b788f811"
       ],
       "semantic_mode": [
@@ -60429,16 +60701,17 @@
     },
     {
       "authority_adapter": [
-        "AuthorityDeliveryBoundary=app/routers/winner_probability_routes.py:queue_winner_prediction_capture",
-        "boundary_certificate=REVIEWED_TRANSPORT_TO_NATIVE_OPERATION"
+        "AuthorityDeliveryBoundary=bind_semantic_authority",
+        "boundary_certificate=EXPLICIT_NATIVE_AUTHORITY_OPERATION"
       ],
-      "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=app/routers/winner_probability_routes.py:queue_winner_prediction_capture; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
+      "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=bind_semantic_authority; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
+          "bind_semantic_authority",
           "context.cutoff_at.isoformat",
           "context.latest_completed_session.isoformat"
         ],
-        "authority_branch_fingerprint": "99a1aa00d9e4daaf9273052c9b40431e25651cf3006f7dcdd9db96aca1cf0d2a",
+        "authority_branch_fingerprint": "b6cb2b4ed50e934b4f8f475e28ecf3cade85f16703a676f73f5e1d2ba69aa87f",
         "authority_requirement_set": "bbc0dc85154dccb3fac29e964ea1da32226d3f41f489304385becd3fcd2944f0",
         "domains": [
           "CONFIGURATION",
@@ -60453,7 +60726,7 @@
         "semantic_modes": [
           "BOOTSTRAP"
         ],
-        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:app/routers/winner_probability_routes.py:queue_winner_prediction_capture:WF_CONFIGURATION_DELIVERY|WF_WINNER_CAPTURE_TRAINING_METADATA|WF_WINNER_COHORT_DEFINITION|WF_WINNER_EPISODE|WF_WINNER_ESTIMATOR|WF_WINNER_EVIDENCE_MANIFEST|WF_WINNER_INLINE_COHORT|WF_WINNER_MARKET_DATA_OBLIGATION|WF_WINNER_PENDING_OUTCOME|WF_WINNER_PREDICTION_CAPTURE|WF_WINNER_TYPED_REPOSITORY",
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:bind_semantic_authority:WF_CONFIGURATION_DELIVERY|WF_WINNER_CAPTURE_TRAINING_METADATA|WF_WINNER_COHORT_DEFINITION|WF_WINNER_EPISODE|WF_WINNER_ESTIMATOR|WF_WINNER_EVIDENCE_MANIFEST|WF_WINNER_INLINE_COHORT|WF_WINNER_MARKET_DATA_OBLIGATION|WF_WINNER_PENDING_OUTCOME|WF_WINNER_PREDICTION_CAPTURE|WF_WINNER_TYPED_REPOSITORY",
         "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
         "writer_families": [
           "WF_CONFIGURATION_DELIVERY",
@@ -60470,31 +60743,35 @@
         ]
       },
       "certification_inheritance_proof": {
-        "authority_delivery_boundary": "app/routers/winner_probability_routes.py:queue_winner_prediction_capture",
-        "boundary_certificate": "REVIEWED_TRANSPORT_TO_NATIVE_OPERATION",
+        "authority_delivery_boundary": "bind_semantic_authority",
+        "boundary_certificate": "EXPLICIT_NATIVE_AUTHORITY_OPERATION",
         "caller_specific_branch": true,
         "convergence_kind": "DISTINCT_AUTHORITY_OPERATION",
         "inheritance_basis": "Distinct operation; its authority branches are recorded.",
         "initiator_id": "EF_cdcd77c8d00fbd9d",
         "service_source": null,
-        "shared_service": "app/routers/winner_probability_routes.py:queue_winner_prediction_capture",
+        "shared_service": "bind_semantic_authority",
         "source": {
           "address": "app/routers/winner_probability_routes.py:queue_winner_prediction_capture",
           "authority_branches": [
             "isinstance(db, Session)",
             "decision_handoff_manifest_id is not None",
             "len(handoffs) != 1",
-            "context is None"
+            "context is None",
+            "authority is not None"
           ],
-          "body_sha256": "ee88cf08b23706649cf0db85e6cda787f911153267ab115c7f7cec7afbb49f16",
+          "body_sha256": "5ea50070cbffef6b40c69cb2c0637322e546ce886446c4b5b9d543a4bf8c6aff",
           "calls": [
             "HTTPException",
             "_require_local_admin",
             "_require_run",
+            "admit_prediction_capture",
+            "bind_semantic_authority",
             "bool",
             "context.cutoff_at.isoformat",
             "context.latest_completed_session.isoformat",
             "db.commit",
+            "db.flush",
             "db.get",
             "db.rollback",
             "db.scalars",
@@ -60503,6 +60780,7 @@
             "isinstance",
             "len",
             "list",
+            "load_winner_probability_config",
             "payload.get",
             "router.post",
             "select",
@@ -60514,11 +60792,12 @@
             "router.post('/api/winner-probability/runs/{run_id}/capture')",
             "unsafe_route(ROUTE_CLASS_LOCAL_ADMIN, reason='queues winner-probability snapshot capture', local_admin_required=True)"
           ],
-          "file_sha256": "b779c2885b3723cc848501e18442ef3b7a013d18e5a7ecd66dc9225753deb3e6",
+          "file_sha256": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
           "guard_owners": [],
           "import_bindings": {
             "APIRouter": "fastapi.APIRouter",
             "Annotated": "typing.Annotated",
+            "CohortRefreshPlanner": "app.services.winner_probability.cohort_refresh_planner.CohortRefreshPlanner",
             "Depends": "fastapi.Depends",
             "HTMLResponse": "fastapi.responses.HTMLResponse",
             "HTTPException": "fastapi.HTTPException",
@@ -60542,8 +60821,11 @@
             "WinnerProbabilityFilterError": "app.services.winner_probability.dtos.WinnerProbabilityFilterError",
             "WinnerProbabilityFilters": "app.services.winner_probability.dtos.WinnerProbabilityFilters",
             "WinnerProbabilityOperationsService": "app.services.winner_probability.operations_service.WinnerProbabilityOperationsService",
+            "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
+            "admit_prediction_capture": "app.services.winner_probability.scope_refresh.admit_prediction_capture",
             "annotations": "__future__.annotations",
             "attachment_response": "app.routers.export_responses.attachment_response",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
             "date": "datetime.date",
             "datetime": "datetime.datetime",
             "enforce_row_limit": "app.services.resource_limits.enforce_row_limit",
@@ -60556,6 +60838,7 @@
             "get_db": "app.db.get_db",
             "get_settings": "app.settings.get_settings",
             "limit_error_payload": "app.services.resource_limits.limit_error_payload",
+            "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "redact_text": "app.services.redaction.redact_text",
             "require_local_admin": "app.security.require_local_admin",
             "select": "sqlalchemy.select",
@@ -60626,7 +60909,7 @@
       "initiator_id": "EF_cdcd77c8d00fbd9d",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_5e9c7f4b54deade3",
+      "operation_family_id": "AF_1ecf6fc6f825daea",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_CAPTURE_TRAINING_METADATA": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -60667,6 +60950,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_5e9c7f4b54deade3",
         "AF_f21b5ba87f288a3c",
         "OP_QUEUE_WINNER_PREDICTION_CAPTURE_cdcd77c8"
       ],
@@ -61622,9 +61906,10 @@
       "authority_equivalence_key": {
         "authority_adapters": [
           "anchored_job_configuration",
+          "require_semantic_authority",
           "resolve_pipeline_market_context"
         ],
-        "authority_branch_fingerprint": "f8f761af86e03b4793cce7f3ccc03d2577368d38aae090461ec3a56d74ce58f9",
+        "authority_branch_fingerprint": "15b54cf64ac18ce7f70dd3f51f92353285aebd50d2f1b1788ab98260afe04363",
         "authority_requirement_set": "4da88f23c3993e0f4b43d9ad320aceec33eb40006f4e668936db45b9c57cd551",
         "domains": [
           "PRICE",
@@ -61672,7 +61957,7 @@
             "not calendar_version",
             "market_cutoff.bar_readiness_version != payload.get('bar_readiness_version')"
           ],
-          "body_sha256": "60d279088462265cf586649db31d4545b2ce1b8d224d5e289c1036b11962e480",
+          "body_sha256": "8673a2012e02f19e122eb1808494b17636575aba37fd658480e7ec46556ba09b",
           "calls": [
             "CancelRequested",
             "ValueError",
@@ -61686,10 +61971,12 @@
             "_start_processing_run",
             "_utcnow",
             "capture_service.capture_run",
+            "capture_source_row_ids",
             "counts.get",
             "isinstance",
             "load_winner_probability_config",
             "payload.get",
+            "require_semantic_authority",
             "resolve_pipeline_market_context",
             "result.as_dict",
             "str",
@@ -61699,7 +61986,7 @@
           "decorators": [
             "anchored_job_configuration"
           ],
-          "file_sha256": "08cf988c6bd0a1647faddfb364d8ce0cc37af2c2ecbda45d847a61b20b9fa7ff",
+          "file_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -61718,14 +62005,17 @@
             "H5NextOpenOrchestrationService": "app.services.winner_probability.outcome_orchestration_service.H5NextOpenOrchestrationService",
             "JobDeferred": "app.services.background_worker.JobDeferred",
             "JobStatus": "app.services.background_job_service.JobStatus",
+            "LegacySemanticAuthorityError": "app.services.scope_refresh_adoption.LegacySemanticAuthorityError",
             "OutcomeMaturationCancelled": "app.services.winner_probability.outcome_service.OutcomeMaturationCancelled",
             "OutcomeMaturationService": "app.services.winner_probability.outcome_service.OutcomeMaturationService",
             "PredictionEligibility": "app.models.tables.PredictionEligibility",
             "ProbabilityEstimator": "app.services.winner_probability.probability_estimator.ProbabilityEstimator",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
+            "WatermarkAdvanceResult": "app.services.winner_probability.cohort_generation_service.WatermarkAdvanceResult",
             "WinnerBackfillCancelled": "app.services.winner_probability.backfill.WinnerBackfillCancelled",
             "WinnerCohortGeneration": "app.models.tables.WinnerCohortGeneration",
+            "WinnerCohortRefreshState": "app.models.tables.WinnerCohortRefreshState",
             "WinnerOutcomeDefinition": "app.models.tables.WinnerOutcomeDefinition",
             "WinnerPredictionCaptureCancelled": "app.services.winner_probability.capture_service.WinnerPredictionCaptureCancelled",
             "WinnerPredictionCaptureService": "app.services.winner_probability.capture_service.WinnerPredictionCaptureService",
@@ -61734,8 +62024,13 @@
             "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
             "WinnerProcessingRun": "app.models.tables.WinnerProcessingRun",
             "active_job_for_type": "app.services.background_job_service.active_job_for_type",
+            "admit_historical_backfill": "app.services.winner_probability.scope_refresh.admit_historical_backfill",
+            "admit_maturation": "app.services.winner_probability.scope_refresh.admit_maturation",
             "anchored_job_configuration": "app.services.configuration_delivery.anchored_job_configuration",
             "annotations": "__future__.annotations",
+            "backfill_run_ids": "app.services.winner_probability.scope_refresh.backfill_run_ids",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
+            "capture_source_row_ids": "app.services.winner_probability.scope_refresh.capture_source_row_ids",
             "contract_for": "app.services.winner_probability.cohort_generation_service.contract_for",
             "dataclass": "dataclasses.dataclass",
             "date": "datetime.date",
@@ -61748,14 +62043,20 @@
             "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "logging": "logging",
             "math": "math",
+            "maturation_prediction_ids": "app.services.winner_probability.scope_refresh.maturation_prediction_ids",
+            "maturation_remaining_members": "app.services.winner_probability.scope_refresh.maturation_remaining_members",
             "publish_after_commit": "app.observability.transaction_metrics.publish_after_commit",
             "record_coalesced_enqueue_attempt": "app.services.background_job_service.record_coalesced_enqueue_attempt",
+            "record_zero_progress": "app.services.scope_refresh_adoption.record_zero_progress",
             "redact_sensitive": "app.services.redaction.redact_sensitive",
             "redacted_token_metadata": "app.services.redaction.redacted_token_metadata",
+            "require_semantic_authority": "app.services.scope_refresh_adoption.require_semantic_authority",
             "resolve_pipeline_market_context": "app.services.market_calculation_context_service.resolve_pipeline_market_context",
             "select": "sqlalchemy.select",
             "timedelta": "datetime.timedelta",
-            "uuid4": "uuid.uuid4"
+            "uuid4": "uuid.uuid4",
+            "validate_generation_scope": "app.services.winner_probability.scope_refresh.validate_generation_scope",
+            "watermark_from_state": "app.services.winner_probability.cohort_generation_service.watermark_from_state"
           },
           "signature": "db: Session, job: BackgroundJob, *, capture_service: WinnerPredictionCaptureService | None=None"
         }
@@ -61820,7 +62121,7 @@
       "initiator_id": "EF_d75034ba94b404c0",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_c3dae86a6ccdcc8c",
+      "operation_family_id": "AF_9e4d7a083c2f8136",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_CAPTURE_TRAINING_METADATA": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact scoped operational/source body and its retained SQL proof; same validating Session/owner for supporting helpers; aware operation time where business-time state changes; durable job configuration/run binding and current execution token when owned",
@@ -61860,6 +62161,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_c3dae86a6ccdcc8c",
         "AF_e280f08e7bce334d",
         "OP_EXECUTE_PREDICTION_CAPTURE_JOB_d75034ba"
       ],
@@ -61959,7 +62261,7 @@
         "authority_adapters": [
           "No authority adapter; exact executable operation reviewed separately"
         ],
-        "authority_branch_fingerprint": "efa94a3fe048d2dfe45ee5791de976064c2078ce094f7a8eaf2151939e8a72de",
+        "authority_branch_fingerprint": "10c4a0cc0ec125fa29aa87e3ad44e66cef25ed737989c4ec0e9d0b186629b469",
         "authority_requirement_set": "fa61ecb9f2d608cfc3d18ed664f54057aa18481168923b2ef140e54e19337323",
         "domains": [
           "WINNER_MODEL"
@@ -62005,11 +62307,12 @@
             "router.post('/api/winner-probability/models/{id}/retire')",
             "unsafe_route(ROUTE_CLASS_LOCAL_ADMIN, reason='retires a winner-probability model', local_admin_required=True)"
           ],
-          "file_sha256": "b779c2885b3723cc848501e18442ef3b7a013d18e5a7ecd66dc9225753deb3e6",
+          "file_sha256": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
           "guard_owners": [],
           "import_bindings": {
             "APIRouter": "fastapi.APIRouter",
             "Annotated": "typing.Annotated",
+            "CohortRefreshPlanner": "app.services.winner_probability.cohort_refresh_planner.CohortRefreshPlanner",
             "Depends": "fastapi.Depends",
             "HTMLResponse": "fastapi.responses.HTMLResponse",
             "HTTPException": "fastapi.HTTPException",
@@ -62033,8 +62336,11 @@
             "WinnerProbabilityFilterError": "app.services.winner_probability.dtos.WinnerProbabilityFilterError",
             "WinnerProbabilityFilters": "app.services.winner_probability.dtos.WinnerProbabilityFilters",
             "WinnerProbabilityOperationsService": "app.services.winner_probability.operations_service.WinnerProbabilityOperationsService",
+            "WinnerProbabilityRepository": "app.services.winner_probability.repository.WinnerProbabilityRepository",
+            "admit_prediction_capture": "app.services.winner_probability.scope_refresh.admit_prediction_capture",
             "annotations": "__future__.annotations",
             "attachment_response": "app.routers.export_responses.attachment_response",
+            "bind_semantic_authority": "app.services.scope_refresh_adoption.bind_semantic_authority",
             "date": "datetime.date",
             "datetime": "datetime.datetime",
             "enforce_row_limit": "app.services.resource_limits.enforce_row_limit",
@@ -62047,6 +62353,7 @@
             "get_db": "app.db.get_db",
             "get_settings": "app.settings.get_settings",
             "limit_error_payload": "app.services.resource_limits.limit_error_payload",
+            "load_winner_probability_config": "app.services.winner_probability.config.load_winner_probability_config",
             "redact_text": "app.services.redaction.redact_text",
             "require_local_admin": "app.security.require_local_admin",
             "select": "sqlalchemy.select",
@@ -62096,7 +62403,7 @@
       "initiator_id": "EF_d7d8afc3d1b69980",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_1cd27dbd744bcd3c",
+      "operation_family_id": "AF_7dc629ba3a10f275",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_WINNER_MODEL_GOVERNANCE": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact native retained source bodies/IDs and immutable proofs; full executable configuration; explicit aware temporal/session authority; exact predecessor, target/model/generation/rule/manifest and native readiness where applicable; same validating Session and current durable execution token/configuration/run binding"
@@ -62118,6 +62425,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_1cd27dbd744bcd3c",
         "AF_db94cc126e0d157f",
         "OP_RETIRE_WINNER_PROBABILITY_MODEL_d7d8afc3"
       ],

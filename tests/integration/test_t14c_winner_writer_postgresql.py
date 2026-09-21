@@ -620,7 +620,11 @@ def _native_outcome_operation(db, prediction, definition):
     result = service.process_forward_outcome(db, outcome, now=now)
     db.commit()
     assert result.matured == 0 and result.target_stop_matured == 0
-    validate_outcome_body(outcome)
+    original_proof = validate_outcome_body(outcome)
+    assert all(
+        item["revision_identity_status"] == "REVISION_IDENTITY_UNAVAILABLE"
+        for item in original_proof["prices"]
+    )
     target = db.scalar(
         select(WinnerTargetStopOutcome).where(
             WinnerTargetStopOutcome.prediction_id == prediction.id,
@@ -765,6 +769,8 @@ def _native_outcome_operation(db, prediction, definition):
     assert not outcome.is_current_revision
     proof = validate_outcome_body(current)
     assert any(item["price_bar_revision_id"] == price_revision.id for item in proof["prices"])
+    assert any(item["revision_identity_status"] == "EXACT" for item in proof["prices"])
+    assert validate_outcome_body(outcome)["prices"] == original_proof["prices"]
     current_target = db.scalar(
         select(WinnerTargetStopOutcome).where(
             WinnerTargetStopOutcome.prediction_id == prediction.id,

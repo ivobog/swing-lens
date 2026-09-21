@@ -15,6 +15,7 @@ from app.models.tables import (
     BackgroundJob,
     PredictionEligibility,
     WinnerCohortGeneration,
+    WinnerCohortRefreshState,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
     WinnerProcessingRun,
@@ -32,6 +33,12 @@ from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.configuration_delivery import anchored_job_configuration
 from app.services.market_calculation_context_service import resolve_pipeline_market_context
 from app.services.redaction import redact_sensitive, redacted_token_metadata
+from app.services.scope_refresh_adoption import (
+    LegacySemanticAuthorityError,
+    bind_semantic_authority,
+    record_zero_progress,
+    require_semantic_authority,
+)
 from app.services.winner_probability.backfill import (
     BackfillRequest,
     WinnerBackfillCancelled,
@@ -46,7 +53,9 @@ from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationStatus,
     EvidenceWatermarkService,
     GenerationPublicationStatus,
+    WatermarkAdvanceResult,
     contract_for,
+    watermark_from_state,
 )
 from app.services.winner_probability.cohort_materialization_service import (
     CohortMaterializationCancelled,
@@ -66,6 +75,15 @@ from app.services.winner_probability.outcome_service import (
 )
 from app.services.winner_probability.probability_estimator import ProbabilityEstimator
 from app.services.winner_probability.repository import WinnerProbabilityRepository
+from app.services.winner_probability.scope_refresh import (
+    admit_historical_backfill,
+    admit_maturation,
+    backfill_run_ids,
+    capture_source_row_ids,
+    maturation_prediction_ids,
+    maturation_remaining_members,
+    validate_generation_scope,
+)
 from app.settings import get_settings
 
 WINNER_PREDICTION_CAPTURE = "WINNER_PREDICTION_CAPTURE"
@@ -109,6 +127,59 @@ def enqueue_outcome_maturation_workflow(
     priority: int = 100,
 ) -> BackgroundJob:
     """Enqueue or coalesce one root in the global primary-H5 workflow domain."""
+    if isinstance(db, Session):
+        if db.get_bind().dialect.name == "postgresql":
+            # Serialize semantic admission, not execution. This closes the
+            # race in which two callers could freeze divergent scopes before
+            # the workflow unique index chose a single operational job.
+            db.execute(select(func.pg_advisory_xact_lock(15_150_008)))
+        config = load_winner_probability_config()
+        mutable_payload = dict(payload)
+        operation_cutoff = _parse_optional_datetime(mutable_payload.get("operation_cutoff_at"))
+        operation_cutoff = operation_cutoff or _utcnow()
+        mutable_payload["operation_cutoff_at"] = operation_cutoff.isoformat()
+        due_session = (
+            date.fromisoformat(str(mutable_payload["due_session"]))
+            if mutable_payload.get("due_session")
+            else None
+        )
+        cycle_key = request_key or f"winner:h5-next-open:manual:{uuid4().hex}"
+        same_cycle = (
+            db.scalar(
+                select(BackgroundJob)
+                .where(BackgroundJob.job_type == WINNER_OUTCOME_MATURATION)
+                .where(BackgroundJob.request_key == cycle_key)
+                .order_by(BackgroundJob.id.desc())
+                .limit(1)
+            )
+            if request_key
+            else None
+        )
+        if same_cycle is not None:
+            return same_cycle
+        existing = active_job_for_type(db, WINNER_OUTCOME_MATURATION)
+        if existing is not None:
+            record_coalesced_enqueue_attempt(
+                db,
+                job_type=WINNER_OUTCOME_MATURATION,
+                authoritative_job=existing,
+                request_key=request_key,
+                workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
+                trigger_name="winner_outcome_maturation",
+            )
+            return existing
+        authority = admit_maturation(
+            db,
+            cycle_key=cycle_key,
+            operation_cutoff=operation_cutoff,
+            due_session=due_session,
+            configuration_identity=config.config_hash,
+        )
+        mutable_payload.update(authority.as_dict())
+        payload = mutable_payload
+        request_key = cycle_key
+    else:
+        authority = None
     existing = active_job_for_type(db, WINNER_OUTCOME_MATURATION)
     if existing is not None:
         record_coalesced_enqueue_attempt(
@@ -133,6 +204,9 @@ def enqueue_outcome_maturation_workflow(
     )
     if not getattr(job, "_coalesced", False) and job.root_job_id is None:
         job.root_job_id = job.id
+        db.flush()
+    if authority is not None and not getattr(job, "_coalesced", False):
+        bind_semantic_authority(job, authority)
         db.flush()
     return job
 
@@ -194,6 +268,7 @@ class WinnerCohortRefreshService:
         max_groups: int = 100,
         max_wall_seconds: float = 45.0,
         operation_at: datetime | None = None,
+        generation_id: int | None = None,
     ) -> WinnerCohortRefreshResult:
         config = load_winner_probability_config()
         outcome_definition = self._outcome_definition(
@@ -207,15 +282,28 @@ class WinnerCohortRefreshService:
         del training_cutoff_at
         lease_guard = lease_guard or (lambda: None)
         should_cancel = should_cancel or (lambda: False)
-        advance = self.watermark_service.advance_to_current_material_evidence(
-            db,
-            outcome_definition=outcome_definition,
-            config=config,
-            observed_at=operation_at,
-        )
-        state = advance.state
+        generation = db.get(WinnerCohortGeneration, generation_id) if generation_id else None
+        if generation_id is not None and generation is None:
+            raise ValueError("WINNER_COHORT_FROZEN_GENERATION_MISSING")
+        if generation is not None:
+            state = db.get(WinnerCohortRefreshState, generation.refresh_state_id)
+            if state is None:
+                raise ValueError("WINNER_COHORT_REFRESH_STATE_MISSING")
+            advance = WatermarkAdvanceResult(
+                state=state,
+                watermark=watermark_from_state(state),
+                advanced=False,
+            )
+        else:
+            advance = self.watermark_service.advance_to_current_material_evidence(
+                db,
+                outcome_definition=outcome_definition,
+                config=config,
+                observed_at=operation_at,
+            )
+            state = advance.state
         calculation_at = operation_at + timedelta(microseconds=1) if operation_at else None
-        if (
+        if generation is None and (
             state.published_generation_id is not None
             and state.published_watermark_hash == state.desired_watermark_hash
         ):
@@ -229,7 +317,7 @@ class WinnerCohortRefreshService:
                     publication_status=GenerationPublicationStatus.ALREADY_ACTIVE,
                     no_op=True,
                 )
-        generation = self.generation_service.capture_or_resume(
+        generation = generation or self.generation_service.capture_or_resume(
             db,
             state=state,
             contract=contract_for(outcome_definition, config),
@@ -348,6 +436,7 @@ def execute_prediction_capture_job(
     capture_service: WinnerPredictionCaptureService | None = None,
 ) -> dict[str, Any]:
     payload = job.payload_json or {}
+    authority = require_semantic_authority(job) if isinstance(db, Session) else None
     run_id = _required_int(payload, "run_id")
     config = load_winner_probability_config()
     processing_run = _start_processing_run(
@@ -393,6 +482,9 @@ def execute_prediction_capture_job(
             market_cutoff=market_cutoff,
             decision_handoff_manifest_id=handoff_id,
             should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
+            target_raw_row_ids=(
+                capture_source_row_ids(db, authority) if authority is not None else None
+            ),
         )
     except WinnerPredictionCaptureCancelled as exc:
         _finish_processing_run(
@@ -446,6 +538,10 @@ def execute_outcome_maturation_job(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     payload = job.payload_json or {}
+    authority = require_semantic_authority(job) if isinstance(db, Session) else None
+    retained_prediction_ids = (
+        maturation_prediction_ids(db, authority) if authority is not None else None
+    )
     operation_cutoff = _retained_operation_cutoff(db, payload, now=now)
     limit = _optional_int(payload, "limit") or 500
     max_batches = _optional_int(payload, "max_batches") or 10
@@ -480,6 +576,7 @@ def execute_outcome_maturation_job(
                     due_session=due_session,
                     should_cancel=lambda: _heartbeat_and_check_cancel(db, job),
                     lease_guard=lambda: _heartbeat_only(job),
+                    prediction_ids=retained_prediction_ids,
                 )
             else:
                 result = outcome_service.process_due_outcomes(  # type: ignore[union-attr]
@@ -557,6 +654,14 @@ def execute_outcome_maturation_job(
             "continuation_reason": continuation_reason,
         }
     )
+    if continuation_decision == "STOP_ZERO_PROGRESS" and authority is not None:
+        remaining_members = maturation_remaining_members(db, authority)
+        if remaining_members:
+            record_zero_progress(
+                job,
+                remaining_members=remaining_members,
+                reason=continuation_reason,
+            )
     publish_after_commit(
         db,
         "increment",
@@ -603,44 +708,40 @@ def execute_outcome_maturation_job(
         )
         if definition is None:
             raise ValueError(f"Winner outcome definition was not found: {definition_id}")
-        planned = CohortRefreshPlanner().request_for_current_evidence(
+        CohortRefreshPlanner().request_for_current_evidence(
             db,
             outcome_definition=definition,
             config=config,
-            observed_at=now,
+            observed_at=operation_cutoff,
+            maturation_counts=counts,
             enqueue_refresh=(
                 bool(counts.get("target_stop_matured", 0))
                 and get_settings().winner_probability_auto_cohort_refresh_enabled
             ),
         )
-        refresh_state = planned.watermark.state
-        observed = now or _utcnow()
-        if counts.get("scan_completed"):
-            refresh_state.last_full_scan_at = observed
-        if not counts.get("pending_h5_after_cycle", 0):
-            refresh_state.last_zero_due_backlog_at = observed
-        refresh_state.current_due_count = int(counts.get("pending_h5_after_cycle", 0) or 0)
-        refresh_state.current_deferred_count = int(counts.get("retry_deferred", 0) or 0)
-        oldest_due = counts.get("oldest_due_h5_session")
-        refresh_state.oldest_due_session = (
-            datetime.fromisoformat(str(oldest_due)).date() if oldest_due else None
-        )
-        db.flush()
     elif counts.get("target_stop_matured", 0):
-        enqueue_job(
+        continuation = enqueue_job(
             db,
             WINNER_COHORT_REFRESH,
             {"outcome_definition_id": definition_id},
             request_key=f"winner:cohort-refresh:{definition_id}",
         )
-    if continuation_decision != "DEFER_SAME_JOB" and status == JobStatus.PARTIAL:
+    if (
+        continuation_decision not in {"DEFER_SAME_JOB", "STOP_ZERO_PROGRESS"}
+        and status == JobStatus.PARTIAL
+    ):
         job.status = JobStatus.PARTIAL
 
     if continuation_decision == "ENQUEUE_CONTINUATION":
-        enqueue_job(
+        continuation = enqueue_job(
             db,
             WINNER_OUTCOME_MATURATION,
-            {"limit": limit, "max_batches": max_batches, "continuation": True},
+            {
+                **payload,
+                "limit": limit,
+                "max_batches": max_batches,
+                "continuation": True,
+            },
             request_key=f"winner:h5-next-open:continuation:{processing_run.id}",
             workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
             single_flight_workflow=True,
@@ -656,6 +757,13 @@ def execute_outcome_maturation_job(
             # processing run, so no same-attempt coalescing window exists.
             coalesce=False,
         )
+        if authority is not None:
+            bind_semantic_authority(
+                continuation,
+                authority,
+                required_for_parent_completion=True,
+            )
+            db.flush()
         publish_after_commit(db, "increment", "winner_maturation_continuations_total")
 
     logger.info(
@@ -785,6 +893,7 @@ def execute_cohort_refresh_job(
     cohort_refresh_service: WinnerCohortRefreshService | None = None,
 ) -> dict[str, Any]:
     payload = job.payload_json or {}
+    authority = require_semantic_authority(job) if isinstance(db, Session) else None
     outcome_definition_id = payload.get("outcome_definition_id")
     training_cutoff_at = (
         datetime.fromisoformat(str(payload["training_cutoff_at"]))
@@ -810,6 +919,8 @@ def execute_cohort_refresh_job(
     started_at = processing_run.started_at or _utcnow()
 
     def link_generation(generation: WinnerCohortGeneration) -> None:
+        if authority is not None:
+            bind_semantic_authority(generation, authority)
         processing_run.cohort_generation_id = generation.id
         processing_run.last_checkpoint_at = _utcnow()
         processing_run.checkpoint_json = {
@@ -834,6 +945,7 @@ def execute_cohort_refresh_job(
             max_groups=max_groups,
             max_wall_seconds=max_wall_seconds,
             operation_at=_retained_operation_cutoff(db, payload),
+            generation_id=_optional_int(payload, "cohort_generation_id"),
         )
     except (WinnerCohortRefreshCancelled, CohortMaterializationCancelled) as exc:
         _finish_processing_run(
@@ -856,6 +968,11 @@ def execute_cohort_refresh_job(
         raise
 
     counts = result.as_dict()
+    if authority is not None and result.generation_id is not None:
+        generation = db.get(WinnerCohortGeneration, result.generation_id)
+        if generation is None:
+            raise ValueError("WINNER_COHORT_FROZEN_GENERATION_MISSING")
+        validate_generation_scope(db, generation=generation, authority=authority)
     processing_run.cohort_generation_id = result.generation_id
     status = JobStatus.PARTIAL if counts.get("failed", 0) else JobStatus.COMPLETED
     if status == JobStatus.PARTIAL:
@@ -1050,6 +1167,24 @@ def execute_historical_backfill_job(
     allow_reconstructed_training = bool(payload.get("allow_reconstructed_training") or False)
     decision_contexts = _decision_contexts(payload.get("decision_contexts"))
     config = load_winner_probability_config()
+    authority = None
+    if isinstance(db, Session):
+        try:
+            authority = require_semantic_authority(job)
+        except LegacySemanticAuthorityError:
+            cutoff = _parse_optional_datetime(payload.get("operation_cutoff_at")) or _utcnow()
+            authority = admit_historical_backfill(
+                db,
+                run_ids=run_ids,
+                cycle_key=job.request_key or f"winner:historical-backfill:job:{job.id}",
+                cutoff=cutoff,
+                configuration_identity=config.config_hash,
+            )
+            bind_semantic_authority(job, authority)
+            job.payload_json = {**payload, "operation_cutoff_at": cutoff.isoformat()}
+            payload = job.payload_json
+            db.flush()
+        run_ids = backfill_run_ids(db, authority)
     processing_run = _start_processing_run(
         db,
         job=job,
@@ -1163,6 +1298,9 @@ def _start_processing_run(
     token_metadata = redacted_token_metadata(job.execution_token)
     processing_run = WinnerProcessingRun(
         background_job_id=job.id,
+        scope_id=job.scope_id,
+        refresh_cycle_id=job.refresh_cycle_id,
+        acquisition_plan_id=job.acquisition_plan_id,
         run_id=run_id,
         process_type=process_type,
         status=JobStatus.RUNNING,
@@ -1174,6 +1312,11 @@ def _start_processing_run(
         checkpoint_json={},
         metadata_json={
             "background_job_type": job.job_type,
+            "semantic_authority": {
+                "scope_id": job.scope_id,
+                "refresh_cycle_id": job.refresh_cycle_id,
+                "acquisition_plan_id": job.acquisition_plan_id,
+            },
             **token_metadata,
             "lease_owner": job.lease_owner,
             "workflow_key": job.workflow_key,
@@ -1209,7 +1352,12 @@ def _finish_processing_run(
     if source_cutoff_at is not None:
         processing_run.source_cutoff_at = source_cutoff_at
     processing_run.counts_json = counts or processing_run.counts_json or {}
-    processing_run.checkpoint_json = checkpoint or processing_run.checkpoint_json or {}
+    checkpoint_payload = checkpoint or processing_run.checkpoint_json or {}
+    processing_run.checkpoint_json = {
+        **checkpoint_payload,
+        "scope_id": processing_run.scope_id,
+        "refresh_cycle_id": processing_run.refresh_cycle_id,
+    }
     if checkpoint is not None:
         processing_run.last_checkpoint_at = completed_at
     processing_run.error_message = _safe_error(error) if error else None

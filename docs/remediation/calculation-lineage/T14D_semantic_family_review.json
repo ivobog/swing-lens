@@ -385,7 +385,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "4ff0451152e2047e161429250c781729929de94745920d47ebec0c6aa474c3d8",
+      "source_sha256": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -556,7 +556,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "48a6637b9b9d21311581dab45436e7a454cb9c3bc23111f28a9f6a2fc9a8a3c7",
+      "source_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -1660,7 +1660,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "38b2689896ed23cf32d6af002951f98ca2a80b4d1574764faf6f48c795f525bf",
+      "source_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -1828,7 +1828,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "48a6637b9b9d21311581dab45436e7a454cb9c3bc23111f28a9f6a2fc9a8a3c7",
+      "source_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -2136,7 +2136,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "4d4c5189c9ce30cdf25046bee69d1645d99e9ed8f77aae7fb5c9b15756a3cb79",
+      "source_sha256": "4442daa21fd46a2b2868225b2e3118afc77345b5000d00b6e1f8504e90ae2726",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -2314,7 +2314,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "48a6637b9b9d21311581dab45436e7a454cb9c3bc23111f28a9f6a2fc9a8a3c7",
+      "source_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE"
@@ -2534,7 +2534,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "38b2689896ed23cf32d6af002951f98ca2a80b4d1574764faf6f48c795f525bf",
+      "source_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -3236,7 +3236,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "2baf78cf98e6b558d36b49b4692788586a2227a182965b2f39530c31e2147723",
+      "source_sha256": "660ba76493acc241e8b084809e1794fddfb74273d1734e7c256abed56608a1c5",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE"
@@ -3321,7 +3321,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "48a6637b9b9d21311581dab45436e7a454cb9c3bc23111f28a9f6a2fc9a8a3c7",
+      "source_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -3404,7 +3404,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "45075a7db6bbea9aeeff4c13e64fe2b1dd37cbb36d2f342b93e03b15953af12a",
+      "source_sha256": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
       "status": "DURABLE_NATIVE_ENQUEUE",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -3816,7 +3816,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "48a6637b9b9d21311581dab45436e7a454cb9c3bc23111f28a9f6a2fc9a8a3c7",
+      "source_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14C"
@@ -7281,7 +7281,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "4ff0451152e2047e161429250c781729929de94745920d47ebec0c6aa474c3d8",
+      "source_sha256": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -7585,7 +7585,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "48a6637b9b9d21311581dab45436e7a454cb9c3bc23111f28a9f6a2fc9a8a3c7",
+      "source_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14C"
@@ -7954,7 +7954,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "4ff0451152e2047e161429250c781729929de94745920d47ebec0c6aa474c3d8",
+      "source_sha256": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -8528,6 +8528,51 @@
       "semantic_review_complete": true,
       "source_sha256": "6eb41bdd1e326f1beadeda2444ab436ee43650277f9a385e0ec73e8fd77481fc",
       "status": "T15B_SCOPE_AUTHORITY_ADOPTED",
+      "writer_adoption_dependencies": [
+        "T14B",
+        "T14C",
+        "T14D",
+        "T15A"
+      ],
+      "writer_families": [
+        "WF_SCOPE_IDENTITY_FOUNDATION"
+      ]
+    },
+    "EF_T15C_WINNER_SCOPE_ADMISSION": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "T15C resolves exact Winner target members before durable execution, persists canonical scope/refresh/plan authority, and requires retries and continuations to consume retained membership. PostgreSQL adversarial tests certify the boundary.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, exact Winner members, cycle key, cutoff, configuration and policy",
+      "behavior": "SYNCHRONOUS_OR_ENQUEUE_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": [
+        "CONFIGURATION",
+        "WINNER_COHORT",
+        "WINNER_GENERATION",
+        "WINNER_OUTCOME",
+        "WINNER_PREDICTION"
+      ],
+      "entry_point_family_id": "EF_T15C_WINNER_SCOPE_ADMISSION",
+      "entrypoints": [
+        "app/services/winner_probability/scope_refresh.py:admit_cohort_refresh",
+        "app/services/winner_probability/scope_refresh.py:admit_historical_backfill",
+        "app/services/winner_probability/scope_refresh.py:admit_maturation",
+        "app/services/winner_probability/scope_refresh.py:admit_prediction_capture"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION",
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Reviewed T15C Winner scope-authority admission only; calculation writer authority and truth-revision contracts remain independently certified.",
+      "reachability": "Public services invoked by reviewed Winner admission paths.",
+      "selectors": [],
+      "semantic_adoption_status": "T15C_SCOPE_AUTHORITY_ADOPTED",
+      "semantic_review_complete": true,
+      "source_sha256": "d3c5c26a34b29a97e1053f04521ecca3e652dc0f58332051e4facd6c947ab24d",
+      "status": "T15C_SCOPE_AUTHORITY_ADOPTED",
       "writer_adoption_dependencies": [
         "T14B",
         "T14C",
@@ -10233,7 +10278,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "45075a7db6bbea9aeeff4c13e64fe2b1dd37cbb36d2f342b93e03b15953af12a",
+      "source_sha256": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
       "status": "DURABLE_NATIVE_ENQUEUE",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -11351,7 +11396,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "45075a7db6bbea9aeeff4c13e64fe2b1dd37cbb36d2f342b93e03b15953af12a",
+      "source_sha256": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
       "status": "DURABLE_NATIVE_ENQUEUE",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
@@ -11815,7 +11860,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "48a6637b9b9d21311581dab45436e7a454cb9c3bc23111f28a9f6a2fc9a8a3c7",
+      "source_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
       "status": "DURABLE_JOB",
       "writer_adoption_dependencies": [
         "T14C"
@@ -11861,7 +11906,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": true,
-      "source_sha256": "45075a7db6bbea9aeeff4c13e64fe2b1dd37cbb36d2f342b93e03b15953af12a",
+      "source_sha256": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
       "status": "MODEL_RETIREMENT_MAINTENANCE",
       "writer_adoption_dependencies": [
         "T14C"
@@ -12266,7 +12311,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "48a6637b9b9d21311581dab45436e7a454cb9c3bc23111f28a9f6a2fc9a8a3c7",
+      "source_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [
         "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE"
@@ -12409,7 +12454,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "bdec6678c9ebfe16f363f9a8dc36527623be17c8df195ffe90c1c91119f69d83",
+      "source_sha256": "cb0e494018be4a4a13ba1dbec6a705b1c7e6d591ec340623487bb665e63ac1fe",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -12643,7 +12688,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "38b2689896ed23cf32d6af002951f98ca2a80b4d1574764faf6f48c795f525bf",
+      "source_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -12677,7 +12722,7 @@
       "selectors": [],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "4ff0451152e2047e161429250c781729929de94745920d47ebec0c6aa474c3d8",
+      "source_sha256": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -12807,7 +12852,7 @@
       ],
       "semantic_adoption_status": "SEMANTIC_ADOPTION_PENDING",
       "semantic_review_complete": false,
-      "source_sha256": "9185151a1947d7471b75e0681ad93b6e4e0bce748d81659b302bba2ada472bb3",
+      "source_sha256": "c7838feb4a3396ec17fd834ef22b1a2f463d0834bb4ffedffe6b766d1fa91d4f",
       "status": "SEMANTIC_ADOPTION_PENDING",
       "writer_adoption_dependencies": [],
       "writer_families": [
@@ -15867,7 +15912,7 @@
   },
   "source_pins": {
     "app/main.py": "1ed01b12d1870c1575986c82568b100153b600f76003a1e6ab209afa6fb5a743",
-    "app/models/tables.py": "91439113b3e3779dd7e8c6cb44fd709c5dbb8beec582b9b33c8dcd5acb459ed4",
+    "app/models/tables.py": "f52be8f32b6249125b94d5eb86e4024e525c751d66b3f3d73d0de518d53453a4",
     "app/routers/ceri_routes.py": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
     "app/routers/ib_market_intelligence_routes.py": "3c1c4f75e700f7114c10dabb000c03e7c1e7ae78600ce0387354515e4d44e65f",
     "app/routers/ib_routes.py": "5f67384f0a09483f5aaea032aacd032c0d340c9cb7c1a7604588559b01994b9e",
@@ -15877,7 +15922,7 @@
     "app/routers/sector_rotation_routes.py": "dde004a45ba3f5adb035c71ad041fac0b08614aee3fe47fb78c22e577e948d5f",
     "app/routers/setup_lifecycle_routes.py": "6eda8dcaf30d36d9c6f78e4cea5f4c4c3b9ed2de33b68d3a8c66607bb6980561",
     "app/routers/upload_routes.py": "4d77447d09725c09e86a3903f3048f1dcdc4a740c6d7b3e74d18ef90cb59f15f",
-    "app/routers/winner_probability_routes.py": "b779c2885b3723cc848501e18442ef3b7a013d18e5a7ecd66dc9225753deb3e6",
+    "app/routers/winner_probability_routes.py": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
     "app/services/background_job_service.py": "b931f237b12e6710cc9a643c4751dcd056ba8e49ecd6a90b369059791ad76d68",
     "app/services/background_worker.py": "a3601e34df2966692308f135867dd30b9248c66128c55efad2efe5e2ca87406f",
     "app/services/bar_cache_service.py": "6e3b1a78774502d2a2d5b1b184e416837c59b597e58b5535ccbc3f682a723ead",
@@ -15964,30 +16009,30 @@
     "app/services/winner_probability/api_service.py": "1db51b99ac2f2906bb48ceccd5a929529fcf96bb3897b5f2ab9b1e91135e50f0",
     "app/services/winner_probability/backfill.py": "a4156b5f3747b778ef7991f6d8fa49d7a6971ec26763bdb129c4c2990c9fe82a",
     "app/services/winner_probability/calibration_service.py": "8986514e88d44c39c8258bca306e243f892b85aed7e9b2d0fb178db68ca6be9b",
-    "app/services/winner_probability/capture_service.py": "bdec6678c9ebfe16f363f9a8dc36527623be17c8df195ffe90c1c91119f69d83",
+    "app/services/winner_probability/capture_service.py": "cb0e494018be4a4a13ba1dbec6a705b1c7e6d591ec340623487bb665e63ac1fe",
     "app/services/winner_probability/cohort_authority.py": "91620a915a3793c70826638d8fd9420cef1d0754f65f67f192624346b57e8beb",
     "app/services/winner_probability/cohort_definition.py": "df005ef70cbb65aa79fc019e13f5a1ddb2d2f59916437494e1fa9fc72e8b14c9",
-    "app/services/winner_probability/cohort_generation_service.py": "4f2896aba7094e730a12d8ca6cff60f1edd77a3e856c354a5be2f2b579b683dd",
+    "app/services/winner_probability/cohort_generation_service.py": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
     "app/services/winner_probability/cohort_materialization_service.py": "2a02594dab67bc7efe38b0d97f8bf1ac912d9a57da065f562beeb24f573dd91e",
-    "app/services/winner_probability/cohort_refresh_planner.py": "2baf78cf98e6b558d36b49b4692788586a2227a182965b2f39530c31e2147723",
+    "app/services/winner_probability/cohort_refresh_planner.py": "660ba76493acc241e8b084809e1794fddfb74273d1734e7c256abed56608a1c5",
     "app/services/winner_probability/decision_time_estimate_service.py": "a0a89a9ad9f0031d32bf7b794c39aeb90c9056098bb7f68565702af830a84f6f",
     "app/services/winner_probability/drift_service.py": "63ff3e541c0f8addc6fb6a7463984a5624a45cd9cc1e7a8391b9d3b4f6db66ff",
     "app/services/winner_probability/episode_service.py": "4f5e7927d63539ab26aaad16dd7bd2ccac50f428bed5d751b2f0d56fa1a14c87",
     "app/services/winner_probability/estimate_authority.py": "0bab965fd472b419ba671d0dd7e80db48e5765ec8a1336c4f02354d9e6b28f23",
-    "app/services/winner_probability/estimate_publication_service.py": "4d4c5189c9ce30cdf25046bee69d1645d99e9ed8f77aae7fb5c9b15756a3cb79",
+    "app/services/winner_probability/estimate_publication_service.py": "4442daa21fd46a2b2868225b2e3118afc77345b5000d00b6e1f8504e90ae2726",
     "app/services/winner_probability/evidence_manifest_service.py": "e663622dc6003b161c9a34d0f26ce5c779e97c080f582bedb6b34aab7eae9984",
     "app/services/winner_probability/feature_extractor.py": "7f577276eee61a92690ac985bb3517e34020cee853cfc50adba902453f468e80",
-    "app/services/winner_probability/job_handlers.py": "08cf988c6bd0a1647faddfb364d8ce0cc37af2c2ecbda45d847a61b20b9fa7ff",
+    "app/services/winner_probability/job_handlers.py": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
     "app/services/winner_probability/market_data_obligation_service.py": "0de116121ba40e54cb1c01e19bb064d53fadcd40846303e44df27fd4bbd29b69",
     "app/services/winner_probability/maturation_canary_service.py": "56475c32d26743af758a150312347e065774390e7303b5bf4dfe97405ffdd0bf",
     "app/services/winner_probability/model_authority.py": "c3735deccb9fafb4f68b3d97af6d163b3bb4b93cfdcfaf82c6e41a025e4e5e46",
     "app/services/winner_probability/model_registry.py": "5f2beede7f828e84f9d17837aac68461c86a9488682611c6a2002c79f5dceb8f",
     "app/services/winner_probability/model_training.py": "ffa733b5654b5427252fba1d84a9ad449571504254af6b0214c85cf4226ffdd9",
     "app/services/winner_probability/mutation_authority.py": "a474674735bbf41736c2c44abb4bff107eda43bad03392deae7d4dab20594c7d",
-    "app/services/winner_probability/outcome_authority.py": "7a073da69b23a920ab74d9177c3256b31b006bb6d4949123c06d5db611816afd",
-    "app/services/winner_probability/outcome_orchestration_service.py": "401dda90b0dc18fcd724aa6d62b5fe769b04cfd4fffc1da0f9f3cbc782a17378",
+    "app/services/winner_probability/outcome_authority.py": "50e0e22e346ae2ac744ddcec1f9ec1c41531063078a3be3929c400e6b8edc104",
+    "app/services/winner_probability/outcome_orchestration_service.py": "c7838feb4a3396ec17fd834ef22b1a2f463d0834bb4ffedffe6b766d1fa91d4f",
     "app/services/winner_probability/outcome_revision_service.py": "cdb1333663a85dc044e63857cb38e4decd2f106bc610b115a3e0db183aa31a49",
-    "app/services/winner_probability/outcome_service.py": "0ae16305197a8d53a8662b52499d9e11a38453882d10927d5ef8eb65c96ffeac",
+    "app/services/winner_probability/outcome_service.py": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
     "app/services/winner_probability/pending_outcome_service.py": "1229cc07bad93b0821ff0bf0e7d3870e326ccee788dac68696afd17283ff9e7a",
     "app/services/winner_probability/pre11_activation_service.py": "ab90487586c8a1666f201882a12dc07951348df9ff7f62cc2805b3d6a7028aa9",
     "app/services/winner_probability/pre11_compatibility_service.py": "1fd81bff3450fbd48501f44c0efa6001fffd40987d914915875a6adea7e5d4c0",
@@ -15995,6 +16040,7 @@
     "app/services/winner_probability/probability_estimator.py": "b08e0ed4767b452912a25f3b7bd87ddf060039871b24ebb38fdb3b9793df8c39",
     "app/services/winner_probability/repository.py": "ee09a167d5bb617433cd15225b632a5c91548489634a4787c0db4e5e37db0745",
     "app/services/winner_probability/scheduler.py": "8bf4c454a8d8c4c633634ca9e4acd86f6ffb2f57d43a391f87c39c32e8baf514",
+    "app/services/winner_probability/scope_refresh.py": "d3c5c26a34b29a97e1053f04521ecca3e652dc0f58332051e4facd6c947ab24d",
     "app/services/winner_probability/similarity_service.py": "1d80ea74665b7fb15b1b1f48c84d1932f54df6ebeef62b241079ffb40a1d779c",
     "app/services/winner_probability/target_stop_scope_repair_service.py": "5e6447478770410414e827b6db3497a91cf172bfba9e4d5cefa7f490b53c72de",
     "app/services/winner_probability/temporal_validation_service.py": "bdb7b9186c6d33dc07c9e622dfa68b17e583a0ca24a25a1434b85c9005e3c387",
@@ -16180,6 +16226,23 @@
     ],
     "scope": "Canonical scope/refresh/acquisition metadata adoption; no weakening of Phase-5 calculation/source mutation authority.",
     "task": "T15B"
+  },
+  "t15c_reviewed_source_delta": {
+    "reviewed_sources": [
+      "app/models/tables.py",
+      "app/routers/winner_probability_routes.py",
+      "app/services/winner_probability/capture_service.py",
+      "app/services/winner_probability/cohort_generation_service.py",
+      "app/services/winner_probability/cohort_refresh_planner.py",
+      "app/services/winner_probability/estimate_publication_service.py",
+      "app/services/winner_probability/job_handlers.py",
+      "app/services/winner_probability/outcome_authority.py",
+      "app/services/winner_probability/outcome_orchestration_service.py",
+      "app/services/winner_probability/outcome_service.py",
+      "app/services/winner_probability/scope_refresh.py"
+    ],
+    "scope": "Winner population scope/refresh/checkpoint and exact-or-unavailable price revision binding; no weakening of Phase-5 financial mutation authority.",
+    "task": "T15C"
   },
   "writer_families": {
     "WF_CERI_ALERT_CREATION": {

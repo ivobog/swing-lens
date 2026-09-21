@@ -3061,6 +3061,15 @@ class WinnerCohortGeneration(Base):
     __tablename__ = "winner_cohort_generations"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    refresh_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
     generation_key: Mapped[str] = mapped_column(Text, nullable=False)
     refresh_state_id: Mapped[int] = mapped_column(
         ForeignKey("winner_cohort_refresh_state.id", ondelete="CASCADE"), nullable=False
@@ -3103,6 +3112,7 @@ class WinnerCohortGeneration(Base):
 
     __table_args__ = (
         UniqueConstraint("generation_key", name="uq_winner_cohort_generations_key"),
+        Index("idx_winner_cohort_generations_scope_refresh", "scope_id", "refresh_cycle_id"),
         Index("idx_winner_cohort_generations_state_status", "refresh_state_id", "status"),
         Index(
             "idx_winner_cohort_generations_published",
@@ -3489,6 +3499,15 @@ class WinnerEstimatePublicationRequest(Base):
     __tablename__ = "winner_estimate_publication_requests"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    refresh_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
     request_key: Mapped[str] = mapped_column(Text, nullable=False)
     actor: Mapped[str] = mapped_column(Text, nullable=False)
     generation_id: Mapped[int] = mapped_column(
@@ -3511,6 +3530,11 @@ class WinnerEstimatePublicationRequest(Base):
 
     __table_args__ = (
         UniqueConstraint("request_key", name="uq_winner_estimate_publication_request_key"),
+        Index(
+            "idx_winner_estimate_publication_requests_scope_refresh",
+            "scope_id",
+            "refresh_cycle_id",
+        ),
         CheckConstraint(
             "status = 'COMPLETED'",
             name="ck_winner_estimate_publication_request_status",
@@ -3658,6 +3682,15 @@ class WinnerProcessingRun(Base):
     __tablename__ = "winner_processing_runs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    refresh_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
     background_job_id: Mapped[int | None] = mapped_column(ForeignKey("background_jobs.id"))
     run_id: Mapped[int | None] = mapped_column(ForeignKey("upload_runs.id"))
     process_type: Mapped[str] = mapped_column(Text, nullable=False)
@@ -3689,6 +3722,7 @@ class WinnerProcessingRun(Base):
 
     __table_args__ = (
         Index("idx_winner_processing_runs_type_status", "process_type", "status"),
+        Index("idx_winner_processing_runs_scope_refresh", "scope_id", "refresh_cycle_id"),
         Index("idx_winner_processing_runs_run_id", "run_id"),
         Index("idx_winner_processing_runs_job_id", "background_job_id"),
         Index(

@@ -392,8 +392,27 @@ def test_run_export_route_returns_csv_attachment(monkeypatch) -> None:
     assert "swinglens_run_7_owpe.csv" in response.headers["content-disposition"]
 
 
-def test_cohort_refresh_admin_endpoint_queues_job() -> None:
+def test_cohort_refresh_admin_endpoint_queues_job(monkeypatch) -> None:
     db = AdminRouteFakeDb(run_exists=True)
+
+    class Planner:
+        def request_for_current_evidence(self, session, **_kwargs):
+            job = BackgroundJob(
+                id=1,
+                job_type=WINNER_COHORT_REFRESH,
+                status=JobStatus.QUEUED,
+                payload_json={
+                    "outcome_definition_id": "T2_5_S2_0_H5_NEXT_OPEN"
+                },
+            )
+            session.add(job)
+            return SimpleNamespace(job=job)
+
+    monkeypatch.setattr(
+        winner_probability_routes,
+        "CohortRefreshPlanner",
+        Planner,
+    )
     app = create_app(
         Settings(
             _env_file=None,

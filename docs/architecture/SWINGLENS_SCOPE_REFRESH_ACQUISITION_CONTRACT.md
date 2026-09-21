@@ -247,6 +247,70 @@ IB/prewarm, CERI refresh, and acquisition-plan paths, and leaves repository-wide
 Winner adoption and exact Winner source-revision lineage remain T15C work; other provenance and
 algorithm-specific gaps remain T15D work.
 
+## T15C certified Winner adoption
+
+### Maturation scope
+
+Primary H5/NEXT_OPEN admission performs one set-based selection of current, nonterminal,
+temporally eligible predictions whose due session is at or before the retained completed market
+session. The resulting `WINNER_PREDICTION` members are persisted before the root job is enqueued.
+Every batch receives those retained prediction IDs; the live due query may filter terminal or
+retry-deferred members, but it cannot add another prediction.
+
+### Maturation refresh
+
+A scheduler session key identifies one observation cycle. Concurrent admission is serialized and
+converges on one scope/refresh/job. Retry, reclaim and required continuation children retain the
+same scope, refresh, acquisition plan, operation cutoff, effective configuration anchor and due
+session. A call while that workflow is active coalesces into the admitted operation; after it is
+terminal, a later scheduler/operator cycle can admit a distinct refresh and newly due membership.
+
+### Outcome truth revisions
+
+Outcome proofs retain the complete `PriceBar` row, content hash, symbol, session, source and observed
+timestamps. When a matching `PriceBarRevision` exists at the operation cutoff, the proof pins its
+primary key and complete immutable revision body with `revision_identity_status = EXACT`. Birth bars
+that predate revision-row creation retain `price_bar_revision_id = null` and the explicit status
+`REVISION_IDENTITY_UNAVAILABLE`; the system never substitutes a later revision. A correction creates
+a linked Winner outcome revision and leaves the predecessor proof unchanged. Consequently WIN-006
+remains partial for historical birth bars.
+
+### Cohort scope
+
+Cohort admission advances the material-evidence watermark once, loads the exact watermark/cutoff-
+bounded evidence universe, and persists typed prediction, forward-outcome and target/stop-outcome
+members. Eligibility policy, outcome definition, watermark and training cutoff are retained in the
+scope definition. Inline current-rules estimates remain explicitly distinct and are not forced into
+this persisted generation scope.
+
+### Generation scope
+
+The generation is captured during admission and receives the same scope/refresh/plan in its birth
+transaction. Slices resume that exact generation, watermark, configuration and manifest. The root
+evidence manifest is checked against the admitted prediction members, so later matured evidence or
+new cohort groups cannot enter G1; a later refresh creates G2.
+
+### Publication target binding
+
+Publication continues to require the reviewed transition manifest, exact candidate and predecessor
+generation IDs, generation key, root manifest and candidate manifest hashes. A T15C generation's
+semantic authority is copied to its publication request. Request-key retry validates the same
+authority and exact manifest; it cannot resolve or switch to a newer candidate generation.
+
+### Winner retry/resume
+
+`WinnerProcessingRun` checkpoints carry immutable `scope_id`, `refresh_cycle_id` and
+`acquisition_plan_id`. A checkpoint also records scope/refresh in its body. PostgreSQL foreign keys
+and the shared single-assignment trigger reject rebinding. Zero progress with retained work records
+the explicit reason and remaining members instead of producing an equivalent unbounded child chain.
+
+### Legacy Winner scope
+
+Rows created before T15C remain nullable and therefore `LEGACY_UNKNOWN`; migration 0083 performs no
+semantic backfill. New capture, maturation and cohort jobs require retained authority at execution.
+Historical backfill can admit only the explicit run IDs supplied by its request before iteration; it
+does not reconstruct a historical prediction population from today's Winner tables.
+
 ## Relationship to Phases 0-5
 
 Phase 1 calculation identity, Phase 2 immutable evidence, Phase 3 consumer eligibility, Phase 4
