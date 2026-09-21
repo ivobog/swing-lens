@@ -52,7 +52,7 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     class Db:
         def scalar(self, _statement):
-            return "0048_sec_guidance_normalization_performance"
+            return "0083_winner_scope_truth"
 
     settings = Settings(
         _env_file=None,

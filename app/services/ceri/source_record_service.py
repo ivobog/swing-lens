@@ -11,7 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriIngestionRun, CeriSourceRecord
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
-from app.services.ceri.deployment_identity import current_deployment_identity
+from app.services.ceri.deployment_identity import (
+    current_deployment_identity,
+    session_database_schema_revision,
+)
 from app.services.ceri.dtos import RawProviderRecord
 from app.services.ceri.observability import ceri_log_event, ceri_metrics
 from app.services.ceri.provider_registry import provider_storage_projection
@@ -67,6 +70,7 @@ class CeriSourceRecordService:
                 config_hash=config_hash,
                 calculation_version=calculation_version,
                 provider_signatures={provider: provider_terms_version or "unknown"},
+                database_schema_revision=session_database_schema_revision(db),
             ),
             started_at=_utcnow(),
             scope_id=(semantic_authority.scope_id if semantic_authority else None),

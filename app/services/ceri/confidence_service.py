@@ -102,6 +102,12 @@ class CeriConfidenceService:
         reasons: list[str] = []
         gates: list[str] = []
         caps: list[str] = []
+        feature_warnings = set().union(
+            *(set(feature.warnings_json or []) for feature in revision_features)
+        )
+        critical_warnings = tuple(
+            sorted(feature_warnings & set(self.config.confidence.critical_provenance_warnings))
+        )
         if coverage_pct < self.config.revision.minimum_component_coverage_pct:
             warnings.append("estimate_coverage_low")
         if analyst is None:
@@ -114,13 +120,25 @@ class CeriConfidenceService:
             warnings.append("estimate_data_stale")
         label = self._label(score)
         if not available:
-            label = CeriConfidenceLabel.INSUFFICIENT
+            label = self.config.confidence.zero_core_coverage_label
             gates.append("ZERO_USABLE_CORE_REVISION_COVERAGE")
             reasons.append("no_usable_core_revision_evidence")
         if warnings and label is CeriConfidenceLabel.HIGH:
             label = CeriConfidenceLabel.NORMAL
             reasons.append("high_confidence_capped_by_warnings")
             caps.append("WARNINGS_CAP_HIGH_TO_NORMAL")
+        provenance_cap = self.config.confidence.critical_provenance_cap
+        if critical_warnings and provenance_cap is not None:
+            capped = _weaker_label(label, provenance_cap)
+            if capped is not label:
+                label = capped
+                reasons.append("critical_provenance_cap_applied")
+            caps.append(
+                "CRITICAL_PROVENANCE_CAP_"
+                + provenance_cap.value.upper()
+                + ":"
+                + ",".join(critical_warnings)
+            )
         return ConfidenceResult(
             score=max(0.0, min(10.0, score)),
             label=label,
@@ -153,6 +171,19 @@ class CeriConfidenceService:
         if score >= self.config.confidence.low_min:
             return CeriConfidenceLabel.LOW
         return CeriConfidenceLabel.INSUFFICIENT
+
+
+def _weaker_label(
+    current: CeriConfidenceLabel,
+    ceiling: CeriConfidenceLabel,
+) -> CeriConfidenceLabel:
+    order = {
+        CeriConfidenceLabel.INSUFFICIENT: 0,
+        CeriConfidenceLabel.LOW: 1,
+        CeriConfidenceLabel.NORMAL: 2,
+        CeriConfidenceLabel.HIGH: 3,
+    }
+    return ceiling if order[current] > order[ceiling] else current
 
 
 def _freshness_score(

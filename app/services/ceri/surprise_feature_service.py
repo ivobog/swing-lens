@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from app.models.ceri_tables import CeriEarningsActual, CeriEstimateSnapshot
 from app.services.ceri.config import CeriConfig, load_ceri_config
+from app.services.ceri.pit_eligibility import estimate_snapshot_historical_eligibility_at
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.source_mutation_authority import source_mutation_writer
 
@@ -143,18 +144,21 @@ class CeriSurpriseFeatureService:
     ) -> CeriEstimateSnapshot | None:
         if earnings.report_at is None:
             return None
-        candidates = [
-            snapshot
-            for snapshot in estimates
-            if snapshot.company_id == earnings.company_id
-            and snapshot.metric == earnings.metric
-            and snapshot.period_type == earnings.period_type
-            and snapshot.fiscal_period_end == earnings.fiscal_period_end
-            and snapshot.consensus is not None
-            and snapshot.effective_at is not None
-            and snapshot.effective_at < earnings.report_at
-            and _known_at(snapshot) < earnings.report_at
-        ]
+        candidates = []
+        for snapshot in estimates:
+            known_at = estimate_snapshot_historical_eligibility_at(snapshot)
+            if (
+                snapshot.company_id == earnings.company_id
+                and snapshot.metric == earnings.metric
+                and snapshot.period_type == earnings.period_type
+                and snapshot.fiscal_period_end == earnings.fiscal_period_end
+                and snapshot.consensus is not None
+                and snapshot.effective_at is not None
+                and snapshot.effective_at < earnings.report_at
+                and known_at is not None
+                and known_at < earnings.report_at
+            ):
+                candidates.append(snapshot)
         if not candidates:
             return None
         return max(candidates, key=lambda row: (row.effective_at, row.id or 0))
@@ -194,14 +198,3 @@ def _consistency(positive: int, negative: int, total: int) -> str:
     if negative > positive:
         return "mixed_negative"
     return "mixed"
-
-
-def _known_at(snapshot: CeriEstimateSnapshot) -> datetime:
-    return (
-        snapshot.known_at
-        or snapshot.provider_observed_at
-        or snapshot.source_timestamp
-        or snapshot.retrieved_at
-        or snapshot.effective_at
-        or datetime.max
-    )

@@ -111,6 +111,10 @@ def test_severely_stale_data_forces_configured_stale_risk_state() -> None:
     )
 
     assert policy.risk_state == "Gray"
+    assert policy.regime == REGIME_UNKNOWN
+    assert policy.position_size_multiplier == 0.25
+    assert policy.allowed_profiles == ["defensive_quality"]
+    assert policy.allowed_setups == []
     assert "stale_market_data" in policy.warnings
     assert "severely_stale_market_data" in policy.warnings
 

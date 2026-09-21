@@ -74,6 +74,7 @@ def test_capture_authority_scaling(
         "_eligible_source_backed_rows",
         "assert_current_execution_ownership",
         "resolve_pipeline_market_context",
+        "_capture_earnings_rows",
         "_capture_source_bundle",
         "_prior_snapshot",
         "effective_disposition_by_snapshot",

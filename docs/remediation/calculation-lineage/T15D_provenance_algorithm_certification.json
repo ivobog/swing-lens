@@ -1,5 +1,5 @@
 {
-  "schema_version": "t15d-provenance-algorithm-certification-v1",
+  "schema_version": "t15d-provenance-algorithm-certification-v2",
   "baseline": {
     "original_audit": "3a9d47063be996908b7d5d1cc5769e0bbd033546",
     "phase5": "f587b63e4e35e81486e53ffa0f13b9cd7369f963",
@@ -116,7 +116,7 @@
     }
   ],
   "findings": {
-    "closed": ["CORE-001", "CORE-003", "CORE-004", "CERI-001", "CERI-002", "RANK-001", "RANK-008", "XINT-003"],
+    "closed": ["CORE-001", "CORE-002", "CORE-003", "CORE-004", "CERI-001", "CERI-002", "CERI-004", "CERI-005", "CERI-006", "CERI-007", "CERI-009", "CERI-011", "RANK-001", "RANK-008", "XINT-003"],
     "partial": ["CORE-005", "CERI-008", "CERI-010", "RANK-007", "WIN-006", "INV-REVISION-001"],
     "open": []
   },
@@ -124,7 +124,17 @@
     "INV-SCOPE-001": "ENFORCED_REPOSITORY_WIDE_FOR_INVENTORIED_SCOPE_CAPABLE_OPERATIONS",
     "INV-REFRESH-001": "ENFORCED_REPOSITORY_WIDE_FOR_INVENTORIED_REFRESH_CAPABLE_OPERATIONS",
     "INV-REVISION-001": "PARTIAL_EXACT_OR_EXPLICIT_UNAVAILABLE_LEGACY_BOUNDARY",
+    "INV-HANDOFF-001": "ENFORCED_NO_UNACCOUNTED_T15A_ASSIGNMENTS",
     "XINT-012": "CLOSED"
+  },
+  "finding_reconciliation": {
+    "source": "T15A_phase6_handoff.json",
+    "assigned": 17,
+    "accounted": 17,
+    "closed": 13,
+    "partial": 4,
+    "open": 0,
+    "lost": 0
   },
   "summary": {
     "assigned": 7,

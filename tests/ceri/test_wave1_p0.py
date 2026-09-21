@@ -282,6 +282,13 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(capture_module, "_prior_snapshot", lambda *_args: None)
     monkeypatch.setattr(capture_module, "_latest_changes", lambda *_args: [])
     monkeypatch.setattr(capture_module, "_quarantined_count", lambda _db: 0)
+    monkeypatch.setattr(
+        capture_module,
+        "_provider_feed_freshness_days",
+        lambda _checks, *, ticker, **_kwargs: {
+            "estimates": 9 if ticker == "BBB" else 0
+        },
+    )
 
     class Spy:
         def __init__(self):
@@ -347,10 +354,14 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
     risk_calls = [call for call in service.risk.calls if "stale" in call]
     assert [call["conflict_penalty"] for call in confidence_calls] == [1.0, 0.0]
     assert [call["conflict_penalty"] for call in risk_calls] == [1.0, 0.0]
-    assert [call["stale"] for call in risk_calls] == [True, False]
+    assert [call["stale"] for call in risk_calls] == [True, True]
+    assert [call["dataset_freshness_days"] for call in confidence_calls] == [
+        {"estimates": 0},
+        {"estimates": 9},
+    ]
 
 
-def test_capture_alignment_context_serializes_earnings_date() -> None:
+def test_capture_alignment_context_rejects_unanchored_raw_earnings_date() -> None:
     from app.services.ceri.capture_service import _alignment_context
 
     row = SimpleNamespace(
@@ -361,7 +372,10 @@ def test_capture_alignment_context_serializes_earnings_date() -> None:
 
     context = _alignment_context(TraceDb(), row, 7)
 
-    assert context["earnings_clearance"] == "2026-08-12"
+    assert context["earnings_clearance"] == {
+        "selection_reason": "SOURCE_BACKED_UPCOMING_EARNINGS_NOT_PROVIDED",
+        "selected_exact_value": None,
+    }
 
 
 def test_guidance_confidence_aliases_point_values_and_unknown_extraction() -> None:

@@ -32052,7 +32052,7 @@
             "validate_same_authority"
           ],
           "decorators": [],
-          "file_sha256": "a3601e34df2966692308f135867dd30b9248c66128c55efad2efe5e2ca87406f",
+          "file_sha256": "987338466f5e4d43b5e14bf742d62deac8e1e105dde97834f8ebf9af7664338b",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -46555,7 +46555,7 @@
           "self.snapshot_service.effective_configuration.bind",
           "standalone_market_context"
         ],
-        "authority_branch_fingerprint": "7259c4ac47b314a507fe60c2fb6a2a1db6558821c25930550cd99bd4abfa0a46",
+        "authority_branch_fingerprint": "402054b81b3112d0f2b1ce90c648decb6dcc0b1e2e942910ac1e42737b3bcbc5",
         "authority_requirement_set": "0f166ed199652254a827987453145f870b6c69588489d179f55464b6b3d0a598",
         "domains": [
           "CERI",
@@ -46622,7 +46622,7 @@
             "changes.changes",
             "isinstance(db, Session)"
           ],
-          "body_sha256": "7f5f5b70f2667daf86d7808bbcee9223ef2ed0cd380698fc88e2858fbd196326",
+          "body_sha256": "4212e79b11a5a4d3d63320ab3fc2206e1805b95796be9db02d90734fac903bbb",
           "calls": [
             "CanonicalEvidenceSerializer.canonicalize",
             "CeriRunCaptureResult",
@@ -46631,6 +46631,7 @@
             "EntryPointAuthorityError",
             "ValueError",
             "_alignment_context",
+            "_capture_earnings_rows",
             "_capture_score_comparisons",
             "_capture_source_bundle",
             "_catalyst_features_for_company",
@@ -46653,6 +46654,8 @@
             "_revision_features_for_companies",
             "_scalars",
             "_source_ids",
+            "_upcoming_earnings_for_companies",
+            "any",
             "as_of_session.isoformat",
             "bool",
             "build_contextual_result_identity",
@@ -46663,10 +46666,14 @@
             "consumer_context_identity",
             "contextual_permissions.values",
             "current_delivery",
+            "dataset_freshness_days.get",
             "db.rollback",
             "deepcopy",
             "dict",
             "dict(getattr(ibmi_config, '_configuration_sources', ())).get",
+            "earnings_by_company.get",
+            "earnings_by_company.setdefault",
+            "earnings_by_company.setdefault(item.company_id, []).append",
             "evidence_lineage.update",
             "features_by_company.get",
             "features_by_company.items",
@@ -46682,6 +46689,7 @@
             "ibmi_config.section('volatility').get",
             "ibmi_sources.append",
             "identity_metadata",
+            "int",
             "isinstance",
             "list",
             "load_ib_market_intelligence_config",
@@ -46695,7 +46703,6 @@
             "resolve_ceri_configuration",
             "row.raw_json.get",
             "select",
-            "select(CeriEarningsActual).where",
             "select(CeriEstimateSnapshot).where",
             "self.alert_service.rebuild_alerts",
             "self.change_detection.detect_score_changes",
@@ -46713,10 +46720,11 @@
             "str(row.ticker).upper",
             "sum",
             "ticker.upper",
+            "upcoming_earnings.evidence",
             "volatility_config.get"
           ],
           "decorators": [],
-          "file_sha256": "242fa2cc68941f81168539c4aa9e03b36a7ff3e7a346f54849f48ee36650f76e",
+          "file_sha256": "3834f2eae7f85bf05e4d6a8640b5f4c2d563b4b36918ac5bc585d141ee490c22",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -46735,6 +46743,7 @@
             "CeriChangeEvent": "app.models.ceri_tables.CeriChangeEvent",
             "CeriCompany": "app.models.ceri_tables.CeriCompany",
             "CeriConfidenceService": "app.services.ceri.confidence_service.CeriConfidenceService",
+            "CeriDataset": "app.services.ceri.enums.CeriDataset",
             "CeriEarningsActual": "app.models.ceri_tables.CeriEarningsActual",
             "CeriEstimateSnapshot": "app.models.ceri_tables.CeriEstimateSnapshot",
             "CeriEventRiskService": "app.services.ceri.event_risk_service.CeriEventRiskService",
@@ -46756,6 +46765,7 @@
             "RawCompanyRow": "app.models.tables.RawCompanyRow",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
+            "UpcomingEarningsSelection": "app.services.ceri.upcoming_earnings_authority.UpcomingEarningsSelection",
             "annotations": "__future__.annotations",
             "build_contextual_result_identity": "app.services.contextual_calculation_identity.build_contextual_result_identity",
             "build_ibmi_feature_identity": "app.services.contextual_calculation_identity.build_ibmi_feature_identity",
@@ -46781,6 +46791,7 @@
             "referenced_sources_are_eligible": "app.services.ceri.pit_eligibility.referenced_sources_are_eligible",
             "select": "sqlalchemy.select",
             "select_prior_comparison": "app.services.ceri.change_semantics.select_prior_comparison",
+            "select_upcoming_earnings": "app.services.ceri.upcoming_earnings_authority.select_upcoming_earnings",
             "selectinload": "sqlalchemy.orm.selectinload",
             "standalone_market_context": "app.services.market_calculation_context_service.standalone_market_context",
             "ticker_feed_freshness_from_runs": "app.services.ceri.freshness_service.ticker_feed_freshness_from_runs"
@@ -46945,7 +46956,7 @@
       "initiator_id": "EF_8eedb2c400c92649",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_db1830485a4ea6a4",
+      "operation_family_id": "AF_9d2e4a3f914a9dec",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_CERI_ALERT_CREATION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact native retained source bodies/IDs and immutable proofs; full executable configuration; explicit aware temporal/session authority; exact predecessor, target/model/generation/rule/manifest and native readiness where applicable; same validating Session and current durable execution token/configuration/run binding",
@@ -46976,6 +46987,7 @@
       "previous_operation_family_ids": [
         "AF_3f166d6190072d7a",
         "AF_c39678eaf892a460",
+        "AF_db1830485a4ea6a4",
         "OP_CERIRUNCAPTURESERVICE_CAPTURE_RUN_8eedb2c4"
       ],
       "semantic_mode": [
@@ -48098,7 +48110,7 @@
             "timedelta"
           ],
           "decorators": [],
-          "file_sha256": "a3601e34df2966692308f135867dd30b9248c66128c55efad2efe5e2ca87406f",
+          "file_sha256": "987338466f5e4d43b5e14bf742d62deac8e1e105dde97834f8ebf9af7664338b",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -49715,7 +49727,7 @@
         "authority_adapters": [
           "No authority adapter; exact executable operation reviewed separately"
         ],
-        "authority_branch_fingerprint": "9b114916c791a704f3ebaf99effb9eb6992903ef19a84398206f23787b8262c9",
+        "authority_branch_fingerprint": "ce07b0d2e9fc509d16de5f689ba85cbe139c541cd2be8a2849e717fb05e677e5",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -49755,7 +49767,7 @@
             "tuple"
           ],
           "decorators": [],
-          "file_sha256": "783c720ce39c5c96467ba512e182be6a9d2f9d565f19a6d6005faf591bb0de89",
+          "file_sha256": "78b45f0cc48c578a9fb6734e8f2fa63c257217e356015c5af33e0ffe3d06a14e",
           "guard_owners": [],
           "import_bindings": {
             "CeriConfig": "app.services.ceri.config.CeriConfig",
@@ -49767,6 +49779,7 @@
             "annotations": "__future__.annotations",
             "dataclass": "dataclasses.dataclass",
             "datetime": "datetime.datetime",
+            "estimate_snapshot_historical_eligibility_at": "app.services.ceri.pit_eligibility.estimate_snapshot_historical_eligibility_at",
             "load_ceri_config": "app.services.ceri.config.load_ceri_config",
             "source_mutation_writer": "app.services.source_mutation_authority.source_mutation_writer"
           },
@@ -49807,7 +49820,7 @@
       "initiator_id": "EF_9ffa04a332230973",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_ebf8b7a7c8d302b6",
+      "operation_family_id": "AF_937a6a2c294bd898",
       "predecessor_handoff": {
         "authority_it_currently_lacks": "Not dynamically audited for this initiator. Preserve native scope and supply the exact identity/time/evidence/readiness/configuration/execution dimensions required by each target writer; discovery does not establish which arguments are already sufficient.",
         "current_behavior_after_t14c": "UNVERIFIED_PARTIAL_ADOPTION; do not assume safe target writers",
@@ -49828,6 +49841,7 @@
       },
       "previous_operation_family_ids": [
         "AF_22accc0d30d2723e",
+        "AF_ebf8b7a7c8d302b6",
         "OP_CERISURPRISEFEATURESERVICE_SUMMARIZE_9ffa04a3"
       ],
       "semantic_mode": [
@@ -56595,7 +56609,7 @@
             "str"
           ],
           "decorators": [],
-          "file_sha256": "a3601e34df2966692308f135867dd30b9248c66128c55efad2efe5e2ca87406f",
+          "file_sha256": "987338466f5e4d43b5e14bf742d62deac8e1e105dde97834f8ebf9af7664338b",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",

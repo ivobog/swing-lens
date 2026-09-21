@@ -6,7 +6,6 @@ import hashlib
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_DIR = ROOT / "docs" / "remediation" / "calculation-lineage"
 REVIEW_PATH = ARTIFACT_DIR / "T14D_semantic_family_review.json"

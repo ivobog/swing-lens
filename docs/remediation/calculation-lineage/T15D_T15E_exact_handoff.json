@@ -1,100 +1,50 @@
 {
-  "schema_version": "t15d-t15e-exact-handoff-v1",
-  "source_task": "T15D",
+  "schema_version": "t15d-t15e-exact-handoff-v2",
+  "source_task": "T15D_CONTINUATION",
+  "invariant": "INV-HANDOFF-001",
   "phase6_baselines": {
-    "T15A": {
-      "commit": "8188f1ac3e7e3a8f93ff75c2cf10019d9c5935f8",
-      "certificate": "docs/remediation/calculation-lineage/T15A_scope_operation_inventory.json",
-      "certificate_sha256": "caddc1a79b84bd1fd81ab131fdfe062188fe94d9ae88c45757c261f38cd2c5e4"
-    },
-    "T15B": {
-      "commit": "0c8e5664c52ff19d80d30f33c64ade8772c955a8",
-      "certificate": "docs/remediation/calculation-lineage/T15B_pipeline_ceri_scope_refresh_certification.json",
-      "certificate_sha256": "a41b3632ccbb90cfb5126b20edb6a5b7ccc9f64956c40f9ed7b05a3003cf86f3"
-    },
-    "T15C": {
-      "commit": "65284b3f1cc4321618bff439d53bf7f12a3d409f",
-      "certificate": "docs/remediation/calculation-lineage/T15C_winner_scope_truth_certification.json",
-      "certificate_sha256": "b756ba75fc7e333be0b754e866db59721f8bbe194b7dc921fd015505b67062ec"
-    },
-    "T15D": {
-      "commit": {
-        "branch": "codex/t15d-provenance-algorithm-remediation",
-        "subject": "fix: remediate provenance and calculation correctness",
-        "locator": "the single commit containing this handoff; its SHA is reported by T15D and cannot be self-embedded in that commit"
-      },
-      "starting_commit": "65284b3f1cc4321618bff439d53bf7f12a3d409f",
-      "certificate": "docs/remediation/calculation-lineage/T15D_provenance_algorithm_certification.json",
-      "certificate_sha256": "b8c8edea568c14a55f3b00117044c7c5e2beae257bf8bcd6e507743bc35dcedf"
-    }
+    "T15A": "8188f1ac3e7e3a8f93ff75c2cf10019d9c5935f8",
+    "T15B": "0c8e5664c52ff19d80d30f33c64ade8772c955a8",
+    "T15C": "65284b3f1cc4321618bff439d53bf7f12a3d409f",
+    "T15D_previous": "97e5338d48c7f60c8492f3a578e02e0d9114fdce"
   },
-  "phase6_operation_families": {
-    "canonical_inventory": "docs/remediation/calculation-lineage/T15A_scope_operation_inventory.json",
-    "count": 41,
-    "T15B": [
-      "AF_06fd3d113b34f83e", "AF_23acb094fb6bb85b", "AF_2ac7e305c24865bb",
-      "AF_33bdca96240039c6", "AF_406e161ff5c7157e", "AF_61d58568e4195b40",
-      "AF_63eb3b146ad2e615", "AF_671f857a0f5339d6", "AF_716a8499b1e111d4",
-      "AF_7c7a11f09af2e09e", "AF_962bfc6f0968f82d", "AF_a22cc94c8ff55c85",
-      "AF_acf7c620df460e47", "AF_b10d4ec2fa456ce6", "AF_b579e27f1696a70d",
-      "AF_ca4f55dcf09b6d51", "AF_ce350b6feeb50432", "AF_e6476331f05f5ec2",
-      "AF_e7cf2bc4f3753200"
-    ],
-    "T15C": [
-      "AF_00e602453a046eb8", "AF_07d5132ea4950d61", "AF_181b495253d9c9f3",
-      "AF_28a02ef387a2cf02", "AF_370448d4d5b97745", "AF_391cc87ab4acf60e",
-      "AF_5e9c7f4b54deade3", "AF_6b6a709b24cfa078", "AF_79c791f0e8421e6e",
-      "AF_8b743894024472f7", "AF_9f421f6c2c6dc73f", "AF_a1a274f9c73e3fa0",
-      "AF_ab5b156dc59c02ff", "AF_d07e72b38c67920a", "AF_f23925ce093d1da1"
-    ],
-    "T15D": [
-      "AF_09185dfbe8dc8ae9", "AF_095460ea3293f382", "AF_2071f64f2b1f231c",
-      "AF_9701990a1bad3828", "AF_be5ed7d8ee0c3e0c", "AF_c6cbaf3f7ed57e8e",
-      "AF_ddaa57ad85ff8bf7"
-    ]
-  },
-  "invariant_status": {
-    "scope": {"id": "INV-SCOPE-001", "status": "ENFORCED_REPOSITORY_WIDE_FOR_INVENTORIED_SCOPE_CAPABLE_OPERATIONS"},
-    "refresh": {"id": "INV-REFRESH-001", "status": "ENFORCED_REPOSITORY_WIDE_FOR_INVENTORIED_REFRESH_CAPABLE_OPERATIONS"},
-    "revision": {"id": "INV-REVISION-001", "status": "PARTIAL", "residual": "legacy Fundamental/CERI rule-purge and Winner birth inputs without recoverable exact revision identity"},
-    "cross_domain_refresh": {"id": "XINT-012", "status": "CLOSED"}
-  },
-  "finding_status": {
-    "closed": ["CORE-001", "CORE-003", "CORE-004", "CERI-001", "CERI-002", "RANK-001", "RANK-008", "XINT-003"],
-    "partial": {
-      "CORE-005": "Legacy raw uploads lack per-value provider/revision/time/fiscal/currency authority.",
-      "CERI-008": "Legacy alerts without retained original rule/config identity remain unreconstructable.",
-      "CERI-010": "Legacy pre-certification purge state has no reconstructable pre-purge archive.",
-      "RANK-007": "Legacy upload earnings schedules lack provider publication/retrieval/revision proof.",
-      "WIN-006": "Some birth PriceBars have no exact PriceBarRevision primary key.",
-      "INV-REVISION-001": "Exact or explicit unavailable is enforced; absent historical identities cannot be recreated."
-    },
-    "open": []
-  },
-  "algorithm_delta_fixtures": [
-    "CERI-001 competing provider priority inversion",
-    "CERI-002 adjusted-price/TRADES-volume order independence",
-    "CORE-003 mixed benchmark effective session/confidence",
-    "CORE-004 internal US-market session gap",
-    "RANK-008 explicit non-authoritative Regime contract with unchanged score"
+  "findings": [
+    {"finding_id":"PIPE-001","status":"CLOSED","evidence":"T15B parent/child completion accounting and retry tests","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"PIPE-004","status":"CLOSED","evidence":"T15B frozen scope and retained remainder certification","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"PIPE-005","status":"CLOSED","evidence":"T15B acquisition-plan and distinct refresh certification","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CERI-012","status":"CLOSED","evidence":"T15B retry idempotency separated from later refresh identity","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"XINT-007","status":"PARTIAL","evidence":"T15B exact scope/refresh/plan fingerprints for supported current paths","residual":"Legacy rule and purge identities cannot be reconstructed","current_supported_path_safe":true,"next_phase":"Phase 7 historical reconstruction"},
+    {"finding_id":"XINT-012","status":"CLOSED","evidence":"Repository cross-domain refresh identity certification","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"WIN-006","status":"PARTIAL","evidence":"T15C persists exact PriceBarRevision IDs or REVISION_IDENTITY_UNAVAILABLE","residual":"Pre-revision-capture birth bars lack a truthful revision primary key","current_supported_path_safe":true,"next_phase":"Explicit-unavailable boundary"},
+    {"finding_id":"WIN-008","status":"CLOSED","evidence":"T15C frozen Winner target/cohort truth certification","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CERI-001","status":"CLOSED","evidence":"Provider-priority conflict selection and old-evidence pin tests","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CERI-002","status":"CLOSED","evidence":"Adjusted-price/TRADES-volume order-independent source manifest tests","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CERI-004","status":"CLOSED","evidence":"Change rebuild requires session/cutoff and source receipt for catalyst/guidance evidence","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CERI-005","status":"CLOSED","evidence":"Frozen critical-warning set drives configured confidence-label ceiling and cap ledger","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CERI-006","status":"CLOSED","evidence":"Estimate eligibility requires local possession and later external constraint; legacy missing possession fails closed","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CERI-007","status":"CLOSED","evidence":"One feed-freshness result drives confidence and event-risk staleness","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CERI-008","status":"PARTIAL","evidence":"New alert rule/config identity is immutable and exact","residual":"Legacy alerts lack retained original rule/config identity","current_supported_path_safe":true,"next_phase":"Phase 7 historical reconstruction"},
+    {"finding_id":"CERI-009","status":"CLOSED","evidence":"Deployment database head is derived/validated and separated from CERI evidence schema revision","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CERI-010","status":"PARTIAL","evidence":"Certified source references are deletion protected and legacy invalidation is explicit","residual":"Legacy pre-certification purge state lacks a sealed pre-purge archive","current_supported_path_safe":true,"next_phase":"Phase 7 or external archive recovery"},
+    {"finding_id":"CERI-011","status":"CLOSED","evidence":"Upcoming date pins normalized row, provider/source/content/revision, external/possession time, cutoff, candidate set, policy and exact selected value","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CORE-002","status":"CLOSED","evidence":"Severe staleness now applies complete Unknown policy permissions and sizing","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CORE-003","status":"CLOSED","evidence":"Mixed benchmark session alignment and confidence degradation tests","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CORE-004","status":"CLOSED","evidence":"Internal exchange-session completeness and exact gap tests","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"CORE-005","status":"PARTIAL","evidence":"Certified current structured sources retain exact authority; legacy unavailable dimensions remain explicit","residual":"Legacy raw uploads lack per-value provider/revision/time/fiscal/currency authority","current_supported_path_safe":true,"next_phase":"Phase 7 only if authoritative archives exist"},
+    {"finding_id":"RANK-007","status":"PARTIAL","evidence":"Certified CERI risk rejects raw upload date and uses source-backed schedule under explicit business time","residual":"Legacy upload schedule provenance is unavailable and never promoted","current_supported_path_safe":true,"next_phase":"Phase 7 only if authoritative archives exist"},
+    {"finding_id":"RANK-008","status":"CLOSED","evidence":"NON_AUTHORITATIVE_FOR_RANKING dependency contract and unchanged-score fixture","residual":"","current_supported_path_safe":true,"next_phase":"None"},
+    {"finding_id":"XINT-003","status":"CLOSED","evidence":"Setup capture rejects parent retained-scope drift; dated repair is explicit single-artifact work","residual":"","current_supported_path_safe":true,"next_phase":"None"}
   ],
-  "regression_suites": {
-    "focused": ["tests/test_t15d_provenance_algorithm_remediation.py", "tests/integration/test_t15d_provenance_algorithm_postgresql.py", "tests/test_t15d_certification.py"],
-    "scope_refresh": ["tests/integration/test_t15a_scope_identity_postgresql.py", "tests/integration/test_t15b_scope_refresh_postgresql.py", "tests/integration/test_t15c_winner_scope_truth_postgresql.py"],
-    "performance": ["tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py", "tests/integration/test_t14d_score_change_performance_postgresql.py", "tests/integration/test_t14d_source_bundle_postgresql.py"],
-    "algorithm_domains": ["tests/test_market_regime_command_center.py", "tests/test_ohlcv_coverage_service.py", "tests/test_technical_indicators.py", "tests/ceri", "tests/test_ranking_profile_service.py", "tests/test_ranking_profiles_golden.py"],
-    "repository": ["pytest", "ruff", "compileall", "git diff --check", "alembic heads/check", "secret scan"]
+  "unaccounted": [],
+  "summary": {"assigned":25,"accounted":25,"closed":19,"partial":6,"open":0,"out_of_scope":0,"lost":0},
+  "invariants": {
+    "INV-HANDOFF-001":"ENFORCED",
+    "INV-SCOPE-001":"ENFORCED_REPOSITORY_WIDE_FOR_INVENTORIED_SCOPE_CAPABLE_OPERATIONS",
+    "INV-REFRESH-001":"ENFORCED_REPOSITORY_WIDE_FOR_INVENTORIED_REFRESH_CAPABLE_OPERATIONS",
+    "INV-REVISION-001":"PARTIAL_EXACT_OR_EXPLICIT_UNAVAILABLE_LEGACY_BOUNDARY",
+    "XINT-012":"CLOSED"
   },
-  "remaining_phase7_findings": [
-    {"finding_id": "SETUP-006", "scope": "original-context reconstruction only"},
-    {"finding_id": "SETUP-007", "scope": "unanchored legacy rule reconstruction only"},
-    {"finding_id": "SETUP-010", "scope": "original-context reconstruction only"}
-  ],
-  "remaining_external_governance_scope": [
-    "Provider contract/SLA governance and licensing decisions outside repository execution semantics.",
-    "Recovery of historical source/rule/currency facts from authoritative external archives, if those archives exist.",
-    "No production data rewrite or semantic backfill is authorized by this handoff."
-  ],
-  "phase6_summary": {"operation_families": 41, "t15d_assigned": 7, "t15d_reconciled": 7, "t15d_unreconciled": 0, "defect": 0, "unknown": 0},
-  "verdict": "READY_FOR_T15E_CLOSURE_CERTIFICATION"
+  "migration": {"required":false,"head":"0083_winner_scope_truth","production_rewrite":false},
+  "phase7_status":"BLOCKED_PENDING_T15E",
+  "verdict":"READY_FOR_T15E_RERUN"
 }

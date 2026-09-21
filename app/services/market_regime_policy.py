@@ -104,6 +104,12 @@ class MarketRegimePolicyService:
             if freshness.severely_stale:
                 warnings = _append_unique(warnings, "severely_stale_market_data")
                 risk_state = _configured_stale_risk_state(config)
+                # Severe staleness invalidates the bullish policy itself, not
+                # merely its display colour. Preserve the original warnings,
+                # but take every permission and sizing field from the explicit
+                # fail-closed Unknown policy.
+                regime = REGIME_UNKNOWN
+                raw_policy = config.policies[REGIME_UNKNOWN]
 
         return MarketRegimePolicyDto(
             regime=regime if regime in config.policies else REGIME_UNKNOWN,

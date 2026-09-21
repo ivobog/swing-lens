@@ -6,7 +6,7 @@ from typing import Any
 
 from sqlalchemy import func
 
-from app.models.ceri_tables import CeriSourceRecord
+from app.models.ceri_tables import CeriEstimateSnapshot, CeriSourceRecord
 from app.models.tables import PriceBar
 
 
@@ -23,8 +23,55 @@ def source_record_known_at(record: CeriSourceRecord) -> datetime | None:
 
 
 def source_record_is_eligible(record: CeriSourceRecord, cutoff_at: datetime) -> bool:
-    known_at = source_record_known_at(record)
+    known_at = source_record_historical_eligibility_at(record)
     return known_at is not None and known_at <= _required_aware(cutoff_at)
+
+
+def source_record_historical_eligibility_at(record: CeriSourceRecord) -> datetime | None:
+    """Return the first time both external existence and local possession are proven."""
+
+    possession = source_record_known_at(record)
+    if possession is None:
+        return None
+    external = [
+        value
+        for value in (
+            _aware(record.published_at),
+            _aware(record.observed_at),
+            _aware(record.source_timestamp),
+        )
+        if value is not None
+    ]
+    return max([possession, *external])
+
+
+def estimate_snapshot_historical_eligibility_at(
+    snapshot: CeriEstimateSnapshot,
+) -> datetime | None:
+    """Possession-aware eligibility for normalized and legacy estimate rows.
+
+    ``known_at`` and ``retrieved_at`` are local-possession dimensions. Provider
+    observation/source timestamps only constrain that possession boundary; they
+    can never substitute for it. Rows with no trustworthy local boundary remain
+    LEGACY_UNKNOWN and fail closed.
+    """
+
+    possession = [
+        value
+        for value in (_aware(snapshot.known_at), _aware(snapshot.retrieved_at))
+        if value is not None
+    ]
+    if not possession:
+        return None
+    external = [
+        value
+        for value in (
+            _aware(snapshot.provider_observed_at),
+            _aware(snapshot.source_timestamp),
+        )
+        if value is not None
+    ]
+    return max([*possession, *external])
 
 
 def eligible_source_record_ids(

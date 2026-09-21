@@ -33,6 +33,7 @@ from app.services.ceri.catalyst_feature_service import CeriCatalystFeatureServic
 from app.services.ceri.change_detection_service import CeriChangeDetectionService
 from app.services.ceri.change_semantics import select_prior_comparison
 from app.services.ceri.confidence_service import CeriConfidenceService
+from app.services.ceri.enums import CeriDataset
 from app.services.ceri.event_risk_service import CeriEventRiskService
 from app.services.ceri.evidence_eligibility import eligible_snapshot_select
 from app.services.ceri.feature_flags import ceri_flags
@@ -46,6 +47,10 @@ from app.services.ceri.pit_eligibility import (
 from app.services.ceri.price_response_service import CeriPriceResponseService
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
+from app.services.ceri.upcoming_earnings_authority import (
+    UpcomingEarningsSelection,
+    select_upcoming_earnings,
+)
 from app.services.combined_ranking_identity import calculation_identity_from_debug
 from app.services.contextual_calculation_identity import (
     CERI_CONTEXT_COMPATIBILITY,
@@ -294,8 +299,19 @@ class CeriRunCaptureService:
         captured_snapshots = []
         from app.services.source_mutation_authority import prefetched_source_scope
 
+        all_earnings = _capture_earnings_rows(db, company_ids)
+        earnings_by_company: dict[int, list[CeriEarningsActual]] = {}
+        for item in all_earnings:
+            earnings_by_company.setdefault(item.company_id, []).append(item)
         initial_bundle = (
-            _capture_source_bundle(db, company_ids, run_id, market_cutoff, enrichment=True)
+            _capture_source_bundle(
+                db,
+                company_ids,
+                run_id,
+                market_cutoff,
+                enrichment=True,
+                earnings_rows=all_earnings,
+            )
             if isinstance(db, Session)
             else None
         )
@@ -305,6 +321,14 @@ class CeriRunCaptureService:
             else nullcontext()
         )
         with initial_scope:
+            upcoming_earnings_by_company = _upcoming_earnings_for_companies(
+                db,
+                company_ids=company_ids,
+                earnings=all_earnings,
+                as_of_session=as_of_session,
+                cutoff_at=cutoff_at,
+                config=self.snapshot_service.config,
+            )
             for row in rows:
                 try:
                     company = companies_by_ticker.get(str(row.ticker).upper())
@@ -328,23 +352,37 @@ class CeriRunCaptureService:
                     company_conflicted = sum(
                         _is_conflict_warning(feature.warnings_json) for feature in features
                     )
-                    company_stale = sum(
+                    feature_stale = any(
                         "estimate_data_stale" in (feature.warnings_json or [])
                         for feature in features
                     )
+                    dataset_freshness_days = _provider_feed_freshness_days(
+                        provider_checks_by_ticker.get(str(row.ticker).upper(), []),
+                        ticker=str(row.ticker),
+                        cutoff_at=cutoff_at,
+                        config=self.snapshot_service.config,
+                    )
+                    estimate_age = dataset_freshness_days.get(CeriDataset.ESTIMATES.value)
+                    company_stale = feature_stale or (
+                        estimate_age is not None
+                        and estimate_age
+                        > self.snapshot_service.config.datasets[
+                            CeriDataset.ESTIMATES
+                        ].max_stale_days
+                    )
                     counts["conflicted"] += company_conflicted
-                    counts["stale"] += company_stale
+                    counts["stale"] += int(company_stale)
                     earnings = _eligible_source_backed_rows(
                         db,
-                        _scalars(
-                            db,
-                            select(CeriEarningsActual).where(
-                                CeriEarningsActual.company_id == company.id,
-                                CeriEarningsActual.report_session <= as_of_session,
-                            ),
-                        ),
+                        [
+                            item
+                            for item in earnings_by_company.get(company.id, [])
+                            if item.report_session is not None
+                            and item.report_session <= as_of_session
+                        ],
                         cutoff_at,
                     )
+                    upcoming_earnings = upcoming_earnings_by_company[company.id]
                     estimates = _eligible_source_backed_rows(
                         db,
                         _scalars(
@@ -394,12 +432,7 @@ class CeriRunCaptureService:
                     confidence = self.confidence.calculate(
                         as_of_session=as_of_session,
                         revision_features=features,
-                        dataset_freshness_days=_provider_feed_freshness_days(
-                            provider_checks_by_ticker.get(str(row.ticker).upper(), []),
-                            ticker=str(row.ticker),
-                            cutoff_at=cutoff_at,
-                            config=self.snapshot_service.config,
-                        ),
+                        dataset_freshness_days=dataset_freshness_days,
                         conflict_penalty=float(company_conflicted),
                     )
                     opportunity = self.opportunity.calculate(
@@ -437,9 +470,13 @@ class CeriRunCaptureService:
                     )
                     risk = self.risk.calculate(
                         as_of_session=as_of_session,
-                        next_earnings_session=row.upcoming_earnings_date,
+                        next_earnings_session=(
+                            upcoming_earnings.selected.earnings_session
+                            if upcoming_earnings.selected is not None
+                            else None
+                        ),
                         catalyst_features=catalyst_features,
-                        stale=bool(company_stale),
+                        stale=company_stale,
                         conflict_penalty=min(3.0, float(company_conflicted)),
                         options_event_premium_score=volatility_risk,
                         short_pressure_classification=(
@@ -485,6 +522,7 @@ class CeriRunCaptureService:
                         "revision_source_ids": _source_ids(features),
                         "earnings_ids": [item.id for item in earnings if item.id],
                         "earnings_source_ids": [item.source_record_id for item in earnings],
+                        "upcoming_earnings_authority": upcoming_earnings.evidence(),
                         "guidance_ids": [item.id for item in guidance_rows if item.id],
                         "guidance_selected_ids": sorted(
                             evidence_id
@@ -568,6 +606,11 @@ class CeriRunCaptureService:
                         set(
                             _source_ids(features)
                             + [item.source_record_id for item in earnings]
+                            + (
+                                [upcoming_earnings.selected.source_record_id]
+                                if upcoming_earnings.selected is not None
+                                else []
+                            )
                             + [item.source_record_id for item in guidance_rows]
                             + catalyst_lineage["source_ids"]
                         )
@@ -590,7 +633,12 @@ class CeriRunCaptureService:
                             "regime": bool(row.raw_json.get("market_regime")),
                             "lifecycle": bool(row.raw_json.get("lifecycle_state")),
                         },
-                        alignment_context=_alignment_context(db, row, run_id),
+                        alignment_context=_alignment_context(
+                            db,
+                            row,
+                            run_id,
+                            upcoming_earnings=upcoming_earnings,
+                        ),
                         evidence_lineage=evidence_lineage,
                     )
                     snapshot.calculation_context_id = market_cutoff.context_id
@@ -646,6 +694,14 @@ class CeriRunCaptureService:
         return CeriRunCaptureResult(**counts)
 
 
+def _capture_earnings_rows(db, company_ids) -> list[CeriEarningsActual]:
+    """Load the capture-wide earnings authority population in one statement."""
+    return _scalars(
+        db,
+        select(CeriEarningsActual).where(CeriEarningsActual.company_id.in_(company_ids)),
+    )
+
+
 def _raw_rows_for_run(db: Session, run_id: int) -> list[RawCompanyRow]:
     return _scalars(
         db,
@@ -653,7 +709,15 @@ def _raw_rows_for_run(db: Session, run_id: int) -> list[RawCompanyRow]:
     )
 
 
-def _capture_source_bundle(db, company_ids, run_id, market_cutoff, *, enrichment=False):
+def _capture_source_bundle(
+    db,
+    company_ids,
+    run_id,
+    market_cutoff,
+    *,
+    enrichment=False,
+    earnings_rows: list[CeriEarningsActual] | None = None,
+):
     """Lock the admitted source population once using existing bundle rules."""
     from app.services.source_mutation_authority import PrefetchedSourceBodies
 
@@ -668,11 +732,14 @@ def _capture_source_bundle(db, company_ids, run_id, market_cutoff, *, enrichment
         CeriPriceResponseFeature,
     ):
         statement = select(model).where(model.company_id.in_(company_ids))
-        rows = (
-            db.scalars(statement).all()
-            if enrichment and model in {CeriEarningsActual, CeriPriceResponseFeature}
-            else bundle.load(model, statement)
-        )
+        if model is CeriEarningsActual and earnings_rows is not None:
+            rows = earnings_rows
+        else:
+            rows = (
+                db.scalars(statement).all()
+                if enrichment and model in {CeriEarningsActual, CeriPriceResponseFeature}
+                else bundle.load(model, statement)
+            )
         for row in rows:
             for field in (
                 "source_record_id",
@@ -1185,7 +1252,13 @@ def _price_response_for_company(
     return result, feature
 
 
-def _alignment_context(db: Session, row: RawCompanyRow, run_id: int) -> dict[str, Any]:
+def _alignment_context(
+    db: Session,
+    row: RawCompanyRow,
+    run_id: int,
+    *,
+    upcoming_earnings: UpcomingEarningsSelection | None = None,
+) -> dict[str, Any]:
     context: dict[str, Any] = {
         "fundamentals": {
             "score": row.raw_json.get("fundamental_score"),
@@ -1211,9 +1284,12 @@ def _alignment_context(db: Session, row: RawCompanyRow, run_id: int) -> dict[str
             "source_run_id": run_id,
         },
         "earnings_clearance": (
-            row.upcoming_earnings_date.isoformat()
-            if row.upcoming_earnings_date is not None
-            else None
+            upcoming_earnings.evidence()
+            if upcoming_earnings is not None
+            else {
+                "selection_reason": "SOURCE_BACKED_UPCOMING_EARNINGS_NOT_PROVIDED",
+                "selected_exact_value": None,
+            }
         ),
     }
     return context
@@ -1293,6 +1369,42 @@ def _eligible_source_backed_rows(
             allow_unreferenced=allow_unreferenced,
         )
     ]
+
+
+def _upcoming_earnings_for_companies(
+    db: Session,
+    *,
+    company_ids: set[int],
+    earnings: list[CeriEarningsActual],
+    as_of_session,
+    cutoff_at: datetime,
+    config,
+) -> dict[int, UpcomingEarningsSelection]:
+    source_ids = {int(row.source_record_id) for row in earnings if row.source_record_id is not None}
+    from app.services.source_mutation_authority import prefetched_source_rows
+
+    sources = prefetched_source_rows(db, CeriSourceRecord, source_ids)
+    if sources is None:
+        sources = (
+            _scalars(
+                db,
+                select(CeriSourceRecord).where(CeriSourceRecord.id.in_(sorted(source_ids))),
+            )
+            if source_ids
+            else []
+        )
+    source_by_id = {int(source.id): source for source in sources if source.id is not None}
+    return {
+        company_id: select_upcoming_earnings(
+            company_id=company_id,
+            as_of_session=as_of_session,
+            cutoff_at=cutoff_at,
+            earnings=earnings,
+            source_records=source_by_id,
+            config=config,
+        )
+        for company_id in company_ids
+    }
 
 
 def _existing_snapshot(

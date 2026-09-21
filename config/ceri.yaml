@@ -132,6 +132,11 @@ confidence:
   low_min: 3.5
   zero_core_coverage_label: Insufficient
   critical_provenance_cap: Low
+  critical_provenance_warnings:
+    - current_snapshot_unavailable
+    - baseline_unavailable
+    - missing_timestamp
+    - missing_observation_timestamp
   weights:
     source_quality: 0.25
     freshness: 0.20

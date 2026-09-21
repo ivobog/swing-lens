@@ -210,9 +210,11 @@ unavailable birth-revision state is unchanged.
 
 ## 29. Finding status after T15D
 
-Fourteen reconciled findings/invariants are listed in the matrix: 8 closed, 6 partial, 0 open.
-Partial does not mean an unhandled current defect: each residual identifies absent historical
-provider/rule/revision/currency authority that cannot be truthfully reconstructed.
+The regenerated matrix is derived from the authoritative T15A assignment: 17 findings, 13 closed,
+4 partial, and 0 open. The continuation recovers CERI-005/006/009/011 and also resolves the three
+previously imprecise assigned partials CORE-002/CERI-004/CERI-007. The separate 15-row T15E partial
+classification records three closures and twelve retained bounded partials; no retained partial
+conceals an active supported-current-path defect.
 
 ## 30. Phase-6 invariant status
 
@@ -220,13 +222,15 @@ provider/rule/revision/currency authority that cannot be truthfully reconstructe
 - `INV-REFRESH-001`: enforced repository-wide for the inventoried refresh-capable operations.
 - `XINT-012`: closed.
 - `INV-REVISION-001`: partial at exact enumerated legacy/unavailable boundaries.
+- `INV-HANDOFF-001`: enforced; every T15A assignment has one explicit downstream state.
 - `WIN-006`: partial because some birth bars never had a PriceBarRevision primary key.
 
 ## 31. T15E exact handoff
 
-`T15D_T15E_exact_handoff.json` carries every Phase-6 family/invariant, finding status, algorithm delta
-fixture, regression lane and remaining Phase-7 boundary. T15E needs to verify closure artifacts; it
-does not need to rediscover Phase 6.
+`T15D_T15E_exact_handoff.json` carries every T15A-assigned Phase-6 finding with the required status,
+evidence, residual, supported-current safety, and next-phase fields. The deterministic conservation
+tool reports assigned 25, accounted 25, lost 0. The historical T15C omission remains unchanged and
+is recorded explicitly in `T15D_phase6_handoff_reconciliation.json`.
 
 ## 32. Phase-7 boundary
 
@@ -239,9 +243,13 @@ External provider-contract governance also remains outside the Phase-6 implement
 Historical Fundamental uploads lack per-value provider/revision/time/fiscal/currency facts; some
 legacy CERI alert/purge histories lack original rule/pre-purge identity; some Winner birth bars lack
 revision primary keys. These are explicit partials with fail-closed/no-substitution behavior. There
-is no unknown residual within the seven assigned operation families.
+is no unknown residual within the seven assigned operation families or seventeen T15D-assigned
+findings.
 
 ## 34. Final verdict
 
-T15D PASS: assigned 7, reconciled 7, unreconciled 0, defects 0, unknown 0. Migration required: NO.
-Migration head remains `0083_winner_scope_truth`. Production/runtime mutations: NONE.
+T15D CONTINUATION PASS: operation families assigned 7/reconciled 7; T15D findings assigned
+17/accounted 17; all Phase-6 findings assigned 25/accounted 25/lost 0. The four omitted CERI findings
+are closed and the corrected T15E handoff is ready. Migration required: NO. Migration head remains
+`0083_winner_scope_truth`. Production/runtime mutations: NONE. Phase 7 remains
+`BLOCKED_PENDING_T15E`.

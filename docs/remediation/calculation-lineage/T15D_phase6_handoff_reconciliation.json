@@ -1,0 +1,89 @@
+{
+  "schema_version": "t15d-phase6-handoff-reconciliation-v1",
+  "invariant": {
+    "id": "INV-HANDOFF-001",
+    "rule": "A downstream-assigned finding may disappear from the next handoff only with explicit CLOSED/PARTIAL evidence, explicit OPEN transfer, or explicit authoritative OUT_OF_SCOPE reassignment."
+  },
+  "source_task": "T15A",
+  "original_assignment": {
+    "artifact": "docs/remediation/calculation-lineage/T15A_phase6_handoff.json",
+    "total_findings": 25,
+    "T15B": 6,
+    "T15C": 2,
+    "T15D": 17
+  },
+  "intermediate_handoffs": [
+    {"transition":"T15A→T15B/T15C/T15D","status":"ACCOUNTED","lost":[]},
+    {"transition":"T15B→downstream","status":"ACCOUNTED","lost":[]},
+    {"transition":"T15C→T15D historical","status":"OMISSION_PRESERVED_AS_FORENSIC_EVIDENCE","lost":["CERI-005","CERI-006","CERI-009","CERI-011"]},
+    {"transition":"T15D→T15E historical","status":"OMISSION_PRESERVED_AS_FORENSIC_EVIDENCE","lost":["CERI-005","CERI-006","CERI-009","CERI-011"]},
+    {"transition":"T15D continuation→T15E rerun","status":"ACCOUNTED","lost":[]}
+  ],
+  "lost_findings_detected": ["CERI-005", "CERI-006", "CERI-009", "CERI-011"],
+  "corrective_assignment": {
+    "task": "T15D_CONTINUATION",
+    "finding_ids": ["CERI-005", "CERI-006", "CERI-009", "CERI-011"],
+    "historical_T15C_artifact_rewritten": false,
+    "historical_failed_T15E_artifacts_committed": false
+  },
+  "reconciliation_table": [
+    {
+      "finding_id":"CERI-005",
+      "original_finding_text":"YAML declares critical_provenance_cap: Low, but configuration parsing and confidence evaluation do not implement it.",
+      "T15A_downstream_assignment":"T15D",
+      "T15C_handoff_status":"MISSING",
+      "T15D_handoff_status":"MISSING",
+      "T15E_rediscovery_evidence":"Configured cap was absent from ConfidenceConfig and confidence calculation.",
+      "current_reproducer":"High-scoring feature with missing_observation_timestamp retained Normal/High instead of Low.",
+      "implementation_target":"config.py; config/ceri.yaml; confidence_service.py",
+      "tests":"tests/ceri/test_t15d_residual_findings.py critical-provenance matrix",
+      "final_status":"CLOSED"
+    },
+    {
+      "finding_id":"CERI-006",
+      "original_finding_text":"When normalized known_at is absent, surprise selection falls back to provider observation/source time before retrieval time.",
+      "T15A_downstream_assignment":"T15D",
+      "T15C_handoff_status":"MISSING",
+      "T15D_handoff_status":"MISSING",
+      "T15E_rediscovery_evidence":"surprise_feature_service._known_at preferred provider time to receipt.",
+      "current_reproducer":"Provider observed 09:00, retrieved 12:00, report/cutoff 10:00 admitted the estimate.",
+      "implementation_target":"pit_eligibility.py; surprise_feature_service.py; point_in_time_query.py",
+      "tests":"possession/external order attacks and legacy-missing-possession fail-closed tests",
+      "final_status":"CLOSED"
+    },
+    {
+      "finding_id":"CERI-009",
+      "original_finding_text":"CERI deployment identity hard-codes schema revision 0050_sec_processor_promotion while repository migrations are newer.",
+      "T15A_downstream_assignment":"T15D",
+      "T15C_handoff_status":"MISSING",
+      "T15D_handoff_status":"MISSING",
+      "T15E_rediscovery_evidence":"deployment_identity.py reported 0050 while repository head was 0083_winner_scope_truth.",
+      "current_reproducer":"current_deployment_identity returned a stale hard-coded schema_revision.",
+      "implementation_target":"deployment_identity.py plus ingestion/processing/worker runtime callers",
+      "tests":"current head; mismatch rejection; separate immutable evidence-schema identity",
+      "final_status":"CLOSED"
+    },
+    {
+      "finding_id":"CERI-011",
+      "original_finding_text":"Earnings proximity consumes RawCompanyRow.upcoming_earnings_date without provider, publication, observation, retrieval, or field-effective timestamp.",
+      "T15A_downstream_assignment":"T15D",
+      "T15C_handoff_status":"MISSING",
+      "T15D_handoff_status":"MISSING",
+      "T15E_rediscovery_evidence":"capture_service passed the raw upload date directly to event risk and evidence alignment.",
+      "current_reproducer":"Raw upload date changed risk without any value-level source authority.",
+      "implementation_target":"upcoming_earnings_authority.py and capture_service.py",
+      "tests":"provider conflict; temporal receipt attack; D1→D2 revision pin; raw-date rejection",
+      "final_status":"CLOSED"
+    }
+  ],
+  "finding_status": {"closed":19,"partial":6,"open":0,"out_of_scope":0},
+  "evidence": {
+    "machine_tool":"scripts/docs/check_phase6_handoff_conservation.py",
+    "finding_matrix":"docs/remediation/calculation-lineage/T15D_finding_remediation_matrix.csv",
+    "partial_classification":"docs/remediation/calculation-lineage/T15D_phase6_partial_classification.csv",
+    "corrected_handoff":"docs/remediation/calculation-lineage/T15D_T15E_exact_handoff.json"
+  },
+  "next_handoff": "T15E_RERUN",
+  "unaccounted_findings": [],
+  "conservation_status": "PASS"
+}

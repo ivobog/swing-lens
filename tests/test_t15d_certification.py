@@ -2,7 +2,6 @@ from __future__ import annotations
 
 # ruff: noqa: E501
 import csv
-import hashlib
 import json
 from pathlib import Path
 
@@ -37,7 +36,8 @@ def test_t15d_finding_matrix_has_no_open_post_status() -> None:
     with (ARTIFACTS / "T15D_finding_remediation_matrix.csv").open(newline="") as handle:
         rows = list(csv.DictReader(handle))
 
-    assert len(rows) == 14
+    assignment = _json("T15A_phase6_handoff.json")["decomposition"]["T15D"]["finding_ids"]
+    assert {row["finding_id"] for row in rows} == set(assignment)
     assert {row["post_t15d_status"] for row in rows} <= {"CLOSED", "PARTIAL"}
     assert not [row for row in rows if row["post_t15d_status"] == "OPEN"]
     assert all(row["residual"] for row in rows if row["post_t15d_status"] == "PARTIAL")
@@ -50,10 +50,16 @@ def test_t15d_report_and_delta_artifact_are_complete() -> None:
 
     assert len(sections) == 34
     assert sections[-1] == "## 34. Final verdict"
-    assert "T15D PASS" in report
+    assert "T15D CONTINUATION PASS" in report
     assert {row["finding_id"] for row in delta["changes"]} == {
         "CERI-001",
         "CERI-002",
+        "CERI-005",
+        "CERI-006",
+        "CERI-007",
+        "CERI-009",
+        "CERI-011",
+        "CORE-002",
         "CORE-003",
         "CORE-004",
         "RANK-008",
@@ -62,19 +68,54 @@ def test_t15d_report_and_delta_artifact_are_complete() -> None:
     assert delta["verdict"] == "PASS"
 
 
-def test_t15e_handoff_covers_all_phase6_families_and_preserves_prior_artifacts() -> None:
+def test_t15e_handoff_covers_every_t15a_assigned_finding() -> None:
     handoff = _json("T15D_T15E_exact_handoff.json")
-    families = handoff["phase6_operation_families"]
-    all_ids = [*families["T15B"], *families["T15C"], *families["T15D"]]
-    expected_hashes = {
-        "T15A_scope_operation_inventory.json": "caddc1a79b84bd1fd81ab131fdfe062188fe94d9ae88c45757c261f38cd2c5e4",
-        "T15B_pipeline_ceri_scope_refresh_certification.json": "a41b3632ccbb90cfb5126b20edb6a5b7ccc9f64956c40f9ed7b05a3003cf86f3",
-        "T15C_winner_scope_truth_certification.json": "b756ba75fc7e333be0b754e866db59721f8bbe194b7dc921fd015505b67062ec",
-        "T15D_provenance_algorithm_certification.json": "b8c8edea568c14a55f3b00117044c7c5e2beae257bf8bcd6e507743bc35dcedf",
-    }
+    assignment = _json("T15A_phase6_handoff.json")["decomposition"]
+    assigned = set().union(*(set(section["finding_ids"]) for section in assignment.values()))
+    rows = handoff["findings"]
 
-    assert len(all_ids) == len(set(all_ids)) == families["count"] == 41
-    assert handoff["phase6_summary"]["t15d_unreconciled"] == 0
-    assert handoff["finding_status"]["open"] == []
-    for name, expected in expected_hashes.items():
-        assert hashlib.sha256((ARTIFACTS / name).read_bytes()).hexdigest() == expected
+    assert {row["finding_id"] for row in rows} == assigned
+    assert all(
+        {"finding_id", "status", "evidence", "residual", "current_supported_path_safe", "next_phase"}
+        <= set(row)
+        for row in rows
+    )
+    assert handoff["summary"] == {
+        "assigned": 25,
+        "accounted": 25,
+        "closed": 19,
+        "partial": 6,
+        "open": 0,
+        "out_of_scope": 0,
+        "lost": 0,
+    }
+    assert handoff["unaccounted"] == []
+
+
+def test_phase6_handoff_conservation_and_partial_classification() -> None:
+    from scripts.docs.check_phase6_handoff_conservation import (
+        evaluate_handoff_conservation,
+    )
+
+    result = evaluate_handoff_conservation()
+    reconciliation = _json("T15D_phase6_handoff_reconciliation.json")
+    with (ARTIFACTS / "T15D_phase6_partial_classification.csv").open(newline="") as handle:
+        partials = list(csv.DictReader(handle))
+
+    assert result["conservation_status"] == "PASS"
+    assert result["lost_finding_ids"] == []
+    assert result["unaccounted_assigned_findings"] == []
+    assert result["lost_findings_detected_historically"] == [
+        "CERI-005",
+        "CERI-006",
+        "CERI-009",
+        "CERI-011",
+    ]
+    assert reconciliation["unaccounted_findings"] == []
+    assert len(partials) == 15
+    assert not [
+        row
+        for row in partials
+        if row["current_status"] == "PARTIAL"
+        and row["supported-current path affected?"] == "YES"
+    ]

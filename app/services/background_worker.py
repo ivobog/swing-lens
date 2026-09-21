@@ -244,6 +244,7 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
     identity = current_deployment_identity(
         config_hash=None,
         calculation_version=None,
+        database_schema_revision=schema_revision,
     )
     try:
         processor_state = lifecycle_state(db)

@@ -23,6 +23,7 @@ from app.services.ceri.enums import (
     CatalystCategory,
     CatalystStatus,
     CeriChangeType,
+    CeriConfidenceLabel,
     CeriDataset,
     CeriMetric,
     CeriPeriodType,
@@ -126,6 +127,9 @@ class ConfidenceConfig:
     high_min: float
     normal_min: float
     low_min: float
+    zero_core_coverage_label: CeriConfidenceLabel
+    critical_provenance_cap: CeriConfidenceLabel | None
+    critical_provenance_warnings: tuple[str, ...]
     weights: dict[str, float]
 
 
@@ -566,6 +570,26 @@ def _parse_confidence(raw: dict[str, Any]) -> ConfidenceConfig:
         high_min=high,
         normal_min=normal,
         low_min=low,
+        zero_core_coverage_label=_enum_value(
+            raw.get("zero_core_coverage_label"),
+            CeriConfidenceLabel,
+            "confidence.zero_core_coverage_label",
+        ),
+        critical_provenance_cap=(
+            None
+            if raw.get("critical_provenance_cap") in (None, "", "Disabled")
+            else _enum_value(
+                raw.get("critical_provenance_cap"),
+                CeriConfidenceLabel,
+                "confidence.critical_provenance_cap",
+            )
+        ),
+        critical_provenance_warnings=tuple(
+            _text_list(
+                raw.get("critical_provenance_warnings"),
+                "confidence.critical_provenance_warnings",
+            )
+        ),
         weights=_parse_weights(_mapping(raw, "weights"), "confidence"),
     )
 

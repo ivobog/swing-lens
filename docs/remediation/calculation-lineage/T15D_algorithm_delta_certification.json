@@ -1,5 +1,5 @@
 {
-  "schema_version": "t15d-algorithm-delta-certification-v1",
+  "schema_version": "t15d-algorithm-delta-certification-v2",
   "baseline": "65284b3f1cc4321618bff439d53bf7f12a3d409f",
   "changes": [
     {
@@ -61,6 +61,72 @@
       "expected_change": false,
       "reason": "The verified negative dependency is now explicit evidence; no invented Regime or same-run Sector input changes the number.",
       "unaffected_controls": ["profile score", "rank order", "CERI-to-Ranking remains absent", "same-run Sector-to-Ranking remains absent"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "CERI-005",
+      "fixture": "otherwise High confidence with a critical missing-observation timestamp",
+      "inputs": {"score": 10.0, "critical_warning": "missing_observation_timestamp", "configured_cap": "Low"},
+      "before": {"score": 10.0, "label": "High", "cap_ledger": []},
+      "after": {"score": 10.0, "label": "Low", "cap_ledger": ["CRITICAL_PROVENANCE_CAP_LOW:missing_observation_timestamp"]},
+      "expected_change": true,
+      "reason": "The declared policy is a confidence-label ceiling; it does not apply a second numerical penalty.",
+      "unaffected_controls": ["clean strong provenance remains High", "score and component ledger are unchanged", "previous ConfidenceResult remains immutable"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "CERI-006",
+      "fixture": "estimate provider-observed at 09:00, retrieved at 12:00, report at 10:00",
+      "inputs": {"provider_observed_at": "2026-09-21T09:00:00Z", "retrieved_at": "2026-09-21T12:00:00Z", "report_at": "2026-09-21T10:00:00Z"},
+      "before": {"consensus_selected": true},
+      "after": {"consensus_selected": false, "reason": "pre_report_consensus_unavailable"},
+      "expected_change": true,
+      "reason": "Provider time cannot substitute for SwingLens possession time.",
+      "unaffected_controls": ["the same estimate is eligible for a 13:00 report", "provider report-time consensus path", "legacy rows without possession remain unavailable"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "CERI-007",
+      "fixture": "estimate provider feed age nine days with seven-day stale threshold",
+      "inputs": {"estimate_feed_age_days": 9, "max_stale_days": 7},
+      "before": {"event_risk_staleness_penalty": 0.0},
+      "after": {"event_risk_staleness_penalty": 1.0},
+      "expected_change": true,
+      "reason": "Confidence and event risk now consume the same feed-freshness result.",
+      "unaffected_controls": ["fresh feed risk", "existing feature stale warning", "freshness confidence ledger"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "CERI-009",
+      "fixture": "deployment identity at repository/database head 0083 with evidence schema v1",
+      "inputs": {"database_head": "0083_winner_scope_truth", "evidence_schema": "ceri-decision-evidence-v1"},
+      "before": {"schema_revision": "0050_sec_processor_promotion"},
+      "after": {"database_schema_revision": "0083_winner_scope_truth", "ceri_evidence_schema_revision": "ceri-decision-evidence-v1", "schema_revision_match": true},
+      "expected_change": false,
+      "reason": "This corrects deployment metadata and separates concepts without changing financial output or reinterpreting historical evidence.",
+      "unaffected_controls": ["historical deployment identity dictionaries", "CERI score", "evidence schema version"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "CERI-011",
+      "fixture": "raw upload says D1 while eligible manual/eodhd source candidates supply D2/D3",
+      "inputs": {"raw_upload_date": "2026-10-08", "manual_date": "2026-10-12", "eodhd_date": "2026-10-10"},
+      "before": {"selected_date": "2026-10-08", "provider": null},
+      "after": {"selected_date": "2026-10-12", "provider": "manual", "selection_policy": "provider_priority_then_latest_possession_then_next_session_then_source_id"},
+      "expected_change": true,
+      "reason": "Certified event risk consumes only the exact source-backed value eligible at the cutoff.",
+      "unaffected_controls": ["old immutable evidence retains D1/source identity", "post-cutoff source is unavailable", "no eligible schedule retains earnings_date_unavailable"],
+      "status": "PASS"
+    },
+    {
+      "finding_id": "CORE-002",
+      "fixture": "Bull Trend result under severe market-data staleness",
+      "inputs": {"regime": "Bull Trend", "severely_stale": true},
+      "before": {"risk_state": "Gray", "position_size_multiplier": 1.0, "bullish_setups_allowed": true},
+      "after": {"regime": "Unknown", "risk_state": "Gray", "position_size_multiplier": 0.25, "allowed_setups": []},
+      "expected_change": true,
+      "reason": "Severe staleness now applies the complete fail-closed Unknown policy rather than display colour alone.",
+      "unaffected_controls": ["non-severe Bull Trend policy", "ordinary Unknown policy", "staleness diagnostics"],
       "status": "PASS"
     }
   ],

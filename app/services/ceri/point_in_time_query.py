@@ -12,7 +12,10 @@ from app.models.ceri_tables import CeriEstimateSnapshot, CeriSourceRecord
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.enums import HistoricalViewMode
 from app.services.ceri.estimate_deduplicator import CeriEstimateDeduplicator
-from app.services.ceri.pit_eligibility import source_record_known_at
+from app.services.ceri.pit_eligibility import (
+    estimate_snapshot_historical_eligibility_at,
+    source_record_historical_eligibility_at,
+)
 from app.services.ceri.provider_conflict_service import CeriProviderConflictService
 
 
@@ -427,12 +430,12 @@ class CeriPointInTimeQuery:
 
     def _known_at(self, snapshot: CeriEstimateSnapshot) -> datetime:
         source = self._source_records.get(snapshot.source_record_id)
-        value = source_record_known_at(source) if source is not None else None
-        value = value or snapshot.retrieved_at
-        if self._snapshots is not None and not self._source_records:
-            # Explicitly injected calculation fixtures predate the source graph;
-            # production database loads populate source records above.
-            value = value or snapshot.known_at or snapshot.effective_at
+        source_value = (
+            source_record_historical_eligibility_at(source) if source is not None else None
+        )
+        snapshot_value = estimate_snapshot_historical_eligibility_at(snapshot)
+        values = [item for item in (source_value, snapshot_value) if item is not None]
+        value = max(values) if values else None
         if value is None:
             # Provider/effective timestamps do not prove receipt.  Legacy rows
             # without source receipt provenance are ineligible in AS_KNOWN mode.

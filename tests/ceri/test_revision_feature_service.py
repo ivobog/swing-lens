@@ -242,6 +242,8 @@ def _estimate(
         canonical_currency="USD",
         canonical_scale=Decimal("1"),
         effective_at=datetime.combine(session, datetime.min.time(), tzinfo=UTC),
+        known_at=datetime.combine(session, datetime.min.time(), tzinfo=UTC),
+        retrieved_at=datetime.combine(session, datetime.min.time(), tzinfo=UTC),
         effective_session=session,
         canonical_observation_key=f"{snapshot_id}",
     )

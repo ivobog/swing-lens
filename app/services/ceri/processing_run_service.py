@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriProcessingRun
 from app.observability.correlation import durable_causality_fields
 from app.services.ceri.config import load_ceri_config
-from app.services.ceri.deployment_identity import current_deployment_identity
+from app.services.ceri.deployment_identity import (
+    current_deployment_identity,
+    session_database_schema_revision,
+)
 
 
 class CeriProcessingRunService:
@@ -49,6 +52,7 @@ class CeriProcessingRunService:
             deployment_identity_json=current_deployment_identity(
                 config_hash=config_hash,
                 calculation_version=load_ceri_config().engine.calculation_version,
+                database_schema_revision=session_database_schema_revision(db),
             ),
             actor=actor,
             cutoff_at=cutoff_at,
