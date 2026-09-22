@@ -1,0 +1,81 @@
+{
+  "schema_version": "t16b-phase7-handoff-v1",
+  "source_task": "T16B",
+  "source_baseline": "e1e1d089efed7b611bc1e05869e0da2fee736fef",
+  "scope": "Setup, Lifecycle, and Alert original-context reconstruction",
+  "conservation": {
+    "assigned": 6,
+    "reconciled": 6,
+    "resolved": 2,
+    "partial_with_exact_residual": 4,
+    "transferred_to_t16c": 0,
+    "transferred_to_t16d": 0,
+    "lost": 0,
+    "lost_finding_ids": [],
+    "status": "PASS_INV_HANDOFF_001"
+  },
+  "findings": [
+    {
+      "finding_id": "CORE-009",
+      "disposition": "partial with exact residual",
+      "status": "PARTIAL",
+      "native_result": "Exact retained Technical evidence/readiness is required and preserves historical insufficiency without querying current PriceBars.",
+      "residual": "Legacy Setup evidence without exact Technical authority is permanently unavailable.",
+      "operation_family_ids": ["AF_2bd8b1bc66fe2863", "AF_ddd0b95b1004a4bf", "AF_4e188a31f76e5426"]
+    },
+    {
+      "finding_id": "CERI-008",
+      "disposition": "partial with exact residual",
+      "status": "PARTIAL",
+      "native_result": "Exact immutable Alert rule/config identity is reconstructable.",
+      "residual": "Legacy alerts without retained rule/config identity are permanently unavailable.",
+      "operation_family_ids": ["AF_09185dfbe8dc8ae9", "AF_095460ea3293f382", "AF_9701990a1bad3828"]
+    },
+    {
+      "finding_id": "SETUP-004",
+      "disposition": "partial with exact residual",
+      "status": "PARTIAL",
+      "native_result": "Native evaluation and transition predecessor chains resolve exactly to retained roots.",
+      "residual": "Legacy rows without explicit predecessor IDs are permanently unavailable.",
+      "operation_family_ids": ["AF_d73d5c1718033e8e", "AF_0272087527fd7f06", "AF_efecf5419500e7cf"]
+    },
+    {
+      "finding_id": "SETUP-006",
+      "disposition": "resolved",
+      "status": "CLOSED",
+      "native_result": "ORIGINAL_CONTEXT is exact and fail-closed; CURRENT_RULES_RETROSPECTIVE is explicit with separate lineage.",
+      "residual": "NONE",
+      "operation_family_ids": ["AF_ba689ac08fb55a7e", "AF_4e188a31f76e5426", "AF_ddd0b95b1004a4bf"]
+    },
+    {
+      "finding_id": "SETUP-007",
+      "disposition": "partial with exact residual",
+      "status": "PARTIAL",
+      "native_result": "Native alert rule, cooldown and dedup predecessor chains resolve exactly.",
+      "residual": "Legacy alert rule/cooldown/predecessor identity is permanently unavailable.",
+      "operation_family_ids": ["AF_f2efc776d7ea1b7b", "AF_bb97f67a497ff8f0", "AF_53604fe070610a69", "AF_dde63f1d19196a1a", "AF_a4db0eb8f3fe0ad8"]
+    },
+    {
+      "finding_id": "SETUP-010",
+      "disposition": "resolved",
+      "status": "CLOSED",
+      "native_result": "Current-state repair, current-rules retrospective and original-context reconstruction have distinct operation identities.",
+      "residual": "NONE",
+      "operation_family_ids": ["AF_2c888a66478aa0a5", "AF_ddaa57ad85ff8bf7"]
+    }
+  ],
+  "t16c_impact": {
+    "transferred_findings": [],
+    "note": "T16C may reuse the shared T16A contract and T16B domain resolvers for XINT-007 cross-domain authority composition."
+  },
+  "t16d_impact": {
+    "transferred_findings": [],
+    "note": "T16D may consume T16B_legacy_reconstruction_boundaries.csv when governing archive-dependent permanent unavailability."
+  },
+  "hard_boundaries": [
+    "No current configuration, evidence, rule, predecessor, cooldown state or PriceBar may replace missing historical authority.",
+    "No nearest-timestamp predecessor inference.",
+    "No ORIGINAL_CONTEXT downgrade to CURRENT_RULES_RETROSPECTIVE.",
+    "No reconstruction mutation of original evidence or current projections."
+  ]
+}

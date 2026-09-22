@@ -1,0 +1,13 @@
+domain,artifact_type,required_dimension,availability,reason_unavailable,exact_reconstruction_possible,current_rules_possible,future_new_rows_safe,finding_ids
+Setup,legacy Setup projection,Calculation Identity,LEGACY_UNKNOWN,"Legacy projection does not identify the immutable calculation that produced it.",false,true,true,"CORE-009|SETUP-004|SETUP-006"
+Setup,legacy Setup projection,Effective Configuration,LEGACY_UNKNOWN,"Original resolved behavioral configuration was not retained.",false,true,true,"SETUP-006"
+Setup,legacy Setup projection,Technical evidence and readiness,LEGACY_UNKNOWN,"Exact consumed Technical evidence/readiness is absent; later Technical evidence and N+200 PriceBars are not substitutes.",false,true,true,"CORE-009"
+Setup,legacy Setup projection,Source evidence graph,LEGACY_UNKNOWN,"Exact Technical Combined Ranking Regime and Sector evidence IDs are incomplete or absent.",false,true,true,"CORE-009|SETUP-004"
+Lifecycle,legacy lifecycle event,Predecessor state,LEGACY_UNKNOWN,"Explicit prior evaluation/transition evidence IDs are absent; timestamp and nearest-row inference are forbidden.",false,true,true,"SETUP-004|SETUP-006"
+Lifecycle,legacy maintenance output,Business cutoff and calendar,LEGACY_UNKNOWN,"Original maintenance decision context was not frozen.",false,false,true,"SETUP-010"
+Lifecycle,legacy replay output,Operation mode,CURRENT_ONLY,"Replay used current rules and cannot be relabeled as original context.",false,true,true,"SETUP-006"
+Alert,legacy alert,Rule policy version,LEGACY_UNKNOWN,"Immutable rule evidence ID and exact rule body were not retained.",false,true,true,"CERI-008|SETUP-007"
+Alert,legacy alert,Effective Configuration,LEGACY_UNKNOWN,"Original alert configuration K1 cannot be inferred from current K2.",false,true,true,"CERI-008|SETUP-007"
+Alert,legacy alert,Cooldown predecessor,LEGACY_UNKNOWN,"Historical cooldown predecessor is not explicitly addressed; current cooldown state is forbidden.",false,true,true,"SETUP-007"
+Alert,legacy alert,Dedup predecessor,LEGACY_UNKNOWN,"Historical dedup predecessor identity is absent.",false,true,true,"SETUP-007"
+Setup/Lifecycle/Alert,native evidence without retained deployment commit,Code deployment identity,BOUNDED,"Engine/schema and immutable semantic output are retained but an exact deployment SHA is not.",true,true,true,"CORE-009|CERI-008|SETUP-004|SETUP-006|SETUP-007|SETUP-010"

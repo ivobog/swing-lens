@@ -1,0 +1,138 @@
+{
+  "schema_version": "t16b-setup-lifecycle-alert-reconstruction-certification-v1",
+  "task": "T16B",
+  "verdict": "PASS",
+  "baselines": {
+    "original_audited": "3a9d47063be996908b7d5d1cc5769e0bbd033546",
+    "phase6_certified": "2bafa33e0a2cf869c1ac651ec8e2bf30a581c2ab",
+    "t16a": "e1e1d089efed7b611bc1e05869e0da2fee736fef",
+    "migration_head": "0083_winner_scope_truth"
+  },
+  "handoff": {
+    "assigned": ["CORE-009", "CERI-008", "SETUP-004", "SETUP-006", "SETUP-007", "SETUP-010"],
+    "reconciled": ["CORE-009", "CERI-008", "SETUP-004", "SETUP-006", "SETUP-007", "SETUP-010"],
+    "lost": 0,
+    "invariant": "INV-HANDOFF-001"
+  },
+  "operation_family_ids": [
+    "AF_0272087527fd7f06",
+    "AF_09185dfbe8dc8ae9",
+    "AF_095460ea3293f382",
+    "AF_2bd8b1bc66fe2863",
+    "AF_2c888a66478aa0a5",
+    "AF_4e188a31f76e5426",
+    "AF_53604fe070610a69",
+    "AF_9701990a1bad3828",
+    "AF_a4db0eb8f3fe0ad8",
+    "AF_ba689ac08fb55a7e",
+    "AF_bb97f67a497ff8f0",
+    "AF_d73d5c1718033e8e",
+    "AF_ddaa57ad85ff8bf7",
+    "AF_ddd0b95b1004a4bf",
+    "AF_dde63f1d19196a1a",
+    "AF_efecf5419500e7cf",
+    "AF_f2efc776d7ea1b7b"
+  ],
+  "manifest_requirements": {
+    "contract": "original-context-reconstruction-manifest-v1",
+    "shared_builder": "resolve_original_contexts",
+    "domain_adapters": [
+      "resolve_setup_original_context",
+      "resolve_lifecycle_evaluation_original_context",
+      "resolve_lifecycle_transition_original_context",
+      "resolve_alert_original_context",
+      "resolve_ceri_alert_rule_original_context"
+    ],
+    "exact_material_authority_required": true,
+    "current_state_substitution_allowed": false,
+    "silent_mode_downgrade_allowed": false,
+    "resolution_side_effects": "NONE"
+  },
+  "native_exact_support": {
+    "setup": {
+      "supported": true,
+      "threshold": "core_calculation_evidence artifact_kind=SETUP with valid calculation identity, frozen effective configuration and readiness, and exact source-edge roles technical/combined/ranking_metadata/regime/sector",
+      "pricebar_boundary": "Exact retained Technical evidence is authoritative; resolver never queries current PriceBars. Setup PIT bar pins remain sealed in native Setup decision evidence."
+    },
+    "lifecycle": {
+      "supported": true,
+      "threshold": "setup-lifecycle-evaluation-evidence-v1 and setup-lifecycle-transition-evidence-v1 with explicit predecessor members, exact Setup evidence, frozen configuration/readiness, cutoff and calendar",
+      "chain": "Every predecessor ID is followed to an explicit ROOT marker; cycles, missing rows, future predecessors and scope mismatches fail closed."
+    },
+    "alert": {
+      "supported": true,
+      "threshold": "signal-alert-decision-evidence-v1 plus signal-alert-rule-evidence-v1 with exact lifecycle/setup source references, frozen effective configuration, rule version and explicit cooldown/dedup predecessor members",
+      "chain": "Cooldown and dedup predecessor chains are historical-only and future/cyclic/missing rows fail closed."
+    },
+    "ceri_alert_rule_context": {
+      "supported": true,
+      "threshold": "CeriAlertEvent with native_alert_proof, exact CeriChangeEvent native proof and frozen decision.alerts.ceri configuration",
+      "boundary": "Historical R1/C1/K1 is reconstructed from the event proof; the mutable current CeriAlertRule row is not read."
+    }
+  },
+  "legacy_availability": {
+    "status": "PERMANENTLY_UNAVAILABLE_WHEN_ANY_MATERIAL_AUTHORITY_IS_MISSING",
+    "heuristic_fallbacks": false,
+    "current_config_substitution": false,
+    "current_rule_substitution": false,
+    "current_predecessor_substitution": false,
+    "current_pricebar_substitution": false
+  },
+  "current_rules_retrospective_behavior": {
+    "supported": true,
+    "mode": "CURRENT_RULES_RETROSPECTIVE",
+    "lineage": "NEW_CALCULATION_IDENTITY_AND_LINEAGE",
+    "claims_original_context": false,
+    "implementation_boundary": "Existing certified replay writer remains unchanged; T16B classifies it separately and never invokes it as fallback."
+  },
+  "prospective_reconstructability": {
+    "INV-RECONSTRUCT-001": "ENFORCED_FOR_NATIVE_SETUP_LIFECYCLE_ALERT_EVIDENCE",
+    "INV-RECONSTRUCT-002": "ENFORCED_BY_T16A_AUTHORIZATION",
+    "INV-RECONSTRUCT-003": "ENFORCED_NO_FALLBACK",
+    "external_unavailable_dimension": "Historical deployment commit SHA is not retained; bounded and non-material because reconstruction returns the already-calculated immutable semantic output."
+  },
+  "persistence": {
+    "added": false,
+    "migration_required": false,
+    "reason": "T16A immutable in-memory result envelope is sufficient; durable generic Phase-7 persistence remains a cross-domain decision."
+  },
+  "tests": {
+    "focused_file": "tests/integration/test_t16b_original_context_reconstruction.py",
+    "attacks": [
+      "exact native Setup",
+      "missing historical config",
+      "missing Technical evidence with current Technical present",
+      "S1-S2-S3 predecessor chain",
+      "missing alert predecessor",
+      "tampered retained rule",
+      "CERI R1/C1/K1 survives current R2/C2",
+      "legacy CERI alert without native rule proof unavailable",
+      "current PriceBars never queried",
+      "zero session writes",
+      "batch sizes 1/50/200",
+      "explicit operation-mode separation",
+      "disposable PostgreSQL native chain"
+    ],
+    "performance_query_budget": "constant query count for 1/50/200 Setup targets; maximum four SELECTs",
+    "focused_non_postgresql": "27 passed, 1 deselected",
+    "postgresql": "1 passed on disposable PostgreSQL 18; migrated to 0083_winner_scope_truth; native Setup/Lifecycle/Alert chain exact and read-only",
+    "phase5_phase6_regression": "79 passed, 2 skipped, 1 intentionally deselected",
+    "schema_model_drift": "PASS: alembic check reported no new upgrade operations",
+    "static_gates": "PASS: Ruff, changed-file formatting, compileall, git diff --check, single Alembic head, tracked-secret scan, T16A artifact integrity, handoff conservation, and certificate completeness"
+  },
+  "finding_status": {
+    "CORE-009": {"status": "PARTIAL", "residual": "legacy Setup rows without exact Technical evidence/readiness remain unavailable"},
+    "CERI-008": {"status": "PARTIAL", "residual": "legacy alerts without immutable rule/config identity remain unavailable"},
+    "SETUP-004": {"status": "PARTIAL", "residual": "legacy lifecycle rows without explicit predecessor IDs remain unavailable"},
+    "SETUP-006": {"status": "CLOSED", "residual": "none; exact and current-rules modes are distinct and no fallback exists"},
+    "SETUP-007": {"status": "PARTIAL", "residual": "legacy alerts without rule/cooldown predecessor evidence remain unavailable"},
+    "SETUP-010": {"status": "CLOSED", "residual": "none; repair, retrospective and original-context operation modes are distinct"}
+  },
+  "negative_dependencies": {
+    "CERI_to_Setup": false,
+    "CERI_to_Winner": false,
+    "Setup_to_Winner": false,
+    "Lifecycle_to_Winner": false
+  },
+  "production_runtime_mutations": "NONE"
+}
