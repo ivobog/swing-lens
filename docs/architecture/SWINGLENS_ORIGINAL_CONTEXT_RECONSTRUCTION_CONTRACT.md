@@ -198,6 +198,22 @@ this predicate.
 needed to prove compatibility. Omitted dimensions may not be inferred from the same run, pipeline,
 ticker, timestamp proximity, current pointer, or equal output value.
 
+`INV-ARCHIVE-001`: unavailable, externally unavailable, or intentionally purged historical
+authority is represented by a typed availability state. It may never be reconstructed from a
+current provider response, current configuration, current security metadata, matching current
+value, or latest database row.
+
+`INV-RETENTION-001`: every internally controllable authority dimension required by a new certified
+decision remains retained while dependent immutable decision evidence is certified reconstructable.
+The horizon is structural rather than an invented duration. An external provider limitation must be
+recorded as an explicit exception at creation time when the consumed evidence cannot legally or
+technically be retained.
+
+`INV-PURGE-001`: operational-only state may be purged without changing reconstruction availability.
+Material authority pinned by certified evidence is purge-protected. Unpinned material authority may
+be purged only with an explicit, machine-visible reconstruction downgrade; semantic evidence is
+never silently mutated while its former fingerprint continues to claim exactness.
+
 For the same decision made on supported current paths, future exact reconstruction is feasible where
 the native evidence contains immutable source/config/rule/predecessor/scope identities. T16B/T16C
 must implement resolvers that prove those references and must preserve explicit external gaps.
@@ -218,3 +234,23 @@ immutable producer evidence object fully freezes the consumed semantic result, i
 readiness, source lineage and algorithm/schema identity. Deployment identity remains material only
 where evidence does not independently freeze those semantics; missing legacy identity is then kept
 unavailable rather than guessed.
+
+## Archive and retention boundary
+
+The repository distinguishes hot mutable projections, immutable decision/source evidence, archived
+immutable authority, and purgeable operational data. A valid archive preserves semantic IDs,
+content hashes, configuration and scope identities, source/revision identities, predecessor links,
+schema identity, the reconstruction manifest fingerprint, and the result fingerprint. A readable
+value export without those identities is not historical authority.
+
+Configuration snapshots, calculation evidence, readiness decisions, historical rules, predecessor
+links, scope/refresh/acquisition records, retained PriceBar revisions, and reconstruction manifests
+are retention-critical once referenced by certified immutable evidence. Rebuildable caches, delivery
+logs, and unreferenced operational projections are purgeable under their own operational policies.
+Existing database `RESTRICT` relationships and domain purge guards enforce pins; the shared typed
+retention validator supplies the same policy for archive and non-relational checks.
+
+Provider payloads may be subject to contractual deletion. SwingLens retains the consumed content
+and revision when permitted. If not permitted, it records the external exception and cannot promise
+future exact reconstruction. This governance limitation does not authorize substitution from a
+future provider response.

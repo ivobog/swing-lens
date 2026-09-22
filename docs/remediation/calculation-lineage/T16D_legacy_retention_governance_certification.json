@@ -1,0 +1,125 @@
+{
+  "schema_version": "t16d-legacy-retention-governance-certification-v1",
+  "task": "T16D",
+  "verdict": "PASS",
+  "baselines": {
+    "original_audited": "3a9d47063be996908b7d5d1cc5769e0bbd033546",
+    "phase6_certified": "2bafa33e0a2cf869c1ac651ec8e2bf30a581c2ab",
+    "t16a": "e1e1d089efed7b611bc1e05869e0da2fee736fef",
+    "t16b": "daf2cc05df0887a6271ab9757ac30203d8f2cd3f",
+    "t16c": "e3dd98b531600f41df6b377fce443ec816ad8a34",
+    "migration_head": "0083_winner_scope_truth"
+  },
+  "starting_source_freeze": {
+    "hash_method": "canonical-path-null-file-sha256-newline-v1",
+    "source_file_count": 672,
+    "source_sha256": "cd3acd4c6c3045139507ab4909d707960d29813464238978b5e1b152075667b3",
+    "test_file_count": 457,
+    "test_source_sha256": "181c3808a7be005388f1031fd8cc21b5cbae2a922f5248ae20e562d07486b91c"
+  },
+  "t16d_precommit_source_freeze": {
+    "hash_method": "canonical-path-null-file-sha256-newline-v1",
+    "source_file_count": 673,
+    "source_sha256": "45913b00f6172eea9f9febfeaa382755e3a6d428c03c6eb9caf7e6a5f9322a76",
+    "test_file_count": 459,
+    "test_source_sha256": "f70bca0b7f1e17fa9837276a500450612f24ae6a26fa71d107b01fb69792d52e"
+  },
+  "assigned_findings": ["CORE-005", "CERI-010", "RANK-007", "WIN-006", "XINT-010"],
+  "finding_statuses": {
+    "CORE-005": {"status": "PARTIAL", "historical": "PERMANENTLY_UNAVAILABLE", "current_supported_path_safe": true},
+    "CERI-010": {"status": "CLOSED", "historical": "PRE_CONTRACT_PURGE_PERMANENTLY_UNAVAILABLE", "current_supported_path_safe": true},
+    "RANK-007": {"status": "PARTIAL", "historical": "EXTERNAL_AUTHORITY_UNAVAILABLE", "current_supported_path_safe": true},
+    "WIN-006": {"status": "PARTIAL", "historical": "REVISION_IDENTITY_UNAVAILABLE", "current_supported_path_safe": true},
+    "XINT-010": {"status": "CLOSED", "historical": "CONFIGURATION_AUTHORITY_UNAVAILABLE_OR_CURRENT_RULES_ONLY", "current_supported_path_safe": true}
+  },
+  "archive_invariant": {
+    "id": "INV-ARCHIVE-001",
+    "status": "ENFORCED",
+    "implementation": "typed retained-authority and content-addressed archive envelope",
+    "current_state_substitution": false,
+    "round_trip_verified": true
+  },
+  "retention_invariant": {
+    "id": "INV-RETENTION-001",
+    "status": "ENFORCED_FOR_CURRENT_SUPPORTED_PATHS",
+    "horizon": "retain while dependent immutable decision evidence remains certified/reconstructable",
+    "arbitrary_duration_invented": false,
+    "requirements": 14
+  },
+  "purge_invariant": {
+    "id": "INV-PURGE-001",
+    "status": "ENFORCED",
+    "pinned_material": "BLOCK",
+    "unpinned_material": "REQUIRE_EXPLICIT_RECONSTRUCTION_DOWNGRADE",
+    "operational_only": "PURGE_ALLOWED",
+    "ceri_integration": "CeriPurgeService invokes shared assessment before mutation"
+  },
+  "prospective_reconstructability": {
+    "status": "ENFORCED_REPOSITORY_WIDE_FOR_CURRENT_SUPPORTED_DECISIONS",
+    "internally_controllable_authority": "RETAINED",
+    "external_exceptions": "EXPLICIT",
+    "financial_output_changes": 0,
+    "INV-RECONSTRUCT-001": "ENFORCED_PROSPECTIVELY",
+    "INV-RECONSTRUCT-002": "PRESERVED",
+    "INV-RECONSTRUCT-003": "PRESERVED",
+    "INV-RECONSTRUCT-004": "PRESERVED",
+    "INV-PROOF-001": "PRESERVED"
+  },
+  "legacy_unavailable_boundaries": [
+    "CORE-005 provider/revision/time/fiscal/currency/FX facts never retained",
+    "CERI-010 pre-certification purged bytes have no sealed archive",
+    "RANK-007 legacy schedule provider/publication/retrieval/revision facts never retained",
+    "WIN-006 birth bar revision primary key absent on some legacy rows",
+    "XINT-010 exact resolved legacy configuration absent on pre-authority artifacts"
+  ],
+  "external_governance_boundaries": [
+    "provider historical revision guarantees and license-based payload retention",
+    "external DBA/privileged SQL enforcement",
+    "external archive availability and contractual retention"
+  ],
+  "current_supported_defects": 0,
+  "tests": {
+    "focused": {
+      "files": ["tests/test_t16d_historical_authority_retention.py", "tests/test_t16d_retention_certification.py"],
+      "result": "19 passed"
+    },
+    "attacks": [
+      "equal-value current Fundamental cannot supply legacy provider/currency",
+      "current earnings schedule cannot supply legacy schedule authority",
+      "matching current OHLCV cannot fabricate PriceBar revision",
+      "current K2 cannot replace missing historical K1",
+      "pinned material purge blocked",
+      "unpinned material purge requires explicit downgrade",
+      "operational cache purge preserves exactness",
+      "archive round trip preserves semantic IDs/hashes/manifest/result"
+    ],
+    "performance": "set-based assessment for 1/50/200 authorities",
+    "postgresql": "7 passed on disposable PostgreSQL 16; migration upgrade through 0083 and alembic check passed",
+    "regression": {
+      "broad_non_e2e_initial": "3632 passed, 15 skipped, 1 historical-head-freeze test deselected; 4 expected stale Phase-5 derivative-certificate failures",
+      "phase5_derivative_refresh_rerun": "40 passed",
+      "status": "PASS"
+    },
+    "static_gates": {
+      "ruff_check": "PASS repository-wide",
+      "ruff_format_changed_files": "PASS",
+      "ruff_format_repository_baseline": "215 pre-existing out-of-scope files would reformat",
+      "compileall": "PASS",
+      "git_diff_check": "PASS",
+      "secret_scan": "PASS",
+      "single_alembic_head": "0083_winner_scope_truth",
+      "schema_model_drift": "PASS"
+    }
+  },
+  "T16E_handoff": {
+    "artifact": "T16D_T16E_exact_handoff.json",
+    "assigned": 12,
+    "accounted": 12,
+    "lost": 0,
+    "unaccounted": []
+  },
+  "lost_findings": 0,
+  "migration_required": false,
+  "production_runtime_mutations": "NONE",
+  "status": "CERTIFIED_READY_FOR_T16E"
+}

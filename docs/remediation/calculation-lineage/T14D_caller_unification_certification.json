@@ -25367,9 +25367,10 @@
       "authority_delivery": "Exact source/branch pin converges on AuthorityDeliveryBoundary=source_mutation_writer; shared boundary certificate proves valid delivery, missing/altered rejection, and historical non-reconstruction before certified writers.",
       "authority_equivalence_key": {
         "authority_adapters": [
+          "assess_authority_purge",
           "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
         ],
-        "authority_branch_fingerprint": "e626256faac565d17b52ad01647b3d7935d745f76c18086b3aab6288397ad6d8",
+        "authority_branch_fingerprint": "514710306d9b15da48a7dc5aedb35700cc7ea4415fc5a20642790381f26315f9",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -25412,11 +25413,12 @@
             "not audit.confirmation_token_hash",
             "audit.confirmation_token_hash != _confirmation_token_hash(request.confirmation_token)",
             "current_hash != request.preview_manifest_hash",
-            "certified_evidence_ids"
+            "retention.disposition is PurgeDisposition.BLOCK_MATERIAL_AUTHORITY"
           ],
-          "body_sha256": "7814a9077ed4f161f37b656a4b5febf9b855275dd3aafaeff798739b39dfc118",
+          "body_sha256": "3ea00bf11ee8ca44dfd3410e2f8d0639ca560e1ce5eb2120c0d73f35fa33280a",
           "calls": [
             "CeriPurgeError",
+            "RetainedAuthority",
             "_apply_purge_lifecycle",
             "_confirmation_token_hash",
             "_enqueue_rebuild_jobs",
@@ -25425,17 +25427,20 @@
             "_manifest_hash_input",
             "_record_blocked",
             "_validate_required_request",
+            "assess_authority_purge",
             "ceri_log_event",
             "ceri_metrics.increment",
             "datetime.now",
             "db.flush",
+            "list",
             "self._lifecycle_manifest",
-            "source_mutation_writer"
+            "source_mutation_writer",
+            "tuple"
           ],
           "decorators": [
             "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
           ],
-          "file_sha256": "e140b501d17001efa8a2f0a44286464881459a970ffacc896197b64f193caafc",
+          "file_sha256": "c28098c451097a3709bcdd56c6fe6bc26cf2a5e66eea7d4d79e3cb2644bd97e0",
           "guard_owners": [],
           "import_bindings": {
             "Any": "typing.Any",
@@ -25454,9 +25459,13 @@
             "CeriSourceRecord": "app.models.ceri_tables.CeriSourceRecord",
             "MutationDomain": "app.services.domain_mutation.MutationDomain",
             "MutationSemanticMode": "app.services.domain_mutation.MutationSemanticMode",
+            "PurgeDisposition": "app.services.historical_authority_retention.PurgeDisposition",
+            "RetainedAuthority": "app.services.historical_authority_retention.RetainedAuthority",
+            "RetentionClass": "app.services.historical_authority_retention.RetentionClass",
             "Session": "sqlalchemy.orm.Session",
             "UTC": "datetime.UTC",
             "annotations": "__future__.annotations",
+            "assess_authority_purge": "app.services.historical_authority_retention.assess_authority_purge",
             "ceri_log_event": "app.services.ceri.observability.ceri_log_event",
             "ceri_metrics": "app.services.ceri.observability.ceri_metrics",
             "dataclass": "dataclasses.dataclass",
@@ -25524,7 +25533,7 @@
       "initiator_id": "EF_17af8f95c72dc4b5",
       "legacy_status": "NO_NEW_LEGACY_CERTIFICATION",
       "mandatory_final_gate": "FAIL until every supported variant has explicit positive caller delivery and mandatory lanes pass",
-      "operation_family_id": "AF_2e0955c73d6b5b07",
+      "operation_family_id": "AF_36256175104b1258",
       "predecessor_handoff": {
         "authority_it_currently_lacks": {
           "WF_CERI_ALERT_CREATION": "Caller must deliver the following exact native authority if absent; no blanket assertion that already certified pipeline delivery lacks it: Exact native retained source bodies/IDs and immutable proofs; full executable configuration; explicit aware temporal/session authority; exact predecessor, target/model/generation/rule/manifest and native readiness where applicable; same validating Session and current durable execution token/configuration/run binding",
@@ -25557,6 +25566,7 @@
         "transfer_of_t14c_writer_ownership": false
       },
       "previous_operation_family_ids": [
+        "AF_2e0955c73d6b5b07",
         "AF_67eb93e3d956a2c3",
         "OP_CERIPURGESERVICE_EXECUTE_17af8f95"
       ],

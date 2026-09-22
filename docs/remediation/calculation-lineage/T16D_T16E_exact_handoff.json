@@ -1,0 +1,49 @@
+{
+  "schema_version": "t16d-t16e-exact-handoff-v1",
+  "source_task": "T16D",
+  "source_baseline": "e3dd98b531600f41df6b377fce443ec816ad8a34",
+  "assigned": 12,
+  "accounted": 12,
+  "lost": 0,
+  "unaccounted": [],
+  "current_supported_defects": 0,
+  "findings": [
+    {
+      "finding_id": "CORE-005", "status": "PARTIAL", "implementation_task": "T16D", "historical_boundary": "legacy per-value provider/revision/time/fiscal/currency/FX authority permanently unavailable", "current_supported_path_safe": true, "exact_reconstruction_support": "native structured-source evidence only", "retrospective_support": "explicit new lineage", "permanent_unavailability": true, "external_governance": "provider archive/retention terms", "evidence": ["T16D_legacy_governance_boundaries.csv", "T16D_retention_authority_matrix.csv"], "T16E_tests": ["legacy currency/provider attack", "native provenance regression"]
+    },
+    {
+      "finding_id": "CORE-009", "status": "PARTIAL", "implementation_task": "T16B", "historical_boundary": "legacy projection context absent", "current_supported_path_safe": true, "exact_reconstruction_support": "native retained evidence", "retrospective_support": "explicit current-rules mode", "permanent_unavailability": true, "external_governance": "none", "evidence": ["T16B_setup_lifecycle_alert_reconstruction_certification.json"], "T16E_tests": ["historical insufficiency", "no current substitution"]
+    },
+    {
+      "finding_id": "CERI-008", "status": "PARTIAL", "implementation_task": "T16B", "historical_boundary": "legacy alert rule/config identity absent", "current_supported_path_safe": true, "exact_reconstruction_support": "native pinned alerts", "retrospective_support": "explicit new lineage", "permanent_unavailability": true, "external_governance": "none", "evidence": ["T16B_setup_lifecycle_alert_reconstruction_certification.json"], "T16E_tests": ["native R1/C1", "legacy rule unavailable"]
+    },
+    {
+      "finding_id": "CERI-010", "status": "CLOSED", "implementation_task": "T16D", "historical_boundary": "pre-contract purged bytes unavailable", "current_supported_path_safe": true, "exact_reconstruction_support": "pinned source protection", "retrospective_support": "retained inputs only", "permanent_unavailability": true, "external_governance": "provider license terms", "evidence": ["shared purge assessment", "CERI immutable decision purge guard"], "T16E_tests": ["pinned purge blocked", "operational purge exact", "explicit downgrade"]
+    },
+    {
+      "finding_id": "RANK-007", "status": "PARTIAL", "implementation_task": "T16D", "historical_boundary": "legacy earnings schedule provenance absent", "current_supported_path_safe": true, "exact_reconstruction_support": "source-backed schedule evidence", "retrospective_support": "explicit new lineage", "permanent_unavailability": true, "external_governance": "earnings provider revision archive", "evidence": ["T16D_legacy_governance_boundaries.csv", "source-backed earnings authority"], "T16E_tests": ["current schedule substitution rejected", "business-time regression"]
+    },
+    {
+      "finding_id": "SETUP-004", "status": "PARTIAL", "implementation_task": "T16B", "historical_boundary": "legacy context/predecessor absent", "current_supported_path_safe": true, "exact_reconstruction_support": "native Setup/Lifecycle evidence", "retrospective_support": "explicit current-rules mode", "permanent_unavailability": true, "external_governance": "none", "evidence": ["T16B_setup_lifecycle_alert_reconstruction_certification.json"], "T16E_tests": ["native chain exact", "cross-chain attack"]
+    },
+    {
+      "finding_id": "SETUP-006", "status": "CLOSED", "implementation_task": "T16B", "historical_boundary": "retrospective is not original context", "current_supported_path_safe": true, "exact_reconstruction_support": "separate native resolver", "retrospective_support": "explicit", "permanent_unavailability": false, "external_governance": "none", "evidence": ["T16B_setup_lifecycle_alert_reconstruction_certification.json"], "T16E_tests": ["mode separation"]
+    },
+    {
+      "finding_id": "SETUP-007", "status": "PARTIAL", "implementation_task": "T16B", "historical_boundary": "legacy cooldown/rule/predecessor absent", "current_supported_path_safe": true, "exact_reconstruction_support": "native pinned alerts", "retrospective_support": "explicit new lineage", "permanent_unavailability": true, "external_governance": "none", "evidence": ["T16B_setup_lifecycle_alert_reconstruction_certification.json"], "T16E_tests": ["cooldown predecessor", "missing predecessor"]
+    },
+    {
+      "finding_id": "SETUP-010", "status": "CLOSED", "implementation_task": "T16B", "historical_boundary": "maintenance is not reconstruction", "current_supported_path_safe": true, "exact_reconstruction_support": "separate original-context operation", "retrospective_support": "explicit repair/current mode", "permanent_unavailability": false, "external_governance": "none", "evidence": ["T16B_setup_lifecycle_alert_reconstruction_certification.json"], "T16E_tests": ["operation identity separation"]
+    },
+    {
+      "finding_id": "WIN-006", "status": "PARTIAL", "implementation_task": "T16D", "historical_boundary": "legacy birth bar revision identity absent", "current_supported_path_safe": true, "exact_reconstruction_support": "exact revision ID/body when retained", "retrospective_support": "explicit new lineage", "permanent_unavailability": true, "external_governance": "market-data revision availability", "evidence": ["price_manifest exact-or-unavailable", "T16D_legacy_governance_boundaries.csv"], "T16E_tests": ["no fabricated revision", "native revision regression"]
+    },
+    {
+      "finding_id": "XINT-007", "status": "CLOSED", "implementation_task": "T16C", "historical_boundary": "legacy incomplete proof remains unavailable", "current_supported_path_safe": true, "exact_reconstruction_support": "31 compatibility contracts", "retrospective_support": "separate", "permanent_unavailability": false, "external_governance": "none", "evidence": ["T16C_cross_domain_authority_certification.json"], "T16E_tests": ["composition attacks", "matrix determinism"]
+    },
+    {
+      "finding_id": "XINT-010", "status": "CLOSED", "implementation_task": "T16D", "historical_boundary": "legacy exact configuration absent; external SQL/provider governance outside repository", "current_supported_path_safe": true, "exact_reconstruction_support": "immutable Phase-4 effective configuration", "retrospective_support": "explicit current-rules mode", "permanent_unavailability": true, "external_governance": "DBA and provider-contract enforcement", "evidence": ["Phase-4 configuration certificate", "INV-RETENTION-001"], "T16E_tests": ["K1/K2 drift attack", "configuration retention"]
+    }
+  ],
+  "status": "READY_FOR_T16E"
+}

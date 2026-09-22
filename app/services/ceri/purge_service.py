@@ -28,6 +28,12 @@ from app.services.background_job_service import enqueue_job
 from app.services.ceri.export_policy import redact_sensitive
 from app.services.ceri.observability import ceri_log_event, ceri_metrics
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.historical_authority_retention import (
+    PurgeDisposition,
+    RetainedAuthority,
+    RetentionClass,
+    assess_authority_purge,
+)
 from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
 
 CERI_REBUILD_FEATURES_JOB_TYPE = "CERI_REBUILD_FEATURES"
@@ -154,7 +160,26 @@ class CeriPurgeService:
                 "Provider-license purge preview no longer matches the eligible evidence set."
             )
         certified_evidence_ids = manifest["certified_decision_evidence_ids"]
-        if certified_evidence_ids:
+        retention = assess_authority_purge(
+            (
+                RetainedAuthority(
+                    authority_type="CERI_SOURCE_EVIDENCE",
+                    semantic_id=f"ceri-source:{source.id}",
+                    content_fingerprint=source.content_hash,
+                    material_to_reconstruction=True,
+                    retention_class=RetentionClass.IMMUTABLE_AUTHORITY,
+                    pinned_by=tuple(
+                        f"core-calculation-evidence:{evidence_id}"
+                        for evidence_id in certified_evidence_ids
+                    ),
+                )
+                for source in manifest["sources"]
+            ),
+            # Unpinned licensed material may be purged only because the
+            # lifecycle below marks every dependent derivative unavailable.
+            explicit_reconstruction_downgrade=True,
+        )
+        if retention.disposition is PurgeDisposition.BLOCK_MATERIAL_AUTHORITY:
             _record_blocked(
                 db,
                 request,
@@ -171,6 +196,11 @@ class CeriPurgeService:
             preview_manifest_hash=request.preview_manifest_hash,
             audit_id=audit.id,
         )
+        lifecycle["invalidated_derivatives"]["historical_authority_retention"] = {
+            "disposition": retention.disposition.value,
+            "resulting_availability": retention.resulting_availability.value,
+            "downgraded_authority_ids": list(retention.downgraded_authority_ids),
+        }
         rebuild_job_ids = _enqueue_rebuild_jobs(
             db,
             request=request,

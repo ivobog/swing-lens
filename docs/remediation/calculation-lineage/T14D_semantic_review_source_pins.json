@@ -125,7 +125,7 @@
     "app/services/ceri/point_in_time_query.py": "9ee51c919801889bd549a9ea08d73aa3019d757000e4137d80cfec32ddd35b7d",
     "app/services/ceri/price_response_service.py": "201f9f925c2a7e11c5b421fd8b71eca8fe83424bec69198f5d9c0a53dfa4cd34",
     "app/services/ceri/processing_run_service.py": "216ec5e052dfd7ed72705345b5710be5e2acf3a04c5346f4c266d8a2cac05c40",
-    "app/services/ceri/purge_service.py": "e140b501d17001efa8a2f0a44286464881459a970ffacc896197b64f193caafc",
+    "app/services/ceri/purge_service.py": "c28098c451097a3709bcdd56c6fe6bc26cf2a5e66eea7d4d79e3cb2644bd97e0",
     "app/services/ceri/revision_feature_service.py": "cf9d4bedf55784bf25383e1667da6ff9605fd54621ed323786588ca8c1ba0f1b",
     "app/services/ceri/sec/content_cache.py": "1256826b122f30c42587198858014fe19af3db529712ccaf481f11b64f6f0d63",
     "app/services/ceri/sec/identity_repair.py": "44ceb72fc89a0d9b32e83ad5f0814759e578794d453092670a42bf12cb0b02c7",
@@ -331,5 +331,8 @@
     "app/services/technical_indicators.py",
     "scripts/qa/t13e_deployed_probe.py"
   ],
-  "task": "T14D retained source pins plus T15B/T15C/T15D reviewed adoption deltas"
+  "t16d_reviewed_source_delta": [
+    "app/services/ceri/purge_service.py"
+  ],
+  "task": "T14D retained source pins plus T15B/T15C/T15D/T16D reviewed adoption deltas"
 }

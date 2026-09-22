@@ -5471,9 +5471,10 @@
       ],
       "authority_equivalence_key": {
         "authority_adapters": [
+          "assess_authority_purge",
           "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
         ],
-        "authority_branch_fingerprint": "e626256faac565d17b52ad01647b3d7935d745f76c18086b3aab6288397ad6d8",
+        "authority_branch_fingerprint": "514710306d9b15da48a7dc5aedb35700cc7ea4415fc5a20642790381f26315f9",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -5522,11 +5523,12 @@
               "not audit.confirmation_token_hash",
               "audit.confirmation_token_hash != _confirmation_token_hash(request.confirmation_token)",
               "current_hash != request.preview_manifest_hash",
-              "certified_evidence_ids"
+              "retention.disposition is PurgeDisposition.BLOCK_MATERIAL_AUTHORITY"
             ],
-            "body_sha256": "7814a9077ed4f161f37b656a4b5febf9b855275dd3aafaeff798739b39dfc118",
+            "body_sha256": "3ea00bf11ee8ca44dfd3410e2f8d0639ca560e1ce5eb2120c0d73f35fa33280a",
             "calls": [
               "CeriPurgeError",
+              "RetainedAuthority",
               "_apply_purge_lifecycle",
               "_confirmation_token_hash",
               "_enqueue_rebuild_jobs",
@@ -5535,17 +5537,20 @@
               "_manifest_hash_input",
               "_record_blocked",
               "_validate_required_request",
+              "assess_authority_purge",
               "ceri_log_event",
               "ceri_metrics.increment",
               "datetime.now",
               "db.flush",
+              "list",
               "self._lifecycle_manifest",
-              "source_mutation_writer"
+              "source_mutation_writer",
+              "tuple"
             ],
             "decorators": [
               "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
             ],
-            "file_sha256": "e140b501d17001efa8a2f0a44286464881459a970ffacc896197b64f193caafc",
+            "file_sha256": "c28098c451097a3709bcdd56c6fe6bc26cf2a5e66eea7d4d79e3cb2644bd97e0",
             "guard_owners": [],
             "import_bindings": {
               "Any": "typing.Any",
@@ -5564,9 +5569,13 @@
               "CeriSourceRecord": "app.models.ceri_tables.CeriSourceRecord",
               "MutationDomain": "app.services.domain_mutation.MutationDomain",
               "MutationSemanticMode": "app.services.domain_mutation.MutationSemanticMode",
+              "PurgeDisposition": "app.services.historical_authority_retention.PurgeDisposition",
+              "RetainedAuthority": "app.services.historical_authority_retention.RetainedAuthority",
+              "RetentionClass": "app.services.historical_authority_retention.RetentionClass",
               "Session": "sqlalchemy.orm.Session",
               "UTC": "datetime.UTC",
               "annotations": "__future__.annotations",
+              "assess_authority_purge": "app.services.historical_authority_retention.assess_authority_purge",
               "ceri_log_event": "app.services.ceri.observability.ceri_log_event",
               "ceri_metrics": "app.services.ceri.observability.ceri_metrics",
               "dataclass": "dataclasses.dataclass",
@@ -5591,12 +5600,13 @@
         "tests/test_domain_mutation.py::test_numeric_survival_cannot_replace_frozen_eligibility",
         "tests/integration/test_t14d_caller_postgresql.py::test_setup_source_loader_never_substitutes_newest_context_for_missing_authority"
       ],
-      "operation_family_id": "AF_2e0955c73d6b5b07",
+      "operation_family_id": "AF_36256175104b1258",
       "positive_tests": [
         "tests/test_domain_mutation.py::test_representative_contexts",
         "tests/test_domain_write_fence.py::test_valid_execution_owner_commits_domain_mutation"
       ],
       "previous_operation_family_ids": [
+        "AF_2e0955c73d6b5b07",
         "AF_67eb93e3d956a2c3",
         "OP_CERIPURGESERVICE_EXECUTE_17af8f95"
       ],
@@ -46680,9 +46690,10 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
+          "assess_authority_purge",
           "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
         ],
-        "authority_branch_fingerprint": "e626256faac565d17b52ad01647b3d7935d745f76c18086b3aab6288397ad6d8",
+        "authority_branch_fingerprint": "514710306d9b15da48a7dc5aedb35700cc7ea4415fc5a20642790381f26315f9",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -46711,7 +46722,48 @@
       "exact_member_caller_ids": [
         "EF_17af8f95c72dc4b5"
       ],
-      "normalized_operation_family_id": "AF_2e0955c73d6b5b07",
+      "normalized_operation_family_id": "AF_36256175104b1258",
+      "old_operation_family_id": "AF_2e0955c73d6b5b07",
+      "safe_equivalence_reason": [
+        "Distinct operation; its authority branches are recorded."
+      ]
+    },
+    {
+      "authority_equivalence_key": {
+        "authority_adapters": [
+          "assess_authority_purge",
+          "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
+        ],
+        "authority_branch_fingerprint": "514710306d9b15da48a7dc5aedb35700cc7ea4415fc5a20642790381f26315f9",
+        "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
+        "domains": [
+          "CERI_SOURCE"
+        ],
+        "error_mapping": "da2325882e97bfb5c0578bed990be2b7921fcc5b3031af684d903c52593ec06c",
+        "execution_model": "synchronous",
+        "semantic_modes": [
+          "MAINTENANCE"
+        ],
+        "semantic_operation": "DISTINCT_AUTHORITY_OPERATION:source_mutation_writer:WF_CERI_ALERT_CREATION|WF_CERI_CHANGE|WF_CERI_CONSENSUS_ATTACH|WF_CERI_FEATURE_BUILD|WF_CERI_LICENSED_PURGE|WF_CERI_PRICE_RESPONSE|WF_CERI_REVISION_FEATURE|WF_CERI_SCORE|WF_CONFIGURATION_DELIVERY|WF_CORE_CURRENT_PROJECTION|WF_CORE_RETAINED_EVIDENCE",
+        "transaction_model": "NATIVE_SESSION_AND_APPLICABLE_DURABLE_FENCE",
+        "writer_families": [
+          "WF_CERI_ALERT_CREATION",
+          "WF_CERI_CHANGE",
+          "WF_CERI_CONSENSUS_ATTACH",
+          "WF_CERI_FEATURE_BUILD",
+          "WF_CERI_LICENSED_PURGE",
+          "WF_CERI_PRICE_RESPONSE",
+          "WF_CERI_REVISION_FEATURE",
+          "WF_CERI_SCORE",
+          "WF_CONFIGURATION_DELIVERY",
+          "WF_CORE_CURRENT_PROJECTION",
+          "WF_CORE_RETAINED_EVIDENCE"
+        ]
+      },
+      "exact_member_caller_ids": [
+        "EF_17af8f95c72dc4b5"
+      ],
+      "normalized_operation_family_id": "AF_36256175104b1258",
       "old_operation_family_id": "AF_67eb93e3d956a2c3",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
@@ -46720,9 +46772,10 @@
     {
       "authority_equivalence_key": {
         "authority_adapters": [
+          "assess_authority_purge",
           "source_mutation_writer(MutationDomain.CERI_SOURCE, 'provider_source', mode=MutationSemanticMode.MAINTENANCE)"
         ],
-        "authority_branch_fingerprint": "e626256faac565d17b52ad01647b3d7935d745f76c18086b3aab6288397ad6d8",
+        "authority_branch_fingerprint": "514710306d9b15da48a7dc5aedb35700cc7ea4415fc5a20642790381f26315f9",
         "authority_requirement_set": "a22b8a6996dd59d31a96cc9d2479aad10c7149054d2c7f75f3d53c9949dc4a05",
         "domains": [
           "CERI_SOURCE"
@@ -46751,7 +46804,7 @@
       "exact_member_caller_ids": [
         "EF_17af8f95c72dc4b5"
       ],
-      "normalized_operation_family_id": "AF_2e0955c73d6b5b07",
+      "normalized_operation_family_id": "AF_36256175104b1258",
       "old_operation_family_id": "OP_CERIPURGESERVICE_EXECUTE_17af8f95",
       "safe_equivalence_reason": [
         "Distinct operation; its authority branches are recorded."
