@@ -1,0 +1,182 @@
+{
+  "schema_version": "t16a-phase7-handoff-v1",
+  "source_task": "T16A",
+  "source_head": "2bafa33e0a2cf869c1ac651ec8e2bf30a581c2ab",
+  "source_inventory": "T16A_reconstruction_feasibility_inventory.json",
+  "conservation": {
+    "phase7_routed_findings": 12,
+    "accounted": 12,
+    "lost": 0,
+    "lost_finding_ids": [],
+    "unknown_reconstructability": 0,
+    "status": "PASS_INV_HANDOFF_001"
+  },
+  "t16b": {
+    "scope": "Setup, Lifecycle, Alerts, and native retained projection authority",
+    "finding_count": 6,
+    "findings": [
+      {
+        "finding_id": "CORE-009",
+        "operation_family_ids": ["AF_2bd8b1bc66fe2863", "AF_ddd0b95b1004a4bf", "AF_4e188a31f76e5426"],
+        "target_artifact": "current projection and retained decision evidence",
+        "required_authority": ["CALCULATION_IDENTITY", "WORK_SCOPE_IDENTITY", "BUSINESS_CUTOFF", "EFFECTIVE_CONFIGURATION", "SOURCE_EVIDENCE", "SOURCE_REVISION", "RULE_POLICY_VERSION", "ALGORITHM_SCHEMA_VERSION"],
+        "available_authority": ["certified current projection semantics", "native retained evidence"],
+        "unavailable_authority": ["legacy original context", "legacy deployment identity"],
+        "reconstruction_class": "EVIDENCE_INCOMPLETE",
+        "current_safe_mode": "CURRENT_OR_EXPLICIT_RETROSPECTIVE",
+        "target_task": "T16B",
+        "canonical_finding_status": "PARTIAL"
+      },
+      {
+        "finding_id": "CERI-008",
+        "operation_family_ids": ["AF_09185dfbe8dc8ae9", "AF_095460ea3293f382", "AF_9701990a1bad3828"],
+        "target_artifact": "CERI alert rule decision",
+        "required_authority": ["EFFECTIVE_CONFIGURATION", "RULE_POLICY_VERSION", "BUSINESS_CUTOFF", "SOURCE_EVIDENCE", "PRIOR_DECISION_STATE", "ALGORITHM_SCHEMA_VERSION"],
+        "available_authority": ["new immutable rule/config binding"],
+        "unavailable_authority": ["legacy rule/config identity"],
+        "reconstruction_class": "PERMANENTLY_UNAVAILABLE",
+        "current_safe_mode": "NEW_EXACT_LEGACY_REFUSED",
+        "target_task": "T16B",
+        "canonical_finding_status": "PARTIAL"
+      },
+      {
+        "finding_id": "SETUP-004",
+        "operation_family_ids": ["AF_d73d5c1718033e8e", "AF_0272087527fd7f06", "AF_efecf5419500e7cf"],
+        "target_artifact": "Setup snapshot and lifecycle evaluation",
+        "required_authority": ["CALCULATION_IDENTITY", "WORK_SCOPE_IDENTITY", "BUSINESS_CUTOFF", "MARKET_SESSION_CALENDAR", "EFFECTIVE_CONFIGURATION", "READINESS_POLICY", "SOURCE_EVIDENCE", "SOURCE_REVISION", "TEMPORAL_POSSESSION_AUTHORITY", "PREDECESSOR_STATE", "RULE_POLICY_VERSION", "ALGORITHM_SCHEMA_VERSION"],
+        "available_authority": ["native temporal/evidence authority", "native dependency references"],
+        "unavailable_authority": ["legacy complete context", "legacy predecessor"],
+        "reconstruction_class": "EVIDENCE_INCOMPLETE",
+        "current_safe_mode": "CURRENT_CERTIFIED_CALCULATION",
+        "target_task": "T16B",
+        "canonical_finding_status": "PARTIAL"
+      },
+      {
+        "finding_id": "SETUP-006",
+        "operation_family_ids": ["AF_ba689ac08fb55a7e", "AF_4e188a31f76e5426", "AF_ddd0b95b1004a4bf"],
+        "target_artifact": "Setup/Lifecycle replay decision",
+        "required_authority": ["CALCULATION_IDENTITY", "WORK_SCOPE_IDENTITY", "BUSINESS_CUTOFF", "EFFECTIVE_CONFIGURATION", "READINESS_POLICY", "SOURCE_EVIDENCE", "SOURCE_REVISION", "PREDECESSOR_STATE", "RULE_POLICY_VERSION", "ALGORITHM_SCHEMA_VERSION"],
+        "available_authority": ["explicit current-rules replay and separate lineage"],
+        "unavailable_authority": ["original-context resolver", "legacy complete authority"],
+        "reconstruction_class": "CURRENT_RULES_ONLY",
+        "current_safe_mode": "CURRENT_RULES_RETROSPECTIVE",
+        "target_task": "T16B",
+        "canonical_finding_status": "PARTIAL"
+      },
+      {
+        "finding_id": "SETUP-007",
+        "operation_family_ids": ["AF_f2efc776d7ea1b7b", "AF_bb97f67a497ff8f0", "AF_53604fe070610a69", "AF_dde63f1d19196a1a", "AF_a4db0eb8f3fe0ad8"],
+        "target_artifact": "Setup alert decision",
+        "required_authority": ["EFFECTIVE_CONFIGURATION", "RULE_POLICY_VERSION", "PRIOR_DECISION_STATE", "PREDECESSOR_STATE", "BUSINESS_CUTOFF", "SOURCE_EVIDENCE", "CALCULATION_IDENTITY", "ALGORITHM_SCHEMA_VERSION"],
+        "available_authority": ["new pinned rules/config/predecessor evidence"],
+        "unavailable_authority": ["legacy rule/cooldown/config/predecessor"],
+        "reconstruction_class": "PERMANENTLY_UNAVAILABLE",
+        "current_safe_mode": "NEW_EXACT_LEGACY_REFUSED",
+        "target_task": "T16B",
+        "canonical_finding_status": "PARTIAL"
+      },
+      {
+        "finding_id": "SETUP-010",
+        "operation_family_ids": ["AF_2c888a66478aa0a5", "AF_ddaa57ad85ff8bf7"],
+        "target_artifact": "Setup/Lifecycle maintenance output",
+        "required_authority": ["CALCULATION_IDENTITY", "BUSINESS_CUTOFF", "EFFECTIVE_CONFIGURATION", "SOURCE_EVIDENCE", "PREDECESSOR_STATE", "RULE_POLICY_VERSION", "ALGORITHM_SCHEMA_VERSION"],
+        "available_authority": ["explicit repair authority and separate output"],
+        "unavailable_authority": ["legacy original context"],
+        "reconstruction_class": "CURRENT_RULES_ONLY",
+        "current_safe_mode": "CURRENT_STATE_REPAIR",
+        "target_task": "T16B",
+        "canonical_finding_status": "PARTIAL"
+      }
+    ]
+  },
+  "t16c": {
+    "scope": "Cross-domain retained source, revision, scope, refresh, and plan resolution",
+    "finding_count": 1,
+    "findings": [
+      {
+        "finding_id": "XINT-007",
+        "operation_family_ids": ["AF_23acb094fb6bb85b", "AF_33bdca96240039c6", "AF_406e161ff5c7157e", "AF_671f857a0f5339d6", "AF_962bfc6f0968f82d", "AF_a22cc94c8ff55c85", "AF_acf7c620df460e47", "AF_b10d4ec2fa456ce6", "AF_b579e27f1696a70d", "AF_ce350b6feeb50432", "AF_e6476331f05f5ec2"],
+        "target_artifact": "cross-domain reconstruction fingerprint",
+        "required_authority": ["CALCULATION_IDENTITY", "WORK_SCOPE_IDENTITY", "REFRESH_CYCLE_IDENTITY", "ACQUISITION_PLAN_IDENTITY", "EFFECTIVE_CONFIGURATION", "SOURCE_REVISION", "RULE_POLICY_VERSION", "BUSINESS_CUTOFF"],
+        "available_authority": ["supported-current scope/refresh/plan fingerprints", "retry/resume/reclaim identity"],
+        "unavailable_authority": ["legacy rule/purge/deployment identity"],
+        "reconstruction_class": "EVIDENCE_INCOMPLETE",
+        "current_safe_mode": "SUPPORTED_CURRENT_EXACT_IDENTITY",
+        "target_task": "T16C",
+        "canonical_finding_status": "PARTIAL"
+      }
+    ]
+  },
+  "t16d": {
+    "scope": "Archive limitations, permanent legacy unavailability, retention policy, and external governance",
+    "finding_count": 5,
+    "findings": [
+      {
+        "finding_id": "CORE-005",
+        "operation_family_ids": ["AF_2071f64f2b1f231c", "AF_c6cbaf3f7ed57e8e"],
+        "target_artifact": "legacy fundamental/raw-upload value authority",
+        "required_authority": ["SOURCE_EVIDENCE", "SOURCE_REVISION", "PROVIDER_IDENTITY", "CURRENCY_AUTHORITY", "TEMPORAL_POSSESSION_AUTHORITY", "ALGORITHM_SCHEMA_VERSION"],
+        "available_authority": ["legacy value identity", "explicit unavailable state"],
+        "unavailable_authority": ["per-value provider/revision/time/fiscal/currency authority"],
+        "reconstruction_class": "PERMANENTLY_UNAVAILABLE",
+        "current_safe_mode": "STRUCTURED_CURRENT_SOURCES_ONLY",
+        "target_task": "T16D",
+        "canonical_finding_status": "PARTIAL"
+      },
+      {
+        "finding_id": "CERI-010",
+        "operation_family_ids": ["AF_09185dfbe8dc8ae9", "AF_095460ea3293f382", "AF_9701990a1bad3828"],
+        "target_artifact": "pre-purge CERI source bundle",
+        "required_authority": ["SOURCE_EVIDENCE", "SOURCE_REVISION", "TEMPORAL_POSSESSION_AUTHORITY", "PRIOR_DECISION_STATE"],
+        "available_authority": ["certified deletion protection", "legacy invalidation"],
+        "unavailable_authority": ["sealed pre-certification pre-purge archive"],
+        "reconstruction_class": "PERMANENTLY_UNAVAILABLE",
+        "current_safe_mode": "PROTECTED_CERTIFIED_REFERENCES",
+        "target_task": "T16D",
+        "canonical_finding_status": "PARTIAL"
+      },
+      {
+        "finding_id": "RANK-007",
+        "operation_family_ids": ["AF_2071f64f2b1f231c"],
+        "target_artifact": "legacy earnings-schedule input",
+        "required_authority": ["BUSINESS_CUTOFF", "SOURCE_EVIDENCE", "SOURCE_REVISION", "PROVIDER_IDENTITY", "TEMPORAL_POSSESSION_AUTHORITY", "RULE_POLICY_VERSION"],
+        "available_authority": ["source-backed current schedule path"],
+        "unavailable_authority": ["legacy provider/publication/retrieval/revision"],
+        "reconstruction_class": "PERMANENTLY_UNAVAILABLE",
+        "current_safe_mode": "SOURCE_BACKED_SCHEDULE_ONLY",
+        "target_task": "T16D",
+        "canonical_finding_status": "PARTIAL"
+      },
+      {
+        "finding_id": "WIN-006",
+        "operation_family_ids": ["AF_00e602453a046eb8", "AF_07d5132ea4950d61", "AF_181b495253d9c9f3", "AF_28a02ef387a2cf02", "AF_370448d4d5b97745", "AF_391cc87ab4acf60e", "AF_5e9c7f4b54deade3", "AF_6b6a709b24cfa078", "AF_79c791f0e8421e6e", "AF_8b743894024472f7", "AF_9f421f6c2c6dc73f", "AF_a1a274f9c73e3fa0", "AF_ab5b156dc59c02ff", "AF_d07e72b38c67920a", "AF_f23925ce093d1da1"],
+        "target_artifact": "Winner birth PriceBar authority",
+        "required_authority": ["SOURCE_EVIDENCE", "SOURCE_REVISION", "BUSINESS_CUTOFF", "CALCULATION_IDENTITY"],
+        "available_authority": ["exact revision IDs or explicit unavailable state"],
+        "unavailable_authority": ["pre-capture PriceBar revision primary key"],
+        "reconstruction_class": "PERMANENTLY_UNAVAILABLE",
+        "current_safe_mode": "EXACT_OR_EXPLICIT_UNAVAILABLE",
+        "target_task": "T16D",
+        "canonical_finding_status": "PARTIAL"
+      },
+      {
+        "finding_id": "XINT-010",
+        "operation_family_ids": ["AF_680ae1fd6dda2a7d"],
+        "target_artifact": "external privileged operational boundary",
+        "required_authority": ["EXTERNAL_GOVERNANCE"],
+        "available_authority": ["repository application mutations are fenced"],
+        "unavailable_authority": ["external SQL/provider governance"],
+        "reconstruction_class": "EXTERNAL_GOVERNANCE_ONLY",
+        "current_safe_mode": "REPOSITORY_AUTHORITY_ENFORCED",
+        "target_task": "T16D",
+        "canonical_finding_status": "PARTIAL"
+      }
+    ]
+  },
+  "hard_boundaries": [
+    "ORIGINAL_CONTEXT requires exact material authority.",
+    "Missing historical authority is never filled from current state.",
+    "CURRENT_RULES_RETROSPECTIVE is a separate explicit operation.",
+    "Reconstruction outputs are parallel immutable artifacts and never overwrite originals."
+  ]
+}

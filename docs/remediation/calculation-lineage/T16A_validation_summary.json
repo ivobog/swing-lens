@@ -1,0 +1,68 @@
+{
+  "schema_version": "t16a-validation-summary-v1",
+  "verdict": "PASS",
+  "branch": "codex/t16a-original-context-reconstruction-foundation",
+  "starting_head": "2bafa33e0a2cf869c1ac651ec8e2bf30a581c2ab",
+  "migration_required": false,
+  "migration_head": "0083_winner_scope_truth",
+  "postgresql": {
+    "required": false,
+    "reason": "T16A adds no persistence or database query path.",
+    "local_psql_available_at_start": false,
+    "docker_server_available_at_validation": "29.6.2",
+    "phase6_disposable_postgresql_baseline": "PASS_52_TESTS_POSTGRESQL_18_6"
+  },
+  "source_freeze": {
+    "repository": "C:/Users/Ivica/Documents/SwingLens",
+    "source_sha256": "9b51fd0971ea59fbe95fa8b1b0ba8f2e56a193a0ad961c98f7faebe820b7adf8",
+    "t15e_certificate_sha256": "460456f0195433f8e4a3b9c8bb205e7087c6ed1a069d6673689c2ebcac23dac2",
+    "t15e_finding_snapshot_sha256": "415aefe7c1cad358a6d872b424bf63d81c56339e6ccdcce5e3c7c66073b59f9e",
+    "t15e_phase7_handoff_sha256": "b9322c53c73add8d670f35dabd2f8332f38840ba12d8000a71b1c3ec43f65791"
+  },
+  "handoff": {
+    "routed": 12,
+    "accounted": 12,
+    "lost": 0,
+    "unknown_reconstructability": 0,
+    "t16b": 6,
+    "t16c": 1,
+    "t16d": 5
+  },
+  "invariants": {
+    "INV-RECONSTRUCT-001": "DEFINED_PROSPECTIVE",
+    "INV-RECONSTRUCT-002": "MACHINE_ENFORCED",
+    "INV-RECONSTRUCT-003": "MACHINE_ENFORCED",
+    "INV-HANDOFF-001": "PASS_12_OF_12",
+    "INV-SCOPE-001": "UNCHANGED_ENFORCED_REPOSITORY_WIDE",
+    "INV-REFRESH-001": "UNCHANGED_ENFORCED_REPOSITORY_WIDE"
+  },
+  "final_source_freeze": {
+    "hash_method": "canonical-path-null-file-sha256-newline-v1",
+    "source_file_count": 669,
+    "source_sha256": "9d9a61b0426be6a2ab317835c0e013e7c0a7d22095b0604ed8c444cf5b0992bb",
+    "test_file_count": 452,
+    "test_source_sha256": "83527bf0cbc6a4ac65135703a27920c1d8501e486195af093fc3595e9893eeac"
+  },
+  "tests": {
+    "t16a_contract_and_inventory": "35 passed",
+    "focused_phase5_phase6_combined": "120 passed; 1 baseline-sensitive T15E source-freeze assertion expectedly fails after HEAD advances beyond T15D",
+    "t15e_head_independent_assertions": "3 passed; 1 baseline-sensitive assertion deselected",
+    "t15e_artifact_hash_recheck": "PASS",
+    "secret_scan_unit": "2 passed",
+    "route_inventory": "PASS"
+  },
+  "static_gates": {
+    "ruff_ci_scope_app_tests_scripts": "PASS",
+    "repository_wide_ruff_advisory": "58 pre-existing findings outside actual CI scope",
+    "changed_file_format": "PASS",
+    "compileall_app_tests_scripts": "PASS",
+    "git_diff_check": "PASS",
+    "single_alembic_head": "0083_winner_scope_truth",
+    "schema_model_drift": "NOT_APPLICABLE_NO_SCHEMA_CHANGE",
+    "secret_scan": "PASS",
+    "handoff_conservation": "PASS",
+    "inventory_determinism": "PASS",
+    "t15e_artifact_integrity": "PASS_HASHES_UNCHANGED"
+  },
+  "production_runtime_mutations": "NONE"
+}
