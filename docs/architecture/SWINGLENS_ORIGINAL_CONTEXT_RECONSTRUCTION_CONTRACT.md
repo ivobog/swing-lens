@@ -41,6 +41,11 @@ identical when that exceptional route is used, including a stable independent pr
 - calculation, scope, refresh, acquisition-plan, and code/deployment identity where applicable;
 - derived completeness, reconstruction status, canonical JSON, and fingerprint.
 
+For a cross-domain decision it also records the declared dependency edges, exact expected and
+resolved producer evidence, the machine-readable compatibility contract and result for every edge,
+and a proof-boundary fingerprint. Substituting a material producer therefore changes the manifest
+fingerprint even when the final numeric value is unchanged.
+
 Operational attempt data such as worker token, job attempt, or execution token is deliberately not
 part of semantic identity. Persistence is deferred in T16A: the contract is frozen in memory and
 content-addressed, while T16B/T16C must decide whether durable attempts/results need additive tables.
@@ -183,6 +188,16 @@ authority dimension is exact. `authorize_reconstruction` machine-enforces this p
 `CURRENT_RULES_RETROSPECTIVE` or `CURRENT`. `authorize_reconstruction` returns the requested mode and
 an unavailable outcome without changing it.
 
+`INV-RECONSTRUCT-004`: `ORIGINAL_CONTEXT` requires every material producer-consumer dependency edge
+to satisfy its declared historical compatibility contract. Individually exact artifacts are not
+an exact reconstruction when their temporal, configuration, scope, lineage, readiness, predecessor,
+schema, rule, or provider authorities are incompatible. Manifest authorization machine-enforces
+this predicate.
+
+`INV-PROOF-001`: fingerprints and manifests declare and bind every semantic dependency dimension
+needed to prove compatibility. Omitted dimensions may not be inferred from the same run, pipeline,
+ticker, timestamp proximity, current pointer, or equal output value.
+
 For the same decision made on supported current paths, future exact reconstruction is feasible where
 the native evidence contains immutable source/config/rule/predecessor/scope identities. T16B/T16C
 must implement resolvers that prove those references and must preserve explicit external gaps.
@@ -197,3 +212,9 @@ Winner, and Lifecycle to Winner.
 
 T16A introduces no writer, schema, migration, production mutation, or bypass. Phase-5 mutation
 authority and Phase-6 scope/refresh fences remain the only approved mutation boundaries.
+
+T16C's composition validator is read-only. Exact deployment SHA is not required downstream when an
+immutable producer evidence object fully freezes the consumed semantic result, its configuration,
+readiness, source lineage and algorithm/schema identity. Deployment identity remains material only
+where evidence does not independently freeze those semantics; missing legacy identity is then kept
+unavailable rather than guessed.

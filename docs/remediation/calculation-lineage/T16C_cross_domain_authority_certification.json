@@ -1,0 +1,145 @@
+{
+  "schema_version": "t16c-cross-domain-authority-certification-v1",
+  "task": "T16C",
+  "verdict": "PASS",
+  "baselines": {
+    "original_audited": "3a9d47063be996908b7d5d1cc5769e0bbd033546",
+    "phase6_certified": "2bafa33e0a2cf869c1ac651ec8e2bf30a581c2ab",
+    "t16a": "e1e1d089efed7b611bc1e05869e0da2fee736fef",
+    "t16b": "daf2cc05df0887a6271ab9757ac30203d8f2cd3f",
+    "migration_head": "0083_winner_scope_truth"
+  },
+  "finding": {
+    "finding_id": "XINT-007",
+    "title": "Recorded fingerprints and manifests have incomplete proof boundaries",
+    "original_finding": "Several persisted hashes/manifests are not validated by consumers, omit necessary inputs, or can become stale after mutation.",
+    "original_missing_guard": "Declared schema/scope and required consumer comparison for each fingerprint.",
+    "assigned": ["XINT-007"],
+    "reconciled": ["XINT-007"],
+    "lost": 0,
+    "status": "CLOSED"
+  },
+  "dependency_edges": {
+    "matrix": "T16C_cross_domain_compatibility_matrix.csv",
+    "real_edges": 31,
+    "forbidden_absent_edges": 7,
+    "unknown_edges": 0,
+    "canonical_graph_unchanged": true
+  },
+  "manifest_contract": {
+    "type": "OriginalContextReconstructionManifest",
+    "schema": "original-context-reconstruction-manifest-v1",
+    "composition_required": true,
+    "records": [
+      "declared dependency edges",
+      "expected producer authority",
+      "resolved producer authority",
+      "typed compatibility results",
+      "proof-boundary fingerprint"
+    ],
+    "material_producer_substitution_changes_fingerprint": true,
+    "authorization_requires_exact_and_compatible": true
+  },
+  "compatibility_contracts": {
+    "registry": "app.services.historical_authority_composition.EDGE_CONTRACTS",
+    "validator": "validate_historical_authority_composition",
+    "schema": "historical-authority-composition-v1",
+    "read_only": true,
+    "same_run_pipeline_ticker_is_proof": false,
+    "dimensions": [
+      "PRODUCER_EVIDENCE",
+      "CALCULATION_CONTEXT",
+      "TEMPORAL_CONTEXT",
+      "SESSION_CALENDAR",
+      "PRODUCER_NOT_AFTER_CONSUMER",
+      "SUBJECT_SCOPE",
+      "DECLARED_POPULATION_SCOPE",
+      "WORK_SCOPE",
+      "REFRESH_CYCLE",
+      "EFFECTIVE_CONFIGURATION",
+      "READINESS",
+      "SOURCE_LINEAGE",
+      "SOURCE_REVISION",
+      "PREDECESSOR",
+      "ALGORITHM_SCHEMA",
+      "RULE_POLICY",
+      "PROVIDER_REVISION"
+    ]
+  },
+  "exact_edges": {
+    "count": 31,
+    "status": "NATIVE_EXACT_WHEN_DECLARED_AUTHORITY_IS_PRESENT",
+    "winner_sources": ["RAW", "FUNDAMENTAL", "TECHNICAL", "COMBINED", "RANKING", "REGIME", "SECTOR"],
+    "setup_behavioral_sources": ["TECHNICAL", "COMBINED", "REGIME", "SECTOR"],
+    "setup_metadata_sources": ["COMBINED", "RANKING"]
+  },
+  "legacy_unavailable_edges": {
+    "count": 31,
+    "status": "PERMANENTLY_UNAVAILABLE_WHEN_MATERIAL_PRODUCER_AUTHORITY_WAS_NOT_RETAINED",
+    "heuristic_matching": false,
+    "forbidden_heuristics": ["same ticker", "nearest timestamp", "same numeric value", "same run", "same pipeline", "current pointer"]
+  },
+  "same_value_attack": {
+    "result": "REJECTED",
+    "reason": "Producer evidence, configuration, readiness, lineage and schema identities are bound independently of semantic output."
+  },
+  "temporal_attack": {
+    "result": "REJECTED",
+    "status": "INCOMPATIBLE_TEMPORAL_CONTEXT",
+    "scenario": "Setup U1 at S1 cannot consume Ranking R2 at S2."
+  },
+  "config_attack": {
+    "result": "REJECTED",
+    "status": "INCOMPATIBLE_CONFIGURATION",
+    "equal_values_override": false
+  },
+  "source_substitution_attack": {
+    "result": "REJECTED",
+    "status": "INCOMPATIBLE_SOURCE_LINEAGE",
+    "current_state_fallback": false
+  },
+  "negative_dependencies": [
+    "CERI->RANKING",
+    "CERI->SETUP",
+    "CERI->WINNER",
+    "SETUP->WINNER",
+    "LIFECYCLE->WINNER",
+    "IBMI->WINNER",
+    "SECTOR->RANKING"
+  ],
+  "prospective_reconstructability": {
+    "INV-RECONSTRUCT-001": "ENFORCED_FOR_SUPPORTED_NATIVE_CROSS_DOMAIN_DECISIONS",
+    "INV-RECONSTRUCT-002": "ENFORCED_ALL_MATERIAL_AUTHORITY_EXACT",
+    "INV-RECONSTRUCT-003": "ENFORCED_NO_MODE_DOWNGRADE_OR_CURRENT_FALLBACK",
+    "INV-RECONSTRUCT-004": "ENFORCED_ALL_DECLARED_MATERIAL_EDGES_COMPATIBLE",
+    "INV-PROOF-001": "ENFORCED_BY_CONTRACT_AND_PROOF_BOUNDARY_FINGERPRINT",
+    "code_identity_boundary": "Exact producer deployment SHA is not required when immutable producer evidence fully freezes the consumed semantics; otherwise the missing identity remains unavailable."
+  },
+  "tests": {
+    "focused_unit": "tests/test_t16c_historical_authority_composition.py",
+    "native_integration": "tests/integration/test_t16b_original_context_reconstruction.py",
+    "attacks": [
+      "same value/different producer evidence",
+      "newer Ranking substitution in Winner",
+      "temporal Ranking substitution in Setup",
+      "configuration mismatch",
+      "scope mismatch",
+      "source-lineage mismatch",
+      "readiness mismatch",
+      "cross-chain predecessor",
+      "algorithm/schema mismatch",
+      "legacy missing producer",
+      "current-only producer substitution",
+      "same run/ticker without semantic context"
+    ],
+    "performance": "1/50/200 native Setup targets use constant query count, maximum four SELECTs",
+    "focused_result": "38 passed, 2 PostgreSQL tests deselected",
+    "postgresql": "2 passed on disposable PostgreSQL 16; migrated to 0083_winner_scope_truth; native Setup/Lifecycle/Alert composition remained exact and read-only; exact and fail-closed attack matrix passed",
+    "phase5_phase6_regression": "114 passed, 1 intentional T15E source-freeze test deselected",
+    "t16a_t16b_artifact_integrity": "PASS",
+    "static_gates": "PASS: changed-file Ruff/format, compileall, diff check, single Alembic head, no schema drift, tracked-secret scan, artifact integrity, handoff conservation, matrix determinism and certificate completeness"
+  },
+  "status": "CERTIFIED_XINT_007_CLOSED",
+  "migration_required": false,
+  "production_runtime_mutations": "NONE"
+}

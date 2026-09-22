@@ -494,6 +494,11 @@ def test_exact_setup_uses_historical_technical_readiness_and_no_pricebars(
     event.remove(evidence_db.bind, "before_cursor_execute", capture)
     assert resolved.authorization.authorized, [item.reason for item in resolved.manifest.authority]
     assert resolved.manifest.status is ReconstructionStatus.EXACT
+    assert resolved.manifest.composition_required is True
+    assert resolved.manifest.composition is not None
+    assert resolved.manifest.composition.overall_exact is True
+    assert resolved.manifest.composition.proof_boundary_fingerprint
+    assert resolved.manifest.composition.manifest_fingerprint == resolved.manifest.fingerprint()
     assert sources["technical"].payload_json["technical_history_insufficient"] is True
     assert before == after
     assert not any("price_bars" in statement for statement in statements)
@@ -802,5 +807,7 @@ def test_postgresql_native_setup_lifecycle_alert_chain_is_exact_and_read_only(
         )
         after = (frozenset(db.new), frozenset(db.dirty), frozenset(db.deleted))
         assert all(result.authorization.authorized for result in results)
+        assert results[0].manifest.composition is not None
+        assert results[0].manifest.composition.overall_exact is True
         assert before == after
     engine.dispose()

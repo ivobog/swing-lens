@@ -1,0 +1,43 @@
+{
+  "schema_version": "t16c-phase7-handoff-v1",
+  "source_task": "T16C",
+  "source_baseline": "daf2cc05df0887a6271ab9757ac30203d8f2cd3f",
+  "scope": "Cross-domain historical authority and proof-boundary composition",
+  "conservation": {
+    "assigned": 1,
+    "reconciled": 1,
+    "closed": 1,
+    "transferred_to_t16d": 0,
+    "lost": 0,
+    "lost_finding_ids": [],
+    "status": "PASS_INV_HANDOFF_001"
+  },
+  "findings": [
+    {
+      "finding_id": "XINT-007",
+      "disposition": "closed",
+      "status": "CLOSED",
+      "native_result": "Every verified cross-domain edge has a machine-readable compatibility contract; reconstruction manifests bind exact producer authority and typed results in a proof-boundary fingerprint.",
+      "legacy_boundary": "Rows without material producer pins remain insufficient or permanently unavailable and cannot use heuristic/current substitution."
+    }
+  ],
+  "t16d": {
+    "finding_count": 5,
+    "findings": ["CORE-005", "CERI-010", "RANK-007", "WIN-006", "XINT-010"],
+    "transferred_from_t16c": [],
+    "cross_domain_proof_information": [
+      "Legacy provider/revision authority absent from immutable evidence remains permanently unavailable.",
+      "Purged pre-certification source bundles cannot be recreated by composition.",
+      "A missing historical configuration/rule/deployment authority cannot be inferred from current state or co-location.",
+      "External provider archives, privileged SQL and retention governance remain outside repository-enforced proof boundaries.",
+      "Winner birth PriceBar revision availability remains WIN-006; T16C does not relabel it."
+    ],
+    "status": "CONSERVED_FOR_T16D"
+  },
+  "hard_boundaries": [
+    "No current producer may replace missing historical authority.",
+    "No same-run, same-ticker, timestamp-nearest or same-value inference.",
+    "No false CERI, Setup, Lifecycle, direct IBMI or reverse Sector-to-Ranking dependency.",
+    "No claim about external governance enforcement."
+  ]
+}

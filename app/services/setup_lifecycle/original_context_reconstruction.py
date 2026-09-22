@@ -8,7 +8,7 @@ are not inputs and therefore cannot silently replace missing historical authorit
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any
 
@@ -26,6 +26,10 @@ from app.models.tables import (
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.decision_mutation_authority import validate_retained_decision
 from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+from app.services.historical_authority_composition import (
+    HistoricalAuthorityCompositionResult,
+    compose_core_evidence_graph,
+)
 from app.services.original_context_reconstruction import (
     AuthorityAvailability,
     AuthorityDimension,
@@ -852,17 +856,25 @@ def _load(db: Session, targets: tuple[ReconstructionTarget, ...]) -> _LoadedEvid
     setups = _select_map(db, CoreCalculationEvidence, setup_ids)
     rule_ids = {row.rule_evidence_id for row in alerts.values()}
     rules = _select_map(db, SignalAlertRuleEvidence, rule_ids)
-    source_edges: dict[int, dict[str, int]] = {setup_id: {} for setup_id in setups}
-    if setups:
+    source_edges: dict[int, dict[str, int]] = {}
+    sources: dict[int, CoreCalculationEvidence] = {}
+    pending = set(setups)
+    while pending:
+        for evidence_id in pending:
+            source_edges.setdefault(evidence_id, {})
         edges = db.scalars(
             select(CoreCalculationEvidenceSource).where(
-                CoreCalculationEvidenceSource.evidence_id.in_(sorted(setups))
+                CoreCalculationEvidenceSource.evidence_id.in_(sorted(pending))
             )
         )
+        next_ids: set[int] = set()
         for edge in edges:
             source_edges[edge.evidence_id][edge.source_role] = edge.source_evidence_id
-    source_ids = {source_id for mapping in source_edges.values() for source_id in mapping.values()}
-    sources = _select_map(db, CoreCalculationEvidence, source_ids)
+            if edge.source_evidence_id not in setups and edge.source_evidence_id not in sources:
+                next_ids.add(edge.source_evidence_id)
+        found = _select_map(db, CoreCalculationEvidence, next_ids)
+        sources.update(found)
+        pending = set(found)
     return _LoadedEvidence(
         setups,
         source_edges,
@@ -874,6 +886,32 @@ def _load(db: Session, targets: tuple[ReconstructionTarget, ...]) -> _LoadedEvid
         set(),
         {},
     )
+
+
+def _composition_for_target(
+    target: ReconstructionTarget,
+    row: Any | None,
+    loaded: _LoadedEvidence,
+) -> HistoricalAuthorityCompositionResult | None:
+    if row is None:
+        return None
+    setup_id: int | None
+    if target.kind is ReconstructionTargetKind.SETUP:
+        setup_id = row.id
+    elif target.kind in {
+        ReconstructionTargetKind.LIFECYCLE_EVALUATION,
+        ReconstructionTargetKind.LIFECYCLE_TRANSITION,
+    }:
+        setup_id = row.setup_evidence_id
+    else:
+        setup_id = row.setup_evidence_id
+        if setup_id is None and row.lifecycle_evaluation_evidence_id is not None:
+            evaluation = loaded.evaluations.get(row.lifecycle_evaluation_evidence_id)
+            setup_id = evaluation.setup_evidence_id if evaluation is not None else None
+    if setup_id is None:
+        return None
+    evidence = {**loaded.sources, **loaded.setups}
+    return compose_core_evidence_graph((setup_id,), evidence, loaded.source_edges)
 
 
 def _row_and_authority(
@@ -948,6 +986,10 @@ def resolve_original_contexts(
             row, authority, calculation_identity, scope_identity = _row_and_authority(
                 target, loaded
             )
+            try:
+                composition = _composition_for_target(target, row, loaded)
+            except (KeyError, TypeError, ValueError):
+                composition = None
             artifact_id = str(target.evidence_id)
             manifest = OriginalContextReconstructionManifest(
                 target_artifact_type=target.kind.value,
@@ -958,7 +1000,17 @@ def resolve_original_contexts(
                 calculation_identity=calculation_identity,
                 scope_identity=scope_identity,
                 code_identity_status=CodeIdentityStatus.BOUNDED_CODE_IDENTITY,
+                composition_required=True,
+                composition=composition,
             )
+            if composition is not None:
+                # The composition carries a diagnostic back-reference to its
+                # containing manifest. It is excluded from the embedded
+                # canonical payload, so binding it cannot create a hash cycle.
+                manifest = replace(
+                    manifest,
+                    composition=composition.bind_manifest(manifest.fingerprint()),
+                )
             authorization = authorize_reconstruction(manifest)
             output = (
                 Canonical.canonicalize(

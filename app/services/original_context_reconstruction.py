@@ -5,6 +5,9 @@ from enum import StrEnum
 from typing import Any
 
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.historical_authority_composition import (
+    HistoricalAuthorityCompositionResult,
+)
 
 RECONSTRUCTION_MANIFEST_SCHEMA_VERSION = "original-context-reconstruction-manifest-v1"
 
@@ -217,6 +220,8 @@ class OriginalContextReconstructionManifest:
     refresh_identity: str | None = None
     acquisition_plan_identity: str | None = None
     code_identity_status: CodeIdentityStatus = CodeIdentityStatus.UNKNOWN_CODE_IDENTITY
+    composition_required: bool = False
+    composition: HistoricalAuthorityCompositionResult | None = None
     schema_version: str = RECONSTRUCTION_MANIFEST_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -262,7 +267,10 @@ class OriginalContextReconstructionManifest:
         if self.requested_mode is ReconstructionMode.CURRENT:
             return ReconstructionStatus.CURRENT
         completeness = self.completeness
-        if completeness.exact_for_original_context:
+        composition_exact = not self.composition_required or (
+            self.composition is not None and self.composition.overall_exact
+        )
+        if completeness.exact_for_original_context and composition_exact:
             return ReconstructionStatus.EXACT
         if completeness.permanently_unavailable:
             return ReconstructionStatus.PERMANENTLY_UNAVAILABLE
@@ -303,6 +311,10 @@ class OriginalContextReconstructionManifest:
                 "refresh_identity": self.refresh_identity,
                 "acquisition_plan_identity": self.acquisition_plan_identity,
                 "code_identity_status": self.code_identity_status.value,
+                "composition_required": self.composition_required,
+                "historical_authority_composition": (
+                    self.composition.canonical_payload() if self.composition is not None else None
+                ),
                 "reconstruction_status": self.status.value,
                 "authority_completeness": self.completeness.as_dict(),
             }
