@@ -1,0 +1,80 @@
+{
+  "active_supported_current_defects": 0,
+  "phase7_complete": true,
+  "residual_count": 7,
+  "residuals": [
+    {
+      "code_action_remaining": "none",
+      "current_path_safe": true,
+      "external_dependency": "provider archive/retention terms",
+      "finding_id": "CORE-005",
+      "governance_action": "Preserve the explicit unavailable boundary; retain consumed authority where legally and technically permitted.",
+      "missing_authority": "legacy per-value provider/revision/time/fiscal/currency/FX authority permanently unavailable",
+      "status": "PARTIAL",
+      "why_unrecoverable": "The legacy value never retained per-value provider, revision, time, fiscal, currency, or FX authority."
+    },
+    {
+      "code_action_remaining": "none",
+      "current_path_safe": true,
+      "external_dependency": "none",
+      "finding_id": "CORE-009",
+      "governance_action": "Preserve the explicit unavailable boundary; retain consumed authority where legally and technically permitted.",
+      "missing_authority": "legacy projection context absent",
+      "status": "PARTIAL",
+      "why_unrecoverable": "The legacy projection never retained the original calculation context needed to prove historical readiness."
+    },
+    {
+      "code_action_remaining": "none",
+      "current_path_safe": true,
+      "external_dependency": "none",
+      "finding_id": "CERI-008",
+      "governance_action": "Preserve the explicit unavailable boundary; retain consumed authority where legally and technically permitted.",
+      "missing_authority": "legacy alert rule/config identity absent",
+      "status": "PARTIAL",
+      "why_unrecoverable": "The legacy alert never persisted its exact rule and effective-configuration identities."
+    },
+    {
+      "code_action_remaining": "none",
+      "current_path_safe": true,
+      "external_dependency": "earnings provider revision archive",
+      "finding_id": "RANK-007",
+      "governance_action": "Preserve the explicit unavailable boundary; retain consumed authority where legally and technically permitted.",
+      "missing_authority": "legacy earnings schedule provenance absent",
+      "status": "PARTIAL",
+      "why_unrecoverable": "The legacy decision never retained the provider schedule revision and possession-time evidence."
+    },
+    {
+      "code_action_remaining": "none",
+      "current_path_safe": true,
+      "external_dependency": "none",
+      "finding_id": "SETUP-004",
+      "governance_action": "Preserve the explicit unavailable boundary; retain consumed authority where legally and technically permitted.",
+      "missing_authority": "legacy context/predecessor absent",
+      "status": "PARTIAL",
+      "why_unrecoverable": "The legacy Setup artifact never retained its complete decision context and predecessor authority."
+    },
+    {
+      "code_action_remaining": "none",
+      "current_path_safe": true,
+      "external_dependency": "none",
+      "finding_id": "SETUP-007",
+      "governance_action": "Preserve the explicit unavailable boundary; retain consumed authority where legally and technically permitted.",
+      "missing_authority": "legacy cooldown/rule/predecessor absent",
+      "status": "PARTIAL",
+      "why_unrecoverable": "The legacy alert never retained its exact rule, cooldown, configuration, and predecessor authority."
+    },
+    {
+      "code_action_remaining": "none",
+      "current_path_safe": true,
+      "external_dependency": "market-data revision availability",
+      "finding_id": "WIN-006",
+      "governance_action": "Preserve the explicit unavailable boundary; retain consumed authority where legally and technically permitted.",
+      "missing_authority": "legacy birth bar revision identity absent",
+      "status": "PARTIAL",
+      "why_unrecoverable": "The legacy birth bar predates exact PriceBarRevision identity capture and has no independently unique immutable revision body."
+    }
+  ],
+  "schema_version": "t16e-post-phase7-residual-handoff-v1",
+  "source_task": "T16E",
+  "status": "GOVERNANCE_ONLY_NO_CODE_REMEDIATION"
+}

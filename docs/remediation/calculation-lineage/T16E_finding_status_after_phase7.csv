@@ -1,0 +1,71 @@
+finding_id,severity,domain,status,last_addressed_by,current_supported_path_safe,historical_exactness,residual,governance_boundary,evidence,next_action
+PIPE-001,P1,Pipeline,CLOSED,T15B,YES,PHASE6_CERTIFIED,,NONE,T15B parent/child completion accounting and retry tests,NONE
+PIPE-002,P1,Pipeline,CLOSED,Phase 4,YES,PHASE6_CERTIFIED,,NONE,Phase-4 configuration authority certificate and T14D exact handoff,NONE
+PIPE-003,P2,Pipeline,CLOSED,T14D,YES,PHASE6_CERTIFIED,,NONE,T14D caller certificate; reduced and standalone selectors fail before mutation,NONE
+PIPE-004,P2,Pipeline,CLOSED,T15B,YES,PHASE6_CERTIFIED,,NONE,T15B frozen scope and retained remainder certification,NONE
+PIPE-005,P2,Pipeline,CLOSED,T15B,YES,PHASE6_CERTIFIED,,NONE,T15B acquisition-plan and distinct refresh certification,NONE
+PIPE-006,P2,Pipeline,CLOSED,T14D,YES,PHASE6_CERTIFIED,,NONE,T14D cross-phase identity/evidence/configuration checkpoint tests,NONE
+PIPE-007,P2,Pipeline,CLOSED,T14D,YES,PHASE6_CERTIFIED,,NONE,T14D exact caller/family certificate; mutation-capable latest/current fallback scan,NONE
+PIPE-008,P2,Pipeline,CLOSED,T14E,YES,PHASE6_CERTIFIED,,NONE,252 callers converge on 220 certified operation families and certified writers,NONE
+PIPE-009,P2,Pipeline,CLOSED,Phase 4,YES,PHASE6_CERTIFIED,,NONE,Phase-4 effective-configuration certification retained on frozen source,NONE
+CORE-001,P1,Core,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,T14B core/contextual writer certification,NONE
+CORE-002,P1,Core,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Severe staleness now applies complete Unknown policy permissions and sizing,NONE
+CORE-003,P2,Core,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Mixed benchmark session alignment and confidence degradation tests,NONE
+CORE-004,P2,Core,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Internal exchange-session completeness and exact gap tests,NONE
+CORE-005,P2,Core,PARTIAL,T16D,YES,LEGACY_AUTHORITY_UNAVAILABLE,legacy per-value provider/revision/time/fiscal/currency/FX authority permanently unavailable,provider archive/retention terms,T16D_legacy_governance_boundaries.csv; T16D_retention_authority_matrix.csv,GOVERNANCE_ONLY; NO_CODE_REMEDIATION
+CORE-006,P2,Core,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,Certified Fundamental writer boundary and immutable evidence,NONE
+CORE-007,P2,Core,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,Certified Technical writer boundary and immutable evidence,NONE
+CORE-008,P2,Core,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,Certified Combined writer boundary and immutable evidence,NONE
+CORE-009,P2,Core,PARTIAL,T16B,YES,LEGACY_AUTHORITY_UNAVAILABLE,legacy projection context absent,none,T16B_setup_lifecycle_alert_reconstruction_certification.json,GOVERNANCE_ONLY; NO_CODE_REMEDIATION
+CERI-001,P1,CERI,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Provider-priority conflict selection and old-evidence pin tests,NONE
+CERI-002,P1,CERI,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Adjusted-price/TRADES-volume order-independent source manifest tests,NONE
+CERI-003,P2,CERI,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,Certified CERI immutable evidence boundary,NONE
+CERI-004,P1,CERI,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Change rebuild requires session/cutoff and source receipt for catalyst/guidance evidence,NONE
+CERI-005,P2,CERI,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Frozen critical-warning set drives configured confidence-label ceiling and cap ledger,NONE
+CERI-006,P2,CERI,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Estimate eligibility requires local possession and later external constraint; legacy missing possession fails closed,NONE
+CERI-007,P2,CERI,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,One feed-freshness result drives confidence and event-risk staleness,NONE
+CERI-008,P2,CERI,PARTIAL,T16B,YES,LEGACY_AUTHORITY_UNAVAILABLE,legacy alert rule/config identity absent,none,T16B_setup_lifecycle_alert_reconstruction_certification.json,GOVERNANCE_ONLY; NO_CODE_REMEDIATION
+CERI-009,P2,CERI,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Deployment database head is derived/validated and separated from CERI evidence schema revision,NONE
+CERI-010,P2,CERI,CLOSED,T16D,YES,LEGACY_BOUNDARY_EXPLICIT_CURRENT_DEFECT_CLOSED,pre-contract purged bytes unavailable,provider license terms,shared purge assessment; CERI immutable decision purge guard,NONE
+CERI-011,P1,CERI,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,"Upcoming date pins normalized row, provider/source/content/revision, external/possession time, cutoff, candidate set, policy and exact selected value",NONE
+CERI-012,P1,CERI,CLOSED,T15B,YES,PHASE6_CERTIFIED,,NONE,T15B retry idempotency separated from later refresh identity,NONE
+RANK-001,P1,Ranking,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,Certified Ranking writer and immutable input authority,NONE
+RANK-002,P1,Ranking,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,Certified Ranking writer and effective configuration,NONE
+RANK-003,P1,Ranking,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,Certified exact evidence/readiness consumption,NONE
+RANK-004,P1,Ranking,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,Certified current projection monotonicity,NONE
+RANK-005,P1,Ranking,CLOSED,T14D,YES,PHASE6_CERTIFIED,,NONE,Standalone mutation retired; callers converge on native writer,NONE
+RANK-006,P1,Ranking,CLOSED,T14B,YES,PHASE6_CERTIFIED,,NONE,Certified Ranking persistence authority,NONE
+RANK-007,P1,Ranking,PARTIAL,T16D,YES,LEGACY_AUTHORITY_UNAVAILABLE,legacy earnings schedule provenance absent,earnings provider revision archive,T16D_legacy_governance_boundaries.csv; source-backed earnings authority,GOVERNANCE_ONLY; NO_CODE_REMEDIATION
+RANK-008,P2,Ranking,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,NON_AUTHORITATIVE_FOR_RANKING dependency contract and unchanged-score fixture,NONE
+SETUP-001,P1,Setup,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Certified Setup writer authority and immutable decision evidence,NONE
+SETUP-002,P1,Setup,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Certified lifecycle transition writer authority,NONE
+SETUP-003,P1,Setup,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Certified alert decision evidence and writer boundary,NONE
+SETUP-004,P1,Setup,PARTIAL,T16B,YES,LEGACY_AUTHORITY_UNAVAILABLE,legacy context/predecessor absent,none,T16B_setup_lifecycle_alert_reconstruction_certification.json,GOVERNANCE_ONLY; NO_CODE_REMEDIATION
+SETUP-005,P1,Setup,CLOSED,T14D,YES,PHASE6_CERTIFIED,,NONE,All supported Setup mutation callers use exact delivered authority or fail closed,NONE
+SETUP-006,P2,Setup,CLOSED,T16B,YES,SUPPORTED_PATH_EXACT_OR_MODE_SEPARATED,retrospective is not original context,none,T16B_setup_lifecycle_alert_reconstruction_certification.json,NONE
+SETUP-007,P1,Setup,PARTIAL,T16B,YES,LEGACY_AUTHORITY_UNAVAILABLE,legacy cooldown/rule/predecessor absent,none,T16B_setup_lifecycle_alert_reconstruction_certification.json,GOVERNANCE_ONLY; NO_CODE_REMEDIATION
+SETUP-008,P2,Setup,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Lifecycle and alert transactional writer tests,NONE
+SETUP-009,P2,Setup,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Immutable decision evidence and projection selection tests,NONE
+SETUP-010,P2,Setup,CLOSED,T16B,YES,SUPPORTED_PATH_EXACT_OR_MODE_SEPARATED,maintenance is not reconstruction,none,T16B_setup_lifecycle_alert_reconstruction_certification.json,NONE
+WIN-001,P1,Winner,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Certified Winner prediction capture authority,NONE
+WIN-002,P1,Winner,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Certified estimate creation and retained evidence,NONE
+WIN-003,P2,Winner,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Certified model training/promotion/retirement authority,NONE
+WIN-004,P2,Winner,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Certified diagnostic gates and retained artifacts,NONE
+WIN-005,P2,Winner,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Certified Winner writer boundaries; producer-specific residuals tracked separately,NONE
+WIN-006,P2,Winner,PARTIAL,T16D,YES,LEGACY_AUTHORITY_UNAVAILABLE,legacy birth bar revision identity absent,market-data revision availability,price_manifest exact-or-unavailable; T16D_legacy_governance_boundaries.csv,GOVERNANCE_ONLY; NO_CODE_REMEDIATION
+WIN-007,P1,Winner,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Monotonic publication is certified and regression-tested,NONE
+WIN-008,P2,Winner,CLOSED,T15C,YES,PHASE6_CERTIFIED,,NONE,T15C frozen Winner target/cohort truth certification,NONE
+WIN-009,P2,Winner,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Idempotent publication is certified and regression-tested,NONE
+WIN-010,P2,Winner,CLOSED,T14C,YES,PHASE6_CERTIFIED,,NONE,Supporting diagnostics and retirement retain distinct native semantics,NONE
+XINT-001,P1,Cross-integration,CLOSED,Phase 1,YES,PHASE6_CERTIFIED,,NONE,Calculation Identity certification retained,NONE
+XINT-002,P1,Cross-integration,CLOSED,Phase 2,YES,PHASE6_CERTIFIED,,NONE,Immutable evidence certification retained,NONE
+XINT-003,P1,Cross-integration,CLOSED,T15D,YES,PHASE6_CERTIFIED,,NONE,Setup capture rejects parent retained-scope drift; dated repair is explicit single-artifact work,NONE
+XINT-004,P1,Cross-integration,CLOSED,Phase 4,YES,PHASE6_CERTIFIED,,NONE,Effective configuration authority certified,NONE
+XINT-005,P1,Cross-integration,CLOSED,Phase 0,YES,PHASE6_CERTIFIED,,NONE,Durable execution fencing certified,NONE
+XINT-006,P1,Cross-integration,CLOSED,T14E,YES,PHASE6_CERTIFIED,,NONE,252/252 callers and 220/220 operation families converge on certified writer authority,NONE
+XINT-007,P2,Cross-integration,CLOSED,T16C,YES,SUPPORTED_PATH_EXACT_OR_MODE_SEPARATED,legacy incomplete proof remains unavailable,none,T16C_cross_domain_authority_certification.json,NONE
+XINT-008,P1,Cross-integration,CLOSED,T14E,YES,PHASE6_CERTIFIED,,NONE,Cross-phase attack matrix passes on frozen source,NONE
+XINT-009,P1,Cross-integration,CLOSED,T14E,YES,PHASE6_CERTIFIED,,NONE,Negative dependency graph unchanged,NONE
+XINT-010,P2,Cross-integration,CLOSED,T16D,YES,LEGACY_BOUNDARY_EXPLICIT_CURRENT_DEFECT_CLOSED,legacy exact configuration absent; external SQL/provider governance outside repository,DBA and provider-contract enforcement,Phase-4 configuration certificate; INV-RETENTION-001,NONE
+XINT-011,P1,Cross-integration,CLOSED,T14E,YES,PHASE6_CERTIFIED,,NONE,Business parity fingerprint and golden tests pass,NONE
+XINT-012,P2,Cross-integration,CLOSED,T15B,YES,PHASE6_CERTIFIED,,NONE,Repository cross-domain refresh identity certification,NONE

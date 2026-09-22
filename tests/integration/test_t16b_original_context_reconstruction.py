@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
 import pytest
 from alembic.config import Config
-from sqlalchemy import BigInteger, create_engine, event, select, update
+from sqlalchemy import BigInteger, create_engine, event, func, select, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session
@@ -810,4 +811,44 @@ def test_postgresql_native_setup_lifecycle_alert_chain_is_exact_and_read_only(
         assert results[0].manifest.composition is not None
         assert results[0].manifest.composition.overall_exact is True
         assert before == after
+    engine.dispose()
+
+
+def test_postgresql_concurrent_exact_reconstruction_is_deterministic_and_read_only(
+    disposable_postgres_database: str, configurations
+):
+    alembic = Config("alembic.ini")
+    alembic.attributes["database_url"] = disposable_postgres_database
+    command.upgrade(alembic, "head")
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        db.add(UploadRun(id=1, filename="t16e-concurrent.csv", status="COMPLETED"))
+        db.flush()
+        setup, _ = _setup_graph(db, configurations)
+        db.commit()
+        setup_id = setup.id
+        before = (
+            db.scalar(select(func.count()).select_from(CoreCalculationEvidence)),
+            db.scalar(select(func.count()).select_from(CoreCalculationEvidenceSource)),
+        )
+
+    def reconstruct() -> tuple[str, str]:
+        with Session(engine) as db:
+            resolved = resolve_setup_original_context(db, setup_id)
+            assert resolved.authorization.authorized
+            return (
+                resolved.manifest.fingerprint(),
+                Canonical.fingerprint(resolved.reconstructed_output),
+            )
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = tuple(executor.map(lambda _index: reconstruct(), range(8)))
+
+    with Session(engine) as db:
+        after = (
+            db.scalar(select(func.count()).select_from(CoreCalculationEvidence)),
+            db.scalar(select(func.count()).select_from(CoreCalculationEvidenceSource)),
+        )
+    assert len(set(results)) == 1
+    assert before == after
     engine.dispose()
