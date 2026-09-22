@@ -1,0 +1,150 @@
+{
+  "conditional_archive_targets": [
+    "CORE-005",
+    "CERI-010",
+    "RANK-007"
+  ],
+  "explicit_unavailable_boundaries": [
+    "WIN-006"
+  ],
+  "external_governance_targets": [
+    "XINT-010"
+  ],
+  "finding_count": 12,
+  "findings": [
+    {
+      "available_evidence": "Unavailable dimensions remain explicit; no synthetic FX or source revision",
+      "finding_id": "CORE-005",
+      "future_phase": "Phase 7 only if authoritative archives exist",
+      "residual": "Legacy raw uploads lack per-value provider/revision/time/fiscal/currency facts",
+      "routing": "PHASE_7_CONDITIONAL_ON_AUTHORITATIVE_ARCHIVE",
+      "supported_current_path_safe": true,
+      "tests": "T15D legacy-unavailable and retired-route controls",
+      "unavailable_evidence": "Legacy raw uploads lack per-value provider/revision/time/fiscal/currency facts"
+    },
+    {
+      "available_evidence": "Current projections are explicit and cannot claim original reconstruction",
+      "finding_id": "CORE-009",
+      "future_phase": "Phase 7 original-context reconstruction",
+      "residual": "Original historical projection context was not retained on legacy rows",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Phase 3 projection/readiness suites",
+      "unavailable_evidence": "Original historical projection context was not retained on legacy rows"
+    },
+    {
+      "available_evidence": "New alerts pin effective configuration; legacy rows are LEGACY_UNKNOWN",
+      "finding_id": "CERI-008",
+      "future_phase": "Phase 7 historical rule reconstruction",
+      "residual": "Legacy alerts do not retain original immutable rule/config identity",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "new-rule pin; legacy-unknown; no-current-substitution",
+      "unavailable_evidence": "Legacy alerts do not retain original immutable rule/config identity"
+    },
+    {
+      "available_evidence": "Certified referenced sources are deletion protected; legacy invalidation is explicit",
+      "finding_id": "CERI-010",
+      "future_phase": "Phase 7/external archive recovery",
+      "residual": "Pre-certification purges have no recoverable sealed pre-purge archive",
+      "routing": "PHASE_7_CONDITIONAL_ON_AUTHORITATIVE_ARCHIVE",
+      "supported_current_path_safe": true,
+      "tests": "protected-source and hash-stability attacks",
+      "unavailable_evidence": "Pre-certification purges have no recoverable sealed pre-purge archive"
+    },
+    {
+      "available_evidence": "Raw date is no longer consumed by certified current CERI risk; explicit calculation business time remains",
+      "finding_id": "RANK-007",
+      "future_phase": "Phase 7 only if source archives exist",
+      "residual": "Legacy upload earnings schedules lack provider/publication/retrieval/revision facts",
+      "routing": "PHASE_7_CONDITIONAL_ON_AUTHORITATIVE_ARCHIVE",
+      "supported_current_path_safe": true,
+      "tests": "raw-date rejection; source-backed upcoming authority tests",
+      "unavailable_evidence": "Legacy upload earnings schedules lack provider/publication/retrieval/revision facts"
+    },
+    {
+      "available_evidence": "Current writes require explicit temporal/evidence authority",
+      "finding_id": "SETUP-004",
+      "future_phase": "Phase 7 original-context reconstruction",
+      "residual": "Legacy Setup state lacks original decision context",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Setup temporal authority suites",
+      "unavailable_evidence": "Legacy Setup state lacks original decision context"
+    },
+    {
+      "available_evidence": "Operation is labeled retrospective/current-rules and cannot masquerade as original",
+      "finding_id": "SETUP-006",
+      "future_phase": "Phase 7 original-context reconstruction",
+      "residual": "Retrospective operation can use current rules but cannot claim an original replay",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Setup replay classification tests",
+      "unavailable_evidence": "Retrospective operation can use current rules but cannot claim an original replay"
+    },
+    {
+      "available_evidence": "Current-rule authority is exact; legacy reconstruction is refused",
+      "finding_id": "SETUP-007",
+      "future_phase": "Phase 7 historical rule reconstruction",
+      "residual": "Legacy alerts lack original rule/cooldown/config identity",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Setup alert authority tests",
+      "unavailable_evidence": "Legacy alerts lack original rule/cooldown/config identity"
+    },
+    {
+      "available_evidence": "Current maintenance authority is explicit and separated from original replay",
+      "finding_id": "SETUP-010",
+      "future_phase": "Phase 7 original-context reconstruction",
+      "residual": "Legacy maintenance output lacks original context",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Setup maintenance authority tests",
+      "unavailable_evidence": "Legacy maintenance output lacks original context"
+    },
+    {
+      "available_evidence": "Exact revision IDs are retained when present; otherwise REVISION_IDENTITY_UNAVAILABLE is persisted and current truth is never substituted",
+      "finding_id": "WIN-006",
+      "future_phase": "Explicit-unavailable boundary; optional Phase 7 archive recovery",
+      "residual": "Some birth PriceBars predate PriceBarRevision primary-key capture",
+      "routing": "EXPLICIT_UNAVAILABLE_BOUNDARY",
+      "supported_current_path_safe": true,
+      "tests": "T15C no-fabricated-revision attacks",
+      "unavailable_evidence": "Some birth PriceBars predate PriceBarRevision primary-key capture"
+    },
+    {
+      "available_evidence": "Scope/refresh/acquisition fingerprints remain exact for supported current paths",
+      "finding_id": "XINT-007",
+      "future_phase": "Phase 7 historical reconstruction",
+      "residual": "Legacy rule/purge identities limit fingerprint completeness",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "T15B retry/resume/reclaim suites",
+      "unavailable_evidence": "Legacy rule/purge identities limit fingerprint completeness"
+    },
+    {
+      "available_evidence": "All supported repository app/CLI/scheduler mutations remain fenced",
+      "finding_id": "XINT-010",
+      "future_phase": "External operational governance",
+      "residual": "Privileged external SQL/provider-contract governance is outside repository enforcement",
+      "routing": "EXTERNAL_OPERATIONAL_GOVERNANCE",
+      "supported_current_path_safe": true,
+      "tests": "Phase 5 mutation authority and negative-entrypoint tests",
+      "unavailable_evidence": "Privileged external SQL/provider-contract governance is outside repository enforcement"
+    }
+  ],
+  "hard_boundary": "Never reconstruct original context from current configuration, current source rows, current provider revisions, or today's latest state unless independently proven to be the original historical authority.",
+  "primary_phase7_targets": [
+    "CORE-009",
+    "CERI-008",
+    "SETUP-004",
+    "SETUP-006",
+    "SETUP-007",
+    "SETUP-010",
+    "XINT-007"
+  ],
+  "schema_version": "t15e-phase7-exact-handoff-v2",
+  "source_head": "c562f4bd6e723c8256b3d4a54c076e7f24fa786c",
+  "source_task": "T15E_RERUN",
+  "status": "READY_FOR_PHASE_7"
+}

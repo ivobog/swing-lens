@@ -1,0 +1,706 @@
+{
+  "accounted_finding_count": 25,
+  "active_current_partial_defect_count": 0,
+  "artifact_hashes": {
+    "T15A_phase6_handoff.json": "54e4e702fc9eddc1b38a4b59ada60e4691fbe9a7dcb687382cdf5894b1bf5702",
+    "T15A_scope_operation_inventory.json": "caddc1a79b84bd1fd81ab131fdfe062188fe94d9ae88c45757c261f38cd2c5e4",
+    "T15A_scope_refresh_authority_matrix.csv": "d5438bcd3dfa3d432ee82a67ef4933c49cccac0bfbc35458996de386f8c0e92a",
+    "T15A_scope_refresh_identity_foundation.md": "a53c563661e4883f77bd190fd97689e73705894eb37f9ead85338fdc6a8525e0",
+    "T15A_validation_summary.json": "9f04b02764210bbb09bcdfa8582584e5827904faf4af8152fd193f73bd393080",
+    "T15B_operation_reconciliation.csv": "5c38226e04548816611de05b4347c823aabef186b07460bd145f0485b485cf78",
+    "T15B_pipeline_ceri_scope_refresh_adoption.md": "dedd42460a41f5647f2a080e36e6415d0ba8d85fe6a5c7af8ff7290cff524a08",
+    "T15B_pipeline_ceri_scope_refresh_certification.json": "a41b3632ccbb90cfb5126b20edb6a5b7ccc9f64956c40f9ed7b05a3003cf86f3",
+    "T15C_T15D_exact_handoff.json": "23d413a0bb3513d8058c318b38e79a960394e28b636f62259337f0f954e7857b",
+    "T15C_operation_reconciliation.csv": "49ac42e7a3c69920bab085d6cfde1a0b4928b8785474003cc7278cfaec6b699c",
+    "T15C_winner_scope_truth_adoption.md": "7ad3aeaebe22cee10cc77c7bb64868c7d7037ff217417c0ccc35fe84d6ddf4aa",
+    "T15C_winner_scope_truth_certification.json": "b756ba75fc7e333be0b754e866db59721f8bbe194b7dc921fd015505b67062ec",
+    "T15D_T15E_exact_handoff.json": "bf30c9529313857c28c2c508bde97524594089f5147a9a676219c576eb4bf549",
+    "T15D_algorithm_delta_certification.json": "ad867538e448c2230d854230b616eba8604121de0889a806049e9e75ac0145de",
+    "T15D_finding_remediation_matrix.csv": "e9a524203a1c8df72136a9a824a2a9b28cec31e0901145ff948bb252fc3d696e",
+    "T15D_phase6_handoff_reconciliation.json": "65c56545408219241b55928ee0a61ddab7533539ba768c382020f5bb2aedaa2c",
+    "T15D_phase6_partial_classification.csv": "bade2c3fdb6a06fdfa97a770f0c7d912a5ada1bdafe4cf9818f4d673c6dd503a",
+    "T15D_provenance_algorithm_certification.json": "a14ef17764545e8176988b976d6ed876bb6dc37414c8cc63961167cc7af7e841",
+    "T15D_provenance_algorithm_remediation.md": "0c8046b29c72ea8cb3e702665d4df3d45e24d8c290fdfeae38f4e885c35c0c33"
+  },
+  "baselines": {
+    "T15A": "8188f1ac3e7e3a8f93ff75c2cf10019d9c5935f8",
+    "T15B": "0c8e5664c52ff19d80d30f33c64ade8772c955a8",
+    "T15C": "65284b3f1cc4321618bff439d53bf7f12a3d409f",
+    "T15D": "c562f4bd6e723c8256b3d4a54c076e7f24fa786c",
+    "original_audit": "3a9d47063be996908b7d5d1cc5769e0bbd033546",
+    "phase5": "f587b63e4e35e81486e53ffa0f13b9cd7369f963"
+  },
+  "ceri_query_bounds": {
+    "capture": {
+      "1": 29,
+      "50": 29
+    },
+    "earnings_provenance": {
+      "1": 1,
+      "50": 1
+    },
+    "feature_rebuild": {
+      "1": 13,
+      "50": 13
+    },
+    "material": {
+      "1": 29,
+      "50": 29
+    },
+    "pipeline": {
+      "1": 70,
+      "50": 70
+    },
+    "status": "PASS_FIXED_BOUNDS_NO_N_PLUS_ONE"
+  },
+  "currency_provenance_status": "PARTIAL_EXPLICIT_LEGACY_UNAVAILABLE_NO_FABRICATED_FX",
+  "domain_status": {
+    "CERI": "PASS",
+    "Core": "PASS_WITH_EXPLICIT_LEGACY_PARTIALS",
+    "Pipeline": "PASS",
+    "Ranking": "PASS_WITH_RANK_007_LEGACY_PARTIAL",
+    "Winner": "PASS_WITH_WIN_006_EXPLICIT_UNAVAILABLE_PARTIAL"
+  },
+  "expected_algorithm_deltas": [
+    {
+      "after": {
+        "basis": "provider_priority_then_quality_then_freshness",
+        "candidate_source_ids": [
+          1,
+          2
+        ],
+        "selected_source_record_id": 2,
+        "selected_value": "10"
+      },
+      "before": {
+        "basis": "row/effective-time order",
+        "selected_source_record_id": 1,
+        "selected_value": "12"
+      },
+      "expected_change": true,
+      "finding_id": "CERI-001",
+      "fixture": "competing EPS observations under provider-priority inversion",
+      "inputs": {
+        "candidates": [
+          {
+            "consensus": "12",
+            "provider": "primary",
+            "source_record_id": 1
+          },
+          {
+            "consensus": "10",
+            "provider": "manual",
+            "source_record_id": 2
+          }
+        ],
+        "policy": "manual > primary"
+      },
+      "reason": "The configured provider policy now executes for one canonical business observation and its complete candidate set is retained.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "single-provider observations",
+        "post-cutoff observations remain ineligible",
+        "old selected evidence objects remain unchanged"
+      ]
+    },
+    {
+      "after": {
+        "price_basis": "ADJUSTED_LAST",
+        "volume_basis": "TRADES",
+        "volume_ratio": 2.0
+      },
+      "before": {
+        "price_basis": "query-order dependent",
+        "volume_ratio_possible": 1.0
+      },
+      "expected_change": true,
+      "finding_id": "CERI-002",
+      "fixture": "duplicate adjusted and TRADES daily bars supplied in opposite orders",
+      "inputs": {
+        "adjusted_closes": [
+          50,
+          55
+        ],
+        "adjusted_volumes": [
+          999,
+          999
+        ],
+        "trades_closes": [
+          100,
+          110
+        ],
+        "trades_volumes": [
+          10,
+          20
+        ]
+      },
+      "reason": "Returns use a complete adjusted series while volume always uses the unadjusted TRADES series; source manifests include only consumed bars.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "10 percent price return is unchanged for proportionally adjusted fixtures",
+        "TRADES-only data falls back to TRADES",
+        "reversing input order is identical"
+      ]
+    },
+    {
+      "after": {
+        "confidence": "low",
+        "mixed_session_warning": true,
+        "snapshot_as_of_date": "2026-08-03"
+      },
+      "before": {
+        "mixed_session_warning": false,
+        "snapshot_as_of_date": "2026-08-04"
+      },
+      "expected_change": true,
+      "finding_id": "CORE-003",
+      "fixture": "required benchmark inputs on 2026-08-04 and 2026-08-03",
+      "inputs": {
+        "primary_session": "2026-08-04",
+        "risk_proxy_session": "2026-08-03"
+      },
+      "reason": "The snapshot can claim no date later than its oldest required benchmark and explicitly degrades mixed-session evidence.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "aligned-session snapshot date",
+        "missing optional input handling",
+        "regime scoring for aligned inputs"
+      ]
+    },
+    {
+      "after": {
+        "coverage_status": "incomplete_sessions",
+        "insufficient_history": true,
+        "missing_sessions": [
+          "2026-08-05"
+        ]
+      },
+      "before": {
+        "coverage_status": "ready",
+        "insufficient_history": false
+      },
+      "expected_change": true,
+      "finding_id": "CORE-004",
+      "fixture": "four cached rows spanning 2026-08-03 through 2026-08-07 with 2026-08-05 absent",
+      "inputs": {
+        "present_sessions": [
+          "2026-08-03",
+          "2026-08-04",
+          "2026-08-06",
+          "2026-08-07"
+        ],
+        "required_rows": 4
+      },
+      "reason": "Count and endpoints no longer conceal an internal US-market session gap.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "weekends and exchange holidays are not gaps",
+        "complete history remains ready",
+        "short history remains insufficient"
+      ]
+    },
+    {
+      "after": {
+        "profile_score": 8.0,
+        "regime_contract": "NON_AUTHORITATIVE_FOR_RANKING"
+      },
+      "before": {
+        "profile_score": 8.0,
+        "regime_contract": null
+      },
+      "expected_change": false,
+      "finding_id": "RANK-008",
+      "fixture": "valid Ranking profile decision with sibling command-center Regime and same-run Sector artifacts",
+      "inputs": {
+        "ranking_sources": [
+          "fundamental",
+          "technical",
+          "optional_ibmi_liquidity"
+        ]
+      },
+      "reason": "The verified negative dependency is now explicit evidence; no invented Regime or same-run Sector input changes the number.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "profile score",
+        "rank order",
+        "CERI-to-Ranking remains absent",
+        "same-run Sector-to-Ranking remains absent"
+      ]
+    },
+    {
+      "after": {
+        "cap_ledger": [
+          "CRITICAL_PROVENANCE_CAP_LOW:missing_observation_timestamp"
+        ],
+        "label": "Low",
+        "score": 10.0
+      },
+      "before": {
+        "cap_ledger": [],
+        "label": "High",
+        "score": 10.0
+      },
+      "expected_change": true,
+      "finding_id": "CERI-005",
+      "fixture": "otherwise High confidence with a critical missing-observation timestamp",
+      "inputs": {
+        "configured_cap": "Low",
+        "critical_warning": "missing_observation_timestamp",
+        "score": 10.0
+      },
+      "reason": "The declared policy is a confidence-label ceiling; it does not apply a second numerical penalty.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "clean strong provenance remains High",
+        "score and component ledger are unchanged",
+        "previous ConfidenceResult remains immutable"
+      ]
+    },
+    {
+      "after": {
+        "consensus_selected": false,
+        "reason": "pre_report_consensus_unavailable"
+      },
+      "before": {
+        "consensus_selected": true
+      },
+      "expected_change": true,
+      "finding_id": "CERI-006",
+      "fixture": "estimate provider-observed at 09:00, retrieved at 12:00, report at 10:00",
+      "inputs": {
+        "provider_observed_at": "2026-09-21T09:00:00Z",
+        "report_at": "2026-09-21T10:00:00Z",
+        "retrieved_at": "2026-09-21T12:00:00Z"
+      },
+      "reason": "Provider time cannot substitute for SwingLens possession time.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "the same estimate is eligible for a 13:00 report",
+        "provider report-time consensus path",
+        "legacy rows without possession remain unavailable"
+      ]
+    },
+    {
+      "after": {
+        "event_risk_staleness_penalty": 1.0
+      },
+      "before": {
+        "event_risk_staleness_penalty": 0.0
+      },
+      "expected_change": true,
+      "finding_id": "CERI-007",
+      "fixture": "estimate provider feed age nine days with seven-day stale threshold",
+      "inputs": {
+        "estimate_feed_age_days": 9,
+        "max_stale_days": 7
+      },
+      "reason": "Confidence and event risk now consume the same feed-freshness result.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "fresh feed risk",
+        "existing feature stale warning",
+        "freshness confidence ledger"
+      ]
+    },
+    {
+      "after": {
+        "ceri_evidence_schema_revision": "ceri-decision-evidence-v1",
+        "database_schema_revision": "0083_winner_scope_truth",
+        "schema_revision_match": true
+      },
+      "before": {
+        "schema_revision": "0050_sec_processor_promotion"
+      },
+      "expected_change": false,
+      "finding_id": "CERI-009",
+      "fixture": "deployment identity at repository/database head 0083 with evidence schema v1",
+      "inputs": {
+        "database_head": "0083_winner_scope_truth",
+        "evidence_schema": "ceri-decision-evidence-v1"
+      },
+      "reason": "This corrects deployment metadata and separates concepts without changing financial output or reinterpreting historical evidence.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "historical deployment identity dictionaries",
+        "CERI score",
+        "evidence schema version"
+      ]
+    },
+    {
+      "after": {
+        "provider": "manual",
+        "selected_date": "2026-10-12",
+        "selection_policy": "provider_priority_then_latest_possession_then_next_session_then_source_id"
+      },
+      "before": {
+        "provider": null,
+        "selected_date": "2026-10-08"
+      },
+      "expected_change": true,
+      "finding_id": "CERI-011",
+      "fixture": "raw upload says D1 while eligible manual/eodhd source candidates supply D2/D3",
+      "inputs": {
+        "eodhd_date": "2026-10-10",
+        "manual_date": "2026-10-12",
+        "raw_upload_date": "2026-10-08"
+      },
+      "reason": "Certified event risk consumes only the exact source-backed value eligible at the cutoff.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "old immutable evidence retains D1/source identity",
+        "post-cutoff source is unavailable",
+        "no eligible schedule retains earnings_date_unavailable"
+      ]
+    },
+    {
+      "after": {
+        "allowed_setups": [],
+        "position_size_multiplier": 0.25,
+        "regime": "Unknown",
+        "risk_state": "Gray"
+      },
+      "before": {
+        "bullish_setups_allowed": true,
+        "position_size_multiplier": 1.0,
+        "risk_state": "Gray"
+      },
+      "expected_change": true,
+      "finding_id": "CORE-002",
+      "fixture": "Bull Trend result under severe market-data staleness",
+      "inputs": {
+        "regime": "Bull Trend",
+        "severely_stale": true
+      },
+      "reason": "Severe staleness now applies the complete fail-closed Unknown policy rather than display colour alone.",
+      "status": "PASS",
+      "unaffected_controls": [
+        "non-severe Bull Trend policy",
+        "ordinary Unknown policy",
+        "staleness diagnostics"
+      ]
+    }
+  ],
+  "final_verdict": "PASS_PHASE6_OVERALL_CERTIFIED",
+  "finding_summary": {
+    "CLOSED": 58,
+    "OPEN": 0,
+    "PARTIAL": 12,
+    "TOTAL": 70,
+    "open_ids": [],
+    "partial_ids": [
+      "CORE-005",
+      "CORE-009",
+      "CERI-008",
+      "CERI-010",
+      "RANK-007",
+      "SETUP-004",
+      "SETUP-006",
+      "SETUP-007",
+      "SETUP-010",
+      "WIN-006",
+      "XINT-007",
+      "XINT-010"
+    ]
+  },
+  "handoff_conservation_status": "PASS_INV_HANDOFF_001_ENFORCED",
+  "hash_method": "canonical-path-null-file-sha256-newline-v1",
+  "invariants": {
+    "INV-HANDOFF-001": "ENFORCED",
+    "INV-REFRESH-001": "ENFORCED_REPOSITORY_WIDE",
+    "INV-REVISION-001": "PARTIAL_EXACT_OR_EXPLICIT_UNAVAILABLE_LEGACY_BOUNDARY",
+    "INV-SCOPE-001": "ENFORCED_REPOSITORY_WIDE",
+    "XINT-012": "CLOSED"
+  },
+  "lost_finding_count": 0,
+  "lost_finding_ids": [],
+  "migration_head": "0083_winner_scope_truth",
+  "migration_required": false,
+  "negative_dependencies": {
+    "CERI_TO_RANKING": "ABSENT",
+    "CERI_TO_SETUP": "ABSENT",
+    "CERI_TO_WINNER": "ABSENT",
+    "IBMI_TO_WINNER_DIRECT": "ABSENT",
+    "LIFECYCLE_TO_WINNER": "ABSENT",
+    "SECTOR_TO_SAME_RUN_RANKING": "ABSENT",
+    "SETUP_TO_WINNER": "ABSENT"
+  },
+  "phase5_regression_status": {
+    "INV-ENTRY-001": "ENFORCED",
+    "XINT-006": "CLOSED",
+    "callers": "252/252",
+    "confirmed_application_bypass": 0,
+    "operation_families": "220/220",
+    "partial_authority": 0,
+    "potential_bypass": 0,
+    "status": "PASS",
+    "unknown": 0
+  },
+  "phase6_assigned_finding_count": 25,
+  "phase6_certified": true,
+  "phase7_handoff": {
+    "finding_count": 12,
+    "never_infer_from_current_state": true,
+    "path": "docs/remediation/calculation-lineage/T15E_phase7_exact_handoff.json",
+    "status": "READY_FOR_PHASE_7"
+  },
+  "previous_failed_run": {
+    "forensic_artifact_hashes": {
+      "T15E_finding_status_after_phase6.csv": "56d2989e1cc3339ab1a8600a77883601cf5248d0841746c86a71fb6c7e44ee3e",
+      "T15E_phase6_integration_certification.json": "a81223e102eee0930fa37bf6c56d14cd1a2467fd55feaf5cf3af339d447d28e1",
+      "T15E_phase6_integration_certification.md": "125804596a1264caab40f242f63abb70515c25e5f7fb6d08fea3c37caf45e9ca",
+      "T15E_phase7_exact_handoff.json": "68d8b80e2ed270cfbc5188c929025e91202bf6f09cd3b9c128b34568d88932b6"
+    },
+    "reason": "CERI-005/006/009/011 were lost from downstream handoffs and still live",
+    "source_sha256": "7ec47a7f67121600b8ea2a49e714dd5ceb25402a65f25b5a1911c4670b3487a1",
+    "superseded_not_erased": true,
+    "verdict": "FAIL_PHASE6_NOT_OVERALL_CERTIFIED"
+  },
+  "production_runtime_mutations": "NONE",
+  "provider_provenance_status": "PASS_SUPPORTED_CURRENT_PATHS",
+  "recovered_ceri_findings": {
+    "CERI-005": "CLOSED",
+    "CERI-006": "CLOSED",
+    "CERI-009": "CLOSED",
+    "CERI-011": "CLOSED"
+  },
+  "remaining_partials": [
+    {
+      "available_evidence": "Unavailable dimensions remain explicit; no synthetic FX or source revision",
+      "finding_id": "CORE-005",
+      "future_phase": "Phase 7 only if authoritative archives exist",
+      "residual": "Legacy raw uploads lack per-value provider/revision/time/fiscal/currency facts",
+      "routing": "PHASE_7_CONDITIONAL_ON_AUTHORITATIVE_ARCHIVE",
+      "supported_current_path_safe": true,
+      "tests": "T15D legacy-unavailable and retired-route controls",
+      "unavailable_evidence": "Legacy raw uploads lack per-value provider/revision/time/fiscal/currency facts"
+    },
+    {
+      "available_evidence": "Current projections are explicit and cannot claim original reconstruction",
+      "finding_id": "CORE-009",
+      "future_phase": "Phase 7 original-context reconstruction",
+      "residual": "Original historical projection context was not retained on legacy rows",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Phase 3 projection/readiness suites",
+      "unavailable_evidence": "Original historical projection context was not retained on legacy rows"
+    },
+    {
+      "available_evidence": "New alerts pin effective configuration; legacy rows are LEGACY_UNKNOWN",
+      "finding_id": "CERI-008",
+      "future_phase": "Phase 7 historical rule reconstruction",
+      "residual": "Legacy alerts do not retain original immutable rule/config identity",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "new-rule pin; legacy-unknown; no-current-substitution",
+      "unavailable_evidence": "Legacy alerts do not retain original immutable rule/config identity"
+    },
+    {
+      "available_evidence": "Certified referenced sources are deletion protected; legacy invalidation is explicit",
+      "finding_id": "CERI-010",
+      "future_phase": "Phase 7/external archive recovery",
+      "residual": "Pre-certification purges have no recoverable sealed pre-purge archive",
+      "routing": "PHASE_7_CONDITIONAL_ON_AUTHORITATIVE_ARCHIVE",
+      "supported_current_path_safe": true,
+      "tests": "protected-source and hash-stability attacks",
+      "unavailable_evidence": "Pre-certification purges have no recoverable sealed pre-purge archive"
+    },
+    {
+      "available_evidence": "Raw date is no longer consumed by certified current CERI risk; explicit calculation business time remains",
+      "finding_id": "RANK-007",
+      "future_phase": "Phase 7 only if source archives exist",
+      "residual": "Legacy upload earnings schedules lack provider/publication/retrieval/revision facts",
+      "routing": "PHASE_7_CONDITIONAL_ON_AUTHORITATIVE_ARCHIVE",
+      "supported_current_path_safe": true,
+      "tests": "raw-date rejection; source-backed upcoming authority tests",
+      "unavailable_evidence": "Legacy upload earnings schedules lack provider/publication/retrieval/revision facts"
+    },
+    {
+      "available_evidence": "Current writes require explicit temporal/evidence authority",
+      "finding_id": "SETUP-004",
+      "future_phase": "Phase 7 original-context reconstruction",
+      "residual": "Legacy Setup state lacks original decision context",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Setup temporal authority suites",
+      "unavailable_evidence": "Legacy Setup state lacks original decision context"
+    },
+    {
+      "available_evidence": "Operation is labeled retrospective/current-rules and cannot masquerade as original",
+      "finding_id": "SETUP-006",
+      "future_phase": "Phase 7 original-context reconstruction",
+      "residual": "Retrospective operation can use current rules but cannot claim an original replay",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Setup replay classification tests",
+      "unavailable_evidence": "Retrospective operation can use current rules but cannot claim an original replay"
+    },
+    {
+      "available_evidence": "Current-rule authority is exact; legacy reconstruction is refused",
+      "finding_id": "SETUP-007",
+      "future_phase": "Phase 7 historical rule reconstruction",
+      "residual": "Legacy alerts lack original rule/cooldown/config identity",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Setup alert authority tests",
+      "unavailable_evidence": "Legacy alerts lack original rule/cooldown/config identity"
+    },
+    {
+      "available_evidence": "Current maintenance authority is explicit and separated from original replay",
+      "finding_id": "SETUP-010",
+      "future_phase": "Phase 7 original-context reconstruction",
+      "residual": "Legacy maintenance output lacks original context",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "Setup maintenance authority tests",
+      "unavailable_evidence": "Legacy maintenance output lacks original context"
+    },
+    {
+      "available_evidence": "Exact revision IDs are retained when present; otherwise REVISION_IDENTITY_UNAVAILABLE is persisted and current truth is never substituted",
+      "finding_id": "WIN-006",
+      "future_phase": "Explicit-unavailable boundary; optional Phase 7 archive recovery",
+      "residual": "Some birth PriceBars predate PriceBarRevision primary-key capture",
+      "routing": "EXPLICIT_UNAVAILABLE_BOUNDARY",
+      "supported_current_path_safe": true,
+      "tests": "T15C no-fabricated-revision attacks",
+      "unavailable_evidence": "Some birth PriceBars predate PriceBarRevision primary-key capture"
+    },
+    {
+      "available_evidence": "Scope/refresh/acquisition fingerprints remain exact for supported current paths",
+      "finding_id": "XINT-007",
+      "future_phase": "Phase 7 historical reconstruction",
+      "residual": "Legacy rule/purge identities limit fingerprint completeness",
+      "routing": "PHASE_7",
+      "supported_current_path_safe": true,
+      "tests": "T15B retry/resume/reclaim suites",
+      "unavailable_evidence": "Legacy rule/purge identities limit fingerprint completeness"
+    },
+    {
+      "available_evidence": "All supported repository app/CLI/scheduler mutations remain fenced",
+      "finding_id": "XINT-010",
+      "future_phase": "External operational governance",
+      "residual": "Privileged external SQL/provider-contract governance is outside repository enforcement",
+      "routing": "EXTERNAL_OPERATIONAL_GOVERNANCE",
+      "supported_current_path_safe": true,
+      "tests": "Phase 5 mutation authority and negative-entrypoint tests",
+      "unavailable_evidence": "Privileged external SQL/provider-contract governance is outside repository enforcement"
+    }
+  ],
+  "required_finding_statuses": {
+    "CERI-001": "CLOSED",
+    "CERI-002": "CLOSED",
+    "CERI-003": "CLOSED",
+    "CERI-004": "CLOSED",
+    "CERI-005": "CLOSED",
+    "CERI-006": "CLOSED",
+    "CERI-007": "CLOSED",
+    "CERI-008": "PARTIAL",
+    "CERI-009": "CLOSED",
+    "CERI-010": "PARTIAL",
+    "CERI-011": "CLOSED",
+    "CERI-012": "CLOSED",
+    "CORE-001": "CLOSED",
+    "CORE-002": "CLOSED",
+    "CORE-003": "CLOSED",
+    "CORE-004": "CLOSED",
+    "CORE-005": "PARTIAL",
+    "CORE-006": "CLOSED",
+    "CORE-007": "CLOSED",
+    "CORE-008": "CLOSED",
+    "CORE-009": "PARTIAL",
+    "PIPE-001": "CLOSED",
+    "PIPE-002": "CLOSED",
+    "PIPE-003": "CLOSED",
+    "PIPE-004": "CLOSED",
+    "PIPE-005": "CLOSED",
+    "PIPE-006": "CLOSED",
+    "PIPE-007": "CLOSED",
+    "PIPE-008": "CLOSED",
+    "PIPE-009": "CLOSED",
+    "RANK-001": "CLOSED",
+    "RANK-002": "CLOSED",
+    "RANK-003": "CLOSED",
+    "RANK-004": "CLOSED",
+    "RANK-005": "CLOSED",
+    "RANK-006": "CLOSED",
+    "RANK-007": "PARTIAL",
+    "RANK-008": "CLOSED",
+    "SETUP-001": "CLOSED",
+    "SETUP-002": "CLOSED",
+    "SETUP-003": "CLOSED",
+    "SETUP-004": "PARTIAL",
+    "SETUP-005": "CLOSED",
+    "SETUP-006": "PARTIAL",
+    "SETUP-007": "PARTIAL",
+    "SETUP-008": "CLOSED",
+    "SETUP-009": "CLOSED",
+    "SETUP-010": "PARTIAL",
+    "WIN-001": "CLOSED",
+    "WIN-002": "CLOSED",
+    "WIN-003": "CLOSED",
+    "WIN-004": "CLOSED",
+    "WIN-005": "CLOSED",
+    "WIN-006": "PARTIAL",
+    "WIN-007": "CLOSED",
+    "WIN-008": "CLOSED",
+    "WIN-009": "CLOSED",
+    "WIN-010": "CLOSED",
+    "XINT-001": "CLOSED",
+    "XINT-002": "CLOSED",
+    "XINT-003": "CLOSED",
+    "XINT-004": "CLOSED",
+    "XINT-005": "CLOSED",
+    "XINT-006": "CLOSED",
+    "XINT-007": "PARTIAL",
+    "XINT-008": "CLOSED",
+    "XINT-009": "CLOSED",
+    "XINT-010": "PARTIAL",
+    "XINT-011": "CLOSED",
+    "XINT-012": "CLOSED"
+  },
+  "run_identity": "T15E-RERUN-CORRECTED-T15D-2026-09-22",
+  "schema_version": "t15e-phase6-integration-certification-v2",
+  "source_freeze": {
+    "branch": "codex/t15e-phase6-integration-certification",
+    "hash_method": "canonical-path-null-file-sha256-newline-v1",
+    "head": "c562f4bd6e723c8256b3d4a54c076e7f24fa786c",
+    "implementation_changes_after_freeze": 0,
+    "migration_head": "0083_winner_scope_truth",
+    "repository": "C:/Users/Ivica/Documents/SwingLens",
+    "source_file_count": 668,
+    "source_sha256": "9b51fd0971ea59fbe95fa8b1b0ba8f2e56a193a0ad961c98f7faebe820b7adf8",
+    "test_changes_after_freeze": 0,
+    "test_file_count": 450,
+    "test_source_sha256": "c506352c2fcc4a75108e7a659dbfb48bd0218da099103d0e6b597c957c2313cd"
+  },
+  "source_sha256": "9b51fd0971ea59fbe95fa8b1b0ba8f2e56a193a0ad961c98f7faebe820b7adf8",
+  "temporal_provenance_status": "PASS",
+  "test_evidence": {
+    "browser_e2e": {
+      "status": "PASS",
+      "summary": "28 passed, 38 warnings in 633.75s; full tests/e2e suite including Pipeline, CERI, Winner, and Windows recovery paths"
+    },
+    "focused": {
+      "status": "PASS",
+      "summary": "767 passed, 21 warnings in 54.25s; CERI plus T15A-T15D and Phase 1-4 certification coverage"
+    },
+    "full_repository": {
+      "status": "PASS",
+      "summary": "3927 passed, 2 established skips, 38 deselected, 1672 warnings in 4678.57s; exact non-E2E/non-external repository scope on a freshly migrated disposable PostgreSQL 18.6 database. Separately excluded populated-restore opt-in: 1 established skip because local pg_dump is unavailable. Golden pipeline/ranking suites: 3 passed, 1 warning in 0.91s"
+    },
+    "performance": {
+      "status": "PASS",
+      "summary": "8 passed, 882 warnings in 583.98s; capture 29/29, pipeline 70/70, material 29/29, score-change bounded 1/50, earnings provenance 1/1, feature rebuild 13/13"
+    },
+    "postgresql": {
+      "status": "PASS",
+      "summary": "52 passed, 117 warnings in 574.35s against disposable PostgreSQL 18.6; migrations, drift, downgrade/re-upgrade, provenance, temporal, scope/refresh, and source-bundle coverage"
+    },
+    "run_identity": "T15E-RERUN-CORRECTED-T15D-2026-09-22",
+    "static_inventory": {
+      "status": "PASS",
+      "summary": "ruff check, changed-file format check, compileall, secret scan, route inventory, handoff conservation, sole Alembic head 0083, and git diff check passed; repository-wide format check retains the pre-existing 215-file advisory baseline"
+    }
+  },
+  "test_source_sha256": "c506352c2fcc4a75108e7a659dbfb48bd0218da099103d0e6b597c957c2313cd",
+  "unexpected_algorithm_deltas": []
+}

@@ -76,7 +76,14 @@ def test_t15e_handoff_covers_every_t15a_assigned_finding() -> None:
 
     assert {row["finding_id"] for row in rows} == assigned
     assert all(
-        {"finding_id", "status", "evidence", "residual", "current_supported_path_safe", "next_phase"}
+        {
+            "finding_id",
+            "status",
+            "evidence",
+            "residual",
+            "current_supported_path_safe",
+            "next_phase",
+        }
         <= set(row)
         for row in rows
     )
@@ -116,6 +123,34 @@ def test_phase6_handoff_conservation_and_partial_classification() -> None:
     assert not [
         row
         for row in partials
-        if row["current_status"] == "PARTIAL"
-        and row["supported-current path affected?"] == "YES"
+        if row["current_status"] == "PARTIAL" and row["supported-current path affected?"] == "YES"
     ]
+
+
+def test_phase6_handoff_conservation_rejects_a_missing_assigned_finding(
+    monkeypatch,
+) -> None:
+    import copy
+
+    from scripts.docs import check_phase6_handoff_conservation as conservation
+
+    load_json = conservation._json
+
+    def without_one_assigned_finding(name: str):
+        payload = copy.deepcopy(load_json(name))
+        if name == "T15D_T15E_exact_handoff.json":
+            payload["findings"] = [
+                row for row in payload["findings"] if row["finding_id"] != "CERI-005"
+            ]
+        return payload
+
+    with monkeypatch.context() as context:
+        context.setattr(conservation, "_json", without_one_assigned_finding)
+        missing = conservation.evaluate_handoff_conservation()
+
+    restored = conservation.evaluate_handoff_conservation()
+    assert missing["conservation_status"] == "FAIL"
+    assert missing["lost_finding_ids"] == ["CERI-005"]
+    assert missing["unaccounted_assigned_findings"] == ["CERI-005"]
+    assert restored["conservation_status"] == "PASS"
+    assert restored["lost_finding_ids"] == []

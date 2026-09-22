@@ -1,0 +1,71 @@
+finding_id,severity,domain,status,closed_or_last_addressed_by,evidence,remaining_scope,next_phase
+PIPE-001,P1,Pipeline,CLOSED,T15B,T15B parent/child completion accounting and retry tests,,None
+PIPE-002,P1,Pipeline,CLOSED,Phase 4,Phase-4 configuration authority certificate and T14D exact handoff,,None
+PIPE-003,P2,Pipeline,CLOSED,T14D,T14D caller certificate; reduced and standalone selectors fail before mutation,,None
+PIPE-004,P2,Pipeline,CLOSED,T15B,T15B frozen scope and retained remainder certification,,None
+PIPE-005,P2,Pipeline,CLOSED,T15B,T15B acquisition-plan and distinct refresh certification,,None
+PIPE-006,P2,Pipeline,CLOSED,T14D,T14D cross-phase identity/evidence/configuration checkpoint tests,,None
+PIPE-007,P2,Pipeline,CLOSED,T14D,T14D exact caller/family certificate; mutation-capable latest/current fallback scan,,None
+PIPE-008,P2,Pipeline,CLOSED,T14E,252 callers converge on 220 certified operation families and certified writers,,None
+PIPE-009,P2,Pipeline,CLOSED,Phase 4,Phase-4 effective-configuration certification retained on frozen source,,None
+CORE-001,P1,Core,CLOSED,T14B,T14B core/contextual writer certification,,None
+CORE-002,P1,Core,CLOSED,T15D,Severe staleness now applies complete Unknown policy permissions and sizing,,None; closed in T15D continuation
+CORE-003,P2,Core,CLOSED,T15D,Mixed benchmark session alignment and confidence degradation tests,,None
+CORE-004,P2,Core,CLOSED,T15D,Internal exchange-session completeness and exact gap tests,,None
+CORE-005,P2,Core,PARTIAL,T15D,Certified current structured sources retain exact authority; legacy unavailable dimensions remain explicit,Legacy raw uploads lack per-value provider/revision/time/fiscal/currency facts,Phase 7 only if authoritative archives exist
+CORE-006,P2,Core,CLOSED,T14B,Certified Fundamental writer boundary and immutable evidence,,None
+CORE-007,P2,Core,CLOSED,T14B,Certified Technical writer boundary and immutable evidence,,None
+CORE-008,P2,Core,CLOSED,T14B,Certified Combined writer boundary and immutable evidence,,None
+CORE-009,P2,Core,PARTIAL,T14B,Certified current projection semantics,Original historical projection context was not retained on legacy rows,Phase 7 original-context reconstruction
+CERI-001,P1,CERI,CLOSED,T15D,Provider-priority conflict selection and old-evidence pin tests,,None
+CERI-002,P1,CERI,CLOSED,T15D,Adjusted-price/TRADES-volume order-independent source manifest tests,,None
+CERI-003,P2,CERI,CLOSED,T14B,Certified CERI immutable evidence boundary,,None
+CERI-004,P1,CERI,CLOSED,T15D,Change rebuild requires session/cutoff and source receipt for catalyst/guidance evidence,,None; reconciled as closed
+CERI-005,P2,CERI,CLOSED,T15D,Frozen critical-warning set drives configured confidence-label ceiling and cap ledger,,None
+CERI-006,P2,CERI,CLOSED,T15D,Estimate eligibility requires local possession and later external constraint; legacy missing possession fails closed,,None
+CERI-007,P2,CERI,CLOSED,T15D,One feed-freshness result drives confidence and event-risk staleness,,None; closed in T15D continuation
+CERI-008,P2,CERI,PARTIAL,T15D,New alert rule/config identity is immutable and exact,Legacy alerts do not retain original immutable rule/config identity,Phase 7 historical rule reconstruction
+CERI-009,P2,CERI,CLOSED,T15D,Deployment database head is derived/validated and separated from CERI evidence schema revision,,None
+CERI-010,P2,CERI,PARTIAL,T15D,Certified source references are deletion protected and legacy invalidation is explicit,Pre-certification purges have no recoverable sealed pre-purge archive,Phase 7/external archive recovery
+CERI-011,P1,CERI,CLOSED,T15D,"Upcoming date pins normalized row, provider/source/content/revision, external/possession time, cutoff, candidate set, policy and exact selected value",,None
+CERI-012,P1,CERI,CLOSED,T15B,T15B retry idempotency separated from later refresh identity,,None
+RANK-001,P1,Ranking,CLOSED,T14B,Certified Ranking writer and immutable input authority,,None
+RANK-002,P1,Ranking,CLOSED,T14B,Certified Ranking writer and effective configuration,,None
+RANK-003,P1,Ranking,CLOSED,T14B,Certified exact evidence/readiness consumption,,None
+RANK-004,P1,Ranking,CLOSED,T14B,Certified current projection monotonicity,,None
+RANK-005,P1,Ranking,CLOSED,T14D,Standalone mutation retired; callers converge on native writer,,None
+RANK-006,P1,Ranking,CLOSED,T14B,Certified Ranking persistence authority,,None
+RANK-007,P1,Ranking,PARTIAL,T15D,Certified CERI risk rejects raw upload date and uses source-backed schedule under explicit business time,Legacy upload earnings schedules lack provider/publication/retrieval/revision facts,Phase 7 only if source archives exist
+RANK-008,P2,Ranking,CLOSED,T15D,NON_AUTHORITATIVE_FOR_RANKING dependency contract and unchanged-score fixture,,None
+SETUP-001,P1,Setup,CLOSED,T14C,Certified Setup writer authority and immutable decision evidence,,None
+SETUP-002,P1,Setup,CLOSED,T14C,Certified lifecycle transition writer authority,,None
+SETUP-003,P1,Setup,CLOSED,T14C,Certified alert decision evidence and writer boundary,,None
+SETUP-004,P1,Setup,PARTIAL,T14C,Certified explicit temporal and evidence authority,Legacy Setup state lacks original decision context,Phase 7 original-context reconstruction
+SETUP-005,P1,Setup,CLOSED,T14D,All supported Setup mutation callers use exact delivered authority or fail closed,,None
+SETUP-006,P2,Setup,PARTIAL,T14D,Current-rules retrospective is explicit and cannot claim original replay,Retrospective operation can use current rules but cannot claim an original replay,Phase 7 original-context reconstruction
+SETUP-007,P1,Setup,PARTIAL,T14D,Rule/cooldown/config authority is certified,Legacy alerts lack original rule/cooldown/config identity,Phase 7 historical rule reconstruction
+SETUP-008,P2,Setup,CLOSED,T14C,Lifecycle and alert transactional writer tests,,None
+SETUP-009,P2,Setup,CLOSED,T14C,Immutable decision evidence and projection selection tests,,None
+SETUP-010,P2,Setup,PARTIAL,T14D,Maintenance/current-context authority is explicit,Legacy maintenance output lacks original context,Phase 7 original-context reconstruction
+WIN-001,P1,Winner,CLOSED,T14C,Certified Winner prediction capture authority,,None
+WIN-002,P1,Winner,CLOSED,T14C,Certified estimate creation and retained evidence,,None
+WIN-003,P2,Winner,CLOSED,T14C,Certified model training/promotion/retirement authority,,None
+WIN-004,P2,Winner,CLOSED,T14C,Certified diagnostic gates and retained artifacts,,None
+WIN-005,P2,Winner,CLOSED,T14C,Certified Winner writer boundaries; producer-specific residuals tracked separately,,None
+WIN-006,P2,Winner,PARTIAL,T15C,T15C persists exact PriceBarRevision IDs or REVISION_IDENTITY_UNAVAILABLE,Some birth PriceBars predate PriceBarRevision primary-key capture,Explicit-unavailable boundary; optional Phase 7 archive recovery
+WIN-007,P1,Winner,CLOSED,T14C,Monotonic publication is certified and regression-tested,,None
+WIN-008,P2,Winner,CLOSED,T15C,T15C frozen Winner target/cohort truth certification,,None
+WIN-009,P2,Winner,CLOSED,T14C,Idempotent publication is certified and regression-tested,,None
+WIN-010,P2,Winner,CLOSED,T14C,Supporting diagnostics and retirement retain distinct native semantics,,None
+XINT-001,P1,Cross-integration,CLOSED,Phase 1,Calculation Identity certification retained,,None
+XINT-002,P1,Cross-integration,CLOSED,Phase 2,Immutable evidence certification retained,,None
+XINT-003,P1,Cross-integration,CLOSED,T15D,Setup capture rejects parent retained-scope drift; dated repair is explicit single-artifact work,,None
+XINT-004,P1,Cross-integration,CLOSED,Phase 4,Effective configuration authority certified,,None
+XINT-005,P1,Cross-integration,CLOSED,Phase 0,Durable execution fencing certified,,None
+XINT-006,P1,Cross-integration,CLOSED,T14E,252/252 callers and 220/220 operation families converge on certified writer authority,,None
+XINT-007,P2,Cross-integration,PARTIAL,T15B,T15B exact scope/refresh/plan fingerprints for supported current paths,Legacy rule/purge identities limit fingerprint completeness,Phase 7 historical reconstruction
+XINT-008,P1,Cross-integration,CLOSED,T14E,Cross-phase attack matrix passes on frozen source,,None
+XINT-009,P1,Cross-integration,CLOSED,T14E,Negative dependency graph unchanged,,None
+XINT-010,P2,Cross-integration,PARTIAL,T14D,Admin/CLI/scheduler application paths certified,Privileged external SQL/provider-contract governance is outside repository enforcement,External operational governance
+XINT-011,P1,Cross-integration,CLOSED,T14E,Business parity fingerprint and golden tests pass,,None
+XINT-012,P2,Cross-integration,CLOSED,T15B,Repository cross-domain refresh identity certification,,None

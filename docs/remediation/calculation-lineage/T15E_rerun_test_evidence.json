@@ -1,0 +1,27 @@
+{
+  "browser_e2e": {
+    "status": "PASS",
+    "summary": "28 passed, 38 warnings in 633.75s; full tests/e2e suite including Pipeline, CERI, Winner, and Windows recovery paths"
+  },
+  "focused": {
+    "status": "PASS",
+    "summary": "767 passed, 21 warnings in 54.25s; CERI plus T15A-T15D and Phase 1-4 certification coverage"
+  },
+  "full_repository": {
+    "status": "PASS",
+    "summary": "3927 passed, 2 established skips, 38 deselected, 1672 warnings in 4678.57s; exact non-E2E/non-external repository scope on a freshly migrated disposable PostgreSQL 18.6 database. Separately excluded populated-restore opt-in: 1 established skip because local pg_dump is unavailable. Golden pipeline/ranking suites: 3 passed, 1 warning in 0.91s"
+  },
+  "performance": {
+    "status": "PASS",
+    "summary": "8 passed, 882 warnings in 583.98s; capture 29/29, pipeline 70/70, material 29/29, score-change bounded 1/50, earnings provenance 1/1, feature rebuild 13/13"
+  },
+  "postgresql": {
+    "status": "PASS",
+    "summary": "52 passed, 117 warnings in 574.35s against disposable PostgreSQL 18.6; migrations, drift, downgrade/re-upgrade, provenance, temporal, scope/refresh, and source-bundle coverage"
+  },
+  "run_identity": "T15E-RERUN-CORRECTED-T15D-2026-09-22",
+  "static_inventory": {
+    "status": "PASS",
+    "summary": "ruff check, changed-file format check, compileall, secret scan, route inventory, handoff conservation, sole Alembic head 0083, and git diff check passed; repository-wide format check retains the pre-existing 215-file advisory baseline"
+  }
+}
