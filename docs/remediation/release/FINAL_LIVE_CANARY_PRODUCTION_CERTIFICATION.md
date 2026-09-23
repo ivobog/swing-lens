@@ -1,0 +1,42 @@
+# Final live canary / production readiness certification
+
+**FINAL LIVE CANARY: FAIL. PRODUCTION_READY: NO.** The one authorized `REQUIRE_IB` pipeline for run 155 was admitted once, then reached terminal `BLOCKED` at `FETCHING_MARKET_DATA`. Its SPY historical-data capability check failed for `TRADES` despite a healthy IB API handshake. The runtime enforced the policy: no planned ticker-level IB requests were issued and no cached-market-data fallback was used. This is classified **IB_FAILURE** at the capability boundary; the exact underlying cause remains unknown because the probe recorded no provider error code or message. No retry, second POST, database edit, code change, rollback, or manual pipeline advancement occurred.
+
+## Certified provenance and controlled window
+
+- Runtime `main` HEAD: `7450ad738c3a5030450e6b53ff2496096b75655e` (prior certification docs-only commit). Certified application source: `e529e5b73b177cf1e94abbd07a99d3c2c807a010`. Canonical source fingerprint remained `cfaec2e02c0cb9c37c83251ad309575f3f2fa118876badec8678af42bbd41682`; no source files changed.
+- Authoritative DB: PostgreSQL 18.3 at `127.0.0.1:5432/swinglens`, Alembic `0083_winner_scope_truth` throughout. Pre-migration backup `backups/swinglens_final_release_gate_pre_0081_20260923_122912.dump` existed and SHA-256 matched `acba22199a8bac158b4eb72a824bcf5b52075858e850b9a16d8b4dd0aa74703a`.
+- Hard prestart passed: no web listener or worker, no queued/running/recovering jobs, run 155 upload `COMPLETED` with 100 distinct tickers and no existing pipeline. Disk was above the configured critical boundary; final free space was 75,520,663,552 bytes (14.78%), a nonblocking policy warning.
+- Canonical controlled-window startup passed. Web PID 22064, worker PID 21032, supervisor PID 17200; runtime instance `5fd206e9432946bb9b67e3ffa2056ac5`, worker `local-worker-1` instance `1c3529f4f840401c98bdd83830e5d4cb` registration generation 78. The worker PID/instance stayed stable, one durable worker was live, and no duplicate worker or ownership reclaim was observed.
+- Process-local controls disabled autonomous Winner maturation, autonomous cohort refresh, and market-data prewarm. Explicit full pipeline, Winner pipeline capture, CERI, scope/refresh/plan, immutable configuration authority, readiness, and execution fencing remained enabled; `.env` was not edited.
+- Immediately before POST, IB Gateway PID 16520 was listening at `127.0.0.1:4002`; a safe API connection and current-time response returned `IB_API_READY` with server version 176. This API-only check did **not** prove the later SPY historical-data capability.
+- Prometheus was ready; web, worker, and supervisor targets were UP; Grafana datasource was healthy. Worker heartbeat was fresh, and no active jobs or prior run-155 pipeline existed immediately before the request.
+
+## Sole admission and authority
+
+Exactly one `POST /runs/155/pipeline` with `market_data_policy=REQUIRE_IB` began at `2026-09-23T15:29:56.610848Z`. It returned unambiguous HTTP **303**, empty body, and `Location: /runs/155/pipeline/152`; no second request was sent. One pipeline row (152) exists for run 155. The only parentless `FULL_PIPELINE` admission is job **43279**. It legitimately created required SEC repair child **43280**; that child completed and created internal `FULL_PIPELINE` continuation **43281**, which is the current job ID retained in the pipeline result. Job 43281 is **not** a second HTTP/root admission.
+
+- Root scope `c2209b8278a623b9aa249d5c0605800a63937d580a4978fd74838dea21a3eb67`, fingerprint `f3fd83448077999e2570e81b9a23b56d3322d2cd068d40393e4b01cebe948b50`, policy `FROZEN`: exactly the 100 distinct normalized upload tickers, with no additions through shutdown.
+- Root refresh `6e410a2a8f9a14609201ac11afed175c4abad16cfc8053307930ca2eb7bdd116`; root acquisition plan `18675eb1b0870a9faf12b52b6677806c52d83065288e6cce0322f13bdc750788` (`full-pipeline-run-acquisition`, `t15b-v1`, `PIPELINE_INPUTS`, 100 subjects, cutoff `2026-09-23T15:29:57.704598Z`). The internal continuation retained the same root scope, refresh, and plan.
+- Pipeline and root/continuation job bindings retained configuration anchor `65e3ab297fd4b3ee0387d61a5292be0ed20862c857b7e63727e2e5fc8e6423ad`, fingerprint `d27792f76cc8f1b872fcfc1f28c1b4aff9176d9dd2f6484030d48fe4a8943761`. Its immutable family set includes Fundamental, Technical, Combined, Ranking, CERI, Setup, Lifecycle, Winner, and their readiness contracts.
+- Two further scope/refresh/plan triples were distinct typed internal acquisitions: one ticker for SEC source repair and 102 subjects for the IB price plan (requested tickers and supporting symbols). They are not duplicate root refreshes or plans.
+
+## Execution and failure evidence
+
+Pipeline 152 ran from `15:30:00.775043Z` to `15:30:39.821139Z` (39.046 seconds; 42.613 seconds from admission record to terminal). `VALIDATING_RUN` completed in 205 ms and `SCORING_FUNDAMENTALS` completed in 22.296 s, producing 100 fundamental scores. `FETCHING_MARKET_DATA` blocked after 9.678 s. All ten later stages—including Technical, Combined, Ranking, CERI pipeline ingest, Setup/Lifecycle, and Winner pipeline capture—remained `PENDING`.
+
+Execution-time IB API status was `IB_API_READY`. The SPY historical capability probe was `IB_HISTORICAL_DATA_DEGRADED`: `TRADES` failed with zero bars after 3,016 ms, provider category `PROVIDER_ERROR`, no code, and an empty message; `ADJUSTED_LAST` succeeded with two bars in 1,109 ms. The pipeline recorded `blocked_reason=IB_HISTORICAL_DATA_UNAVAILABLE`. Its fetch plan estimated 204 requests, but **zero** ticker-level IB requests ran and **zero** cached results were used. This was a policy-enforced block, not evidence that the full calculation pipeline is sound.
+
+The SEC-readiness child repaired one initially unready ticker, reaching 100/100 SEC-ready, and completed one SEC ingestion with 91 new source records. It is distinct from the unreached CERI pipeline stage. All three jobs were terminal: root 43279 `COMPLETED`, required repair 43280 `COMPLETED`, continuation 43281 `BLOCKED`; there were no retries, recovery/reclaim events, runaway continuation chains, or required nonterminal children left by a successful parent. The blocked job had no live execution token/owner after terminal state.
+
+## Proof limit, settling, and shutdown
+
+Because the market-data gate blocked the run, full Technical-to-downstream readiness, CERI scoring/provenance/performance, Setup/Lifecycle evidence, Winner pipeline capture, negative-dependency runtime behavior, and representative cross-domain evidence samples were **not exercised**. `INV-RECONSTRUCT-001`, `INV-RECONSTRUCT-004`, `INV-PROOF-001`, `INV-RETENTION-001`, and `INV-PURGE-001` therefore cannot be certified end-to-end from this canary. No negative conclusion about these unexecuted code paths is inferred. Previously certified source remained unchanged.
+
+The post-terminal observation exceeded five minutes, crossing many configured 2-second worker poll cycles. No new autonomous Winner maturation, cohort refresh, prewarm, or unexpected continuation job appeared. The queue stayed at zero active jobs, worker heartbeat and instance stayed stable, and monitored business-state deltas were attributable to the one pipeline, SEC repair, and IB acquisition planning. Winner generation/publication state did not change. Prometheus, Grafana, and all three targets were healthy before shutdown; the significant runtime error was the IB historical-capability failure.
+
+Canonical controlled-window shutdown exited 0. Web, worker, and supervisor processes stopped; port 8000 closed; no queued/running/recovering job or live canary lease remained. PostgreSQL and the externally managed `ibgateway.exe` process were left running. The failed canary evidence was **not** deleted, quarantined, restored, or rolled back.
+
+The historical audit snapshot remains 63 CLOSED / 7 PARTIAL / 0 OPEN / 0 active-current defects; this canary failure is a new operational finding, not a retroactive status rewrite. **Final state: NOT_PRODUCTION_READY.** A later decision may investigate IB historical-data capability, but this task authorizes no second canary or remediation.
+
+Machine-readable details are in the adjacent JSON file. Read-only supporting snapshots are retained under ignored `backups/swinglens_final_canary_20260923.*.json`; the worker event log is `logs/lifecycle-worker.log`. Only this Markdown file and the adjacent JSON are committed; no push is performed.
