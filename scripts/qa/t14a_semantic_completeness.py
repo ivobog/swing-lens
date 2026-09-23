@@ -9,7 +9,11 @@ from scripts.qa.t14a_mutation_inventory import ROOT
 
 
 def review_source_status(root=ROOT):
-    derivative = root / "docs/remediation/release/RELEASE_phase5_current_authority.json"
+    derivative = (
+        root / "docs/remediation/release/IB_HISTORICAL_TRADES_phase5_current_authority.json"
+    )
+    if not derivative.exists():
+        derivative = root / "docs/remediation/release/RELEASE_phase5_current_authority.json"
     if root == ROOT and derivative.exists():
         from scripts.qa.committed_source_identity import (
             classify_legacy_checkout_hash,

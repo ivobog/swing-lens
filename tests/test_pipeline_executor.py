@@ -553,10 +553,7 @@ def test_execute_full_pipeline_propagates_winner_control_and_progress_contract()
     assert received["lease_guard"] is lease_guard
     assert received["progress_callback"] is progress_callback
     assert received["memory_probe"] is memory_probe
-    assert (
-        received["market_cutoff"].cutoff_reason
-        == "PIPELINE_TEST_SESSION_COMPATIBILITY"
-    )
+    assert received["market_cutoff"].cutoff_reason == "PIPELINE_TEST_SESSION_COMPATIBILITY"
     assert received["decision_handoff_manifest_id"] == 91
 
 
@@ -1006,9 +1003,12 @@ def test_require_ib_stops_before_technicals_when_gateway_closes_after_preflight(
 def test_historical_capability_failure_blocks_before_fetch_executor() -> None:
     calls: list[str] = []
     db = PipelineExecutorFakeDb(["MSFT"])
-    dependencies = replace(
-        _dependencies(calls, plan=_plan(estimated_request_count=1)),
-        check_ib_historical_capability=lambda: SimpleNamespace(
+    plan = _plan(estimated_request_count=1)
+    observed_plan = []
+
+    def capability_check(*, fetch_plan):
+        observed_plan.append(fetch_plan)
+        return SimpleNamespace(
             status="IB_HISTORICAL_DATA_UNAVAILABLE",
             ready=False,
             checked_at=datetime.now(UTC),
@@ -1027,13 +1027,18 @@ def test_historical_capability_failure_blocks_before_fetch_executor() -> None:
                 "IB historical market data is currently unavailable. Gateway API connectivity "
                 "is healthy, but the historical-data capability probe failed for SPY."
             ),
-        ),
+        )
+
+    dependencies = replace(
+        _dependencies(calls, plan=plan),
+        check_ib_historical_capability=capability_check,
     )
 
     with pytest.raises(IBHistoricalDataUnavailableError):
         execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
 
     assert "build_fetch_plan" in calls
+    assert observed_plan == [plan]
     assert "fetch" not in calls
     assert "technicals" not in calls
     assert db.pipeline.status == PipelineStatus.BLOCKED

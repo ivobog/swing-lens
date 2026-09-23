@@ -136,9 +136,9 @@ def test_all_callers_have_only_final_allowed_dispositions():
 
 
 def test_historical_membership_and_current_derivative_fail_on_unreviewed_change():
-    from scripts.qa.reconcile_phase5_release import RELEASE, build
+    from scripts.qa.reconcile_phase5_release import CURRENT_DERIVATIVE, RELEASE, build
 
-    recorded = json.loads((RELEASE / "RELEASE_phase5_current_authority.json").read_text())
+    recorded = json.loads((RELEASE / CURRENT_DERIVATIVE).read_text())
     current, changed = build()
     assert current == recorded
     assert len(current["family_mappings"]) == 220
@@ -146,6 +146,8 @@ def test_historical_membership_and_current_derivative_fail_on_unreviewed_change(
     assert current["semantic_equivalent_evolution"] == 61
     assert current["identity_only_drift"] == 1
     assert len(changed) == 62
+    assert current["post_phase7_reviewed_change"]["authority_contract_changed"] is False
+    assert any(row["classification"] == "REVIEWED_IB_PREFLIGHT_SOURCE_EVOLUTION" for row in changed)
     assert current["unknown"] == current["confirmed_bypass"] == 0
 
 

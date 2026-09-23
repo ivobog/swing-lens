@@ -289,7 +289,7 @@ class PipelineExecutionDependencies:
     capture_winner_predictions: Callable[..., Any] | None = None
     winner_probability_capture_enabled: bool | None = None
     check_ib_gateway: Callable[[], IBGatewayHealthStatus] = check_ib_gateway_status
-    check_ib_historical_capability: Callable[[], IBHistoricalCapabilityStatus] = (
+    check_ib_historical_capability: Callable[..., IBHistoricalCapabilityStatus] = (
         check_historical_data_capability
     )
 
@@ -503,7 +503,12 @@ def execute_full_pipeline(
             result["ib_planned_requests"] = plan.estimated_request_count
             _apply_market_session_metadata(result, plan)
             if plan.estimated_request_count and not cache_fallback:
-                historical_capability = dependencies.check_ib_historical_capability()
+                capability_check = dependencies.check_ib_historical_capability
+                historical_capability = (
+                    capability_check(fetch_plan=plan)
+                    if _accepts_keyword(capability_check, "fetch_plan")
+                    else capability_check()
+                )
                 capability_payload = _historical_capability_payload(historical_capability)
                 result["ib_historical_capability"] = capability_payload
                 if not _is_historical_data_ready(historical_capability):

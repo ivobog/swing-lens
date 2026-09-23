@@ -23,6 +23,15 @@ RELEASE = ROOT / "docs/remediation/release"
 BASE = "d5066e979ac3958c7e5a4cd125c08106856f1026"
 PHASE5 = "f587b63e4e35e81486e53ffa0f13b9cd7369f963"
 PIN_PATH = "docs/remediation/calculation-lineage/T14D_semantic_review_source_pins.json"
+CURRENT_DERIVATIVE = "IB_HISTORICAL_TRADES_phase5_current_authority.json"
+CURRENT_RECONCILIATION = "IB_HISTORICAL_TRADES_phase5_authority_reconciliation.csv"
+REVIEWED_PIPELINE_PATH = "app/services/pipeline_executor.py"
+REVIEWED_PIPELINE_BLOB = "393d85eddfdfab3fafb20be0da53e064c15e66a4"
+REVIEWED_FAMILY_IDS = (
+    "AF_f7416b02ff7a2171",  # Phase-5 historical family
+    "AF_57090e3c1c60a552",  # Phase-7/release derivative
+    "AF_c9c321e16af0e55a",  # IB historical preflight-only source evolution
+)
 
 
 def _git(*args: str) -> str:
@@ -124,9 +133,14 @@ def build() -> tuple[dict, list[dict[str, str]]]:
         classification = "UNCHANGED"
         if old_id != intermediate["operation_family_id"]:
             if new_id != intermediate["operation_family_id"]:
-                raise ValueError(f"Uncertified change after Phase 7: {old_id}")
+                if (old_id, intermediate["operation_family_id"], new_id) != REVIEWED_FAMILY_IDS:
+                    raise ValueError(f"Uncertified change after Phase 7: {old_id}")
             equivalent_evolution += 1
-            classification = "SEMANTICALLY_EQUIVALENT_EVOLUTION"
+            classification = (
+                "REVIEWED_IB_PREFLIGHT_SOURCE_EVOLUTION"
+                if new_id != intermediate["operation_family_id"]
+                else "SEMANTICALLY_EQUIVALENT_EVOLUTION"
+            )
             old_sources = {proof["source"]["address"] for proof in old["inheritance_proofs"]}
             new_sources = {proof["source"]["address"] for proof in row["inheritance_proofs"]}
             if old_sources != new_sources:
@@ -145,12 +159,23 @@ def build() -> tuple[dict, list[dict[str, str]]]:
                     "authority_contract_changed": "NO",
                     "writer_contract_changed": "NO",
                     "initiator_caller_changed": "NO",
-                    "finding_impact": "NONE; T16E phase5_regression PASS",
+                    "finding_impact": (
+                        "NONE; REL-IB-001 current-source derivative"
+                        if classification == "REVIEWED_IB_PREFLIGHT_SOURCE_EVOLUTION"
+                        else "NONE; T16E phase5_regression PASS"
+                    ),
                     "evidence": (
-                        "Certified Phase-7 T14D family ID and source proof; "
-                        "T16E phase5_regression=PASS_252_OF_252_CALLERS_"
-                        "220_OF_220_FAMILIES_ZERO_BYPASS; "
+                        "REL-IB-001 reviewed pipeline historical preflight invocation; "
+                        "same 252 callers, 220 families, initiator addresses, authority and "
+                        "writer contracts; exact pipeline blob pinned; "
                         f"changed proof dimensions={','.join(key_deltas)}"
+                        if classification == "REVIEWED_IB_PREFLIGHT_SOURCE_EVOLUTION"
+                        else (
+                            "Certified Phase-7 T14D family ID and source proof; "
+                            "T16E phase5_regression=PASS_252_OF_252_CALLERS_"
+                            "220_OF_220_FAMILIES_ZERO_BYPASS; "
+                            f"changed proof dimensions={','.join(key_deltas)}"
+                        )
                     ),
                     "status": "CERTIFIED_EQUIVALENT",
                 }
@@ -215,12 +240,15 @@ def build() -> tuple[dict, list[dict[str, str]]]:
         if origin == "PRECOMMIT_WORKTREE_UNRESOLVED":
             status = "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE"
         if current_oid != committed_oid:
-            if path not in {
+            if path == REVIEWED_PIPELINE_PATH and current_oid == REVIEWED_PIPELINE_BLOB:
+                status = "REVIEWED_IB_HISTORICAL_PREFLIGHT_SOURCE_CHANGE"
+            elif path in {
                 "scripts/qa/t14a_semantic_completeness.py",
                 "scripts/qa/t14a_semantic_families.py",
             }:
+                status = "RELEASE_REMEDIATION_CHECKER_CHANGE"
+            else:
                 raise ValueError(f"Unreviewed worktree source change: {path}")
-            status = "RELEASE_REMEDIATION_CHECKER_CHANGE"
         source_records.append(
             {
                 "path": path,
@@ -256,6 +284,17 @@ def build() -> tuple[dict, list[dict[str, str]]]:
         "family_identity_scheme": "semantic-family-key-v2-separate-from-source-proof",
         "family_mappings": sorted(mappings, key=lambda row: row["historical_family_id"]),
         "source_pin_reconciliation": source_records,
+        "post_phase7_reviewed_change": {
+            "source_path": REVIEWED_PIPELINE_PATH,
+            "committed_blob_id": REVIEWED_PIPELINE_BLOB,
+            "historical_family_id": REVIEWED_FAMILY_IDS[0],
+            "phase7_family_id": REVIEWED_FAMILY_IDS[1],
+            "current_family_id": REVIEWED_FAMILY_IDS[2],
+            "scope": "IB historical capability preflight invocation only",
+            "authority_contract_changed": False,
+            "writer_contract_changed": False,
+            "initiator_caller_changed": False,
+        },
     }
     return result, changed
 
@@ -263,12 +302,11 @@ def build() -> tuple[dict, list[dict[str, str]]]:
 def write() -> None:
     result, changed = build()
     RELEASE.mkdir(parents=True, exist_ok=True)
-    (RELEASE / "RELEASE_phase5_current_authority.json").write_text(
+    # Preserve the earlier release derivative as historical evidence.
+    (RELEASE / CURRENT_DERIVATIVE).write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    with (RELEASE / "RELEASE_phase5_authority_reconciliation.csv").open(
-        "w", newline="", encoding="utf-8"
-    ) as stream:
+    with (RELEASE / CURRENT_RECONCILIATION).open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(changed[0]))
         writer.writeheader()
         writer.writerows(changed)

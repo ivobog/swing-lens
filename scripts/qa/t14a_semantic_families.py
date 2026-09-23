@@ -144,7 +144,11 @@ def normalize(inventory, review=None):
         )
 
     stale = []
-    derivative_path = ROOT / "docs/remediation/release/RELEASE_phase5_current_authority.json"
+    derivative_path = (
+        ROOT / "docs/remediation/release/IB_HISTORICAL_TRADES_phase5_current_authority.json"
+    )
+    if not derivative_path.exists():
+        derivative_path = ROOT / "docs/remediation/release/RELEASE_phase5_current_authority.json"
     if derivative_path.exists():
         from scripts.qa.reconcile_phase5_release import _worktree_blob_id
 

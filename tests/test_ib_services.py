@@ -16,6 +16,7 @@ from app.services.ib_contract_resolver import cached_contract_to_ib, resolve_us_
 from app.services.ib_data_fetcher import (
     HistoricalBar,
     IBHistoricalRequestError,
+    IBHistoricalTimeoutError,
     fetch_daily_bars,
 )
 from app.settings import Settings
@@ -201,6 +202,55 @@ def test_fetch_daily_bars_surfaces_ib_error_callback_321() -> None:
     assert raised.value.code == 321
     assert raised.value.classification == "PROVIDER_REJECTED"
     assert "End date not supported" in raised.value.provider_message
+
+
+def test_fetch_daily_bars_timeout_retains_request_id_and_cancels_historical_request() -> None:
+    class TimedOutIB:
+        def __init__(self) -> None:
+            self.errorEvent = FakeEvent()
+            self.RequestTimeout = 3
+            self.cancelled = []
+            self.client = SimpleNamespace(
+                reqHistoricalData=lambda *_args: None,
+                cancelHistoricalData=self.cancelled.append,
+            )
+
+        def reqHistoricalData(self, contract, **kwargs):  # noqa: N802
+            self.client.reqHistoricalData(
+                47, contract, "", "2 D", "1 day", kwargs["whatToShow"], True, 1, False, []
+            )
+            raise TimeoutError()
+
+    class FakeEvent:
+        def __init__(self) -> None:
+            self.handlers = []
+
+        def __iadd__(self, handler):
+            self.handlers.append(handler)
+            return self
+
+        def __isub__(self, handler):
+            self.handlers.remove(handler)
+            return self
+
+    ib = TimedOutIB()
+    trace = {}
+    with pytest.raises(IBHistoricalTimeoutError) as raised:
+        fetch_daily_bars(
+            ib,
+            Contract(symbol="SPY", conId=756733),
+            "TRADES",
+            settings=Settings(),
+            duration="2 D",
+            diagnostics=trace,
+        )
+
+    assert raised.value.request_id == 47
+    assert raised.value.timeout_seconds == 3
+    assert "timed out after 3s" in str(raised.value)
+    assert ib.cancelled == [47]
+    assert trace["request_id"] == 47
+    assert trace["request"]["what_to_show"] == "TRADES"
 
 
 def test_fetch_daily_bars_ignores_informational_2106_callback() -> None:
