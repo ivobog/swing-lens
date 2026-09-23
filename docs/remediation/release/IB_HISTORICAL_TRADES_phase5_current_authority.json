@@ -1,0 +1,3980 @@
+{
+  "authority_status": "CURRENT_PHASE5_AUTHORITY_STILL_SEMANTICALLY_CERTIFIED",
+  "caller_count": 252,
+  "certificate_type": "CURRENT_DERIVATIVE_REVALIDATION_CERTIFICATE",
+  "confirmed_bypass": 0,
+  "current_family_count": 220,
+  "family_identity_scheme": "semantic-family-key-v2-separate-from-source-proof",
+  "family_mappings": [
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_00c4238c9ae543d1",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_00c4238c9ae543d1",
+      "member_initiator_ids": [
+        "EF_4ea88144f5371516"
+      ],
+      "semantic_family_id_v2": "AF2_661eb16c6d2b6bc4"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_00e602453a046eb8",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_00e602453a046eb8",
+      "member_initiator_ids": [
+        "EF_dfb135b926a8760e"
+      ],
+      "semantic_family_id_v2": "AF2_6df54a481b2816c9"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_01a4d4bc9a527396",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_01a4d4bc9a527396",
+      "member_initiator_ids": [
+        "EF_b29864373e3407c6"
+      ],
+      "semantic_family_id_v2": "AF2_00f39deb6ba24ea8"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_0272087527fd7f06",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_0272087527fd7f06",
+      "member_initiator_ids": [
+        "EF_5088947f34107440",
+        "EF_daf4c522e989a063"
+      ],
+      "semantic_family_id_v2": "AF2_705dccd304f11115"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_0607d2aadfd2122a",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_0607d2aadfd2122a",
+      "member_initiator_ids": [
+        "EF_3a2e1392612da502"
+      ],
+      "semantic_family_id_v2": "AF2_0adc5eabd0d1f11d"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_cdd7cda49eb8762b",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_067a8748f9b566db",
+      "member_initiator_ids": [
+        "EF_345fc21fac985c42"
+      ],
+      "semantic_family_id_v2": "AF2_5e26d1abc7a83cda"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_06a16ed01ba44b12",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_06a16ed01ba44b12",
+      "member_initiator_ids": [
+        "EF_4b57eb3e4ba3ac95"
+      ],
+      "semantic_family_id_v2": "AF2_28f11022ae285e66"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_06fd3d113b34f83e",
+      "final_status": "CURRENT_STATE_REPAIR_EXPLICIT",
+      "historical_family_id": "AF_06fd3d113b34f83e",
+      "member_initiator_ids": [
+        "EF_d996ca3584688062"
+      ],
+      "semantic_family_id_v2": "AF2_4482fa8a7c1f5e23"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_ff59eb6d527308d4",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_0785e06b10ff6fb4",
+      "member_initiator_ids": [
+        "EF_9ec7335da7c27e86"
+      ],
+      "semantic_family_id_v2": "AF2_55f51809d71d6550"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_07d5132ea4950d61",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_07d5132ea4950d61",
+      "member_initiator_ids": [
+        "EF_3544a66f80c3a3ee"
+      ],
+      "semantic_family_id_v2": "AF2_39ee15d1c907645c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_09185dfbe8dc8ae9",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_09185dfbe8dc8ae9",
+      "member_initiator_ids": [
+        "EF_f1b793dd95869927"
+      ],
+      "semantic_family_id_v2": "AF2_743f054133ae83bb"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_095460ea3293f382",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_095460ea3293f382",
+      "member_initiator_ids": [
+        "EF_29d8aab26f7bc1b7"
+      ],
+      "semantic_family_id_v2": "AF2_374e23ed4b56f428"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_09e1e59b075d2b32",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_09e1e59b075d2b32",
+      "member_initiator_ids": [
+        "EF_65e0e20a4aabf36e"
+      ],
+      "semantic_family_id_v2": "AF2_aec66cf5796c7c5a"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_0b93ceabd4573cbf",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_0b93ceabd4573cbf",
+      "member_initiator_ids": [
+        "EF_dc80507b53b12bdc"
+      ],
+      "semantic_family_id_v2": "AF2_e36d951f01408d68"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_0bc3b33ae2e6a023",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_0bc3b33ae2e6a023",
+      "member_initiator_ids": [
+        "EF_8cbe38eaadc0dfcb"
+      ],
+      "semantic_family_id_v2": "AF2_08d3fc83e2c54945"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_0c471eebb66ef957",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_0c471eebb66ef957",
+      "member_initiator_ids": [
+        "EF_f15527d79c7c93f0"
+      ],
+      "semantic_family_id_v2": "AF2_88d3bcb7640d493e"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_0d712fc6b8e4b46c",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_0d712fc6b8e4b46c",
+      "member_initiator_ids": [
+        "EF_f95821db8f721266"
+      ],
+      "semantic_family_id_v2": "AF2_e6173f9256f07266"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_38f1f15b4d6076f0",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_115d96e06b53d868",
+      "member_initiator_ids": [
+        "EF_ab3beb917a917279"
+      ],
+      "semantic_family_id_v2": "AF2_6aafdad459781528"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_f769903fbc131c00",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_12b1af5c47e18824",
+      "member_initiator_ids": [
+        "EF_42b795771febb433"
+      ],
+      "semantic_family_id_v2": "AF2_6578c3e02c38e19a"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_154dead6ead505b3",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_154dead6ead505b3",
+      "member_initiator_ids": [
+        "EF_26f8eec180edfe25"
+      ],
+      "semantic_family_id_v2": "AF2_c3e7d608341ac4ff"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_bb97334a03d24dda",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_181b495253d9c9f3",
+      "member_initiator_ids": [
+        "EF_e53568287697baf9"
+      ],
+      "semantic_family_id_v2": "AF2_c16578e8f9627a09"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_7dc629ba3a10f275",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_1cd27dbd744bcd3c",
+      "member_initiator_ids": [
+        "EF_d7d8afc3d1b69980"
+      ],
+      "semantic_family_id_v2": "AF2_281b3b13907a376e"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_1e24a6f82670ee92",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_1e24a6f82670ee92",
+      "member_initiator_ids": [
+        "EF_d02936b13662f350"
+      ],
+      "semantic_family_id_v2": "AF2_0b38bf402e40ac13"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_1f6cf7789133a421",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_1f6cf7789133a421",
+      "member_initiator_ids": [
+        "EF_cc88287ad5594ea1"
+      ],
+      "semantic_family_id_v2": "AF2_5d903f0474f3b0fb"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_09228611e7dfa830",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_1f737487d9fb5850",
+      "member_initiator_ids": [
+        "EF_2bf8cff4ba3b4f20"
+      ],
+      "semantic_family_id_v2": "AF2_4c0ed32c25f7c4ca"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_2071f64f2b1f231c",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_2071f64f2b1f231c",
+      "member_initiator_ids": [
+        "EF_d60e758674b93dd7"
+      ],
+      "semantic_family_id_v2": "AF2_37811a3b11af9b80"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_20aa06a217ba4d7c",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_20aa06a217ba4d7c",
+      "member_initiator_ids": [
+        "EF_47b620eb610ed3cd"
+      ],
+      "semantic_family_id_v2": "AF2_38ad7a75ee30f104"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_222b6c2ec1abf32e",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_222b6c2ec1abf32e",
+      "member_initiator_ids": [
+        "EF_c213ced13c9ed3f5"
+      ],
+      "semantic_family_id_v2": "AF2_02cca68de8a8f3de"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_2bb2056bdbfaaabb",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_2295d134030fe3f0",
+      "member_initiator_ids": [
+        "EF_44af811a1c6f79b6"
+      ],
+      "semantic_family_id_v2": "AF2_4d5609eb6c4eeecc"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_c4381a5bb0cf6dec",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_23acb094fb6bb85b",
+      "member_initiator_ids": [
+        "EF_33bfaa981caf74af"
+      ],
+      "semantic_family_id_v2": "AF2_4282d145178e07dd"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_25de51bf1b2f6b02",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_25de51bf1b2f6b02",
+      "member_initiator_ids": [
+        "EF_b95c796004827c0e"
+      ],
+      "semantic_family_id_v2": "AF2_30ce72f72d5bfd52"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_1ce97aac351365aa",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_27f76b361d63009e",
+      "member_initiator_ids": [
+        "EF_fb3da89576a5f670"
+      ],
+      "semantic_family_id_v2": "AF2_603f4d3692af781c"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_59fb09f190518de8",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_28a02ef387a2cf02",
+      "member_initiator_ids": [
+        "EF_4401e1a8a0cd2743"
+      ],
+      "semantic_family_id_v2": "AF2_9fefa3d377e4483a"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_2a45a13a9990da45",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_2a45a13a9990da45",
+      "member_initiator_ids": [
+        "EF_7d354959e8046b90"
+      ],
+      "semantic_family_id_v2": "AF2_e8127d8cb79f1e7e"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_466f718fc96282a9",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_2a994a0af005cc70",
+      "member_initiator_ids": [
+        "EF_3c20103a5ea92683",
+        "EF_8322d930fc0acb54",
+        "EF_be3b33a649ccba7e"
+      ],
+      "semantic_family_id_v2": "AF2_b7fa712c937a57cd"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_47d584de43f4706a",
+      "final_status": "CURRENT_RULES_RETROSPECTIVE_EXPLICIT",
+      "historical_family_id": "AF_2ac7e305c24865bb",
+      "member_initiator_ids": [
+        "EF_6ebcbfe33aa2f19b"
+      ],
+      "semantic_family_id_v2": "AF2_3435bb5b889e60ef"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_2bd8b1bc66fe2863",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_2bd8b1bc66fe2863",
+      "member_initiator_ids": [
+        "EF_16c693b72a6392ab"
+      ],
+      "semantic_family_id_v2": "AF2_3a4cb4da2909000c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_2c1c61d0441099f8",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_2c1c61d0441099f8",
+      "member_initiator_ids": [
+        "EF_d800f3dfe4a32b6f"
+      ],
+      "semantic_family_id_v2": "AF2_b66c47438345f21f"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_2c888a66478aa0a5",
+      "final_status": "CURRENT_STATE_REPAIR_EXPLICIT",
+      "historical_family_id": "AF_2c888a66478aa0a5",
+      "member_initiator_ids": [
+        "EF_e3e63ca037854ac0"
+      ],
+      "semantic_family_id_v2": "AF2_dd78124e175dfdc3"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_36256175104b1258",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_2e0955c73d6b5b07",
+      "member_initiator_ids": [
+        "EF_17af8f95c72dc4b5"
+      ],
+      "semantic_family_id_v2": "AF2_d89a4bd32ef3b91d"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_2e614d832cc5bfa3",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_2e614d832cc5bfa3",
+      "member_initiator_ids": [
+        "EF_16848e7d5042bbd5"
+      ],
+      "semantic_family_id_v2": "AF2_ad6ef01340db0bfc"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_2e8275d9f864d41f",
+      "final_status": "CURRENT_STATE_REPAIR_EXPLICIT",
+      "historical_family_id": "AF_2e8275d9f864d41f",
+      "member_initiator_ids": [
+        "EF_883a8783001bcffe"
+      ],
+      "semantic_family_id_v2": "AF2_cd7fc128a3e3f34b"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_2f759178071e558c",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_2f759178071e558c",
+      "member_initiator_ids": [
+        "EF_9b4d3201debe9ea7"
+      ],
+      "semantic_family_id_v2": "AF2_dbf9a9bff3524035"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_33bdca96240039c6",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_33bdca96240039c6",
+      "member_initiator_ids": [
+        "EF_fbcb7015c3527f14"
+      ],
+      "semantic_family_id_v2": "AF2_9a94acfccac53200"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_774b1a4baa322c64",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_340358d7da156bbd",
+      "member_initiator_ids": [
+        "EF_a046247f0bce46ec"
+      ],
+      "semantic_family_id_v2": "AF2_9bd9852190e602bf"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_350e15a4fbb382f4",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_350e15a4fbb382f4",
+      "member_initiator_ids": [
+        "EF_f08968c9df1fcf75"
+      ],
+      "semantic_family_id_v2": "AF2_5af102918c707ef9"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_35f6ef25271c7c16",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_35f6ef25271c7c16",
+      "member_initiator_ids": [
+        "EF_6bbd386aea2907d8"
+      ],
+      "semantic_family_id_v2": "AF2_d7be9acc09a2ab31"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_363d96242cdd752f",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_363d96242cdd752f",
+      "member_initiator_ids": [
+        "EF_48bd32bb045bb8b9",
+        "EF_ca5cc419a94e79c8"
+      ],
+      "semantic_family_id_v2": "AF2_08c73cdd0e9e5315"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_36782a92c32b7d36",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_36782a92c32b7d36",
+      "member_initiator_ids": [
+        "EF_d92272017d7e1e0f"
+      ],
+      "semantic_family_id_v2": "AF2_7ddc0eb78dbf3c53"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_370448d4d5b97745",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_370448d4d5b97745",
+      "member_initiator_ids": [
+        "EF_8ad883f17f5b8452"
+      ],
+      "semantic_family_id_v2": "AF2_943c912823fd8e81"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_391cc87ab4acf60e",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_391cc87ab4acf60e",
+      "member_initiator_ids": [
+        "EF_7ce4f5f114ccbfab",
+        "EF_913f3902d02f0fc3"
+      ],
+      "semantic_family_id_v2": "AF2_923abd0830e590d8"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_3be78c897493ab36",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_3be78c897493ab36",
+      "member_initiator_ids": [
+        "EF_a005dd81d77d51c6"
+      ],
+      "semantic_family_id_v2": "AF2_29639fde53bb01a3"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_3ec74ba473e801c9",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_3ec74ba473e801c9",
+      "member_initiator_ids": [
+        "EF_0c0cd820f687c1bb"
+      ],
+      "semantic_family_id_v2": "AF2_a20b4facbedcc3e5"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_3f5bc966fa4673dc",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_3f5bc966fa4673dc",
+      "member_initiator_ids": [
+        "EF_b28b7630f07da0e9"
+      ],
+      "semantic_family_id_v2": "AF2_bc091cf51c522db2"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_7d901eb2286ae62c",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_406e161ff5c7157e",
+      "member_initiator_ids": [
+        "EF_64159a91b7fd323b"
+      ],
+      "semantic_family_id_v2": "AF2_c27294420440809c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_45fba687cf13eedf",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_45fba687cf13eedf",
+      "member_initiator_ids": [
+        "EF_476d24112b2ecdd5"
+      ],
+      "semantic_family_id_v2": "AF2_eeb9794762175bb7"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_477895a3b9a6131d",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_477895a3b9a6131d",
+      "member_initiator_ids": [
+        "EF_ff8471e9bb4ccc07"
+      ],
+      "semantic_family_id_v2": "AF2_14c82b47029a6493"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_484e7287572b7c29",
+      "final_status": "OPERATIONAL_ONLY",
+      "historical_family_id": "AF_484e7287572b7c29",
+      "member_initiator_ids": [
+        "EF_8d44630b5c3bfb20"
+      ],
+      "semantic_family_id_v2": "AF2_4d87821cf93c4b86"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_48fee662f0f75f9a",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_48fee662f0f75f9a",
+      "member_initiator_ids": [
+        "EF_7de5b07f9f5c012a"
+      ],
+      "semantic_family_id_v2": "AF2_03dd552588a0dd6f"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_432b4012e6a7b9ff",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_4af3bb4937837358",
+      "member_initiator_ids": [
+        "EF_fb37ba876e73e13d"
+      ],
+      "semantic_family_id_v2": "AF2_6d3a0e631ab8ff7d"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_4d29ec6146b9ae31",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_4d29ec6146b9ae31",
+      "member_initiator_ids": [
+        "EF_9fb0b29fc945c34f"
+      ],
+      "semantic_family_id_v2": "AF2_d7a2b37de8327154"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_4d7564ccd9ec24b4",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_4d7564ccd9ec24b4",
+      "member_initiator_ids": [
+        "EF_1d0eb4e43cbd2c5f"
+      ],
+      "semantic_family_id_v2": "AF2_562c34fb10b8ceac"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_4e0bfdde0dbcd3ec",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_4e0bfdde0dbcd3ec",
+      "member_initiator_ids": [
+        "EF_5748a18c40645191",
+        "EF_6ae0c3ce1aab2525"
+      ],
+      "semantic_family_id_v2": "AF2_554a2bed21bfccc8"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_4e188a31f76e5426",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_4e188a31f76e5426",
+      "member_initiator_ids": [
+        "EF_afffe1082832c5a1"
+      ],
+      "semantic_family_id_v2": "AF2_e0208b14dc003e11"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_4f55f51a265f3828",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_4f55f51a265f3828",
+      "member_initiator_ids": [
+        "EF_13401d351b294c00"
+      ],
+      "semantic_family_id_v2": "AF2_02593ab282592cb0"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_4fbeb4ca8b31128e",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_4fbeb4ca8b31128e",
+      "member_initiator_ids": [
+        "EF_5b65c0a336085ec6"
+      ],
+      "semantic_family_id_v2": "AF2_bf96ed9d93eb0d7c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_51f7a214014f19dd",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_51f7a214014f19dd",
+      "member_initiator_ids": [
+        "EF_bd24dd9da817c632"
+      ],
+      "semantic_family_id_v2": "AF2_bd28e863f1093e49"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_53604fe070610a69",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_53604fe070610a69",
+      "member_initiator_ids": [
+        "EF_51bfaf224a5cb9ee"
+      ],
+      "semantic_family_id_v2": "AF2_d8ab5579283e95c0"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5421c87c9d2c28d3",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_5421c87c9d2c28d3",
+      "member_initiator_ids": [
+        "EF_7042df9c9280cacb"
+      ],
+      "semantic_family_id_v2": "AF2_d192e8964d287360"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_54c62a72ddb08003",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_54c62a72ddb08003",
+      "member_initiator_ids": [
+        "EF_0d98794ca39011bf"
+      ],
+      "semantic_family_id_v2": "AF2_1919b7055576d401"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_54d43698af55c3a8",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_54d43698af55c3a8",
+      "member_initiator_ids": [
+        "EF_8dac9448947605ba"
+      ],
+      "semantic_family_id_v2": "AF2_f3be0bc89631df1d"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_556e914200bb61e8",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_556e914200bb61e8",
+      "member_initiator_ids": [
+        "EF_f2bc7aacc0513db5"
+      ],
+      "semantic_family_id_v2": "AF2_c57ff8a7854b5aa1"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_55c741e339c76cfa",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_55c741e339c76cfa",
+      "member_initiator_ids": [
+        "EF_85f4b661ddf7bbe3"
+      ],
+      "semantic_family_id_v2": "AF2_fa0dfc8fca9bb230"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5846bb3b7495b3d3",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_5846bb3b7495b3d3",
+      "member_initiator_ids": [
+        "EF_2c20ef6c4a891318"
+      ],
+      "semantic_family_id_v2": "AF2_8ba766ded932a8be"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_1d08c26b9b3e2379",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_5a6fb20c20bcd27d",
+      "member_initiator_ids": [
+        "EF_758fcb1e2e9178c1"
+      ],
+      "semantic_family_id_v2": "AF2_d7177d195caf0172"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5a8e6e936463d78c",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_5a8e6e936463d78c",
+      "member_initiator_ids": [
+        "EF_9e0bf6312cea1b10",
+        "EF_f07d87c600a3ded4"
+      ],
+      "semantic_family_id_v2": "AF2_5a86a30e305cbee6"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5c094f159325add6",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_5c094f159325add6",
+      "member_initiator_ids": [
+        "EF_82e637435e97fe46"
+      ],
+      "semantic_family_id_v2": "AF2_33f778c79f7b6056"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_242a811fd58e6402",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_5ca2f4b11ce9ede7",
+      "member_initiator_ids": [
+        "EF_f625f1c6154924e0"
+      ],
+      "semantic_family_id_v2": "AF2_6471293eb281141f"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5cde22ef1ba7cd50",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_5cde22ef1ba7cd50",
+      "member_initiator_ids": [
+        "EF_c9db4dc167d1d6e3"
+      ],
+      "semantic_family_id_v2": "AF2_3f40aebe4afa69a5"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5cf5e9908ae00d6d",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_5cf5e9908ae00d6d",
+      "member_initiator_ids": [
+        "EF_7fb42632402aecde"
+      ],
+      "semantic_family_id_v2": "AF2_9b5a9c949d29329c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5d66585f0535e4b4",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_5d66585f0535e4b4",
+      "member_initiator_ids": [
+        "EF_5b7bff6206e3ab12"
+      ],
+      "semantic_family_id_v2": "AF2_773e61f6477b142e"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5d6b65db07552498",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_5d6b65db07552498",
+      "member_initiator_ids": [
+        "EF_a4620089ed8199e3"
+      ],
+      "semantic_family_id_v2": "AF2_000620bda4f0c82a"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5e7b5efceb5f8c51",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_5e7b5efceb5f8c51",
+      "member_initiator_ids": [
+        "EF_7f9ab18e0a68b4e4",
+        "EF_abd56d56b5b99888",
+        "EF_bf185d27ba6a5998"
+      ],
+      "semantic_family_id_v2": "AF2_9966df80a6888c41"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_1ecf6fc6f825daea",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_5e9c7f4b54deade3",
+      "member_initiator_ids": [
+        "EF_cdcd77c8d00fbd9d"
+      ],
+      "semantic_family_id_v2": "AF2_20baedd4ee840e40"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_5f5754ec901ed80b",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_5f5754ec901ed80b",
+      "member_initiator_ids": [
+        "EF_aeb34a0b17ebe519"
+      ],
+      "semantic_family_id_v2": "AF2_553e2384913dd2d5"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_61c632bdfe13b4b1",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_61c632bdfe13b4b1",
+      "member_initiator_ids": [
+        "EF_14cfda3844ac2a98"
+      ],
+      "semantic_family_id_v2": "AF2_ca02eeb1d742cb43"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_ed1e56146adbba38",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_61d58568e4195b40",
+      "member_initiator_ids": [
+        "EF_57e42943795f68d5"
+      ],
+      "semantic_family_id_v2": "AF2_795cce49f49ea01f"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_63eb3b146ad2e615",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_63eb3b146ad2e615",
+      "member_initiator_ids": [
+        "EF_f72ef83620027f4c"
+      ],
+      "semantic_family_id_v2": "AF2_30a625e68179c471"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_cebc7b8259bc93f7",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_669d1249d016911d",
+      "member_initiator_ids": [
+        "EF_9de871e1a7416925"
+      ],
+      "semantic_family_id_v2": "AF2_36d3667a7340008b"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_6714236e295748a7",
+      "final_status": "CURRENT_RULES_RETROSPECTIVE_EXPLICIT",
+      "historical_family_id": "AF_6714236e295748a7",
+      "member_initiator_ids": [
+        "EF_3fc4b414d23b5f24"
+      ],
+      "semantic_family_id_v2": "AF2_8f35324a6fc9e262"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_02892af35976573b",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_671f857a0f5339d6",
+      "member_initiator_ids": [
+        "EF_8f75a6b432147740"
+      ],
+      "semantic_family_id_v2": "AF2_617314e41872e5f5"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_675df8651c8b32d4",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_675df8651c8b32d4",
+      "member_initiator_ids": [
+        "EF_4f6bcd619acea809"
+      ],
+      "semantic_family_id_v2": "AF2_2a04deeef4ef83ec"
+    },
+    {
+      "classification": "IDENTITY_ONLY_DRIFT",
+      "current_family_id": "AF_a9ea1ba926a3cbe9",
+      "final_status": "EXTERNAL_PRIVILEGED_OUT_OF_SCOPE",
+      "historical_family_id": "AF_680ae1fd6dda2a7d",
+      "member_initiator_ids": [
+        "EF_PRIVILEGED_DATABASE_RESTORE"
+      ],
+      "semantic_family_id_v2": "AF2_c4d4a8cd1d350096"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_687799726772da79",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_687799726772da79",
+      "member_initiator_ids": [
+        "EF_9271dda80cbc7784"
+      ],
+      "semantic_family_id_v2": "AF2_5dead914b667201d"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_69d2c6a263bcc54d",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_69d2c6a263bcc54d",
+      "member_initiator_ids": [
+        "EF_552e27976095f9b4"
+      ],
+      "semantic_family_id_v2": "AF2_ff7c4f2f3de95247"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_6b6a709b24cfa078",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_6b6a709b24cfa078",
+      "member_initiator_ids": [
+        "EF_ff740e59dc6eec85"
+      ],
+      "semantic_family_id_v2": "AF2_c64c1bae21b53518"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_6c96f64bb82b0a1b",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_6c96f64bb82b0a1b",
+      "member_initiator_ids": [
+        "EF_c0bd3112a99523a0"
+      ],
+      "semantic_family_id_v2": "AF2_81a5be93483203ee"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_6ca83bc308615eca",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_6ca83bc308615eca",
+      "member_initiator_ids": [
+        "EF_fa5141b1061baaf2"
+      ],
+      "semantic_family_id_v2": "AF2_7a780d164b5f57b7"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_7026675b21f42f3f",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_7026675b21f42f3f",
+      "member_initiator_ids": [
+        "EF_21b51ca218ca4e33",
+        "EF_e07c379588727421"
+      ],
+      "semantic_family_id_v2": "AF2_6fbfc21d7a3053cb"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_b689a9046602b1e6",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_716a8499b1e111d4",
+      "member_initiator_ids": [
+        "EF_c637fc640f1c37bb"
+      ],
+      "semantic_family_id_v2": "AF2_780d8fa7a171b099"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_71df06f062fcfd36",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_71df06f062fcfd36",
+      "member_initiator_ids": [
+        "EF_0a5cee795e4d11d5",
+        "EF_17fbd8ea8e28f686",
+        "EF_a89fe25d89061bca"
+      ],
+      "semantic_family_id_v2": "AF2_49b47b15a9376ca4"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_723d7c471347b5f5",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_723d7c471347b5f5",
+      "member_initiator_ids": [
+        "EF_ac7c37fdb3ecd56c"
+      ],
+      "semantic_family_id_v2": "AF2_e23bf55f082c334f"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_7308bed773802579",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_7308bed773802579",
+      "member_initiator_ids": [
+        "EF_2d2b331779e8c8de"
+      ],
+      "semantic_family_id_v2": "AF2_f596324760da901c"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_152becfd840c16ed",
+      "final_status": "CURRENT_RULES_RETROSPECTIVE_EXPLICIT",
+      "historical_family_id": "AF_730c1e06b1093610",
+      "member_initiator_ids": [
+        "EF_91d23aeb828f0378"
+      ],
+      "semantic_family_id_v2": "AF2_cb6e47cc37e24c1b"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_743f7ae0e2e3a20c",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_743f7ae0e2e3a20c",
+      "member_initiator_ids": [
+        "EF_108005c3877b73f8",
+        "EF_955c1ccf26f164a6",
+        "EF_e5897acb70c600d3"
+      ],
+      "semantic_family_id_v2": "AF2_b53cfd12c0ec48e9"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_75281940ec52615a",
+      "final_status": "READ_ONLY",
+      "historical_family_id": "AF_75281940ec52615a",
+      "member_initiator_ids": [
+        "EF_89da1789ee7554d2",
+        "EF_c4119444b4ef72f3",
+        "EF_ce41defa048d0c30",
+        "EF_fd8c5e5eeec02c71"
+      ],
+      "semantic_family_id_v2": "AF2_3734feaf040120be"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_a1a3696c9861b5f9",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_783f63bd6ad9af37",
+      "member_initiator_ids": [
+        "EF_1b91db6627789dc6",
+        "EF_8c34bf021c5cd042"
+      ],
+      "semantic_family_id_v2": "AF2_8d15a7ca938f71a4"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_79c791f0e8421e6e",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_79c791f0e8421e6e",
+      "member_initiator_ids": [
+        "EF_1fcddaaed4bf5583"
+      ],
+      "semantic_family_id_v2": "AF2_a400398ab84b04bd"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_7a57558cf912465d",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_7a57558cf912465d",
+      "member_initiator_ids": [
+        "EF_6cafbc6643911d81"
+      ],
+      "semantic_family_id_v2": "AF2_4ab91d9b05ec92f4"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_7c0cd71a974b1ba6",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_7c0cd71a974b1ba6",
+      "member_initiator_ids": [
+        "EF_b2c4eae10dbb7074"
+      ],
+      "semantic_family_id_v2": "AF2_fbc703c4b1bd52c6"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_859bfa9e142f256e",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_7c7a11f09af2e09e",
+      "member_initiator_ids": [
+        "EF_1829ba4c1327b124"
+      ],
+      "semantic_family_id_v2": "AF2_16dafaae22f4a9f0"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_e444cc1ad2f15cc3",
+      "final_status": "CURRENT_RULES_RETROSPECTIVE_EXPLICIT",
+      "historical_family_id": "AF_7d01bd8d0c79aef5",
+      "member_initiator_ids": [
+        "EF_45b828a8ba71d319"
+      ],
+      "semantic_family_id_v2": "AF2_0bc0e2fa3c3f1db7"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_7d4d55cfe89ed889",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_7d4d55cfe89ed889",
+      "member_initiator_ids": [
+        "EF_2549c9b27b482b53",
+        "EF_53e5ff53b1c5e6dd"
+      ],
+      "semantic_family_id_v2": "AF2_36179f15729c1321"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_9a90295963bdaa3e",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_7e6ec3a3ade5f5b1",
+      "member_initiator_ids": [
+        "EF_b485539a18ce34a9"
+      ],
+      "semantic_family_id_v2": "AF2_31b0e0bc0222613a"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_7e7384aa17cce509",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_7e7384aa17cce509",
+      "member_initiator_ids": [
+        "EF_22b85b4f8e513ffa"
+      ],
+      "semantic_family_id_v2": "AF2_30384bb35b01c4b0"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_f8c2fba8bd45b93d",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_806047024969b47b",
+      "member_initiator_ids": [
+        "EF_4e8e234f5820cedb"
+      ],
+      "semantic_family_id_v2": "AF2_c0981a266a742c74"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_5fd5e24254fb59c6",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_8105d58ab0795c25",
+      "member_initiator_ids": [
+        "EF_952eb770ffb142bc"
+      ],
+      "semantic_family_id_v2": "AF2_f77e0c1d7e7f3ae1"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_8235df76a81882ec",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_8235df76a81882ec",
+      "member_initiator_ids": [
+        "EF_dadb37f4fc444397"
+      ],
+      "semantic_family_id_v2": "AF2_b1e26c988055f5d3"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_8394bced0e3f5301",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_8394bced0e3f5301",
+      "member_initiator_ids": [
+        "EF_9ae86c108357a235"
+      ],
+      "semantic_family_id_v2": "AF2_fec91264c4dab406"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_83a1644d8615dd74",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_83a1644d8615dd74",
+      "member_initiator_ids": [
+        "EF_9aef80213867f7fc"
+      ],
+      "semantic_family_id_v2": "AF2_bc83d4f93a3efeca"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_8645e2560bbe7da9",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_8645e2560bbe7da9",
+      "member_initiator_ids": [
+        "EF_d45e97b8bb4b82c2"
+      ],
+      "semantic_family_id_v2": "AF2_4e7f59ef9d542641"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_8ad2c8c711f83a5c",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_8ad2c8c711f83a5c",
+      "member_initiator_ids": [
+        "EF_f3014b101f7ca379"
+      ],
+      "semantic_family_id_v2": "AF2_f6fe1e3550b877ef"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_8b743894024472f7",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_8b743894024472f7",
+      "member_initiator_ids": [
+        "EF_188a52d7dc0ff552"
+      ],
+      "semantic_family_id_v2": "AF2_6fa7e9042865de87"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_8d785d5b89df2229",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_8d785d5b89df2229",
+      "member_initiator_ids": [
+        "EF_3392d180c1a8d378"
+      ],
+      "semantic_family_id_v2": "AF2_3cf44df1fa7ddfca"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_91c5db83361c8e31",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_91c5db83361c8e31",
+      "member_initiator_ids": [
+        "EF_a8f9a91d7a0d9f8a"
+      ],
+      "semantic_family_id_v2": "AF2_247b1119bd379587"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_01c2d73e5c26b6c4",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_92c66465b4b4dda2",
+      "member_initiator_ids": [
+        "EF_cbb8326842449165"
+      ],
+      "semantic_family_id_v2": "AF2_633edbb0273f9d89"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_934d34c0ddd0d4de",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_934d34c0ddd0d4de",
+      "member_initiator_ids": [
+        "EF_e53dd685d5dadcf0"
+      ],
+      "semantic_family_id_v2": "AF2_55f24647b1d0b3d0"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_93d6252396ec6615",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_93d6252396ec6615",
+      "member_initiator_ids": [
+        "EF_0f42cc0be4abc685"
+      ],
+      "semantic_family_id_v2": "AF2_d8eb841fce1e948f"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_94375e7550d8e204",
+      "final_status": "CURRENT_RULES_RETROSPECTIVE_EXPLICIT",
+      "historical_family_id": "AF_94375e7550d8e204",
+      "member_initiator_ids": [
+        "EF_08367ecd4bfc25ab",
+        "EF_20010a31016223bb",
+        "EF_e90fcdb88b1d464c"
+      ],
+      "semantic_family_id_v2": "AF2_5aeb1242977bfa65"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_95ada480a0e144b7",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_95ada480a0e144b7",
+      "member_initiator_ids": [
+        "EF_84b99433eae3bc2d"
+      ],
+      "semantic_family_id_v2": "AF2_41a42c633bca7e99"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_962bfc6f0968f82d",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_962bfc6f0968f82d",
+      "member_initiator_ids": [
+        "EF_7ba89fcb943e74fa"
+      ],
+      "semantic_family_id_v2": "AF2_2558928372a7040c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_96a137fd27fd8bd4",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_96a137fd27fd8bd4",
+      "member_initiator_ids": [
+        "EF_78de7a499feb8c0b"
+      ],
+      "semantic_family_id_v2": "AF2_feed3c2d49b525be"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_2503b231356e1981",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_96e16ab5d534d787",
+      "member_initiator_ids": [
+        "EF_75b98d629a58f4a6"
+      ],
+      "semantic_family_id_v2": "AF2_2892f9e99b06268a"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_c194fd2a7ed181c0",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_9701990a1bad3828",
+      "member_initiator_ids": [
+        "EF_7a4eefa3be56b725"
+      ],
+      "semantic_family_id_v2": "AF2_af89199e0f4bbd44"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_97ad2565b6d3dad8",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_97ad2565b6d3dad8",
+      "member_initiator_ids": [
+        "EF_a0ee551be8adb522"
+      ],
+      "semantic_family_id_v2": "AF2_7bc83ec82f1ce675"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_d2dec3cd06447d4e",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_988163cefed12f8f",
+      "member_initiator_ids": [
+        "EF_0a056737ae51257a",
+        "EF_e127938927133466"
+      ],
+      "semantic_family_id_v2": "AF2_aa62df7ea6a2f9bc"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_98aac5ee3877a5c2",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_98aac5ee3877a5c2",
+      "member_initiator_ids": [
+        "EF_e0789b37db7a9fa5"
+      ],
+      "semantic_family_id_v2": "AF2_0b0155a5734399ab"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_9afe9b735319bd27",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_9afe9b735319bd27",
+      "member_initiator_ids": [
+        "EF_e019fa69d6156a8a"
+      ],
+      "semantic_family_id_v2": "AF2_d4c1705d61777065"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_30bbe553db5f66d0",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_9d1dded0f09d080d",
+      "member_initiator_ids": [
+        "EF_b66fd9fbd8bf92e7"
+      ],
+      "semantic_family_id_v2": "AF2_49e03d2d422375c1"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_85abfb2fa02d6161",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_9e7c96e49e560f39",
+      "member_initiator_ids": [
+        "EF_693fab42d4a40d7d"
+      ],
+      "semantic_family_id_v2": "AF2_6db4f2986f7f0042"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_9eba6772acd7cc11",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_9eba6772acd7cc11",
+      "member_initiator_ids": [
+        "EF_ad6df420db64c51c"
+      ],
+      "semantic_family_id_v2": "AF2_d7b63e6bafc6e1d1"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_9ed0bd73fed0a8e6",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_9ed0bd73fed0a8e6",
+      "member_initiator_ids": [
+        "EF_27e57281b2de8753"
+      ],
+      "semantic_family_id_v2": "AF2_710729c49577eda5"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_2b6a77bfa40ea9cc",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_9f421f6c2c6dc73f",
+      "member_initiator_ids": [
+        "EF_33499b0639d00900"
+      ],
+      "semantic_family_id_v2": "AF2_199228a93c21eefc"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_74dcfa794fd543e6",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_9f4d418b1a720152",
+      "member_initiator_ids": [
+        "EF_eee5b61f60223f9a"
+      ],
+      "semantic_family_id_v2": "AF2_b1283fbd3c5c127b"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_a02d183cb7941e6a",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_a02d183cb7941e6a",
+      "member_initiator_ids": [
+        "EF_6512999c3ff8e394"
+      ],
+      "semantic_family_id_v2": "AF2_52f982ab6443d83b"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_a1a274f9c73e3fa0",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_a1a274f9c73e3fa0",
+      "member_initiator_ids": [
+        "EF_c37482a6d5894991"
+      ],
+      "semantic_family_id_v2": "AF2_cb9dcba03ccc221b"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_a22cc94c8ff55c85",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_a22cc94c8ff55c85",
+      "member_initiator_ids": [
+        "EF_b69d6707daaa3390"
+      ],
+      "semantic_family_id_v2": "AF2_76c5fd17b73a27fe"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_a4db0eb8f3fe0ad8",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_a4db0eb8f3fe0ad8",
+      "member_initiator_ids": [
+        "EF_12960f471203b24d"
+      ],
+      "semantic_family_id_v2": "AF2_4393ae146d5aa3c4"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_40fb480e20914a3c",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_a603976be1343a23",
+      "member_initiator_ids": [
+        "EF_a858bf7694ca75d1"
+      ],
+      "semantic_family_id_v2": "AF2_b0e688f5c71023a4"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_a95f8b213f919b55",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_a95f8b213f919b55",
+      "member_initiator_ids": [
+        "EF_d464434e38c414dc"
+      ],
+      "semantic_family_id_v2": "AF2_bf50cfabf47e9df1"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_aa1c7c22c9251e66",
+      "final_status": "CURRENT_RULES_RETROSPECTIVE_EXPLICIT",
+      "historical_family_id": "AF_aa1c7c22c9251e66",
+      "member_initiator_ids": [
+        "EF_c9e75e814c3b2bca"
+      ],
+      "semantic_family_id_v2": "AF2_c594d8341714d9d8"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_ab541523c6edf58d",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_ab541523c6edf58d",
+      "member_initiator_ids": [
+        "EF_add9abc9ad900919"
+      ],
+      "semantic_family_id_v2": "AF2_32f492731dc60b22"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_9cdcd6a811c74c3f",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_ab5b156dc59c02ff",
+      "member_initiator_ids": [
+        "EF_ddff1e372aaee0e2"
+      ],
+      "semantic_family_id_v2": "AF2_f684820b4131a2a6"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_695486d0d01e65b1",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_acf7c620df460e47",
+      "member_initiator_ids": [
+        "EF_8e2313d593ef63fa"
+      ],
+      "semantic_family_id_v2": "AF2_28ea839203e9352b"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_adad9c871bbebfcf",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_adad9c871bbebfcf",
+      "member_initiator_ids": [
+        "EF_e7b00a98f583e767"
+      ],
+      "semantic_family_id_v2": "AF2_a537ff69254058bc"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_adc40dcb74cfb2a7",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_adc40dcb74cfb2a7",
+      "member_initiator_ids": [
+        "EF_f6ddec7d59b9a9f3"
+      ],
+      "semantic_family_id_v2": "AF2_52f3ddeb1cde6aa5"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_af3a5a2fae15a271",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_af3a5a2fae15a271",
+      "member_initiator_ids": [
+        "EF_dffa2b1993aa2354"
+      ],
+      "semantic_family_id_v2": "AF2_40b3583d8d937d1f"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_99fe115c8a10cf78",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_b10d4ec2fa456ce6",
+      "member_initiator_ids": [
+        "EF_22da324cfd71d5ee"
+      ],
+      "semantic_family_id_v2": "AF2_c35e0910339aaf6d"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_b218d1b6f0fb7d3e",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_b218d1b6f0fb7d3e",
+      "member_initiator_ids": [
+        "EF_1ffa51a772dfc285"
+      ],
+      "semantic_family_id_v2": "AF2_78ae076d0b6ca5fb"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_b24469392f0c87e8",
+      "final_status": "READ_ONLY",
+      "historical_family_id": "AF_b24469392f0c87e8",
+      "member_initiator_ids": [
+        "EF_118b721845a2cc66",
+        "EF_e1ea1efe79f4b6c2"
+      ],
+      "semantic_family_id_v2": "AF2_9fdaad4e5f27294c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_b2f2ef954f198f6f",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_b2f2ef954f198f6f",
+      "member_initiator_ids": [
+        "EF_c6e52b9cafebbd63"
+      ],
+      "semantic_family_id_v2": "AF2_e33661610026b944"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_b39c7e2b5bc1d729",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_b39c7e2b5bc1d729",
+      "member_initiator_ids": [
+        "EF_4ab938a993a4d853",
+        "EF_9ecbca3f3412c850"
+      ],
+      "semantic_family_id_v2": "AF2_168e6965deed9294"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_b45c1074c5e69dba",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_b45c1074c5e69dba",
+      "member_initiator_ids": [
+        "EF_84afac2f08856690"
+      ],
+      "semantic_family_id_v2": "AF2_18a7dbc5ff25c9b6"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_b46d0ef2a02c7811",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_b46d0ef2a02c7811",
+      "member_initiator_ids": [
+        "EF_d06505188f3a0bbb"
+      ],
+      "semantic_family_id_v2": "AF2_dadfea96f8f13585"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_b579e27f1696a70d",
+      "final_status": "LEGACY_NONCERTIFIED",
+      "historical_family_id": "AF_b579e27f1696a70d",
+      "member_initiator_ids": [
+        "EF_f4945d656d5d650f"
+      ],
+      "semantic_family_id_v2": "AF2_285ee18cbebb10d4"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_b658ef96a49b6f75",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_b658ef96a49b6f75",
+      "member_initiator_ids": [
+        "EF_c7f7c896fe1e6070"
+      ],
+      "semantic_family_id_v2": "AF2_6e530cc30df88692"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_b7d94c00f9b14b01",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_b7d94c00f9b14b01",
+      "member_initiator_ids": [
+        "EF_a4713c8bc1b99a73"
+      ],
+      "semantic_family_id_v2": "AF2_abd90ff5e264396a"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_ba689ac08fb55a7e",
+      "final_status": "CURRENT_RULES_RETROSPECTIVE_EXPLICIT",
+      "historical_family_id": "AF_ba689ac08fb55a7e",
+      "member_initiator_ids": [
+        "EF_28db8281e196d4a6"
+      ],
+      "semantic_family_id_v2": "AF2_813ed96b3b41e078"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_bb02d6a290aed377",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_bb02d6a290aed377",
+      "member_initiator_ids": [
+        "EF_be776167a4a792cf"
+      ],
+      "semantic_family_id_v2": "AF2_06a7cc39b68a41e8"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_bb97f67a497ff8f0",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_bb97f67a497ff8f0",
+      "member_initiator_ids": [
+        "EF_3cae421594a55a30"
+      ],
+      "semantic_family_id_v2": "AF2_bbcb131d6c8de18b"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_efecf5419500e7cf",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_be5ed7d8ee0c3e0c",
+      "member_initiator_ids": [
+        "EF_5ecffaf35b261ecd",
+        "EF_60948ade054ed19a"
+      ],
+      "semantic_family_id_v2": "AF2_fe26adecb5b81dc4"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_bf1113da3187eddf",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_bf1113da3187eddf",
+      "member_initiator_ids": [
+        "EF_605087d3a0d9034a"
+      ],
+      "semantic_family_id_v2": "AF2_1a9ef3e2cb4860a0"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_9e4d7a083c2f8136",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_c3dae86a6ccdcc8c",
+      "member_initiator_ids": [
+        "EF_d75034ba94b404c0"
+      ],
+      "semantic_family_id_v2": "AF2_cf874ba874d22535"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_d71ce6ad4a66d9e5",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_c443168c381a5897",
+      "member_initiator_ids": [
+        "EF_396637ef05c88e25"
+      ],
+      "semantic_family_id_v2": "AF2_d51e5fb53e14dea9"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_d012363068c1e5e9",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_c50125e35a796880",
+      "member_initiator_ids": [
+        "EF_5d82bf1f829e0378"
+      ],
+      "semantic_family_id_v2": "AF2_2890a2cb1ee5fb70"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_c5421084f9525870",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_c5421084f9525870",
+      "member_initiator_ids": [
+        "EF_57005fc921eb55e1"
+      ],
+      "semantic_family_id_v2": "AF2_47e8262cc5cefec1"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_c5f6cf784d7f0cdd",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_c5f6cf784d7f0cdd",
+      "member_initiator_ids": [
+        "EF_bbe23c5f58004112"
+      ],
+      "semantic_family_id_v2": "AF2_fb869e61f7b46ebb"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_c6cbaf3f7ed57e8e",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_c6cbaf3f7ed57e8e",
+      "member_initiator_ids": [
+        "EF_43806b77d2f43fbe"
+      ],
+      "semantic_family_id_v2": "AF2_89ad0eba8989a0dc"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_70e5e130cc9cccd8",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_c98f72cea721cc6e",
+      "member_initiator_ids": [
+        "EF_025e41805514b5ba"
+      ],
+      "semantic_family_id_v2": "AF2_fda1ae87c5d169d9"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_bbb558d96e7418d9",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_c9fbb19d81e255f5",
+      "member_initiator_ids": [
+        "EF_633140182b79ba72",
+        "EF_791a604abef6589e"
+      ],
+      "semantic_family_id_v2": "AF2_0fc0ee6c3a50a8f9"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_ca16c8bf942bd422",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_ca16c8bf942bd422",
+      "member_initiator_ids": [
+        "EF_a65afd15a9f488ee"
+      ],
+      "semantic_family_id_v2": "AF2_ad71160b4223b224"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_5e75e39509c0245c",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_ca4f55dcf09b6d51",
+      "member_initiator_ids": [
+        "EF_b28f847e170dbcd8"
+      ],
+      "semantic_family_id_v2": "AF2_55ff6b7539910db9"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_cce0f050081bed17",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_cce0f050081bed17",
+      "member_initiator_ids": [
+        "EF_567aa492a5f39941",
+        "EF_84d4762d05423329"
+      ],
+      "semantic_family_id_v2": "AF2_bcfd4adc0c9433c9"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_0e238a5d8e56ab52",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_ce350b6feeb50432",
+      "member_initiator_ids": [
+        "EF_f86acc74753df900"
+      ],
+      "semantic_family_id_v2": "AF2_d302f8efa19b2ce8"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_cf5346d08ae380b6",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_cf5346d08ae380b6",
+      "member_initiator_ids": [
+        "EF_17cd4c0e3faace6e"
+      ],
+      "semantic_family_id_v2": "AF2_69bd76f7bf8ceb87"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_8e42b0d21449083c",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_d07e72b38c67920a",
+      "member_initiator_ids": [
+        "EF_b788f811597ea7c5"
+      ],
+      "semantic_family_id_v2": "AF2_d8d3826dc4a333e8"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_b5a618f5b5aa8f90",
+      "final_status": "CURRENT_STATE_REPAIR_EXPLICIT",
+      "historical_family_id": "AF_d73a851801393e18",
+      "member_initiator_ids": [
+        "EF_539de8ba1f139e53"
+      ],
+      "semantic_family_id_v2": "AF2_e7bc97cfdb1a6c51"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_d73d5c1718033e8e",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_d73d5c1718033e8e",
+      "member_initiator_ids": [
+        "EF_7344c72b8b591bf9"
+      ],
+      "semantic_family_id_v2": "AF2_5f5039115504bd47"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_d7f223fde9a4ffe5",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_d7f223fde9a4ffe5",
+      "member_initiator_ids": [
+        "EF_e9f698aec5b69e29"
+      ],
+      "semantic_family_id_v2": "AF2_ed25498586ae450c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_d7fb95c151f73ac2",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_d7fb95c151f73ac2",
+      "member_initiator_ids": [
+        "EF_b91e53fb5c6f1222"
+      ],
+      "semantic_family_id_v2": "AF2_89d9c31740bae35c"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_b2844c503b249d37",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_d820556d1ae5ed79",
+      "member_initiator_ids": [
+        "EF_efdab1574d4810f7"
+      ],
+      "semantic_family_id_v2": "AF2_36371d7fe0af1d4a"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_da95da40ab0adf2a",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_da95da40ab0adf2a",
+      "member_initiator_ids": [
+        "EF_43e51c53a8544734"
+      ],
+      "semantic_family_id_v2": "AF2_f17b1e260c642f2d"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_9d2e4a3f914a9dec",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_db1830485a4ea6a4",
+      "member_initiator_ids": [
+        "EF_8eedb2c400c92649"
+      ],
+      "semantic_family_id_v2": "AF2_a731afda3cd54d3c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_dd467834c9bfc318",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_dd467834c9bfc318",
+      "member_initiator_ids": [
+        "EF_193d9ffd0c79c2f8"
+      ],
+      "semantic_family_id_v2": "AF2_eef6fd22bff83652"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_dd6b13542617771c",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_dd6b13542617771c",
+      "member_initiator_ids": [
+        "EF_45c95cae4cabbaf8"
+      ],
+      "semantic_family_id_v2": "AF2_cb172efec834c178"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_ddaa57ad85ff8bf7",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_ddaa57ad85ff8bf7",
+      "member_initiator_ids": [
+        "EF_4dac4941b428441c"
+      ],
+      "semantic_family_id_v2": "AF2_89f31ec248356f0c"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_ddd0b95b1004a4bf",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_ddd0b95b1004a4bf",
+      "member_initiator_ids": [
+        "EF_03715d8cb04ab7de"
+      ],
+      "semantic_family_id_v2": "AF2_d3a83b7f650279af"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_dde63f1d19196a1a",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_dde63f1d19196a1a",
+      "member_initiator_ids": [
+        "EF_4a7754d23dd80087"
+      ],
+      "semantic_family_id_v2": "AF2_3a1a6de511a20edf"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_e1b6a040d015863e",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_e1b6a040d015863e",
+      "member_initiator_ids": [
+        "EF_6277f667d9db5d08"
+      ],
+      "semantic_family_id_v2": "AF2_0cf8fb9ffdd541ad"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_e2eb9d1b5df78584",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_e2eb9d1b5df78584",
+      "member_initiator_ids": [
+        "EF_f8e65d11efa50fea"
+      ],
+      "semantic_family_id_v2": "AF2_befa6ccaa2134d5a"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_e6476331f05f5ec2",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_e6476331f05f5ec2",
+      "member_initiator_ids": [
+        "EF_8a3329a4bd4cdc2a"
+      ],
+      "semantic_family_id_v2": "AF2_244cf0f6f592fd0c"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_de9df6f26fc55c5c",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_e7cf2bc4f3753200",
+      "member_initiator_ids": [
+        "EF_832da348c142644a"
+      ],
+      "semantic_family_id_v2": "AF2_7bd2baa39d879151"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_e7f615ca9ac409dd",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_e7f615ca9ac409dd",
+      "member_initiator_ids": [
+        "EF_9331426e90d56ac8",
+        "EF_f0226ae27f1e202f"
+      ],
+      "semantic_family_id_v2": "AF2_f456ddd420ea989e"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_e8bdb231fec69b39",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_e8bdb231fec69b39",
+      "member_initiator_ids": [
+        "EF_053db506b2540635",
+        "EF_b52294e32a1ee5d9"
+      ],
+      "semantic_family_id_v2": "AF2_0aadbfe790068044"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_ea38b69e8042967d",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_ea38b69e8042967d",
+      "member_initiator_ids": [
+        "EF_9b54186b1978efc7"
+      ],
+      "semantic_family_id_v2": "AF2_03c5a8a14578a412"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_ea3e630d12a51f81",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_ea3e630d12a51f81",
+      "member_initiator_ids": [
+        "EF_f6c22b4705f16967"
+      ],
+      "semantic_family_id_v2": "AF2_d051e66924f4853e"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_43a7ebc35f56ba9f",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_ebce648b9f7274c1",
+      "member_initiator_ids": [
+        "EF_0ef7906db6e76146",
+        "EF_253b79a161c2f85f"
+      ],
+      "semantic_family_id_v2": "AF2_56e8e2230196e7d8"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_937a6a2c294bd898",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_ebf8b7a7c8d302b6",
+      "member_initiator_ids": [
+        "EF_9ffa04a332230973"
+      ],
+      "semantic_family_id_v2": "AF2_3d75b64cbc465a59"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_ece5720f62c3b1b1",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_ece5720f62c3b1b1",
+      "member_initiator_ids": [
+        "EF_34751282c1807125"
+      ],
+      "semantic_family_id_v2": "AF2_1e62eb9c98bd11ca"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_efeebbbb0d68a4f7",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_efeebbbb0d68a4f7",
+      "member_initiator_ids": [
+        "EF_2ccea74c5c437507"
+      ],
+      "semantic_family_id_v2": "AF2_0978aa0f8a5afa8a"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_f23925ce093d1da1",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_f23925ce093d1da1",
+      "member_initiator_ids": [
+        "EF_446e95876ddd58c5"
+      ],
+      "semantic_family_id_v2": "AF2_58318bd1d50946f6"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_f26e094b5a3fb5e5",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_f26e094b5a3fb5e5",
+      "member_initiator_ids": [
+        "EF_8bc9bd0a149c2ced"
+      ],
+      "semantic_family_id_v2": "AF2_da377c20392e105f"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_f2a98d653fe2c414",
+      "final_status": "RETIRED",
+      "historical_family_id": "AF_f2a98d653fe2c414",
+      "member_initiator_ids": [
+        "EF_02815044960ac52c"
+      ],
+      "semantic_family_id_v2": "AF2_5e9b5df8da12f1a1"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_f2efc776d7ea1b7b",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_f2efc776d7ea1b7b",
+      "member_initiator_ids": [
+        "EF_d50f2f406f864b95",
+        "EF_f2b0ab3e703edec5",
+        "EF_f3a7461cf3417399"
+      ],
+      "semantic_family_id_v2": "AF2_e8bc092615ea282f"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_f4f180573a5fe783",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_f4f180573a5fe783",
+      "member_initiator_ids": [
+        "EF_62e86ef307df87ac"
+      ],
+      "semantic_family_id_v2": "AF2_ccc9ce359450b254"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_44f84f22a471cd2f",
+      "final_status": "CANONICAL_AUTHORITY_DELIVERED",
+      "historical_family_id": "AF_f4fe78539ca6b6d4",
+      "member_initiator_ids": [
+        "EF_dfa047a276b66281"
+      ],
+      "semantic_family_id_v2": "AF2_816d2350d40932f4"
+    },
+    {
+      "classification": "REVIEWED_IB_PREFLIGHT_SOURCE_EVOLUTION",
+      "current_family_id": "AF_c9c321e16af0e55a",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_f7416b02ff7a2171",
+      "member_initiator_ids": [
+        "EF_f3e3fc7ce827f01c"
+      ],
+      "semantic_family_id_v2": "AF2_9d6ff89c2e2fca5e"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_f9ad3291877b379a",
+      "final_status": "CURRENT_STATE_REPAIR_EXPLICIT",
+      "historical_family_id": "AF_f9ad3291877b379a",
+      "member_initiator_ids": [
+        "EF_d169ba011ca95514"
+      ],
+      "semantic_family_id_v2": "AF2_d0a2c60248d5931e"
+    },
+    {
+      "classification": "UNCHANGED",
+      "current_family_id": "AF_fa1ef21c0f71666e",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_fa1ef21c0f71666e",
+      "member_initiator_ids": [
+        "EF_26b4197e150dd293"
+      ],
+      "semantic_family_id_v2": "AF2_738c4301b06eaa6c"
+    },
+    {
+      "classification": "SEMANTICALLY_EQUIVALENT_EVOLUTION",
+      "current_family_id": "AF_96fef63653b2e4ca",
+      "final_status": "SUPPORTED_DISTINCT_SEMANTICS",
+      "historical_family_id": "AF_faa5cf2dc3c6e62c",
+      "member_initiator_ids": [
+        "EF_8e47858541189c36"
+      ],
+      "semantic_family_id_v2": "AF2_ea95607b02a4ba06"
+    }
+  ],
+  "historical_certificate_blob_sha256": "a742406a12bb49defc093cdd71dcc8289fdcdba71bd65dd8da6d0bddd237e04d",
+  "historical_family_count": 220,
+  "historical_phase5_commit": "f587b63e4e35e81486e53ffa0f13b9cd7369f963",
+  "identity_only_drift": 1,
+  "new_operations": 0,
+  "partial_authority": 0,
+  "phase7_certificate_blob_sha256": "7e1711c7edf37fdf0d676775779a4b053e16ffc4fd7460cb18b4da0d7b8abfd7",
+  "post_phase7_reviewed_change": {
+    "authority_contract_changed": false,
+    "committed_blob_id": "393d85eddfdfab3fafb20be0da53e064c15e66a4",
+    "current_family_id": "AF_c9c321e16af0e55a",
+    "historical_family_id": "AF_f7416b02ff7a2171",
+    "initiator_caller_changed": false,
+    "phase7_family_id": "AF_57090e3c1c60a552",
+    "scope": "IB historical capability preflight invocation only",
+    "source_path": "app/services/pipeline_executor.py",
+    "writer_contract_changed": false
+  },
+  "potential_bypass": 0,
+  "removed_operations": 0,
+  "schema_version": "release-phase5-current-authority-v1",
+  "semantic_authority_changes": 0,
+  "semantic_equivalent_evolution": 61,
+  "source_pin_reconciliation": [
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1ed01b12d1870c1575986c82568b100153b600f76003a1e6ab209afa6fb5a743",
+      "path": "app/main.py",
+      "release_worktree_blob_id": "a86270e0f2bfa5d34a1e043644c4aa1ee05509b6",
+      "terminal_main_blob_id": "a86270e0f2bfa5d34a1e043644c4aa1ee05509b6"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "f52be8f32b6249125b94d5eb86e4024e525c751d66b3f3d73d0de518d53453a4",
+      "path": "app/models/tables.py",
+      "release_worktree_blob_id": "a3f084c52cd8b2b02bc85a753c0c138a8848269e",
+      "terminal_main_blob_id": "a3f084c52cd8b2b02bc85a753c0c138a8848269e"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "c3a10fcaa8951ff246ece22370487167ad4b0900d835c9ee69d754c8d68eb529",
+      "path": "app/observability/db_monitor.py",
+      "release_worktree_blob_id": "212147539dd279b92aa4894f03f0689758e1768f",
+      "terminal_main_blob_id": "212147539dd279b92aa4894f03f0689758e1768f"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1ae4578c14387b5bc89cc5c9ec265e6d79211d8e0164c7c81897559b8b6d116b",
+      "path": "app/observability/metrics.py",
+      "release_worktree_blob_id": "7a25dee6b93e1156607a687d6afefd95646e2e90",
+      "terminal_main_blob_id": "7a25dee6b93e1156607a687d6afefd95646e2e90"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "fb0694eba03266c492900bd6c8e358c9ebc49389e2971bcce1e1efa50a232182",
+      "path": "app/routers/ceri_routes.py",
+      "release_worktree_blob_id": "af016fefac7cc08926187c37d07dd3e4de6aee67",
+      "terminal_main_blob_id": "af016fefac7cc08926187c37d07dd3e4de6aee67"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "3c1c4f75e700f7114c10dabb000c03e7c1e7ae78600ce0387354515e4d44e65f",
+      "path": "app/routers/ib_market_intelligence_routes.py",
+      "release_worktree_blob_id": "344590db3d19d0814639dfbdf9651f6578893821",
+      "terminal_main_blob_id": "344590db3d19d0814639dfbdf9651f6578893821"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "5f67384f0a09483f5aaea032aacd032c0d340c9cb7c1a7604588559b01994b9e",
+      "path": "app/routers/ib_routes.py",
+      "release_worktree_blob_id": "fd0659d10bbe2da241f28302f31f6ad67d41e704",
+      "terminal_main_blob_id": "fd0659d10bbe2da241f28302f31f6ad67d41e704"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "fcbfcb9d4c63cfcb1fe8138dfe334f4b20e7cd6c4aa50484fdda67811fd4ea27",
+      "path": "app/routers/market_data_routes.py",
+      "release_worktree_blob_id": "645b177426874ae9ae65dbb3c492f8f056cf8ca1",
+      "terminal_main_blob_id": "645b177426874ae9ae65dbb3c492f8f056cf8ca1"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "5976cda7fd6dd62e02385dc1b6ee9d2dd1e725021b764af6bda1bd12e3e2bfc1",
+      "path": "app/routers/market_regime_routes.py",
+      "release_worktree_blob_id": "5c6af89af468c167a3db4fc37506ed9cbfccae9e",
+      "terminal_main_blob_id": "5c6af89af468c167a3db4fc37506ed9cbfccae9e"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "2840f5bc01cdcd27c1c0bbea3cf1a93357b2e2ca9bff19c641b04311841e759f",
+      "path": "app/routers/run_routes.py",
+      "release_worktree_blob_id": "9221b87d2bf35894fad3380dca568def06c9b8df",
+      "terminal_main_blob_id": "9221b87d2bf35894fad3380dca568def06c9b8df"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "dde004a45ba3f5adb035c71ad041fac0b08614aee3fe47fb78c22e577e948d5f",
+      "path": "app/routers/sector_rotation_routes.py",
+      "release_worktree_blob_id": "7b2366f239707b739f460cad6645082a9dfa67b0",
+      "terminal_main_blob_id": "7b2366f239707b739f460cad6645082a9dfa67b0"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "6eda8dcaf30d36d9c6f78e4cea5f4c4c3b9ed2de33b68d3a8c66607bb6980561",
+      "path": "app/routers/setup_lifecycle_routes.py",
+      "release_worktree_blob_id": "7a1e805a73be31c77610a4eacea731c547d21596",
+      "terminal_main_blob_id": "7a1e805a73be31c77610a4eacea731c547d21596"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "4d77447d09725c09e86a3903f3048f1dcdc4a740c6d7b3e74d18ef90cb59f15f",
+      "path": "app/routers/upload_routes.py",
+      "release_worktree_blob_id": "f07ac3615e6e9e2b18454a395989ed8f4101eef4",
+      "terminal_main_blob_id": "f07ac3615e6e9e2b18454a395989ed8f4101eef4"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "fc5be8149108f399f4df0b1ea1dd4cb56f0b901f416401d2cdc55f015f6df1ad",
+      "path": "app/routers/winner_probability_routes.py",
+      "release_worktree_blob_id": "be6d0e7334a0ea5e3868cfd6a422e18c4eff37af",
+      "terminal_main_blob_id": "be6d0e7334a0ea5e3868cfd6a422e18c4eff37af"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "b82346400a47773038a7144525cd2770912e7cd722b806f83ebac8e86546fb48",
+      "path": "app/serve.py",
+      "release_worktree_blob_id": "174f9d71d184ba6ef1d29a3174f3b1c460b87a8a",
+      "terminal_main_blob_id": "174f9d71d184ba6ef1d29a3174f3b1c460b87a8a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "b931f237b12e6710cc9a643c4751dcd056ba8e49ecd6a90b369059791ad76d68",
+      "path": "app/services/background_job_service.py",
+      "release_worktree_blob_id": "772a3dc0cb009b480b4910fa3bf43cc9fbd5acf7",
+      "terminal_main_blob_id": "772a3dc0cb009b480b4910fa3bf43cc9fbd5acf7"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "96ddb6edefd1a9d68b0e6abc863c381f09ce2dde95460c2baa545a0d2bd8354a",
+      "path": "app/services/background_worker.py",
+      "release_worktree_blob_id": "0717e13ce04fbcd30a19e58b1fe89919c21e12c2",
+      "terminal_main_blob_id": "0717e13ce04fbcd30a19e58b1fe89919c21e12c2"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "6e3b1a78774502d2a2d5b1b184e416837c59b597e58b5535ccbc3f682a723ead",
+      "path": "app/services/bar_cache_service.py",
+      "release_worktree_blob_id": "28c97c6500c350d7d5d4f88af43cb8878ffb66fe",
+      "terminal_main_blob_id": "28c97c6500c350d7d5d4f88af43cb8878ffb66fe"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "28f505ddcfc403934df26da39e131fd18edd16657c592337428f0673379b025b",
+      "path": "app/services/canonical_evidence.py",
+      "release_worktree_blob_id": "3d14e5d65ac96be133fbb3785c492fc28d168003",
+      "terminal_main_blob_id": "3d14e5d65ac96be133fbb3785c492fc28d168003"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "06a4a748c6a5b0f0502c81b26ee33fc429236117c13ed9d94b66cf03aa3e4ddc",
+      "path": "app/services/ceri/alert_authority.py",
+      "release_worktree_blob_id": "78419776ce158104312d44683ebc8bb8fd531dcb",
+      "terminal_main_blob_id": "78419776ce158104312d44683ebc8bb8fd531dcb"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "4e80827a87f3eda0b9dfedf344f85d94f0e4e4eddd0dfe9ef6b531b7a3dbd8be",
+      "path": "app/services/ceri/alert_service.py",
+      "release_worktree_blob_id": "5acd0337cc63433dd4c262fb80efd07315912e04",
+      "terminal_main_blob_id": "5acd0337cc63433dd4c262fb80efd07315912e04"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "85794336f39af8a78a5835240f3a5beadf01b3cb5a81d7971ea68940140033fd",
+      "path": "app/services/ceri/backfill_service.py",
+      "release_worktree_blob_id": "2e23fe0d38a9b5f95e180a82232aea11af740b24",
+      "terminal_main_blob_id": "2e23fe0d38a9b5f95e180a82232aea11af740b24"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "da60e0e6f338889c027deabfb29a78d332bcac9753e63c8fc56adf0114ce0c32",
+      "path": "app/services/ceri/batched_job_handlers.py",
+      "release_worktree_blob_id": "631eb6549072300e41849cc852b98b631c8ebd6a",
+      "terminal_main_blob_id": "631eb6549072300e41849cc852b98b631c8ebd6a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "6bb8cbbef1fd00bd81e14a53abdf0361b1a30d3779d8c40a26590bf8a7bb5a53",
+      "path": "app/services/ceri/batched_workflow.py",
+      "release_worktree_blob_id": "57e468a3f406e64feb1e3b9ebefecc73c025c4b1",
+      "terminal_main_blob_id": "57e468a3f406e64feb1e3b9ebefecc73c025c4b1"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1d97357fb83edba998b38484ad3ad62d9c1b6dfa2cbe1a817dc81e3aa89dd5c1",
+      "path": "app/services/ceri/capture_service.py",
+      "release_worktree_blob_id": "7a2f4f1cd46ddd1ae23fa7470f3fe3069711fb2b",
+      "terminal_main_blob_id": "7a2f4f1cd46ddd1ae23fa7470f3fe3069711fb2b"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "00a86dae52b7f5e6ad7bf4b9aae90b1d13c7c2a2b1d12eba98e9c98b47c876d8",
+      "path": "app/services/ceri/change_authority.py",
+      "release_worktree_blob_id": "569b1f4fc41dc741f8d6de33384c400e32b25e7e",
+      "terminal_main_blob_id": "569b1f4fc41dc741f8d6de33384c400e32b25e7e"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "4dc53175735671a19719b62d901078702f99171d4dfa7ac4f0fe4b42903e14ca",
+      "path": "app/services/ceri/change_detection_service.py",
+      "release_worktree_blob_id": "837299e6306ed32c0ce94d21bfdac5424fac48cb",
+      "terminal_main_blob_id": "837299e6306ed32c0ce94d21bfdac5424fac48cb"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "58820302c609cc1b5e6ac3fc9a390e0f2e66656732291b4b460c286ee7b31203",
+      "path": "app/services/ceri/change_rebuild_service.py",
+      "release_worktree_blob_id": "b1a58c34467baa3d85a048dc3c80d6859ee1ca12",
+      "terminal_main_blob_id": "b1a58c34467baa3d85a048dc3c80d6859ee1ca12"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "b4f50076e8f9b84d821b5f81b95dc1734aba5c99ea7240f96236e3082835dab4",
+      "path": "app/services/ceri/confidence_service.py",
+      "release_worktree_blob_id": "b561de55b21ab2a76a98f57ab9e6bbb203c6f41b",
+      "terminal_main_blob_id": "b561de55b21ab2a76a98f57ab9e6bbb203c6f41b"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "65ad6e52a31890b216225e2038bb38668b1b2823e933f3318c3dccc1d1d0e128",
+      "path": "app/services/ceri/config.py",
+      "release_worktree_blob_id": "b7bc13f77ff1c55ec0b5d23f3de1fed9694f1fd2",
+      "terminal_main_blob_id": "b7bc13f77ff1c55ec0b5d23f3de1fed9694f1fd2"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "a8583c89ff4954dc5c3a810dbdc72b456525a2b796da536f83763f56e77087c3",
+      "path": "app/services/ceri/controlled_replay_service.py",
+      "release_worktree_blob_id": "c2bf8349746817f4f2d55f58faf63ba8229e113a",
+      "terminal_main_blob_id": "c2bf8349746817f4f2d55f58faf63ba8229e113a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "e7f058d3413d252b80a6aa505f04782c792a0dc8b04b2246c4ddf3e3f5ada4d4",
+      "path": "app/services/ceri/decision_evidence.py",
+      "release_worktree_blob_id": "e264ac96275fdd3192d7a0db3e39a8de2f7c4cb7",
+      "terminal_main_blob_id": "e264ac96275fdd3192d7a0db3e39a8de2f7c4cb7"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "14c0f57ce629b6c5c6bd63468861a6e150ea2896262b0ae04ab0cfd5176e3f6a",
+      "path": "app/services/ceri/deployment_identity.py",
+      "release_worktree_blob_id": "f037f74d5914cccaeceae231917147d3ff8bc341",
+      "terminal_main_blob_id": "f037f74d5914cccaeceae231917147d3ff8bc341"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "4827402d62a4026120c4988424026aec4b14937e4dc280655d814cb02dbad2fd",
+      "path": "app/services/ceri/estimate_normalizer.py",
+      "release_worktree_blob_id": "c8917f057e39635fcf3b60b52b1a4f0b1d0832a7",
+      "terminal_main_blob_id": "c8917f057e39635fcf3b60b52b1a4f0b1d0832a7"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ec94a2880ea6665de602660c616a3b115648d8536e5bbfaf7471f7b0c3a036fe",
+      "path": "app/services/ceri/evidence_eligibility.py",
+      "release_worktree_blob_id": "4ad98376da077da0b570791823149120aebd899f",
+      "terminal_main_blob_id": "4ad98376da077da0b570791823149120aebd899f"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "48a3e9e58eef0eb36d32e60a114536238db1938eb9f11487432e265ea8a654b9",
+      "path": "app/services/ceri/feature_rebuild_service.py",
+      "release_worktree_blob_id": "344c674381b66ae4d8afa1202534701599783831",
+      "terminal_main_blob_id": "344c674381b66ae4d8afa1202534701599783831"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "86631f29105e117cfc9fd2f779cdc6305b4165e2f634134a373035aea6938ef8",
+      "path": "app/services/ceri/guidance_normalizer.py",
+      "release_worktree_blob_id": "54a8bb9c9bc8002bf1101578dd68e07390f0b2e3",
+      "terminal_main_blob_id": "54a8bb9c9bc8002bf1101578dd68e07390f0b2e3"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ce691a8e3852c22e9b7edd3366ee787c66935ccf0951f3151e07ab72ad723cab",
+      "path": "app/services/ceri/identity_resolver.py",
+      "release_worktree_blob_id": "21f607f351308c45439cd4622590735218ef9a22",
+      "terminal_main_blob_id": "21f607f351308c45439cd4622590735218ef9a22"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "b2ef0cf6591f899f26586aeabe95a880789198472cf43be3ee9c31aca35bd929",
+      "path": "app/services/ceri/job_handlers.py",
+      "release_worktree_blob_id": "d0fd7316f107641de07f01e1eefc1716007da60a",
+      "terminal_main_blob_id": "d0fd7316f107641de07f01e1eefc1716007da60a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "342c20b815db376690ce3f606e85b3fcd175593b5cb28992313c52919bc76d8a",
+      "path": "app/services/ceri/manual_review_service.py",
+      "release_worktree_blob_id": "43c4c0b81265549943ef299e2ab55da942e7674f",
+      "terminal_main_blob_id": "43c4c0b81265549943ef299e2ab55da942e7674f"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "9a05ea47d1667da44ae43ea442b3b334630b74d04f53785cb72109f3028caaf0",
+      "path": "app/services/ceri/normalization_service.py",
+      "release_worktree_blob_id": "aff8bd853ffbefa11dd7c71c8734af117079d841",
+      "terminal_main_blob_id": "aff8bd853ffbefa11dd7c71c8734af117079d841"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "0f98601066a8f3592512ec0f638d7310c30e82cd8d5c5c5646107bc8210126da",
+      "path": "app/services/ceri/orchestration.py",
+      "release_worktree_blob_id": "1aea9a16e8bc2dc9a423437e0316274690af5c77",
+      "terminal_main_blob_id": "1aea9a16e8bc2dc9a423437e0316274690af5c77"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "7d829af4f5df2b11a3fc4ba27be21de9f8fccee870f080f13f72a41e7a896862",
+      "path": "app/services/ceri/pit_eligibility.py",
+      "release_worktree_blob_id": "c596ead696dbe0ebdf5361d6acbc1867c5193f94",
+      "terminal_main_blob_id": "c596ead696dbe0ebdf5361d6acbc1867c5193f94"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "9ee51c919801889bd549a9ea08d73aa3019d757000e4137d80cfec32ddd35b7d",
+      "path": "app/services/ceri/point_in_time_query.py",
+      "release_worktree_blob_id": "b3d8db9fbfd55734918f7f4610c6087449bd0bf6",
+      "terminal_main_blob_id": "b3d8db9fbfd55734918f7f4610c6087449bd0bf6"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "201f9f925c2a7e11c5b421fd8b71eca8fe83424bec69198f5d9c0a53dfa4cd34",
+      "path": "app/services/ceri/price_response_service.py",
+      "release_worktree_blob_id": "4d1c9536917ed083fdbe8604e4d9d9743bf1b98a",
+      "terminal_main_blob_id": "4d1c9536917ed083fdbe8604e4d9d9743bf1b98a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "216ec5e052dfd7ed72705345b5710be5e2acf3a04c5346f4c266d8a2cac05c40",
+      "path": "app/services/ceri/processing_run_service.py",
+      "release_worktree_blob_id": "2fff15536fa948642c29280f02a88567e4f666d6",
+      "terminal_main_blob_id": "2fff15536fa948642c29280f02a88567e4f666d6"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "c28098c451097a3709bcdd56c6fe6bc26cf2a5e66eea7d4d79e3cb2644bd97e0",
+      "path": "app/services/ceri/purge_service.py",
+      "release_worktree_blob_id": "860eaa31a221ea7efa79075d2aa2351ac4e3e214",
+      "terminal_main_blob_id": "860eaa31a221ea7efa79075d2aa2351ac4e3e214"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "cf9d4bedf55784bf25383e1667da6ff9605fd54621ed323786588ca8c1ba0f1b",
+      "path": "app/services/ceri/revision_feature_service.py",
+      "release_worktree_blob_id": "717dd33c153ea9c56ef3261eb2b501ce551f38fa",
+      "terminal_main_blob_id": "717dd33c153ea9c56ef3261eb2b501ce551f38fa"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1256826b122f30c42587198858014fe19af3db529712ccaf481f11b64f6f0d63",
+      "path": "app/services/ceri/sec/content_cache.py",
+      "release_worktree_blob_id": "75021153c3f02610246212ffb7140f6ad8cf803d",
+      "terminal_main_blob_id": "75021153c3f02610246212ffb7140f6ad8cf803d"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "44ceb72fc89a0d9b32e83ad5f0814759e578794d453092670a42bf12cb0b02c7",
+      "path": "app/services/ceri/sec/identity_repair.py",
+      "release_worktree_blob_id": "8fa5d78b05e1b6136f2eae9ed6e78104563e5387",
+      "terminal_main_blob_id": "8fa5d78b05e1b6136f2eae9ed6e78104563e5387"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "79bb017d5395a11828352cefc0cd9161945111c2c5e564b8525f76f6c9bf0949",
+      "path": "app/services/ceri/sec/incremental_ingestion.py",
+      "release_worktree_blob_id": "71c122cf665fca4d0b1def0e59eabc207924c3b1",
+      "terminal_main_blob_id": "71c122cf665fca4d0b1def0e59eabc207924c3b1"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "c1fa08b620437d940292ebd30e26f9a77613d21afec6e5676455843e7684a561",
+      "path": "app/services/ceri/sec/readiness_repair.py",
+      "release_worktree_blob_id": "a9a4bf6498df23745756326b0a49c9d209dfe562",
+      "terminal_main_blob_id": "a9a4bf6498df23745756326b0a49c9d209dfe562"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1147d6e746997fa39513c995ed82de90d5d7711ce44210443d4da7cf5097622c",
+      "path": "app/services/ceri/sec/state_service.py",
+      "release_worktree_blob_id": "e6e9916a881eb52aaa4f4bd5c60ec59e15bba0cc",
+      "terminal_main_blob_id": "e6e9916a881eb52aaa4f4bd5c60ec59e15bba0cc"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "3b366b08621eba8769e27d79916e060207b610c950c1225a0ff63c9749e55872",
+      "path": "app/services/ceri/snapshot_service.py",
+      "release_worktree_blob_id": "0f005b3bc09884e3a0fbc1a92d8a4b7e74b98e99",
+      "terminal_main_blob_id": "0f005b3bc09884e3a0fbc1a92d8a4b7e74b98e99"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "54a9630348e340e8fee6ae5cb7c0b05f518d809c45bd140e9c1f6caa708f82fc",
+      "path": "app/services/ceri/source_record_service.py",
+      "release_worktree_blob_id": "a6b1f25a9a62a114852037236531282f3102dd6b",
+      "terminal_main_blob_id": "a6b1f25a9a62a114852037236531282f3102dd6b"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ab7acf9461e77d3fa7d0f1b1fea59ead9394840e5919cd8892a58e37a1592d38",
+      "path": "app/services/ceri/surprise_feature_service.py",
+      "release_worktree_blob_id": "6501425ae89b838094d72b96638f6b6de67ea377",
+      "terminal_main_blob_id": "6501425ae89b838094d72b96638f6b6de67ea377"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "91e3aeb1562e6dcf9f2a9ac1b6a9c1ae1df038fed68bf89b7803212b05ace18c",
+      "path": "app/services/ceri/upcoming_earnings_authority.py",
+      "release_worktree_blob_id": "d37b493a9de28caf9d5c34cbb71925292d35036b",
+      "terminal_main_blob_id": "d37b493a9de28caf9d5c34cbb71925292d35036b"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "6f68285731babdcee93f53469572b0992c968f985cadfcb22b76877c4229ddb4",
+      "path": "app/services/combined_decision.py",
+      "release_worktree_blob_id": "aa0198d29a0c884f3845609d70730a070e10b2a3",
+      "terminal_main_blob_id": "aa0198d29a0c884f3845609d70730a070e10b2a3"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "d2d7424731ef811392d92f9bf0193f192c1327c2213cf6e3821e87eff84538c6",
+      "path": "app/services/configuration_delivery.py",
+      "release_worktree_blob_id": "f3c92eecb070163be152dca27b125de30a3dcc1d",
+      "terminal_main_blob_id": "f3c92eecb070163be152dca27b125de30a3dcc1d"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "05a35b31c0a369ab8871cb2e2b08206404f9dd5e4332c1e821796b7f59a1ce2a",
+      "path": "app/services/core_calculation_evidence.py",
+      "release_worktree_blob_id": "90c4bb69cc2514da8634fb487a9b39f23a7d57c6",
+      "terminal_main_blob_id": "90c4bb69cc2514da8634fb487a9b39f23a7d57c6"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "17ae03dac145ad1c72c362262bb9a1f412b4969c0dcb21abe55ea96ec41e7535",
+      "path": "app/services/core_mutation_authority.py",
+      "release_worktree_blob_id": "56495c55010d6d4fe425c88cabba4de94b9e7f60",
+      "terminal_main_blob_id": "56495c55010d6d4fe425c88cabba4de94b9e7f60"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "8a6a55ac6ffbdf1b55d5094dda77fd82ee2308e11458a5899d19f26ba65c244c",
+      "path": "app/services/decision_effective_configuration.py",
+      "release_worktree_blob_id": "ef231ee2b385772d3ab3aee52a5fabae4c5daf1e",
+      "terminal_main_blob_id": "ef231ee2b385772d3ab3aee52a5fabae4c5daf1e"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "92f590e688f3a4a8b1252755468cb6855e8665ec56ad03bbaf616d2095920f98",
+      "path": "app/services/decision_mutation_authority.py",
+      "release_worktree_blob_id": "d7f9e88b23eb718dbbb3574ed769a4d1ff91adf2",
+      "terminal_main_blob_id": "d7f9e88b23eb718dbbb3574ed769a4d1ff91adf2"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "246995e2bd1345fb061e528c92ceebfbb78cba01aa31eb4c9b43c35707f9b44c",
+      "path": "app/services/domain_mutation.py",
+      "release_worktree_blob_id": "ebf46e51efcef69f63bb45133f4c27d9d56f1dc0",
+      "terminal_main_blob_id": "ebf46e51efcef69f63bb45133f4c27d9d56f1dc0"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "dc86fed79edbb854d58f93485df0813e675bb8bd356606fb32378ddddf23b0d4",
+      "path": "app/services/domain_write_fence.py",
+      "release_worktree_blob_id": "83f70bc7540729495948105ee8010eea48574c9d",
+      "terminal_main_blob_id": "83f70bc7540729495948105ee8010eea48574c9d"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "165307dacac85fce70a4739a652b7ec6bd49e9db91e093da9c54c4c81ff49178",
+      "path": "app/services/entrypoint_authority.py",
+      "release_worktree_blob_id": "2d15415c993e770c07427df984da04d7aa1c917a",
+      "terminal_main_blob_id": "2d15415c993e770c07427df984da04d7aa1c917a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ac9b6cccc80c6c0626d35494c4f0e3d7f72d3bffb126854f20f39385ecf4da60",
+      "path": "app/services/fundamental_score_service.py",
+      "release_worktree_blob_id": "4601d8ab28a06ab828a0126d550117a16fe76439",
+      "terminal_main_blob_id": "4601d8ab28a06ab828a0126d550117a16fe76439"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "0c9e58815f10b8657f5ead6e8418f31dcca48627d0abb367cef37e890c107f30",
+      "path": "app/services/ib_contract_resolver.py",
+      "release_worktree_blob_id": "ee5f5b5ea37477abf4b2cd51f03aac9637a4265b",
+      "terminal_main_blob_id": "ee5f5b5ea37477abf4b2cd51f03aac9637a4265b"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "3f4fa34c855a85bde5fd0a1c0bc74001f262202ccb922816dee8852caeec33da",
+      "path": "app/services/ib_fetch_executor.py",
+      "release_worktree_blob_id": "cb08aaa633c71847ff69e038fb3adaad69a21c60",
+      "terminal_main_blob_id": "cb08aaa633c71847ff69e038fb3adaad69a21c60"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1a201cfaebe515f4e08e1e233699f7521afb59909b226f2ce557bf8d92beb485",
+      "path": "app/services/ib_fetch_job_service.py",
+      "release_worktree_blob_id": "7206baf260934b281e9f3fda1afa7faf13575caa",
+      "terminal_main_blob_id": "7206baf260934b281e9f3fda1afa7faf13575caa"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "9dcc9e2fa88f05b22625722460f43c373b96ff56cb7f6349d41e74fb027c8c7d",
+      "path": "app/services/ib_gateway_health_service.py",
+      "release_worktree_blob_id": "befa5a3aab7bfae802c1f91a9dbaa07a04619868",
+      "terminal_main_blob_id": "befa5a3aab7bfae802c1f91a9dbaa07a04619868"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "863d8b3fcca8b2e7f8861d3db8a0046e316634ced651b747b17c0932f9a845e9",
+      "path": "app/services/ib_market_intelligence/decision_evidence.py",
+      "release_worktree_blob_id": "db1e91464e01cf859935096bf871cef6064c1e76",
+      "terminal_main_blob_id": "db1e91464e01cf859935096bf871cef6064c1e76"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "677f73dc0fe1a7e6a065550921678c8adaa8fada53d11e6385710b13048018b3",
+      "path": "app/services/ib_market_intelligence/flex.py",
+      "release_worktree_blob_id": "57450924db8b3ca952b687f40274d334a3628a81",
+      "terminal_main_blob_id": "57450924db8b3ca952b687f40274d334a3628a81"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "f593aae222615ec082ed40e2161c5e62bc861b25c76ebc18ac2b42a44374795e",
+      "path": "app/services/ib_market_intelligence/journal.py",
+      "release_worktree_blob_id": "68592fb8a0556754307e25fe89c8bd67ecae933b",
+      "terminal_main_blob_id": "68592fb8a0556754307e25fe89c8bd67ecae933b"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "80ec90070712f697ef756f33c09ea5c1a75d692170ec3f76edc71dde4d34bfaa",
+      "path": "app/services/ib_market_intelligence/orchestration.py",
+      "release_worktree_blob_id": "68038afc501dd0e57b3940a878bf2fc460d6e756",
+      "terminal_main_blob_id": "68038afc501dd0e57b3940a878bf2fc460d6e756"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "12498b4e5586bc06aaf06b6e1abc92b9ebf3e15dbb5bd360055583e323f52786",
+      "path": "app/services/ib_market_intelligence/repository.py",
+      "release_worktree_blob_id": "817138ba7806d57530549f617534f979bb263473",
+      "terminal_main_blob_id": "817138ba7806d57530549f617534f979bb263473"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "e659d4b1c0c37d4b111e298e04785e9e029a7eea0c058f50d06f65ce69d2b13d",
+      "path": "app/services/lifecycle_control.py",
+      "release_worktree_blob_id": "342780531802915b2988511ce2a1a2d3e7e01973",
+      "terminal_main_blob_id": "342780531802915b2988511ce2a1a2d3e7e01973"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "9974c5a5216715ebd29146ece7d6514d386ed5e35107d1abda0f714abf3435c2",
+      "path": "app/services/market_calculation_context_service.py",
+      "release_worktree_blob_id": "9d07f25d42d780126dd67cb565064e0e2a9eb061",
+      "terminal_main_blob_id": "9d07f25d42d780126dd67cb565064e0e2a9eb061"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "a23fbe59f93b09df5ad06d216c7ff94d9ac876f8e270b9d7d2568aa0e9326a55",
+      "path": "app/services/market_data_prewarm_service.py",
+      "release_worktree_blob_id": "48426ce46a31d3c045d56ee740e78a201dfa881b",
+      "terminal_main_blob_id": "48426ce46a31d3c045d56ee740e78a201dfa881b"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "0083468becf2e45038f9e0756bb8a64e295bd604953771705c3d8ba2f9116927",
+      "path": "app/services/market_regime_command_center.py",
+      "release_worktree_blob_id": "886083ea06b1f323d8942a0a394375b6a4776b26",
+      "terminal_main_blob_id": "886083ea06b1f323d8942a0a394375b6a4776b26"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "3f8dd25377a9129157f6649eee08b2bb3372018b08f11bbb08dca7169ca74c7f",
+      "path": "app/services/market_regime_policy.py",
+      "release_worktree_blob_id": "34aeb077e864d7e0290facd62cdfbb5f43ff9159",
+      "terminal_main_blob_id": "34aeb077e864d7e0290facd62cdfbb5f43ff9159"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "724ada94f986e7a245db2410f6d328814a6c48c23ed2b34354327c02c60d3223",
+      "path": "app/services/market_regime_repository.py",
+      "release_worktree_blob_id": "f9bf9b6d2c11ac5c8d10d84c46baa35333eb1065",
+      "terminal_main_blob_id": "f9bf9b6d2c11ac5c8d10d84c46baa35333eb1065"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "238ed5855c84963a5f213aacdf234334db5bbe65b1babd4125d47ed7c5778207",
+      "path": "app/services/ohlcv_coverage_service.py",
+      "release_worktree_blob_id": "e733ede7fde7a811ea055991e2ef29da57c0dbe0",
+      "terminal_main_blob_id": "e733ede7fde7a811ea055991e2ef29da57c0dbe0"
+    },
+    {
+      "classification": "REVIEWED_IB_HISTORICAL_PREFLIGHT_SOURCE_CHANGE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "32ba3eb0703e01426e299d1f2f534e5e5b2bcf5ed39786fd913ccfd648c11dcd",
+      "path": "app/services/pipeline_executor.py",
+      "release_worktree_blob_id": "393d85eddfdfab3fafb20be0da53e064c15e66a4",
+      "terminal_main_blob_id": "6fd2fe9fe714b1a284b966425d6fc7a7d28c2fa0"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "472b333063ebfef733941c4bab4f529cef64c30b61e599d535b82daef4cd115f",
+      "path": "app/services/pipeline_service.py",
+      "release_worktree_blob_id": "7b045cf84788ecb644501a2b6b9a8b03dfa64404",
+      "terminal_main_blob_id": "7b045cf84788ecb644501a2b6b9a8b03dfa64404"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "9329953b5939de23f9f7a8ebba04dc952fed40354f1a79ccedbec24fb6984c1d",
+      "path": "app/services/pre_enqueue_operational_gate.py",
+      "release_worktree_blob_id": "7fc6039cd601c06dda67cbcb46bbc3b846de6a77",
+      "terminal_main_blob_id": "7fc6039cd601c06dda67cbcb46bbc3b846de6a77"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "7adee83f07b1eaf0949af56f9cd7c92e7891492bd0f81050595b924c206ae443",
+      "path": "app/services/price_series_version_service.py",
+      "release_worktree_blob_id": "2182340cc1ecc5950c6e576d9b76fa9e3cfa26eb",
+      "terminal_main_blob_id": "2182340cc1ecc5950c6e576d9b76fa9e3cfa26eb"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "24b132831750968b984e192baea7fd4f21882032fcfbd6f1ed4b6c8d25f1fb9f",
+      "path": "app/services/ranking_profile_service.py",
+      "release_worktree_blob_id": "aa25eb31298730352a9a29cfd74059013736d737",
+      "terminal_main_blob_id": "aa25eb31298730352a9a29cfd74059013736d737"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "fd277bddccd9c5cc240e918069022cdf0ed9d00235cba81fe5324bed79524bf2",
+      "path": "app/services/relative_leadership.py",
+      "release_worktree_blob_id": "1b4befe1b8e53193ef32aa41bedd18764223f1bb",
+      "terminal_main_blob_id": "1b4befe1b8e53193ef32aa41bedd18764223f1bb"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "6eb41bdd1e326f1beadeda2444ab436ee43650277f9a385e0ec73e8fd77481fc",
+      "path": "app/services/scope_refresh_adoption.py",
+      "release_worktree_blob_id": "8f6ab554c0eaa3cc0085f75c937e3a475cd23e3c",
+      "terminal_main_blob_id": "8f6ab554c0eaa3cc0085f75c937e3a475cd23e3c"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "db760484d8e30ed3cfc527c14b1fa98e9847c797e48a5333c7f23a0c7b0c17a4",
+      "path": "app/services/sector_rotation_repository.py",
+      "release_worktree_blob_id": "0256c756ae0961d4aa24d08d776bd458c59307ce",
+      "terminal_main_blob_id": "0256c756ae0961d4aa24d08d776bd458c59307ce"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "343990527cdc71cbc42dc3c621d3596966259a155a2513e5febdeb918c6c174c",
+      "path": "app/services/sector_rotation_service.py",
+      "release_worktree_blob_id": "a1bcadda6aa8a91d5fa66321c4ac4d86d1d6b31a",
+      "terminal_main_blob_id": "a1bcadda6aa8a91d5fa66321c4ac4d86d1d6b31a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "7766b706581b67c2e5d02d122d2b7d073b53b4e6c4bb5faabca93053bd970e2f",
+      "path": "app/services/sector_universe_service.py",
+      "release_worktree_blob_id": "7a60364852574ce151273993c811a5b2b21397be",
+      "terminal_main_blob_id": "7a60364852574ce151273993c811a5b2b21397be"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "b840fb0ea91dec20af76d9215a5aad0a7f2fe5bb48c0cbbab96fdf2c71dd0a89",
+      "path": "app/services/setup_lifecycle/alert_authority.py",
+      "release_worktree_blob_id": "e67b66fc88bba1afe9d632ee03ccfa0b60a83af0",
+      "terminal_main_blob_id": "e67b66fc88bba1afe9d632ee03ccfa0b60a83af0"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "5000da60f610c0bb5d16b3eaf646bd876d939f4b5a70440d3360d1581481978b",
+      "path": "app/services/setup_lifecycle/alert_service.py",
+      "release_worktree_blob_id": "0952157f0e48a8611d2461604957a3e9fbc16bba",
+      "terminal_main_blob_id": "0952157f0e48a8611d2461604957a3e9fbc16bba"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "e603bd0fdc1191875dd0d22b0f742b796e949a2f00e07a096dbdba94a20fe932",
+      "path": "app/services/setup_lifecycle/caller_authority.py",
+      "release_worktree_blob_id": "78e33c02beecd866c7cbaeedc2d28edae78882fe",
+      "terminal_main_blob_id": "78e33c02beecd866c7cbaeedc2d28edae78882fe"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "577e31ca23b72b46a47fab9212e35d0c00179d9ed4dac2e342655e831df0aa42",
+      "path": "app/services/setup_lifecycle/canonicalization.py",
+      "release_worktree_blob_id": "9455cc187d22ccf907fbc81cce18bdb0dafd0219",
+      "terminal_main_blob_id": "9455cc187d22ccf907fbc81cce18bdb0dafd0219"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "164ea2f6082dc0ad79bffa0844d2faaf23aec301561e363210ecd5403810d2ac",
+      "path": "app/services/setup_lifecycle/change_authority.py",
+      "release_worktree_blob_id": "0c9dab4abed50d5cf82d90ca1573cf52302fd0b0",
+      "terminal_main_blob_id": "0c9dab4abed50d5cf82d90ca1573cf52302fd0b0"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "02ffd3f0d8ef2ff0b6881e396094d62ffda640cc060da3cc11f81ab2d4e7aa0c",
+      "path": "app/services/setup_lifecycle/change_detector.py",
+      "release_worktree_blob_id": "43059467f2d27824df0ea386741b819ee78c2a83",
+      "terminal_main_blob_id": "43059467f2d27824df0ea386741b819ee78c2a83"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "5dbcfcfee2217aa127a45d8f5b9c93ab00bc4e340feb174ed0e198ddbd2a1c2c",
+      "path": "app/services/setup_lifecycle/decision_evidence.py",
+      "release_worktree_blob_id": "787a585d0320eea5d8962a00a220b2af49d2d1f2",
+      "terminal_main_blob_id": "787a585d0320eea5d8962a00a220b2af49d2d1f2"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "7fe7a7d877ef9ea1c5ee7a07396f41164e4341dfe39dad94acf348a12059e7f8",
+      "path": "app/services/setup_lifecycle/episode_service.py",
+      "release_worktree_blob_id": "f48e79a417e8fc4ec4fa04b70c9a8888db02b04b",
+      "terminal_main_blob_id": "f48e79a417e8fc4ec4fa04b70c9a8888db02b04b"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "d2cc86d11d18745a7fd62715203393e60bfcdfe1285c970c85909bc3b6d06609",
+      "path": "app/services/setup_lifecycle/evaluation_service.py",
+      "release_worktree_blob_id": "bb5e4b1135bcd4f25c0208c9e1d189fea68e81fb",
+      "terminal_main_blob_id": "bb5e4b1135bcd4f25c0208c9e1d189fea68e81fb"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "54bbe944fdbcc2b9beb940b584dcc3c6aaafc8634ba271a8a7e4a7d7b28cd153",
+      "path": "app/services/setup_lifecycle/job_handlers.py",
+      "release_worktree_blob_id": "b22a3053fe5dcbdb2ae621ff834a5655c130120f",
+      "terminal_main_blob_id": "b22a3053fe5dcbdb2ae621ff834a5655c130120f"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "c6b927d1a5069f892db213893efbdc8c38351958263e269b815b7eaae102a2f7",
+      "path": "app/services/setup_lifecycle/maintenance_service.py",
+      "release_worktree_blob_id": "4029016dc9393639ec365f2e891d978fdca844b3",
+      "terminal_main_blob_id": "4029016dc9393639ec365f2e891d978fdca844b3"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "f13c4eb7dd555c3596757666062e4d3098300cab939b96a7cda63209d6c1f0e4",
+      "path": "app/services/setup_lifecycle/purge_service.py",
+      "release_worktree_blob_id": "0430db60375128555d671740c0fb21675515c835",
+      "terminal_main_blob_id": "0430db60375128555d671740c0fb21675515c835"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "c159823668384c0394aafa3e616342a1bf25ff5053953515cd73f2b7d79afb08",
+      "path": "app/services/setup_lifecycle/replay_service.py",
+      "release_worktree_blob_id": "df62b60476a27a69259049841283a113ff3132af",
+      "terminal_main_blob_id": "df62b60476a27a69259049841283a113ff3132af"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "8bc25295189e0669c9468b063fec6bc42685d9069087f18ed0218e2a384aa44c",
+      "path": "app/services/setup_lifecycle/repository.py",
+      "release_worktree_blob_id": "8e2349a841368b0c43f664a4b45d1511d19c568e",
+      "terminal_main_blob_id": "8e2349a841368b0c43f664a4b45d1511d19c568e"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ef782e14123335ce1f34aa351dc78ca313994566eb3341c54ee1ad75cb696707",
+      "path": "app/services/setup_lifecycle/snapshot_builder.py",
+      "release_worktree_blob_id": "fb40db9217d46fa46482ad79c8802cfe2ab09c69",
+      "terminal_main_blob_id": "fb40db9217d46fa46482ad79c8802cfe2ab09c69"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "f35320176b04a22682d5a1f4b77f1061a5f5019ea95cb9e674d2cce8349866fc",
+      "path": "app/services/source_mutation_authority.py",
+      "release_worktree_blob_id": "7edcb83ba2537756f60fb6ee9e84b711f61e13ab",
+      "terminal_main_blob_id": "7edcb83ba2537756f60fb6ee9e84b711f61e13ab"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "98cd2fd43fb66371d6c0cd0e8c1c0843f6fcc5d99717a8c087ebbab824c97c9d",
+      "path": "app/services/supporting_mutation_authority.py",
+      "release_worktree_blob_id": "97aa65dd9fe9b85efc0cfddd04269c51cb0415b9",
+      "terminal_main_blob_id": "97aa65dd9fe9b85efc0cfddd04269c51cb0415b9"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "9cc22668060ca66da09592cbd87a67eea603246022aaa640dc961e78ff91fefd",
+      "path": "app/services/technical_artifact_cache.py",
+      "release_worktree_blob_id": "de6ac4b5d201ebcbf19b21e771525bf2df88623a",
+      "terminal_main_blob_id": "de6ac4b5d201ebcbf19b21e771525bf2df88623a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "98adbb9849c42d2056fd5ea95ef3b23df503f6b2f60a88583b9f4b17f61d1599",
+      "path": "app/services/technical_indicators.py",
+      "release_worktree_blob_id": "1f7d1c1714202aea7c2b2606d1891d0237d925aa",
+      "terminal_main_blob_id": "1f7d1c1714202aea7c2b2606d1891d0237d925aa"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "f9bf63dc208462a329a6fe00f4b84436153d0dafbc7aa6f25385c52a769f5a54",
+      "path": "app/services/technical_score_service.py",
+      "release_worktree_blob_id": "d844d95a3c619a86ad6438d7595ed43bfcf88d82",
+      "terminal_main_blob_id": "d844d95a3c619a86ad6438d7595ed43bfcf88d82"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "809f304b2af07ca967c7a93d90f42d11f4687eaa56174b52c6787d94fed64f24",
+      "path": "app/services/transition_preflight_plan_service.py",
+      "release_worktree_blob_id": "c29640e71eef0a73b1902102a244c9607a062d98",
+      "terminal_main_blob_id": "c29640e71eef0a73b1902102a244c9607a062d98"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1298ecfd315c73159370192d818ebdfb7ff0a06b80308e70475c6c9a9a9a40e1",
+      "path": "app/services/upload_service.py",
+      "release_worktree_blob_id": "2b6dc26c9a6e6d1a41f120c15cfd597b770f7d1e",
+      "terminal_main_blob_id": "2b6dc26c9a6e6d1a41f120c15cfd597b770f7d1e"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1db51b99ac2f2906bb48ceccd5a929529fcf96bb3897b5f2ab9b1e91135e50f0",
+      "path": "app/services/winner_probability/api_service.py",
+      "release_worktree_blob_id": "29e9f792638e5d178d00eb228c818223883474cc",
+      "terminal_main_blob_id": "29e9f792638e5d178d00eb228c818223883474cc"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "a4156b5f3747b778ef7991f6d8fa49d7a6971ec26763bdb129c4c2990c9fe82a",
+      "path": "app/services/winner_probability/backfill.py",
+      "release_worktree_blob_id": "7995e9eb38720d56a48a51d3f4bff44b17fbaf58",
+      "terminal_main_blob_id": "7995e9eb38720d56a48a51d3f4bff44b17fbaf58"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "8986514e88d44c39c8258bca306e243f892b85aed7e9b2d0fb178db68ca6be9b",
+      "path": "app/services/winner_probability/calibration_service.py",
+      "release_worktree_blob_id": "6e5c58acfa9743b536437b0a87dc6e35ddc149aa",
+      "terminal_main_blob_id": "6e5c58acfa9743b536437b0a87dc6e35ddc149aa"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "cb0e494018be4a4a13ba1dbec6a705b1c7e6d591ec340623487bb665e63ac1fe",
+      "path": "app/services/winner_probability/capture_service.py",
+      "release_worktree_blob_id": "4e6b09b5e0e29ec2017ed555a14003d1eb2a4844",
+      "terminal_main_blob_id": "4e6b09b5e0e29ec2017ed555a14003d1eb2a4844"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "91620a915a3793c70826638d8fd9420cef1d0754f65f67f192624346b57e8beb",
+      "path": "app/services/winner_probability/cohort_authority.py",
+      "release_worktree_blob_id": "09e4dec868417b6ef3adb2fd2f7925b78e83a1d0",
+      "terminal_main_blob_id": "09e4dec868417b6ef3adb2fd2f7925b78e83a1d0"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "df005ef70cbb65aa79fc019e13f5a1ddb2d2f59916437494e1fa9fc72e8b14c9",
+      "path": "app/services/winner_probability/cohort_definition.py",
+      "release_worktree_blob_id": "969eb50bb46f318aa58d3343dc67d359382c3551",
+      "terminal_main_blob_id": "969eb50bb46f318aa58d3343dc67d359382c3551"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "3879596f699943655685af91fa13f94ab3bc79d6c6dd8f1f6ad82f68c1f9d65c",
+      "path": "app/services/winner_probability/cohort_generation_service.py",
+      "release_worktree_blob_id": "8b2d6de58d6959a05625963ca0d9016790fb52cf",
+      "terminal_main_blob_id": "8b2d6de58d6959a05625963ca0d9016790fb52cf"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "2a02594dab67bc7efe38b0d97f8bf1ac912d9a57da065f562beeb24f573dd91e",
+      "path": "app/services/winner_probability/cohort_materialization_service.py",
+      "release_worktree_blob_id": "56f71a23a4a3738c6da1cd1a890c4dcb08ba5227",
+      "terminal_main_blob_id": "56f71a23a4a3738c6da1cd1a890c4dcb08ba5227"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "660ba76493acc241e8b084809e1794fddfb74273d1734e7c256abed56608a1c5",
+      "path": "app/services/winner_probability/cohort_refresh_planner.py",
+      "release_worktree_blob_id": "61d35c04288125c59d85c1aa91ff15e120a65f98",
+      "terminal_main_blob_id": "61d35c04288125c59d85c1aa91ff15e120a65f98"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "a0a89a9ad9f0031d32bf7b794c39aeb90c9056098bb7f68565702af830a84f6f",
+      "path": "app/services/winner_probability/decision_time_estimate_service.py",
+      "release_worktree_blob_id": "86a4b17dfd59fc5ac1aaf81d1d7800d1281b95de",
+      "terminal_main_blob_id": "86a4b17dfd59fc5ac1aaf81d1d7800d1281b95de"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "63ff3e541c0f8addc6fb6a7463984a5624a45cd9cc1e7a8391b9d3b4f6db66ff",
+      "path": "app/services/winner_probability/drift_service.py",
+      "release_worktree_blob_id": "7261005049437c51ce99a4f846f5f9cd8c4bf1b7",
+      "terminal_main_blob_id": "7261005049437c51ce99a4f846f5f9cd8c4bf1b7"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "4f5e7927d63539ab26aaad16dd7bd2ccac50f428bed5d751b2f0d56fa1a14c87",
+      "path": "app/services/winner_probability/episode_service.py",
+      "release_worktree_blob_id": "355efc0f0d43d1895045515e529843a36e0cec28",
+      "terminal_main_blob_id": "355efc0f0d43d1895045515e529843a36e0cec28"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "0bab965fd472b419ba671d0dd7e80db48e5765ec8a1336c4f02354d9e6b28f23",
+      "path": "app/services/winner_probability/estimate_authority.py",
+      "release_worktree_blob_id": "f08eb0dc8d263ceb458b71406b00a805675f092f",
+      "terminal_main_blob_id": "f08eb0dc8d263ceb458b71406b00a805675f092f"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "4442daa21fd46a2b2868225b2e3118afc77345b5000d00b6e1f8504e90ae2726",
+      "path": "app/services/winner_probability/estimate_publication_service.py",
+      "release_worktree_blob_id": "30380d0116cc51a9534bbfaee9bf3db714755074",
+      "terminal_main_blob_id": "30380d0116cc51a9534bbfaee9bf3db714755074"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "e663622dc6003b161c9a34d0f26ce5c779e97c080f582bedb6b34aab7eae9984",
+      "path": "app/services/winner_probability/evidence_manifest_service.py",
+      "release_worktree_blob_id": "0425058cadff0a3463cb7a4adce6c419bca90a15",
+      "terminal_main_blob_id": "0425058cadff0a3463cb7a4adce6c419bca90a15"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "7f577276eee61a92690ac985bb3517e34020cee853cfc50adba902453f468e80",
+      "path": "app/services/winner_probability/feature_extractor.py",
+      "release_worktree_blob_id": "8897b0aa2c541cbc2d9617c4b29512ce65a27cd8",
+      "terminal_main_blob_id": "8897b0aa2c541cbc2d9617c4b29512ce65a27cd8"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "ebed7f8ed354779897295b3e1637d785aed484cf00c89b7f16be0f37ecedddbe",
+      "path": "app/services/winner_probability/job_handlers.py",
+      "release_worktree_blob_id": "05b380960c6e7deeb28ae1ea8f61ba630b9a27c6",
+      "terminal_main_blob_id": "05b380960c6e7deeb28ae1ea8f61ba630b9a27c6"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "0de116121ba40e54cb1c01e19bb064d53fadcd40846303e44df27fd4bbd29b69",
+      "path": "app/services/winner_probability/market_data_obligation_service.py",
+      "release_worktree_blob_id": "be876e084d69ffa931fca3433c81b70ab8271a7d",
+      "terminal_main_blob_id": "be876e084d69ffa931fca3433c81b70ab8271a7d"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "56475c32d26743af758a150312347e065774390e7303b5bf4dfe97405ffdd0bf",
+      "path": "app/services/winner_probability/maturation_canary_service.py",
+      "release_worktree_blob_id": "d5fe85973ba97d4cc36f5f858bed3c0850856d70",
+      "terminal_main_blob_id": "d5fe85973ba97d4cc36f5f858bed3c0850856d70"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "c3735deccb9fafb4f68b3d97af6d163b3bb4b93cfdcfaf82c6e41a025e4e5e46",
+      "path": "app/services/winner_probability/model_authority.py",
+      "release_worktree_blob_id": "d4ea7ebaa4362781facee35594ddb08263631414",
+      "terminal_main_blob_id": "d4ea7ebaa4362781facee35594ddb08263631414"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "5f2beede7f828e84f9d17837aac68461c86a9488682611c6a2002c79f5dceb8f",
+      "path": "app/services/winner_probability/model_registry.py",
+      "release_worktree_blob_id": "32e1d5a0d5c6bbc1f1eb45beca770a379179cefe",
+      "terminal_main_blob_id": "32e1d5a0d5c6bbc1f1eb45beca770a379179cefe"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ffa733b5654b5427252fba1d84a9ad449571504254af6b0214c85cf4226ffdd9",
+      "path": "app/services/winner_probability/model_training.py",
+      "release_worktree_blob_id": "4dde56050f7c91bee1928471bcaf8928cc63b735",
+      "terminal_main_blob_id": "4dde56050f7c91bee1928471bcaf8928cc63b735"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "a474674735bbf41736c2c44abb4bff107eda43bad03392deae7d4dab20594c7d",
+      "path": "app/services/winner_probability/mutation_authority.py",
+      "release_worktree_blob_id": "7c82a2e3bc04a7e9e33aec1ad63cbae56127b5da",
+      "terminal_main_blob_id": "7c82a2e3bc04a7e9e33aec1ad63cbae56127b5da"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "50e0e22e346ae2ac744ddcec1f9ec1c41531063078a3be3929c400e6b8edc104",
+      "path": "app/services/winner_probability/outcome_authority.py",
+      "release_worktree_blob_id": "28425eb61bebc2be02eacc43b9a6f4d886fdb802",
+      "terminal_main_blob_id": "28425eb61bebc2be02eacc43b9a6f4d886fdb802"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "c7838feb4a3396ec17fd834ef22b1a2f463d0834bb4ffedffe6b766d1fa91d4f",
+      "path": "app/services/winner_probability/outcome_orchestration_service.py",
+      "release_worktree_blob_id": "e0e9e7460961d8e84357a39ed8163d81e4ae8252",
+      "terminal_main_blob_id": "e0e9e7460961d8e84357a39ed8163d81e4ae8252"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "cdb1333663a85dc044e63857cb38e4decd2f106bc610b115a3e0db183aa31a49",
+      "path": "app/services/winner_probability/outcome_revision_service.py",
+      "release_worktree_blob_id": "7990a7c78f60f3182acf7f26d28a7374f231bc26",
+      "terminal_main_blob_id": "7990a7c78f60f3182acf7f26d28a7374f231bc26"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "51d95510b8c64d5d5c686d47624ebed1cc3c8bf8d61cb1aa1cc2242a97b5f127",
+      "path": "app/services/winner_probability/outcome_service.py",
+      "release_worktree_blob_id": "d7aaf26b04a3185eaee25b6d25d0ef5102cbd9ab",
+      "terminal_main_blob_id": "d7aaf26b04a3185eaee25b6d25d0ef5102cbd9ab"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1229cc07bad93b0821ff0bf0e7d3870e326ccee788dac68696afd17283ff9e7a",
+      "path": "app/services/winner_probability/pending_outcome_service.py",
+      "release_worktree_blob_id": "90da222fe57ff46c4995d5240c4095cfbfa59f3a",
+      "terminal_main_blob_id": "90da222fe57ff46c4995d5240c4095cfbfa59f3a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ab90487586c8a1666f201882a12dc07951348df9ff7f62cc2805b3d6a7028aa9",
+      "path": "app/services/winner_probability/pre11_activation_service.py",
+      "release_worktree_blob_id": "7077420160a367f8c3a1b1de8c4c78fa6715831f",
+      "terminal_main_blob_id": "7077420160a367f8c3a1b1de8c4c78fa6715831f"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1fd81bff3450fbd48501f44c0efa6001fffd40987d914915875a6adea7e5d4c0",
+      "path": "app/services/winner_probability/pre11_compatibility_service.py",
+      "release_worktree_blob_id": "b382fcc20542f02378ae0eb7a3c090642eaab756",
+      "terminal_main_blob_id": "b382fcc20542f02378ae0eb7a3c090642eaab756"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "999f272ca05167d877446c48fb40227723bd3e514346fa97979d7a5c64e4e283",
+      "path": "app/services/winner_probability/prediction_authority.py",
+      "release_worktree_blob_id": "24692d0760635465e359a9bcf6b3b55c1bc7cac6",
+      "terminal_main_blob_id": "24692d0760635465e359a9bcf6b3b55c1bc7cac6"
+    },
+    {
+      "classification": "LEGACY_REVIEW_PIN_NOT_REPRODUCIBLE",
+      "historical_hash_materialization": "LEGACY_WORKTREE_HASH_NOT_REPRODUCIBLE",
+      "historical_pin_commit": "PRECOMMIT_WORKTREE_UNRESOLVED",
+      "historical_pin_sha256": "b08e0ed4767b452912a25f3b7bd87ddf060039871b24ebb38fdb3b9793df8c39",
+      "path": "app/services/winner_probability/probability_estimator.py",
+      "release_worktree_blob_id": "de5aac6fa84b851f5ad117316eca21d04ac561bb",
+      "terminal_main_blob_id": "de5aac6fa84b851f5ad117316eca21d04ac561bb"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ee09a167d5bb617433cd15225b632a5c91548489634a4787c0db4e5e37db0745",
+      "path": "app/services/winner_probability/repository.py",
+      "release_worktree_blob_id": "6191bbe8a862ef921de4d7cf915d4db9026133da",
+      "terminal_main_blob_id": "6191bbe8a862ef921de4d7cf915d4db9026133da"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "8bf4c454a8d8c4c633634ca9e4acd86f6ffb2f57d43a391f87c39c32e8baf514",
+      "path": "app/services/winner_probability/scheduler.py",
+      "release_worktree_blob_id": "75ecb20a9de52e4591000a0acae9294b927248ec",
+      "terminal_main_blob_id": "75ecb20a9de52e4591000a0acae9294b927248ec"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "d3c5c26a34b29a97e1053f04521ecca3e652dc0f58332051e4facd6c947ab24d",
+      "path": "app/services/winner_probability/scope_refresh.py",
+      "release_worktree_blob_id": "a8727125d5de062596f9f93cb1ac7487767c3515",
+      "terminal_main_blob_id": "a8727125d5de062596f9f93cb1ac7487767c3515"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1d80ea74665b7fb15b1b1f48c84d1932f54df6ebeef62b241079ffb40a1d779c",
+      "path": "app/services/winner_probability/similarity_service.py",
+      "release_worktree_blob_id": "3eeb4aa64cd2dc7836fdb8ca3d0e9d70f3871069",
+      "terminal_main_blob_id": "3eeb4aa64cd2dc7836fdb8ca3d0e9d70f3871069"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "5e6447478770410414e827b6db3497a91cf172bfba9e4d5cefa7f490b53c72de",
+      "path": "app/services/winner_probability/target_stop_scope_repair_service.py",
+      "release_worktree_blob_id": "3dc5a8e0a185ee3d5b3d44b2f97928ed1e445673",
+      "terminal_main_blob_id": "3dc5a8e0a185ee3d5b3d44b2f97928ed1e445673"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "bdb7b9186c6d33dc07c9e622dfa68b17e583a0ca24a25a1434b85c9005e3c387",
+      "path": "app/services/winner_probability/temporal_validation_service.py",
+      "release_worktree_blob_id": "87b44d8b9174877e7a9056c77be9a13827f06f7a",
+      "terminal_main_blob_id": "87b44d8b9174877e7a9056c77be9a13827f06f7a"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "6029caeb4e048d2431a0b39f2d8c3285fefb373986bdbdd8857ceb861520c6ef",
+      "path": "app/services/winner_probability/training_eligibility.py",
+      "release_worktree_blob_id": "bc4f530f7fc5f3706e9ceed6b1aa3672ac894bf4",
+      "terminal_main_blob_id": "bc4f530f7fc5f3706e9ceed6b1aa3672ac894bf4"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "b25fe33f1be5d1774fda8ed12ecafd8d5f7035349d745c0fa4c167b9ece6afbc",
+      "path": "app/services/work_scope_identity.py",
+      "release_worktree_blob_id": "26718f7a5373f3d2953e3a20579f6abdda6ecb60",
+      "terminal_main_blob_id": "26718f7a5373f3d2953e3a20579f6abdda6ecb60"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "3b5b5f7dccee6b07c64cf22bae0f78c05ddceaebc87cf04390fe5c5cbd8ba5fe",
+      "path": "app/templates/run_detail.html",
+      "release_worktree_blob_id": "dd2b52b34ab7e44f382a07560fb17172e4478b2f",
+      "terminal_main_blob_id": "dd2b52b34ab7e44f382a07560fb17172e4478b2f"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "88312b8378165dda520090b2542991af92160e7c26debcafd53fb363127187e8",
+      "path": "app/templates/sector_rotation_dashboard.html",
+      "release_worktree_blob_id": "dc02292be3e924792e4a44f442c68fd6920dadd8",
+      "terminal_main_blob_id": "dc02292be3e924792e4a44f442c68fd6920dadd8"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "806909b7c9bd78dd5fa6faab8ceba477a2353864770ba0b1a4e2cf8cc538f61d",
+      "path": "app/templates/upload.html",
+      "release_worktree_blob_id": "0a5b6156699527a3af546cf331ec0346e6c707c7",
+      "terminal_main_blob_id": "0a5b6156699527a3af546cf331ec0346e6c707c7"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ebfae9b5411d2078737519c7bd4398eaf83a0f7366d544b174aaa0b99c99f90e",
+      "path": "app/worker_supervisor.py",
+      "release_worktree_blob_id": "9d0b8de77f1b339c34faf45bd1ea6d93de7576b4",
+      "terminal_main_blob_id": "9d0b8de77f1b339c34faf45bd1ea6d93de7576b4"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "78730630570527effe21fb3f8acb4450bcd5a1ecc8885238322d7426f0546315",
+      "path": "scripts/build_sec_guidance_real_corpus.py",
+      "release_worktree_blob_id": "f1b4583ee0290865eb43a0f8434b7dd02e137eee",
+      "terminal_main_blob_id": "f1b4583ee0290865eb43a0f8434b7dd02e137eee"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "b89bc85a728047dc0746f7d262ab7688842c3e1987edc7a784f9c2a0cfa77bd2",
+      "path": "scripts/ceri_run104_controlled_replay.py",
+      "release_worktree_blob_id": "f3964a2101b0ae55034901b0f5a1f1d0cba64cb2",
+      "terminal_main_blob_id": "f3964a2101b0ae55034901b0f5a1f1d0cba64cb2"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "4c250fad33c5e2692c42cca6ce7e091b1430fed14fabccfea38139454de77779",
+      "path": "scripts/certify_sec_guidance_real_corpus.py",
+      "release_worktree_blob_id": "2e8d49588e672ce2c207bddda52e0252c4f2c40c",
+      "terminal_main_blob_id": "2e8d49588e672ce2c207bddda52e0252c4f2c40c"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "4601cd4371bd60fecf331b369d14df9d1f38838bd811c8ee5e11d41e65d65609",
+      "path": "scripts/certify_sec_incremental_ingestion.py",
+      "release_worktree_blob_id": "e87376178260bf35d880dc072baec34bc1189043",
+      "terminal_main_blob_id": "e87376178260bf35d880dc072baec34bc1189043"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "90e279b701b33c1abb33372be38f7fc347c67aa22d4100da68aa9b369ccf6bb3",
+      "path": "scripts/certify_technical_artifact_cache.py",
+      "release_worktree_blob_id": "a23ac78328a92b4f451d491bcfcbf55c9c9b7ae9",
+      "terminal_main_blob_id": "a23ac78328a92b4f451d491bcfcbf55c9c9b7ae9"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "18764109baacdc06d25a736ffd1848a8ce107d2c3f938bb9c2f1cc02eebb8c0c",
+      "path": "scripts/forensics/run159_ceri_quarantine.py",
+      "release_worktree_blob_id": "13abe646a7ad1c75b5129da715b1196e9274c099",
+      "terminal_main_blob_id": "13abe646a7ad1c75b5129da715b1196e9274c099"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "e0ff1dde6bd97d9ce0c1375edd6def5c498f61ab1b212add11252d6f9075c62a",
+      "path": "scripts/materialize_sec_guidance_real_corpus_v1.py",
+      "release_worktree_blob_id": "f8ba529747d32828d406cd044ef841c1fdfebc57",
+      "terminal_main_blob_id": "f8ba529747d32828d406cd044ef841c1fdfebc57"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "d3fbb424bed01f1c128c71d09f780efa3ecc272e454e07d90d959a2224c5f7ba",
+      "path": "scripts/ops/restore_postgres.ps1",
+      "release_worktree_blob_id": "f27096f2a70d485498ced53e0c2017fc9bed9d37",
+      "terminal_main_blob_id": "f27096f2a70d485498ced53e0c2017fc9bed9d37"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "48a318b92a84e92a41eec75c9a3b6243d4e1d75339862848aac6a52a3683d09b",
+      "path": "scripts/owpe_pre11_activate_l5.py",
+      "release_worktree_blob_id": "6273451edf81740bc6ddc6fabf0b2ddd85232964",
+      "terminal_main_blob_id": "6273451edf81740bc6ddc6fabf0b2ddd85232964"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "849c5d36f3b6a5af82dbf5c1173cd3cade675f585ce1e7910c90a6624f8a3e14",
+      "path": "scripts/owpe_pre11_training_compatibility.py",
+      "release_worktree_blob_id": "aa0872290b54d1be308a71e7880b2d8fb6492e23",
+      "terminal_main_blob_id": "aa0872290b54d1be308a71e7880b2d8fb6492e23"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "2eb1a4ae74b897539718805a676ea500c2e4b66f78fb8cd9b0438bec2b0e4658",
+      "path": "scripts/profile_sec_performance.py",
+      "release_worktree_blob_id": "bfd87956dedfa338b512cd070b6a8061c8b846f5",
+      "terminal_main_blob_id": "bfd87956dedfa338b512cd070b6a8061c8b846f5"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "f71b23d61d7eefe91ac1878106b77de3d715958c63a04931c182cca6d79ad8e0",
+      "path": "scripts/qa/certify_slse_natural.py",
+      "release_worktree_blob_id": "13ff5b14e286383f51b36ffbbf9fd671ff32109c",
+      "terminal_main_blob_id": "13ff5b14e286383f51b36ffbbf9fd671ff32109c"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "00bc12403a16f446e8d4f9444fcbde13fc0d6c1bb0ed067b7d5c564514c3d920",
+      "path": "scripts/qa/ib_fault_proxy.py",
+      "release_worktree_blob_id": "c5fb96b141baa7df061c287f6b09807c4e45c4b4",
+      "terminal_main_blob_id": "c5fb96b141baa7df061c287f6b09807c4e45c4b4"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "f21e18e16f6492a6f07d8d8ff12ccf254c72ce587723e3dfb2acade07b59de42",
+      "path": "scripts/qa/rebuild_slse_dev_history.py",
+      "release_worktree_blob_id": "baf31af8f26dfde0fb4bf22d1a953acc1f68e950",
+      "terminal_main_blob_id": "baf31af8f26dfde0fb4bf22d1a953acc1f68e950"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "5993df3fbdf0898c12e3f17fb168c999364df7fe2d40e281c95898e01d795076",
+      "path": "scripts/qa/scan_tracked_secrets.py",
+      "release_worktree_blob_id": "340a77fada181ee4d9c9a1dce7409a930d1494cc",
+      "terminal_main_blob_id": "340a77fada181ee4d9c9a1dce7409a930d1494cc"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "a44fb37f8780e53b1f96e412ab08e9486e7949e2f5344b2bcff0679d09c6fd8f",
+      "path": "scripts/qa/t13e_deployed_probe.py",
+      "release_worktree_blob_id": "e6955855ea7f995a0b1e10f2beb954691f3f6b83",
+      "terminal_main_blob_id": "e6955855ea7f995a0b1e10f2beb954691f3f6b83"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "49da330892d7fe48ac99131e4313746759619e703fb3ce80910224cdd485df64",
+      "path": "scripts/qa/t14a_reviewed_inventory.py",
+      "release_worktree_blob_id": "9b60325a5f88faea44a8bcaa244abfa9dcc1532b",
+      "terminal_main_blob_id": "9b60325a5f88faea44a8bcaa244abfa9dcc1532b"
+    },
+    {
+      "classification": "RELEASE_REMEDIATION_CHECKER_CHANGE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "69f772d81ad5f69fe411c42a43b3e42f1441e0f59b4d581883b412feaadcb1b3",
+      "path": "scripts/qa/t14a_semantic_completeness.py",
+      "release_worktree_blob_id": "6542e562a262fa1f11538ac3e2aa4fe641cc339b",
+      "terminal_main_blob_id": "5f6ff70c435a7127f6588e81e446115673bfd0c6"
+    },
+    {
+      "classification": "RELEASE_REMEDIATION_CHECKER_CHANGE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "9279ecb048c26df82166fb9db2df5ee4b59080d9ddd69a041d989793735fad81",
+      "path": "scripts/qa/t14a_semantic_families.py",
+      "release_worktree_blob_id": "0f24751feaeed0bdc809cd5db080bc65733fc8e5",
+      "terminal_main_blob_id": "025993882a19c68fd520bc80d15087a06bf7b7f9"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "b9e868ffa27753a1573c54d66cf460c9638e84cb7f1ed1b6d4d0ed1c1968d1e9",
+      "path": "scripts/qa/t14b_semantic_review.py",
+      "release_worktree_blob_id": "8cbfd3537537ffea3d108baad169b9945aa2d5fe",
+      "terminal_main_blob_id": "8cbfd3537537ffea3d108baad169b9945aa2d5fe"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ee4e108d1b5be1112561b9b1363fba0d6c44fef30fa1d8720dac8a6ab2b8548b",
+      "path": "scripts/resolve_sec_ciks.py",
+      "release_worktree_blob_id": "5b3581dcfaff84e212a60eb928a2fd0415f0851c",
+      "terminal_main_blob_id": "5b3581dcfaff84e212a60eb928a2fd0415f0851c"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "4f64253e1e8db83557574cd6eebe8b4197b86195e7b4f5971e81b2d3dad2d493",
+      "path": "scripts/run_technical_v5_forensic_recalibration.py",
+      "release_worktree_blob_id": "6ab3175d180f3bb3614764e02b25165ad32bd4a2",
+      "terminal_main_blob_id": "6ab3175d180f3bb3614764e02b25165ad32bd4a2"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "6afc60b28f0ad860d439c20f2efebb93129e9b5af642d06f405cf1308f25c146",
+      "path": "scripts/run_technical_v5_shadow_evaluation.py",
+      "release_worktree_blob_id": "4f1704e9a478444f0b31cad4264d7bcb0a5a496c",
+      "terminal_main_blob_id": "4f1704e9a478444f0b31cad4264d7bcb0a5a496c"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "6063c1b91820d19771f9626dfe205b482a381fe592653328e1f2bd1366ccf26c",
+      "path": "scripts/validate_ib_market_intelligence.py",
+      "release_worktree_blob_id": "c3d8374f5aa92c2ea73a12ab1e81e57869c1d4a8",
+      "terminal_main_blob_id": "c3d8374f5aa92c2ea73a12ab1e81e57869c1d4a8"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "ae93fad8edb52eded10d2ff415ae955fbac92e7a063ea23432afbd7850c95692",
+      "path": "scripts/winner_candidate_estimates.py",
+      "release_worktree_blob_id": "a472a5246df28a35cd3c85a94dd99bb4a85459b1",
+      "terminal_main_blob_id": "a472a5246df28a35cd3c85a94dd99bb4a85459b1"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "8cf27573369151367d5df18799156a3268e978ec26e4cd7f173ea88e35be6d5e",
+      "path": "scripts/winner_clean_reconstruction.py",
+      "release_worktree_blob_id": "39cea01818e8a30072da37079fd2ca9da088e0f5",
+      "terminal_main_blob_id": "39cea01818e8a30072da37079fd2ca9da088e0f5"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "c6fe9edccaa55aed8bfdbe9f972149255a69326c30eaf46b0ebe4cf7cbca7621",
+      "path": "scripts/winner_estimate_publication.py",
+      "release_worktree_blob_id": "4ceebf19f02ef89e1b39205ba8d46ba4cfd798dd",
+      "terminal_main_blob_id": "4ceebf19f02ef89e1b39205ba8d46ba4cfd798dd"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "87616d2f890d37bfb5f176acd71c3d9666a6ed9e396a27d5e66e3abb08b93fb6",
+      "path": "scripts/winner_ib_request_scope_canary.py",
+      "release_worktree_blob_id": "99ecc9dd3d3241f4399a80774175a7662cc9c033",
+      "terminal_main_blob_id": "99ecc9dd3d3241f4399a80774175a7662cc9c033"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "1947de44277453bf036a69449efb7a507d4dfa6dd409059214f37dc8ca4d4631",
+      "path": "scripts/winner_market_data_recovery.py",
+      "release_worktree_blob_id": "e982d75b3a1ed2ded73fa4254361f04f40b667da",
+      "terminal_main_blob_id": "e982d75b3a1ed2ded73fa4254361f04f40b667da"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "6707d8148d28d179fd52529dfeaeafccc3721819d17add1160aabc41d4ad5862",
+      "path": "scripts/winner_maturation_canary.py",
+      "release_worktree_blob_id": "6bcba013d291e1bcab1188fdc27a849a36e3d98d",
+      "terminal_main_blob_id": "6bcba013d291e1bcab1188fdc27a849a36e3d98d"
+    },
+    {
+      "classification": "UNCHANGED_COMMITTED_SOURCE",
+      "historical_hash_materialization": "GIT_COMMITTED_BLOB",
+      "historical_pin_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "historical_pin_sha256": "26e79e72eb5a0b658dcb04e67ebfb0366805753eebaea739aaf1904ce454f29d",
+      "path": "scripts/winner_target_stop_scope_repair.py",
+      "release_worktree_blob_id": "de8e0411d3595aec940c4a35276cb928f7d89099",
+      "terminal_main_blob_id": "de8e0411d3595aec940c4a35276cb928f7d89099"
+    }
+  ],
+  "terminal_main_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+  "terminal_main_source_fingerprint": "c92d0c976d729869e4fee78cf221212fb38d723f024ea0702c5eeb4e6eb665b9",
+  "unknown": 0
+}
