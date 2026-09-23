@@ -2,12 +2,15 @@ from __future__ import annotations
 
 # ruff: noqa: E501
 import csv
-import hashlib
 import json
 from pathlib import Path
 
+from scripts.qa.committed_source_identity import classify_legacy_checkout_hash
+
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "docs" / "remediation" / "calculation-lineage"
+T15A_COMMIT = "8188f1ac3e7e3a8f93ff75c2cf10019d9c5935f8"
+T15B_COMMIT = "0c8e5664c52ff19d80d30f33c64ade8772c955a8"
 
 
 def test_t15c_certificate_is_complete_and_matches_t15a_assignment() -> None:
@@ -38,7 +41,7 @@ def test_t15c_report_has_exact_required_section_topology() -> None:
     assert "T15C VERDICT: PASS" in report
 
 
-def test_t15a_and_t15b_handoff_artifacts_remain_byte_identical() -> None:
+def test_t15a_and_t15b_handoff_artifacts_match_committed_history() -> None:
     expected = {
         "T15A_scope_refresh_identity_foundation.md": "a53c563661e4883f77bd190fd97689e73705894eb37f9ead85338fdc6a8525e0",
         "T15A_scope_operation_inventory.json": "caddc1a79b84bd1fd81ab131fdfE062188fe94d9ae88c45757c261f38cd2c5e4".lower(),
@@ -47,4 +50,12 @@ def test_t15a_and_t15b_handoff_artifacts_remain_byte_identical() -> None:
         "T15B_pipeline_ceri_scope_refresh_certification.json": "a41b3632ccbb90cfb5126b20edb6a5b7ccc9f64956c40f9ed7b05a3003cf86f3",
     }
     for name, digest in expected.items():
-        assert hashlib.sha256((ARTIFACTS / name).read_bytes()).hexdigest() == digest
+        revision = T15A_COMMIT if name.startswith("T15A_") else T15B_COMMIT
+        materialization = classify_legacy_checkout_hash(
+            ROOT, revision, f"docs/remediation/calculation-lineage/{name}", digest
+        )
+        assert materialization == (
+            "GIT_CHECKOUT_AUTOCRLF_TRUE"
+            if name == "T15B_pipeline_ceri_scope_refresh_certification.json"
+            else "GIT_COMMITTED_BLOB"
+        )

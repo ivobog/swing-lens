@@ -16,6 +16,8 @@ from dataclasses import asdict, dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from scripts.qa.committed_source_identity import current_committed_source_bytes
+
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS = ROOT / "docs/remediation/calculation-lineage"
 
@@ -408,9 +410,7 @@ def _retained_writer_contract_complete(caller):
         contract["retained_T14C_status"]
         for contract in caller.get("writer_contract_status", {}).values()
     }
-    return bool(statuses) and not statuses.intersection(
-        {"POTENTIAL_BYPASS", "DIRECT_SQL_LEGACY"}
-    )
+    return bool(statuses) and not statuses.intersection({"POTENTIAL_BYPASS", "DIRECT_SQL_LEGACY"})
 
 
 def authority_delivery_boundary(caller, proof, review_entry, *, kind=None, service=None):
@@ -529,9 +529,13 @@ def addressed_node(address, root=ROOT):
 def source_proof(address, root=ROOT):
     path = address.split(":", 1)[0]
     if not path.endswith(".py"):
+        # A whole-file proof must use the committed blob. PowerShell's CRLF
+        # checkout conversion used to change one operation-family ID without
+        # changing the reviewed restore operation at all.
+        content = current_committed_source_bytes(root, path)
         return {
             "address": address,
-            "file_sha256": hashlib.sha256((root / path).read_bytes()).hexdigest(),
+            "file_sha256": hashlib.sha256(content).hexdigest(),
             "guard_owners": [],
         }
     source, node = addressed_node(address, root)
@@ -549,9 +553,7 @@ def source_proof(address, root=ROOT):
         for statement in module.body
         if isinstance(statement, (ast.Assign, ast.AnnAssign))
         for target in (
-            statement.targets
-            if isinstance(statement, ast.Assign)
-            else [statement.target]
+            statement.targets if isinstance(statement, ast.Assign) else [statement.target]
         )
         if isinstance(target, ast.Name)
     }
@@ -565,11 +567,7 @@ def source_proof(address, root=ROOT):
             return [item for element in value.elts for item in string_values(element, seen)]
         if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
             return string_values(value.left, seen) + string_values(value.right, seen)
-        if (
-            isinstance(value, ast.Name)
-            and value.id in named_constants
-            and value.id not in seen
-        ):
+        if isinstance(value, ast.Name) and value.id in named_constants and value.id not in seen:
             return string_values(named_constants[value.id], seen | {value.id})
         return []
 
@@ -664,9 +662,7 @@ def normalize(callers, review, root=ROOT):
         boundary = boundaries.pop()
         kind = next(iter(kinds)) if len(kinds) == 1 else "SHARED_AUTHORITY_DELIVERY_BOUNDARY"
         original_service = (
-            next(iter(original_services))
-            if len(original_services) == 1
-            else boundary[1]
+            next(iter(original_services)) if len(original_services) == 1 else boundary[1]
         )
         certificate_class, service = boundary or ("INCOMPLETE", original_service)
         equivalence = authority_key(members, kind, service, root)
@@ -834,12 +830,8 @@ def export(root=ROOT):
                 for p in family["inheritance_proofs"]
                 if p["initiator_id"] == caller["initiator_id"]
             ),
-            final_disposition=family["final_status"]
-            if certified
-            else "PARTIAL_AUTHORITY",
-            status="OPERATION_FAMILY_CERTIFIED"
-            if certified
-            else "OPERATION_FAMILY_INCOMPLETE",
+            final_disposition=family["final_status"] if certified else "PARTIAL_AUTHORITY",
+            status="OPERATION_FAMILY_CERTIFIED" if certified else "OPERATION_FAMILY_INCOMPLETE",
         )
     incomplete = [f["operation_family_id"] for f in rows if f["final_status"] == "INCOMPLETE"]
     payload = {
@@ -876,11 +868,7 @@ def export(root=ROOT):
     finite["exact_caller_ids_not_covered"] = uncovered
     finite["incomplete_normalized_operation_family_ids"] = incomplete
     finite["potential_application_bypass_caller_ids_not_excluded"] = uncovered
-    certificate["verdict"] = (
-        "PASS"
-        if not any(finite.values())
-        else "FAIL"
-    )
+    certificate["verdict"] = "PASS" if not any(finite.values()) else "FAIL"
     certificate_path.write_text(
         json.dumps(certificate, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

@@ -1,0 +1,76 @@
+{
+  "canonical_scheme": "ordered Git committed blob IDs + commit SHA, SHA-256 aggregate",
+  "canonical_source_freeze_version": 2,
+  "certificate_types": [
+    "HISTORICAL_IMMUTABLE_CERTIFICATE",
+    "CURRENT_DERIVATIVE_REVALIDATION_CERTIFICATE",
+    "CURRENT_RELEASE_CERTIFICATE"
+  ],
+  "historical_certificates_preserved": true,
+  "phase5_fingerprint_sha256": "cc83628aa45d60cd1ce75c11c41a8b59f66f0467a658dd4067f67c79f0b0b8ba",
+  "phase6_artifact_commit_fingerprint_sha256": "ef5739e5f3ee9039fa089aadd9e56122bce03fe53cf9d0b6cfd7b9988b59ab4a",
+  "records": [
+    {
+      "artifact_commit": "f587b63e4e35e81486e53ffa0f13b9cd7369f963",
+      "canonical_current_validation": "cc83628aa45d60cd1ce75c11c41a8b59f66f0467a658dd4067f67c79f0b0b8ba",
+      "certificate": "T14D_operation_family_certification.json",
+      "historical_commit": "f587b63e4e35e81486e53ffa0f13b9cd7369f963",
+      "historical_hash_scheme": "LEGACY_WORKTREE_HASH; raw PowerShell file proof",
+      "legacy_materialization_proof": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "mismatch_reason": "Privileged restore file hash used CRLF checkout bytes; committed blob unchanged",
+      "portable": false,
+      "semantic_status": "REVALIDATED_BY_PHASE5_DERIVATIVE_AND_T16E"
+    },
+    {
+      "artifact_commit": "2bafa33e0a2cf869c1ac651ec8e2bf30a581c2ab",
+      "canonical_current_validation": "ef5739e5f3ee9039fa089aadd9e56122bce03fe53cf9d0b6cfd7b9988b59ab4a",
+      "certificate": "T15E_phase6_integration_certification.json",
+      "historical_commit": "c562f4bd6e723c8256b3d4a54c076e7f24fa786c",
+      "historical_hash_scheme": "LEGACY_WORKTREE_HASH; path-null-file-sha256-newline-v1",
+      "legacy_source_hash_reproduced": false,
+      "legacy_source_sha256": "9b51fd0971ea59fbe95fa8b1b0ba8f2e56a193a0ad961c98f7faebe820b7adf8",
+      "legacy_test_sha256": "c506352c2fcc4a75108e7a659dbfb48bd0218da099103d0e6b597c957c2313cd",
+      "mismatch_reason": "Recorded HEAD is the precommit T15D parent while path counts match the T15E artifact commit; mixed checkout bytes do not reproduce from a clean tree",
+      "portable": false,
+      "semantic_status": "REVALIDATED_FROM_T15E_COMMITTED_TREE_AND_PHASE6_TESTS"
+    },
+    {
+      "artifact_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+      "canonical_current_validation": "c92d0c976d729869e4fee78cf221212fb38d723f024ea0702c5eeb4e6eb665b9",
+      "certificate": "T16E_phase7_integration_certification.json",
+      "historical_commit": "5a2f92b14f18303c6cb83295d14dc5c2b9dcdb86",
+      "historical_hash_scheme": "LEGACY_WORKTREE_HASH; path-null-file-sha256-newline-v1",
+      "legacy_source_hash_reproduced": false,
+      "legacy_source_sha256": "90824242c5d993671f2b113597703cb88f292875e88f967ce53dca9b8d1027d7",
+      "legacy_test_sha256": "0b8c5040bdba02321c446471b4578cc2a97c35d8dc0d2e555d115e8540952530",
+      "mismatch_reason": "Recorded frozen HEAD is the precommit T16D parent; path counts match terminal Phase-7 commit and checkout materialization is not canonical",
+      "portable": false,
+      "semantic_status": "REVALIDATED_FROM_T16E_COMMITTED_TREE_AND_PHASE7_TESTS"
+    },
+    {
+      "artifact_commit": "2bafa33e0a2cf869c1ac651ec8e2bf30a581c2ab",
+      "canonical_current_validation": "3d635eec889d674227b98e1e050715b3b6df3cdce2a50b3ff7411d0a334fae97",
+      "certificate": "T16A_validation_summary.json / T16E Phase-6 input pin",
+      "historical_commit": "2bafa33e0a2cf869c1ac651ec8e2bf30a581c2ab",
+      "historical_hash_scheme": "LEGACY_WORKTREE_HASH; artifact bytes",
+      "legacy_materialization_proof": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "mismatch_reason": "Stored Phase-6 artifact hash is CRLF checkout, not Git blob bytes",
+      "portable": false,
+      "semantic_status": "EXACT_COMMITTED_ARTIFACT_PROVEN_WITH_GIT_FILTER"
+    },
+    {
+      "artifact_commit": "0c8e5664c52ff19d80d30f33c64ade8772c955a8",
+      "canonical_current_validation": "8ab49230a8a7da1d5f886cb1fa1aa5e8a33ed09f118523db225e80978b6dec9e",
+      "certificate": "T15C winner scope truth / T15B handoff pin",
+      "historical_commit": "0c8e5664c52ff19d80d30f33c64ade8772c955a8",
+      "historical_hash_scheme": "LEGACY_WORKTREE_HASH; raw JSON artifact bytes",
+      "legacy_materialization_proof": "GIT_CHECKOUT_AUTOCRLF_TRUE",
+      "mismatch_reason": "Stored T15B handoff hash is CRLF checkout, not Git blob bytes",
+      "portable": false,
+      "semantic_status": "EXACT_COMMITTED_ARTIFACT_PROVEN_WITH_GIT_FILTER"
+    }
+  ],
+  "schema_version": "release-certificate-hash-reconciliation-v1",
+  "terminal_main_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+  "terminal_main_fingerprint_sha256": "c92d0c976d729869e4fee78cf221212fb38d723f024ea0702c5eeb4e6eb665b9"
+}

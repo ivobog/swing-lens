@@ -1,0 +1,126 @@
+{
+  "schema_version": "release-main-certification-v1",
+  "certificate_type": "CURRENT_RELEASE_CERTIFICATE",
+  "verdict": "PASS_RELEASE_GATE_REMEDIATION",
+  "terminal_main_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+  "remediation_branch": "codex/release-gate-reproducibility-remediation",
+  "remediation_start_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+  "canonical_source_identity": {
+    "scheme": "git-committed-source-freeze-v2",
+    "fingerprint_sha256": "c92d0c976d729869e4fee78cf221212fb38d723f024ea0702c5eeb4e6eb665b9",
+    "manifest": "RELEASE_source_freeze_v2.json",
+    "lf_crlf_checkout_identity_equal": true,
+    "committed_source_change_changes_identity": true,
+    "historical_certificates_preserved": true,
+    "historical_legacy_worktree_hashes_classified": true,
+    "legacy_aggregate_hashes_exactly_reproduced": false,
+    "legacy_aggregate_hash_limitation": "T15E/T16E precommit mixed-worktree aggregate hashes are not derivable from a clean committed tree; their artifact commits, path counts, committed blobs, and semantic regressions are independently revalidated without rewriting old values.",
+    "bridge": "RELEASE_certificate_hash_reconciliation.json"
+  },
+  "phase5_authority": {
+    "status": "CURRENT_PHASE5_AUTHORITY_STILL_SEMANTICALLY_CERTIFIED",
+    "historical_commit": "f587b63e4e35e81486e53ffa0f13b9cd7369f963",
+    "historical_families": 220,
+    "current_families": 220,
+    "callers_certified": 252,
+    "identity_only_drift": 1,
+    "semantically_equivalent_evolution": 61,
+    "real_authority_changes": 0,
+    "new_operations": 0,
+    "removed_operations": 0,
+    "unknown": 0,
+    "partial_authority": 0,
+    "potential_bypass": 0,
+    "confirmed_bypass": 0,
+    "derivative": "RELEASE_phase5_current_authority.json",
+    "changed_family_mapping": "RELEASE_phase5_authority_reconciliation.csv"
+  },
+  "phase6": {
+    "artifact_commit": "2bafa33e0a2cf869c1ac651ec8e2bf30a581c2ab",
+    "status": "PASS_PHASE6_OVERALL_CERTIFIED",
+    "historical_artifact": "../calculation-lineage/T15E_phase6_integration_certification.json",
+    "current_regression": "PASS_INV_SCOPE_REFRESH_REVISION_HANDOFF_AND_XINT_012"
+  },
+  "phase7": {
+    "terminal_commit": "d5066e979ac3958c7e5a4cd125c08106856f1026",
+    "status": "PASS_PHASE7_OVERALL_CERTIFIED",
+    "historical_artifact": "../calculation-lineage/T16E_phase7_integration_certification.json"
+  },
+  "findings": {
+    "closed": 63,
+    "partial": 7,
+    "open": 0,
+    "active_supported_current_defects": 0,
+    "statuses_changed_by_remediation": false
+  },
+  "winner_isolation": {
+    "classification": "TEST_ISOLATION_DEFECT",
+    "root_cause": "Test operation time was sampled before the model's PostgreSQL-generated birth time.",
+    "valid_time_bound_to_persisted_model_birth": true,
+    "before_birth_rejection_still_enforced": true,
+    "isolated_fresh_process_passes": 3,
+    "reverse_order_module_passes": 15,
+    "normal_order_full_suite_pass": true,
+    "report": "RELEASE_winner_test_isolation.md"
+  },
+  "disposable_postgresql_18": {
+    "server_version": "18.3",
+    "fresh_upgrade": "0001_to_0083_winner_scope_truth_PASS",
+    "schema_model_drift": "NONE_ALEMBIC_CHECK_PASS",
+    "downgrade_reupgrade": "0083_to_0080_to_0083_PASS",
+    "phase5_phase6_phase7_integration": "PASS_IN_FULL_SUITE",
+    "backup_client": "pg_dump 18.3",
+    "backup_discovery_without_path_edit": true,
+    "backup_restore_schema_and_evidence_manifest": "PASS_NO_MISSING_TABLES_OR_ROW_COUNT_OR_CONTENT_HASH_MISMATCHES",
+    "populated_restore_integration_with_explicit_pg18_test_path": "PASS_1_OF_1"
+  },
+  "controlled_window": {
+    "policy": "../../operations/RELEASE_CONTROLLED_CANARY_WINDOW.md",
+    "process_local_override_verification": "PASS",
+    "autonomous_maturation_refresh_prewarm_disabled": true,
+    "explicit_pipeline_winner_capture_preserved": true,
+    "persistent_configuration_changed": false,
+    "authoritative_runtime_started": false,
+    "live_canary_executed": false
+  },
+  "tests": {
+    "full_repository_non_e2e_non_external": {
+      "command": "uv run pytest -q -m 'not e2e and not external' --tb=short --maxfail=3",
+      "app_database": "disposable PostgreSQL 18.3 on 127.0.0.1:55432",
+      "passed": 4038,
+      "skipped": 3,
+      "marker_deselected": 38,
+      "failed": 0,
+      "errors": 0
+    },
+    "established_e2e": {
+      "command": "uv run pytest tests/e2e -q --tb=short",
+      "passed": 28,
+      "failed": 0,
+      "errors": 0,
+      "ran_without_concurrent_pytest": true
+    },
+    "static": {
+      "repository_wide_ruff": "PASS",
+      "changed_python_format_check": "PASS_18_FILES",
+      "compileall": "PASS",
+      "git_diff_check": "PASS",
+      "single_alembic_head": "0083_winner_scope_truth",
+      "disposable_alembic_check": "PASS_NO_NEW_UPGRADE_OPERATIONS",
+      "route_inventory": "PASS",
+      "tracked_secret_scan": "PASS",
+      "certificate_determinism": "PASS_FOUR_MACHINE_ARTIFACTS_BYTE_IDENTICAL_AFTER_REGENERATION",
+      "phase6_handoff_conservation": "PASS"
+    }
+  },
+  "authoritative_boundary": {
+    "postgresql_version": "18.3",
+    "database_head_after_read_only_check": "0080_effective_configuration",
+    "migration_applied": false,
+    "business_evidence_mutated_by_remediation": false,
+    "swinglens_runtime_port_8000_listening": false,
+    "ib_port_4002_listener": "external ibgateway process; not started or contacted by remediation",
+    "ib_down_simulated_preflight_fail_closed": true,
+    "push_performed": false
+  }
+}

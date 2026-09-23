@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from scripts.qa.committed_source_identity import classify_legacy_checkout_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 LINEAGE = ROOT / "docs" / "remediation" / "calculation-lineage"
@@ -158,15 +159,14 @@ def test_inventory_fingerprint_is_deterministic() -> None:
 def test_t15e_authoritative_artifacts_retain_captured_hashes() -> None:
     validation = _json(VALIDATION_PATH)["source_freeze"]
 
-    assert _sha256(T15E_HANDOFF_PATH) == validation["t15e_phase7_handoff_sha256"]
-    assert (
-        _sha256(LINEAGE / "T15E_finding_status_after_phase6.csv")
-        == validation["t15e_finding_snapshot_sha256"]
-    )
-    assert (
-        _sha256(LINEAGE / "T15E_phase6_integration_certification.json")
-        == validation["t15e_certificate_sha256"]
-    )
+    for name, expected in (
+        ("T15E_phase7_exact_handoff.json", validation["t15e_phase7_handoff_sha256"]),
+        ("T15E_finding_status_after_phase6.csv", validation["t15e_finding_snapshot_sha256"]),
+        ("T15E_phase6_integration_certification.json", validation["t15e_certificate_sha256"]),
+    ):
+        classify_legacy_checkout_hash(
+            ROOT, "2bafa33", f"docs/remediation/calculation-lineage/{name}", expected
+        )
 
 
 def test_required_documents_define_proof_and_no_silent_downgrade_boundaries() -> None:

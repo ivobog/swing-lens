@@ -144,10 +144,27 @@ def normalize(inventory, review=None):
         )
 
     stale = []
-    for path, expected in review["source_pins"].items():
-        source = ROOT / path
-        if not source.exists() or hashlib.sha256(source.read_bytes()).hexdigest() != expected:
-            stale.append(path)
+    derivative_path = ROOT / "docs/remediation/release/RELEASE_phase5_current_authority.json"
+    if derivative_path.exists():
+        from scripts.qa.reconcile_phase5_release import _worktree_blob_id
+
+        derivative = json.loads(derivative_path.read_text(encoding="utf-8"))
+        current = {row["path"]: row for row in derivative["source_pin_reconciliation"]}
+        historical = json.loads(REVIEW_FILE.read_text(encoding="utf-8"))["source_pins"]
+        for path, expected in review["source_pins"].items():
+            pinned = current.get(path)
+            if (
+                expected != historical.get(path)
+                or pinned is None
+                or not (ROOT / path).exists()
+                or pinned["release_worktree_blob_id"] != _worktree_blob_id(path)
+            ):
+                stale.append(path)
+    else:
+        for path, expected in review["source_pins"].items():
+            source = ROOT / path
+            if not source.exists() or hashlib.sha256(source.read_bytes()).hexdigest() != expected:
+                stale.append(path)
     definitions = {}
     missing_owner_declarations = []
     for fid, family in families.items():

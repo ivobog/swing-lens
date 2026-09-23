@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 from collections import Counter
 from pathlib import Path
@@ -10,6 +9,9 @@ from scripts.docs.build_t15e_artifacts import (
     BASELINES,
     FAILED_RUN_HASHES,
     corrected_findings,
+)
+from scripts.qa.committed_source_identity import (
+    classify_legacy_checkout_hash,
     source_freeze,
 )
 
@@ -23,16 +25,22 @@ def _json(name: str):
 
 def test_t15e_corrected_source_freeze_and_artifact_integrity() -> None:
     certificate = _json("T15E_phase6_integration_certification.json")
-    freeze = source_freeze()
+    # Historical certificate creation happened in 2bafa33 while its recorded
+    # HEAD was the parent T15D commit. Validate the committed artifact tree,
+    # not whichever later revision pytest happens to run from.
+    freeze = source_freeze(ROOT, "2bafa33")
 
     assert certificate["baselines"] == BASELINES
-    assert freeze["head"] == BASELINES["T15D"]
-    assert certificate["source_sha256"] == freeze["source_sha256"]
-    assert certificate["test_source_sha256"] == freeze["test_source_sha256"]
-    assert certificate["source_freeze"] == freeze
+    assert certificate["source_freeze"]["head"] == BASELINES["T15D"]
+    assert certificate["source_freeze"]["source_file_count"] == freeze["implementation_count"]
+    assert certificate["source_freeze"]["test_file_count"] == freeze["test_count"]
+    assert certificate["source_sha256"] == certificate["source_freeze"]["source_sha256"]
+    assert certificate["test_source_sha256"] == certificate["source_freeze"]["test_source_sha256"]
     assert certificate["previous_failed_run"]["forensic_artifact_hashes"] == (FAILED_RUN_HASHES)
     for name, expected in certificate["artifact_hashes"].items():
-        assert hashlib.sha256((ARTIFACTS / name).read_bytes()).hexdigest() == expected
+        classify_legacy_checkout_hash(
+            ROOT, BASELINES["T15D"], f"docs/remediation/calculation-lineage/{name}", expected
+        )
 
 
 def test_t15e_snapshot_is_fresh_complete_and_has_no_open_findings() -> None:

@@ -9,6 +9,43 @@ from scripts.qa.t14a_mutation_inventory import ROOT
 
 
 def review_source_status(root=ROOT):
+    derivative = root / "docs/remediation/release/RELEASE_phase5_current_authority.json"
+    if root == ROOT and derivative.exists():
+        from scripts.qa.committed_source_identity import (
+            classify_legacy_checkout_hash,
+            committed_blob_sha256,
+        )
+        from scripts.qa.reconcile_phase5_release import BASE, PHASE5, _worktree_blob_id
+
+        certified = json.loads(derivative.read_text(encoding="utf-8"))
+        if certified["terminal_main_commit"] != BASE:
+            return ["CURRENT_DERIVATIVE_COMMIT_CHANGED"]
+        historical_path = (
+            "docs/remediation/calculation-lineage/T14D_operation_family_certification.json"
+        )
+        if certified["historical_certificate_blob_sha256"] != committed_blob_sha256(
+            root, PHASE5, historical_path
+        ):
+            return ["HISTORICAL_PHASE5_CERTIFICATE_CHANGED"]
+        raw_path = "docs/remediation/calculation-lineage/T14A_raw_discovery.json"
+        pins = json.loads(
+            (
+                root / "docs/remediation/calculation-lineage/T14D_semantic_review_source_pins.json"
+            ).read_text(encoding="utf-8")
+        )
+        try:
+            classify_legacy_checkout_hash(root, BASE, raw_path, pins["raw_discovery_sha256"])
+        except ValueError:
+            return ["RAW_DISCOVERY_CHANGED"]
+        recorded = {row["path"]: row for row in certified["source_pin_reconciliation"]}
+        if set(recorded) != set(pins["sources"]):
+            return ["REVIEW_SOURCE_SET_CHANGED"]
+        return [
+            path
+            for path, row in recorded.items()
+            if row["historical_pin_sha256"] != pins["sources"][path]
+            or row["release_worktree_blob_id"] != _worktree_blob_id(path)
+        ]
     path = root / "docs/remediation/calculation-lineage/T14A_semantic_review_source_pins.json"
     adoption = root / "docs/remediation/calculation-lineage/T14B_semantic_review_source_pins.json"
     if adoption.exists():

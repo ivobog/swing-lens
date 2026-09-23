@@ -135,23 +135,18 @@ def test_all_callers_have_only_final_allowed_dispositions():
     assert {family.final_status for family in normalized} <= families.ALLOWED_FINAL_STATUSES
 
 
-def test_recorded_membership_fails_when_a_caller_or_authority_branch_changes():
-    callers, review = inputs()
-    certificate = json.loads((D / "T14D_operation_family_certification.json").read_text())
-    current = {family.operation_family_id: family for family in families.normalize(callers, review)}
-    assert set(current) == {family["operation_family_id"] for family in certificate["families"]}
-    for recorded in certificate["families"]:
-        family = current[recorded["operation_family_id"]]
-        assert list(family.member_initiator_ids) == recorded["member_initiator_ids"]
-        assert (
-            json.loads(json.dumps(family.authority_equivalence_key))
-            == recorded["authority_equivalence_key"]
-        )
-        for proof, pinned in zip(
-            family.inheritance_proofs, recorded["inheritance_proofs"], strict=True
-        ):
-            assert proof["source"] == pinned["source"]
-            assert proof["service_source"] == pinned["service_source"]
+def test_historical_membership_and_current_derivative_fail_on_unreviewed_change():
+    from scripts.qa.reconcile_phase5_release import RELEASE, build
+
+    recorded = json.loads((RELEASE / "RELEASE_phase5_current_authority.json").read_text())
+    current, changed = build()
+    assert current == recorded
+    assert len(current["family_mappings"]) == 220
+    assert sum(len(row["member_initiator_ids"]) for row in current["family_mappings"]) == 252
+    assert current["semantic_equivalent_evolution"] == 61
+    assert current["identity_only_drift"] == 1
+    assert len(changed) == 62
+    assert current["unknown"] == current["confirmed_bypass"] == 0
 
 
 @pytest.mark.parametrize("dimension", list(families.AuthorityEquivalenceKey.__dataclass_fields__))

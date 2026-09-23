@@ -631,7 +631,6 @@ def test_model_retirement_api_delivers_exact_new_governance_and_maps_rejections(
 
     with Session(contextual_engine) as db:
         _seed_native_ready_outcome(db, ticker="T14DGOV", run_suffix="t14d-governance")
-        at = datetime.now(UTC)
         pipeline = db.scalar(select(PipelineRun))
         delivery = load_configuration_delivery(
             db, binding_reference(db, pipeline_run_id=pipeline.id)
@@ -675,7 +674,21 @@ def test_model_retirement_api_delivers_exact_new_governance_and_maps_rejections(
         )
         db.commit()
         model_id = model.id
+        # The governance operation is later than the persisted model birth.
+        # A wall-clock sample taken before registration races PostgreSQL's
+        # server-side created_at and can make this positive test fail.
+        at = model.created_at + timedelta(seconds=1)
         service = WinnerProbabilityApiService()
+        with pytest.raises(WinnerProbabilityApiError) as before_birth:
+            service.retire_model(
+                db,
+                model_id=model_id,
+                actor="native-test",
+                reason="retire",
+                operation_at=model.created_at - timedelta(microseconds=1),
+            )
+        assert before_birth.value.code == "MUTATION_WINNER_MODEL_NOT_KNOWN_AT_OPERATION"
+        assert db.get(WinnerModelVersion, model_id).status == "SHADOW"
         for invalid_time in (None, datetime.now()):
             db.add(UploadRun(id=1993, filename="rejected-governance.csv", status="COMPLETED"))
             with pytest.raises(WinnerProbabilityApiError) as error:

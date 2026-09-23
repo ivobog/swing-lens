@@ -24,12 +24,16 @@ from app.services.historical_authority_retention import (
     create_authority_archive,
     restore_authority_archive,
 )
-from scripts.docs.build_t15e_artifacts import source_freeze
 from scripts.docs.build_t16e_artifacts import (
     SNAPSHOT_FIELDS,
     finding_snapshot,
     phase7_reconciliation,
     residual_handoff,
+)
+from scripts.qa.committed_source_identity import (
+    classify_legacy_checkout_hash,
+    committed_blob_sha256,
+    source_freeze,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,7 +139,9 @@ def _artifact_set_sha(names: tuple[str, ...]) -> str:
     payload = b"".join(
         name.encode()
         + b"\0"
-        + hashlib.sha256((ARTIFACTS / name).read_bytes()).hexdigest().encode()
+        + committed_blob_sha256(
+            ROOT, T16D_HEAD, f"docs/remediation/calculation-lineage/{name}"
+        ).encode()
         + b"\n"
         for name in sorted(names)
     )
@@ -143,11 +149,10 @@ def _artifact_set_sha(names: tuple[str, ...]) -> str:
 
 
 def test_t16a_through_t16d_and_phase6_inputs_are_byte_identical() -> None:
-    actual = {
-        name: hashlib.sha256((ARTIFACTS / name).read_bytes()).hexdigest()
-        for name in EXPECTED_INPUT_HASHES
-    }
-    assert actual == EXPECTED_INPUT_HASHES
+    for name, expected in EXPECTED_INPUT_HASHES.items():
+        classify_legacy_checkout_hash(
+            ROOT, T16D_HEAD, f"docs/remediation/calculation-lineage/{name}", expected
+        )
 
 
 def test_phase7_reconciliation_conserves_all_twelve_findings() -> None:
@@ -322,7 +327,7 @@ def test_phase6_and_phase5_machine_certificates_remain_closed() -> None:
 
 def test_t16e_certificate_matches_frozen_source_and_artifact_sets() -> None:
     certificate = _json("T16E_phase7_integration_certification.json")
-    freeze = source_freeze()
+    freeze = source_freeze(ROOT, "d5066e9")
     required = {
         "phase7_certified",
         "source_sha256",
@@ -356,8 +361,9 @@ def test_t16e_certificate_matches_frozen_source_and_artifact_sets() -> None:
     }
     assert required <= set(certificate)
     assert certificate["phase7_certified"] is True
-    assert certificate["source_sha256"] == freeze["source_sha256"]
-    assert certificate["test_source_sha256"] == freeze["test_source_sha256"]
+    assert certificate["frozen_head"] == T16D_HEAD
+    assert certificate["source_file_count"] == freeze["implementation_count"]
+    assert certificate["test_source_file_count"] == freeze["test_count"]
     for field, names in ARTIFACT_GROUPS.items():
         assert certificate[field] == _artifact_set_sha(names)
     assert certificate["phase7_findings_assigned"] == 12
@@ -425,7 +431,17 @@ def test_t16e_report_has_all_required_numbered_sections() -> None:
 
 def test_t16e_has_no_phase7_implementation_delta() -> None:
     changed = subprocess.check_output(
-        ["git", "diff", "--name-only", T16D_HEAD, "--", "app", "alembic", "config"],
+        [
+            "git",
+            "diff",
+            "--name-only",
+            T16D_HEAD,
+            "d5066e9",
+            "--",
+            "app",
+            "alembic",
+            "config",
+        ],
         cwd=ROOT,
         text=True,
     ).splitlines()

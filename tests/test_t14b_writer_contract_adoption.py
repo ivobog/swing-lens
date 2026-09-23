@@ -1,6 +1,5 @@
 """Exact handoff and source-qualified adapter coverage; not native DB proof."""
 
-import hashlib
 import importlib
 import inspect
 import json
@@ -15,6 +14,7 @@ from app.services.domain_mutation import (
     MutationWriterDescriptor,
     validate_mutation_context,
 )
+from scripts.qa.committed_source_identity import classify_legacy_checkout_hash
 
 DOCS = Path(__file__).resolve().parents[1] / "docs/remediation/calculation-lineage"
 HANDOFF = json.loads((DOCS / "T14B_checked_handoff.json").read_text())
@@ -87,6 +87,8 @@ def test_foundation_handoff_and_historical_reviews_are_unchanged():
         ),
     }
     for name, digest in expected.items():
-        assert hashlib.sha256((DOCS / name).read_bytes()).hexdigest() == digest
+        assert classify_legacy_checkout_hash(
+            DOCS.parents[2], "5eef0d0", f"docs/remediation/calculation-lineage/{name}", digest
+        ) in {"GIT_COMMITTED_BLOB", "GIT_CHECKOUT_AUTOCRLF_TRUE"}
     assert len(HANDOFF["writer_families"]) == 32
     assert len(HANDOFF["initiators"]) == 36
