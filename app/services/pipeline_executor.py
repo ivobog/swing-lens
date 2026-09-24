@@ -132,6 +132,8 @@ def _call_market_sensitive(
     *,
     pipeline_run_id: int | None = None,
     frozen_tickers: tuple[str, ...] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> Any:
     """Pass the frozen cutoff without breaking narrow test doubles."""
     parameters = signature(function).parameters
@@ -143,6 +145,12 @@ def _call_market_sensitive(
         kwargs["pipeline_run_id"] = pipeline_run_id
     if frozen_tickers is not None and ("frozen_tickers" in parameters or accepts_kwargs):
         kwargs["frozen_tickers"] = frozen_tickers
+    if should_cancel is not None and ("should_cancel" in parameters or accepts_kwargs):
+        kwargs["should_cancel"] = should_cancel
+    if checkpoint_callback is not None and (
+        "checkpoint_callback" in parameters or accepts_kwargs
+    ):
+        kwargs["checkpoint_callback"] = checkpoint_callback
     if "effective_configuration" in parameters:
         from app.services.configuration_delivery import delivered_configuration
         from app.services.core_effective_configuration import CoreEffectiveConfiguration
@@ -370,7 +378,7 @@ def execute_full_pipeline(
         result="mismatch",
     )
     technical_durations_before = {
-        name: operational_metrics.total(f"swinglens_technical_{name}_ms_total")
+        name: operational_metrics.total(f"swinglens_technical_{name}_seconds")
         for name in ("input_load", "worker_span", "finalize")
     }
 
@@ -640,13 +648,27 @@ def execute_full_pipeline(
                         f"technical_overlap:{overlap_coordinator.fallback_reason}"
                     )
             else:
-                technical_scores = _call_market_sensitive(
-                    dependencies.score_technicals,
-                    db,
-                    upload_run.id,
-                    market_cutoff,
-                    pipeline_run_id=pipeline.id,
-                )
+                try:
+                    technical_scores = _call_market_sensitive(
+                        dependencies.score_technicals,
+                        db,
+                        upload_run.id,
+                        market_cutoff,
+                        pipeline_run_id=pipeline.id,
+                        should_cancel=should_cancel,
+                        checkpoint_callback=lambda **progress: _technical_job_checkpoint(
+                            db,
+                            progress_callback=progress_callback,
+                            lease_guard=lease_guard,
+                            **progress,
+                        ),
+                    )
+                except TechnicalScoringError as exc:
+                    if should_cancel():
+                        raise PipelineCancelled(
+                            "Pipeline cancelled during technical scoring."
+                        ) from exc
+                    raise
             if result["market_data_mode"] == "CACHE_FALLBACK":
                 _mark_technical_scores_degraded(technical_scores, result)
             performance.set_metric(
@@ -696,8 +718,13 @@ def execute_full_pipeline(
             ):
                 performance.set_metric(
                     performance_name,
-                    operational_metrics.total(f"swinglens_technical_{metric_name}_ms_total")
-                    - technical_durations_before[metric_name],
+                    1000
+                    * (
+                        operational_metrics.total(
+                            f"swinglens_technical_{metric_name}_seconds"
+                        )
+                        - technical_durations_before[metric_name]
+                    ),
                 )
             settings = get_settings()
             performance.set_metric(
@@ -1736,6 +1763,35 @@ def _report_job_stage_progress(db: Session, pipeline: PipelineRun, stage: str) -
     callback = getattr(pipeline, "_job_progress_callback", None)
     if callable(callback):
         callback(db, stage=stage, current_item=None)
+
+
+def _technical_job_checkpoint(
+    db: Session,
+    *,
+    progress_callback: Callable[..., None] | None,
+    lease_guard: Callable[[], None] | None,
+    phase: str,
+    processed: int,
+    total: int,
+    current_item: str | None = None,
+    last_completed_item: str | None = None,
+) -> None:
+    if progress_callback is not None:
+        progress_callback(
+            db,
+            stage="SCORING_TECHNICALS",
+            current_item=f"{phase}:{current_item or '-'}",
+            last_completed_item=(
+                last_completed_item
+                if phase in {"LOADING_INPUTS", "CALCULATING", "CALCULATED", "PUBLISHED"}
+                else None
+            ),
+            processed=(processed if phase != "VALIDATING_EVIDENCE" else None),
+            total=(total if phase != "VALIDATING_EVIDENCE" else None),
+            checkpoint_version="technical-recovery-v1",
+        )
+    elif lease_guard is not None:
+        lease_guard()
 
 
 def _require_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:

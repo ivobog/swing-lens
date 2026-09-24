@@ -627,6 +627,12 @@ class PrometheusMetrics:
             (metric.labels(**metric_labels) if metric_labels else metric).observe(float(value))
         except Exception as exc:
             self._report_emission_failure(name, "observe", exc)
+            return
+        # Retain the histogram sum in the compatibility mirror so in-process
+        # performance snapshots can compute bounded stage deltas.
+        key = (name, tuple(sorted(metric_labels.items())))
+        with self._lock:
+            self._totals[key] = self._totals.get(key, 0.0) + float(value)
 
     @staticmethod
     def _report_emission_failure(name: str, action: str, exc: Exception) -> None:

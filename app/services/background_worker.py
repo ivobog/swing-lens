@@ -501,41 +501,41 @@ def run_worker_once(
         )
 
         execution_token = job.execution_token
+        job_id = job.id
+        control_job = BackgroundJob(
+            id=job_id,
+            status=JobStatus.RUNNING,
+            execution_token=execution_token,
+            worker_id=worker_id,
+        )
+        # Publish the claim before opening an independent control-plane
+        # transaction. Otherwise PostgreSQL correctly exposes the prior QUEUED
+        # row to that session and the first heartbeat fences its own worker.
+        db.commit()
         try:
 
             def heartbeat() -> None:
-                from app.services.domain_write_fence import current_fenced_domain_session
-
-                source_db = current_fenced_domain_session(job.id, execution_token)
-                if source_db is not None and (
-                    source_db is not db or source_db.in_nested_transaction()
-                ):
-                    # A synchronous child source transaction holds the same
-                    # job-attempt row lock. Updating through the parent session
-                    # would wait on our own child. Keep the heartbeat atomic
-                    # with that native transaction; its lock prevents reclaim.
-                    source_job = source_db.get(BackgroundJob, job.id)
+                # Job control is deliberately independent of the business
+                # Session. Long read/calculation work cannot defer lease renewal.
+                control_db = session_factory() if isinstance(db, Session) else db
+                try:
                     heartbeat_job(
-                        source_db,
-                        source_job,
+                        control_db,
+                        control_job,
                         lease_seconds=stale_after_seconds,
                         execution_token=execution_token,
                     )
-                    return
-                heartbeat_job(
-                    db,
-                    job,
-                    lease_seconds=stale_after_seconds,
-                    execution_token=execution_token,
-                )
-                heartbeat_worker(
-                    db,
-                    worker_id,
-                    hostname=hostname,
-                    process_id=process_id,
-                    instance_id=worker_instance_id,
-                )
-                db.commit()
+                    heartbeat_worker(
+                        control_db,
+                        worker_id,
+                        hostname=hostname,
+                        process_id=process_id,
+                        instance_id=worker_instance_id,
+                    )
+                    control_db.commit()
+                finally:
+                    if control_db is not db:
+                        control_db.close()
 
             heartbeat()
             result = execute_job(
@@ -756,25 +756,86 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
         payload=job.payload_json or {},
     )
 
+    execution_token = str(job.execution_token or "")
+    control_job = BackgroundJob(
+        id=job.id,
+        status=JobStatus.RUNNING,
+        execution_token=execution_token,
+        worker_id=job.worker_id,
+    )
+    settings = get_settings()
+    control_factory = (
+        sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+        if isinstance(db, Session)
+        else None
+    )
     def lease_guard() -> None:
         heartbeat = getattr(job, "_heartbeat", None)
         if callable(heartbeat):
             heartbeat()
 
     def should_cancel() -> bool:
-        lease_guard()
-        return is_cancel_requested(db, job.id)
-
-    execution_token = str(job.execution_token or "")
-    settings = get_settings()
+        if control_factory is None:
+            lease_guard()
+            return is_cancel_requested(db, job.id)
+        with control_factory() as control_db:
+            heartbeat_job(
+                control_db,
+                control_job,
+                lease_seconds=settings.job_stale_after_seconds,
+                execution_token=execution_token,
+            )
+            requested = is_cancel_requested(control_db, job.id)
+            control_db.commit()
+            return requested
 
     def progress_callback(progress_db: Session, **progress: Any) -> None:
-        record_job_progress(
-            progress_db,
-            job_id=job.id,
-            execution_token=execution_token,
-            **progress,
-        )
+        if control_factory is None:
+            record_job_progress(
+                progress_db,
+                job_id=job.id,
+                execution_token=execution_token,
+                **progress,
+            )
+            return
+        if (
+            progress_db is db
+            and progress.get("checkpoint_version") is None
+            and progress.get("processed") is None
+            and progress.get("total") is None
+        ):
+            # Stage-boundary progress is followed immediately by
+            # _save_progress(). Fence, renew, and commit the completed stage in
+            # the business transaction first. The following independent guard
+            # can then renew without waiting on this worker's own ownership row.
+            heartbeat_job(
+                progress_db,
+                control_job,
+                lease_seconds=settings.job_stale_after_seconds,
+                execution_token=execution_token,
+            )
+            record_job_progress(
+                progress_db,
+                job_id=job.id,
+                execution_token=execution_token,
+                **progress,
+            )
+            progress_db.commit()
+            return
+        with control_factory() as control_db:
+            heartbeat_job(
+                control_db,
+                control_job,
+                lease_seconds=settings.job_stale_after_seconds,
+                execution_token=execution_token,
+            )
+            record_job_progress(
+                control_db,
+                job_id=job.id,
+                execution_token=execution_token,
+                **progress,
+            )
+            control_db.commit()
 
     def memory_probe(
         item_db: Session,

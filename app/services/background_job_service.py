@@ -942,18 +942,48 @@ def fence_stalled_jobs(
 ) -> list[int]:
     """Fence live-but-not-progressing executions without trusting lease freshness."""
     observed_at = now or _utcnow()
-    query = (
+    candidate_query = (
         select(BackgroundJob)
         .where(BackgroundJob.status == JobStatus.RUNNING)
         .where(BackgroundJob.last_progress_at.is_not(None))
-        .with_for_update(skip_locked=True)
     )
     if worker_id is not None:
-        query = query.where(BackgroundJob.worker_id == worker_id)
+        candidate_query = candidate_query.where(BackgroundJob.worker_id == worker_id)
     if worker_instance_id is not None:
-        query = query.where(BackgroundJob.worker_instance_id == worker_instance_id)
+        candidate_query = candidate_query.where(
+            BackgroundJob.worker_instance_id == worker_instance_id
+        )
+    # A non-locking MVCC read makes SKIP LOCKED observable.  It does not grant
+    # the watchdog authority to mutate the row, but prevents an owned/stalled
+    # execution from being indistinguishable from an empty candidate set.
+    candidates = list(db.scalars(candidate_query).all())
+    if not candidates:
+        logger.info(
+            "job.watchdog.decision %s",
+            {"decision": "NO_CANDIDATE", "worker_id": worker_id},
+        )
+    query = candidate_query.with_for_update(skip_locked=True)
+    locked_candidates = list(db.scalars(query).all())
+    acquired_ids = {job.id for job in locked_candidates}
+    for candidate in candidates:
+        if candidate.id in acquired_ids:
+            continue
+        decision_context = {
+            "job_id": candidate.id,
+            "run_id": candidate.related_run_id,
+            "job_type": candidate.job_type,
+            "job_progress_age_seconds": _age_seconds(
+                observed_at, candidate.last_progress_at
+            ),
+            "progress_sequence": int(candidate.progress_sequence or 0),
+            "stage": candidate.progress_stage,
+            "decision": "LOCKED_CANDIDATE_SKIPPED",
+        }
+        logger.warning(
+            "job.watchdog.decision %s", decision_context, extra=decision_context
+        )
     fenced: list[int] = []
-    for job in db.scalars(query).all():
+    for job in locked_candidates:
         if job.progress_stage == "FETCHING_MARKET_DATA":
             timeout = market_data_timeout_seconds
         elif job.progress_stage in {
