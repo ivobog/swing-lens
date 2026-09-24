@@ -8,7 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from threading import Barrier
+from multiprocessing import get_context
+from threading import Barrier, Event, get_ident
 from time import perf_counter
 
 import pytest
@@ -22,9 +23,11 @@ import app.services.winner_probability.api_service as winner_api_service
 from app.db import get_db
 from app.main import create_app
 from app.models.tables import (
+    AcquisitionPlanRecord,
     BackgroundJob,
     BackgroundWorker,
     EstimateLifecycleStatus,
+    RefreshCycleRecord,
     UploadRun,
     WinnerCohortGeneration,
     WinnerCohortRefreshState,
@@ -33,11 +36,13 @@ from app.models.tables import (
     WinnerEstimatePublicationRequest,
     WinnerEvidenceManifest,
     WinnerForwardOutcome,
+    WinnerMarketDataObligation,
     WinnerOutcomeDefinition,
     WinnerPredictionSnapshot,
     WinnerProbabilityEstimate,
     WinnerProcessingRun,
     WinnerTargetStopOutcome,
+    WorkScopeRecord,
 )
 from app.routers.run_routes import _winner_probability_context
 from app.services.background_job_service import (
@@ -105,6 +110,9 @@ from app.services.winner_probability.job_handlers import (
     execute_latest_rescore_job,
     execute_outcome_maturation_job,
 )
+from app.services.winner_probability.market_data_obligation_service import (
+    EMPTY_PRICE_WATERMARK,
+)
 from app.services.winner_probability.outcome_authority import outcome_body
 from app.services.winner_probability.outcome_orchestration_service import (
     H5DrainResult,
@@ -137,6 +145,40 @@ def _enabled_winner_config():
     config = load_winner_probability_config()
     config = replace(config, engine=replace(config.engine, enabled=True), config_hash="")
     return replace(config, config_hash=winner_probability_config_hash(config))
+
+
+def _request_cohort_refresh_in_process(
+    database_url: str,
+    definition_id: int,
+    observed: datetime,
+    start_together,
+    results,
+) -> None:
+    engine = create_engine(database_url)
+    try:
+        with Session(engine) as db:
+            definition = db.get(WinnerOutcomeDefinition, definition_id)
+            start_together.wait(timeout=30)
+            result = CohortRefreshPlanner().request_for_current_evidence(
+                db,
+                outcome_definition=definition,
+                config=_enabled_winner_config(),
+                observed_at=observed,
+            )
+            assert result.job is not None
+            identity = (
+                result.job.id,
+                result.job.scope_id,
+                result.job.refresh_cycle_id,
+                result.job.acquisition_plan_id,
+                result.job.payload_json["cohort_generation_id"],
+            )
+            db.commit()
+            results.put(("OK", os.getpid(), identity))
+    except Exception as exc:
+        results.put(("ERROR", os.getpid(), type(exc).__name__, str(exc)))
+    finally:
+        engine.dispose()
 
 
 def test_estimate_lifecycle_is_persisted_and_candidates_are_not_serving(
@@ -1045,27 +1087,46 @@ def test_concurrent_refresh_requests_coalesce_without_losing_desired_state(
         db.commit()
         definition_id = definition.id
 
-    def request() -> int:
+    start_together = Barrier(2, timeout=15)
+
+    def request() -> tuple[int, int, str, str, str, int, str, bool]:
         with Session(engine) as db:
             definition = db.get(WinnerOutcomeDefinition, definition_id)
+            start_together.wait()
             result = CohortRefreshPlanner().request_for_current_evidence(
                 db,
                 outcome_definition=definition,
                 config=config,
                 observed_at=observed,
             )
-            db.commit()
             assert result.job is not None
-            return result.job.id
+            identity = (
+                get_ident(),
+                result.job.id,
+                result.job.scope_id,
+                result.job.refresh_cycle_id,
+                result.job.acquisition_plan_id,
+                result.job.payload_json["cohort_generation_id"],
+                result.watermark.state.desired_watermark_hash,
+                bool(getattr(result.job, "_coalesced", False)),
+            )
+            db.commit()
+            return identity
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        job_ids = list(pool.map(lambda _index: request(), range(2)))
+        results = list(pool.map(lambda _index: request(), range(2)))
 
-    assert len(set(job_ids)) == 1
+    assert len({row[0] for row in results}) == 2
+    assert len({row[1:7] for row in results}) == 1
+    assert sorted(row[7] for row in results) == [False, True]
     with Session(engine) as db:
         state = db.scalar(select(WinnerCohortRefreshState))
         assert state is not None
         assert state.desired_target_stop_revision_id > 0
+        assert db.scalar(select(func.count(WinnerCohortGeneration.id))) == 1
+        assert db.scalar(select(func.count(WorkScopeRecord.scope_id))) == 1
+        assert db.scalar(select(func.count(RefreshCycleRecord.refresh_cycle_id))) == 1
+        assert db.scalar(select(func.count(AcquisitionPlanRecord.plan_id))) == 1
         assert (
             db.scalar(
                 select(func.count(BackgroundJob.id)).where(
@@ -1075,6 +1136,329 @@ def test_concurrent_refresh_requests_coalesce_without_losing_desired_state(
             )
             == 1
         )
+    engine.dispose()
+
+
+def test_cohort_refresh_same_material_watermark_ignores_request_clock_and_timezone(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    config = _enabled_winner_config()
+    observed = datetime(2026, 8, 17, 12, 0, tzinfo=UTC)
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed)
+        db.commit()
+        definition_id = definition.id
+
+    identities = []
+    for request_at in (observed, observed + timedelta(minutes=5)):
+        with Session(engine) as db:
+            definition = db.get(WinnerOutcomeDefinition, definition_id)
+            result = CohortRefreshPlanner().request_for_current_evidence(
+                db, outcome_definition=definition, config=config, observed_at=request_at
+            )
+            assert result.job is not None
+            identities.append(
+                (
+                    result.job.id,
+                    result.job.scope_id,
+                    result.job.refresh_cycle_id,
+                    result.job.acquisition_plan_id,
+                    result.job.payload_json["cohort_generation_id"],
+                )
+            )
+            db.commit()
+    assert identities[0] == identities[1]
+    with Session(engine) as db:
+        scope = db.get(WorkScopeRecord, identities[0][1])
+        assert (
+            scope.payload_json["scope_definition"]["training_cutoff_at"]
+            == (observed + timedelta(microseconds=1)).isoformat()
+        )
+        assert scope.payload_json["business_cutoff"] == "2026-08-17T12:00:00.000000Z"
+    engine.dispose()
+
+
+def test_identical_cohort_refresh_requests_coalesce_across_processes(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    observed = datetime(2026, 8, 17, 12, 0, tzinfo=UTC)
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed)
+        db.commit()
+        definition_id = definition.id
+
+    context = get_context("spawn")
+    start_together = context.Barrier(2, timeout=30)
+    results = context.Queue()
+    workers = [
+        context.Process(
+            target=_request_cohort_refresh_in_process,
+            args=(
+                disposable_postgres_database,
+                definition_id,
+                observed,
+                start_together,
+                results,
+            ),
+        )
+        for _ in range(2)
+    ]
+    try:
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=60)
+        assert all(not worker.is_alive() for worker in workers)
+        assert all(worker.exitcode == 0 for worker in workers)
+        returned = [results.get(timeout=5) for _ in workers]
+        assert all(row[0] == "OK" for row in returned), returned
+        assert len({row[1] for row in returned}) == 2
+        assert returned[0][2] == returned[1][2]
+        with Session(engine) as db:
+            assert db.scalar(select(func.count(WinnerCohortGeneration.id))) == 1
+            assert db.scalar(select(func.count(WorkScopeRecord.scope_id))) == 1
+            assert db.scalar(select(func.count(RefreshCycleRecord.refresh_cycle_id))) == 1
+    finally:
+        for worker in workers:
+            if worker.is_alive():
+                worker.terminate()
+            worker.join(timeout=5)
+        results.close()
+        engine.dispose()
+
+
+def test_concurrent_incompatible_cohort_configs_keep_distinct_authority(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    original = _enabled_winner_config()
+    changed = replace(
+        original,
+        cohort=replace(original.cohort, prior_strength=original.cohort.prior_strength + 1),
+    )
+    changed = replace(changed, config_hash=winner_probability_config_hash(changed))
+    observed = datetime(2026, 8, 17, 12, 0, tzinfo=UTC)
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed)
+        db.commit()
+        definition_id = definition.id
+
+    start_together = Barrier(2, timeout=15)
+
+    def request(config) -> tuple[int, str, str, str, int, str]:
+        with Session(engine) as db:
+            definition = db.get(WinnerOutcomeDefinition, definition_id)
+            start_together.wait()
+            result = CohortRefreshPlanner().request_for_current_evidence(
+                db, outcome_definition=definition, config=config, observed_at=observed
+            )
+            assert result.job is not None
+            identity = (
+                result.job.id,
+                result.job.scope_id,
+                result.job.refresh_cycle_id,
+                result.job.acquisition_plan_id,
+                result.job.payload_json["cohort_generation_id"],
+                result.watermark.state.desired_watermark_hash,
+            )
+            db.commit()
+            return identity
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        identities = list(pool.map(request, (original, changed)))
+    assert all(
+        left != right for left, right in zip(identities[0][:5], identities[1][:5], strict=True)
+    )
+    # Desired material evidence is shared; config authority still creates
+    # distinct immutable scope, refresh, generation, and execution identities.
+    assert identities[0][5] == identities[1][5]
+    with Session(engine) as db:
+        assert db.scalar(select(func.count(WinnerCohortGeneration.id))) == 2
+        assert db.scalar(select(func.count(WorkScopeRecord.scope_id))) == 2
+        state = db.scalar(select(WinnerCohortRefreshState))
+        assert state.desired_watermark_hash in {identity[5] for identity in identities}
+    engine.dispose()
+
+
+def test_legacy_obligation_does_not_change_concurrent_native_cohort_authority(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    config = _enabled_winner_config()
+    observed = datetime(2026, 8, 17, 12, 0, tzinfo=UTC)
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed)
+        native = db.scalar(select(WinnerPredictionSnapshot))
+        legacy = WinnerPredictionSnapshot(
+            run_id=native.run_id,
+            ticker="LEGACY",
+            prediction_as_of_date=native.prediction_as_of_date,
+            source_data_cutoff_at=native.source_data_cutoff_at,
+            decision_at=native.decision_at,
+            captured_at=native.captured_at,
+            planned_entry_session=native.planned_entry_session,
+            entry_schedule_status="RESOLVED",
+            entry_data_status="AVAILABLE",
+            eligibility_status="EXCLUDED",
+            feature_schema_version=native.feature_schema_version,
+            feature_vector_hash="legacy-fixture-vector",
+            config_hash=native.config_hash,
+            calculation_version=native.calculation_version,
+            revision=1,
+            feature_json={},
+            source_ids_json={},
+            warning_flags_json=[],
+            lineage_json={"legacy_source": True},
+            retention_class="permanent",
+        )
+        db.add(legacy)
+        db.flush()
+        forward = WinnerForwardOutcome(
+            prediction_id=legacy.id,
+            entry_model=definition.entry_model,
+            horizon_sessions=definition.horizon_sessions,
+            entry_session=date(2026, 7, 2),
+            due_session=date(2026, 7, 9),
+            status="PENDING",
+            revision=1,
+            is_current_revision=True,
+            metadata_json={"calculation_phase": "legacy"},
+        )
+        db.add(forward)
+        db.flush()
+        obligation = WinnerMarketDataObligation(
+            prediction_id=legacy.id,
+            forward_outcome_id=forward.id,
+            ticker_snapshot="LEGACY",
+            entry_session=forward.entry_session,
+            required_through_session=forward.due_session,
+            required_sessions_json=[forward.entry_session.isoformat()],
+            timeframe="1 day",
+            what_to_show="TRADES",
+            status="FETCH_REQUIRED",
+            price_series_watermark=EMPTY_PRICE_WATERMARK,
+            last_checked_at=observed,
+            metadata_json={"obligation_version": "winner-market-data-1.0"},
+        )
+        db.add(obligation)
+        db.commit()
+        definition_id, legacy_id, obligation_id = definition.id, legacy.id, obligation.id
+
+    start_together = Barrier(2, timeout=15)
+
+    def request() -> tuple[int, str, str]:
+        with Session(engine) as db:
+            definition = db.get(WinnerOutcomeDefinition, definition_id)
+            start_together.wait()
+            result = CohortRefreshPlanner().request_for_current_evidence(
+                db, outcome_definition=definition, config=config, observed_at=observed
+            )
+            assert result.job is not None
+            identity = (result.job.id, result.job.scope_id, result.job.refresh_cycle_id)
+            db.commit()
+            return identity
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        identities = list(pool.map(lambda _index: request(), range(2)))
+    assert identities[0] == identities[1]
+    with Session(engine) as db:
+        retained = db.get(WinnerMarketDataObligation, obligation_id)
+        assert retained.status == "FETCH_REQUIRED"
+        assert retained.metadata_json == {"obligation_version": "winner-market-data-1.0"}
+        assert (
+            "native_capture_proof" not in db.get(WinnerPredictionSnapshot, legacy_id).lineage_json
+        )
+        assert db.scalar(select(func.count(WinnerCohortGeneration.id))) == 1
+        scope = db.get(WorkScopeRecord, identities[0][1])
+        assert len(scope.payload_json["members"]) == 3
+    engine.dispose()
+
+
+def test_new_material_watermark_keeps_predecessor_scope_frozen_and_desired_state_current(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    config = _enabled_winner_config()
+    observed = datetime(2026, 10, 17, 10, 33, 9, 896000, tzinfo=UTC)
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed)
+        db.commit()
+        definition_id = definition.id
+
+    first_admitted = Event()
+    successor_started = Event()
+
+    def first_request():
+        with Session(engine) as db:
+            definition = db.get(WinnerOutcomeDefinition, definition_id)
+            first = CohortRefreshPlanner().request_for_current_evidence(
+                db, outcome_definition=definition, config=config, observed_at=observed
+            )
+            assert first.job is not None
+            identity = (
+                first.job.id,
+                first.job.scope_id,
+                first.job.refresh_cycle_id,
+                first.job.acquisition_plan_id,
+                first.job.payload_json["cohort_generation_id"],
+            )
+            first_hash = first.watermark.state.desired_watermark_hash
+            first_scope_payload = db.get(WorkScopeRecord, first.job.scope_id).payload_json
+            first_admitted.set()
+            assert successor_started.wait(timeout=15)
+            db.commit()
+            return identity, first_hash, first_scope_payload
+
+    def successor_request():
+        assert first_admitted.wait(timeout=15)
+        successor_started.set()
+        with Session(engine) as db:
+            _append_material_revision(db, definition_id, observed + timedelta(hours=1))
+            db.commit()
+        with Session(engine) as db:
+            definition = db.get(WinnerOutcomeDefinition, definition_id)
+            second = CohortRefreshPlanner().request_for_current_evidence(
+                db,
+                outcome_definition=definition,
+                config=config,
+                observed_at=observed + timedelta(hours=1),
+            )
+            assert second.job is not None
+            identity = (
+                second.job.id,
+                second.job.scope_id,
+                second.job.refresh_cycle_id,
+                second.job.acquisition_plan_id,
+                second.job.payload_json["cohort_generation_id"],
+            )
+            desired_hash = second.watermark.state.desired_watermark_hash
+            db.commit()
+            return identity, desired_hash
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first_future = pool.submit(first_request)
+        second_future = pool.submit(successor_request)
+        first_identity, first_hash, first_scope_payload = first_future.result()
+        second_identity, second_hash = second_future.result()
+
+    assert second_hash != first_hash
+    assert all(left != right for left, right in zip(first_identity, second_identity, strict=True))
+    with Session(engine) as db:
+        state = db.scalar(select(WinnerCohortRefreshState))
+        assert state.desired_watermark_hash != first_hash
+        assert db.get(WorkScopeRecord, first_identity[1]).payload_json == first_scope_payload
+        assert (
+            db.get(WorkScopeRecord, first_identity[1]).membership_fingerprint
+            != db.get(WorkScopeRecord, second_identity[1]).membership_fingerprint
+        )
+        assert db.scalar(select(func.count(WinnerCohortGeneration.id))) == 2
     engine.dispose()
 
 

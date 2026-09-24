@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -192,9 +192,14 @@ def admit_cohort_refresh(
     outcome_definition: WinnerOutcomeDefinition,
     config,
     cycle_key: str,
-    observed_at: datetime,
 ) -> SemanticWorkAuthority:
-    cutoff = state.updated_at + _one_microsecond()
+    if state.updated_at.tzinfo is None or state.updated_at.utcoffset() is None:
+        raise SemanticAuthorityError("WINNER_COHORT_MATERIAL_OBSERVATION_TIME_REQUIRED")
+    # A repeated request may reload this instant in the PostgreSQL session's
+    # timezone. Freeze the material observation, not its timezone spelling or
+    # the later request clock, into the cohort scope and acquisition plan.
+    material_observed_at = state.updated_at.astimezone(UTC)
+    cutoff = material_observed_at + _one_microsecond()
     universe = EvidenceService().load_generation_evidence(
         db,
         outcome_definition=outcome_definition,
@@ -220,7 +225,7 @@ def admit_cohort_refresh(
         subject_kind="winner-cohort-evidence",
         members=unique,
         cycle_key=cycle_key,
-        business_cutoff=observed_at,
+        business_cutoff=material_observed_at,
         provider_source_class="retained-winner-evidence",
         request_type="winner-cohort-refresh",
         requirements=(AcquisitionRequirement("winner-outcome-evidence"),),

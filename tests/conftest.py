@@ -133,6 +133,11 @@ def simulated_native_winner_capture(monkeypatch):
     Persisted writer authority is exercised unpatched in PostgreSQL integration
     tests. This explicit fixture provides no evidence for T14C certification.
     """
+    # Import the downstream module before patching its source module. Otherwise
+    # a first import during this fixture permanently binds the temporary lambda
+    # into outcome_authority's from-import, contaminating later PG tests.
+    from app.services.winner_probability import outcome_authority  # noqa: F401
+
     monkeypatch.setattr(
         "app.services.winner_probability.mutation_authority.prediction_capture_authority",
         lambda *_args, **_kwargs: None,

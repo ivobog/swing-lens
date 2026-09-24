@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from functools import wraps
 from types import MappingProxyType
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -154,6 +154,15 @@ def persist_configuration_anchor(db, configurations):
         configurations = {c.snapshot.family.namespace: c for c in configurations}
     snapshots = {c.snapshot.resolution_hash: c.snapshot for c in configurations.values()}
     if snapshots:
+        # Each anchor can mix shared and config-specific hashes. A PostgreSQL
+        # multi-row ON CONFLICT insert can deadlock against a concurrent anchor
+        # even with sorted input. Serialize this narrow persistence boundary
+        # across workers before acquiring any configuration-row index locks.
+        if db.get_bind().dialect.name == "postgresql":
+            db.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:scope, 0))"),
+                {"scope": "swinglens:effective-configuration-anchor:v1"},
+            )
         values = [
             dict(
                 resolution_hash=s.resolution_hash,
@@ -161,7 +170,9 @@ def persist_configuration_anchor(db, configurations):
                 semantic_hash=s.semantic_hash,
                 payload_json=s.as_dict(),
             )
-            for s in snapshots.values()
+            # Concurrent authorities may share many snapshots while differing
+            # in a few. Acquire their unique-index locks in one stable order.
+            for s in sorted(snapshots.values(), key=lambda item: item.resolution_hash)
         ]
         db.execute(insert(EffectiveConfigurationRecord).values(values).on_conflict_do_nothing())
     for key, config in configurations.items():

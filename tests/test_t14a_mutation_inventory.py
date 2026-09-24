@@ -9,10 +9,13 @@ from scripts.qa.t14a_reviewed_inventory import export_inventory, handler_registr
 
 CURRENT_RELEASE_SOURCE_DELTAS = [
     "app/services/background_job_service.py",
+    "app/services/configuration_delivery.py",
     "app/services/ib_fetch_executor.py",
     "app/services/pipeline_executor.py",
     "app/services/pipeline_service.py",
+    "app/services/winner_probability/cohort_refresh_planner.py",
     "app/services/winner_probability/market_data_obligation_service.py",
+    "app/services/winner_probability/scope_refresh.py",
 ]
 
 

@@ -70,11 +70,7 @@ class CohortRefreshPlanner:
             state=state,
             outcome_definition=outcome_definition,
             config=config,
-            cycle_key=(
-                f"winner:cohort-refresh:{definition_key}:"
-                f"{state.desired_watermark_hash}"
-            ),
-            observed_at=observed_at,
+            cycle_key=(f"winner:cohort-refresh:{definition_key}:{state.desired_watermark_hash}"),
         )
         generation = self.generation_service.capture_or_resume(
             db,
@@ -94,10 +90,7 @@ class CohortRefreshPlanner:
                 "cohort_generation_id": generation.id,
                 "operation_cutoff_at": observed_at.isoformat(),
             },
-            request_key=(
-                f"winner:cohort-refresh:{definition_key}:"
-                f"{authority.refresh_cycle_id}"
-            ),
+            request_key=(f"winner:cohort-refresh:{definition_key}:{authority.refresh_cycle_id}"),
             priority=priority,
         )
         bind_semantic_authority(job, authority)
