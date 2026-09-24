@@ -1,0 +1,169 @@
+{
+  "schema_version": "winner-cohort-concurrency-release-remediation-v1",
+  "certificate_type": "CURRENT_SOURCE_DERIVATIVE_REVALIDATION",
+  "overall_verdict": "FAIL_FRESH_CANARY_SOURCE_NOT_AVAILABLE",
+  "combined_code_release_gate": "PASS",
+  "ready_for_final_canary_rerun": false,
+  "branch": "codex/replacement-canary-marketdata-winner-remediation",
+  "starting_head": "d1e913e06344c63d25ff0a514b950359dadfb463",
+  "certified_application_ancestor": "4a9f414ceebbc8bde0332a4a4730e28f6b229015",
+  "replacement_commit": "d1eb69f0d346f726b5da630c18c9877e5ae214a0",
+  "concurrency_implementation_commit": "e59906bfd17b1b6db9445fa79eefe6975f842310",
+  "implementation_source_freeze_v2": {
+    "commit": "e59906bfd17b1b6db9445fa79eefe6975f842310",
+    "fingerprint_sha256": "ed2f64d05a3a669e676021498368cf9c9fda8d65153b028730c64c62f0056f40",
+    "implementation_entries": 680,
+    "test_entries": 463
+  },
+  "safety_copy": {
+    "directory": "C:/Users/Ivica/Documents/SwingLens-remediation-safety-20260924",
+    "binary_patch_sha256": "7411EEC35FF8C05AF08EEEEE046358B418918D6A061057AE3AAACA09B57AFC86",
+    "copied_files": 27,
+    "mismatches_before_first_commit_excluding_shared_inventory_test": 0,
+    "reverse_patch_check": "PASS"
+  },
+  "concurrency_blocker": {
+    "test_node": "tests/integration/test_winner_jobs_reliability_postgresql.py::test_concurrent_refresh_requests_coalesce_without_losing_desired_state",
+    "baseline_commit": "d1e913e06344c63d25ff0a514b950359dadfb463",
+    "baseline_clean_worktree_reproduced": true,
+    "baseline_worktree_removed": true,
+    "exception_type": "SemanticAuthorityError",
+    "exception_message": "SEMANTIC_AUTHORITY_REBIND_FORBIDDEN:scope_id",
+    "rejection_location": "app/services/scope_refresh_adoption.py:130",
+    "immutable_object": "WinnerCohortGeneration.scope_id",
+    "primary_classification": "SCOPE_IDENTITY_DEFECT",
+    "product_defect": true,
+    "same_config_hash": "8d5a4438e586808569b7bb3f6de935c47698f57f06ed3072dcb78e7e2840c8cb",
+    "same_desired_watermark_hash": "e20e81e4255b91b94a6656f8d892ecd07b6cd02f3d23497df3f78c5c30f01aa5",
+    "same_membership_fingerprint": "306f7349c0c4dfaffde23a112816428a9884afcdad5fcfeee071ba3918eed0dd",
+    "same_plan_id": "7456afcc18be5c27cb8229fbf020e57080e5f0035b1278f897be601328059ba4",
+    "same_generation_key": "ad9a92a495fae5728c826c14e4b8307b7bfff56d902a8c3823b48cc88e74ed93",
+    "request_a": {
+      "material_observed_at": "2026-08-17T12:00:00+00:00",
+      "scope_cutoff_before_fix": "2026-08-17T12:00:00.000001+00:00",
+      "scope_id_before_fix": "ddf5322ab743eac902ba9eea1b988e2c4c19937775c88a23ec6fe9827be244ee",
+      "refresh_id_before_fix": "75a368676e00c3fa47923e30abbac3bdcb4d9b89e8bfda89fa09a91435551f69",
+      "generation_row": 1,
+      "commit_order": 1
+    },
+    "request_b": {
+      "material_observed_at_reloaded_timezone_spelling": "2026-08-17T14:00:00+02:00",
+      "scope_cutoff_before_fix": "2026-08-17T14:00:00.000001+02:00",
+      "scope_id_before_fix": "03d54bb17ee06c97041910cc4dfccd4e9b79ea1e53adbda0096ffa11ee1c34e3",
+      "refresh_id_before_fix": "a90227ac27cb852ced3b1de20489726c8fa24f3fa40fbbb513ec03a488421e9b",
+      "generation_key": "ad9a92a495fae5728c826c14e4b8307b7bfff56d902a8c3823b48cc88e74ed93",
+      "commit_order": "ROLLED_BACK"
+    },
+    "fix": "Normalize the material state.updated_at instant to UTC before freezing training and business cutoffs; never use a later request clock in immutable cohort identity.",
+    "immutability_guard_unchanged": true,
+    "desired_state_model": "MUTABLE_OPERATIONAL_INTENT_SEPARATE_FROM_FROZEN_SCOPE",
+    "cross_process_mechanism": [
+      "PostgreSQL SELECT FOR UPDATE on contract state",
+      "unique cohort generation key",
+      "unique active job request key",
+      "transaction-scoped PostgreSQL advisory lock for effective configuration anchor persistence"
+    ],
+    "secondary_config_anchor_deadlock_fixed": true,
+    "test_fixture_import_order_leak_fixed": true
+  },
+  "findings": {
+    "REL-MD-001": "CLOSED",
+    "REL-MD-002": "CLOSED",
+    "REL-WIN-002": "CLOSED",
+    "REL-WIN-003": "CLOSED",
+    "REL-IB-002": "EXTERNAL_BOUNDARY_CERTIFIED"
+  },
+  "historical_audit_snapshot": {
+    "closed": 63,
+    "partial": 7,
+    "open": 0,
+    "changed": false
+  },
+  "phase567_current_derivative": {
+    "historical_certificates_modified": false,
+    "historical_source_pins_fail_closed": true,
+    "changed_reviewed_source_paths": [
+      "app/services/background_job_service.py",
+      "app/services/configuration_delivery.py",
+      "app/services/ib_fetch_executor.py",
+      "app/services/pipeline_executor.py",
+      "app/services/pipeline_service.py",
+      "app/services/winner_probability/cohort_refresh_planner.py",
+      "app/services/winner_probability/market_data_obligation_service.py",
+      "app/services/winner_probability/scope_refresh.py"
+    ],
+    "callers": 252,
+    "families": 220,
+    "source_proof_family_ids_evolved_since_prior_derivative": 9,
+    "stable_semantic_family_id_mismatches": 0,
+    "writer_authority_contract_mismatches": 0,
+    "final_disposition_mismatches": 0,
+    "incomplete_families": 0,
+    "phase5_certificate_tests_passed": 95,
+    "phase6_certificate_tests_passed": 33,
+    "phase7_certificate_tests_passed": 71
+  },
+  "tests": {
+    "identical_and_cross_process_repeated_runs": "3_PAIRS_PASSED",
+    "incompatible_config_repeated_runs": "3_PASSED",
+    "winner_reliability_normal": "24_PASSED",
+    "winner_reliability_reverse": "24_PASSED",
+    "winner_broad": "566_PASSED",
+    "market_data_retry_progress": "131_PASSED",
+    "unit_before_integration_isolation": "535_PASSED",
+    "static_t14a": "20_PASSED",
+    "phase567_certificate_lane": "199_PASSED",
+    "full_non_e2e": {
+      "passed": 4068,
+      "skipped": 10,
+      "e2e_marked_deselected": 31,
+      "failed": 0,
+      "errors": 0,
+      "duration_seconds": 4779.32
+    },
+    "e2e_marked": {
+      "passed": 31,
+      "failed": 0,
+      "errors": 0,
+      "established_e2e_subset": 28
+    },
+    "ruff_app_tests_scripts": "PASS",
+    "changed_file_format": "PASS",
+    "compileall_app_tests_scripts": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "authoritative_database": {
+    "product": "PostgreSQL 18.3",
+    "database": "swinglens",
+    "alembic_head": "0083_winner_scope_truth",
+    "migration_required": false,
+    "writes_by_this_task": false,
+    "maximum_pipeline_id": 153,
+    "pipeline_153_status": "FAILED",
+    "pipeline_153_step": "FETCHING_MARKET_DATA",
+    "new_pipeline_submitted": false
+  },
+  "canary_reference_preflight": {
+    "fresh_upload_candidate_prepared": false,
+    "reason": "Latest local September 17 screener export has 86 rows; the newest identified retained 100-row export is September 11, and it was not reused as a new upload source.",
+    "reference_source": "data/uploads/20260911_101959_f626ad5b_money money_2026-09-11.csv",
+    "reference_source_sha256": "b467f00f618116cf2d65b862756ca548b3f80dc5711cd1da637d1ec78f4adbdc",
+    "symbols": 100,
+    "qualified": 100,
+    "trades_available": 99,
+    "adjusted_last_available": 99,
+    "typed_external_unavailable_symbols": ["CLBK"],
+    "live_vs_retained_plan_contract_drift_symbols": ["CLBK", "OKE"],
+    "clbk_provider_code": 162,
+    "clbk_provider_classification": "HISTORICAL_DATA_UNAVAILABLE",
+    "csv": "FINAL_CANARY_CANDIDATE_PREFLIGHT.csv",
+    "csv_sha256": "AE104150742AAF5AFE802E1AD0F53B8B38C5F9E2D9AE67AEBD4F2A5AEDD3DA9A",
+    "csv_hash_materialization": "LOCAL_WINDOWS_WORKTREE_CRLF",
+    "csv_committed_blob_sha256": "6BDB5D2B75A15413A826CBC9BE607A62B31D14604ED746292FE0CA05EC38CB2D",
+    "raw": "FINAL_CANARY_CANDIDATE_PREFLIGHT.raw.json",
+    "raw_worktree_sha256": "D03BE95A86E938F286554D01DD591D1722529056657DA4F2A397E68F5EB59D1D",
+    "raw_committed_blob_sha256": "0503456BD57571563808B3FA750B051104434E8A819E2626A6641B54EB35D6A6",
+    "candidate_semantics": "REFERENCE_ONLY; retain external failures as typed insufficiency; freeze new qualified contract identity at any future admission"
+  },
+  "push_performed": false
+}

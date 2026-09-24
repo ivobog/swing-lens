@@ -1,0 +1,4721 @@
+{
+  "generated_at": "2026-09-24T05:13:21.563006+00:00",
+  "ib_readonly": true,
+  "request_mode": "PRODUCTION_FORCE_REFRESH_PLAN_READ_ONLY",
+  "rows": [
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 265598,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "AAPL",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "AAPL",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "60e6489b0fd0a8907fc1be7c5f8caed3c25ca818cbce7c21454b45587e1d2e16",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "60e6489b0fd0a8907fc1be7c5f8caed3c25ca818cbce7c21454b45587e1d2e16",
+        "TRADES": "60e6489b0fd0a8907fc1be7c5f8caed3c25ca818cbce7c21454b45587e1d2e16"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "AAPL"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 6478301,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "TIGO",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "TIGO",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "01b76823047340c859a54da775ee0858a36ec1eea248d62eebcb26483bdc21dc",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "01b76823047340c859a54da775ee0858a36ec1eea248d62eebcb26483bdc21dc",
+        "TRADES": "01b76823047340c859a54da775ee0858a36ec1eea248d62eebcb26483bdc21dc"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "TIGO"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 267197,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CACI",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "CACI",
+        "tradingClass": "CACI"
+      },
+      "contract_fingerprint": "3825e244832624cbba0d06880c44fa66ee689489b993fe98edf22476465260b2",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "3825e244832624cbba0d06880c44fa66ee689489b993fe98edf22476465260b2",
+        "TRADES": "3825e244832624cbba0d06880c44fa66ee689489b993fe98edf22476465260b2"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CACI"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 474517727,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "OSCR",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "OSCR",
+        "tradingClass": "OSCR"
+      },
+      "contract_fingerprint": "e6ee9cea35dd33941089d8ff992a6dcbe1d08181e9f5933dcfd7225859de5a47",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "e6ee9cea35dd33941089d8ff992a6dcbe1d08181e9f5933dcfd7225859de5a47",
+        "TRADES": "e6ee9cea35dd33941089d8ff992a6dcbe1d08181e9f5933dcfd7225859de5a47"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "OSCR"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 754442,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "DVN",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "DVN",
+        "tradingClass": "DVN"
+      },
+      "contract_fingerprint": "2d8e1f11cc84e8d2a26cb1c57d001bdaed20a370358e79bd213557be4abcde7b",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "2d8e1f11cc84e8d2a26cb1c57d001bdaed20a370358e79bd213557be4abcde7b",
+        "TRADES": "2d8e1f11cc84e8d2a26cb1c57d001bdaed20a370358e79bd213557be4abcde7b"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "DVN"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 349869083,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "STNG",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "STNG",
+        "tradingClass": "STNG"
+      },
+      "contract_fingerprint": "5ab41ad7066fec2d05d62cc3f8136802476b5991b6891e7d36aa8b5ccdfe3e84",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "5ab41ad7066fec2d05d62cc3f8136802476b5991b6891e7d36aa8b5ccdfe3e84",
+        "TRADES": "5ab41ad7066fec2d05d62cc3f8136802476b5991b6891e7d36aa8b5ccdfe3e84"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "STNG"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 366266198,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "NBN",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "NBN",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "c2e04650def0479e38f6094ba6a1e2e7dd50aa4909c04cce1db5538aca209358",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "c2e04650def0479e38f6094ba6a1e2e7dd50aa4909c04cce1db5538aca209358",
+        "TRADES": "c2e04650def0479e38f6094ba6a1e2e7dd50aa4909c04cce1db5538aca209358"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "NBN"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 237794430,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "TWLO",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "TWLO",
+        "tradingClass": "TWLO"
+      },
+      "contract_fingerprint": "c70e2370a3175696a400ecbabb55556b6cd61c87b072b1c208a9d638038f1675",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "c70e2370a3175696a400ecbabb55556b6cd61c87b072b1c208a9d638038f1675",
+        "TRADES": "c70e2370a3175696a400ecbabb55556b6cd61c87b072b1c208a9d638038f1675"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "TWLO"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 16692333,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "GLNG",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "GLNG",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "e3e97869c8e765f50060f132d0dd5287dadae6ff6f8a7007cdd354eadc1287d7",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "e3e97869c8e765f50060f132d0dd5287dadae6ff6f8a7007cdd354eadc1287d7",
+        "TRADES": "e3e97869c8e765f50060f132d0dd5287dadae6ff6f8a7007cdd354eadc1287d7"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "GLNG"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 115441080,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "FANG",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "FANG",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "6240e96cc614b8df41bc2de5f7ef4155422728279a4e9d3342427c7048b3fe3c",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "6240e96cc614b8df41bc2de5f7ef4155422728279a4e9d3342427c7048b3fe3c",
+        "TRADES": "6240e96cc614b8df41bc2de5f7ef4155422728279a4e9d3342427c7048b3fe3c"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "FANG"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 106810749,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "TGTX",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "TGTX",
+        "tradingClass": "SCM"
+      },
+      "contract_fingerprint": "2f9ab32dd5d51e5a93b86a67580225fb93067cc09d98189ba5bf5ee3d1ed76ba",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "2f9ab32dd5d51e5a93b86a67580225fb93067cc09d98189ba5bf5ee3d1ed76ba",
+        "TRADES": "2f9ab32dd5d51e5a93b86a67580225fb93067cc09d98189ba5bf5ee3d1ed76ba"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "TGTX"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 4691,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "AVT",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "AVT",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "c793f3cc384e56c70d8736340bb72cc903c190fae5961de70d9b394f3817cb7f",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "c793f3cc384e56c70d8736340bb72cc903c190fae5961de70d9b394f3817cb7f",
+        "TRADES": "c793f3cc384e56c70d8736340bb72cc903c190fae5961de70d9b394f3817cb7f"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "AVT"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 132310540,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ASC",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "ASC",
+        "tradingClass": "ASC"
+      },
+      "contract_fingerprint": "05b9a19e76b7ec37c571b66324598ded425312ce1c4030db961b41625f10e7d9",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "05b9a19e76b7ec37c571b66324598ded425312ce1c4030db961b41625f10e7d9",
+        "TRADES": "05b9a19e76b7ec37c571b66324598ded425312ce1c4030db961b41625f10e7d9"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ASC"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 159504148,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "BFC",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "BFC",
+        "tradingClass": "SCM"
+      },
+      "contract_fingerprint": "5fba560f66676ca73d35e5ff8d9d99dc91c221ba89b7daeb1c5ffd5d488ecc1e",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "5fba560f66676ca73d35e5ff8d9d99dc91c221ba89b7daeb1c5ffd5d488ecc1e",
+        "TRADES": "5fba560f66676ca73d35e5ff8d9d99dc91c221ba89b7daeb1c5ffd5d488ecc1e"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "BFC"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 8093509,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "MET",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "MET",
+        "tradingClass": "MET"
+      },
+      "contract_fingerprint": "9292719e6de47ce396e09f147c16aa6c3e14f699567908874239cf0499c179ea",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "9292719e6de47ce396e09f147c16aa6c3e14f699567908874239cf0499c179ea",
+        "TRADES": "9292719e6de47ce396e09f147c16aa6c3e14f699567908874239cf0499c179ea"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "MET"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 3655785,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "OSBC",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "OSBC",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "bd042cf5b223e070601fde9c998a035eae25730fe86f03021442bbdc45242368",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "bd042cf5b223e070601fde9c998a035eae25730fe86f03021442bbdc45242368",
+        "TRADES": "bd042cf5b223e070601fde9c998a035eae25730fe86f03021442bbdc45242368"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "OSBC"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 270754,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ITIC",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "ITIC",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "f03f908b6eb930901e17f90b5212b16ca7b9c2e06b84240698fde709f56cdda7",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "f03f908b6eb930901e17f90b5212b16ca7b9c2e06b84240698fde709f56cdda7",
+        "TRADES": "f03f908b6eb930901e17f90b5212b16ca7b9c2e06b84240698fde709f56cdda7"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ITIC"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 55998789,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "RGA",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "RGA",
+        "tradingClass": "RGA"
+      },
+      "contract_fingerprint": "9bcd54b22a79bdb7599269caea03bd076bf872f40a18d06c99490a923e31a254",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "9bcd54b22a79bdb7599269caea03bd076bf872f40a18d06c99490a923e31a254",
+        "TRADES": "9bcd54b22a79bdb7599269caea03bd076bf872f40a18d06c99490a923e31a254"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "RGA"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 60039297,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "OPY",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "OPY",
+        "tradingClass": "OPY"
+      },
+      "contract_fingerprint": "0e81db81f01b9896412b1b5a5227c42f664589825e5f804d6ffc9e3cc4e9f7c8",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "0e81db81f01b9896412b1b5a5227c42f664589825e5f804d6ffc9e3cc4e9f7c8",
+        "TRADES": "0e81db81f01b9896412b1b5a5227c42f664589825e5f804d6ffc9e3cc4e9f7c8"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "OPY"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 663174498,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "BG",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "BG",
+        "tradingClass": "BG"
+      },
+      "contract_fingerprint": "25dbaac944becbef8e1ef2343f6f95e2d0ed4354c3ce22d9bed8f3a7060783e2",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "25dbaac944becbef8e1ef2343f6f95e2d0ed4354c3ce22d9bed8f3a7060783e2",
+        "TRADES": "25dbaac944becbef8e1ef2343f6f95e2d0ed4354c3ce22d9bed8f3a7060783e2"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "BG"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 70985860,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "NWBI",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "NWBI",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "38bd8ff9cad474ae53291ada1d42faf4ebfce4ae0a64f8b82dbe548afc25e011",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "38bd8ff9cad474ae53291ada1d42faf4ebfce4ae0a64f8b82dbe548afc25e011",
+        "TRADES": "38bd8ff9cad474ae53291ada1d42faf4ebfce4ae0a64f8b82dbe548afc25e011"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "NWBI"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 290651477,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ROKU",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "ROKU",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "7c288d351083d9f6474237ee31101eb438b6f8701327467360cec6ab5ff5e609",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "7c288d351083d9f6474237ee31101eb438b6f8701327467360cec6ab5ff5e609",
+        "TRADES": "7c288d351083d9f6474237ee31101eb438b6f8701327467360cec6ab5ff5e609"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ROKU"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 4728003,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "LNG",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "LNG",
+        "tradingClass": "LNG"
+      },
+      "contract_fingerprint": "3e587f8de3798b69edf66c2f07e3e181559592397c1e782abbf85cbc57390f90",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "3e587f8de3798b69edf66c2f07e3e181559592397c1e782abbf85cbc57390f90",
+        "TRADES": "3e587f8de3798b69edf66c2f07e3e181559592397c1e782abbf85cbc57390f90"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "LNG"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 270137,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "HIFS",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "HIFS",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "9aa57595508fa38e89820965109ebf8b95519716cc03e8f319c36cc7b0cf4d65",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "9aa57595508fa38e89820965109ebf8b95519716cc03e8f319c36cc7b0cf4d65",
+        "TRADES": "9aa57595508fa38e89820965109ebf8b95519716cc03e8f319c36cc7b0cf4d65"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "HIFS"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 19967100,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ECPG",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "ECPG",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "01449f3b0613543a30f4f0de03f1275fd344045f06211f411e6b0914c2e3198f",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "01449f3b0613543a30f4f0de03f1275fd344045f06211f411e6b0914c2e3198f",
+        "TRADES": "01449f3b0613543a30f4f0de03f1275fd344045f06211f411e6b0914c2e3198f"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ECPG"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 61,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 61,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 895178251,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "XOM",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "XOM",
+        "tradingClass": "XOM"
+      },
+      "contract_fingerprint": "2db9ad607413a856d5154b16774249b064ed936a02376fddda68dd9224ecf67d",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "2db9ad607413a856d5154b16774249b064ed936a02376fddda68dd9224ecf67d",
+        "TRADES": "2db9ad607413a856d5154b16774249b064ed936a02376fddda68dd9224ecf67d"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "XOM"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 691994611,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CPAY",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "CPAY",
+        "tradingClass": "CPAY"
+      },
+      "contract_fingerprint": "9a9011c64833ff1c69058865653374079929ee3460a38a43b2985563247082dc",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "9a9011c64833ff1c69058865653374079929ee3460a38a43b2985563247082dc",
+        "TRADES": "9a9011c64833ff1c69058865653374079929ee3460a38a43b2985563247082dc"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CPAY"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 205921718,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "BUSE",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "BUSE",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "b466b53fe54c298515905f2e7329b56b02bbc100d9d9daa37484048bf0caa23c",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "b466b53fe54c298515905f2e7329b56b02bbc100d9d9daa37484048bf0caa23c",
+        "TRADES": "b466b53fe54c298515905f2e7329b56b02bbc100d9d9daa37484048bf0caa23c"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "BUSE"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 695807147,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "PACS",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "PACS",
+        "tradingClass": "PACS"
+      },
+      "contract_fingerprint": "7b465f77cdb21439e47e3933db114afcead6d5da87a4c1d5ea9a9f4414c42720",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "7b465f77cdb21439e47e3933db114afcead6d5da87a4c1d5ea9a9f4414c42720",
+        "TRADES": "7b465f77cdb21439e47e3933db114afcead6d5da87a4c1d5ea9a9f4414c42720"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "PACS"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 143288167,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "PARR",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "PARR",
+        "tradingClass": "PARR"
+      },
+      "contract_fingerprint": "d870ce80a507cbe23325d9b794db2c2c0725631e932e316045f696dfd6f62d74",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "d870ce80a507cbe23325d9b794db2c2c0725631e932e316045f696dfd6f62d74",
+        "TRADES": "d870ce80a507cbe23325d9b794db2c2c0725631e932e316045f696dfd6f62d74"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "PARR"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 0,
+        "exception_type": "IBHistoricalRequestError",
+        "provider_classification": "HISTORICAL_DATA_UNAVAILABLE",
+        "provider_code": 162,
+        "provider_error_codes": [
+          162
+        ],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "UNAVAILABLE"
+      },
+      "TRADES": {
+        "bars": 0,
+        "exception_type": "IBHistoricalRequestError",
+        "provider_classification": "HISTORICAL_DATA_UNAVAILABLE",
+        "provider_code": 162,
+        "provider_error_codes": [
+          162
+        ],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "UNAVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE_WITH_TYPED_INSUFFICIENCY",
+      "contract": {
+        "conId": 902968711,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CLBK",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "CLBK",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "a63978a6983ef45918fe717c2720b027424a84df3398de888bcc535f3896eb28",
+      "failure_class": "IB_EXTERNAL_CONTRACT_OR_HISTORICAL_UNAVAILABLE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "c55551b5b0633b2d27a4b5163ec7651fc8493e272232ae2dd611bf1521d24353",
+        "TRADES": "c55551b5b0633b2d27a4b5163ec7651fc8493e272232ae2dd611bf1521d24353"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CLBK"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 91869066,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CHEF",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "CHEF",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "94d730f0256b0e46b2d9a7fd5e2ede7cd080df06dcd813b6f518806eaf8d1d0d",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "94d730f0256b0e46b2d9a7fd5e2ede7cd080df06dcd813b6f518806eaf8d1d0d",
+        "TRADES": "94d730f0256b0e46b2d9a7fd5e2ede7cd080df06dcd813b6f518806eaf8d1d0d"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CHEF"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 471245525,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "SPNT",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "SPNT",
+        "tradingClass": "SPNT"
+      },
+      "contract_fingerprint": "1bccb81e5d0c3fd6255f0b650649bfaceb8fd38553204460e361cf064d11e24c",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "1bccb81e5d0c3fd6255f0b650649bfaceb8fd38553204460e361cf064d11e24c",
+        "TRADES": "1bccb81e5d0c3fd6255f0b650649bfaceb8fd38553204460e361cf064d11e24c"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "SPNT"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 6608450,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "RRC",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "RRC",
+        "tradingClass": "RRC"
+      },
+      "contract_fingerprint": "bc4fce15f2a7c64181a2f75e4551d4f879b529bb73258f1be4802f41a89cd987",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "bc4fce15f2a7c64181a2f75e4551d4f879b529bb73258f1be4802f41a89cd987",
+        "TRADES": "bc4fce15f2a7c64181a2f75e4551d4f879b529bb73258f1be4802f41a89cd987"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "RRC"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 6890,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "EOG",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "EOG",
+        "tradingClass": "EOG"
+      },
+      "contract_fingerprint": "eaf3b1d98c931d29d95e8a7af5a985ce13845a996986c7e94874f619d499cd94",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "eaf3b1d98c931d29d95e8a7af5a985ce13845a996986c7e94874f619d499cd94",
+        "TRADES": "eaf3b1d98c931d29d95e8a7af5a985ce13845a996986c7e94874f619d499cd94"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "EOG"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 35970258,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "AMP",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "AMP",
+        "tradingClass": "AMP"
+      },
+      "contract_fingerprint": "ff7d0ca4f85d1f9edcffff00d83c9a4f4bebf9b638e643a46b1edcfd02409d0e",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "ff7d0ca4f85d1f9edcffff00d83c9a4f4bebf9b638e643a46b1edcfd02409d0e",
+        "TRADES": "ff7d0ca4f85d1f9edcffff00d83c9a4f4bebf9b638e643a46b1edcfd02409d0e"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "AMP"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 468760665,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "DCOM",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "DCOM",
+        "tradingClass": "DCOM"
+      },
+      "contract_fingerprint": "359adeb84832ebf4c5ac2fdf23378806aabb7a5827fa756e800b31b6e957dd0d",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "359adeb84832ebf4c5ac2fdf23378806aabb7a5827fa756e800b31b6e957dd0d",
+        "TRADES": "359adeb84832ebf4c5ac2fdf23378806aabb7a5827fa756e800b31b6e957dd0d"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "DCOM"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 640318253,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "BGC",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "BGC",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "a705381d70b4c6a70225d092c64abd4144418260b9c6c0c38196e7b9a747eeaf",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "a705381d70b4c6a70225d092c64abd4144418260b9c6c0c38196e7b9a747eeaf",
+        "TRADES": "a705381d70b4c6a70225d092c64abd4144418260b9c6c0c38196e7b9a747eeaf"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "BGC"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 37830920,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ET",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "ET",
+        "tradingClass": "ET"
+      },
+      "contract_fingerprint": "0f11c01af56b2121f3bfaf08d4193f8d6ed6cf59c7510f0b700865529bad96ad",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "0f11c01af56b2121f3bfaf08d4193f8d6ed6cf59c7510f0b700865529bad96ad",
+        "TRADES": "0f11c01af56b2121f3bfaf08d4193f8d6ed6cf59c7510f0b700865529bad96ad"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ET"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 8251,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "HUM",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "HUM",
+        "tradingClass": "HUM"
+      },
+      "contract_fingerprint": "3133bc05e1f366134bb2bd040b81f9902b62f5b9ef705f02e4f66df65e38bc55",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "3133bc05e1f366134bb2bd040b81f9902b62f5b9ef705f02e4f66df65e38bc55",
+        "TRADES": "3133bc05e1f366134bb2bd040b81f9902b62f5b9ef705f02e4f66df65e38bc55"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "HUM"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 717838613,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CON",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "CON",
+        "tradingClass": "CON"
+      },
+      "contract_fingerprint": "69233fd44358a1577d0fb2b3e1ffdb78af99a5fc97c8877142826e303f120115",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "69233fd44358a1577d0fb2b3e1ffdb78af99a5fc97c8877142826e303f120115",
+        "TRADES": "69233fd44358a1577d0fb2b3e1ffdb78af99a5fc97c8877142826e303f120115"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CON"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 462584489,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ZVRA",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "ZVRA",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "14fbc0fa42c49d500a0b02b60f2dca895f878515df33b528bc713185fb70a8fa",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "14fbc0fa42c49d500a0b02b60f2dca895f878515df33b528bc713185fb70a8fa",
+        "TRADES": "14fbc0fa42c49d500a0b02b60f2dca895f878515df33b528bc713185fb70a8fa"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ZVRA"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 875133894,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ASND",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "ASND",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "d04f1bf700e015f70a2d342cf795f528a4ec821a02b32acedbc408b352462a99",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "d04f1bf700e015f70a2d342cf795f528a4ec821a02b32acedbc408b352462a99",
+        "TRADES": "d04f1bf700e015f70a2d342cf795f528a4ec821a02b32acedbc408b352462a99"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ASND"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 135942630,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "AR",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "AR",
+        "tradingClass": "AR"
+      },
+      "contract_fingerprint": "61dfb8f16b3c477d78d2e32a550e674b15b498f043ce96a9f28523332e34b386",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "61dfb8f16b3c477d78d2e32a550e674b15b498f043ce96a9f28523332e34b386",
+        "TRADES": "61dfb8f16b3c477d78d2e32a550e674b15b498f043ce96a9f28523332e34b386"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "AR"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 295757261,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "IQV",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "IQV",
+        "tradingClass": "IQV"
+      },
+      "contract_fingerprint": "ae9a4da439fd836736abef1c99a7ae617c34064e486c319d71a1201daf72291d",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "ae9a4da439fd836736abef1c99a7ae617c34064e486c319d71a1201daf72291d",
+        "TRADES": "ae9a4da439fd836736abef1c99a7ae617c34064e486c319d71a1201daf72291d"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "IQV"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 254455210,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CXW",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "CXW",
+        "tradingClass": "CXW"
+      },
+      "contract_fingerprint": "b92384c226cd9d9895110538abc0cb434839a3e68abbce40e02b915f05a65386",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "b92384c226cd9d9895110538abc0cb434839a3e68abbce40e02b915f05a65386",
+        "TRADES": "b92384c226cd9d9895110538abc0cb434839a3e68abbce40e02b915f05a65386"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CXW"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 4730419,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "AGM",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "AGM",
+        "tradingClass": "AGM"
+      },
+      "contract_fingerprint": "6990b5913cf1cf30892d4232971a23467fae2561554ac84cffaa1e9f92866118",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "6990b5913cf1cf30892d4232971a23467fae2561554ac84cffaa1e9f92866118",
+        "TRADES": "6990b5913cf1cf30892d4232971a23467fae2561554ac84cffaa1e9f92866118"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "AGM"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 533620436,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "FCFS",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "FCFS",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "50246b05d939560ac9e5e964ed8e49a89025cc90346e579696c2e73d6062af6b",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "50246b05d939560ac9e5e964ed8e49a89025cc90346e579696c2e73d6062af6b",
+        "TRADES": "50246b05d939560ac9e5e964ed8e49a89025cc90346e579696c2e73d6062af6b"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "FCFS"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 564354641,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "GBTG",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "GBTG",
+        "tradingClass": "GBTG"
+      },
+      "contract_fingerprint": "f5d890245208aecd3efe390b5b32efdf576ead6b57bb6a40753c3e52ca48f921",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "f5d890245208aecd3efe390b5b32efdf576ead6b57bb6a40753c3e52ca48f921",
+        "TRADES": "f5d890245208aecd3efe390b5b32efdf576ead6b57bb6a40753c3e52ca48f921"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "GBTG"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 578327143,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "DBRG",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "DBRG",
+        "tradingClass": "DBRG"
+      },
+      "contract_fingerprint": "6a0f745e3047988cd958fb7272248143909f82d5ea418602aae804e58346f93c",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "6a0f745e3047988cd958fb7272248143909f82d5ea418602aae804e58346f93c",
+        "TRADES": "6a0f745e3047988cd958fb7272248143909f82d5ea418602aae804e58346f93c"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "DBRG"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 705166800,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "BOW",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "BOW",
+        "tradingClass": "BOW"
+      },
+      "contract_fingerprint": "f3af8d262bd9662c135fa75e4e409257c2ed21bc2b005fea3a09f2a1166846e3",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "f3af8d262bd9662c135fa75e4e409257c2ed21bc2b005fea3a09f2a1166846e3",
+        "TRADES": "f3af8d262bd9662c135fa75e4e409257c2ed21bc2b005fea3a09f2a1166846e3"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "BOW"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 61,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 61,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 921971937,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "OKE",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "OKE",
+        "tradingClass": "OKE"
+      },
+      "contract_fingerprint": "41526e231290bc21b05a3700228359cfdf085ba6d5526920a60a4b7fa2975cd1",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "ba879ffaf7da7df625c095228c3f96c0e51397e4fb1b05829abe290af43b8bdb",
+        "TRADES": "ba879ffaf7da7df625c095228c3f96c0e51397e4fb1b05829abe290af43b8bdb"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "OKE"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 9240,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "LTC",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "LTC",
+        "tradingClass": "LTC"
+      },
+      "contract_fingerprint": "354ae32165a46ee564d9951b1236f8b11aaaef42ef4e946c8c6f86342825bef7",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "354ae32165a46ee564d9951b1236f8b11aaaef42ef4e946c8c6f86342825bef7",
+        "TRADES": "354ae32165a46ee564d9951b1236f8b11aaaef42ef4e946c8c6f86342825bef7"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "LTC"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 2560358,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "AES",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "AES",
+        "tradingClass": "AES"
+      },
+      "contract_fingerprint": "38aa4a5fe5b93d873be6a8e9617403454cf34800f0d737531d8d37ddfcbf387c",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "38aa4a5fe5b93d873be6a8e9617403454cf34800f0d737531d8d37ddfcbf387c",
+        "TRADES": "38aa4a5fe5b93d873be6a8e9617403454cf34800f0d737531d8d37ddfcbf387c"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "AES"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 10405,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "NPK",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "NPK",
+        "tradingClass": "NPK"
+      },
+      "contract_fingerprint": "7de33acec5687aeec757cbd4f46f7a759b2587bd38237bd3650a2c9c038ecb20",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "7de33acec5687aeec757cbd4f46f7a759b2587bd38237bd3650a2c9c038ecb20",
+        "TRADES": "7de33acec5687aeec757cbd4f46f7a759b2587bd38237bd3650a2c9c038ecb20"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "NPK"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 327849712,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "MGY",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "MGY",
+        "tradingClass": "MGY"
+      },
+      "contract_fingerprint": "2989b6590df51a3c79ef7c94ac0375eaa7ad12e8d66f7a3a52fa21b670ffde64",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "2989b6590df51a3c79ef7c94ac0375eaa7ad12e8d66f7a3a52fa21b670ffde64",
+        "TRADES": "2989b6590df51a3c79ef7c94ac0375eaa7ad12e8d66f7a3a52fa21b670ffde64"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "MGY"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 264485689,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "KRP",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "KRP",
+        "tradingClass": "KRP"
+      },
+      "contract_fingerprint": "5bc23869204adcbcf986a16e13da35a92d616ccbee2a261052c63cfd481ef6b3",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "5bc23869204adcbcf986a16e13da35a92d616ccbee2a261052c63cfd481ef6b3",
+        "TRADES": "5bc23869204adcbcf986a16e13da35a92d616ccbee2a261052c63cfd481ef6b3"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "KRP"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 104054141,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ALSN",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "ALSN",
+        "tradingClass": "ALSN"
+      },
+      "contract_fingerprint": "e6fee79b28cee4fc0964dab8776cec354fb7738375ae663016a49d8a278da24a",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "e6fee79b28cee4fc0964dab8776cec354fb7738375ae663016a49d8a278da24a",
+        "TRADES": "e6fee79b28cee4fc0964dab8776cec354fb7738375ae663016a49d8a278da24a"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ALSN"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 4813359,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "IMAX",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "IMAX",
+        "tradingClass": "IMAX"
+      },
+      "contract_fingerprint": "f4fbc6c05da54136ab750a6132dbbeddae8ab4f6a746674e809bbeb727e185b9",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "f4fbc6c05da54136ab750a6132dbbeddae8ab4f6a746674e809bbeb727e185b9",
+        "TRADES": "f4fbc6c05da54136ab750a6132dbbeddae8ab4f6a746674e809bbeb727e185b9"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "IMAX"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 374293788,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "AAMI",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "AAMI",
+        "tradingClass": "AAMI"
+      },
+      "contract_fingerprint": "063f2b4b489252ec8b2a0cc4f4ec5f815fe89f9563ffebcad5c03c748a698c80",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "063f2b4b489252ec8b2a0cc4f4ec5f815fe89f9563ffebcad5c03c748a698c80",
+        "TRADES": "063f2b4b489252ec8b2a0cc4f4ec5f815fe89f9563ffebcad5c03c748a698c80"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "AAMI"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 5684,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CVX",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "CVX",
+        "tradingClass": "CVX"
+      },
+      "contract_fingerprint": "90fad14f1551e90e77af47c3b289633c1d36bd66aea9e20239e0ecd4d6c4fd04",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "90fad14f1551e90e77af47c3b289633c1d36bd66aea9e20239e0ecd4d6c4fd04",
+        "TRADES": "90fad14f1551e90e77af47c3b289633c1d36bd66aea9e20239e0ecd4d6c4fd04"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CVX"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 725648194,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "INVX",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "INVX",
+        "tradingClass": "INVX"
+      },
+      "contract_fingerprint": "0fe48c29deed50bd8d2c6562811178deb51f677b7bdbfe919ad3b406abe12972",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "0fe48c29deed50bd8d2c6562811178deb51f677b7bdbfe919ad3b406abe12972",
+        "TRADES": "0fe48c29deed50bd8d2c6562811178deb51f677b7bdbfe919ad3b406abe12972"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "INVX"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 6608417,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "PAA",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "PAA",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "c5f9f76d48403a60aa5cca9648d4b47894e38efbdd282ddc11577c2bb480cffe",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "c5f9f76d48403a60aa5cca9648d4b47894e38efbdd282ddc11577c2bb480cffe",
+        "TRADES": "c5f9f76d48403a60aa5cca9648d4b47894e38efbdd282ddc11577c2bb480cffe"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "PAA"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 84822089,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "MTRN",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "MTRN",
+        "tradingClass": "MTRN"
+      },
+      "contract_fingerprint": "a0af272b2d774f21c4fb4a8c198f602bbbbfb0c5a7b12a6a005c3ca12a083f8d",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "a0af272b2d774f21c4fb4a8c198f602bbbbfb0c5a7b12a6a005c3ca12a083f8d",
+        "TRADES": "a0af272b2d774f21c4fb4a8c198f602bbbbfb0c5a7b12a6a005c3ca12a083f8d"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "MTRN"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 4568,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ARW",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "ARW",
+        "tradingClass": "ARW"
+      },
+      "contract_fingerprint": "169418e7230274dc47766cd3405711573253fbb0d603705dd72cb7b02e25ed89",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "169418e7230274dc47766cd3405711573253fbb0d603705dd72cb7b02e25ed89",
+        "TRADES": "169418e7230274dc47766cd3405711573253fbb0d603705dd72cb7b02e25ed89"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ARW"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 712414332,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "LB",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "LB",
+        "tradingClass": "LB"
+      },
+      "contract_fingerprint": "a1f2c3dfc159bd76c80c73d0bf8b6a91b7bd962ad32f7afeffef2c6f8ce05415",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "a1f2c3dfc159bd76c80c73d0bf8b6a91b7bd962ad32f7afeffef2c6f8ce05415",
+        "TRADES": "a1f2c3dfc159bd76c80c73d0bf8b6a91b7bd962ad32f7afeffef2c6f8ce05415"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "LB"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 28565190,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CORT",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "CORT",
+        "tradingClass": "SCM"
+      },
+      "contract_fingerprint": "864693b114c56a903feecec56f65e8008c3d1f3da674ef24f61e8e49370e1641",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "864693b114c56a903feecec56f65e8008c3d1f3da674ef24f61e8e49370e1641",
+        "TRADES": "864693b114c56a903feecec56f65e8008c3d1f3da674ef24f61e8e49370e1641"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CORT"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 158655765,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "GEO",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "GEO",
+        "tradingClass": "GEO"
+      },
+      "contract_fingerprint": "9234783977981846a44634d650167ee271b99f006545c99ac40be3e3a1a4fc94",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "9234783977981846a44634d650167ee271b99f006545c99ac40be3e3a1a4fc94",
+        "TRADES": "9234783977981846a44634d650167ee271b99f006545c99ac40be3e3a1a4fc94"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "GEO"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 6604153,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "NAT",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "NAT",
+        "tradingClass": "NAT"
+      },
+      "contract_fingerprint": "7b0dd0a9e3f2a5e8a7fde95e7f8887e0d0032a4d08865673cea259bdd36af372",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "7b0dd0a9e3f2a5e8a7fde95e7f8887e0d0032a4d08865673cea259bdd36af372",
+        "TRADES": "7b0dd0a9e3f2a5e8a7fde95e7f8887e0d0032a4d08865673cea259bdd36af372"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "NAT"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 752731994,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CNR",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "CNR",
+        "tradingClass": "CNR"
+      },
+      "contract_fingerprint": "016aabf83bb6bf99a72b84a40fd4132d7a8a9797a09191dddd4402f9b0708965",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "016aabf83bb6bf99a72b84a40fd4132d7a8a9797a09191dddd4402f9b0708965",
+        "TRADES": "016aabf83bb6bf99a72b84a40fd4132d7a8a9797a09191dddd4402f9b0708965"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CNR"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 165642013,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "AUPH",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "AUPH",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "d039f2c7eb36495b87cc86222bea8c314e8aa759e1381b9611b7b9077343226b",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "d039f2c7eb36495b87cc86222bea8c314e8aa759e1381b9611b7b9077343226b",
+        "TRADES": "d039f2c7eb36495b87cc86222bea8c314e8aa759e1381b9611b7b9077343226b"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "AUPH"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 202009938,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "ABUS",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "ABUS",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "0667aac771c480c906b36c9557e33ae82f4d356a6595cd27bdd249da74e1ae7d",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "0667aac771c480c906b36c9557e33ae82f4d356a6595cd27bdd249da74e1ae7d",
+        "TRADES": "0667aac771c480c906b36c9557e33ae82f4d356a6595cd27bdd249da74e1ae7d"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "ABUS"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 26904835,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "SNX",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "SNX",
+        "tradingClass": "SNX"
+      },
+      "contract_fingerprint": "bf4a95191963ac6fef7cbdb26bcf11651051c3b07cb11cbac43ce2847fe557f7",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "bf4a95191963ac6fef7cbdb26bcf11651051c3b07cb11cbac43ce2847fe557f7",
+        "TRADES": "bf4a95191963ac6fef7cbdb26bcf11651051c3b07cb11cbac43ce2847fe557f7"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "SNX"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 752,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "3 Y",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 752,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "3 Y",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 478483393,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "DOCN",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "DOCN",
+        "tradingClass": "DOCN"
+      },
+      "contract_fingerprint": "25429536c0b3670bc4c3566b8d01e9b770637207fbe2bf5b8468baf12655a396",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "25429536c0b3670bc4c3566b8d01e9b770637207fbe2bf5b8468baf12655a396",
+        "TRADES": "25429536c0b3670bc4c3566b8d01e9b770637207fbe2bf5b8468baf12655a396"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "DOCN"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 440610039,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "HRMY",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "HRMY",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "f51b7cc10ed165b4305d34caba92de204d9604cd4f723d8c48336de8cb89277f",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "f51b7cc10ed165b4305d34caba92de204d9604cd4f723d8c48336de8cb89277f",
+        "TRADES": "f51b7cc10ed165b4305d34caba92de204d9604cd4f723d8c48336de8cb89277f"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "HRMY"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 117032813,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "SANM",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "SANM",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "607b31ba199908fd4b4d3195ced57bfd96aaa05cd8a7a569615070deb76688c9",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "607b31ba199908fd4b4d3195ced57bfd96aaa05cd8a7a569615070deb76688c9",
+        "TRADES": "607b31ba199908fd4b4d3195ced57bfd96aaa05cd8a7a569615070deb76688c9"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "SANM"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 239699934,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "GNK",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "GNK",
+        "tradingClass": "GNK"
+      },
+      "contract_fingerprint": "df3fcf20869853970cb3f71f9839f8e55988c2221f46d644bd421d20ce642834",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "df3fcf20869853970cb3f71f9839f8e55988c2221f46d644bd421d20ce642834",
+        "TRADES": "df3fcf20869853970cb3f71f9839f8e55988c2221f46d644bd421d20ce642834"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "GNK"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 8088389,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "EXEL",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "EXEL",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "df7191c389f9a94646ae7862fbb6603483a6b8a43ac4e70408202d217fb0e9e5",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "df7191c389f9a94646ae7862fbb6603483a6b8a43ac4e70408202d217fb0e9e5",
+        "TRADES": "df7191c389f9a94646ae7862fbb6603483a6b8a43ac4e70408202d217fb0e9e5"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "EXEL"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 654711260,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "FTK",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "FTK",
+        "tradingClass": "FTK"
+      },
+      "contract_fingerprint": "0c7b73083f20bfae1dd6e2abc1d668864a4252a915c45be83102c2ecb374a4d4",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "0c7b73083f20bfae1dd6e2abc1d668864a4252a915c45be83102c2ecb374a4d4",
+        "TRADES": "0c7b73083f20bfae1dd6e2abc1d668864a4252a915c45be83102c2ecb374a4d4"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "FTK"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 6604385,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "DAR",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "DAR",
+        "tradingClass": "DAR"
+      },
+      "contract_fingerprint": "c7a908d05329753852bee42d07cb79a9bd18dc449b7c6aba67f1aab9c66d47bc",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "c7a908d05329753852bee42d07cb79a9bd18dc449b7c6aba67f1aab9c66d47bc",
+        "TRADES": "c7a908d05329753852bee42d07cb79a9bd18dc449b7c6aba67f1aab9c66d47bc"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "DAR"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 18416237,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "FORM",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "FORM",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "67b5ad502f1d8a4963cf1cb0e86923ec5d4330d7915ac8e8ffdcf398b2988d57",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "67b5ad502f1d8a4963cf1cb0e86923ec5d4330d7915ac8e8ffdcf398b2988d57",
+        "TRADES": "67b5ad502f1d8a4963cf1cb0e86923ec5d4330d7915ac8e8ffdcf398b2988d57"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "FORM"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 269097,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "EZPW",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "EZPW",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "843cc2656ea94b4b3e21c34d0ddfcdcd6c46cfa581af48e2d545d171dca28c24",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "843cc2656ea94b4b3e21c34d0ddfcdcd6c46cfa581af48e2d545d171dca28c24",
+        "TRADES": "843cc2656ea94b4b3e21c34d0ddfcdcd6c46cfa581af48e2d545d171dca28c24"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "EZPW"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 310624814,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "RDVT",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "RDVT",
+        "tradingClass": "SCM"
+      },
+      "contract_fingerprint": "30b4950595d6b818bd50a09fdff28d36c07c2a0c36630d827d9ea4648a302903",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "30b4950595d6b818bd50a09fdff28d36c07c2a0c36630d827d9ea4648a302903",
+        "TRADES": "30b4950595d6b818bd50a09fdff28d36c07c2a0c36630d827d9ea4648a302903"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "RDVT"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 171322358,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "SUN",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "SUN",
+        "tradingClass": "SUN"
+      },
+      "contract_fingerprint": "e4d43bc8327aab5a20ec0d9a8c71a4ec78833629dc515c7b0e81127750fb672d",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "e4d43bc8327aab5a20ec0d9a8c71a4ec78833629dc515c7b0e81127750fb672d",
+        "TRADES": "e4d43bc8327aab5a20ec0d9a8c71a4ec78833629dc515c7b0e81127750fb672d"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "SUN"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 305881950,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "WHD",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "WHD",
+        "tradingClass": "WHD"
+      },
+      "contract_fingerprint": "86afde0ac8627cfeb596b866023441bcb5490c56f83ab5d5bde3f706eb83c877",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "86afde0ac8627cfeb596b866023441bcb5490c56f83ab5d5bde3f706eb83c877",
+        "TRADES": "86afde0ac8627cfeb596b866023441bcb5490c56f83ab5d5bde3f706eb83c877"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "WHD"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 35447205,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "CF",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "CF",
+        "tradingClass": "CF"
+      },
+      "contract_fingerprint": "550fc4f40775a63b44400999282b6c53c78a794acc1cf423acda35e485f372f1",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "550fc4f40775a63b44400999282b6c53c78a794acc1cf423acda35e485f372f1",
+        "TRADES": "550fc4f40775a63b44400999282b6c53c78a794acc1cf423acda35e485f372f1"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "CF"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 110650558,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "FIVE",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "FIVE",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "217529aef9ed95b7118b69df0e5b11cbf785e43f3d9d14cf37278d445d1e0931",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "217529aef9ed95b7118b69df0e5b11cbf785e43f3d9d14cf37278d445d1e0931",
+        "TRADES": "217529aef9ed95b7118b69df0e5b11cbf785e43f3d9d14cf37278d445d1e0931"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "FIVE"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 254791638,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "INSW",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "INSW",
+        "tradingClass": "INSW"
+      },
+      "contract_fingerprint": "606111bb579c36e6d8b149f66102c712d9b659026ac7b331c6d6471b15a2decb",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "606111bb579c36e6d8b149f66102c712d9b659026ac7b331c6d6471b15a2decb",
+        "TRADES": "606111bb579c36e6d8b149f66102c712d9b659026ac7b331c6d6471b15a2decb"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "INSW"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 278169018,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "NESR",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "NESR",
+        "tradingClass": "SCM"
+      },
+      "contract_fingerprint": "08f30bb69b2d8c811f7e524ff73fa8ca721fba2007710fed96052e68b477fc0f",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "08f30bb69b2d8c811f7e524ff73fa8ca721fba2007710fed96052e68b477fc0f",
+        "TRADES": "08f30bb69b2d8c811f7e524ff73fa8ca721fba2007710fed96052e68b477fc0f"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "NESR"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 491932113,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "STX",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "STX",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "95554d242f00e16978f0eb81464ecad54eda26cf5f395ae42153ee5b9b38df66",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "95554d242f00e16978f0eb81464ecad54eda26cf5f395ae42153ee5b9b38df66",
+        "TRADES": "95554d242f00e16978f0eb81464ecad54eda26cf5f395ae42153ee5b9b38df66"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "STX"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 7655,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "GLW",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "GLW",
+        "tradingClass": "GLW"
+      },
+      "contract_fingerprint": "712d44f17f548ca3448b1d08578cac0d00795b333ee75d8b76820676cce12d85",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "712d44f17f548ca3448b1d08578cac0d00795b333ee75d8b76820676cce12d85",
+        "TRADES": "712d44f17f548ca3448b1d08578cac0d00795b333ee75d8b76820676cce12d85"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "GLW"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 786034490,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "HNGE",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "HNGE",
+        "tradingClass": "HNGE"
+      },
+      "contract_fingerprint": "bf929011539c7f69888f91288d73c08ab686042a72e5a756badda98a248ce4f5",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "bf929011539c7f69888f91288d73c08ab686042a72e5a756badda98a248ce4f5",
+        "TRADES": "bf929011539c7f69888f91288d73c08ab686042a72e5a756badda98a248ce4f5"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "HNGE"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 4391,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "AMD",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "AMD",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "79f68319a66d5249b162a759fed8e94c9b7c6fb693f3a6b6d80958d083aa6e3c",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "79f68319a66d5249b162a759fed8e94c9b7c6fb693f3a6b6d80958d083aa6e3c",
+        "TRADES": "79f68319a66d5249b162a759fed8e94c9b7c6fb693f3a6b6d80958d083aa6e3c"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "AMD"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 483492393,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "MRVL",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "MRVL",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "b31b83ae461655ee484ee771b07c57171ced1452ea8e1c1da716e9318487cf55",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "b31b83ae461655ee484ee771b07c57171ced1452ea8e1c1da716e9318487cf55",
+        "TRADES": "b31b83ae461655ee484ee771b07c57171ced1452ea8e1c1da716e9318487cf55"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "MRVL"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 12729,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "TER",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "TER",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "33062106055099ee8ffc3a3cd4d4af69701e6d21ee9d33f7e4c8b6d654454250",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "33062106055099ee8ffc3a3cd4d4af69701e6d21ee9d33f7e4c8b6d654454250",
+        "TRADES": "33062106055099ee8ffc3a3cd4d4af69701e6d21ee9d33f7e4c8b6d654454250"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "TER"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 35091350,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "SIMO",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "SIMO",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "eadca8028829b2f3525a29f4c5bb85ec5f22d79688a2101d3611ab084728320c",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "eadca8028829b2f3525a29f4c5bb85ec5f22d79688a2101d3611ab084728320c",
+        "TRADES": "eadca8028829b2f3525a29f4c5bb85ec5f22d79688a2101d3611ab084728320c"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "SIMO"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 9939,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "MU",
+        "primaryExchange": "NASDAQ",
+        "secType": "STK",
+        "symbol": "MU",
+        "tradingClass": "NMS"
+      },
+      "contract_fingerprint": "f398f22fd6a849a7d9b3169af8628acad894d8be57eca03b4c65bf347af648f3",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "f398f22fd6a849a7d9b3169af8628acad894d8be57eca03b4c65bf347af648f3",
+        "TRADES": "f398f22fd6a849a7d9b3169af8628acad894d8be57eca03b4c65bf347af648f3"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "MU"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 275582621,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "SEI",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "SEI",
+        "tradingClass": "SEI"
+      },
+      "contract_fingerprint": "199178507fe0dfbe6855401a0f9ded5afe9b49b8bf83799f6d76c146a871ab19",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "199178507fe0dfbe6855401a0f9ded5afe9b49b8bf83799f6d76c146a871ab19",
+        "TRADES": "199178507fe0dfbe6855401a0f9ded5afe9b49b8bf83799f6d76c146a871ab19"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "SEI"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 209411798,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "HPE",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "HPE",
+        "tradingClass": "HPE"
+      },
+      "contract_fingerprint": "d90afaa2a866c376b4d71418818273234a9824386f2dd4621375befac1a4a9da",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "d90afaa2a866c376b4d71418818273234a9824386f2dd4621375befac1a4a9da",
+        "TRADES": "d90afaa2a866c376b4d71418818273234a9824386f2dd4621375befac1a4a9da"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "HPE"
+    },
+    {
+      "ADJUSTED_LAST": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "ADJUSTED_LAST"
+        },
+        "status": "AVAILABLE"
+      },
+      "TRADES": {
+        "bars": 60,
+        "provider_error_codes": [],
+        "request": {
+          "bar_size": "1 day",
+          "duration": "60 D",
+          "end_datetime": "20260923-23:59:59",
+          "timeout_seconds": 30.0,
+          "use_rth": true,
+          "what_to_show": "TRADES"
+        },
+        "status": "AVAILABLE"
+      },
+      "candidate_semantics": "INCLUDE",
+      "contract": {
+        "conId": 146266831,
+        "currency": "USD",
+        "exchange": "SMART",
+        "localSymbol": "GOLD",
+        "primaryExchange": "NYSE",
+        "secType": "STK",
+        "symbol": "GOLD",
+        "tradingClass": "GOLD"
+      },
+      "contract_fingerprint": "962be77753c7409ae6603f829cf2da275158f91332bed80fe3577455a548ba7b",
+      "failure_class": "NONE",
+      "plan_contract_fingerprints": {
+        "ADJUSTED_LAST": "962be77753c7409ae6603f829cf2da275158f91332bed80fe3577455a548ba7b",
+        "TRADES": "962be77753c7409ae6603f829cf2da275158f91332bed80fe3577455a548ba7b"
+      },
+      "qualification_status": "QUALIFIED",
+      "symbol": "GOLD"
+    }
+  ],
+  "schema_version": "reference-universe-ib-preflight-v1",
+  "source_freshness": "REFERENCE_ONLY_NOT_FRESH",
+  "source_path": "C:\\Users\\Ivica\\Documents\\SwingLens\\data\\uploads\\20260911_101959_f626ad5b_money money_2026-09-11.csv",
+  "source_sha256": "b467f00f618116cf2d65b862756ca548b3f80dc5711cd1da637d1ec78f4adbdc"
+}
