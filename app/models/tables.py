@@ -170,6 +170,12 @@ class PriceBar(Base):
     source: Mapped[str] = mapped_column(Text, nullable=False)
     what_to_show: Mapped[str] = mapped_column(Text, nullable=False)
     adjustment_type: Mapped[str | None] = mapped_column(Text)
+    first_fetch_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ib_fetch_runs.id", ondelete="RESTRICT")
+    )
+    first_fetch_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ib_fetch_items.id", ondelete="RESTRICT")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -202,6 +208,7 @@ class PriceBar(Base):
             name="uq_price_bars_ticker_date_timeframe_what_to_show",
         ),
         Index("idx_price_bars_ticker_date", "ticker", "bar_date"),
+        Index("idx_price_bars_first_fetch_item", "first_fetch_item_id"),
     )
 
 
@@ -578,6 +585,43 @@ class FundamentalScore(Base):
     )
 
 
+class TechnicalSourceManifest(Base):
+    """One immutable canonical price-source basis shared by a Technical cohort."""
+
+    __tablename__ = "technical_source_manifests"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    pipeline_run_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    calculation_context_id: Mapped[int] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="RESTRICT"), nullable=False
+    )
+    manifest_digest: Mapped[str] = mapped_column(Text, nullable=False)
+    manifest_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    source_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    state_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "manifest_digest", name="uq_technical_source_manifest_digest"
+        ),
+        Index("idx_technical_source_manifest_run", "run_id", "pipeline_run_id"),
+        Index("idx_technical_source_manifest_context", "calculation_context_id"),
+    )
+
+
+for _immutable_model in (TechnicalSourceManifest,):
+    event.listen(_immutable_model, "before_update", _reject_core_evidence_mutation)
+    event.listen(_immutable_model, "before_delete", _reject_core_evidence_mutation)
+
+
 class TechnicalScore(Base):
     __tablename__ = "technical_scores"
 
@@ -596,6 +640,9 @@ class TechnicalScore(Base):
     ticker: Mapped[str] = mapped_column(Text, nullable=False)
     evidence_id: Mapped[int | None] = mapped_column(
         ForeignKey("core_calculation_evidence.id", ondelete="SET NULL")
+    )
+    source_manifest_id: Mapped[int | None] = mapped_column(
+        ForeignKey("technical_source_manifests.id", ondelete="RESTRICT")
     )
     calculation_context_id: Mapped[int | None] = mapped_column(
         ForeignKey("market_calculation_contexts.id", ondelete="SET NULL"), nullable=True
@@ -671,6 +718,7 @@ class TechnicalScore(Base):
         UniqueConstraint("run_id", "ticker", name="uq_technical_scores_run_ticker"),
         Index("idx_technical_scores_run_id", "run_id"),
         Index("idx_technical_scores_evidence", "evidence_id"),
+        Index("idx_technical_scores_source_manifest", "source_manifest_id"),
         Index(
             "idx_technical_scores_temporal_lineage",
             "input_as_of_session",

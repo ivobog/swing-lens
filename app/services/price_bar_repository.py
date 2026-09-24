@@ -1,11 +1,34 @@
-from datetime import date, datetime
+from dataclasses import asdict, dataclass
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import PriceBar, PriceBarRevision
+from app.models.tables import (
+    IBFetchItem,
+    IBFetchRun,
+    MarketCalculationContext,
+    PipelineRun,
+    PriceBar,
+    PriceBarRevision,
+    RefreshCycleRecord,
+    WorkScopeRecord,
+)
+
+
+@dataclass(frozen=True)
+class PipelineAcquisitionVisibility:
+    pipeline_run_id: int
+    upload_run_id: int
+    calculation_context_id: int
+    acquisition_plan_id: str
+    scope_id: str | None
+    refresh_cycle_id: str | None
+    fetch_run_id: int
+    fetch_item_id: int
+    completed_at: datetime
 
 
 def load_price_bars_frame(
@@ -16,7 +39,19 @@ def load_price_bars_frame(
     *,
     max_session: date | None = None,
     as_of: datetime | None = None,
+    calculation_context_id: int | None = None,
 ) -> pd.DataFrame:
+    acquisition = (
+        _pipeline_acquisition_visibility(
+            db,
+            calculation_context_id=calculation_context_id,
+            ticker=ticker,
+            what_to_show=what_to_show,
+            timeframe=timeframe,
+        )
+        if as_of is not None and calculation_context_id is not None
+        else None
+    )
     statement = (
         select(PriceBar)
         .where(
@@ -29,12 +64,33 @@ def load_price_bars_frame(
     if max_session is not None:
         statement = statement.where(PriceBar.bar_date <= max_session)
     if as_of is not None:
-        statement = statement.where(PriceBar.created_at <= as_of).where(
-            PriceBar.first_seen_at <= as_of
-        )
+        pit_visible = and_(PriceBar.created_at <= as_of, PriceBar.first_seen_at <= as_of)
+        if acquisition is None:
+            statement = statement.where(pit_visible)
+        else:
+            pipeline_owned = and_(
+                PriceBar.first_fetch_run_id == acquisition.fetch_run_id,
+                PriceBar.first_fetch_item_id == acquisition.fetch_item_id,
+                PriceBar.created_at <= acquisition.completed_at,
+                PriceBar.first_seen_at <= acquisition.completed_at,
+            )
+            statement = statement.where(or_(pit_visible, pipeline_owned))
     rows = list(db.scalars(statement).all())
     if as_of is not None:
-        rows = project_price_bar_rows_as_of(db, rows, as_of=as_of)
+        baseline = [
+            row
+            for row in rows
+            if row.created_at <= as_of and row.first_seen_at <= as_of
+        ]
+        acquired = [row for row in rows if row not in baseline]
+        rows = project_price_bar_rows_as_of(db, baseline, as_of=as_of)
+        if acquired and acquisition is not None:
+            rows.extend(
+                project_price_bar_rows_as_of(
+                    db, acquired, as_of=acquisition.completed_at
+                )
+            )
+            rows.sort(key=lambda row: row.bar_date)
 
     frame = pd.DataFrame(
         [
@@ -59,6 +115,12 @@ def load_price_bars_frame(
             "timeframe": timeframe,
             "as_of": as_of,
             "max_session": max_session,
+            "acquisition_authority": (
+                asdict(acquisition)
+                if acquisition is not None
+                and any(row.created_at > as_of for row in rows)
+                else None
+            ),
             "states": [
                 {"id": row.id, "fingerprint": price_bar_pit_manifest_hash(db, row)} for row in rows
             ],
@@ -155,6 +217,8 @@ def project_price_bar_rows_as_of(
                 source=values.get("source") or row.source,
                 what_to_show=values.get("what_to_show") or row.what_to_show,
                 adjustment_type=values.get("adjustment_type"),
+                first_fetch_run_id=row.first_fetch_run_id,
+                first_fetch_item_id=row.first_fetch_item_id,
                 created_at=row.created_at,
                 first_seen_at=row.first_seen_at,
                 last_seen_at=row.last_seen_at,
@@ -177,12 +241,25 @@ def load_preferred_ohlcv_frames(
     *,
     max_session: date | None = None,
     as_of: datetime | None = None,
+    calculation_context_id: int | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     adjusted = load_price_bars_frame(
-        db, ticker, "ADJUSTED_LAST", timeframe, max_session=max_session, as_of=as_of
+        db,
+        ticker,
+        "ADJUSTED_LAST",
+        timeframe,
+        max_session=max_session,
+        as_of=as_of,
+        calculation_context_id=calculation_context_id,
     )
     trades = load_price_bars_frame(
-        db, ticker, "TRADES", timeframe, max_session=max_session, as_of=as_of
+        db,
+        ticker,
+        "TRADES",
+        timeframe,
+        max_session=max_session,
+        as_of=as_of,
+        calculation_context_id=calculation_context_id,
     )
     adjusted_complete = not adjusted.empty and (
         trades.empty or set(adjusted["date"]) >= set(trades["date"])
@@ -193,6 +270,111 @@ def load_preferred_ohlcv_frames(
     if volume is not None:
         volume.attrs["volume_basis"] = "TRADES"
     return price, volume
+
+
+def _pipeline_acquisition_visibility(
+    db: Session,
+    *,
+    calculation_context_id: int,
+    ticker: str,
+    what_to_show: str,
+    timeframe: str,
+) -> PipelineAcquisitionVisibility | None:
+    """Resolve exact insertion authority for one pipeline-owned first fetch.
+
+    The immutable PriceBar insertion addresses are necessary: timing overlap alone
+    cannot prove that a post-cutoff row came from this pipeline's acquisition.
+    """
+
+    cache = db.info.setdefault("pipeline_price_acquisition_visibility", {})
+    key = (int(calculation_context_id), ticker.upper(), what_to_show, timeframe)
+    if key in cache:
+        return cache[key]
+    owner = db.execute(
+        select(MarketCalculationContext, PipelineRun)
+        .join(PipelineRun, PipelineRun.id == MarketCalculationContext.pipeline_run_id)
+        .where(MarketCalculationContext.id == calculation_context_id)
+    ).first()
+    if owner is None:
+        cache[key] = None
+        return None
+    context, pipeline = owner
+    retained = (pipeline.result_json or {}).get("ib_fetch_authority")
+    child_scope = False
+    if isinstance(retained, dict) and all(
+        retained.get(name)
+        for name in ("acquisition_plan_id", "scope_id", "refresh_cycle_id")
+    ):
+        acquisition_plan_id = retained["acquisition_plan_id"]
+        scope_id = retained["scope_id"]
+        refresh_cycle_id = retained["refresh_cycle_id"]
+    else:
+        # JSON persistence redacts keys containing "auth". The immutable child
+        # scope relation is therefore the durable source of truth after a
+        # pipeline step commit/reload.
+        child_scope = pipeline.scope_id is not None
+        acquisition_plan_id = None if child_scope else pipeline.acquisition_plan_id
+        scope_id = None if child_scope else pipeline.scope_id
+        refresh_cycle_id = None if child_scope else pipeline.refresh_cycle_id
+    if acquisition_plan_id is None and not child_scope:
+        cache[key] = None
+        return None
+    statement = (
+        select(IBFetchRun, IBFetchItem)
+        .join(IBFetchItem, IBFetchItem.fetch_run_id == IBFetchRun.id)
+        .where(
+            IBFetchRun.run_id == context.upload_run_id,
+            IBFetchItem.ticker == ticker.upper(),
+            IBFetchItem.what_to_show == what_to_show,
+            IBFetchItem.bar_size.in_((timeframe, "1 day", "1 d")),
+            IBFetchItem.status == "SUCCESS",
+            IBFetchItem.completed_at.is_not(None),
+        )
+        .order_by(IBFetchItem.completed_at.desc(), IBFetchItem.id.desc())
+        .limit(1)
+    )
+    if child_scope:
+        statement = statement.join(
+            WorkScopeRecord, WorkScopeRecord.scope_id == IBFetchRun.scope_id
+        ).join(
+            RefreshCycleRecord,
+            RefreshCycleRecord.refresh_cycle_id == IBFetchRun.refresh_cycle_id,
+        ).where(
+            WorkScopeRecord.parent_scope_id == pipeline.scope_id,
+            WorkScopeRecord.acquisition_plan_id == IBFetchRun.acquisition_plan_id,
+            RefreshCycleRecord.scope_id == IBFetchRun.scope_id,
+        )
+    else:
+        statement = statement.where(
+            IBFetchRun.acquisition_plan_id == acquisition_plan_id,
+            IBFetchRun.scope_id.is_not_distinct_from(scope_id),
+            IBFetchRun.refresh_cycle_id.is_not_distinct_from(refresh_cycle_id),
+        )
+    row = db.execute(statement).first()
+    visibility = None
+    if row is not None:
+        fetch_run, fetch_item = row
+        completed_at = fetch_item.completed_at
+        if completed_at is not None:
+            if completed_at.tzinfo is None:
+                completed_at = completed_at.replace(tzinfo=UTC)
+            visibility = PipelineAcquisitionVisibility(
+                pipeline_run_id=int(pipeline.id),
+                upload_run_id=int(context.upload_run_id),
+                calculation_context_id=int(context.id),
+                acquisition_plan_id=str(fetch_run.acquisition_plan_id),
+                scope_id=(str(fetch_run.scope_id) if fetch_run.scope_id is not None else None),
+                refresh_cycle_id=(
+                    str(fetch_run.refresh_cycle_id)
+                    if fetch_run.refresh_cycle_id is not None
+                    else None
+                ),
+                fetch_run_id=int(fetch_run.id),
+                fetch_item_id=int(fetch_item.id),
+                completed_at=completed_at,
+            )
+    cache[key] = visibility
+    return visibility
 
 
 def load_price_bar_rows(
