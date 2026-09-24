@@ -113,6 +113,40 @@ def price_series_watermark(rows: Iterable[PriceBar]) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
+def _native_obligations(
+    db: Session, obligations: Sequence[WinnerMarketDataObligation]
+) -> list[WinnerMarketDataObligation]:
+    """Select native work without laundering legacy rows into current authority.
+
+    A native prediction with a missing obligation seal is corruption, not
+    legacy compatibility, and must still fail closed in the native writer.
+    """
+    if not obligations:
+        return []
+    prediction_ids = sorted({int(row.prediction_id) for row in obligations})
+    predictions = {
+        int(row.id): row
+        for row in db.scalars(
+            select(WinnerPredictionSnapshot).where(WinnerPredictionSnapshot.id.in_(prediction_ids))
+        )
+    }
+    native = []
+    for obligation in obligations:
+        prediction = predictions.get(int(obligation.prediction_id))
+        if prediction is None:
+            raise ValueError("MUTATION_WINNER_OBLIGATION_PREDICTION_REQUIRED")
+        capture_proof = (prediction.lineage_json or {}).get("native_capture_proof")
+        scope_proof = (obligation.metadata_json or {}).get("native_obligation_scope")
+        if capture_proof is None and scope_proof is None:
+            continue  # Historical serving-only evidence is never rewritten.
+        if capture_proof is None:
+            raise ValueError("MUTATION_WINNER_CERTIFIED_CAPTURE_REQUIRED")
+        if scope_proof is None:
+            raise ValueError("MUTATION_WINNER_CERTIFIED_OBLIGATION_SCOPE_REQUIRED")
+        native.append(obligation)
+    return native
+
+
 def build_recovery_request_plan(needs: Sequence[RecoveryNeed]) -> tuple[RecoveryRequest, ...]:
     grouped: dict[tuple[int, int, str, str], list[RecoveryNeed]] = defaultdict(list)
     for need in needs:
@@ -297,6 +331,10 @@ class MarketDataObligationService:
                     )
                 )
             obligations = list(db.scalars(statement))
+            # A normal market-data fetch is not a migration of historical
+            # Winner obligations. Only native obligations may enter this
+            # current writer; retained legacy rows remain untouched.
+            obligations = _native_obligations(db, obligations)
         if not obligations:
             return ObligationSyncResult()
         if isinstance(db, Session):
@@ -505,7 +543,14 @@ class MarketDataObligationService:
         now = now or datetime.now(UTC)
         items = list(fetch_run.items or [])
         tickers = sorted({str(item.ticker).upper() for item in items})
-        result = self.evaluate(db, tickers=tickers, now=now)
+        candidates = list(
+            db.scalars(
+                select(WinnerMarketDataObligation).where(
+                    WinnerMarketDataObligation.ticker_snapshot.in_(tickers)
+                )
+            )
+        )
+        result = self.evaluate(db, obligations=_native_obligations(db, candidates), now=now)
         terminal_by_key = {
             (str(item.ticker).upper(), str(item.what_to_show)): item
             for item in items
@@ -520,6 +565,7 @@ class MarketDataObligationService:
                 .where(WinnerMarketDataObligation.status == "FETCH_REQUIRED")
             )
         )
+        obligations = _native_obligations(db, obligations)
         unavailable = failed = 0
         for obligation in obligations:
             item = terminal_by_key.get((obligation.ticker_snapshot, obligation.what_to_show))

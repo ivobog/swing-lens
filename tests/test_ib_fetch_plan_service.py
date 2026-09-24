@@ -12,6 +12,7 @@ from app.services.ib_fetch_plan_service import (
     _plan_action,
     fetch_plan_to_dict,
 )
+from app.services.ib_historical_request_scope import reviewed_start_for_duration
 from app.services.ohlcv_coverage_service import OhlcvCoverageItem, OhlcvCoverageSummary
 from app.settings import Settings
 
@@ -213,6 +214,14 @@ def test_unresolved_contract_estimates_post_resolution_request() -> None:
 
     assert plan_item.action == FetchAction.CONTRACT_RESOLUTION_REQUIRED
     assert plan_item.estimated_request_count == 1
+    assert plan_item.post_resolution_action == FetchAction.FULL_BACKFILL
+    assert plan_item.post_resolution_duration == settings.ib_full_backfill_duration
+    assert plan_item.request_start_date == reviewed_start_for_duration(
+        settings.ib_full_backfill_duration,
+        end=plan_item.freshness_threshold_date,
+        bar_size="1 day",
+    )
+    assert plan_item.request_end_date == plan_item.freshness_threshold_date
 
 
 def test_unresolved_contract_with_current_cache_estimates_no_request() -> None:

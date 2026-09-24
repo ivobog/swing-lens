@@ -56,7 +56,7 @@ def test_native_core_producers_frozen_config_drift_retry_history_and_composition
     disposable_postgres_database, monkeypatch
 ):
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", disposable_postgres_database)
+    config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
     command.upgrade(config, "head")
     command.check(config)
     engine = create_engine(disposable_postgres_database)
@@ -275,7 +275,7 @@ def test_native_core_producers_frozen_config_drift_retry_history_and_composition
 )
 def test_each_core_legacy_never_inherits_current_configuration(disposable_postgres_database, kind):
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", disposable_postgres_database)
+    config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
     command.upgrade(config, "head")
     engine = create_engine(disposable_postgres_database)
     try:

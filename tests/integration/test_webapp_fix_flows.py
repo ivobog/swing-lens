@@ -271,7 +271,8 @@ def test_failed_contract_fetch_can_be_resumed(monkeypatch) -> None:
 
     assert failed_run.status == "FAILED"
     assert failed_run.items[0].status == "FAILED"
-    assert failed_run.items[0].error_message == "No contract"
+    assert failed_run.items[0].error_message == "IB_CONTRACT_RESOLUTION_FAILED: No contract"
+    assert failed_run.items[0].decision_metadata_json["retryable"] is False
 
     resume_plan = FetchPlan(
         run_id=7,

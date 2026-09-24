@@ -6,6 +6,7 @@ from enum import StrEnum
 
 
 class IBHistoricalErrorCategory(StrEnum):
+    CONTRACT_NOT_FOUND = "CONTRACT_NOT_FOUND"
     HISTORICAL_DATA_UNAVAILABLE = "HISTORICAL_DATA_UNAVAILABLE"
     HISTORICAL_PACING = "HISTORICAL_PACING"
     HISTORICAL_TRANSIENT = "HISTORICAL_TRANSIENT"
@@ -25,6 +26,11 @@ _EODCHART_UNAVAILABLE = re.compile(
     r"\bno\s+data\s+of\s+type\s+eodchart\s+is\s+available\b",
     re.IGNORECASE,
 )
+_CONTRACT_NOT_FOUND = re.compile(
+    r"\bno\s+security\s+definition\s+has\s+been\s+found\s+for\s+the\s+request\b",
+    re.IGNORECASE,
+)
+_NO_HISTORICAL_DATA = re.compile(r"\bno\s+historical\s+market\s+data\s+for\b", re.IGNORECASE)
 _PACING_MESSAGES = (
     "historical data request pacing violation",
     "historical market data pacing violation",
@@ -54,6 +60,11 @@ def classify_ib_historical_error(
 
     numeric_code = int(code)
     normalized = normalize_ib_message(message)
+    if numeric_code == 200 and _CONTRACT_NOT_FOUND.search(normalized):
+        return IBHistoricalErrorClassification(
+            IBHistoricalErrorCategory.CONTRACT_NOT_FOUND,
+            retryable=False,
+        )
     if numeric_code == 321:
         return IBHistoricalErrorClassification(
             IBHistoricalErrorCategory.PROVIDER_REJECTED,
@@ -69,6 +80,11 @@ def classify_ib_historical_error(
             IBHistoricalErrorCategory.HISTORICAL_DATA_UNAVAILABLE,
             retryable=False,
             systemic=True,
+        )
+    if _NO_HISTORICAL_DATA.search(normalized):
+        return IBHistoricalErrorClassification(
+            IBHistoricalErrorCategory.HISTORICAL_DATA_UNAVAILABLE,
+            retryable=False,
         )
     if any(marker in normalized for marker in _PACING_MESSAGES):
         return IBHistoricalErrorClassification(

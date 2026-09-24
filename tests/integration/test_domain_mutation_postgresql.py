@@ -30,7 +30,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 @pytest.fixture
 def mutation_engine(disposable_postgres_database):
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", disposable_postgres_database)
+    config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
     command.upgrade(config, "head")
     command.check(config)
     engine = create_engine(disposable_postgres_database)

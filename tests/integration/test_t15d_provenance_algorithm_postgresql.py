@@ -24,7 +24,7 @@ def test_t15d_ceri_population_rebuild_uses_retained_postgresql_scope(
     disposable_postgres_database: str,
 ) -> None:
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", disposable_postgres_database)
+    config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
     assert ScriptDirectory.from_config(config).get_heads() == ["0083_winner_scope_truth"]
     command.upgrade(config, "head")
     command.check(config)

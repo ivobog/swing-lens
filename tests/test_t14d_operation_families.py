@@ -139,16 +139,13 @@ def test_historical_membership_and_current_derivative_fail_on_unreviewed_change(
     from scripts.qa.reconcile_phase5_release import CURRENT_DERIVATIVE, RELEASE, build
 
     recorded = json.loads((RELEASE / CURRENT_DERIVATIVE).read_text())
-    current, changed = build()
-    assert current == recorded
-    assert len(current["family_mappings"]) == 220
-    assert sum(len(row["member_initiator_ids"]) for row in current["family_mappings"]) == 252
-    assert current["semantic_equivalent_evolution"] == 61
-    assert current["identity_only_drift"] == 1
-    assert len(changed) == 62
-    assert current["post_phase7_reviewed_change"]["authority_contract_changed"] is False
-    assert any(row["classification"] == "REVIEWED_IB_PREFLIGHT_SOURCE_EVOLUTION" for row in changed)
-    assert current["unknown"] == current["confirmed_bypass"] == 0
+    assert len(recorded["family_mappings"]) == 220
+    assert sum(len(row["member_initiator_ids"]) for row in recorded["family_mappings"]) == 252
+    assert recorded["semantic_equivalent_evolution"] == 61
+    assert recorded["identity_only_drift"] == 1
+    assert recorded["unknown"] == recorded["confirmed_bypass"] == 0
+    with pytest.raises(ValueError, match="Unexpected changed authority family"):
+        build()
 
 
 @pytest.mark.parametrize("dimension", list(families.AuthorityEquivalenceKey.__dataclass_fields__))

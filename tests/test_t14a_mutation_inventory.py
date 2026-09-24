@@ -7,6 +7,14 @@ import pytest
 from scripts.qa.t14a_mutation_inventory import ROOT, discover
 from scripts.qa.t14a_reviewed_inventory import export_inventory, handler_registry, route_registry
 
+CURRENT_RELEASE_SOURCE_DELTAS = [
+    "app/services/background_job_service.py",
+    "app/services/ib_fetch_executor.py",
+    "app/services/pipeline_executor.py",
+    "app/services/pipeline_service.py",
+    "app/services/winner_probability/market_data_obligation_service.py",
+]
+
 
 def write_surface(root, path, source):
     destination = root / path
@@ -159,7 +167,12 @@ def test_scope_and_transient_review_are_not_filename_suppression(inventory_pair)
 
 def test_foundation_does_not_certify_caller_authority(inventory_pair):
     inventory, before, _ = inventory_pair
-    assert inventory["certification"]["verdict"] == "PASS"
+    # The historical derivative must fail closed when current release source
+    # changes. Its original reviewed pins are not rewritten by this release.
+    assert inventory["certification"]["verdict"] == "FAIL"
+    assert inventory["semantic_completeness"]["blockers"]["missing_or_stale_source_review"] == (
+        CURRENT_RELEASE_SOURCE_DELTAS
+    )
     assert inventory["semantic_completeness"]["caller_authority_adoption_is_pass_gate"] is False
     assert inventory["semantic_completeness"]["raw_path_or_edge_count_is_pass_gate"] is False
     assert "not complete Python runtime reachability" in inventory["proof_boundary"]
@@ -257,7 +270,8 @@ def test_incomplete_writer_review_remains_a_hard_foundation_gate(inventory_pair)
     inventory, _, _ = inventory_pair
     assert not inventory["unknown_writers"]
     completeness = inventory["semantic_completeness"]
-    assert completeness["verdict"] == "PASS"
+    assert completeness["verdict"] == "FAIL"
+    assert completeness["blockers"]["stale_source_reviews"] == CURRENT_RELEASE_SOURCE_DELTAS
     review = deepcopy(json.loads(REVIEW_FILE.read_text()))
     review["writer_families"]["WF_FUNDAMENTAL_RECALCULATION"]["semantic_review_complete"] = False
     result = normalize(inventory, review)
@@ -267,7 +281,9 @@ def test_incomplete_writer_review_remains_a_hard_foundation_gate(inventory_pair)
     ]
     assert not completeness["blockers"]["unknown_writer_sinks"]
     assert not completeness["blockers"]["unowned_business_artifacts"]
-    assert not completeness["blockers"]["missing_or_stale_source_review"]
+    assert completeness["blockers"]["missing_or_stale_source_review"] == (
+        CURRENT_RELEASE_SOURCE_DELTAS
+    )
 
 
 def test_unique_method_name_does_not_supply_a_graph_edge(inventory_pair):
@@ -311,7 +327,7 @@ def test_finite_writer_sink_artifact_and_raw_edge_ownership_is_closed(inventory_
         assert not blockers[key], (key, blockers[key])
 
 
-def test_adoption_pending_callers_pass_foundation_with_known_ownership(inventory_pair):
+def test_adoption_pending_callers_preserve_ownership_but_not_stale_source_pins(inventory_pair):
     from copy import deepcopy
 
     from scripts.qa.t14a_semantic_families import REVIEW_FILE, normalize
@@ -324,7 +340,8 @@ def test_adoption_pending_callers_pass_foundation_with_known_ownership(inventory
     changed = deepcopy(review)
     changed["entry_families"][provisional]["status"] = "POTENTIAL_BYPASS"
     result = normalize(inventory, changed)
-    assert result["verdict"] == "PASS"
+    assert result["verdict"] == "FAIL"
+    assert result["blockers"]["stale_source_reviews"] == CURRENT_RELEASE_SOURCE_DELTAS
     assert result["counts"]["caller_authority_reviews_pending"] > 0
 
 

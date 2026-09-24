@@ -193,7 +193,7 @@ def _migrated_engine(database_url: str):
     from sqlalchemy import create_engine
 
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", database_url)
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
     assert ScriptDirectory.from_config(config).get_heads() == ["0083_winner_scope_truth"]
     command.upgrade(config, "head")
     command.check(config)

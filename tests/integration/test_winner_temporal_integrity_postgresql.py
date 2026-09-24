@@ -14,6 +14,8 @@ from sqlalchemy.orm import Session
 from app.database_safety import run_guarded_alembic_upgrade
 from app.models.tables import (
     IBContract,
+    IBFetchItem,
+    IBFetchRun,
     PriceBar,
     UploadRun,
     WinnerCohortDefinition,
@@ -36,6 +38,7 @@ from app.services.winner_probability.cohort_generation_service import (
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.evidence_service import EvidenceService
 from app.services.winner_probability.market_data_obligation_service import (
+    EMPTY_PRICE_WATERMARK,
     MarketDataObligationService,
     global_daily_bar_lag,
     required_outcome_sessions,
@@ -745,6 +748,79 @@ def test_global_daily_bar_lag_is_explicit(
         assert lag.degraded is True
         assert lag.lag_sessions == 1
         assert lag.latest_local_session == date(2026, 9, 3)
+    engine.dispose()
+
+
+def test_current_fetch_does_not_mutate_legacy_winner_obligation(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    now = datetime(2026, 9, 24, 0, 0, tzinfo=UTC)
+    with Session(engine) as db:
+        prediction = _prediction(db, ticker="LEGACY")
+        sessions = required_outcome_sessions(date(2026, 8, 20), 5)
+        outcome = WinnerForwardOutcome(
+            prediction_id=prediction.id,
+            entry_model="NEXT_OPEN",
+            horizon_sessions=5,
+            entry_session=sessions[0],
+            due_session=sessions[-1],
+            status="PENDING",
+            revision=1,
+            is_current_revision=True,
+            metadata_json={"calculation_phase": "legacy"},
+        )
+        db.add(outcome)
+        db.flush()
+        obligation = WinnerMarketDataObligation(
+            prediction_id=prediction.id,
+            forward_outcome_id=outcome.id,
+            ticker_snapshot="LEGACY",
+            entry_session=sessions[0],
+            required_through_session=sessions[-1],
+            required_sessions_json=[day.isoformat() for day in sessions],
+            timeframe="1 day",
+            what_to_show="TRADES",
+            status="FETCH_REQUIRED",
+            price_series_watermark=EMPTY_PRICE_WATERMARK,
+            last_checked_at=now,
+            metadata_json={"obligation_version": "winner-market-data-1.0"},
+        )
+        fetch_run = IBFetchRun(
+            run_id=prediction.run_id,
+            requested_tickers=["LEGACY"],
+            symbols_including_benchmarks=["LEGACY"],
+            status="COMPLETED",
+            completed_at=now,
+        )
+        fetch_run.items.append(
+            IBFetchItem(
+                ticker="LEGACY",
+                what_to_show="TRADES",
+                status="SUCCESS",
+                action="TOP_UP_RECENT",
+                bar_size="1 day",
+                attempt_count=1,
+                completed_at=now,
+            )
+        )
+        db.add_all([obligation, fetch_run])
+        db.commit()
+        obligation_id = obligation.id
+        fetch_run_id = fetch_run.id
+        prediction_id = prediction.id
+    with Session(engine) as db:
+        fetch_run = db.get(IBFetchRun, fetch_run_id)
+        MarketDataObligationService().record_fetch_results(db, fetch_run=fetch_run, now=now)
+        db.commit()
+        retained = db.get(WinnerMarketDataObligation, obligation_id)
+        assert retained.status == "FETCH_REQUIRED"
+        assert retained.metadata_json == {"obligation_version": "winner-market-data-1.0"}
+        assert (
+            "native_capture_proof"
+            not in db.get(WinnerPredictionSnapshot, prediction_id).lineage_json
+        )
     engine.dispose()
 
 

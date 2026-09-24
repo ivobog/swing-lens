@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from time import perf_counter
 
@@ -13,7 +13,8 @@ from app.models.tables import IBFetchItem, IBFetchRun
 from app.observability.logging import log_event
 from app.services.background_job_service import JobLeaseLost
 from app.services.bar_cache_service import cache_bars
-from app.services.ib_api import IB
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.ib_api import IB, Contract
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_data_fetcher import IBHistoricalRequestError, fetch_daily_bars
@@ -38,6 +39,7 @@ from app.services.ib_rate_limiter import (
 from app.services.operational_metrics import operational_metrics
 from app.services.process_memory import WorkerMemoryCritical
 from app.services.redaction import redact_text
+from app.services.scope_refresh_adoption import SemanticWorkAuthority, bind_semantic_authority
 from app.services.us_market_calendar import (
     is_latest_daily_bar_current,
     latest_completed_us_trading_day,
@@ -84,6 +86,7 @@ def execute_fetch_plan(
     execution_token: str | None = None,
     memory_probe: Callable[[Session, int, int, str], None] | None = None,
     stop_on_hard_failure: bool = False,
+    semantic_authority: SemanticWorkAuthority | None = None,
 ) -> IBFetchRun:
     settings = settings or get_settings()
     rate_limiter = rate_limiter or IbHistoricalRateLimiter(
@@ -96,6 +99,7 @@ def execute_fetch_plan(
         force_refresh=force_refresh,
         force_full_backfill=force_full_backfill,
         fetch_run_id=fetch_run_id,
+        semantic_authority=semantic_authority,
     )
     for decision, count in plan.decision_counts.items():
         operational_metrics.increment(
@@ -138,7 +142,13 @@ def execute_fetch_plan(
             with _bounded_item_session(db) as item_db:
                 item_run = _load_fetch_run(item_db, fetch_run.id)
                 fetch_item = _existing_fetch_item(item_db, fetch_run.id, plan_item)
-                if fetch_item is not None and fetch_item.status in {"SUCCESS", "FAILED", "SKIPPED"}:
+                if fetch_item is not None and (
+                    fetch_item.status in {"SUCCESS", "SKIPPED"}
+                    or (
+                        fetch_item.status == "FAILED"
+                        and (fetch_item.decision_metadata_json or {}).get("retryable") is not True
+                    )
+                ):
                     _record_ticker_completion(
                         ticker=fetch_item.ticker,
                         status=fetch_item.status,
@@ -181,6 +191,7 @@ def execute_fetch_plan(
                     fetch_item = _create_fetch_item(item_run, plan_item)
                     item_db.add(fetch_item)
                 else:
+                    _subtract_run_totals(item_run, fetch_item)
                     _reset_interrupted_item(fetch_item, plan_item)
                 fetch_item.execution_token = execution_token
                 item_db.flush()
@@ -309,6 +320,7 @@ def _start_fetch_run(
     force_refresh: bool,
     force_full_backfill: bool,
     fetch_run_id: int | None,
+    semantic_authority: SemanticWorkAuthority | None,
 ) -> IBFetchRun:
     if fetch_run_id is not None:
         fetch_run = db.scalar(select(IBFetchRun).where(IBFetchRun.id == fetch_run_id))
@@ -323,7 +335,10 @@ def _start_fetch_run(
         fetch_run.decision_counts_json = plan.decision_counts
         fetch_run.planned_request_count = plan.estimated_request_count
         fetch_run.status = "RUNNING"
+        fetch_run.completed_at = None
         fetch_run.message = None
+        if semantic_authority is not None:
+            bind_semantic_authority(fetch_run, semantic_authority)
         db.flush()
         return fetch_run
 
@@ -339,6 +354,8 @@ def _start_fetch_run(
         status="RUNNING",
     )
     db.add(fetch_run)
+    if semantic_authority is not None:
+        bind_semantic_authority(fetch_run, semantic_authority)
     db.flush()
     return fetch_run
 
@@ -446,17 +463,63 @@ def _execute_plan_item(
         _mark_failed(fetch_item, plan_item.reason)
         return
 
-    resolution = resolve_us_stock_contract(db, plan_item.ticker, ib)
-    if not resolution.contract:
-        _mark_failed(fetch_item, resolution.error_message or "Contract resolution failed.")
-        return
-
-    action, duration, reason = _execution_action(
+    if plan_item.contract_identity is not None:
+        if (
+            plan_item.contract_fingerprint != Canonical.fingerprint(plan_item.contract_identity)
+            or str(plan_item.contract_identity.get("symbol", "")).upper()
+            != plan_item.ticker.upper()
+            or not plan_item.contract_identity.get("conId")
+        ):
+            _mark_typed_failure(
+                fetch_item, plan_item, "ACQUISITION_PLAN_CONTRACT_IDENTITY_MISMATCH"
+            )
+            return
+        contract = Contract(**plan_item.contract_identity)
+        runtime_resolved_at = plan_item.contract_qualified_at
+    else:
+        resolution = resolve_us_stock_contract(db, plan_item.ticker, ib)
+        if not resolution.contract:
+            _mark_typed_failure(
+                fetch_item,
+                plan_item,
+                "IB_CONTRACT_RESOLUTION_FAILED",
+                resolution.error_message or "Contract resolution failed.",
+            )
+            return
+        contract = resolution.contract
+        runtime_resolved_at = (
+            resolution.cache_row.last_resolved_at.isoformat()
+            if getattr(resolution, "cache_row", None) is not None
+            and getattr(resolution.cache_row, "last_resolved_at", None) is not None
+            else None
+        )
+    plan_item = replace(
         plan_item,
-        settings,
-        force_refresh=force_refresh,
-        force_full_backfill=force_full_backfill,
+        runtime_contract_identity={
+            "conId": int(getattr(contract, "conId", 0) or 0),
+            "symbol": getattr(contract, "symbol", None),
+            "secType": getattr(contract, "secType", None),
+            "exchange": getattr(contract, "exchange", None),
+            "primaryExchange": getattr(contract, "primaryExchange", None),
+            "currency": getattr(contract, "currency", None),
+            "localSymbol": getattr(contract, "localSymbol", None),
+            "tradingClass": getattr(contract, "tradingClass", None),
+        },
+        runtime_contract_resolved_at=runtime_resolved_at,
     )
+
+    try:
+        action, duration, reason = _execution_action(
+            plan_item,
+            settings,
+            force_refresh=force_refresh,
+            force_full_backfill=force_full_backfill,
+        )
+    except ValueError as exc:
+        _mark_typed_failure(
+            fetch_item, plan_item, "ACQUISITION_PLAN_RESOLUTION_SCOPE_REQUIRED", str(exc)
+        )
+        return
     fetch_item.action = action.value
     fetch_item.duration = duration
     fetch_item.reason = reason
@@ -478,7 +541,9 @@ def _execute_plan_item(
     try:
         scope = _execution_scope(plan_item, duration)
     except ValueError as exc:
-        _mark_failed(fetch_item, str(exc))
+        _mark_typed_failure(
+            fetch_item, plan_item, "ACQUISITION_PLAN_REQUEST_SCOPE_MISMATCH", str(exc)
+        )
         return
     fetch_item.decision_metadata_json = _decision_metadata(
         plan_item,
@@ -522,7 +587,7 @@ def _execute_plan_item(
             try:
                 bars = fetch_daily_bars(
                     ib,
-                    resolution.contract,
+                    contract,
                     plan_item.what_to_show,
                     settings=settings,
                     duration=duration,
@@ -625,6 +690,7 @@ def _execute_plan_item(
                 provider_error_code=exc.code,
                 provider_error_category=exc.classification,
                 provider_error_message=exc.provider_message,
+                provider_request_id=exc.request_id,
                 retryable=exc.retryable,
             )
             _record_historical_failure(
@@ -657,7 +723,16 @@ def _execute_plan_item(
                 _mark_skipped(fetch_item, "Cancellation requested during IB retry backoff.")
                 return
         except Exception as exc:
-            provider_result = "TIMEOUT" if isinstance(exc, TimeoutError) else "PROVIDER_ERROR"
+            retryable = isinstance(exc, (TimeoutError, ConnectionError))
+            provider_result = (
+                "TIMEOUT"
+                if isinstance(exc, TimeoutError)
+                else (
+                    "TRANSIENT_CONNECTION"
+                    if isinstance(exc, ConnectionError)
+                    else "APPLICATION_ERROR"
+                )
+            )
             fetch_item.decision_metadata_json = _decision_metadata(
                 plan_item,
                 action=action,
@@ -667,7 +742,7 @@ def _execute_plan_item(
                 provider_result=provider_result,
                 provider_error_category=provider_result,
                 provider_error_message=_safe_message(str(exc)),
-                retryable=attempt < settings.ib_max_retries,
+                retryable=retryable,
             )
             _record_historical_failure(
                 fetch_item,
@@ -676,11 +751,11 @@ def _execute_plan_item(
                 category=provider_result,
                 code=None,
                 message=str(exc),
-                retryable=attempt < settings.ib_max_retries,
+                retryable=retryable,
                 elapsed_seconds=request_duration,
             )
             fetch_item.error_message = _safe_message(str(exc))
-            if attempt >= settings.ib_max_retries:
+            if not retryable or attempt >= settings.ib_max_retries:
                 _mark_failed(fetch_item, str(exc))
                 return
             if should_cancel and should_cancel():
@@ -888,6 +963,21 @@ def _execution_action(
     }:
         return plan_item.action, plan_item.duration, plan_item.reason
 
+    if plan_item.action == FetchAction.CONTRACT_RESOLUTION_REQUIRED:
+        if plan_item.post_resolution_action is not None:
+            if (
+                plan_item.post_resolution_action not in {FetchAction.SKIP, FetchAction.UNSUPPORTED}
+                and not plan_item.post_resolution_duration
+            ):
+                raise ValueError("ACQUISITION_PLAN_RESOLUTION_SCOPE_REQUIRED")
+            return (
+                plan_item.post_resolution_action,
+                plan_item.post_resolution_duration,
+                f"{plan_item.reason.rstrip('.')} after contract resolution.",
+            )
+        if plan_item.request_start_date is not None:
+            raise ValueError("ACQUISITION_PLAN_RESOLUTION_SCOPE_REQUIRED")
+
     latest_current = _latest_date_current(
         plan_item.latest_bar_date,
         settings.ib_daily_bar_stale_after_days,
@@ -933,6 +1023,19 @@ def _mark_failed(fetch_item: IBFetchItem, message: str) -> None:
     fetch_item.completed_at = datetime.now(UTC)
 
 
+def _mark_typed_failure(
+    fetch_item: IBFetchItem,
+    plan_item: FetchPlanItem,
+    code: str,
+    detail: str | None = None,
+) -> None:
+    fetch_item.decision_metadata_json = {
+        **_decision_metadata(plan_item, retryable=False),
+        "failure_classification": code,
+    }
+    _mark_failed(fetch_item, f"{code}: {detail}" if detail else code)
+
+
 def _mark_run_cancelled(
     fetch_run: IBFetchRun,
     db: Session | None = None,
@@ -964,6 +1067,30 @@ def _increment_run_totals(fetch_run: IBFetchRun, fetch_item: IBFetchItem) -> Non
             fetch_run,
             total_name,
             int(getattr(fetch_run, total_name) or 0) + int(getattr(fetch_item, name) or 0),
+        )
+
+
+def _subtract_run_totals(fetch_run: IBFetchRun, fetch_item: IBFetchItem) -> None:
+    if fetch_item.status not in {"SUCCESS", "FAILED", "SKIPPED"}:
+        return
+    fetch_run.executed_request_count = max(
+        0, int(fetch_run.executed_request_count or 0) - int((fetch_item.attempt_count or 0) > 0)
+    )
+    fetch_run.skipped_count = max(
+        0, int(fetch_run.skipped_count or 0) - int(fetch_item.status == "SKIPPED")
+    )
+    fetch_run.success_count = max(
+        0, int(fetch_run.success_count or 0) - int(fetch_item.status == "SUCCESS")
+    )
+    fetch_run.failure_count = max(
+        0, int(fetch_run.failure_count or 0) - int(fetch_item.status == "FAILED")
+    )
+    for name in ("fetched", "inserted", "updated", "revised", "unchanged"):
+        total_name = f"{name}_count"
+        setattr(
+            fetch_run,
+            total_name,
+            max(0, int(getattr(fetch_run, total_name) or 0) - int(getattr(fetch_item, name) or 0)),
         )
 
 
@@ -1043,6 +1170,7 @@ def _decision_metadata(
     provider_error_code: int | None = None,
     provider_error_category: str | None = None,
     provider_error_message: str | None = None,
+    provider_request_id: int | None = None,
     retryable: bool | None = None,
 ) -> dict[str, object]:
     effective_action = action or plan_item.action
@@ -1077,7 +1205,13 @@ def _decision_metadata(
         "provider_error_code": provider_error_code,
         "provider_error_category": provider_error_category,
         "provider_error_message": provider_error_message,
+        "provider_request_id": provider_request_id,
         "retryable": retryable,
+        "contract_identity": plan_item.contract_identity,
+        "contract_fingerprint": plan_item.contract_fingerprint,
+        "contract_qualified_at": plan_item.contract_qualified_at,
+        "runtime_contract_identity": plan_item.runtime_contract_identity,
+        "runtime_contract_resolved_at": plan_item.runtime_contract_resolved_at,
         "decision_category": _decision_category(
             effective_action,
             latest_current=latest_current,

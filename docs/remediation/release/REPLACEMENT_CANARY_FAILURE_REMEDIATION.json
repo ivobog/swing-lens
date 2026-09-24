@@ -1,0 +1,271 @@
+{
+  "schema": "replacement-canary-failure-remediation-v1",
+  "release_gate": "FAIL",
+  "remediation_branch": "codex/replacement-canary-marketdata-winner-remediation",
+  "starting_main_commit": "d1e913e06344c63d25ff0a514b950359dadfb463",
+  "certified_application_ancestor": "4a9f414ceebbc8bde0332a4a4730e28f6b229015",
+  "starting_source_fingerprint_v2": "4558eda1d87ccf707070fa1fcf0e55a3accc03f60eb6446713b3f3f6763c3b57",
+  "implementation_commit": null,
+  "source_fingerprint_v2": null,
+  "source_fingerprint_v2_reason": "Canonical V2 identity is defined over a committed Git tree; no commit is permitted while the full-suite gate fails",
+  "migration_required": false,
+  "authoritative_database": {
+    "product": "PostgreSQL",
+    "version": "18.3",
+    "database": "swinglens",
+    "alembic_head": "0083_winner_scope_truth",
+    "writes_by_this_task": false
+  },
+  "failed_canary": {
+    "run_id": 162,
+    "pipeline_id": 153,
+    "root_job_id": 43291,
+    "status": "FAILED",
+    "stage": "FETCHING_MARKET_DATA",
+    "duration_seconds": 7704.517,
+    "configuration_anchor": "65e3ab297fd4b3ee0387d61a5292be0ed20862c857b7e63727e2e5fc8e6423ad",
+    "root_scope_id": "a2797d4aa76bfeddb5eaa91ce00ca4c6a79d0c4f1c8adfe421f328913bafa581",
+    "root_refresh_id": "6a5d2102298090434af9d178261ee504f573e03ee2875a6f22b189aeb3666440",
+    "root_plan_id": "01083fe76dce66d89389989749d9b110a89bcbb0e56f4a3950f89806c07125d7",
+    "ib_scope_id": "39ab6747e0755788e42504002f4fb17c5e7075215b7785d947147f6c416c394f",
+    "ib_refresh_id": "142339225ecbb54a9575c95a78d35eea5cb38b971eb96774d38e60afc4b7dbba",
+    "ib_plan_id": "1802a8f1075c5f5ea6b834466c6abc6538be58d86ab3821020b8f4b9f07e353c",
+    "terminal_exception": {
+      "type": "ValueError",
+      "message": "MUTATION_WINNER_CERTIFIED_CAPTURE_REQUIRED",
+      "origin": "MarketDataObligationService.record_fetch_results -> evaluate -> obligation_authority -> validate_prediction_source",
+      "previous_job_classification": "UNCLASSIFIED_RETRYABLE"
+    },
+    "attempts": [
+      {
+        "number": 1,
+        "claim_at_utc": "2026-09-23T20:42:11.933947Z",
+        "fetch_run_id": 227,
+        "fetch_started_local": "2026-09-23T22:42:39.338191+02:00",
+        "fetch_ended_local": "2026-09-23T23:10:52.865915+02:00",
+        "planned": 204,
+        "success_durable": 198,
+        "failed": 6,
+        "skipped": 0,
+        "fetch_status": "PARTIAL",
+        "job_failure_code": "ValueError",
+        "classified_retryable": true,
+        "retry_scheduled": true,
+        "retry_delay_seconds": 60,
+        "next_fetch_run_id": 228
+      },
+      {
+        "number": 2,
+        "claim_at_utc": "2026-09-23T21:11:54.887102Z",
+        "fetch_run_id": 228,
+        "fetch_started_local": "2026-09-23T23:12:20.072033+02:00",
+        "fetch_ended_local": "2026-09-23T23:40:29.795162+02:00",
+        "planned": 204,
+        "success_durable": 198,
+        "failed": 6,
+        "skipped": 0,
+        "fetch_status": "PARTIAL",
+        "job_failure_code": "ValueError",
+        "classified_retryable": true,
+        "retry_scheduled": true,
+        "retry_delay_seconds": 180,
+        "next_fetch_run_id": 229
+      },
+      {
+        "number": 3,
+        "claim_at_utc": "2026-09-23T21:43:33.059724Z",
+        "fetch_run_id": 229,
+        "fetch_started_local": "2026-09-23T23:43:54.073306+02:00",
+        "fetch_ended_local": "2026-09-24T00:12:03.800868+02:00",
+        "planned": 204,
+        "success_durable": 198,
+        "failed": 6,
+        "skipped": 0,
+        "fetch_status": "PARTIAL",
+        "job_failure_code": "ValueError",
+        "classified_retryable": true,
+        "retry_scheduled": true,
+        "retry_delay_seconds": 600,
+        "next_fetch_run_id": 230
+      },
+      {
+        "number": 4,
+        "claim_at_utc": "2026-09-23T22:22:05.741145Z",
+        "fetch_run_id": 230,
+        "fetch_started_local": "2026-09-24T00:22:26.124357+02:00",
+        "fetch_ended_local": "2026-09-24T00:50:36.553879+02:00",
+        "planned": 204,
+        "success_durable": 198,
+        "failed": 6,
+        "skipped": 0,
+        "fetch_status": "PARTIAL",
+        "job_failure_code": "ValueError",
+        "classified_retryable": true,
+        "retry_scheduled": false,
+        "retry_delay_seconds": null,
+        "next_fetch_run_id": null
+      }
+    ],
+    "failed_item_order": [
+      "CLBK/ADJUSTED_LAST",
+      "CLBK/TRADES",
+      "DOCN/ADJUSTED_LAST",
+      "DOCN/TRADES",
+      "OKE/ADJUSTED_LAST",
+      "OKE/TRADES",
+      "Winner legacy obligation ValueError",
+      "job retry classification"
+    ],
+    "historical_audit_snapshot": {
+      "closed": 63,
+      "partial": 7,
+      "open": 0,
+      "changed": false
+    },
+    "preserved": true
+  },
+  "findings": {
+    "REL-MD-001": {
+      "status": "CLOSED",
+      "root_cause": "Unresolved DOCN plan froze a 10-day fallback request start although post-resolution action was FULL_BACKFILL/3 Y",
+      "frozen_contract_identity": null,
+      "frozen_contract_fingerprint": null,
+      "runtime_contract": {
+        "conId": 478483393,
+        "symbol": "DOCN",
+        "secType": "STK",
+        "exchange": "SMART",
+        "primaryExchange": "NYSE",
+        "currency": "USD",
+        "localSymbol": "DOCN",
+        "tradingClass": "DOCN"
+      },
+      "runtime_contract_fingerprint": "25429536c0b3670bc4c3566b8d01e9b770637207fbe2bf5b8468baf12655a396",
+      "remediation": "Freeze post-resolution action/window for deferred qualification; freeze exact identity/fingerprint for resolved contracts; execute frozen C1 or typed fail before provider"
+    },
+    "REL-IB-002": {
+      "status": "EXTERNAL_BOUNDARY_CERTIFIED",
+      "CLBK": {
+        "classification": "IB_CONTRACT_UNAVAILABLE",
+        "frozen_cached_conId": 314734931,
+        "old_error_code": 200,
+        "old_error_text": "No security definition has been found for the request",
+        "current_qualified_conId": 902968711,
+        "current_historical_error_code": 162,
+        "current_historical_error_text": "Historical Market Data Service error message:No historical market data for 2674/STK@NASDAQBBO Last 1d",
+        "current_trades_bars": 0,
+        "current_adjusted_last_bars": 0
+      },
+      "OKE": {
+        "classification": "IB_CONTRACT_UNAVAILABLE",
+        "frozen_cached_conId": 10794,
+        "old_error_code": 200,
+        "old_error_text": "No security definition has been found for the request",
+        "current_qualified_conId": 921971937,
+        "current_trades_bars": 17,
+        "current_adjusted_last_bars": 17
+      },
+      "require_ib_behavior": "Mandatory IB preflight; no cache fallback; isolated permanent ticker/feed failures yield ticker insufficiency and a PARTIAL pipeline when other results exist"
+    },
+    "REL-WIN-002": {
+      "status": "CLOSED",
+      "legacy_obligations": 534,
+      "touched_symbols": 80,
+      "fetch_required": 80,
+      "satisfied": 454,
+      "example_obligation_id": 609,
+      "example_prediction_id": 2753,
+      "example_run_id": 84,
+      "legacy_classification": "LEGACY_SERVING_ONLY",
+      "remediation": "Current fetch evaluates only native obligations; legacy rows remain unchanged; malformed native obligations still fail closed"
+    },
+    "REL-MD-002": {
+      "status": "CLOSED",
+      "previous_classification": "UNCLASSIFIED_RETRYABLE/ValueError",
+      "new_deterministic_classification": "DETERMINISTIC/ValueError",
+      "no_progress_guard": "ACQUISITION_NO_PROGRESS_RETRY_GUARD",
+      "successful_work_reuse": "Bound same-plan IBFetchRun and reuse durable SUCCESS/SKIPPED item checkpoints",
+      "deterministic_test_measurement": "Two CLBK/OKE-style permanent-error cases completed in 1.14 seconds of pytest execution; one provider call and zero backoffs per case",
+      "transient_retry": "Only explicit timeout/connection/provider transient rows are retried under bounded policy",
+      "replan": "New acquisition identity plus predecessor and typed reason; never rewrite P1"
+    }
+  },
+  "live_ib_diagnostics": {
+    "server_version": 176,
+    "readonly_client_id": 30,
+    "SPY": { "conId": 756733, "duration": "20 D", "trades_bars": 20, "adjusted_last_bars": 20 },
+    "DOCN": { "conId": 478483393, "duration": "3 Y", "trades_bars": 752, "adjusted_last_bars": 752 },
+    "CLBK": { "frozen_old_qualification_code": 200, "current_conId": 902968711, "current_trades_code": 162, "current_adjusted_last_code": 162 },
+    "OKE": { "frozen_old_qualification_code": 200, "current_conId": 921971937, "current_trades_bars": 17, "current_adjusted_last_bars": 17 },
+    "orders_or_account_mutations": 0
+  },
+  "verification": {
+    "targeted_unit": "PASS_122",
+    "postgresql_attacks": "PASS_INCLUDING_204_AND_MIXED",
+    "winner_reverse_order": "PASS_15_OF_15",
+    "full_repository": {
+      "status": "FAIL_BASELINE_COHORT_SCOPE_REBIND",
+      "collected": 4104,
+      "partition_collection_counts": {
+        "integration_0_22": 115,
+        "integration_23_45": 144,
+        "integration_46_67": 130,
+        "non_integration": 3715
+      },
+      "partition_counts_reconcile": true,
+      "integration_0_22_result": { "passed": 114, "skipped": 1, "failed": 0 },
+      "integration_23_45_result": { "passed": 142, "skipped": 2, "failed": 0 },
+      "integration_46_67_result": { "unique_passed": 129, "skipped": 0, "failed": 1, "last_five_files_rerun": { "passed": 46, "deselected": 1 } },
+      "non_integration_result": { "unique_passed": 3708, "skipped": 7, "failed": 0, "method": "contiguous restart segments after fail-closed historical-test updates" },
+      "aggregate": { "passed": 4093, "skipped": 10, "failed": 1 },
+      "blocking_test": "tests/integration/test_winner_jobs_reliability_postgresql.py::test_concurrent_refresh_requests_coalesce_without_losing_desired_state",
+      "blocking_error": "SemanticAuthorityError: SEMANTIC_AUTHORITY_REBIND_FORBIDDEN:scope_id",
+      "baseline_reproduced_at_starting_commit": true,
+      "baseline_disposable_database": true,
+      "baseline_temporary_worktree_removed": true
+    },
+    "e2e": "PASS_28_OF_28_DEDICATED_575_04_SECONDS",
+    "ruff_app_tests_scripts": "PASS",
+    "ruff_format_changed_python_files": "PASS_24_OF_24",
+    "ruff_repository_root": "58_PREEXISTING_UNTOUCHED_ALEMBIC_AND_DOCS_FINDINGS",
+    "compile_app_tests": "PASS",
+    "route_inventory": "PASS",
+    "tracked_secret_scan": "PASS",
+    "mutation_inventory": "PASS_601_FILES_6396_FUNCTIONS_119_MODELS",
+    "phase5_historical_pin_status": {
+      "verdict": "FAIL_CLOSED_ON_CURRENT_SOURCE_CHANGE",
+      "historical_derivative_rewritten": false,
+      "stale_reviewed_paths": [
+        "app/services/background_job_service.py",
+        "app/services/ib_fetch_executor.py",
+        "app/services/pipeline_executor.py",
+        "app/services/pipeline_service.py",
+        "app/services/winner_probability/market_data_obligation_service.py"
+      ],
+      "other_writer_sink_or_edge_blockers": 0
+    },
+    "git_diff_check": "PASS"
+  },
+  "safety": {
+    "authoritative_database_changed": false,
+    "pipeline_153_changed": false,
+    "new_pipeline_submitted": false,
+    "trading_or_account_mutation": false,
+    "backup_restore": false,
+    "push": false
+  },
+  "final_authoritative_readonly_check": {
+    "database": "swinglens",
+    "alembic_head": "0083_winner_scope_truth",
+    "maximum_pipeline_id": 153,
+    "pipeline_153_status": "FAILED",
+    "pipeline_153_stage": "FETCHING_MARKET_DATA"
+  },
+  "next_canary": {
+    "candidate": "Newly captured and hash-verified 100-distinct-symbol export with read-only qualification and both-feed preflight; exclude CLBK pending data availability",
+    "existing_sep_11_source_clean": false,
+    "existing_sep_17_source_clean": false,
+    "ready_for_final_canary_rerun": false,
+    "submitted": false
+  }
+}

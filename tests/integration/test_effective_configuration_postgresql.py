@@ -46,7 +46,7 @@ def test_configuration_embedded_evidence_round_trip_retry_drift_and_immutability
     disposable_postgres_database,
 ):
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", disposable_postgres_database)
+    config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
     assert ScriptDirectory.from_config(config).get_heads() == [CURRENT_HEAD]
     command.upgrade(config, "head")
     command.check(config)
@@ -161,7 +161,7 @@ def test_configuration_embedded_evidence_round_trip_retry_drift_and_immutability
 
 def test_secret_safe_storage_and_binding_integrity(disposable_postgres_database):
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", disposable_postgres_database)
+    config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
     command.upgrade(config, "head")
     engine = create_engine(disposable_postgres_database)
     try:

@@ -35,7 +35,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
 def test_readiness_is_frozen_identity_bound_and_projection_derived(disposable_postgres_database):
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", disposable_postgres_database)
+    config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
     command.upgrade(config, "head")
     engine = create_engine(disposable_postgres_database)
     legacy = CalculationIdentity.legacy_unknown(run_id=1, ticker="ACME")

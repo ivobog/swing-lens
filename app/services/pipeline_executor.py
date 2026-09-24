@@ -557,10 +557,26 @@ def execute_full_pipeline(
                 resumable_fetch_run_id = db.scalar(
                     select(IBFetchRun.id)
                     .where(IBFetchRun.run_id == upload_run.id)
-                    .where(IBFetchRun.status == "RUNNING")
+                    .where(IBFetchRun.status.in_(("RUNNING", "PARTIAL", "FAILED")))
                     .where(
                         IBFetchRun.scope_id
                         == (fetch_authority.scope_id if fetch_authority is not None else None)
+                    )
+                    .where(
+                        IBFetchRun.refresh_cycle_id
+                        == (
+                            fetch_authority.refresh_cycle_id
+                            if fetch_authority is not None
+                            else None
+                        )
+                    )
+                    .where(
+                        IBFetchRun.acquisition_plan_id
+                        == (
+                            fetch_authority.acquisition_plan_id
+                            if fetch_authority is not None
+                            else None
+                        )
                     )
                     .order_by(IBFetchRun.id.desc())
                     .limit(1)
@@ -575,6 +591,10 @@ def execute_full_pipeline(
                     "memory_probe": memory_probe,
                     "execution_token": execution_token,
                 }
+                if fetch_authority is not None and _accepts_keyword(
+                    dependencies.execute_fetch_plan, "semantic_authority"
+                ):
+                    fetch_kwargs["semantic_authority"] = fetch_authority
                 if overlap_coordinator is not None:
                     fetch_kwargs["on_ticker_ready"] = overlap_coordinator.on_ticker_ready
                 fetch_run = dependencies.execute_fetch_plan(**fetch_kwargs)

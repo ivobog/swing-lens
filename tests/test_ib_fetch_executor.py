@@ -2,9 +2,12 @@ from dataclasses import replace
 from datetime import date
 from types import SimpleNamespace
 
+import pytest
+
 import app.services.ib_fetch_executor as executor
 from app.models.tables import IBFetchItem
 from app.services.bar_cache_service import BarUpsertSummary
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.ib_data_fetcher import HistoricalBar, IBHistoricalRequestError
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
@@ -151,6 +154,102 @@ def test_execute_fetch_plan_retries_failed_fetch(monkeypatch) -> None:
     assert limiter.waits == 2
     assert limiter.backoffs == 1
     assert fetch_run.unchanged_count == 1
+
+
+def test_frozen_contract_c1_cannot_be_replaced_by_current_c2(monkeypatch) -> None:
+    db = FakeDb()
+    identity = {
+        "conId": 111,
+        "symbol": "DOCN",
+        "secType": "STK",
+        "exchange": "SMART",
+        "primaryExchange": "NYSE",
+        "currency": "USD",
+        "localSymbol": "DOCN",
+        "tradingClass": "DOCN",
+    }
+    item = replace(
+        _plan_item("DOCN", FetchAction.TOP_UP_RECENT, "10 D"),
+        contract_identity=identity,
+        contract_fingerprint=Canonical.fingerprint(identity),
+    )
+    captured = []
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("current C2 lookup forbidden")),
+    )
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda _ib, contract, *_args, **_kwargs: captured.append(contract.conId) or [],
+    )
+    fetch_run = execute_fetch_plan(
+        db,
+        _fetch_plan(item),
+        ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+    assert captured == [111]
+    assert fetch_run.items[0].decision_metadata_json["contract_identity"] == identity
+
+
+def test_tampered_frozen_contract_fails_before_provider(monkeypatch) -> None:
+    identity = {"conId": 111, "symbol": "DOCN", "secType": "STK", "exchange": "SMART"}
+    item = replace(
+        _plan_item("DOCN", FetchAction.TOP_UP_RECENT, "10 D"),
+        contract_identity=identity,
+        contract_fingerprint="wrong",
+    )
+    monkeypatch.setattr(
+        executor,
+        "fetch_daily_bars",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("provider forbidden")),
+    )
+    fetch_run = execute_fetch_plan(
+        FakeDb(), _fetch_plan(item), ib_client_factory=FakeIB, rate_limiter=FakeLimiter()
+    )
+    assert fetch_run.items[0].error_message == "ACQUISITION_PLAN_CONTRACT_IDENTITY_MISMATCH"
+    assert fetch_run.items[0].attempt_count == 0
+
+
+@pytest.mark.parametrize("ticker", ["CLBK", "OKE"])
+def test_missing_security_definition_fails_once_with_typed_evidence(monkeypatch, ticker) -> None:
+    monkeypatch.setattr(
+        executor,
+        "resolve_us_stock_contract",
+        lambda db, symbol, ib: SimpleNamespace(
+            contract=SimpleNamespace(symbol=symbol), error_message=None
+        ),
+    )
+    calls = []
+
+    def missing_contract(*_args, **_kwargs):
+        calls.append(1)
+        raise IBHistoricalRequestError(
+            code=200,
+            provider_message="No security definition has been found for the request",
+            request_id=17,
+        )
+
+    monkeypatch.setattr(executor, "fetch_daily_bars", missing_contract)
+    limiter = FakeLimiter()
+    fetch_run = execute_fetch_plan(
+        FakeDb(),
+        _fetch_plan(_plan_item(ticker, FetchAction.TOP_UP_RECENT, "10 D")),
+        ib_client_factory=FakeIB,
+        rate_limiter=limiter,
+        settings=Settings(ib_max_retries=3),
+    )
+    item = fetch_run.items[0]
+    assert len(calls) == 1
+    assert limiter.backoffs == 0
+    assert item.attempt_count == 1
+    assert item.decision_metadata_json["provider_error_category"] == "CONTRACT_NOT_FOUND"
+    assert item.decision_metadata_json["provider_error_code"] == 200
+    assert item.decision_metadata_json["provider_request_id"] == 17
+    assert item.decision_metadata_json["retryable"] is False
 
 
 def test_execute_fetch_plan_validates_scope_before_persisting(monkeypatch) -> None:
@@ -767,7 +866,8 @@ def test_execute_fetch_plan_persists_contract_resolution_failure(monkeypatch) ->
     assert fetch_run.failure_count == 1
     assert fetch_run.executed_request_count == 0
     assert fetch_run.items[0].status == "FAILED"
-    assert fetch_run.items[0].error_message == "No contract"
+    assert fetch_run.items[0].error_message == "IB_CONTRACT_RESOLUTION_FAILED: No contract"
+    assert fetch_run.items[0].decision_metadata_json["retryable"] is False
 
 
 def test_execute_fetch_plan_counts_only_attempted_historical_requests(monkeypatch) -> None:

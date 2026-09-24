@@ -86,7 +86,7 @@ def test_t15b_postgresql_scope_refresh_and_acquisition_certification(
     disposable_postgres_database: str,
 ) -> None:
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", disposable_postgres_database)
+    config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
     assert ScriptDirectory.from_config(config).get_heads() == ["0083_winner_scope_truth"]
     command.upgrade(config, "head")
     command.check(config)

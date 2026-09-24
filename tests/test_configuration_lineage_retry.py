@@ -38,5 +38,9 @@ def test_transient_provider_failures_keep_retries(error):
     assert result["kind"] == "TRANSIENT"
 
 
-def test_unrelated_value_error_does_not_disable_retries():
-    assert classify_job_failure(ValueError("unrelated error"))["retryable"] is True
+def test_unrelated_value_error_is_deterministic_application_failure():
+    assert classify_job_failure(ValueError("unrelated error")) == {
+        "kind": "DETERMINISTIC",
+        "retryable": False,
+        "code": "ValueError",
+    }

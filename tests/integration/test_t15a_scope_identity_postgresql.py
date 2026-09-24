@@ -68,7 +68,7 @@ def _scope(plan_id: str, size: int = 3) -> WorkScopeSnapshot:
 @pytest.fixture
 def scope_engine(disposable_postgres_database):
     config = Config("alembic.ini")
-    config.set_main_option("sqlalchemy.url", disposable_postgres_database)
+    config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
     assert ScriptDirectory.from_config(config).get_heads() == ["0083_winner_scope_truth"]
     command.upgrade(config, "head")
     command.check(config)

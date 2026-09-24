@@ -69,6 +69,16 @@ class FetchPlanItem:
     reviewed_session_expiry: date | None = None
     decision_category: str = "UNKNOWN"
     dependency_roles: tuple[str, ...] = ()
+    # An admitted, resolved contract is exact authority. A missing contract is
+    # explicitly qualification-deferred; it does not pretend to freeze a conId.
+    contract_identity: dict[str, object] | None = None
+    contract_fingerprint: str | None = None
+    contract_qualified_at: str | None = None
+    post_resolution_action: FetchAction | None = None
+    post_resolution_duration: str | None = None
+    # Execution-only witness. These remain null in the admitted plan.
+    runtime_contract_identity: dict[str, object] | None = None
+    runtime_contract_resolved_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -117,6 +127,7 @@ def build_fetch_plan(
     )
     coverage_by_ticker.update(benchmark_coverage)
     contract_statuses = _contract_statuses(db, symbols)
+    contract_identities = _contract_identities(db, symbols)
     contract_statuses = {
         ticker: _contract_status_for_plan(status, retry_failed_contracts)
         for ticker, status in contract_statuses.items()
@@ -148,6 +159,8 @@ def build_fetch_plan(
                 benchmark_symbols=benchmark_symbols,
                 sector_symbol=sector_dependency_symbol,
             ),
+            contract_identity=contract_identities.get(symbol, (None, None))[0],
+            contract_qualified_at=contract_identities.get(symbol, (None, None))[1],
         )
         for symbol in symbols
         if symbol in coverage_by_ticker
@@ -179,6 +192,9 @@ def fetch_plan_to_dict(plan: FetchPlan) -> dict[str, object]:
         {
             **asdict(item),
             "action": item.action.value,
+            "post_resolution_action": (
+                item.post_resolution_action.value if item.post_resolution_action else None
+            ),
         }
         for item in plan.items
     ]
@@ -192,6 +208,8 @@ def fetch_plan_from_dict(payload: dict[str, object]) -> FetchPlan:
     for raw in payload.get("items", []):
         values = dict(raw)
         values["action"] = FetchAction(str(values["action"]))
+        if values.get("post_resolution_action"):
+            values["post_resolution_action"] = FetchAction(str(values["post_resolution_action"]))
         for name in (
             "first_bar_date",
             "latest_bar_date",
@@ -252,6 +270,8 @@ def _build_plan_item(
     is_benchmark: bool = False,
     freshness_threshold: date | None = None,
     dependency_roles: tuple[str, ...] = (),
+    contract_identity: dict[str, object] | None = None,
+    contract_qualified_at: str | None = None,
 ) -> FetchPlanItem:
     current_bar_count = _bar_count_for_type(coverage_item, what_to_show)
     first_bar_date = _first_date_for_type(coverage_item, what_to_show)
@@ -281,6 +301,22 @@ def _build_plan_item(
         full_backfill_completed=full_backfill_completed,
         top_up_duration=top_up_duration,
     )
+    post_resolution_action = None
+    post_resolution_duration = None
+    if action == FetchAction.CONTRACT_RESOLUTION_REQUIRED:
+        post_resolution_action, post_resolution_duration, _ = _plan_action(
+            ticker=coverage_item.ticker,
+            contract_status="RESOLVED",
+            what_to_show=what_to_show,
+            current_bar_count=current_bar_count,
+            required_bars=coverage.required_rows,
+            latest_current=latest_current,
+            force_refresh=force_refresh,
+            force_full_backfill=force_full_backfill,
+            settings=settings,
+            full_backfill_completed=full_backfill_completed,
+            top_up_duration=top_up_duration,
+        )
 
     missing_start_date = (
         next_us_trading_day(latest_bar_date)
@@ -288,15 +324,16 @@ def _build_plan_item(
         else None
     )
     missing_end_date = freshness_threshold if missing_start_date else None
-    request_end_date = freshness_threshold if duration else None
+    reviewed_duration = duration or post_resolution_duration
+    request_end_date = freshness_threshold if reviewed_duration else None
     request_end_datetime = None
     request_end_mode = None
     reviewed_session_expiry = None
-    if duration:
+    if reviewed_duration:
         request_scope = build_historical_request_scope(
             required_start_date=missing_start_date,
             required_end_date=missing_end_date,
-            duration=duration,
+            duration=reviewed_duration,
             bar_size=settings.ib_default_bar_size,
             what_to_show=what_to_show,
             reviewed_end_date=freshness_threshold,
@@ -358,6 +395,15 @@ def _build_plan_item(
         reviewed_session_expiry=reviewed_session_expiry,
         decision_category=decision_category,
         dependency_roles=dependency_roles,
+        contract_identity=contract_identity,
+        contract_fingerprint=(
+            CanonicalEvidenceSerializer.fingerprint(contract_identity)
+            if contract_identity is not None
+            else None
+        ),
+        contract_qualified_at=contract_qualified_at,
+        post_resolution_action=post_resolution_action,
+        post_resolution_duration=post_resolution_duration,
     )
 
 
@@ -622,6 +668,32 @@ def _contract_statuses(db: Session, symbols: list[str]) -> dict[str, str]:
         )
     ).all()
     return {str(ticker).upper(): str(status) for ticker, status in rows}
+
+
+def _contract_identities(
+    db: Session, symbols: list[str]
+) -> dict[str, tuple[dict[str, object] | None, str | None]]:
+    if not symbols:
+        return {}
+    rows = db.scalars(select(IBContract).where(IBContract.ticker.in_(symbols)))
+    result = {}
+    for row in rows:
+        if row.resolution_status != "RESOLVED" or not row.ib_conid:
+            continue
+        result[row.ticker.upper()] = (
+            {
+                "conId": int(row.ib_conid),
+                "symbol": row.symbol or row.ticker,
+                "secType": row.sec_type or "STK",
+                "exchange": row.exchange or "SMART",
+                "primaryExchange": row.primary_exchange or "",
+                "currency": row.currency or "USD",
+                "localSymbol": row.local_symbol or "",
+                "tradingClass": row.trading_class or "",
+            },
+            row.last_resolved_at.isoformat() if row.last_resolved_at else None,
+        )
+    return result
 
 
 def _contract_status_for_plan(status: str, retry_failed_contracts: bool) -> str:

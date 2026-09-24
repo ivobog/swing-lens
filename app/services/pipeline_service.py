@@ -582,11 +582,19 @@ def _pipeline_job_failure_view(pipeline, job, failure):
     continuation = bool((job.payload_json or {}).get("resume_from_step"))
     message = "Pipeline continuation failed." if continuation else "Pipeline execution failed."
     if not failure["retryable"]:
-        message += " Frozen configuration or execution lineage could not be verified."
+        message += " A deterministic failure requires remediation or a typed replan."
+    diagnostics = failure.get("diagnostics") or {}
+    affected = ", ".join(
+        f"{item['ticker']}/{item['feed']}:{item['reason']}"
+        for item in diagnostics.get("failed_items", [])[:12]
+    )
+    detail = f"{message} Pipeline {pipeline.id}, job {job.id}: {failure['code']}."
+    if affected:
+        detail += f" Failed acquisition items: {affected}."
     return {
         "status": PipelineStatus.FAILED if failure["retryable"] else PipelineStatus.BLOCKED,
         "message": message,
-        "detail": f"{message} Pipeline {pipeline.id}, job {job.id}: {failure['code']}.",
+        "detail": detail,
     }
 
 
@@ -596,16 +604,27 @@ def mark_pipeline_job_failure(db, job, failure):
         .where(PipelineRun.result_json["background_job_id"].astext == str(job.id))
         .with_for_update()
     )
-    if pipeline is None or pipeline.status in PIPELINE_TERMINAL_STATUSES:
+    if pipeline is None or (
+        pipeline.status in PIPELINE_TERMINAL_STATUSES and pipeline.status != PipelineStatus.FAILED
+    ):
         return
     if (pipeline.result_json or {}).get("background_job_id") != job.id:
         return
     view = _pipeline_job_failure_view(pipeline, job, failure)
-    pipeline.status = view["status"]
+    # The stage wrapper may already have marked FAILED before the durable job
+    # classifier runs. Preserve that terminal state while adding the typed,
+    # ticker-level failure reason; never erase earlier stage evidence.
+    already_failed = pipeline.status == PipelineStatus.FAILED
+    if not already_failed:
+        pipeline.status = view["status"]
     pipeline.completed_at = job.completed_at or _utcnow()
     pipeline.message = view["message"]
     pipeline.error_message = view["detail"]
-    pipeline.result_json = {**(pipeline.result_json or {}), "blocked_reason": failure["code"]}
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "blocked_reason": failure["code"],
+        "job_failure_classification": failure,
+    }
     target = pipeline.current_step or "VALIDATING_RUN"
     step = db.scalar(
         select(PipelineStep).where(
@@ -613,7 +632,8 @@ def mark_pipeline_job_failure(db, job, failure):
         )
     )
     if step is not None:
-        step.status = view["status"]
+        if not already_failed:
+            step.status = view["status"]
         step.completed_at = pipeline.completed_at
         step.message = view["message"]
         step.error_message = view["detail"]

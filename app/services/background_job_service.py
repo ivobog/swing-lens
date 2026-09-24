@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
@@ -20,9 +22,12 @@ from app.models.tables import (
     BackgroundJobEnqueueAttempt,
     BackgroundJobFanoutRoot,
     BackgroundWorker,
+    IBFetchItem,
+    IBFetchRun,
     PipelineRun,
     PipelineStep,
     WinnerProcessingRun,
+    WorkScopeRecord,
 )
 from app.observability.correlation import CausalityContext, enqueue_causality, workflow_family
 from app.observability.transaction_metrics import publish_after_commit
@@ -70,6 +75,11 @@ NON_RETRYABLE_PROVENANCE_CODES = frozenset(
         "MISSING_FROZEN_CONFIGURATION_RECORD",
         "MISSING_FROZEN_CONFIGURATION",
         "SEC_REPAIR_PROCESSOR_SIGNATURE_MISMATCH",
+        "MUTATION_WINNER_CERTIFIED_CAPTURE_REQUIRED",
+        "MUTATION_WINNER_CERTIFIED_OBLIGATION_SCOPE_REQUIRED",
+        "ACQUISITION_PLAN_REQUEST_SCOPE_MISMATCH",
+        "ACQUISITION_PLAN_RESOLUTION_SCOPE_REQUIRED",
+        "ACQUISITION_PLAN_CONTRACT_IDENTITY_MISMATCH",
     }
 )
 
@@ -1312,6 +1322,26 @@ def mark_job_failed_or_retry(
     now = _utcnow()
     retry_count = job.retry_count + 1
     failure = classify_job_failure(error)
+    acquisition_manifest = _acquisition_retry_manifest(db, job)
+    previous_manifest = (job.operational_metadata_json or {}).get("acquisition_retry_manifest")
+    if (
+        failure["retryable"]
+        and acquisition_manifest is not None
+        and previous_manifest is not None
+        and all(
+            acquisition_manifest.get(key) == previous_manifest.get(key)
+            for key in ("plan_id", "success_fingerprint", "failure_fingerprint")
+        )
+        and failure["code"] == previous_manifest.get("job_failure_code")
+    ):
+        failure = {
+            "kind": JobFailureKind.DETERMINISTIC.value,
+            "retryable": False,
+            "code": "ACQUISITION_NO_PROGRESS_RETRY_GUARD",
+            "diagnostics": acquisition_manifest,
+        }
+    elif acquisition_manifest is not None:
+        failure = {**failure, "diagnostics": acquisition_manifest}
     retryable = failure["retryable"]
     metadata = _with_attempt_finished(
         job.operational_metadata_json,
@@ -1319,6 +1349,13 @@ def mark_job_failed_or_retry(
         status=("RETRYING" if retryable and retry_count <= job.max_retries else JobStatus.FAILED),
     )
     metadata["failure_classification"] = failure
+    if acquisition_manifest is not None:
+        metadata["acquisition_retry_manifest"] = {
+            **acquisition_manifest,
+            "job_failure_code": failure["code"]
+            if failure["code"] != "ACQUISITION_NO_PROGRESS_RETRY_GUARD"
+            else previous_manifest.get("job_failure_code"),
+        }
     values: dict[str, Any] = {
         "retry_count": retry_count,
         "error_message": _safe_error(error),
@@ -1382,6 +1419,12 @@ def classify_job_failure(error: str | Exception) -> dict[str, Any]:
             "retryable": False,
             "code": str(code),
         }
+    if isinstance(error, ValueError):
+        return {
+            "kind": JobFailureKind.DETERMINISTIC.value,
+            "retryable": False,
+            "code": str(code) if code is not None else "ValueError",
+        }
     transient = isinstance(error, (TimeoutError, ConnectionError)) or error.__class__.__name__ in {
         "OperationalError",
         "InterfaceError",
@@ -1393,6 +1436,66 @@ def classify_job_failure(error: str | Exception) -> dict[str, Any]:
         "kind": JobFailureKind.TRANSIENT.value if transient else "UNCLASSIFIED_RETRYABLE",
         "retryable": True,
         "code": str(code) if code is not None else error.__class__.__name__,
+    }
+
+
+def _acquisition_retry_manifest(db: Session, job: BackgroundJob) -> dict[str, Any] | None:
+    if job.job_type != "FULL_PIPELINE" or job.progress_stage != "FETCHING_MARKET_DATA":
+        return None
+    pipeline_id = (job.payload_json or {}).get("pipeline_run_id")
+    if pipeline_id is None:
+        return None
+    pipeline = db.get(PipelineRun, int(pipeline_id))
+    if pipeline is None:
+        return None
+    if not pipeline.scope_id:
+        return None
+    fetch_run = db.scalar(
+        select(IBFetchRun)
+        .join(WorkScopeRecord, WorkScopeRecord.scope_id == IBFetchRun.scope_id)
+        .where(IBFetchRun.run_id == pipeline.upload_run_id)
+        .where(WorkScopeRecord.parent_scope_id == pipeline.scope_id)
+        .where(IBFetchRun.refresh_cycle_id.is_not(None))
+        .where(IBFetchRun.acquisition_plan_id.is_not(None))
+        .order_by(IBFetchRun.id.desc())
+        .limit(1)
+    )
+    if fetch_run is None:
+        return None
+    rows = db.scalars(select(IBFetchItem).where(IBFetchItem.fetch_run_id == fetch_run.id)).all()
+    successes = sorted(
+        f"{row.ticker}:{row.what_to_show}" for row in rows if row.status == "SUCCESS"
+    )
+    failures = sorted(
+        (
+            row.ticker,
+            row.what_to_show,
+            str(
+                (row.decision_metadata_json or {}).get("failure_classification")
+                or (row.decision_metadata_json or {}).get("provider_error_category")
+                or "UNCLASSIFIED"
+            ),
+            (row.decision_metadata_json or {}).get("provider_error_code"),
+        )
+        for row in rows
+        if row.status == "FAILED"
+    )
+
+    def fingerprint(value: Any) -> str:
+        return hashlib.sha256(
+            json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    return {
+        "plan_id": fetch_run.acquisition_plan_id,
+        "fetch_run_id": int(fetch_run.id),
+        "success_count": len(successes),
+        "success_fingerprint": fingerprint(successes),
+        "failure_fingerprint": fingerprint(failures),
+        "failed_items": [
+            {"ticker": ticker, "feed": feed, "reason": reason, "provider_code": code}
+            for ticker, feed, reason, code in failures
+        ],
     }
 
 
