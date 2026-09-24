@@ -243,6 +243,10 @@ def test_certification_adds_no_columns_or_table_constraints():
         "WinnerCohortGeneration",
         "WinnerEstimatePublicationRequest",
         "WinnerProcessingRun",
+        # Recovery migration 0084 adds immutable fetch provenance and the
+        # shared Technical manifest reference to these established owners.
+        "PriceBar",
+        "TechnicalScore",
     }
 
     def schema_nodes(source):

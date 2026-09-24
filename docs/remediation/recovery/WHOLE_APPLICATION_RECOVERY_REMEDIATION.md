@@ -80,7 +80,7 @@ Before:
 After:
 
 ```text
-short control transaction: verify token, heartbeat, publish initial progress
+short control transaction: publish claim, verify token, heartbeat
 read/prepare transaction: PIT loads and canonical input preparation
 bounded calculation: checkpoint/cancel/lease after about 10 tickers
 commit read/calculation and independent cache work
@@ -90,14 +90,14 @@ short publish transaction:
   validate each unique source once
   replace scores and persist evidence/projections atomically
   commit
-short control transaction: publish stage completion
+stage-boundary transaction: publish completion, heartbeat, commit immediately
 ```
 
-The BackgroundJob row is touched only in independent heartbeat/progress transactions and the final ownership fence. It is never retained by the read/calculation transaction. The final write remains all-or-nothing.
+During long Technical work, the BackgroundJob row is touched only through a detached control session or the currently fenced child transaction; it is never retained by the read/calculation transaction. Stage boundaries and bounded non-pipeline handlers use their business session and commit immediately, preventing a second session from waiting on the worker's own row lock. The final write remains all-or-nothing.
 
 ## 6. Lease, progress and cancellation model
 
-Technical checkpoints run before preparation, during bounded input/source work, after approximately ten completed calculations, during bounded manifest validation, immediately before publication, and after publication. Each production callback opens its own SQLAlchemy session, validates the execution token, advances durable progress, renews the 900-second lease, commits, and closes. The detached control object prevents the business session's ORM state from being attached to a control session.
+Technical checkpoints run before preparation, during bounded input/source work, after approximately ten completed calculations, during bounded manifest validation, immediately before publication, and after publication. In-stage callbacks use a short independent SQLAlchemy session unless a synchronous fenced child transaction already owns the job row; in that case the callback renews through that exact session. Each path validates the execution token and advances durable progress without creating a self-lock. The detached control object prevents the business session's ORM state from being attached to an independent control session.
 
 Progress records phase/stage, processed and total counts, current and last-completed items, checkpoint version/sequence, and `last_progress_at`. The 100-symbol deterministic measurement enforces a maximum observed callback gap below 60 seconds.
 
@@ -113,18 +113,18 @@ Final after-values are from the deterministic 100-symbol PostgreSQL recovery gat
 | --- | ---: | ---: | ---: |
 | Requested Technical tickers | 100 | 100 | fully accounted |
 | Calculable/visible tickers | 95 | 100 | +5 / 100% visible |
-| Pure kernel | 72.883 s | 50.290 s | 31.0% faster |
-| Process-pool calculation | 53.749 s | 33.761 s | 37.2% faster |
-| Evidence/finalization preparation | ~246 s | 60.528 s | 75.4% faster |
-| Score INSERT SQL | ~342 s | 0.199 s | >99.9% faster |
+| Pure kernel | 72.883 s | 43.146 s | 40.8% faster |
+| Process-pool calculation | 53.749 s | 31.648 s | 41.1% faster |
+| Evidence/finalization preparation | ~246 s | 58.996 s | 76.0% faster |
+| Score INSERT SQL | ~342 s | 0.167 s | >99.9% faster |
 | Repeated evidence residual | ~4,207 s | 0 s duplicated work | eliminated |
-| Total Technical | 4,894 s | 100.367 s | 97.9% faster / 48.8x |
+| Total Technical | 4,894 s | 96.252 s | 98.0% faster / 50.8x |
 | Per-score full cohort manifests | 481 | 0 | eliminated; one shared manifest |
 | Total state visits | 36.24 M | 64,960 unique states | 99.8% fewer / 557.9x |
 | Duplicate Technical JSON | ~3.60 GB | 0 B duplicated cohort JSON | eliminated |
 | Repeated price-bar validation queries | 4,718 | 203 unique-source queries | 95.7% fewer / 23.2x |
 | Price-bar rows returned in repeated validation | 3.75 M | 64,960 unique states | 98.3% fewer / 57.7x |
-| Max job heartbeat/checkpoint gap | >15 min | 50.453 s | below 60-second budget |
+| Max job heartbeat/checkpoint gap | >15 min | 49.020 s | below 60-second budget |
 | Job lease expired during Technical | YES | NO | fixed |
 | Normal cancel blocked | YES | NO | fixed |
 | Backend termination required | YES | NO | fixed |
@@ -135,17 +135,17 @@ The after representation also records the one complete canonical manifest separa
 
 | Metric | 10 | 25 | 100 |
 | --- | ---: | ---: | ---: |
-| Technical wall time | 12.649 s | 22.182 s | 100.367 s |
-| Process-pool calculation | 4.207 s | 9.054 s | 33.761 s |
+| Technical wall time | 12.317 s | 21.703 s | 96.252 s |
+| Process-pool calculation | 4.153 s | 8.623 s | 31.648 s |
 | Source-validation queries | 23 | 53 | 203 |
 | All observed SQL / score-evidence queries | 519 | 967 | 3,183 |
 | Unique price states materialized/validated | 7,360 | 16,960 | 64,960 |
 | Canonical manifest bytes | 694,003 | 1,610,116 | 6,163,151 |
 | Total per-score payload bytes | 98,906 | 247,326 | 989,736 |
 | Maximum per-score payload bytes | 9,893 | 9,894 | 9,898 |
-| Process RSS growth | 13.16 MiB | 18.64 MiB | 85.09 MiB |
+| Process RSS growth | 12.78 MiB | 18.63 MiB | 92.45 MiB |
 | Checkpoint count | 32 | 39 | 68 |
-| Maximum checkpoint gap | 5.770 s | 5.576 s | 50.453 s |
+| Maximum checkpoint gap | 5.539 s | 5.654 s | 49.020 s |
 
 The gate asserts validation queries below `8N + 50`, maximum score payload below 50,000 bytes, one canonical manifest below 20 MB, and no checkpoint gap of 60 seconds or more. The 10/25/100 results show approximately linear growth in unique source states, manifest size, payload and validation queries; the quadratic per-score universe expansion is absent.
 
@@ -177,7 +177,9 @@ The 100-symbol retry preserves exactly 100 Technical rows and the same anchor ou
 | Impacted PostgreSQL configuration, worker progress, Technical artifact and consumer eligibility | 16 passed, 0 failed |
 | Observability and pipeline metrics | 41 passed, 0 failed |
 | Deterministic PostgreSQL 10/25/100 scale gate | 1 passed, 0 failed |
-| Broader repository suite (`tests`, non-e2e, recovery gate excluded to avoid duplicate scale execution) | `FINAL_BROAD_SUITE` |
+| One broad repository run (`tests`, including e2e/integration/recovery) | 4,098 passed, 10 skipped, 10 failed in 6,023.06 s; every failure was remediation-induced test-isolation/API/schema-inventory drift, then fixed |
+| Exact rerun of all broad-run failures | 10 passed, 0 failed (4 compatibility, 5 inventory, 1 deterministic 10/25/100) |
+| Reconciled distinct broad inventory | 4,108 passed, 0 currently failing, 10 intentionally skipped |
 
 Warnings are pre-existing Starlette, Alembic path-separator, and cyclic-FK ordering warnings unless stated otherwise. No test invoked live providers.
 
@@ -190,7 +192,8 @@ Warnings are pre-existing Starlette, Alembic path-separator, and cyclic-FK order
   - `d04f4945a50526d72857dede3cb145746e87593e` — fresh-fetch lineage and visibility contract
   - `289141130c0fdf0a368fe44275dfa07cc95d2b0c` — canonical Technical lineage/evidence
   - `d04a290` — independent Technical control checkpoints, cancellation and watchdog diagnostics
-  - final recovery tests/report commit — see final HEAD
+  - `e149f04c18934023c11ff73c4821a1535dfb4dc8` — recovery tests and initial certification report
+  - final control isolation, compatibility and report closure commit — see final HEAD
 - Worktree after remediation: only the pre-existing untracked `docs/remediation/recovery/WHOLE_APPLICATION_RECOVERY_AUDIT.md` remains; it was not modified or staged
 - Migration status: repository/disposable test head `0084_technical_recovery`; retained local application database intentionally remains at `0083_winner_scope_truth` because this task did not authorize deployment
 - PostgreSQL used for certification: 18.3

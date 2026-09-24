@@ -150,6 +150,10 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
         "app.services.background_job_service.is_cancel_requested",
         lambda *_args, **_kwargs: False,
     )
+    monkeypatch.setattr(
+        "app.services.domain_write_fence.current_fenced_domain_session",
+        lambda *_args, **_kwargs: None,
+    )
 
     def execute_pipeline(
         *_args, should_cancel, progress_callback, lease_guard, **_kwargs
@@ -157,12 +161,14 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
         assert should_cancel() is False
         progress_callback(db, stage="SCORING_FUNDAMENTALS", current_item=None)
         lease_guard()
+        pipeline.current_step = "SCORING_TECHNICALS"
         progress_callback(
             db,
             stage="SCORING_TECHNICALS",
             processed=10,
             total=25,
         )
+        assert should_cancel() is False
         return SimpleNamespace(status="COMPLETED")
 
     monkeypatch.setattr(
@@ -258,7 +264,7 @@ def test_worker_rolls_back_failed_transaction_before_marking_job_failed(
 
     assert ran is True
     assert calls == ["heartbeat", "marked_failed"]
-    # Registration/recovery, durable claim, independent heartbeat, and failure.
+    # Registration/recovery, durable claim, heartbeat, and failure publication.
     assert db.commit_count == 4
     assert db.closed is True
 

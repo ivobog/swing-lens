@@ -364,6 +364,7 @@ TABLE_DOMAINS = {
     "winner_probability_estimates": "WINNER_ESTIMATE",
     "fundamental_scores": "FUNDAMENTAL",
     "technical_scores": "TECHNICAL",
+    "technical_source_manifests": "TECHNICAL",
     "combined_results": "COMBINED",
     "ranking_results": "RANKING",
     "market_regime_snapshots": "REGIME",

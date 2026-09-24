@@ -7,15 +7,27 @@ import pytest
 from scripts.qa.t14a_mutation_inventory import ROOT, discover
 from scripts.qa.t14a_reviewed_inventory import export_inventory, handler_registry, route_registry
 
-CURRENT_RELEASE_SOURCE_DELTAS = [
+CURRENT_RELEASE_MISSING_OR_STALE_DELTAS = [
+    "app/models/tables.py",
+    "app/observability/metrics.py",
     "app/services/background_job_service.py",
+    "app/services/background_worker.py",
+    "app/services/bar_cache_service.py",
     "app/services/configuration_delivery.py",
+    "app/services/core_mutation_authority.py",
     "app/services/ib_fetch_executor.py",
     "app/services/pipeline_executor.py",
     "app/services/pipeline_service.py",
+    "app/services/technical_score_service.py",
     "app/services/winner_probability/cohort_refresh_planner.py",
     "app/services/winner_probability/market_data_obligation_service.py",
     "app/services/winner_probability/scope_refresh.py",
+    "scripts/qa/t14a_reviewed_inventory.py",
+]
+CURRENT_RELEASE_STALE_SOURCE_DELTAS = [
+    path
+    for path in CURRENT_RELEASE_MISSING_OR_STALE_DELTAS
+    if path != "app/observability/metrics.py"
 ]
 
 
@@ -174,7 +186,7 @@ def test_foundation_does_not_certify_caller_authority(inventory_pair):
     # changes. Its original reviewed pins are not rewritten by this release.
     assert inventory["certification"]["verdict"] == "FAIL"
     assert inventory["semantic_completeness"]["blockers"]["missing_or_stale_source_review"] == (
-        CURRENT_RELEASE_SOURCE_DELTAS
+        CURRENT_RELEASE_MISSING_OR_STALE_DELTAS
     )
     assert inventory["semantic_completeness"]["caller_authority_adoption_is_pass_gate"] is False
     assert inventory["semantic_completeness"]["raw_path_or_edge_count_is_pass_gate"] is False
@@ -274,7 +286,9 @@ def test_incomplete_writer_review_remains_a_hard_foundation_gate(inventory_pair)
     assert not inventory["unknown_writers"]
     completeness = inventory["semantic_completeness"]
     assert completeness["verdict"] == "FAIL"
-    assert completeness["blockers"]["stale_source_reviews"] == CURRENT_RELEASE_SOURCE_DELTAS
+    assert completeness["blockers"]["stale_source_reviews"] == (
+        CURRENT_RELEASE_STALE_SOURCE_DELTAS
+    )
     review = deepcopy(json.loads(REVIEW_FILE.read_text()))
     review["writer_families"]["WF_FUNDAMENTAL_RECALCULATION"]["semantic_review_complete"] = False
     result = normalize(inventory, review)
@@ -285,7 +299,7 @@ def test_incomplete_writer_review_remains_a_hard_foundation_gate(inventory_pair)
     assert not completeness["blockers"]["unknown_writer_sinks"]
     assert not completeness["blockers"]["unowned_business_artifacts"]
     assert completeness["blockers"]["missing_or_stale_source_review"] == (
-        CURRENT_RELEASE_SOURCE_DELTAS
+        CURRENT_RELEASE_MISSING_OR_STALE_DELTAS
     )
 
 
@@ -344,7 +358,7 @@ def test_adoption_pending_callers_preserve_ownership_but_not_stale_source_pins(i
     changed["entry_families"][provisional]["status"] = "POTENTIAL_BYPASS"
     result = normalize(inventory, changed)
     assert result["verdict"] == "FAIL"
-    assert result["blockers"]["stale_source_reviews"] == CURRENT_RELEASE_SOURCE_DELTAS
+    assert result["blockers"]["stale_source_reviews"] == CURRENT_RELEASE_STALE_SOURCE_DELTAS
     assert result["counts"]["caller_authority_reviews_pending"] > 0
 
 

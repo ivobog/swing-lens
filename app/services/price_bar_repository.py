@@ -77,10 +77,12 @@ def load_price_bars_frame(
             statement = statement.where(or_(pit_visible, pipeline_owned))
     rows = list(db.scalars(statement).all())
     if as_of is not None:
+        normalized_as_of = _as_utc(as_of)
         baseline = [
             row
             for row in rows
-            if row.created_at <= as_of and row.first_seen_at <= as_of
+            if _as_utc(row.created_at) <= normalized_as_of
+            and _as_utc(row.first_seen_at) <= normalized_as_of
         ]
         acquired = [row for row in rows if row not in baseline]
         rows = project_price_bar_rows_as_of(db, baseline, as_of=as_of)
@@ -171,7 +173,9 @@ def project_price_bar_rows_as_of(
     revised_ids = [
         int(row.id)
         for row in materialized
-        if row.id is not None and row.revised_at is not None and row.revised_at > as_of
+        if row.id is not None
+        and row.revised_at is not None
+        and _as_utc(row.revised_at) > _as_utc(as_of)
     ]
     if not revised_ids:
         return materialized
@@ -193,15 +197,21 @@ def project_price_bar_rows_as_of(
     projected: list[PriceBar] = []
     for row in materialized:
         history = by_bar.get(int(row.id or 0), [])
-        first_after = next((item for item in history if item.observed_at > as_of), None)
+        normalized_as_of = _as_utc(as_of)
+        first_after = next(
+            (item for item in history if _as_utc(item.observed_at) > normalized_as_of),
+            None,
+        )
         if first_after is None:
             # A mutable current row cannot stand in for its historical value.
             # Without the first post-boundary revision record, provenance is
             # incomplete and the only safe behavior is conservative exclusion.
-            if row.revised_at is None or row.revised_at <= as_of:
+            if row.revised_at is None or _as_utc(row.revised_at) <= normalized_as_of:
                 projected.append(row)
             continue
-        prior_revisions = [item for item in history if item.observed_at <= as_of]
+        prior_revisions = [
+            item for item in history if _as_utc(item.observed_at) <= normalized_as_of
+        ]
         values = dict(first_after.previous_values_json or {})
         projected.append(
             PriceBar(
@@ -234,6 +244,10 @@ def _decimal_or_none(value: object) -> Decimal | None:
     return None if value is None else Decimal(str(value))
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
 def load_preferred_ohlcv_frames(
     db: Session,
     ticker: str,
@@ -243,6 +257,11 @@ def load_preferred_ohlcv_frames(
     as_of: datetime | None = None,
     calculation_context_id: int | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    context_kwargs = (
+        {"calculation_context_id": calculation_context_id}
+        if calculation_context_id is not None
+        else {}
+    )
     adjusted = load_price_bars_frame(
         db,
         ticker,
@@ -250,7 +269,7 @@ def load_preferred_ohlcv_frames(
         timeframe,
         max_session=max_session,
         as_of=as_of,
-        calculation_context_id=calculation_context_id,
+        **context_kwargs,
     )
     trades = load_price_bars_frame(
         db,
@@ -259,7 +278,7 @@ def load_preferred_ohlcv_frames(
         timeframe,
         max_session=max_session,
         as_of=as_of,
-        calculation_context_id=calculation_context_id,
+        **context_kwargs,
     )
     adjusted_complete = not adjusted.empty and (
         trades.empty or set(adjusted["date"]) >= set(trades["date"])

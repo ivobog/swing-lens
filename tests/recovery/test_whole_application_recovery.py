@@ -659,6 +659,7 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
 
     dependencies = PipelineExecutionDependencies(
         market_cutoff=cutoff,
+        fetch_technical_overlap_enabled=False,
         validate_pipeline_preflight=lambda *_args: {"complete": True},
         recalculate_fundamentals=lambda *_args, **_kwargs: stage_calls.append(
             "Fundamental"

@@ -515,6 +515,57 @@ def run_worker_once(
         try:
 
             def heartbeat() -> None:
+                from app.services.domain_write_fence import current_fenced_domain_session
+
+                source_db = current_fenced_domain_session(job.id, execution_token)
+                if source_db is not None and (
+                    job.job_type == "FULL_PIPELINE"
+                    or source_db is not db
+                    or source_db.in_nested_transaction()
+                ):
+                    # A synchronous fenced transaction owns the same row lock.
+                    # Renew there whether it is the main Session or a child;
+                    # an independent update would wait on this process itself.
+                    source_job = (
+                        job if source_db is db else source_db.get(BackgroundJob, job.id)
+                    )
+                    heartbeat_job(
+                        source_db,
+                        source_job,
+                        lease_seconds=stale_after_seconds,
+                        execution_token=execution_token,
+                    )
+                    heartbeat_worker(
+                        source_db,
+                        worker_id,
+                        hostname=hostname,
+                        process_id=process_id,
+                        instance_id=worker_instance_id,
+                    )
+                    return
+                if job.job_type != "FULL_PIPELINE":
+                    # Existing bounded handlers coordinate progress and domain
+                    # fencing in their business Session. Preserve that contract;
+                    # moving it to a second connection can wait on the handler's
+                    # own job-row lock.
+                    heartbeat_job(
+                        db,
+                        job,
+                        lease_seconds=stale_after_seconds,
+                        execution_token=execution_token,
+                    )
+                    heartbeat_worker(
+                        db,
+                        worker_id,
+                        hostname=hostname,
+                        process_id=process_id,
+                        instance_id=worker_instance_id,
+                    )
+                    # Bounded handlers may open a child Session for their
+                    # financial write. Release this control-row lock before
+                    # that child acquires the durable ownership fence.
+                    db.commit()
+                    return
                 # Job control is deliberately independent of the business
                 # Session. Long read/calculation work cannot defer lease renewal.
                 control_db = session_factory() if isinstance(db, Session) else db
@@ -769,15 +820,45 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
         if isinstance(db, Session)
         else None
     )
+    stage_boundary_pending = False
+
     def lease_guard() -> None:
+        nonlocal stage_boundary_pending
+        if stage_boundary_pending:
+            heartbeat_job(
+                db,
+                control_job,
+                lease_seconds=settings.job_stale_after_seconds,
+                execution_token=execution_token,
+            )
+            stage_boundary_pending = False
+            return
         heartbeat = getattr(job, "_heartbeat", None)
         if callable(heartbeat):
             heartbeat()
 
+    def fenced_control_session() -> Session | None:
+        from app.services.domain_write_fence import current_fenced_domain_session
+
+        source_db = current_fenced_domain_session(job.id, execution_token)
+        # Unlike the outer heartbeat, the fallback here is an independent
+        # Session. Even when the fenced Session is the pipeline's main Session,
+        # it must be preferred or the fallback would wait on that same row lock.
+        return source_db
+
     def should_cancel() -> bool:
-        if control_factory is None:
+        if (
+            getattr(pipeline, "current_step", None) != "SCORING_TECHNICALS"
+            or control_factory is None
+        ):
             lease_guard()
             return is_cancel_requested(db, job.id)
+        source_db = fenced_control_session()
+        if source_db is not None:
+            # The active domain fence already prevents reclaim. A read-only
+            # cancellation poll must not acquire a new job-row write lock that
+            # could outlive this callback and block the next child writer.
+            return is_cancel_requested(source_db, job.id)
         with control_factory() as control_db:
             heartbeat_job(
                 control_db,
@@ -790,7 +871,29 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
             return requested
 
     def progress_callback(progress_db: Session, **progress: Any) -> None:
-        if control_factory is None:
+        nonlocal stage_boundary_pending
+        stage = progress.get("stage")
+        if (
+            progress_db is db
+            and progress.get("checkpoint_version") is None
+            and progress.get("processed") is None
+            and progress.get("total") is None
+        ):
+            # _pipeline_step calls lease_guard and commits immediately after
+            # this stage-boundary update. Keep both writes in that transaction
+            # so the guard cannot wait on the row just updated here.
+            record_job_progress(
+                progress_db,
+                job_id=job.id,
+                execution_token=execution_token,
+                **progress,
+            )
+            stage_boundary_pending = True
+            return
+        if stage != "SCORING_TECHNICALS" or control_factory is None:
+            # Preserve the established same-session contract for bounded
+            # pipeline/downstream stages. _pipeline_step commits these updates
+            # immediately. Only long Technical work needs detached control.
             record_job_progress(
                 progress_db,
                 job_id=job.id,
@@ -798,29 +901,21 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
                 **progress,
             )
             return
-        if (
-            progress_db is db
-            and progress.get("checkpoint_version") is None
-            and progress.get("processed") is None
-            and progress.get("total") is None
-        ):
-            # Stage-boundary progress is followed immediately by
-            # _save_progress(). Fence, renew, and commit the completed stage in
-            # the business transaction first. The following independent guard
-            # can then renew without waiting on this worker's own ownership row.
+        source_db = fenced_control_session()
+        if source_db is not None:
+            source_job = source_db.get(BackgroundJob, job.id)
             heartbeat_job(
-                progress_db,
-                control_job,
+                source_db,
+                source_job,
                 lease_seconds=settings.job_stale_after_seconds,
                 execution_token=execution_token,
             )
             record_job_progress(
-                progress_db,
+                source_db,
                 job_id=job.id,
                 execution_token=execution_token,
                 **progress,
             )
-            progress_db.commit()
             return
         with control_factory() as control_db:
             heartbeat_job(
