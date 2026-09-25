@@ -220,6 +220,8 @@ def test_frozen_real_writer_cardinality(
                     "'{ceri_batch,max_checkpoint_gap_seconds}')::numeric, 0), "
                     "coalesce((operational_metadata_json#>>"
                     "'{ceri_capture,max_checkpoint_gap_seconds}')::numeric, 0), "
+                    "coalesce((operational_metadata_json#>>"
+                    "'{ceri_normalization,max_checkpoint_gap_seconds}')::numeric, 0), "
                     "coalesce(extract(epoch from (completed_at-last_progress_at)), 0))) "
                     "as max_checkpoint_gap_seconds, "
                     "max(recovery_count) as max_recovery_count, "

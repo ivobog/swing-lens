@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, date, datetime
+from functools import partial
 from time import perf_counter
 from typing import Any
 
@@ -235,8 +236,10 @@ def execute_normalize_batch_job(
                             processing_run=processing,
                             ingestion_run_id=ingestion_run.id,
                             should_cancel=lambda: _heartbeat_and_cancel(db, job, heartbeat=False),
-                            checkpoint_interval=checkpoint_interval,
-                            checkpoint_callback=lambda _checkpoint: _heartbeat_and_cancel(db, job),
+                            checkpoint_interval=1,
+                            checkpoint_callback=partial(
+                                _normalization_checkpoint, db, job, ticker=ticker
+                            ),
                         )
                 except CeriNormalizationCancelled as exc:
                     raise CancelRequested(str(exc)) from exc
@@ -660,6 +663,59 @@ def _save_checkpoint(
         progress_context,
         extra=progress_context,
     )
+
+
+def _normalization_checkpoint(
+    db: Session,
+    job: BackgroundJob,
+    checkpoint: dict[str, Any],
+    *,
+    ticker: str,
+) -> None:
+    """Make long per-ticker normalization progress durable and measurable."""
+
+    checkpoint_at = datetime.now(UTC)
+    metadata = dict(job.operational_metadata_json or {})
+    previous = dict(metadata.get("ceri_normalization") or {})
+    previous_at = job.started_at
+    if previous.get("updated_at"):
+        try:
+            previous_at = datetime.fromisoformat(str(previous["updated_at"]))
+        except ValueError:
+            pass
+    if previous_at is not None and previous_at.tzinfo is None:
+        previous_at = previous_at.replace(tzinfo=UTC)
+    gap_seconds = (
+        max(0.0, (checkpoint_at - previous_at).total_seconds())
+        if previous_at is not None
+        else 0.0
+    )
+    processed = int(checkpoint.get("last_record_index") or 0)
+    source_record_id = checkpoint.get("last_source_record_id")
+    metadata["ceri_normalization"] = {
+        "ticker": ticker,
+        "processed_records": processed,
+        "last_source_record_id": source_record_id,
+        "updated_at": checkpoint_at.isoformat(),
+        "max_checkpoint_gap_seconds": max(
+            float(previous.get("max_checkpoint_gap_seconds") or 0.0),
+            gap_seconds,
+        ),
+    }
+    job.operational_metadata_json = metadata
+    if job.id is not None and job.execution_token:
+        record_job_progress(
+            db,
+            job_id=job.id,
+            execution_token=str(job.execution_token),
+            stage=CERI_PROGRESS_STAGES[CERI_NORMALIZE_BATCH],
+            current_item=ticker,
+            last_completed_item=ticker,
+            processed=processed,
+            checkpoint_version=f"ceri-normalize:{ticker}:{source_record_id}",
+        )
+    if _heartbeat_and_cancel(db, job):
+        raise CeriNormalizationCancelled("CERI normalization batch cancelled.")
 
 
 def _heartbeat_and_cancel(db: Session, job: BackgroundJob, *, heartbeat: bool = True) -> bool:
