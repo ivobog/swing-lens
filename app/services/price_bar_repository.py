@@ -213,30 +213,33 @@ def project_price_bar_rows_as_of(
             item for item in history if _as_utc(item.observed_at) <= normalized_as_of
         ]
         values = dict(first_after.previous_values_json or {})
-        projected.append(
-            PriceBar(
-                id=row.id,
-                ticker=row.ticker,
-                bar_date=row.bar_date,
-                timeframe=row.timeframe,
-                open=_decimal_or_none(values.get("open")),
-                high=_decimal_or_none(values.get("high")),
-                low=_decimal_or_none(values.get("low")),
-                close=_decimal_or_none(values.get("close")),
-                volume=_decimal_or_none(values.get("volume")),
-                source=values.get("source") or row.source,
-                what_to_show=values.get("what_to_show") or row.what_to_show,
-                adjustment_type=values.get("adjustment_type"),
-                first_fetch_run_id=row.first_fetch_run_id,
-                first_fetch_item_id=row.first_fetch_item_id,
-                created_at=row.created_at,
-                first_seen_at=row.first_seen_at,
-                last_seen_at=row.last_seen_at,
-                revised_at=(prior_revisions[-1].observed_at if prior_revisions else None),
-                revision_count=max(0, int(first_after.revision_number) - 1),
-                data_hash=first_after.previous_data_hash,
-            )
+        historical = PriceBar(
+            id=row.id,
+            ticker=row.ticker,
+            bar_date=row.bar_date,
+            timeframe=row.timeframe,
+            open=_decimal_or_none(values.get("open")),
+            high=_decimal_or_none(values.get("high")),
+            low=_decimal_or_none(values.get("low")),
+            close=_decimal_or_none(values.get("close")),
+            volume=_decimal_or_none(values.get("volume")),
+            source=values.get("source") or row.source,
+            what_to_show=values.get("what_to_show") or row.what_to_show,
+            adjustment_type=values.get("adjustment_type"),
+            first_fetch_run_id=row.first_fetch_run_id,
+            first_fetch_item_id=row.first_fetch_item_id,
+            created_at=row.created_at,
+            first_seen_at=row.first_seen_at,
+            last_seen_at=row.last_seen_at,
+            revised_at=(prior_revisions[-1].observed_at if prior_revisions else None),
+            revision_count=max(0, int(first_after.revision_number) - 1),
+            data_hash=first_after.previous_data_hash,
         )
+        # The source mutation guard replays this projection from retained SQL
+        # before accepting it as a historical source argument.
+        historical._pit_projection_as_of = as_of
+        historical._pit_projection_revision_id = first_after.id
+        projected.append(historical)
     return projected
 
 

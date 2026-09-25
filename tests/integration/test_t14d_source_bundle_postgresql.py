@@ -2,6 +2,7 @@
 
 import traceback
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 from test_ceri_batched_workflow_v2 import _execute_handler, _new_job, _seed_fixture
 
 from app.models.ceri_tables import CeriCompany, CeriSourceRecord
-from app.models.tables import PipelineRun, RawCompanyRow
+from app.models.tables import PipelineRun, PriceBar, PriceBarRevision, RawCompanyRow
 from app.services.background_job_service import JobStatus
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
@@ -18,12 +19,71 @@ from app.services.ceri.feature_rebuild_service import (
 )
 from app.services.ceri.job_handlers import execute_normalize_job, execute_rebuild_features_job
 from app.services.market_calculation_context_service import create_pipeline_market_context
+from app.services.price_bar_repository import project_price_bar_rows_as_of
 from app.services.scope_refresh_adoption import admit_frozen_operation, bind_semantic_authority
 from app.services.source_mutation_authority import _source_value, prefetched_source_scope
 from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 
 contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
+
+
+def test_historical_price_bar_projection_requires_retained_revision_body(contextual_engine):
+    cutoff = datetime(2026, 9, 9, 20, tzinfo=UTC)
+    revised_at = datetime(2026, 9, 10, 20, tzinfo=UTC)
+    with Session(contextual_engine, expire_on_commit=False) as db:
+        current = PriceBar(
+            ticker="PITGUARD",
+            bar_date=date(2026, 9, 9),
+            timeframe="1 day",
+            open=Decimal("100"),
+            high=Decimal("103"),
+            low=Decimal("99"),
+            close=Decimal("102"),
+            volume=Decimal("1000"),
+            source="IB",
+            what_to_show="TRADES",
+            created_at=datetime(2026, 9, 9, 19, tzinfo=UTC),
+            first_seen_at=datetime(2026, 9, 9, 19, tzinfo=UTC),
+            last_seen_at=revised_at,
+            revised_at=revised_at,
+            revision_count=1,
+            data_hash="after",
+        )
+        db.add(current)
+        db.flush()
+        db.add(
+            PriceBarRevision(
+                price_bar_id=current.id,
+                ticker=current.ticker,
+                bar_date=current.bar_date,
+                timeframe=current.timeframe,
+                what_to_show=current.what_to_show,
+                revision_number=1,
+                previous_data_hash="before",
+                new_data_hash="after",
+                previous_values_json={
+                    "open": "100",
+                    "high": "103",
+                    "low": "99",
+                    "close": "101",
+                    "volume": "1000",
+                    "source": "IB",
+                    "what_to_show": "TRADES",
+                },
+                new_values_json={},
+                observed_at=revised_at,
+                created_at=revised_at,
+            )
+        )
+        db.commit()
+        historical = project_price_bar_rows_as_of(db, [current], as_of=cutoff)[0]
+        assert historical.close == Decimal("101")
+        assert _source_value(db, historical)["pit_projection"]["as_of"] == cutoff
+
+        historical.close = Decimal("999")
+        with pytest.raises(ValueError, match="MUTATION_SOURCE_PIT_PROJECTION_MISMATCH"):
+            _source_value(db, historical)
 
 
 def _normalized_fixture(db):
