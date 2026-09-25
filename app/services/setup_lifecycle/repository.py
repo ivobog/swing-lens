@@ -1320,8 +1320,6 @@ class SetupLifecycleRepository:
             .where(SetupLifecycleEpisode.timeframe == timeframe)
             .where(SetupLifecycleEpisode.setup_family == setup_family)
             .where(SetupLifecycleEpisode.status == "ACTIVE")
-            .where(SetupLifecycleEpisode.latest_evaluation_evidence_id.is_not(None))
-            .where(SetupLifecycleEpisode.latest_transition_evidence_id.is_not(None))
             .where(
                 (SetupLifecycleEpisode.opened_on > as_of_date)
                 | (SetupLifecycleEpisode.current_as_of_date > as_of_date)
