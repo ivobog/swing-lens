@@ -72,6 +72,7 @@ class PipelineStatus:
     SECTOR_ROTATION_SNAPSHOT = "SECTOR_ROTATION_SNAPSHOT"
     FREEZING_DECISION_HANDOFF_MANIFEST = DECISION_HANDOFF_PIPELINE_STEP
     CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
+    WAITING_FOR_CERI_COMPLETION = "WAITING_FOR_CERI_COMPLETION"
     CERI_CAPTURE_SNAPSHOT = "CERI_CAPTURE_SNAPSHOT"
     CAPTURING_SETUP_SIGNALS = "CAPTURING_SETUP_SIGNALS"
     EVALUATING_SETUP_LIFECYCLES = "EVALUATING_SETUP_LIFECYCLES"
@@ -204,19 +205,21 @@ def start_pipeline(
     if verified_transition_preflight is not None or bool(
         getattr(settings, "winner_probability_capture_in_pipeline", False)
     ):
-        handoff_index = next(
-            (
-                index
-                for index, step_name in enumerate(step_names)
-                if step_name
-                in {
-                    CERI_PIPELINE_PROVIDER_INGEST_STEP,
-                    *SLSE_PIPELINE_STEPS,
-                    "CAPTURING_WINNER_PREDICTIONS",
-                }
-            ),
-            len(step_names),
-        )
+        if CERI_PIPELINE_PROVIDER_INGEST_STEP in step_names:
+            handoff_index = step_names.index(CERI_PIPELINE_PROVIDER_INGEST_STEP) + 1
+        else:
+            handoff_index = next(
+                (
+                    index
+                    for index, step_name in enumerate(step_names)
+                    if step_name
+                    in {
+                        *SLSE_PIPELINE_STEPS,
+                        "CAPTURING_WINNER_PREDICTIONS",
+                    }
+                ),
+                len(step_names),
+            )
         step_names = (
             *step_names[:handoff_index],
             DECISION_HANDOFF_PIPELINE_STEP,
@@ -873,6 +876,235 @@ def enqueue_pipeline_after_sec_repair(
     }
     db.flush()
     return job
+
+
+def enqueue_pipeline_after_ceri_completion(
+    db: Session,
+    trigger_job: BackgroundJob,
+) -> BackgroundJob | None:
+    """Release a provider-owned pipeline exactly once after certified CERI completion."""
+
+    from sqlalchemy import func
+
+    from app.models.ceri_tables import CeriScoreSnapshot
+    from app.services.configuration_delivery import (
+        binding_reference,
+        execution_configuration_reference,
+    )
+
+    payload = trigger_job.payload_json or {}
+    pipeline_id = payload.get("pipeline_run_id")
+    workflow_key = str(trigger_job.workflow_key or payload.get("workflow_key") or "")
+    if pipeline_id is None or not workflow_key.startswith("ceri:pipeline:"):
+        return None
+
+    pipeline = db.scalar(
+        select(PipelineRun).where(PipelineRun.id == int(pipeline_id)).with_for_update()
+    )
+    if pipeline is None:
+        raise ValueError(f"Pipeline run {pipeline_id} was not found.")
+    retained = dict(pipeline.result_json or {})
+    retained_workflow_key = retained.get("ceri_provider_workflow_key")
+    if retained_workflow_key is None:
+        return None
+    if retained_workflow_key != workflow_key:
+        raise ValueError("CERI_PROVIDER_WORKFLOW_IDENTITY_MISMATCH")
+    if pipeline.status in PIPELINE_TERMINAL_STATUSES:
+        return None
+
+    workflow_jobs = list(
+        db.scalars(
+            select(BackgroundJob)
+            .where(BackgroundJob.workflow_key == workflow_key)
+            .order_by(BackgroundJob.id)
+        )
+    )
+    effective_statuses = {
+        row.id: (
+            JobStatus.PARTIAL
+            if row.id == trigger_job.id and trigger_job.status == JobStatus.PARTIAL
+            else JobStatus.COMPLETED
+            if row.id == trigger_job.id
+            else row.status
+        )
+        for row in workflow_jobs
+    }
+    nonterminal = [
+        row
+        for row in workflow_jobs
+        if effective_statuses[row.id]
+        not in {
+            JobStatus.COMPLETED,
+            JobStatus.PARTIAL,
+            JobStatus.FAILED,
+            JobStatus.BLOCKED,
+            JobStatus.CANCELLED,
+            JobStatus.STALE,
+        }
+    ]
+    if nonterminal:
+        return None
+    unsuccessful = [
+        row for row in workflow_jobs if effective_statuses[row.id] != JobStatus.COMPLETED
+    ]
+    if unsuccessful:
+        _roll_up_ceri_pipeline_failure(
+            db,
+            pipeline,
+            workflow_key=workflow_key,
+            failed_jobs=unsuccessful,
+        )
+        return None
+
+    expected = int(
+        db.scalar(
+            select(func.count(func.distinct(RawCompanyRow.ticker))).where(
+                RawCompanyRow.run_id == pipeline.upload_run_id
+            )
+        )
+        or 0
+    )
+    context_id = int(payload.get("calculation_context_id") or 0)
+    certified = int(
+        db.scalar(
+            select(func.count(func.distinct(CeriScoreSnapshot.ticker))).where(
+                CeriScoreSnapshot.run_id == pipeline.upload_run_id,
+                CeriScoreSnapshot.calculation_context_id == context_id,
+                CeriScoreSnapshot.evidence_id.is_not(None),
+            )
+        )
+        or 0
+    )
+    if expected <= 0 or certified != expected:
+        _roll_up_ceri_pipeline_failure(
+            db,
+            pipeline,
+            workflow_key=workflow_key,
+            failed_jobs=(),
+            reason=(
+                "CERI_CERTIFIED_CAPTURE_INCOMPLETE: "
+                f"expected {expected} certified run snapshots, observed {certified}"
+            ),
+        )
+        return None
+
+    resume_from_step = DECISION_HANDOFF_PIPELINE_STEP
+    request_key = f"resume-pipeline:{pipeline.id}:after-ceri:{workflow_key}:from:{resume_from_step}"
+    existing = db.scalar(
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.job_type == FULL_PIPELINE_JOB_TYPE,
+            BackgroundJob.request_key == request_key,
+        )
+        .order_by(BackgroundJob.id)
+        .limit(1)
+    )
+    if existing is not None:
+        expected_anchor = binding_reference(db, pipeline_run_id=pipeline.id)
+        if execution_configuration_reference(db, existing) != expected_anchor:
+            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+        return existing
+
+    authority = require_semantic_authority(pipeline)
+    continuation = enqueue_job(
+        db,
+        job_type=FULL_PIPELINE_JOB_TYPE,
+        payload={
+            "pipeline_run_id": pipeline.id,
+            "resume_from_step": resume_from_step,
+            "ceri_provider_workflow_key": workflow_key,
+            **_pipeline_context_payload(db, pipeline),
+        },
+        related_run_id=pipeline.upload_run_id,
+        priority=PIPELINE_JOB_PRIORITY,
+        max_retries=PIPELINE_JOB_MAX_RETRIES,
+        request_key=request_key,
+        workflow_key=f"pipeline:{pipeline.id}:ceri-continuation",
+        parent_job_id=trigger_job.id,
+        trigger_source="CERI_COMPLETION_BARRIER",
+    )
+    bind_semantic_authority(continuation, authority)
+    if getattr(continuation, "_coalesced", False):
+        return continuation
+
+    pipeline.status = PipelineStatus.PENDING
+    pipeline.current_step = resume_from_step
+    pipeline.completed_at = None
+    pipeline.message = "Certified CERI workflow completed; downstream continuation queued."
+    pipeline.error_message = None
+    pipeline.result_json = {
+        **retained,
+        "background_job_id": continuation.id,
+        "resume_from_step": resume_from_step,
+        "ceri_completion_state": "CERTIFIED",
+        "ceri_certified_capture_count": certified,
+        "ceri_continuation_request_key": request_key,
+        "ceri_continuation_job_id": continuation.id,
+    }
+    db.flush()
+    return continuation
+
+
+def roll_up_ceri_pipeline_job_failure(db: Session, job: BackgroundJob) -> None:
+    """Expose a terminal provider-DAG failure on its waiting parent pipeline."""
+
+    payload = job.payload_json or {}
+    pipeline_id = payload.get("pipeline_run_id")
+    workflow_key = str(job.workflow_key or payload.get("workflow_key") or "")
+    if pipeline_id is None or not workflow_key.startswith("ceri:pipeline:"):
+        return
+    pipeline = db.scalar(
+        select(PipelineRun).where(PipelineRun.id == int(pipeline_id)).with_for_update()
+    )
+    if pipeline is None or pipeline.status in PIPELINE_TERMINAL_STATUSES:
+        return
+    if (pipeline.result_json or {}).get("ceri_provider_workflow_key") != workflow_key:
+        return
+    _roll_up_ceri_pipeline_failure(
+        db,
+        pipeline,
+        workflow_key=workflow_key,
+        failed_jobs=(job,),
+    )
+
+
+def _roll_up_ceri_pipeline_failure(
+    db: Session,
+    pipeline: PipelineRun,
+    *,
+    workflow_key: str,
+    failed_jobs: tuple[BackgroundJob, ...] | list[BackgroundJob],
+    reason: str | None = None,
+) -> None:
+    details = [
+        {"job_id": row.id, "job_type": row.job_type, "status": row.status} for row in failed_jobs
+    ]
+    partial_only = bool(details) and all(row["status"] == JobStatus.PARTIAL for row in details)
+    pipeline.status = PipelineStatus.PARTIAL if partial_only else PipelineStatus.FAILED
+    pipeline.completed_at = _utcnow()
+    pipeline.message = "Required CERI provider workflow did not complete successfully."
+    pipeline.error_message = reason or "CERI_PROVIDER_WORKFLOW_FAILED"
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "ceri_completion_state": "FAILED",
+        "ceri_provider_workflow_key": workflow_key,
+        "ceri_failure_jobs": details,
+        "ceri_failure_reason": reason or "CERI_PROVIDER_WORKFLOW_FAILED",
+    }
+    step = next(
+        (
+            row
+            for row in _load_pipeline_steps(db, pipeline.id)
+            if row.step_name == CERI_PIPELINE_PROVIDER_INGEST_STEP
+        ),
+        None,
+    )
+    if step is not None:
+        step.status = PipelineStepStatus.FAILED
+        step.completed_at = pipeline.completed_at
+        step.message = pipeline.message
+        step.error_message = pipeline.error_message
+    db.flush()
 
 
 def _load_pipeline_steps(db: Session, pipeline_run_id: int) -> list[PipelineStep]:

@@ -147,9 +147,7 @@ def _call_market_sensitive(
         kwargs["frozen_tickers"] = frozen_tickers
     if should_cancel is not None and ("should_cancel" in parameters or accepts_kwargs):
         kwargs["should_cancel"] = should_cancel
-    if checkpoint_callback is not None and (
-        "checkpoint_callback" in parameters or accepts_kwargs
-    ):
+    if checkpoint_callback is not None and ("checkpoint_callback" in parameters or accepts_kwargs):
         kwargs["checkpoint_callback"] = checkpoint_callback
     if "effective_configuration" in parameters:
         from app.services.configuration_delivery import delivered_configuration
@@ -720,9 +718,7 @@ def execute_full_pipeline(
                     performance_name,
                     1000
                     * (
-                        operational_metrics.total(
-                            f"swinglens_technical_{metric_name}_seconds"
-                        )
+                        operational_metrics.total(f"swinglens_technical_{metric_name}_seconds")
                         - technical_durations_before[metric_name]
                     ),
                 )
@@ -833,21 +829,6 @@ def execute_full_pipeline(
             result["sector_rotation_warning_count"] = len(sector_snapshot.warnings)
 
         provider_ingest_enabled = _ceri_provider_ingest_enabled(dependencies)
-        if provider_ingest_enabled and _pipeline_has_step(
-            db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP
-        ):
-            _raise_if_cancelled(should_cancel)
-            _freeze_pipeline_handoff(
-                db,
-                pipeline,
-                upload_run.id,
-                market_cutoff,
-                dependencies,
-                result,
-                lease_guard=lease_guard,
-                performance=performance,
-            )
-
         if provider_ingest_enabled:
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
@@ -860,9 +841,21 @@ def execute_full_pipeline(
                 schedule = (
                     dependencies.schedule_ceri_provider_ingest or _schedule_ceri_provider_ingest
                 )
+                scheduled = _call_market_sensitive(schedule, db, upload_run.id, market_cutoff)
                 result["ceri_provider_jobs"] = int(
-                    _call_market_sensitive(schedule, db, upload_run.id, market_cutoff) or 0
+                    getattr(scheduled, "provider_batches", scheduled) or 0
                 )
+                result["ceri_provider_workflow_key"] = _ceri_provider_workflow_key(
+                    upload_run.id, scheduled
+                )
+            result["performance"] = performance.snapshot()
+            _mark_pipeline_waiting_for_ceri(
+                db,
+                pipeline,
+                result,
+                lease_guard=lease_guard,
+            )
+            return _to_execution_result(pipeline, result)
         elif _ceri_run_capture_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
@@ -1075,8 +1068,14 @@ def _execute_resumed_pipeline(
     memory_probe: Callable[..., None] | None = None,
     execution_token: str | None = None,
 ) -> PipelineExecutionResult:
-    if resume_from_step != CERI_PIPELINE_PROVIDER_INGEST_STEP:
-        raise ValueError("The durable resume path currently supports CERI_PROVIDER_INGEST only.")
+    if resume_from_step not in {
+        CERI_PIPELINE_PROVIDER_INGEST_STEP,
+        DECISION_HANDOFF_PIPELINE_STEP,
+    }:
+        raise ValueError(
+            "The durable resume path supports CERI_PROVIDER_INGEST and the post-CERI "
+            "decision-handoff boundary only."
+        )
     performance = PipelinePerformanceTracker()
     result = _empty_result(pipeline, upload_run)
     result.update(_public_result(pipeline.result_json or {}))
@@ -1091,6 +1090,58 @@ def _execute_resumed_pipeline(
     )
     try:
         tickers = _pipeline_scope_tickers(db, pipeline)
+        _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
+        if resume_from_step == CERI_PIPELINE_PROVIDER_INGEST_STEP:
+            _raise_if_cancelled(should_cancel)
+            with _pipeline_step(
+                db,
+                pipeline,
+                CERI_PIPELINE_PROVIDER_INGEST_STEP,
+                lease_guard=lease_guard,
+                performance=performance,
+            ):
+                validate_preflight = dependencies.validate_pipeline_preflight
+                result["sec_preflight"] = (
+                    validate_preflight(db, tickers)
+                    if validate_preflight is not None
+                    else validate_sec_pipeline_preflight(db, tickers=tickers)
+                )
+                schedule = (
+                    dependencies.schedule_ceri_provider_ingest or _schedule_ceri_provider_ingest
+                )
+                scheduled = _call_market_sensitive(
+                    schedule, db, upload_run.id, dependencies.market_cutoff
+                )
+                result["ceri_provider_jobs"] = int(
+                    getattr(scheduled, "provider_batches", scheduled) or 0
+                )
+                result["ceri_provider_workflow_key"] = _ceri_provider_workflow_key(
+                    upload_run.id, scheduled
+                )
+            result["performance"] = performance.snapshot()
+            _mark_pipeline_waiting_for_ceri(
+                db,
+                pipeline,
+                result,
+                lease_guard=lease_guard,
+            )
+            return _to_execution_result(pipeline, result)
+
+        _raise_if_cancelled(should_cancel)
+        _validate_ceri_completion_barrier(db, pipeline, tickers=tickers)
+        if _pipeline_has_step(db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP):
+            if dependencies.market_cutoff is None:
+                raise RuntimeError("resumed pipeline is missing its frozen market cutoff")
+            _freeze_pipeline_handoff(
+                db,
+                pipeline,
+                upload_run.id,
+                dependencies.market_cutoff,
+                dependencies,
+                result,
+                lease_guard=lease_guard,
+                performance=performance,
+            )
         validate_checkpoint = dependencies.validate_resume_checkpoint
         checkpoint = (
             validate_checkpoint(db, upload_run.id, resume_from_step)
@@ -1102,25 +1153,6 @@ def _execute_resumed_pipeline(
         result["market_regime_low_confidence"] = int(
             result.get("market_regime_confidence") == "low"
         )
-        _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
-        _raise_if_cancelled(should_cancel)
-        with _pipeline_step(
-            db,
-            pipeline,
-            CERI_PIPELINE_PROVIDER_INGEST_STEP,
-            lease_guard=lease_guard,
-            performance=performance,
-        ):
-            validate_preflight = dependencies.validate_pipeline_preflight
-            result["sec_preflight"] = (
-                validate_preflight(db, tickers)
-                if validate_preflight is not None
-                else validate_sec_pipeline_preflight(db, tickers=tickers)
-            )
-            schedule = dependencies.schedule_ceri_provider_ingest or _schedule_ceri_provider_ingest
-            result["ceri_provider_jobs"] = int(
-                _call_market_sensitive(schedule, db, upload_run.id, dependencies.market_cutoff) or 0
-            )
 
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
@@ -1323,6 +1355,40 @@ def _validate_resume_checkpoint(
         **certified_evidence,
         "validated": True,
     }
+
+
+def _validate_ceri_completion_barrier(
+    db: Session,
+    pipeline: PipelineRun,
+    *,
+    tickers: list[str],
+) -> None:
+    retained = dict(pipeline.result_json or {})
+    workflow_key = str(retained.get("ceri_provider_workflow_key") or "")
+    if retained.get("ceri_completion_state") != "CERTIFIED" or not workflow_key.startswith(
+        "ceri:pipeline:"
+    ):
+        raise ValueError("CERI_COMPLETION_BARRIER_NOT_CERTIFIED")
+    if not isinstance(db, Session):
+        return
+    from app.models.ceri_tables import CeriScoreSnapshot
+
+    context = market_context_for_pipeline(db, pipeline)
+    captured = set(
+        db.scalars(
+            select(CeriScoreSnapshot.ticker).where(
+                CeriScoreSnapshot.run_id == pipeline.upload_run_id,
+                CeriScoreSnapshot.calculation_context_id == context.context_id,
+                CeriScoreSnapshot.evidence_id.is_not(None),
+            )
+        )
+    )
+    expected = {ticker.strip().upper() for ticker in tickers}
+    if captured != expected:
+        raise ValueError(
+            "CERI_CERTIFIED_CAPTURE_INCOMPLETE: "
+            f"expected {len(expected)} certified run snapshots, observed {len(captured)}"
+        )
 
 
 def _validate_resume_evidence(
@@ -1863,6 +1929,30 @@ def _mark_pipeline_running(
     pipeline.error_message = None
     pipeline.message = "Full pipeline is running."
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 1)
+    _save_progress(db, lease_guard=lease_guard)
+
+
+def _mark_pipeline_waiting_for_ceri(
+    db: Session,
+    pipeline: PipelineRun,
+    result: dict[str, Any],
+    *,
+    lease_guard: Callable[[], None] | None = None,
+) -> None:
+    workflow_key = str(result.get("ceri_provider_workflow_key") or "")
+    if not workflow_key.startswith("ceri:pipeline:"):
+        raise RuntimeError("CERI provider scheduling produced no durable workflow identity.")
+    pipeline.status = PipelineStatus.WAITING_FOR_CERI_COMPLETION
+    pipeline.current_step = CERI_PIPELINE_PROVIDER_INGEST_STEP
+    pipeline.completed_at = None
+    pipeline.message = "Waiting for certified CERI provider workflow completion."
+    pipeline.error_message = None
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        **_public_result(result),
+        "ceri_completion_state": "WAITING",
+        "ceri_provider_workflow_key": workflow_key,
+    }
     _save_progress(db, lease_guard=lease_guard)
 
 
@@ -2414,7 +2504,10 @@ def _schedule_ceri_provider_ingest(
 ) -> int:
     """Queue provider-specific ingestion jobs for the current SwingLens run."""
     settings = get_settings()
-    if getattr(settings, "ceri_batched_workflow_enabled", False):
+    # Pipeline-owned provider work must have one durable finalizer/capture tail.
+    # Even installations retaining the legacy admin scheduler therefore use the
+    # batched workflow whenever a frozen pipeline context is supplied.
+    if market_cutoff is not None or getattr(settings, "ceri_batched_workflow_enabled", False):
         from app.services.ceri.batched_workflow import schedule_ceri_batched_workflow
 
         if market_cutoff is not None:
@@ -2504,6 +2597,15 @@ def _schedule_ceri_provider_ingest(
                 scheduled += 1
     db.flush()
     return scheduled
+
+
+def _ceri_provider_workflow_key(run_id: int, scheduled: Any) -> str:
+    value = getattr(scheduled, "workflow_key", None)
+    if value:
+        return str(value)
+    from app.services.ceri.config import load_ceri_config
+
+    return f"ceri:pipeline:{run_id}:{load_ceri_config().config_hash}"
 
 
 def _winner_probability_capture_enabled(dependencies: PipelineExecutionDependencies) -> bool:

@@ -19,7 +19,12 @@ from app.models.tables import BackgroundJob
 from app.observability.correlation import durable_causality_fields
 from app.observability.db_monitor import job_phase
 from app.observability.transaction_metrics import publish_after_commit
-from app.services.background_job_service import JobStatus, enqueue_job, is_cancel_requested
+from app.services.background_job_service import (
+    JobStatus,
+    enqueue_job,
+    is_cancel_requested,
+    record_job_progress,
+)
 from app.services.background_worker import CancelRequested
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.artifact_lineage import CeriArtifactOwnership
@@ -410,11 +415,58 @@ def execute_capture_run_job(
         return values
     with job_phase("capture_calculation_and_persistence"):
         capture = capture_service or CeriRunCaptureService()
-        result = (
-            capture.capture_run(db, run_id, market_cutoff=market_cutoff)
-            if market_cutoff is not None
-            else capture.capture_run(db, run_id)
-        )
+
+        def capture_progress(ticker: str, processed: int, total: int) -> None:
+            checkpoint_at = datetime.now(UTC)
+            metadata = dict(job.operational_metadata_json or {})
+            prior = dict(metadata.get("ceri_capture") or {})
+            previous_at = job.started_at
+            if prior.get("updated_at"):
+                try:
+                    previous_at = datetime.fromisoformat(str(prior["updated_at"]))
+                except ValueError:
+                    pass
+            if previous_at is not None and previous_at.tzinfo is None:
+                previous_at = previous_at.replace(tzinfo=UTC)
+            checkpoint_gap = (
+                max(0.0, (checkpoint_at - previous_at).total_seconds())
+                if previous_at is not None
+                else 0.0
+            )
+            metadata["ceri_capture"] = {
+                "processed": processed,
+                "total": total,
+                "ticker": ticker,
+                "updated_at": checkpoint_at.isoformat(),
+                "max_checkpoint_gap_seconds": max(
+                    float(prior.get("max_checkpoint_gap_seconds") or 0.0),
+                    checkpoint_gap,
+                ),
+            }
+            job.operational_metadata_json = metadata
+            if job.id is not None and job.execution_token:
+                record_job_progress(
+                    db,
+                    job_id=job.id,
+                    execution_token=str(job.execution_token),
+                    stage="CERI_CAPTURE_RUN",
+                    current_item=ticker,
+                    last_completed_item=ticker if processed else None,
+                    processed=processed,
+                    total=total,
+                    checkpoint_version=f"ceri-capture:{processed}:{ticker}",
+                    only_if_advanced=True,
+                )
+            heartbeat = getattr(job, "_heartbeat", None)
+            if callable(heartbeat):
+                heartbeat()
+
+        capture_kwargs: dict[str, Any] = {}
+        if market_cutoff is not None:
+            capture_kwargs["market_cutoff"] = market_cutoff
+        if isinstance(capture, CeriRunCaptureService):
+            capture_kwargs["progress_callback"] = capture_progress
+        result = capture.capture_run(db, run_id, **capture_kwargs)
     values = result.as_dict()
     CeriProcessingRunService().finish(
         db,
@@ -492,6 +544,8 @@ def execute_change_detection_job(
         )
         if alert_job_id is not None:
             values["alert_job_id"] = alert_job_id
+        else:
+            _release_pipeline_after_ceri(db, job)
         return values
     with job_phase("change_calculation_and_persistence"):
         result = (change_service or CeriChangeRebuildService()).rebuild(
@@ -547,6 +601,8 @@ def execute_change_detection_job(
     )
     if alert_job_id is not None:
         values["alert_job_id"] = alert_job_id
+    else:
+        _release_pipeline_after_ceri(db, job)
     return values
 
 
@@ -588,7 +644,9 @@ def execute_backfill_job(
 @anchored_job_configuration
 def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     if not ceri_flags().alerts:
-        return _skipped_job(CERI_ALERT_REBUILD, "alerts_disabled")
+        values = _skipped_job(CERI_ALERT_REBUILD, "alerts_disabled")
+        _release_pipeline_after_ceri(db, job)
+        return values
     payload = job.payload_json or {}
     processing, created = _processing_run(
         db,
@@ -597,12 +655,14 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         default_request_key=f"ceri:alert-rebuild:{_scope_key(payload, job.id)}",
     )
     if not created and processing.status == "COMPLETED":
-        return {
+        values = {
             "job_type": CERI_ALERT_REBUILD,
             "status": processing.status,
             "processing_run_id": processing.id,
             "coalesced": True,
         }
+        _release_pipeline_after_ceri(db, job)
+        return values
     changes = _eligible_changes(db, payload)
     ticker_by_company = {
         company.id: company.ticker
@@ -635,13 +695,15 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
             "alerts_enabled": bool(alerts_enabled),
         },
     )
-    return {
+    values = {
         "job_type": CERI_ALERT_REBUILD,
         "processing_run_id": processing.id,
         "status": processing.status,
         "alerts_status": "REBUILT" if alerts_enabled else "SKIPPED_DISABLED",
         **result.as_dict(),
     }
+    _release_pipeline_after_ceri(db, job)
+    return values
 
 
 @anchored_job_configuration
@@ -1034,6 +1096,14 @@ def _enqueue_alert_after_change(
     )
     _bind_semantic_child(job, alert_job)
     return alert_job.id
+
+
+def _release_pipeline_after_ceri(db: Session, job: BackgroundJob) -> None:
+    if not _is_pipeline_owned_ceri_job(job, job.payload_json or {}):
+        return
+    from app.services.pipeline_service import enqueue_pipeline_after_ceri_completion
+
+    enqueue_pipeline_after_ceri_completion(db, job)
 
 
 def _skipped_job(job_type: str, reason: str) -> dict[str, Any]:

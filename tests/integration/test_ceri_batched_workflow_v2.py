@@ -483,7 +483,9 @@ def _execute_batched_fixture(database_url: str) -> dict:
         )
         workflow_key = f"ceri:pipeline:{pipeline.id}:fixture-config"
         ingestion = db.get(CeriIngestionRun, ingestion_run_id)
-        ingestion.request_key = f"{workflow_key}:ingest:eodhd:estimates:MSFT"
+        ingestion.request_key = (
+            f"{workflow_key}:ingest:eodhd:estimates:MSFT:refresh:{authority.refresh_cycle_id}"
+        )
         temporal_payload = {
             "pipeline_run_id": pipeline.id,
             "calculation_context_id": cutoff.context_id,

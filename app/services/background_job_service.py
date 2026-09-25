@@ -972,16 +972,12 @@ def fence_stalled_jobs(
             "job_id": candidate.id,
             "run_id": candidate.related_run_id,
             "job_type": candidate.job_type,
-            "job_progress_age_seconds": _age_seconds(
-                observed_at, candidate.last_progress_at
-            ),
+            "job_progress_age_seconds": _age_seconds(observed_at, candidate.last_progress_at),
             "progress_sequence": int(candidate.progress_sequence or 0),
             "stage": candidate.progress_stage,
             "decision": "LOCKED_CANDIDATE_SKIPPED",
         }
-        logger.warning(
-            "job.watchdog.decision %s", decision_context, extra=decision_context
-        )
+        logger.warning("job.watchdog.decision %s", decision_context, extra=decision_context)
     fenced: list[int] = []
     for job in locked_candidates:
         if job.progress_stage == "FETCHING_MARKET_DATA":
@@ -1339,6 +1335,10 @@ def mark_job_blocked(
     )
     _observe_job_duration(job, now, JobStatus.BLOCKED, db)
     _observe_fanout_size(db, job)
+    if str(job.workflow_key or "").startswith("ceri:pipeline:"):
+        from app.services.pipeline_service import roll_up_ceri_pipeline_job_failure
+
+        roll_up_ceri_pipeline_job_failure(db, job)
 
 
 def mark_job_failed_or_retry(
@@ -1433,6 +1433,10 @@ def mark_job_failed_or_retry(
     if values["status"] == JobStatus.FAILED:
         _observe_job_duration(job, now, JobStatus.FAILED, db)
         _observe_fanout_size(db, job)
+        if str(job.workflow_key or "").startswith("ceri:pipeline:"):
+            from app.services.pipeline_service import roll_up_ceri_pipeline_job_failure
+
+            roll_up_ceri_pipeline_job_failure(db, job)
 
 
 def classify_job_failure(error: str | Exception) -> dict[str, Any]:

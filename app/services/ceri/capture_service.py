@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -146,6 +147,7 @@ class CeriRunCaptureService:
         market_cutoff: MarketCalculationCutoff | None = None,
         effective_configuration=None,
         expected_calculation_identity=None,
+        progress_callback: Callable[[str, int, int], None] | None = None,
     ) -> CeriRunCaptureResult:
         from copy import deepcopy
 
@@ -329,7 +331,9 @@ class CeriRunCaptureService:
                 cutoff_at=cutoff_at,
                 config=self.snapshot_service.config,
             )
-            for row in rows:
+            for row_index, row in enumerate(rows, start=1):
+                if progress_callback is not None:
+                    progress_callback(str(row.ticker), row_index - 1, len(rows))
                 try:
                     company = companies_by_ticker.get(str(row.ticker).upper())
                     if company is None:
@@ -688,6 +692,8 @@ class CeriRunCaptureService:
                 _capture_score_comparisons(
                     db, self, captured_snapshots, counts, run_id, market_cutoff
                 )
+                if progress_callback is not None:
+                    progress_callback(str(rows[-1].ticker), len(rows), len(rows))
             except Exception:
                 db.rollback()
                 raise

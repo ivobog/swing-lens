@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 from time import perf_counter
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -187,8 +187,20 @@ def execute_normalize_batch_job(
         if _heartbeat_and_cancel(db, job, heartbeat=False):
             raise CancelRequested("CERI normalization batch cancelled.")
         ingestion_key = f"{workflow_key}:ingest:{provider}:{dataset.value}:{ticker}"
+        # Frozen semantic authority appends the admitted refresh-cycle identity to
+        # the provider request key.  Keep normalization attached to that exact
+        # workflow while accepting both legacy (unsuffixed) and authoritative
+        # (refresh-suffixed) ingestion rows.
         ingestion_run = db.scalar(
-            select(CeriIngestionRun).where(CeriIngestionRun.request_key == ingestion_key)
+            select(CeriIngestionRun)
+            .where(
+                or_(
+                    CeriIngestionRun.request_key == ingestion_key,
+                    CeriIngestionRun.request_key.startswith(f"{ingestion_key}:refresh:"),
+                )
+            )
+            .order_by(CeriIngestionRun.id.desc())
+            .limit(1)
         )
         if ingestion_run is None:
             failed += 1
@@ -578,6 +590,23 @@ def _save_checkpoint(
     if processed <= len(previous_completed):
         return
     checkpoint_at = datetime.now(UTC)
+    previous_checkpoint_at = job.started_at
+    if previous.get("updated_at"):
+        try:
+            previous_checkpoint_at = datetime.fromisoformat(str(previous["updated_at"]))
+        except ValueError:
+            pass
+    if previous_checkpoint_at is not None and previous_checkpoint_at.tzinfo is None:
+        previous_checkpoint_at = previous_checkpoint_at.replace(tzinfo=UTC)
+    checkpoint_gap_seconds = (
+        max(0.0, (checkpoint_at - previous_checkpoint_at).total_seconds())
+        if previous_checkpoint_at is not None
+        else 0.0
+    )
+    max_checkpoint_gap_seconds = max(
+        float(previous.get("max_checkpoint_gap_seconds") or 0.0),
+        checkpoint_gap_seconds,
+    )
     checkpoint_id = f"{job.job_type}:{processed}:{last_completed}"
     metadata["ceri_batch"] = {
         "completed_tickers": sorted(completed),
@@ -586,6 +615,7 @@ def _save_checkpoint(
         "processed": processed,
         "total": total,
         "updated_at": checkpoint_at.isoformat(),
+        "max_checkpoint_gap_seconds": max_checkpoint_gap_seconds,
     }
     job.operational_metadata_json = metadata
     stage = CERI_PROGRESS_STAGES.get(job.job_type, "CERI_BATCH")
