@@ -4,6 +4,7 @@ import json
 import time
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 
 import pandas as pd
@@ -44,13 +45,18 @@ from app.services.background_job_service import (
 )
 from app.services.bar_cache_service import price_bar_data_hash
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.column_mapper import load_alias_map
+from app.services.combined_decision import refresh_combined_results
 from app.services.configuration_delivery import resolve_pipeline_configurations
 from app.services.domain_write_fence import assert_current_execution_ownership
+from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_job_service import FetchJobOptions, _admit_fetch_authority
 from app.services.ib_fetch_plan_service import FetchPlan, fetch_plan_to_dict
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_executor import (
     PipelineExecutionDependencies,
+    build_market_regime_snapshot_for_run,
+    build_sector_rotation_snapshot_for_run,
     execute_full_pipeline,
 )
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus
@@ -58,7 +64,10 @@ from app.services.price_bar_repository import (
     _pipeline_acquisition_visibility,
     load_price_bars_frame,
 )
-from app.services.ranking_profile_service import RankingPipelineResult
+from app.services.ranking_profile_service import (
+    RankingPipelineResult,
+    execute_ranking_pipeline_step,
+)
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 from app.services.technical_score_service import (
     TechnicalScoringError,
@@ -73,6 +82,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 CUTOFF = datetime(2026, 9, 24, 13, 19, 59, tzinfo=UTC)
 SESSION = date(2026, 9, 23)
 FIRST_FETCH_SYMBOLS = ("BHE", "BLLN", "KLIC", "LSCC", "PDFS")
+LIVE_SLICE_TICKERS = (*FIRST_FETCH_SYMBOLS, "ACMR", "RDVT", "AVT", "DVN", "JNJ")
 
 
 @pytest.fixture
@@ -154,9 +164,7 @@ def test_technical_evidence_is_linear_and_bounded():
                 run_id=1,
                 ticker=f"T{index:03d}",
                 debug_json={
-                    "temporal_lineage": {
-                        "source_manifests": {"price": own, "benchmark": shared}
-                    }
+                    "temporal_lineage": {"source_manifests": {"price": own, "benchmark": shared}}
                 },
             )
         )
@@ -181,9 +189,7 @@ def test_technical_evidence_is_linear_and_bounded():
     assert manifest["state_count"] == 303
     assert len({item["digest"] for item in manifest["sources"]}) == 101
     assert len(Canonical.dumps(manifest)) < 100_000
-    old_state_visits = 100 * sum(
-        len(item["manifest"]["states"]) for item in manifest["sources"]
-    )
+    old_state_visits = 100 * sum(len(item["manifest"]["states"]) for item in manifest["sources"])
     assert old_state_visits == 30_300
     assert manifest["state_count"] * 2 < old_state_visits
 
@@ -220,9 +226,7 @@ def test_technical_heartbeat_survives_long_work(recovery_engine):
 
 def test_technical_cancel_is_nonblocking_and_rolls_back(recovery_engine):
     with Session(recovery_engine) as setup:
-        run = UploadRun(
-            filename="cancel-recovery.csv", row_count=1, status="COMPLETED"
-        )
+        run = UploadRun(filename="cancel-recovery.csv", row_count=1, status="COMPLETED")
         setup.add(run)
         setup.flush()
         job = _job(setup, token="cancel-owner")
@@ -260,9 +264,7 @@ def test_stale_owner_cannot_publish(recovery_engine):
         supersede.commit()
     with Session(recovery_engine) as stale:
         with pytest.raises(Exception, match="lease is no longer held"):
-            assert_current_execution_ownership(
-                stale, job_id=job_id, execution_token="old-token"
-            )
+            assert_current_execution_ownership(stale, job_id=job_id, execution_token="old-token")
         stale.rollback()
     with Session(recovery_engine) as verify:
         assert verify.scalar(select(TechnicalScore.id).limit(1)) is None
@@ -276,11 +278,7 @@ def test_watchdog_reports_locked_candidate(recovery_engine, caplog):
         setup.commit()
         job_id = job.id
     with Session(recovery_engine) as locker, Session(recovery_engine) as watchdog:
-        locker.scalar(
-            select(BackgroundJob)
-            .where(BackgroundJob.id == job_id)
-            .with_for_update()
-        )
+        locker.scalar(select(BackgroundJob).where(BackgroundJob.id == job_id).with_for_update())
         with caplog.at_level("WARNING"):
             fenced = fence_stalled_jobs(
                 watchdog,
@@ -326,11 +324,14 @@ def test_deterministic_pipeline_10_25_100(disposable_postgres_database_factory):
                 assert measurement["max_checkpoint_gap_seconds"] < 60
                 assert measurement["lease_expired"] is False
                 assert measurement["stages"] == [
+                    "SEC",
                     "Fundamental",
                     "Market handoff",
                     "Technical",
+                    "Market Regime",
                     "Combined",
                     "Ranking",
+                    "Sector",
                     "CERI",
                     "Setup",
                     "Lifecycle",
@@ -341,10 +342,7 @@ def test_deterministic_pipeline_10_25_100(disposable_postgres_database_factory):
                 if expected_classification is None:
                     expected_classification = measurement["anchor_score"]["classification"]
                 else:
-                    assert (
-                        measurement["anchor_score"]["classification"]
-                        == expected_classification
-                    )
+                    assert measurement["anchor_score"]["classification"] == expected_classification
             assert metrics[-1]["retry_score_count"] == 100
             assert metrics[-1]["technical_seconds"] < 300
             assert metrics[-1]["technical_worker_seconds"] < 300
@@ -414,14 +412,13 @@ def _seed_acquisition(db: Session, tickers: tuple[str, ...]):
 
 
 def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int):
-    incident_tickers = (
-        list(FIRST_FETCH_SYMBOLS)
-        if size == 100
-        else [f"{ticker}{size}" for ticker in FIRST_FETCH_SYMBOLS]
-    )
-    tickers = incident_tickers + [
-        f"R{size:03d}{index:03d}" for index in range(size - len(FIRST_FETCH_SYMBOLS))
-    ]
+    if size == 10:
+        tickers = list(LIVE_SLICE_TICKERS)
+    else:
+        incident_tickers = [f"{ticker}{size}" for ticker in FIRST_FETCH_SYMBOLS]
+        tickers = incident_tickers + [
+            f"R{size:03d}{index:03d}" for index in range(size - len(FIRST_FETCH_SYMBOLS))
+        ]
     stage_calls: list[str] = []
     checkpoint_times: list[float] = []
     settings = get_settings()
@@ -440,6 +437,11 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
         estimated_skips=size,
         warnings=[],
     )
+    complete_financials = json.loads(
+        Path("tests/e2e/single_run_certification/financial_inputs.json").read_text(encoding="utf-8")
+    )
+    aliases = load_alias_map()
+    complete_raw = {aliases[key][0]: value for key, value in complete_financials.items()}
 
     with sessions() as db:
         db.add(
@@ -457,9 +459,18 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
                     run_id=run_id,
                     row_number=index,
                     ticker=ticker,
+                    company_name=f"{ticker} Recovery Fixture",
                     sector="Technology",
                     sector_canonical="Information Technology",
-                    raw_json={"Symbol": ticker},
+                    upcoming_earnings_date=date(2027, 1, 15),
+                    raw_json={
+                        "Symbol": ticker,
+                        "Description": f"{ticker} Recovery Fixture",
+                        "Sector": "Technology Services",
+                        "Price": "100",
+                        "Upcoming earnings date": "2027-01-15",
+                        **complete_raw,
+                    },
                 )
             )
         configurations = resolve_pipeline_configurations(db)
@@ -612,9 +623,7 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
                 "fresh-fetch authority did not resolve: "
                 + repr(
                     {
-                        "retained": retained_pipeline.result_json.get(
-                            "ib_fetch_authority"
-                        ),
+                        "retained": retained_pipeline.result_json.get("ib_fetch_authority"),
                         "fetch_rows": [tuple(row) for row in fetch_rows],
                     }
                 )
@@ -657,38 +666,86 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
 
     technicals.__name__ = "score_run_technicals"
 
-    dependencies = PipelineExecutionDependencies(
-        market_cutoff=cutoff,
-        fetch_technical_overlap_enabled=False,
-        validate_pipeline_preflight=lambda *_args: {"complete": True},
-        recalculate_fundamentals=lambda *_args, **_kwargs: stage_calls.append(
-            "Fundamental"
-        )
-        or [SimpleNamespace(ticker=ticker) for ticker in tickers],
-        build_fetch_plan=lambda **_kwargs: stage_calls.append("Market handoff") or plan,
-        score_technicals=technicals,
-        build_market_regime_snapshot=lambda *_args, **_kwargs: SimpleNamespace(
+    def fundamentals(
+        db,
+        current_run_id,
+        *,
+        market_cutoff=None,
+        pipeline_run_id=None,
+        effective_configuration=None,
+    ):
+        stage_calls.append("Fundamental")
+        if size == 10:
+            return recalculate_run_fundamentals(
+                db,
+                current_run_id,
+                market_cutoff=market_cutoff,
+                pipeline_run_id=pipeline_run_id,
+                effective_configuration=effective_configuration,
+            )
+        return [SimpleNamespace(ticker=ticker) for ticker in tickers]
+
+    fundamentals.__name__ = "recalculate_run_fundamentals"
+
+    def market_regime(db, current_run_id, **kwargs):
+        stage_calls.append("Market Regime")
+        if size == 10:
+            return build_market_regime_snapshot_for_run(db, current_run_id, **kwargs)
+        return SimpleNamespace(
             regime="Confirmed Uptrend",
             risk_state="green",
             confidence="normal",
             warnings=[],
-        ),
-        refresh_combined=lambda *_args, **_kwargs: stage_calls.append("Combined")
-        or [
-            CombinedResult(
-                run_id=run_id, ticker=ticker, is_complete=True, has_warning=False
+        )
+
+    def combined(
+        db,
+        current_run_id,
+        *,
+        market_cutoff=None,
+        pipeline_run_id=None,
+        effective_configuration=None,
+        source_evidence=None,
+    ):
+        stage_calls.append("Combined")
+        if size == 10:
+            return refresh_combined_results(
+                db,
+                current_run_id,
+                market_cutoff=market_cutoff,
+                pipeline_run_id=pipeline_run_id,
+                effective_configuration=effective_configuration,
+                source_evidence=source_evidence,
             )
+        return [
+            CombinedResult(run_id=run_id, ticker=ticker, is_complete=True, has_warning=False)
             for ticker in tickers
-        ],
-        refresh_rankings=lambda *_args, **_kwargs: stage_calls.append("Ranking")
-        or RankingPipelineResult(
+        ]
+
+    combined.__name__ = "refresh_combined_results"
+
+    def rankings(db, current_run_id, *, market_cutoff=None, pipeline_run_id=None):
+        stage_calls.append("Ranking")
+        if size == 10:
+            return execute_ranking_pipeline_step(
+                db,
+                current_run_id,
+                market_cutoff=market_cutoff,
+                pipeline_run_id=pipeline_run_id,
+            )
+        return RankingPipelineResult(
             status="COMPLETED",
             profile_count=5,
             result_count=size * 5,
             reason=None,
             results=(),
-        ),
-        build_sector_rotation_snapshot=lambda *_args, **_kwargs: SectorRotationSnapshotDto(
+        )
+
+    def sector(db, current_run_id, **kwargs):
+        stage_calls.append("Sector")
+        if size == 10:
+            return build_sector_rotation_snapshot_for_run(db, current_run_id, **kwargs)
+        return SectorRotationSnapshotDto(
             run_id=run_id,
             as_of_date=SESSION.isoformat(),
             mode="universe_only",
@@ -700,35 +757,43 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
             summary={"sector_count": 1, "ticker_count": size},
             warnings=[],
             debug={},
-        ),
-        ceri_run_capture_enabled=settings.ceri_enabled
-        and settings.ceri_run_capture_enabled,
+        )
+
+    dependencies = PipelineExecutionDependencies(
+        market_cutoff=cutoff,
+        fetch_technical_overlap_enabled=False,
+        validate_pipeline_preflight=lambda *_args: stage_calls.append("SEC") or {"complete": True},
+        recalculate_fundamentals=fundamentals,
+        build_fetch_plan=lambda **_kwargs: stage_calls.append("Market handoff") or plan,
+        score_technicals=technicals,
+        build_market_regime_snapshot=market_regime,
+        refresh_combined=combined,
+        refresh_rankings=rankings,
+        build_sector_rotation_snapshot=sector,
+        ceri_run_capture_enabled=settings.ceri_enabled and settings.ceri_run_capture_enabled,
         ceri_provider_ingest_enabled=settings.ceri_enabled
         and settings.ceri_provider_ingest_enabled,
-        schedule_ceri_provider_ingest=lambda *_args, **_kwargs: stage_calls.append("CERI")
-        or 1,
+        schedule_ceri_provider_ingest=lambda *_args, **_kwargs: stage_calls.append("CERI") or 1,
         capture_ceri_snapshot=lambda *_args, **_kwargs: stage_calls.append("CERI") or {},
         capture_setup_signals=lambda *_args, **_kwargs: stage_calls.append("Setup") or {},
-        evaluate_setup_lifecycles=lambda *_args, **_kwargs: stage_calls.extend(
-            ["Lifecycle", "Alerts"]
-        )
-        or {},
-        setup_lifecycle_pipeline_step_enabled=(
-            settings.setup_lifecycle_pipeline_step_enabled
+        evaluate_setup_lifecycles=lambda *_args, **_kwargs: (
+            stage_calls.extend(["Lifecycle", "Alerts"]) or {}
         ),
+        setup_lifecycle_pipeline_step_enabled=(settings.setup_lifecycle_pipeline_step_enabled),
         setup_capture_handoff_enabled=settings.setup_capture_handoff_enabled,
-        capture_winner_predictions=lambda *_args, **_kwargs: stage_calls.append("Winner")
-        or {
-            "inserted": size,
-            "duplicate": 0,
-            "excluded": 0,
-            "failed": 0,
-            "pending_outcomes": size,
-            "decision_time_estimates": size,
-        },
+        capture_winner_predictions=lambda *_args, **_kwargs: (
+            stage_calls.append("Winner")
+            or {
+                "inserted": size,
+                "duplicate": 0,
+                "excluded": 0,
+                "failed": 0,
+                "pending_outcomes": size,
+                "decision_time_estimates": size,
+            }
+        ),
         winner_probability_capture_enabled=(
-            settings.winner_probability_enabled
-            and settings.winner_probability_capture_in_pipeline
+            settings.winner_probability_enabled and settings.winner_probability_capture_in_pipeline
         ),
     )
     sql_metrics = {"queries": 0, "source_validation_queries": 0, "score_insert_seconds": 0.0}
@@ -784,9 +849,7 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
             )
         )
         manifest = verify.scalar(
-            select(TechnicalSourceManifest).where(
-                TechnicalSourceManifest.run_id == run_id
-            )
+            select(TechnicalSourceManifest).where(TechnicalSourceManifest.run_id == run_id)
         )
         job = verify.get(BackgroundJob, job_id)
         visible = sum(
@@ -801,20 +864,27 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
             for ticker in tickers
         )
         score_payloads = [len(Canonical.dumps(score.debug_json)) for score in scores]
+        combined_warning_flags = {
+            row.ticker: list(row.warning_flags_json or [])
+            for row in verify.scalars(select(CombinedResult).where(CombinedResult.run_id == run_id))
+            if row.has_warning
+        }
         measurement = {
             "size": size,
             "requested": size,
             "visible": visible,
             "technical_scores": len(scores),
             "technical_error_count": result.performance.get("technical_error_count"),
+            "incomplete_rows": result.incomplete_rows,
+            "warning_rows": result.warning_rows,
+            "combined_warning_flags": combined_warning_flags,
+            "market_regime_confidence": result.market_regime_confidence,
             "low_confidence_count": sum(
                 score.technical_confidence in {"low", "error"} for score in scores
             ),
             "insufficient_count": sum(bool(score.insufficient_data) for score in scores),
             "pipeline_status": result.status,
-            "technical_seconds": round(
-                technical_span["end"] - technical_span["start"], 6
-            ),
+            "technical_seconds": round(technical_span["end"] - technical_span["start"], 6),
             "technical_input_seconds": round(
                 duration_after["input_load"] - duration_before["input_load"],
                 6,
@@ -844,9 +914,7 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
                 max(
                     (
                         right - left
-                        for left, right in zip(
-                            checkpoint_times, checkpoint_times[1:], strict=False
-                        )
+                        for left, right in zip(checkpoint_times, checkpoint_times[1:], strict=False)
                     ),
                     default=0.0,
                 ),
@@ -865,9 +933,7 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
         # Exact retry is idempotent across execution modes. Its worker-span
         # metric is also the deterministic post-remediation pure-kernel sample.
         retry_deadline = time.perf_counter() + 900
-        pure_before = operational_metrics.total(
-            "swinglens_technical_worker_span_seconds"
-        )
+        pure_before = operational_metrics.total("swinglens_technical_worker_span_seconds")
         original_get_settings = technical_score_service.get_settings
         production_settings = original_get_settings()
         technical_score_service.get_settings = lambda: production_settings.model_copy(
@@ -892,8 +958,7 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
         finally:
             technical_score_service.get_settings = original_get_settings
         measurement["pure_kernel_seconds"] = round(
-            operational_metrics.total("swinglens_technical_worker_span_seconds")
-            - pure_before,
+            operational_metrics.total("swinglens_technical_worker_span_seconds") - pure_before,
             6,
         )
         with sessions() as verify:

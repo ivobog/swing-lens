@@ -304,11 +304,18 @@ def _load_preferred_bounded(
     )
     if not supports_boundary:
         return load_preferred_ohlcv_frames(db, ticker)
+    boundary: dict[str, Any] = {
+        "max_session": market_cutoff.latest_completed_session,
+        "as_of": market_cutoff.cutoff_at,
+    }
+    if "calculation_context_id" in parameters or any(
+        item.kind is Parameter.VAR_KEYWORD for item in parameters.values()
+    ):
+        boundary["calculation_context_id"] = market_cutoff.context_id
     return load_preferred_ohlcv_frames(
         db,
         ticker,
-        max_session=market_cutoff.latest_completed_session,
-        as_of=market_cutoff.cutoff_at,
+        **boundary,
     )
 
 

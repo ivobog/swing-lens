@@ -16,6 +16,7 @@ CURRENT_RELEASE_MISSING_OR_STALE_DELTAS = [
     "app/services/configuration_delivery.py",
     "app/services/core_mutation_authority.py",
     "app/services/ib_fetch_executor.py",
+    "app/services/market_regime_command_center.py",
     "app/services/pipeline_executor.py",
     "app/services/pipeline_service.py",
     "app/services/technical_score_service.py",
@@ -286,9 +287,7 @@ def test_incomplete_writer_review_remains_a_hard_foundation_gate(inventory_pair)
     assert not inventory["unknown_writers"]
     completeness = inventory["semantic_completeness"]
     assert completeness["verdict"] == "FAIL"
-    assert completeness["blockers"]["stale_source_reviews"] == (
-        CURRENT_RELEASE_STALE_SOURCE_DELTAS
-    )
+    assert completeness["blockers"]["stale_source_reviews"] == (CURRENT_RELEASE_STALE_SOURCE_DELTAS)
     review = deepcopy(json.loads(REVIEW_FILE.read_text()))
     review["writer_families"]["WF_FUNDAMENTAL_RECALCULATION"]["semantic_review_complete"] = False
     result = normalize(inventory, review)

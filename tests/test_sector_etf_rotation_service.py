@@ -1,7 +1,8 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pandas as pd
 
+from app.services.market_clock_service import MarketClockService
 from app.services.sector_etf_rotation_service import SectorEtfRotationService
 from app.services.sector_rotation_config import load_sector_rotation_config
 from app.services.sector_rotation_dtos import SectorUniverseMetrics
@@ -77,6 +78,49 @@ def test_sector_etf_rotation_service_missing_benchmark_warns_without_nulling_sco
 
     assert rows[0].etf_rotation_score is not None
     assert "missing_spy_benchmark_data" in rows[0].warnings
+
+
+def test_sector_etf_rotation_inherits_pipeline_acquisition_visibility(monkeypatch) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+    frames = {
+        "XLK": _bars(start=100, daily_step=1.2),
+        "SPY": _bars(start=100, daily_step=0.4),
+    }
+
+    def fake_frames(_db, ticker, **kwargs):
+        calls.append((ticker, kwargs))
+        return frames[ticker], None
+
+    monkeypatch.setattr(
+        "app.services.sector_etf_rotation_service.load_preferred_ohlcv_frames",
+        fake_frames,
+    )
+    cutoff = (
+        MarketClockService()
+        .cutoff_for(
+            datetime(2026, 9, 25, 0, 43, tzinfo=UTC),
+            reason="REGIME_TEMPORAL_REMEDIATION",
+        )
+        .with_context_id(17)
+    )
+
+    SectorEtfRotationService().build(
+        object(),
+        universe_rows=[_metrics("Technology", score=8.0)],
+        config=_etf_config(),
+        market_cutoff=cutoff,
+    )
+
+    assert calls
+    assert all(
+        kwargs
+        == {
+            "max_session": cutoff.latest_completed_session,
+            "as_of": cutoff.cutoff_at,
+            "calculation_context_id": 17,
+        }
+        for _, kwargs in calls
+    )
 
 
 def _etf_config() -> dict:
