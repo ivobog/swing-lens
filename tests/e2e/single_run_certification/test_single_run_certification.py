@@ -87,8 +87,14 @@ class CertificationEnvironment:
 
 
 @pytest.fixture
+def certification_provider_ingest_enabled() -> bool:
+    return False
+
+
+@pytest.fixture
 def certification_environment(
     tmp_path_factory: pytest.TempPathFactory,
+    certification_provider_ingest_enabled: bool,
 ) -> Iterator[CertificationEnvironment]:
     execution_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     database_name = f"swinglens_pytest_cert_{uuid.uuid4().hex[:12]}"
@@ -166,7 +172,18 @@ def certification_environment(
         "SETUP_CAPTURE_HANDOFF_ENABLED": "true",
         "SETUP_LIFECYCLE_ALERTS_ENABLED": "true",
         "CERI_ENABLED": "true",
-        "CERI_PROVIDER_INGEST_ENABLED": "false",
+        "CERI_PROVIDER_INGEST_ENABLED": str(certification_provider_ingest_enabled).lower(),
+        "CERI_LEGACY_PIPELINE_SCHEDULING_ENABLED": (
+            "false" if certification_provider_ingest_enabled else "true"
+        ),
+        "CERI_BATCHED_WORKFLOW_ENABLED": (
+            "true" if certification_provider_ingest_enabled else "false"
+        ),
+        "SEC_DOCUMENT_INCREMENTAL_MODE": (
+            "OFF" if certification_provider_ingest_enabled else os.environ.get(
+                "SEC_DOCUMENT_INCREMENTAL_MODE", "OFF"
+            )
+        ),
         "CERI_RUN_CAPTURE_ENABLED": "true",
         "CERI_ALERTS_ENABLED": "true",
         "CERI_UI_ENABLED": "true",
@@ -174,6 +191,7 @@ def certification_environment(
         "CERTIFICATION_IB_LOG": str(ib_log),
         "CERTIFICATION_WINNER_CONFIGURATION": str(winner_configuration_path),
         "CERTIFICATION_OUTCOME_NOW": "2027-01-15T22:00:00+00:00",
+        "CERTIFICATION_FROZEN_CERI_PROVIDERS": str(certification_provider_ingest_enabled).lower(),
         "PYTHONPATH": str(REPO_ROOT),
     }
 
@@ -195,6 +213,8 @@ def certification_environment(
 
     seed = seed_prerequisites(database_url, winner_configuration_path=winner_configuration_path)
     _activate_disposable_sec_processor(database_url)
+    if certification_provider_ingest_enabled:
+        _seed_disposable_sec_readiness(database_url)
     port = _available_port()
     base_url = f"http://127.0.0.1:{port}"
     log_handle = server_log.open("w", encoding="utf-8")
@@ -2368,6 +2388,54 @@ def _activate_disposable_sec_processor(database_url: str) -> None:
                 processor_signature=release.processor_signature,
                 actor="single-run-certification",
             )
+            db.commit()
+    finally:
+        engine.dispose()
+
+
+def _seed_disposable_sec_readiness(database_url: str) -> None:
+    """Freeze SEC mapping/readiness only; provider jobs still create all run evidence."""
+
+    from app.models.ceri_tables import CeriCompany, CeriSecSyncState
+    from app.services.ceri.sec.processor_lifecycle import require_deployed_processor_active
+
+    exact_ten = ("BHE", "BLLN", "KLIC", "LSCC", "PDFS", "ACMR", "RDVT", "AVT", "DVN", "JNJ")
+    tickers = tuple(
+        dict.fromkeys((*CANONICAL_TICKERS, *exact_ten, *(f"F{index:04d}" for index in range(90))))
+    )
+    engine = create_engine(database_url)
+    try:
+        with Session(engine) as db:
+            release = require_deployed_processor_active(db)
+            signature = release.active_signature or release.deployed_signature
+            existing = {
+                row.ticker: row
+                for row in db.scalars(select(CeriCompany).where(CeriCompany.ticker.in_(tickers)))
+            }
+            now = datetime.now(UTC)
+            for index, ticker in enumerate(tickers, start=1):
+                cik = str(900_000_000 + index).zfill(10)
+                company = existing.get(ticker)
+                if company is None:
+                    company = CeriCompany(ticker=ticker, exchange="US")
+                    db.add(company)
+                company.cik = cik
+                company.sec_applicability = "REQUIRED"
+                company.current_provider_ids_json = {
+                    "eodhd": f"{ticker}.US",
+                    "sec": cik,
+                }
+                db.add(
+                    CeriSecSyncState(
+                        cik=cik,
+                        dataset="guidance",
+                        processor_signature=signature,
+                        bootstrap_completed_at=now,
+                        last_discovered_at=now,
+                        latest_filing_date=now.date(),
+                        document_count=1,
+                    )
+                )
             db.commit()
     finally:
         engine.dispose()
