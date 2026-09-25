@@ -4,6 +4,7 @@ from datetime import date
 from typing import Any
 
 from sqlalchemy import Select
+from sqlalchemy.dialects import postgresql
 
 from app.models.tables import (
     SetupLifecycleEpisode,
@@ -18,6 +19,25 @@ from app.services.setup_lifecycle.repository import (
     PurgeScope,
     SetupLifecycleRepository,
 )
+
+
+def test_batched_canonical_history_excludes_legacy_unsealed_snapshots() -> None:
+    class RecordingDb:
+        statement = None
+
+        def scalars(self, statement):
+            self.statement = statement
+            return []
+
+    db = RecordingDb()
+    result = SetupLifecycleRepository().canonical_snapshot_histories_before(
+        db,
+        cutoffs={("MSFT", "1d"): date(2026, 9, 24)},
+    )
+
+    assert result == {("MSFT", "1d"): []}
+    sql = str(db.statement.compile(dialect=postgresql.dialect()))
+    assert "setup_signal_snapshots.evidence_id IS NOT NULL" in sql
 
 
 def test_repository_snapshot_identity_key_normalizes_ticker() -> None:

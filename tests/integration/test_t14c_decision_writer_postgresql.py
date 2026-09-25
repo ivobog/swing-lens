@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import (
     CoreCalculationEvidence,
+    SetupLifecycleAdministrativeAuditEvent,
+    SetupLifecycleEpisode,
     SetupLifecycleEvaluationEvidence,
     SetupSignalSnapshot,
     SignalAlertDecisionEvidence,
@@ -287,6 +289,7 @@ def test_native_lifecycle_output_projection_and_primary_scope(contextual_engine)
             )
         db.commit()
         assert db.get(UploadRun, 996) is None
+
         db.add(UploadRun(id=996, filename="forged-evaluation.csv", status="COMPLETED"))
         with pytest.raises(ValueError, match="NATIVE_DECISION_MISMATCH"):
             persist_lifecycle_evaluation_evidence(
@@ -301,6 +304,76 @@ def test_native_lifecycle_output_projection_and_primary_scope(contextual_engine)
             )
         db.commit()
         assert db.get(UploadRun, 996) is None
+
+
+def test_legacy_active_episode_crosses_audited_certification_boundary(contextual_engine):
+    from app.services.decision_mutation_authority import validate_episode_projection
+    from app.services.setup_lifecycle.episode_service import SetupLifecycleEpisodeService
+
+    setup = resolve_setup_configuration()
+    lifecycle = resolve_lifecycle_configuration()
+    with Session(contextual_engine) as db:
+        cutoff, _, _ = seed_native_core(db, extra_configurations=(setup, lifecycle))
+        context = SetupLifecycleSourceLoader().load_run_context(db, 7, market_cutoff=cutoff)
+        dto = SetupLifecycleSnapshotBuilder(setup.setup_config()).build(context.tickers[0]).dto
+        snapshot = SetupLifecycleRepository(setup.setup_config()).upsert_snapshot(db, dto)
+        prior_day = snapshot.data_as_of_date - timedelta(days=1)
+        legacy = SetupLifecycleEpisode(
+            ticker=snapshot.ticker,
+            timeframe=snapshot.timeframe,
+            setup_family="GENERIC",
+            status="ACTIVE",
+            opened_on=prior_day,
+            current_as_of_date=prior_day,
+            last_observed_on=prior_day,
+            current_state="DEVELOPING",
+            current_phase="LEGACY_CURRENT",
+            state_entered_on=prior_day,
+            current_actionability="WATCH_ONLY",
+            confidence_score=40,
+            confidence_label="LOW",
+            engine_version=snapshot.engine_version,
+            config_version=snapshot.config_version,
+            config_hash=snapshot.config_hash,
+            metadata_json={},
+            is_primary=True,
+            primary_rank=1,
+        )
+        db.add(legacy)
+        db.commit()
+        legacy_id = legacy.id
+
+        service = SetupLifecycleEpisodeService(config=lifecycle.setup_config())
+        applied = service.apply_snapshot(db, snapshot)
+        db.commit()
+        retained = db.get(SetupLifecycleEpisode, legacy_id)
+        assert retained.status == "LEGACY_RETIRED"
+        assert retained.current_state == "DEVELOPING"
+        assert retained.current_as_of_date == prior_day
+        assert retained.latest_evaluation_evidence_id is None
+        assert retained.latest_transition_evidence_id is None
+        assert retained.is_primary is False
+        assert retained.primary_rank is None
+        assert applied.lifecycle_evaluation_evidence is not None
+        if applied.episode is not None:
+            assert applied.episode.id != legacy_id
+            validate_episode_projection(db, applied.episode)
+        audit_count = db.scalar(
+            select(func.count()).select_from(SetupLifecycleAdministrativeAuditEvent).where(
+                SetupLifecycleAdministrativeAuditEvent.event_type
+                == "LEGACY_CERTIFICATION_BOUNDARY"
+            )
+        )
+        assert audit_count == 1
+
+        service.apply_snapshot(db, snapshot)
+        db.commit()
+        assert db.scalar(
+            select(func.count()).select_from(SetupLifecycleAdministrativeAuditEvent).where(
+                SetupLifecycleAdministrativeAuditEvent.event_type
+                == "LEGACY_CERTIFICATION_BOUNDARY"
+            )
+        ) == audit_count
 
 
 def test_native_lifecycle_concurrent_advance_and_decision_reclaim(contextual_engine):

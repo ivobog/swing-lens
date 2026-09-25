@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy.dialects import postgresql
 
 from app.models.ceri_tables import CeriEvidenceDisposition, CeriScoreSnapshot
-from app.services.ceri.change_semantics import select_prior_comparison
+from app.services.ceri.change_semantics import ComparisonState, select_prior_comparison
 from app.services.ceri.evidence_eligibility import (
     ELIGIBLE,
     EXCLUDED,
@@ -91,6 +91,24 @@ def test_only_one_eligible_snapshot_has_no_prior() -> None:
     prior, _, _ = select_prior_comparison(eligible[0], [])
     assert [row.id for row in eligible] == [3]
     assert prior is None
+
+
+def test_certified_capture_never_selects_legacy_score_as_change_predecessor() -> None:
+    legacy = _snapshot(1)
+    certified_older = _snapshot(2)
+    current = _snapshot(3)
+    certified_older.evidence_id = 41
+    current.evidence_id = 42
+
+    prior, state, excluded = select_prior_comparison(current, [legacy, certified_older])
+    assert prior is certified_older
+    assert state is ComparisonState.COMPARABLE
+    assert excluded == 0
+
+    prior, state, excluded = select_prior_comparison(current, [legacy])
+    assert prior is None
+    assert state is ComparisonState.NO_PRIOR_COMPARABLE_SNAPSHOT
+    assert excluded == 0
 
 
 def test_effective_disposition_uses_created_at_then_id_and_supports_reversal() -> None:
