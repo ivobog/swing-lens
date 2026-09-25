@@ -576,14 +576,21 @@ def _run_pipeline_through_gui(
     pipeline_id = int(page.url.rsplit("/", 1)[-1])
     absolute_deadline = time.monotonic() + absolute_deadline_seconds
     progress_deadline = time.monotonic() + progress_deadline_seconds
-    previous_status = None
+    previous_progress = None
     status = ""
     while time.monotonic() < absolute_deadline and time.monotonic() < progress_deadline:
         status = (page.locator("[data-pipeline-status]").text_content() or "").strip()
         if status in TERMINAL_PIPELINE_STATUSES:
             break
-        if status != previous_status:
-            previous_status = status
+        progress = (
+            status,
+            (page.locator("[data-pipeline-last-progress]").text_content() or "").strip(),
+            (page.locator("[data-pipeline-progress-stage]").text_content() or "").strip(),
+            (page.locator("[data-pipeline-items-processed]").text_content() or "").strip(),
+            (page.locator("[data-pipeline-current-item]").text_content() or "").strip(),
+        )
+        if progress != previous_progress:
+            previous_progress = progress
             progress_deadline = time.monotonic() + progress_deadline_seconds
         page.wait_for_timeout(500)
     recorder.check(

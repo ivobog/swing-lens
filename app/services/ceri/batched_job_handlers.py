@@ -593,12 +593,12 @@ def _save_checkpoint(
     if processed <= len(previous_completed):
         return
     checkpoint_at = datetime.now(UTC)
-    previous_checkpoint_at = _active_attempt_started_at(job, metadata)
-    if previous.get("updated_at"):
-        try:
-            previous_checkpoint_at = datetime.fromisoformat(str(previous["updated_at"]))
-        except ValueError:
-            pass
+    previous_checkpoint_at = _latest_checkpoint_at(
+        job,
+        metadata,
+        "ceri_batch",
+        "ceri_normalization",
+    )
     if previous_checkpoint_at is not None and previous_checkpoint_at.tzinfo is None:
         previous_checkpoint_at = previous_checkpoint_at.replace(tzinfo=UTC)
     checkpoint_gap_seconds = (
@@ -677,12 +677,12 @@ def _normalization_checkpoint(
     checkpoint_at = datetime.now(UTC)
     metadata = dict(job.operational_metadata_json or {})
     previous = dict(metadata.get("ceri_normalization") or {})
-    previous_at = _active_attempt_started_at(job, metadata)
-    if previous.get("updated_at"):
-        try:
-            previous_at = datetime.fromisoformat(str(previous["updated_at"]))
-        except ValueError:
-            pass
+    previous_at = _latest_checkpoint_at(
+        job,
+        metadata,
+        "ceri_batch",
+        "ceri_normalization",
+    )
     if previous_at is not None and previous_at.tzinfo is None:
         previous_at = previous_at.replace(tzinfo=UTC)
     gap_seconds = (
@@ -736,6 +736,31 @@ def _active_attempt_started_at(
         except ValueError:
             pass
     return job.locked_at or job.started_at
+
+
+def _latest_checkpoint_at(
+    job: BackgroundJob,
+    metadata: dict[str, Any],
+    *sections: str,
+) -> datetime | None:
+    """Return the newest durable progress boundary in the active attempt."""
+
+    candidates = [_active_attempt_started_at(job, metadata), job.last_progress_at]
+    for section in sections:
+        value = dict(metadata.get(section) or {}).get("updated_at")
+        if value:
+            try:
+                candidates.append(datetime.fromisoformat(str(value)))
+            except ValueError:
+                continue
+    normalized = []
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        normalized.append(
+            candidate.replace(tzinfo=UTC) if candidate.tzinfo is None else candidate
+        )
+    return max(normalized, default=None)
 
 
 def _workflow_key(job: BackgroundJob, payload: dict[str, Any]) -> str:
