@@ -26,6 +26,14 @@ class FakeClient:
     def serverVersion(self) -> int:  # noqa: N802 - mirrors ib_insync
         return 176 if self.owner.session_ready else 0
 
+    def connect(self, host, port, **kwargs) -> None:
+        self.owner.client_connect_calls.append((host, port, kwargs))
+        if isinstance(self.owner.raises, Exception):
+            raise self.owner.raises
+        if self.owner.raises:
+            raise ConnectionError("connection refused")
+        self.owner.connected = self.owner.connects
+
 
 class FakeIB:
     def __init__(
@@ -43,6 +51,7 @@ class FakeIB:
         self.connected = False
         self.client = FakeClient(self)
         self.connect_calls = []
+        self.client_connect_calls = []
         self.disconnect_calls = 0
 
     def connect(self, host, port, **kwargs) -> None:
@@ -78,13 +87,17 @@ def test_health_ready_requires_real_api_handshake() -> None:
     assert status.api_ready is True
     assert status.server_version == 176
     assert status.smoke_response_received is True
-    assert ib.connect_calls == [
+    assert status.failure_phase is None
+    assert status.handshake_latency_ms is not None
+    assert status.smoke_latency_ms is not None
+    assert ib.client_connect_calls == [
         (
             "127.0.0.1",
             4002,
-            {"clientId": 25, "timeout": 1.25, "readonly": True},
+            {"clientId": 25, "timeout": 1.25},
         )
     ]
+    assert ib.connect_calls == []
     assert ib.disconnect_calls == 1
 
 
@@ -97,7 +110,7 @@ def test_health_client_ids_are_dedicated_and_unique_by_process_role() -> None:
             ib_factory=lambda current=ib: current,
         )
         observed[role] = status.client_id
-        assert ib.connect_calls[0][2]["clientId"] == status.client_id
+        assert ib.client_connect_calls[0][2]["clientId"] == status.client_id
 
     assert observed == {
         ProcessRole.WEB: 22,
@@ -165,7 +178,7 @@ def test_timeout_and_client_id_conflict_are_deterministically_classified() -> No
     def conflicting_connect(*_args, **_kwargs):
         raise ConnectionError("client id already in use")
 
-    conflict_ib.connect = conflicting_connect
+    conflict_ib.client.connect = conflicting_connect
     conflict = check_status(
         Settings(_env_file=None),
         ib_factory=lambda: conflict_ib,
@@ -173,7 +186,24 @@ def test_timeout_and_client_id_conflict_are_deterministically_classified() -> No
     )
 
     assert timeout.error_code == "IB_GATEWAY_PROBE_TIMEOUT"
+    assert timeout.failure_phase == "CONNECT_AND_API_HANDSHAKE"
     assert conflict.error_code == "IB_GATEWAY_CLIENT_ID_IN_USE"
+    assert conflict.failure_phase == "CONNECT_AND_API_HANDSHAKE"
+
+
+def test_health_probe_does_not_wait_for_full_account_synchronization() -> None:
+    ib = FakeIB()
+
+    def forbidden_full_sync(*_args, **_kwargs):
+        raise TimeoutError("unrelated account synchronization timed out")
+
+    ib.connect = forbidden_full_sync
+
+    status = check_status(Settings(_env_file=None), ib_factory=lambda: ib)
+
+    assert status.status == IBGatewayHealthState.READY
+    assert len(ib.client_connect_calls) == 1
+    assert ib.disconnect_calls == 1
 
 
 def test_readiness_has_explicit_expiry_and_cannot_be_reused_stale() -> None:

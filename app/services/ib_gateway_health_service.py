@@ -55,6 +55,9 @@ class IBGatewayHealthStatus:
     error_code: str | None
     failure_category: str | None
     message: str
+    failure_phase: str | None = None
+    handshake_latency_ms: int | None = None
+    smoke_latency_ms: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -122,23 +125,35 @@ def check_status(
     with _HEALTH_PROBE_LOCK:
         ib = create_ib_client(ib_factory)
         health_client_id = _health_client_id(settings)
+        failure_phase = "CONNECT_AND_API_HANDSHAKE"
+        handshake_started_at = perf_counter()
+        handshake_latency_ms: int | None = None
         try:
             if hasattr(ib, "RequestTimeout"):
                 ib.RequestTimeout = settings.ib_health_timeout_seconds
-            ib.connect(
+            # IB.connect() performs trading/account synchronization after the
+            # socket and API handshake. That synchronization includes
+            # positions, account updates, and executions and can legitimately
+            # outlast the short readiness deadline even while the API is ready.
+            # Admission needs only a real API handshake plus a harmless API
+            # response, so keep unrelated synchronization out of this probe.
+            ib.client.connect(
                 settings.ib_host,
                 settings.ib_port,
                 clientId=health_client_id,
                 timeout=settings.ib_health_timeout_seconds,
-                readonly=True,
             )
+            handshake_latency_ms = _elapsed_ms(handshake_started_at)
             if not ib.isConnected():
                 return _not_ready_status(
                     settings,
                     checked_at=checked_at,
                     started_at=started_at,
                     process_detector=process_detector,
+                    failure_phase=failure_phase,
+                    handshake_latency_ms=handshake_latency_ms,
                 )
+            failure_phase = "API_READINESS"
             api_ready, server_version = _api_session_ready(ib)
             if not api_ready:
                 return _not_ready_status(
@@ -147,7 +162,11 @@ def check_status(
                     started_at=started_at,
                     process_detector=process_detector,
                     known_process_running=True,
+                    failure_phase=failure_phase,
+                    handshake_latency_ms=handshake_latency_ms,
                 )
+            failure_phase = "CURRENT_TIME_SMOKE"
+            smoke_started_at = perf_counter()
             try:
                 smoke_response = ib.reqCurrentTime()
             except Exception as exc:
@@ -157,13 +176,20 @@ def check_status(
                     started_at=started_at,
                     server_version=server_version,
                     error=exc,
+                    failure_phase=failure_phase,
+                    handshake_latency_ms=handshake_latency_ms,
+                    smoke_latency_ms=_elapsed_ms(smoke_started_at),
                 )
+            smoke_latency_ms = _elapsed_ms(smoke_started_at)
             if smoke_response is None or not ib.isConnected():
                 return _session_lost_status(
                     settings,
                     checked_at=checked_at,
                     started_at=started_at,
                     server_version=server_version,
+                    failure_phase=failure_phase,
+                    handshake_latency_ms=handshake_latency_ms,
+                    smoke_latency_ms=smoke_latency_ms,
                 )
             return _status(
                 state=IBGatewayHealthState.IB_API_READY,
@@ -177,14 +203,21 @@ def check_status(
                 started_at=started_at,
                 error_code=None,
                 message="IB Gateway API connection successful.",
+                failure_phase=None,
+                handshake_latency_ms=handshake_latency_ms,
+                smoke_latency_ms=smoke_latency_ms,
             )
         except Exception as exc:
+            if handshake_latency_ms is None:
+                handshake_latency_ms = _elapsed_ms(handshake_started_at)
             return _not_ready_status(
                 settings,
                 checked_at=checked_at,
                 started_at=started_at,
                 process_detector=process_detector,
                 error=exc,
+                failure_phase=failure_phase,
+                handshake_latency_ms=handshake_latency_ms,
             )
         finally:
             try:
@@ -249,6 +282,8 @@ def _not_ready_status(
     process_detector: ProcessDetector | None,
     error: Exception | None = None,
     known_process_running: bool = False,
+    failure_phase: str | None = None,
+    handshake_latency_ms: int | None = None,
 ) -> IBGatewayHealthStatus:
     detector = process_detector or is_gateway_process_running
     process_running = known_process_running
@@ -269,6 +304,8 @@ def _not_ready_status(
             checked_at=checked_at,
             started_at=started_at,
             error_code=_failure_code(error, IBGatewayHealthError.API_NOT_READY),
+            failure_phase=failure_phase,
+            handshake_latency_ms=handshake_latency_ms,
             message=(
                 "IB Gateway is running, but its API is not ready. Complete login/session "
                 "setup and retry. No pipeline was created."
@@ -285,6 +322,8 @@ def _not_ready_status(
         checked_at=checked_at,
         started_at=started_at,
         error_code=_failure_code(error, IBGatewayHealthError.API_UNREACHABLE),
+        failure_phase=failure_phase,
+        handshake_latency_ms=handshake_latency_ms,
         message=(
             f"SwingLens could not connect to IB Gateway at "
             f"{settings.ib_host}:{settings.ib_port}. Start IB Gateway and verify IB_PORT."
@@ -305,6 +344,9 @@ def _status(
     started_at: float,
     error_code: IBGatewayHealthError | None,
     message: str,
+    failure_phase: str | None = None,
+    handshake_latency_ms: int | None = None,
+    smoke_latency_ms: int | None = None,
 ) -> IBGatewayHealthStatus:
     return IBGatewayHealthStatus(
         status=state.value,
@@ -322,6 +364,9 @@ def _status(
         error_code=error_code.value if error_code else None,
         failure_category=error_code.value if error_code else None,
         message=message,
+        failure_phase=failure_phase,
+        handshake_latency_ms=handshake_latency_ms,
+        smoke_latency_ms=smoke_latency_ms,
     )
 
 
@@ -342,6 +387,9 @@ def _session_lost_status(
     started_at: float,
     server_version: int | None,
     error: Exception | None = None,
+    failure_phase: str | None = None,
+    handshake_latency_ms: int | None = None,
+    smoke_latency_ms: int | None = None,
 ) -> IBGatewayHealthStatus:
     return _status(
         state=IBGatewayHealthState.IB_SESSION_LOST,
@@ -354,6 +402,9 @@ def _session_lost_status(
         checked_at=checked_at,
         started_at=started_at,
         error_code=_failure_code(error, IBGatewayHealthError.SESSION_LOST),
+        failure_phase=failure_phase,
+        handshake_latency_ms=handshake_latency_ms,
+        smoke_latency_ms=smoke_latency_ms,
         message=(
             "IB Gateway API session was lost during the readiness smoke request. "
             "Restore the session and retry. No pipeline was created."
@@ -373,3 +424,7 @@ def _failure_code(
     if "client id" in message and ("use" in message or "conflict" in message):
         return IBGatewayHealthError.CLIENT_ID_IN_USE
     return default
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, round((perf_counter() - started_at) * 1000))
