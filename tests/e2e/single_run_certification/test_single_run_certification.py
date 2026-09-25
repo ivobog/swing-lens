@@ -540,6 +540,9 @@ def _run_pipeline_through_gui(
     env: CertificationEnvironment,
     recorder: CertificationRecorder,
     run_id: int,
+    *,
+    absolute_deadline_seconds: int = 900,
+    progress_deadline_seconds: int = 180,
 ) -> tuple[int, str]:
     page.get_by_role("button", name="Run full pipeline").click()
     ib_preflight = page.locator("[data-ib-preflight-panel]")
@@ -551,8 +554,8 @@ def _run_pipeline_through_gui(
     confirm.locator("[data-confirm-continue]").click()
     page.wait_for_url(re.compile(rf"/runs/{run_id}/pipeline/\d+$"), timeout=30_000)
     pipeline_id = int(page.url.rsplit("/", 1)[-1])
-    absolute_deadline = time.monotonic() + 900
-    progress_deadline = time.monotonic() + 180
+    absolute_deadline = time.monotonic() + absolute_deadline_seconds
+    progress_deadline = time.monotonic() + progress_deadline_seconds
     previous_status = None
     status = ""
     while time.monotonic() < absolute_deadline and time.monotonic() < progress_deadline:
@@ -561,7 +564,7 @@ def _run_pipeline_through_gui(
             break
         if status != previous_status:
             previous_status = status
-            progress_deadline = time.monotonic() + 180
+            progress_deadline = time.monotonic() + progress_deadline_seconds
         page.wait_for_timeout(500)
     recorder.check(
         status in TERMINAL_PIPELINE_STATUSES,

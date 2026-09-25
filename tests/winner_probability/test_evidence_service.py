@@ -13,6 +13,7 @@ from app.models.tables import (
 )
 from app.services.winner_probability.cohort_definition import CohortKey
 from app.services.winner_probability.cohort_statistics import CohortStatisticsService
+from app.services.winner_probability.cohort_authority import certified_financial_population
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.evidence_manifest_service import (
     _hash_payload,
@@ -28,6 +29,20 @@ from app.services.winner_probability.evidence_service import (
     _replay_lineage_is_reproducible,
 )
 from app.services.winner_probability.pre11_compatibility_service import _hash
+
+
+def test_financial_population_excludes_unsealed_legacy_without_erasing_history() -> None:
+    cutoff = datetime(2026, 7, 1, tzinfo=UTC)
+    legacy = EvidenceOutcome(*_row(1, cutoff=cutoff))
+    certified = EvidenceOutcome(*_row(2, cutoff=cutoff))
+    certified.prediction.lineage_json["native_capture_proof"] = {"contract": "native"}
+    certified.forward_outcome.metadata_json = {"native_outcome_proof": {"contract": "native"}}
+    certified.target_stop_outcome.metadata_json = {
+        "native_outcome_proof": {"contract": "native"}
+    }
+
+    assert certified_financial_population((legacy, certified)) == (certified,)
+    assert legacy.prediction.id == 1
 
 
 def test_replay_lineage_filter_rejects_bar_changed_after_classification() -> None:

@@ -30,6 +30,15 @@ from app.services.core_mutation_authority import core_writer_member
 from app.services.market_clock_service import MarketCalculationCutoff
 
 
+def _certified_episode_birth():
+    return (
+        select(WinnerPredictionSnapshot.id)
+        .where(WinnerPredictionSnapshot.episode_id == WinnerPredictionEpisode.id)
+        .where(WinnerPredictionSnapshot.lineage_json["native_capture_proof"].is_not(None))
+        .exists()
+    )
+
+
 @dataclass(frozen=True)
 class TickerCaptureContext:
     raw_row: RawCompanyRow
@@ -221,9 +230,9 @@ class WinnerProbabilityRepository:
         episode_key: str,
     ) -> WinnerPredictionEpisode | None:
         return db.scalar(
-            select(WinnerPredictionEpisode).where(
-                WinnerPredictionEpisode.episode_key == episode_key
-            )
+            select(WinnerPredictionEpisode)
+            .where(WinnerPredictionEpisode.episode_key == episode_key)
+            .where(_certified_episode_birth())
         )
 
     def get_active_episode(
@@ -238,6 +247,7 @@ class WinnerProbabilityRepository:
             .where(WinnerPredictionEpisode.dependency_group_hash == dependency_group_hash)
             .where(WinnerPredictionEpisode.starts_on <= signal_date)
             .where(WinnerPredictionEpisode.ends_on >= signal_date)
+            .where(_certified_episode_birth())
             .order_by(WinnerPredictionEpisode.starts_on.desc())
             .limit(1)
         )

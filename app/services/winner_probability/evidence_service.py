@@ -501,6 +501,9 @@ class EvidenceService:
             ),
         )
         apply("independent_episode", lambda row: not _is_dependent(row.prediction))
+        from app.services.winner_probability.cohort_authority import is_certified_financial_member
+
+        apply("certified_financial_population", is_certified_financial_member)
         before = len(candidates)
         candidates = _one_per_episode(candidates)
         stages.append(

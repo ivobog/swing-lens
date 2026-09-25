@@ -757,6 +757,12 @@ class ProbabilityEstimator:
             training_cutoff_at=training_cutoff_at,
             config=config,
         )
+        if isinstance(db, Session):
+            from app.services.winner_probability.cohort_authority import (
+                certified_financial_population,
+            )
+
+            broadest_evidence = certified_financial_population(broadest_evidence)
         calculated: dict[
             str, tuple[CohortKey, tuple[EvidenceOutcome, ...], CohortStatisticsResult]
         ] = {}
@@ -777,6 +783,8 @@ class ProbabilityEstimator:
                     config=config,
                 )
             )
+            if isinstance(db, Session):
+                evidence = certified_financial_population(evidence)
             statistics = statistics_service.calculate(evidence, config)
             self._materialize_cohort_statistic(
                 db,

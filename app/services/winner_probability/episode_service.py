@@ -67,6 +67,27 @@ class WinnerEpisodeService:
                 validate_episode_source(db, existing)
             return EpisodeAssignment(episode=existing, is_dependent=True)
 
+        if isinstance(db, Session) and isinstance(
+            self.repository, WinnerProbabilityRepository
+        ) and db.scalar(
+            select(WinnerPredictionEpisode.id).where(
+                WinnerPredictionEpisode.episode_key == episode_key
+            )
+        ) is not None:
+            # Preserve the unsealed historical row and its key. The first
+            # certified capture starts a separate, versioned episode instead.
+            episode_key += "|certified-v1"
+            successor = self.repository.get_episode_by_key(db, episode_key)
+            if successor is not None:
+                validate_episode_source(db, successor)
+                return EpisodeAssignment(episode=successor, is_dependent=True)
+            if db.scalar(
+                select(WinnerPredictionEpisode.id).where(
+                    WinnerPredictionEpisode.episode_key == episode_key
+                )
+            ) is not None:
+                raise ValueError("MUTATION_WINNER_CERTIFIED_EPISODE_KEY_REQUIRED")
+
         ends_on = _episode_end(features.prediction_as_of_date, config.episode.cooldown_sessions)
         episode = WinnerPredictionEpisode(
             ticker=features.ticker,
@@ -118,17 +139,17 @@ def validate_episode_source(db, episode):
     frozen = configuration_from_payload(
         birth.lineage_json[CONFIGURATION_PAYLOAD_KEY]
     ).winner_config()
+    key = _episode_key(
+        ticker=episode.ticker,
+        setup_family=episode.setup_family,
+        trigger_state=episode.trigger_state,
+        start_date=episode.starts_on,
+    )
     if (
         birth.lineage_json["episode_at_capture"]["body"] != episode_body(episode)
         or episode.cooldown_sessions != frozen.episode.cooldown_sessions
         or episode.ends_on != _episode_end(episode.starts_on, frozen.episode.cooldown_sessions)
-        or episode.episode_key
-        != _episode_key(
-            ticker=episode.ticker,
-            setup_family=episode.setup_family,
-            trigger_state=episode.trigger_state,
-            start_date=episode.starts_on,
-        )
+        or episode.episode_key not in {key, key + "|certified-v1"}
         or Canonical.dumps(episode.dependency_group_hash)
         != Canonical.dumps(
             _dependency_group_hash(episode.ticker, episode.setup_family, episode.trigger_state)

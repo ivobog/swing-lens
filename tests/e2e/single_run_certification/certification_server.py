@@ -26,9 +26,16 @@ class DeterministicReadOnlyIB:
         self._connected = False
         self._log_path = Path(os.environ["CERTIFICATION_IB_LOG"])
         self.client = SimpleNamespace(
+            connect=self._connect_api,
             isReady=lambda: self._connected,
             serverVersion=lambda: 180,
         )
+
+    def _connect_api(self, _host, _port, *, clientId, timeout):
+        # Admission probes use the low-level API handshake, without the
+        # account/execution synchronization performed by IB.connect().
+        self._connected = True
+        self._record("api_handshake", {"clientId": clientId, "timeout": timeout})
 
     def connect(self, _host, _port, **kwargs):
         if kwargs.get("readonly") is not True:

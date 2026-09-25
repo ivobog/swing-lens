@@ -75,6 +75,52 @@ def test_native_winner_complete_capture_and_immutable_retry(contextual_engine):
         )
         db.commit()
         _native_capture_child_rollback(db, config, cutoff, handoff_id, decision_at)
+        from app.models.tables import WinnerPredictionEpisode
+        from app.services.winner_probability.consumer_eligibility import winner_decision_inputs
+        from app.services.winner_probability.episode_service import (
+            _dependency_group_hash,
+            _episode_end,
+            _episode_key,
+        )
+        from app.services.winner_probability.feature_extractor import WinnerFeatureExtractor
+        from app.services.winner_probability.repository import WinnerProbabilityRepository
+
+        run_context = WinnerProbabilityRepository().load_run_context(
+            db,
+            7,
+            market_cutoff=cutoff,
+            decision_handoff_manifest_id=handoff_id,
+        )
+        acquired_run, acquired_ticker, _ = winner_decision_inputs(
+            run_context, run_context.tickers[0]
+        )
+        features = WinnerFeatureExtractor().extract(
+            acquired_run,
+            acquired_ticker,
+            config,
+            captured_at=decision_at,
+            decision_at=decision_at,
+        )
+        family = str(features.feature_json.get("setup_family") or "unknown")
+        trigger = str(features.feature_json.get("trigger_state") or "unknown")
+        legacy = WinnerPredictionEpisode(
+            ticker="ACME",
+            setup_family=family,
+            trigger_state=trigger,
+            episode_key=_episode_key(
+                ticker="ACME",
+                setup_family=family,
+                trigger_state=trigger,
+                start_date=features.prediction_as_of_date,
+            ),
+            starts_on=features.prediction_as_of_date,
+            ends_on=_episode_end(features.prediction_as_of_date, config.episode.cooldown_sessions),
+            cooldown_sessions=config.episode.cooldown_sessions,
+            dependency_group_hash=_dependency_group_hash("ACME", family, trigger),
+        )
+        db.add(legacy)
+        db.commit()
+        legacy_id = legacy.id
         service = WinnerPredictionCaptureService()
         result = service.capture_run(
             db,
@@ -88,9 +134,13 @@ def test_native_winner_complete_capture_and_immutable_retry(contextual_engine):
         assert result.inserted == 1, str(result.as_dict())
         prediction = db.scalar(select(WinnerPredictionSnapshot))
         validate_prediction_source(db, prediction)
-        from app.models.tables import WinnerPredictionEpisode
         from app.services.winner_probability.episode_service import validate_episode_source
 
+        assert prediction.episode_id != legacy_id
+        assert db.get(WinnerPredictionEpisode, legacy_id).episode_key == legacy.episode_key
+        assert db.get(WinnerPredictionEpisode, prediction.episode_id).episode_key.endswith(
+            "|certified-v1"
+        )
         validate_episode_source(db, db.get(WinnerPredictionEpisode, prediction.episode_id))
         assert db.scalar(select(func.count()).select_from(WinnerProbabilityEstimate)) == 1
 
