@@ -593,7 +593,7 @@ def _save_checkpoint(
     if processed <= len(previous_completed):
         return
     checkpoint_at = datetime.now(UTC)
-    previous_checkpoint_at = job.started_at
+    previous_checkpoint_at = _active_attempt_started_at(job, metadata)
     if previous.get("updated_at"):
         try:
             previous_checkpoint_at = datetime.fromisoformat(str(previous["updated_at"]))
@@ -677,7 +677,7 @@ def _normalization_checkpoint(
     checkpoint_at = datetime.now(UTC)
     metadata = dict(job.operational_metadata_json or {})
     previous = dict(metadata.get("ceri_normalization") or {})
-    previous_at = job.started_at
+    previous_at = _active_attempt_started_at(job, metadata)
     if previous.get("updated_at"):
         try:
             previous_at = datetime.fromisoformat(str(previous["updated_at"]))
@@ -723,6 +723,19 @@ def _heartbeat_and_cancel(db: Session, job: BackgroundJob, *, heartbeat: bool = 
     if heartbeat and callable(callback):
         callback()
     return bool(job.id and is_cancel_requested(db, job.id))
+
+
+def _active_attempt_started_at(
+    job: BackgroundJob,
+    metadata: dict[str, Any],
+) -> datetime | None:
+    value = dict(metadata.get("last_attempt") or {}).get("started_at")
+    if value:
+        try:
+            return datetime.fromisoformat(str(value))
+        except ValueError:
+            pass
+    return job.locked_at or job.started_at
 
 
 def _workflow_key(job: BackgroundJob, payload: dict[str, Any]) -> str:

@@ -420,7 +420,15 @@ def execute_capture_run_job(
             checkpoint_at = datetime.now(UTC)
             metadata = dict(job.operational_metadata_json or {})
             prior = dict(metadata.get("ceri_capture") or {})
-            previous_at = job.started_at
+            attempt_started_at = dict(metadata.get("last_attempt") or {}).get("started_at")
+            try:
+                previous_at = (
+                    datetime.fromisoformat(str(attempt_started_at))
+                    if attempt_started_at
+                    else job.locked_at or job.started_at
+                )
+            except ValueError:
+                previous_at = job.locked_at or job.started_at
             if prior.get("updated_at"):
                 try:
                     previous_at = datetime.fromisoformat(str(prior["updated_at"]))
