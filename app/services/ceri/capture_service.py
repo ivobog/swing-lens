@@ -313,10 +313,14 @@ class CeriRunCaptureService:
         captured_snapshots = []
         from app.services.source_mutation_authority import prefetched_source_scope
 
+        if progress_callback is not None:
+            progress_callback("PREPARING_EARNINGS", 0, len(rows))
         all_earnings = _capture_earnings_rows(db, company_ids)
         earnings_by_company: dict[int, list[CeriEarningsActual]] = {}
         for item in all_earnings:
             earnings_by_company.setdefault(item.company_id, []).append(item)
+        if progress_callback is not None:
+            progress_callback("PREPARING_SOURCE_BUNDLE", 0, len(rows))
         initial_bundle = (
             _capture_source_bundle(
                 db,
@@ -329,6 +333,8 @@ class CeriRunCaptureService:
             if isinstance(db, Session)
             else None
         )
+        if progress_callback is not None:
+            progress_callback("PREPARING_UPCOMING_EARNINGS", 0, len(rows))
         initial_scope = (
             prefetched_source_scope(db, initial_bundle)
             if initial_bundle is not None
@@ -695,12 +701,37 @@ class CeriRunCaptureService:
             from app.services.source_mutation_authority import prefetched_source_scope
 
             try:
+                persistence_checkpoint = max(len(rows) - 1, 0)
+                if progress_callback is not None:
+                    progress_callback(
+                        "PERSISTING_SOURCE_BUNDLE",
+                        persistence_checkpoint,
+                        len(rows),
+                    )
                 # Native source enrichment completes before freezing its SQL
                 # witness. No earlier witness survives a source-body mutation.
                 bundle = _capture_source_bundle(db, company_ids, run_id, market_cutoff)
+                if progress_callback is not None:
+                    progress_callback(
+                        "PERSISTING_SNAPSHOTS",
+                        persistence_checkpoint,
+                        len(rows),
+                    )
                 with prefetched_source_scope(db, bundle):
                     for snapshot in captured_snapshots:
                         self.snapshot_service.persist_snapshot(db, snapshot)
+                        if progress_callback is not None:
+                            progress_callback(
+                                f"PERSISTING_SNAPSHOT:{snapshot.ticker}",
+                                persistence_checkpoint,
+                                len(rows),
+                            )
+                if progress_callback is not None:
+                    progress_callback(
+                        "PERSISTING_COMPARISONS",
+                        persistence_checkpoint,
+                        len(rows),
+                    )
                 _capture_score_comparisons(
                     db, self, captured_snapshots, counts, run_id, market_cutoff
                 )
