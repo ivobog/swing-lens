@@ -329,6 +329,7 @@ def execute_feature_batch_job(
                 ownership_mode=CeriArtifactOwnership.PIPELINE.value,
                 semantic_authority=semantic_authority,
             ),
+            progress_callback=partial(_feature_prepare_checkpoint, db, job),
         )
     failed = 0
     for ticker in tickers:
@@ -598,6 +599,7 @@ def _save_checkpoint(
         metadata,
         "ceri_batch",
         "ceri_normalization",
+        "ceri_feature_prepare",
     )
     if previous_checkpoint_at is not None and previous_checkpoint_at.tzinfo is None:
         previous_checkpoint_at = previous_checkpoint_at.replace(tzinfo=UTC)
@@ -608,6 +610,12 @@ def _save_checkpoint(
     )
     max_checkpoint_gap_seconds = max(
         float(previous.get("max_checkpoint_gap_seconds") or 0.0),
+        float(
+            dict(metadata.get("ceri_feature_prepare") or {}).get(
+                "max_checkpoint_gap_seconds"
+            )
+            or 0.0
+        ),
         checkpoint_gap_seconds,
     )
     checkpoint_id = f"{job.job_type}:{processed}:{last_completed}"
@@ -716,6 +724,64 @@ def _normalization_checkpoint(
         )
     if _heartbeat_and_cancel(db, job):
         raise CeriNormalizationCancelled("CERI normalization batch cancelled.")
+
+
+def _feature_prepare_checkpoint(
+    db: Session,
+    job: BackgroundJob,
+    phase: str,
+    processed_queries: int,
+) -> None:
+    """Persist progress while the shared feature context is being prefetched."""
+
+    checkpoint_at = datetime.now(UTC)
+    metadata = dict(job.operational_metadata_json or {})
+    previous = dict(metadata.get("ceri_feature_prepare") or {})
+    previous_at = _latest_checkpoint_at(
+        job,
+        metadata,
+        "ceri_batch",
+        "ceri_feature_prepare",
+    )
+    if previous_at is not None and previous_at.tzinfo is None:
+        previous_at = previous_at.replace(tzinfo=UTC)
+    gap_seconds = (
+        max(0.0, (checkpoint_at - previous_at).total_seconds())
+        if previous_at is not None
+        else 0.0
+    )
+    checkpoint_id = f"ceri-feature-prepare:{processed_queries}:{phase}"
+    metadata["ceri_feature_prepare"] = {
+        "phase": phase,
+        "processed_queries": processed_queries,
+        "updated_at": checkpoint_at.isoformat(),
+        "max_checkpoint_gap_seconds": max(
+            float(previous.get("max_checkpoint_gap_seconds") or 0.0),
+            gap_seconds,
+        ),
+    }
+    job.operational_metadata_json = metadata
+    if job.id is not None and job.execution_token:
+        record_job_progress(
+            db,
+            job_id=job.id,
+            execution_token=str(job.execution_token),
+            stage="CERI_FEATURE_PREPARE",
+            current_item=phase,
+            last_completed_item=phase,
+            processed=processed_queries,
+            checkpoint_version=checkpoint_id,
+        )
+    else:
+        job.last_progress_at = checkpoint_at
+        job.progress_sequence = int(job.progress_sequence or 0) + 1
+        job.progress_stage = "CERI_FEATURE_PREPARE"
+        job.progress_current_item = phase
+        job.progress_last_completed_item = phase
+        job.progress_processed = max(int(job.progress_processed or 0), processed_queries)
+        job.checkpoint_version = checkpoint_id
+    if _heartbeat_and_cancel(db, job):
+        raise CancelRequested("CERI feature batch cancelled during context preparation.")
 
 
 def _heartbeat_and_cancel(db: Session, job: BackgroundJob, *, heartbeat: bool = True) -> bool:

@@ -403,8 +403,11 @@ def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch
             self.prepared = []
             self.rebuilt = []
 
-        def prepare_batch(self, _db, request):
+        def prepare_batch(self, _db, request, *, progress_callback=None):
             self.prepared.append(request.tickers)
+            if progress_callback is not None:
+                progress_callback("companies", 1)
+                progress_callback("price_bars", 2)
             return SimpleNamespace(
                 load_context_ms=3,
                 select_count=9,
@@ -453,6 +456,7 @@ def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch
     assert service.rebuilt == ["T1", "T2"]
     assert result["processed_tickers"] == 3
     assert result["telemetry"]["sql_select_count"] == 9
+    assert job.operational_metadata_json["ceri_feature_prepare"]["phase"] == "price_bars"
     assert job.operational_metadata_json["ceri_batch"]["completed_tickers"] == [
         "T0",
         "T1",
@@ -493,7 +497,7 @@ def test_feature_batch_cancellation_never_checkpoints_unfinished_ticker(monkeypa
     monkeypatch.setattr(batched_job_handlers.CeriProcessingRunService, "finish", finish)
 
     class Service:
-        def prepare_batch(self, *_args):
+        def prepare_batch(self, *_args, **_kwargs):
             return SimpleNamespace(load_context_ms=0, select_count=1, rows_loaded={})
 
         def rebuild(self, *_args, **_kwargs):
