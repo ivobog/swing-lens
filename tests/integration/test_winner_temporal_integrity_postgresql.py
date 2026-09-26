@@ -109,7 +109,7 @@ def test_invalid_pending_outcome_is_ignored_even_when_due_and_valid_peer_is_sele
     engine = create_engine(disposable_postgres_database)
     with Session(engine) as db:
         invalid = _prediction(db, ticker="INVALID")
-        valid = _prediction(db, ticker="VALID")
+        valid = _prediction(db, ticker="VALID", financial_selector_proof=True)
         unresolved = _prediction(db, ticker="UNRESOLVED")
         validator = TemporalValidationService()
         original_entry_session = invalid.planned_entry_session
@@ -242,6 +242,10 @@ def test_invalid_pending_outcome_is_ignored_even_when_due_and_valid_peer_is_sele
             forward.status = "MATURED"
             forward.matured_at = datetime(2026, 8, 27, 12, 0, tzinfo=UTC)
             forward.source_revision_cutoff_at = datetime(2026, 8, 27, 12, 0, tzinfo=UTC)
+            if forward.prediction_id == valid.id:
+                forward.metadata_json = {
+                    "native_outcome_proof": {"fixture": "selector-only"}
+                }
             db.add(
                 WinnerTargetStopOutcome(
                     prediction_id=forward.prediction_id,
@@ -261,7 +265,11 @@ def test_invalid_pending_outcome_is_ignored_even_when_due_and_valid_peer_is_sele
                     optimistic_winner=bool(ordinal),
                     conservative_winner=bool(ordinal),
                     evaluated_at=datetime(2026, 8, 27, 12, 0, tzinfo=UTC),
-                    metadata_json={},
+                    metadata_json=(
+                        {"native_outcome_proof": {"fixture": "selector-only"}}
+                        if forward.prediction_id == valid.id
+                        else {}
+                    ),
                 )
             )
         db.flush()
@@ -824,7 +832,12 @@ def test_current_fetch_does_not_mutate_legacy_winner_obligation(
     engine.dispose()
 
 
-def _prediction(db: Session, *, ticker: str) -> WinnerPredictionSnapshot:
+def _prediction(
+    db: Session,
+    *,
+    ticker: str,
+    financial_selector_proof: bool = False,
+) -> WinnerPredictionSnapshot:
     config = load_winner_probability_config()
     upload = UploadRun(
         filename=f"{ticker}.csv",
@@ -856,6 +869,11 @@ def _prediction(db: Session, *, ticker: str) -> WinnerPredictionSnapshot:
             "capture_training_candidate": True,
             "evidence_training_eligible": True,
             "training_rejection_reasons": [],
+            **(
+                {"native_capture_proof": {"fixture": "selector-only"}}
+                if financial_selector_proof
+                else {}
+            ),
         },
     )
     db.add(prediction)
