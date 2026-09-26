@@ -463,7 +463,9 @@ def execute_capture_run_job(
                     processed=processed,
                     total=total,
                     checkpoint_version=f"ceri-capture:{processed}:{ticker}",
-                    only_if_advanced=True,
+                    # Preparation checkpoints intentionally remain at zero
+                    # processed rows while their phase identity advances.
+                    only_if_advanced=processed > 0,
                 )
             heartbeat = getattr(job, "_heartbeat", None)
             if callable(heartbeat):

@@ -454,6 +454,10 @@ def _execute_legacy_fixture(database_url: str) -> dict:
         _execute_handler(db, feature, execute_rebuild_features_job)
         capture = db.scalar(select(BackgroundJob).where(BackgroundJob.job_type == CERI_CAPTURE_RUN))
         _execute_handler(db, capture, execute_capture_run_job)
+        db.refresh(capture)
+        capture_metadata = dict((capture.operational_metadata_json or {}).get("ceri_capture") or {})
+        assert capture_metadata.get("processed") == 1
+        assert capture.progress_sequence >= 8
         change = db.scalar(
             select(BackgroundJob).where(BackgroundJob.job_type == CERI_CHANGE_DETECTION)
         )

@@ -253,12 +253,18 @@ class CeriRunCaptureService:
             raise ValueError("cutoff_at conflicts with the frozen market cutoff")
         cutoff_at = market_cutoff.cutoff_at
         as_of_session = market_cutoff.latest_completed_session
+        if progress_callback is not None:
+            progress_callback("PREPARING_COMPANIES", 0, len(rows))
         companies_by_ticker = _companies_for_tickers(db, {str(row.ticker).upper() for row in rows})
+        if progress_callback is not None:
+            progress_callback("PREPARING_PROVIDER_CHECKS", 0, len(rows))
         provider_checks_by_ticker = _provider_checks_for_tickers(
             db,
             {str(row.ticker).upper() for row in rows},
             cutoff_at,
         )
+        if progress_callback is not None:
+            progress_callback("PREPARING_FEATURES", 0, len(rows))
         company_ids = {company.id for company in companies_by_ticker.values()}
         features_by_company = _revision_features_for_companies(
             db,
@@ -277,8 +283,12 @@ class CeriRunCaptureService:
             ]
             for company_id, features in features_by_company.items()
         }
+        if progress_callback is not None:
+            progress_callback("PREPARING_IBMI_CONTEXT", 0, len(rows))
         pipeline_id = pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
         ibmi_candidates = _preload_ibmi_context(db, rows, cutoff_at, settings=settings)
+        if progress_callback is not None:
+            progress_callback("PREPARING_EXISTING_SNAPSHOTS", 0, len(rows))
         existing_snapshot_company_ids = _existing_snapshot_company_ids(
             db,
             run_id,
@@ -287,6 +297,8 @@ class CeriRunCaptureService:
             market_cutoff,
             pipeline_id,
         )
+        if progress_callback is not None:
+            progress_callback("CAPTURE_INPUTS_PREPARED", 0, len(rows))
         counts = {
             "score_snapshots": 0,
             "change_events": 0,
