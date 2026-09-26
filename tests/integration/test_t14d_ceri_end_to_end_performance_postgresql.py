@@ -105,6 +105,7 @@ def test_capture_authority_scaling(
             fixtures._seed_ceri_manual_evidence(
                 db,
                 as_of_session=cutoff.latest_completed_session,
+                tickers=tickers,
                 baseline_tickers=tickers if delivery == "material" else ("ALFA",),
             )
             db.commit()
