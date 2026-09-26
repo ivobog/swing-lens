@@ -294,8 +294,16 @@ def test_watchdog_reports_locked_candidate(recovery_engine, caplog):
         locker.rollback()
 
 
-def test_deterministic_pipeline_10_25_100(disposable_postgres_database_factory):
+def test_deterministic_pipeline_10_25_100(
+    disposable_postgres_database_factory,
+    monkeypatch: pytest.MonkeyPatch,
+):
     """Production Technical/PG path plus deterministic downstream orchestration."""
+
+    recovery_settings = get_settings().model_copy(
+        update={"ceri_provider_ingest_enabled": False}
+    )
+    monkeypatch.setattr("app.settings.get_settings", lambda: recovery_settings)
 
     with disposable_postgres_database_factory() as database_url:
         config = Config("alembic.ini")
@@ -324,7 +332,6 @@ def test_deterministic_pipeline_10_25_100(disposable_postgres_database_factory):
                 assert measurement["max_checkpoint_gap_seconds"] < 60
                 assert measurement["lease_expired"] is False
                 assert measurement["stages"] == [
-                    "SEC",
                     "Fundamental",
                     "Market handoff",
                     "Technical",
@@ -553,7 +560,7 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
             "COMBINING_RESULTS",
             "RANKING_PROFILES",
             "SECTOR_ROTATION_SNAPSHOT",
-            "CERI_PROVIDER_INGEST",
+            "CERI_CAPTURE_SNAPSHOT",
             "CAPTURING_SETUP_SIGNALS",
             "EVALUATING_SETUP_LIFECYCLES",
             "CAPTURING_WINNER_PREDICTIONS",
@@ -771,8 +778,10 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
         refresh_rankings=rankings,
         build_sector_rotation_snapshot=sector,
         ceri_run_capture_enabled=settings.ceri_enabled and settings.ceri_run_capture_enabled,
-        ceri_provider_ingest_enabled=settings.ceri_enabled
-        and settings.ceri_provider_ingest_enabled,
+        # This deterministic recovery gate exercises the synchronous snapshot
+        # path. The durable provider DAG and its completion continuation are
+        # certified separately with real BackgroundJob workers.
+        ceri_provider_ingest_enabled=False,
         schedule_ceri_provider_ingest=lambda *_args, **_kwargs: stage_calls.append("CERI") or 1,
         capture_ceri_snapshot=lambda *_args, **_kwargs: stage_calls.append("CERI") or {},
         capture_setup_signals=lambda *_args, **_kwargs: stage_calls.append("Setup") or {},
