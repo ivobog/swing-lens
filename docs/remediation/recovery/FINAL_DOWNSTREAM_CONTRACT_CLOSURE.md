@@ -1,96 +1,75 @@
-# Final downstream production-contract closure — incomplete
+# Final downstream production-contract closure
 
-## Executive verdict
+### GAP 1 — SEC/CERI PROVIDER-INGEST COMPLETION BARRIER: PASS
 
-| Gate | Verdict |
+Provider-ingest mode now persists `WAITING_FOR_CERI_COMPLETION`, releases the canonical single worker, executes the real provider/normalize/feature/finalize/capture/change/alert DAG, and resumes the same `PipelineRun` at `FREEZING_DECISION_HANDOFF_MANIFEST`. The continuation preserves the upload run, calculation context, cutoff, business session, calendar version, configuration anchors, scope, semantic authority, and provider workflow identity. It does not replay Fundamental, Market, Technical, Market Regime, Combined, Ranking, or Sector.
+
+Continuation identity is the durable request key `resume-pipeline:<pipeline>:after-ceri:<workflow>:from:<step>`. Barrier evaluation verifies a terminal policy-valid workflow and the expected run-scoped certified capture before enqueueing. Duplicate finalizer/barrier evaluation coalesces to one continuation. Required child failure rolls up to the parent, prevents Setup and Winner, and cannot leave a successful parent. Restart recovery resumes the retained pipeline and authority rather than creating a new pipeline or calculation context.
+
+| Certification | Verdict | Evidence |
+| --- | --- | --- |
+| Single-worker barrier, child failure, duplicate finalizer, restart/recovery | PASS | `tests/integration/test_ceri_pipeline_completion_barrier.py` |
+| Exact-10 provider-enabled pipeline | PASS | Exact membership `BHE, BLLN, KLIC, LSCC, PDFS, ACMR, RDVT, AVT, DVN, JNJ`; terminal `COMPLETED`; frozen providers; real asynchronous DAG and real downstream writers; no manual CERI evidence |
+| Exact-10 final broad-run metrics | PASS | 60 provider records; 250.886922s total; 29.167093s Technical; 84.769854s CERI; 2.748449s maximum checkpoint gap; jobs: 4 ingest, 4 normalize, 1 feature, 1 finalize, 1 capture, 1 change, 1 alert, 2 pipeline executions |
+| Frozen-100 provider-enabled pipeline | PASS | Terminal `COMPLETED`; 600 provider records; no retry, recovery, lease expiry, stall, duplicate continuation, or source/evidence amplification |
+| Frozen-100 final broad-run metrics | PASS | 2,474.589751s total; 178.472884s Technical (`<5m`); 766.055459s CERI; 20.543906s maximum checkpoint gap (`<60s`); jobs: 16 ingest, 8 normalize, 2 feature, 1 finalize, 1 capture, 1 change, 1 alert, 2 pipeline executions |
+| Continuous CERI-to-Winner real-writer tail | PASS | Provider ingest through certified CERI capture/change/alerts, handoff, Setup, Lifecycle/alerts, Winner capture, maturation, materialization, and publication under one retained database/run/configuration lineage |
+
+The final broad run exposed and closed two timing gaps before this certification: capture input preparation and the post-scoring snapshot persistence tail now emit durable progress checkpoints. The final frozen-100 capture maximum was 17.874372s and the aggregate CERI maximum was 20.543906s. Frozen external responses were used; no live SEC request, IB historical acquisition, live upload, or live pipeline was run.
+
+### GAP 2 — WINNER MATERIAL-POSITIVE PUBLICATION: PASS
+
+`tests/integration/test_winner_material_positive_publication_postgresql.py` proves the production writer chain on disposable PostgreSQL:
+
+`native certified capture -> certified prediction -> certified episode -> decision-time estimate -> forward outcome maturation -> certified financial observation -> evidence watermark -> cohort generation -> materialization -> publication -> serving projection`.
+
+| Acceptance | Result |
 | --- | --- |
-| CERI live failure root cause identified | YES |
-| Setup live failure root cause identified | YES |
-| CERI contract fixed | YES, capture/change writer on cloned state |
-| Setup contract fixed | YES, capture writer on cloned state with a newly frozen handoff |
-| Lifecycle contracts verified | YES, certified clone replay and PostgreSQL regression |
-| Setup alert contract verified | YES, real PostgreSQL writer and cooldown tests |
-| CERI alert contract verified | YES, certified score change and alert on clone |
-| Winner acquisition/prediction verified | YES, enabled-config clone capture plus real PostgreSQL test |
-| Winner publication verified | PARTIAL, clone empty-evidence generation published and material-positive PostgreSQL publication tests pass |
-| All reachable downstream mutation guards inventoried | NO |
-| Real downstream tail passed | NO |
-| Exact-10 real-writer pipeline passed | YES for the deterministic internal-stage fixture; SEC provider-ingest preflight was disabled |
-| Frozen-100 real-writer pipeline passed | YES for the deterministic internal-stage fixture; SEC provider-ingest preflight was disabled |
-| Broad suite clean | NO; not run |
-| Remaining P0/P1 findings | 0 confirmed P0/P1; SEC-ingest, positive retained-clone publication, guard inventory and broad-suite gates remain unverified |
-| Ready for one final small live slice | NO |
-| Ready for final 100 live canary | NO |
+| Matured certified observations | 1 |
+| Certified financial population | 1 |
+| Evidence rows loaded / generation evidence rows | 1 / 1 |
+| Evidence manifest members | >0 |
+| Certified Winner episodes | 1 |
+| Decision-time serving estimates | 1 |
+| Published generations for the refresh state | 1 |
+| Generation status | `PUBLISHED` |
+| Serving/current projection | Points to the new generation and exact watermark |
+| Predecessor/current-publication contract | Validated by publication authorities and reliability tests |
+| Legacy unsealed predictions | Excluded from the financial population |
+| Publication retry | `ALREADY_ACTIVE`; no duplicate serving generation |
+| Rollback/atomicity | Existing PostgreSQL rollback and publication reliability controls pass |
 
-This remains a failed release gate, not a certification. No further live admission is supported.
+The exact-10 integrated certification independently matured one certified observation and published one generation with ten Winner episodes and one serving estimate.
 
-## Baseline and isolation
+### GAP 3 — REACHABLE DOWNSTREAM MUTATION-GUARD INVENTORY: PASS
 
-- Started from `codex/market-regime-temporal-remediation` at `556908e933f362e5a794ba65f1fda0f6b68bb89f`; work branch `codex/final-downstream-contract-closure`. No push or merge.
-- Existing untracked `WHOLE_APPLICATION_RECOVERY_AUDIT.md` was left untouched. Database revision: `0084_technical_recovery`.
-- No active jobs or app runtime at baseline; PostgreSQL and IB Gateway ports were listening. No IB request, upload, or live pipeline was started.
-- Live run 165 remains `COMPLETED` with ten input rows. Pipeline 156 and root job 43323 remain `FAILED` at `CAPTURING_SETUP_SIGNALS`. CERI child 43334 remains `FAILED`. Original run 165 still has zero CERI and zero Setup rows; no original rows were rewritten.
-- Already-proven run-165 counts: Fundamental 10, Technical 10, Market Regime 1, Sector 1, Combined 10, Ranking 50. The upstream stages were not changed.
-- Disposable database `swinglens_pytest_final_downstream_20260925` was copied from live PostgreSQL. All replay writes, plan replacement, and new evidence were confined to that clone.
+The bounded production reachability inventory covers CERI provider/capture through Decision Handoff, Setup, Lifecycle, alerts, Winner outcomes/cohorts, and publication. `tests/test_reachable_downstream_guard_inventory.py` discovers concrete guard codes from reviewed production writers and rejects missing proof files or non-final statuses.
 
-## Root causes and red reproduction
+| Inventory measure | Result |
+| --- | --- |
+| Reviewed reachable authority/writer surfaces | 22 / 22 verified |
+| Concrete reachable guard codes | 213 / 213 verified |
+| Allowed status set | `VERIFIED_POSITIVE`, `VERIFIED_NEGATIVE`, `NOT_REACHABLE_CURRENT_CONFIG` only |
+| Unknown, assumed, partial, or untested entries | 0 |
 
-| Live failure | Exact missing contract | Why production missed it | Why prior tests missed it | Fix/proof |
-| --- | --- | --- | --- | --- |
-| CERI capture | `CeriChangeDetectionService.detect_score_changes` received an uncertified prior `CeriScoreSnapshot` (`evidence_id=NULL`) although `validate_score_comparison` requires both score sources to carry immutable CERI evidence. | `select_prior_comparison` considered matching calculation/config/evidence-contract text sufficient; it did not require an actual sealed evidence pointer. All 11,394 retained historical CERI scores lack `evidence_id`. | Prior tests exercised comparison semantics and fake scores, not a certified new score against the retained legacy population through the PostgreSQL writer. | The selector now excludes unsealed predecessors when the current score is certified. On the clone, the unmodified writer first raised the exact live code; after the fix it persisted four CERI scores/evidence and zero spurious changes. |
-| Setup capture | `persist_setup_evidence` revalidated a pinned historical Setup snapshot whose `evidence_id=NULL`; `validate_setup_projection` requires a SETUP `CoreCalculationEvidence` target. | `canonical_snapshot_histories_before` and the single-key history selectors included legacy current-selection rows. All 223 retained Setup snapshots for the ten tickers lack evidence pointers. | Earlier deterministic adapters and tests did not feed these production historical rows through the real evidence writer. | Certified history selectors now exclude unsealed rows. On the clone, the unmodified writer first raised the exact live code; after the fix a newly frozen post-CERI handoff allowed ten Setup snapshots/evidence to persist. |
-| Lifecycle evaluation | Active retained episodes had no evaluation or transition evidence and were reselected as certified predecessors. | The `ACTIVE` uniqueness index and active/primary selectors did not distinguish old mutable episodes from evidence-bearing current authority. | No test replayed the retained 19-episode population. | The real clone writer retired 16 legacy active rows administratively, left them readable, and opened four new certified episodes with evaluation/transition evidence. A repeat produced no extra audit rows. |
-| Winner financial cohort | A new certified prediction's estimate loaded historical matured Winner outcomes whose predictions lack `native_capture_proof`. | The financial cohort selector admitted legacy training observations; `population_bodies(financial=True)` correctly rejected them with `MUTATION_WINNER_CERTIFIED_CAPTURE_REQUIRED`. The clone held 18,170 unsealed historical predictions. | Empty-database Winner tests had no legacy matured population. | Financial estimate and generation selectors exclude unsealed/non-native triples before financial authority. The exact retained guard remains in place. On the clone, one eligible new candidate yielded a certified prediction, episode and estimate with zero failures. |
-| Winner episode selection | A certified capture can encounter a retained active or exact-key legacy episode with no sealed birth prediction. | Active and exact-key selectors did not distinguish episodes born under the native capture contract from legacy history. | Empty-database capture tests had no colliding legacy episode. | Certified selectors require a native capture birth; an exact legacy-key collision creates a distinct `|certified-v1` episode without editing legacy history. A real PostgreSQL writer regression passed and validated the new episode's certified birth. |
+The 22 surfaces are: shared retained-source boundary, shared calculation boundary, CERI capture, CERI change, CERI alerts, CERI completion barrier, Decision Handoff, Setup caller, Setup capture, Setup change, Lifecycle, Setup alerts, Winner prediction, Winner prediction seal, Winner episode, Winner obligations, Winner outcomes, Winner estimates, Winner cohort, Winner generation publication, Winner materialization, and Winner publication evidence. Each generated inventory row records its exact guard, production writer, required authority, named production-shaped test, and final status.
 
-The exact in-flight new score/snapshot IDs from the live failures are unavailable because those writer transactions rolled back. Retained CERI candidate predecessors include AVT 11418, DVN 11461, JNJ 10705, and RDVT 10961, each with `evidence_id=NULL`; the live log does not identify which ticker raised first. Retained Setup candidate predecessors include ACMR 15150, AVT 37807, DVN 37850, JNJ 36667, and RDVT 37515, also with `evidence_id=NULL`. The live log likewise lacks the first failing ticker. Neither case had a usable certified prior in run-165 state. The new certified target did not pre-exist: the capture writer creates it before the attempted downstream comparison/history revalidation.
+The release-delta review also records five newly reachable mutation sinks: pipeline wait-state mutation; pipeline CERI failure roll-up; continuation enqueue; child-failure roll-up; and legacy Lifecycle retirement. The final inventory suites passed before the final broad run: 22/22 surfaces and 213/213 codes.
 
-Red reproduction used the production `CeriRunCaptureService.capture_run` and `SetupLifecycleSnapshotCaptureService.capture_snapshots_for_run`, a real SQLAlchemy Session against the clone, retained pipeline configuration delivery, and calculation context 18. The first CERI call raised `MUTATION_CERI_CHANGE_CERTIFIED_SCORE_SOURCE_REQUIRED`. The full ten-ticker Setup call raised `MUTATION_SETUP_CERTIFIED_PROJECTION_TARGET_REQUIRED`. A one-symbol Setup probe was rejected earlier by the immutable ten-symbol preflight, as designed, and was not counted as reproduction.
+### GAP 4 — BROAD REPOSITORY SUITE: FAIL
 
-## Contract classification and checked writer matrix
+The user-directed one final broad invocation was run once and was not rerun:
 
-| Stage | Production writer and guard | Required certified input/target | Supplied source / classification | Real-writer proof |
-| --- | --- | --- | --- | --- |
-| CERI score/change | `CeriRunCaptureService.capture_run` → `CeriChangeDetectionService.detect_score_changes`; `validate_score_comparison` / `validate_score_source` | Current and prior CERI score evidence, exact scope and predecessor | New current is certified; selected legacy prior was not: **WRONG_SOURCE_SELECTION** | Red exact guard; green clone: score/evidence 4, changes 0, failed 0 |
-| CERI alerts | `CeriRunCaptureService` → `CeriAlertService.persist_alert_for_change`; `validate_change_source` / `validate_notification` | Certified change event and score sources | ALFA's source-backed baseline/current scores 11603→11604 on the clone, evidence 454→455 | Three native changes, alert 1263, both retained validators pass; duplicate publication suppressed |
-| Setup snapshot | `SetupLifecycleRepository.upsert_snapshots` → `persist_setup_evidence`; `validate_setup_projection` over pinned history | Exact certified Fundamental/Technical/Combined/Ranking/Regime/Sector sources and certified historical Setup projections | New sources were wired; selected history was unsealed: **WRONG_SOURCE_SELECTION** | Red exact guard; green clone: snapshot/evidence 10, failed 0 |
-| Setup canonical/current projection | `SetupLifecycleCanonicalizer.canonicalize_run` / `advance_canonical_selections`; `validate_setup_projection` | Certified selected Setup snapshot and monotone current selection | New snapshots certified | Real ten-symbol Lifecycle evaluation completed using the certified canonical snapshots |
-| Setup change | `SetupLifecycleChangeDetector.detect_and_persist` / `validate_signal_change` | Certified current and predecessor Setup snapshots | Legacy history excluded from current predecessor selection | Real PostgreSQL signal-change/alert cooldown test passed; run-165 clone had no signal changes |
-| Lifecycle evaluation/transition | `SetupLifecycleEpisodeService.apply_snapshot`; `validate_episode_projection`, evaluation/transition evidence writers | Certified existing episode chain or authorized new chain | Retained active legacy rows cannot be predecessors; administrative `LEGACY_RETIRED` status clears uniqueness without fabricating a domain transition | Clone: ten evaluations, four new certified ACTIVE episodes and four transition evidence rows; 16 legacy retirements audited once |
-| Setup alerts | `SetupLifecycleAlertService` / rule and decision evidence writers | Certified source event, rule, decision and predecessor | Alert predecessor selection validated in signal cooldown and gate-blocked paths | Real PostgreSQL cooldown, gate-blocked and configuration-drift tests passed |
-| Winner acquisition/prediction | `WinnerPredictionCaptureService.capture_run` / exact handoff, source, capture, episode, outcome and estimate authorities | Frozen enabled configuration, ready mandatory sources, certified population for financial estimate | Retained run 165 is frozen with Winner disabled, so it cannot honestly be re-enabled; separately anchored clone run 990173 was enabled and ready | Clone 1 inserted, 1 decision-time estimate, 0 failed/excluded; prediction 18546 certified; real PostgreSQL full capture/rollback/idempotency test passed |
-| Winner publication | Cohort generation/materialization/publication authorities | Certified financial evidence, current generation/predecessor and immutable serving set | Legacy history remains readable but excluded from financial generation | Clone generation 12 published with zero certified matured evidence; material-positive PostgreSQL atomic publication and predecessor tests passed. Positive material clone publication not yet shown. |
+`python -m pytest -q`
 
-This is still a partial reachability inventory; the task's complete-inventory criterion has **not** been met. No mutation guard was weakened or deleted.
+| Result | Count |
+| --- | ---: |
+| Passed | 4,126 |
+| Failed | 1 |
+| Skipped | 10 |
+| Warnings | 2,035 |
+| Duration | 10,106.59s (2:48:26) |
 
-## Disposable replay evidence and blocker
+The sole failure was `tests/recovery/test_whole_application_recovery.py::test_deterministic_pipeline_10_25_100`. Under broad-suite import order, the fixture patches `app.settings.get_settings` but the already-imported `app.services.pipeline_executor.get_settings` binding retains provider-ingest mode. The synthetic recovery adapter therefore returns before its Technical callback, leaving `technical_span.start` and `technical_span.end` as `None`; metrics assembly at line 896 raises `TypeError: unsupported operand type(s) for -: 'NoneType' and 'NoneType'`. The same test had passed in focused execution, establishing an order-dependent recovery-test harness defect. It does not invalidate the final broad run's passing real provider-enabled exact-10 and frozen-100 executions, but the explicit release rule is `0 failed`, so GAP 4 and the overall release certification remain failed.
 
-The clone initially retained the consumed run-start/decision handoff. Once corrected Setup history selection changed the decision manifest, that old immutable handoff correctly rejected the replay. A fresh handoff was created **only on the clone**. Its correct production sequencing is after CERI: freezing it before CERI caused another legitimate fingerprint mismatch. The successful cloned handoff was plan 9 / manifest 5. No live plan was modified.
-
-With that handoff, the real CERI writer persisted cloned score IDs 11599–11602 with evidence IDs 436–439, each `NO_PRIOR_COMPARABLE_SNAPSHOT`. The real Setup writer persisted cloned snapshot IDs 38012–38021 with evidence IDs 440–449. It reported 10 captured, 0 failed. These are clone IDs, not live IDs.
-
-`SetupLifecycleEvaluationService.evaluate_run` initially failed at `SetupLifecycleEpisodeService.apply_snapshot` → `validate_episode_projection`. Nineteen retained episodes for the ten symbols had both latest evidence pointers null; 16 were `ACTIVE`. The observed guard was `MUTATION_DECISION_EVIDENCE_FINGERPRINT_MISMATCH`, and the evidence writer would reject the same predecessor with `MUTATION_LIFECYCLE_CERTIFIED_PREDECESSOR_REQUIRED`. This was the third production-shaped legacy-boundary defect, now closed.
-
-`uq_setup_lifecycle_episodes_active_family` permits only one `ACTIVE` episode per ticker/timeframe/family. The selected boundary uses an administrative `LEGACY_RETIRED` status (no schema migration was needed), records `LEGACY_CERTIFICATION_BOUNDARY` audit entries, clears only current-primary flags, and never changes the original domain decision, timestamp, or evidence pointers. Certified selectors require both evaluation and transition evidence. Historical query paths still return the legacy rows. The operation runs in the real writer transaction and is idempotent. On the clone it retired 16 active rows and opened four new certified successors; a repeated evaluation left the retirement audit count at 16.
-
-The next clone probe found the fourth same-class defect: Winner's financial cohort admitted retained unsealed predictions. With a separately frozen Winner-enabled pipeline, a healthy one-symbol candidate reached `MUTATION_WINNER_CERTIFIED_CAPTURE_REQUIRED` during estimate creation. Selection now requires native capture and both native outcome proof envelopes; the financial guard still validates exact retained bodies. The retry inserted certified prediction 18546 with episode 7591 and one decision-time estimate. The clone contained 18,170 legacy Winner predictions and one new native-certified prediction. A real cohort generation then reached `PUBLISHED` without admitting legacy financial rows, but it had no matured certified observations (zero evidence rows).
-
-For CERI alert coverage, the clone received an additional source-backed deterministic ALFA baseline/current calculation. The two certified scores (11603/evidence 454 and 11604/evidence 455) produced three native changes, including change 10710 `OPPORTUNITY_UPGRADED`. The capture path published alert 1263. A direct retry returned no new alert because that exact business identity already existed; retained change/notification validators passed.
-
-## Tests and remaining gates
-
-- Initial focused CERI/Setup suites: 36 passed; new selector/history-filter suites: 12 and 10 passed. The first attempted command named nonexistent test files and ran no tests.
-- Added Lifecycle boundary PostgreSQL regression passed, including preserved historical row, audited retirement, new certified successor, and idempotent repeat. On the clone, ten real Lifecycle evaluations and four certified transitions completed.
-- Real PostgreSQL Setup alert cooldown/configuration-drift and gate-blocked-path tests passed; the CERI score-change/alert/idempotency test passed. The clone independently retained and validated the certified ALFA CERI change/alert.
-- Winner's real PostgreSQL capture/rollback/idempotency, Setup/Lifecycle/Winner configuration, and positive-material atomic publication tests passed. Winner evidence/probability-focused run: 30 passed; subsequent generation-publication/evidence run: 22 passed. A first ad-hoc invocation via Python `<stdin>` produced a Windows process-pool failure (`TECH_ERROR`) and false upstream ineligibility; normal pytest execution removed that artifact.
-- The new legacy-episode collision regression passed on real PostgreSQL after constraining its direct legacy lookup to the real repository. An intermediate 535-test Winner suite attempt failed 48 fake-repository cases because the lookup ran against empty in-memory sessions; after that correction the same full `tests/winner_probability` suite passed **535/535**. This is not the repository-wide release suite.
-- The complete disposable eight-symbol GUI-to-database certification passed on rerun: `test_single_run_comprehensive_e2e_certification`, 1 passed in 369.13 seconds, pipeline `COMPLETED`, 13 real internal stages, 672/672 GUI↔DB comparisons. Its first attempt failed at preflight because the deterministic IB fixture lacked the application's newer low-level handshake. The fixture now supplies that handshake and current-time smoke; there were no real IB requests. Evidence: `test-results/single-run-certification/20260925T125152Z-19ef4076/REPORT.md`.
-- The above is a real full-tail proof for **eight different symbols**, not a substitute for the required exact-ten membership or frozen hundred. The older 10/25/100 recovery harness uses downstream adapters and cannot be counted as a real-writer pass. A new exact-ten fixture using the required membership and real internal writers passed. Its first combined pytest invocation also selected the hundred case, which timed out at Setup under the old 180-second no-progress deadline. The frozen-hundred rerun with a cardinality-appropriate deadline passed in 1572.37 seconds: all 13 internal steps, including CERI, Setup, Lifecycle and Winner, completed; Technical took 151 seconds, below the five-minute target. Both fixtures intentionally disable CERI SEC provider ingestion and supply source-backed manual evidence, so neither alone establishes the requested SEC provider-ingest gate. The broad repository suite has not been run once as a release gate, and no clean release claim is made.
-- A clone-only historical CERI feature rebuild at a prior close-plus-15-minute cutoff, with SPY bars revised later that evening, originally reached `MUTATION_SOURCE_RECORD_ARGUMENT_MISMATCH: price_bars` after PIT projection. The projector now carries the retained revision witness; the source guard reconstructs the historical row from locked current SQL state and that witness, checks first visibility and every mapped field, and rejects tampering. A real PostgreSQL regression passed for a changed historical close and rejected a forged close; its complete source-bundle integration file passed 13/13. At the prior cutoff, the disposable retained clone then rebuilt ALFA 1/1 and the required ten tickers 10/10 with zero failures; 29 related CERI tests passed. No generic source-body guard was disabled.
-- Retained run 165's Winner configuration is frozen disabled. Enabling it on that same pipeline correctly raised `MUTATION_RETAINED_CONFIGURATION_MISMATCH`. The separate enabled clone probe does not certify run 165 as a completed all-stage pipeline.
-- The real SEC pipeline-preflight validator passed **10/10** for the exact-ten membership on the retained PostgreSQL clone. This is a preflight proof only: the new exact-ten and frozen-hundred deterministic GUI pipelines disabled provider ingestion, and no SEC-enabled full-tail replay was run. In provider-ingest mode, the pipeline schedules separate CERI provider jobs rather than using its synchronous CERI-capture step, so the existing deterministic fixture cannot be relabeled as SEC-enabled evidence.
-- No new live upload, run admission, IB acquisition, push, or production database write occurred. Ready for one final small live slice: **NO**. Ready for final live hundred: **NO**.
-
-## Current release disposition
-
-Lifecycle's safe boundary and the historical PIT source proof have been implemented; no product-policy choice remains. The remaining work is engineering verification: exercise the SEC provider-ingest variant and material-positive publication on a retained clone, inventory all reachable downstream guards, and run the broad suite once with zero failures. Until then this document deliberately retains an **incomplete** verdict.
+Remaining findings: P0 = 0; P1 = 1 (order-dependent recovery harness/settings binding). READY FOR FINAL SMALL LIVE SLICE: **NO** because the broad release gate is not clean. READY FOR FINAL 100 LIVE CANARY: **NO**. No live pipeline, live upload, network acquisition, push, or merge occurred. Branch: `codex/final-downstream-contract-closure`. The pre-existing user-owned `WHOLE_APPLICATION_RECOVERY_AUDIT.md` remains untouched and uncommitted.
