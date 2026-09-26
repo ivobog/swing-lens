@@ -213,6 +213,8 @@ class CeriFeatureRebuildService:
         select_count = 0
         rows_loaded: dict[str, int] = {}
         source_bodies = PrefetchedSourceBodies(db) if isinstance(db, Session) else None
+        if progress_callback is not None:
+            progress_callback("starting", select_count)
         companies = self._companies(db, request, source_bodies=source_bodies)
         select_count += 1 + int(request.run_id is not None and not isinstance(db, Session))
         rows_loaded["companies"] = len(companies)
@@ -246,6 +248,8 @@ class CeriFeatureRebuildService:
         def load(model: Any, statement: Any) -> list[Any]:
             nonlocal select_count
             select_count += 1
+            if source_bodies is not None:
+                source_bodies.refresh()
             rows = (
                 source_bodies.load(model, statement)
                 if source_bodies is not None
@@ -259,6 +263,7 @@ class CeriFeatureRebuildService:
         if not company_ids:
             pit = CeriPointInTimeQuery(config=self.config, snapshots=[], source_records={})
             if source_bodies is not None:
+                source_bodies.refresh()
                 source_bodies.seal()
             return CeriFeatureBatchContext(
                 [],
@@ -539,6 +544,7 @@ class CeriFeatureRebuildService:
             config=self.config, snapshots=estimates, source_records=sources_by_id
         )
         if source_bodies is not None:
+            source_bodies.refresh()
             source_bodies.seal()
         return CeriFeatureBatchContext(
             companies,
