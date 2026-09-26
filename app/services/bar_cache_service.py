@@ -147,7 +147,15 @@ def cache_bars(
         new_hash = bar_data_hash(bar)
 
         if current is None:
-            db.add(_to_price_bar(bar, new_hash, now))
+            db.add(
+                _to_price_bar(
+                    bar,
+                    new_hash,
+                    now,
+                    fetch_run_id=fetch_run_id,
+                    fetch_item_id=fetch_item_id,
+                )
+            )
             changed_series.add((bar.ticker.upper(), bar.timeframe, bar.what_to_show))
             inserted += 1
             continue
@@ -280,7 +288,14 @@ def _bar_key(
     return (ticker.upper(), bar_date, timeframe, what_to_show)
 
 
-def _to_price_bar(bar: HistoricalBar, data_hash: str, now: datetime) -> PriceBar:
+def _to_price_bar(
+    bar: HistoricalBar,
+    data_hash: str,
+    now: datetime,
+    *,
+    fetch_run_id: int | None = None,
+    fetch_item_id: int | None = None,
+) -> PriceBar:
     return PriceBar(
         ticker=bar.ticker.upper(),
         bar_date=bar.bar_date,
@@ -293,6 +308,8 @@ def _to_price_bar(bar: HistoricalBar, data_hash: str, now: datetime) -> PriceBar
         source=bar.source,
         what_to_show=bar.what_to_show,
         adjustment_type=bar.adjustment_type,
+        first_fetch_run_id=fetch_run_id,
+        first_fetch_item_id=fetch_item_id,
         first_seen_at=now,
         last_seen_at=now,
         revision_count=0,

@@ -248,6 +248,45 @@ def test_pipeline_status_route_returns_progress_payload(monkeypatch) -> None:
     assert payload["percentage"] == 50.0
 
 
+def test_waiting_pipeline_status_exposes_active_ceri_child_progress(monkeypatch) -> None:
+    status = PipelineStatusDto(
+        pipeline_run_id=99,
+        upload_run_id=7,
+        status="WAITING_FOR_CERI_COMPLETION",
+        current_step="CERI_PROVIDER_INGEST",
+        requested_by=None,
+        started_at=None,
+        completed_at=None,
+        created_at=None,
+        message="waiting",
+        error_message=None,
+        background_job_id=42,
+        steps=[],
+        result_json={"ceri_provider_workflow_key": "ceri:pipeline:99:config-a"},
+    )
+    monkeypatch.setattr(run_routes, "get_pipeline_status", lambda _db, _pipeline_id: status)
+    root = BackgroundJob(id=42, job_type="FULL_PIPELINE", status="COMPLETED")
+    child = BackgroundJob(
+        id=84,
+        job_type="CERI_NORMALIZE_BATCH",
+        status="RUNNING",
+        workflow_key="ceri:pipeline:99:config-a",
+        progress_stage="CERI_NORMALIZE",
+        progress_processed=17,
+        progress_total=50,
+    )
+    db = RouteFakeDb(job=root, workflow_job=child)
+
+    payload = run_routes.run_pipeline_status(run_id=7, pipeline_id=99, db=db)
+
+    assert payload["background_job_id"] == 42
+    assert payload["observed_background_job_id"] == 84
+    assert payload["job_status"] == "RUNNING"
+    assert payload["progress_stage"] == "CERI_NORMALIZE"
+    assert payload["processed_item_count"] == 17
+    assert payload["total_item_count"] == 50
+
+
 def test_cancel_pipeline_route_requests_cancel_and_redirects(monkeypatch) -> None:
     status = PipelineStatusDto(
         pipeline_run_id=99,
@@ -334,12 +373,19 @@ class FundamentalFakeDb:
 
 
 class RouteFakeDb:
-    def __init__(self, job: BackgroundJob | None = None) -> None:
+    def __init__(
+        self,
+        job: BackgroundJob | None = None,
+        workflow_job: BackgroundJob | None = None,
+    ) -> None:
         self.commits = 0
         self.rollbacks = 0
         self.job = job
+        self.workflow_job = workflow_job
 
     def scalar(self, statement):
+        if "background_jobs" in str(statement):
+            return self.workflow_job
         if "upload_runs" in str(statement):
             return 7
         return None

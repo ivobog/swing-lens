@@ -19,6 +19,28 @@ from app.services.domain_mutation import (
 )
 from app.services.domain_write_fence import current_domain_write_ownership
 from app.services.market_clock_service import MarketClockService
+from app.services.winner_probability.pre11_compatibility_service import EVIDENCE_ORIGIN_NATIVE
+
+
+def is_certified_financial_member(member) -> bool:
+    """Proof presence is a selector gate; population_bodies verifies the bodies."""
+
+    return bool(
+        member.evidence_origin == EVIDENCE_ORIGIN_NATIVE
+        and isinstance((member.prediction.lineage_json or {}).get("native_capture_proof"), dict)
+        and isinstance(
+            (member.forward_outcome.metadata_json or {}).get("native_outcome_proof"), dict
+        )
+        and isinstance(
+            (member.target_stop_outcome.metadata_json or {}).get("native_outcome_proof"), dict
+        )
+    )
+
+
+def certified_financial_population(evidence):
+    """Keep legacy/replay observations readable, but out of financial authority."""
+
+    return tuple(member for member in evidence if is_certified_financial_member(member))
 
 
 def retained_row(db, row):

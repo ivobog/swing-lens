@@ -1009,6 +1009,7 @@ class SetupLifecycleRepository:
             .where(SetupSignalSnapshot.ticker == self.normalize_ticker(ticker))
             .where(SetupSignalSnapshot.timeframe == timeframe)
             .where(SetupSignalSnapshot.data_as_of_date < before_date)
+            .where(SetupSignalSnapshot.evidence_id.is_not(None))
             .order_by(
                 SetupSignalSnapshot.data_as_of_date.desc(),
                 SetupSignalSnapshot.id.desc(),
@@ -1037,6 +1038,7 @@ class SetupLifecycleRepository:
                 .where(SetupSignalSnapshot.ticker == self.normalize_ticker(ticker))
                 .where(SetupSignalSnapshot.timeframe == timeframe)
                 .where(SetupSignalSnapshot.data_as_of_date < before_date)
+                .where(SetupSignalSnapshot.evidence_id.is_not(None))
                 .order_by(
                     SetupSignalSnapshot.data_as_of_date.desc(),
                     SetupSignalSnapshot.id.desc(),
@@ -1089,6 +1091,7 @@ class SetupLifecycleRepository:
                 SetupSignalSnapshotCurrentSelection.selected_snapshot_id == SetupSignalSnapshot.id,
             )
             .where(or_(*cutoff_predicates))
+            .where(SetupSignalSnapshot.evidence_id.is_not(None))
             .subquery()
         )
         rows = list(
@@ -1251,6 +1254,7 @@ class SetupLifecycleRepository:
                 .where(SetupSignalSnapshot.ticker.in_(normalized))
                 .where(SetupSignalSnapshot.timeframe == timeframe)
                 .where(SetupSignalSnapshot.data_as_of_date < before_date)
+                .where(SetupSignalSnapshot.evidence_id.is_not(None))
                 .order_by(
                     SetupSignalSnapshot.ticker,
                     SetupSignalSnapshot.data_as_of_date.desc(),
@@ -1293,6 +1297,8 @@ class SetupLifecycleRepository:
             .where(SetupLifecycleEpisode.timeframe == timeframe)
             .where(SetupLifecycleEpisode.setup_family == setup_family)
             .where(SetupLifecycleEpisode.status == "ACTIVE")
+            .where(SetupLifecycleEpisode.latest_evaluation_evidence_id.is_not(None))
+            .where(SetupLifecycleEpisode.latest_transition_evidence_id.is_not(None))
             .where(SetupLifecycleEpisode.opened_on <= as_of_date)
             .where(SetupLifecycleEpisode.current_as_of_date <= as_of_date)
             .where(SetupLifecycleEpisode.last_observed_on <= as_of_date)
@@ -1343,6 +1349,8 @@ class SetupLifecycleRepository:
             .where(SetupLifecycleEpisode.timeframe == timeframe)
             .where(SetupLifecycleEpisode.setup_family == setup_family)
             .where(SetupLifecycleEpisode.status == "CLOSED")
+            .where(SetupLifecycleEpisode.latest_evaluation_evidence_id.is_not(None))
+            .where(SetupLifecycleEpisode.latest_transition_evidence_id.is_not(None))
             .where(SetupLifecycleEpisode.closed_on <= as_of_date)
             .order_by(
                 SetupLifecycleEpisode.closed_on.desc().nullslast(),
@@ -1364,6 +1372,8 @@ class SetupLifecycleRepository:
                 .where(SetupLifecycleEpisode.ticker == self.normalize_ticker(ticker))
                 .where(SetupLifecycleEpisode.timeframe == timeframe)
                 .where(SetupLifecycleEpisode.status == "ACTIVE")
+                .where(SetupLifecycleEpisode.latest_evaluation_evidence_id.is_not(None))
+                .where(SetupLifecycleEpisode.latest_transition_evidence_id.is_not(None))
                 .order_by(SetupLifecycleEpisode.id)
             )
         )
@@ -1385,6 +1395,8 @@ class SetupLifecycleRepository:
                     )
                 )
                 .where(SetupLifecycleEpisode.status.in_(("ACTIVE", "CLOSED")))
+                .where(SetupLifecycleEpisode.latest_evaluation_evidence_id.is_not(None))
+                .where(SetupLifecycleEpisode.latest_transition_evidence_id.is_not(None))
                 .order_by(
                     SetupLifecycleEpisode.ticker,
                     SetupLifecycleEpisode.timeframe,
@@ -1416,6 +1428,8 @@ class SetupLifecycleRepository:
                     )
                 )
                 .where(SetupLifecycleEpisode.status == "ACTIVE")
+                .where(SetupLifecycleEpisode.latest_evaluation_evidence_id.is_not(None))
+                .where(SetupLifecycleEpisode.latest_transition_evidence_id.is_not(None))
                 .order_by(SetupLifecycleEpisode.id)
             )
         )

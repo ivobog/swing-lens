@@ -291,7 +291,7 @@ def _write_c2_sources(root):
         path.write_text(yaml.safe_dump(raw), encoding="utf-8")
 
 
-def test_public_resume_retains_c1_and_duplicate_completed_work_fails_closed(
+def test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier(
     disposable_postgres_database,
     tmp_path,
 ):
@@ -347,7 +347,8 @@ def test_public_resume_retains_c1_and_duplicate_completed_work_fails_closed(
         T13E_SCHEDULER_BOUNDARY="true",
     )
     assert completed["jobs"][-1]["status"] == "COMPLETED", completed["jobs"][-1]["error"]
-    assert completed["lifecycle"] and completed["winner"]
+    assert completed["jobs"][-1]["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
+    assert not completed["lifecycle"] and not completed["winner"]
     _process(
         "retry-ready",
         tmp_path,
@@ -362,11 +363,12 @@ def test_public_resume_retains_c1_and_duplicate_completed_work_fails_closed(
         T13E_SCHEDULER_BOUNDARY="true",
     )
     retried = next(j for j in retry["jobs"] if j["id"] == queued["job_id"])
-    assert retried["status"] == "FAILED", retried
-    assert "DECISION_MANIFEST_MISMATCH" in retried["error"]
+    assert retried["status"] == "COMPLETED", retried
+    assert retried["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
     assert retried["payload"]["effective_configuration_anchor"] == queued["anchor"]
     assert retried["attempts"]["attempt_count"] >= 2
     assert retry["evidence"][: len(interrupted["evidence"])] == interrupted["evidence"]
+    assert not retry["lifecycle"] and not retry["winner"]
 
 
 def test_real_worker_retry_after_native_fundamental_commit_uses_c1(

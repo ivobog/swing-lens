@@ -1700,7 +1700,8 @@ def _pipeline_status_payload(
     ]
     completed_steps = sum(step["status"] in {"COMPLETED", "SKIPPED"} for step in steps)
     total_steps = len(steps)
-    job = db.get(BackgroundJob, status.background_job_id) if status.background_job_id else None
+    root_job = db.get(BackgroundJob, status.background_job_id) if status.background_job_id else None
+    job = _pipeline_observability_job(db, status, root_job)
     worker = db.get(BackgroundWorker, job.worker_id) if job is not None and job.worker_id else None
     return {
         "pipeline_run_id": status.pipeline_run_id,
@@ -1721,6 +1722,7 @@ def _pipeline_status_payload(
         "message": status.message,
         "error_message": status.error_message,
         "background_job_id": status.background_job_id,
+        "observed_background_job_id": job.id if job else None,
         "job_status": job.status if job else None,
         "job_cancel_requested": bool(job.requested_cancel) if job else False,
         "worker_id": job.worker_id if job else None,
@@ -1747,6 +1749,27 @@ def _pipeline_status_payload(
         "percentage": round((completed_steps / total_steps) * 100, 1) if total_steps else 0.0,
         "steps": steps,
     }
+
+
+def _pipeline_observability_job(
+    db: Session,
+    status: PipelineStatusDto,
+    root_job: BackgroundJob | None,
+) -> BackgroundJob | None:
+    """Expose active CERI child progress while the root pipeline waits."""
+
+    result = status.result_json or {}
+    workflow_key = result.get("ceri_provider_workflow_key")
+    if status.status != "WAITING_FOR_CERI_COMPLETION" or not workflow_key:
+        return root_job
+    active_child = db.scalar(
+        select(BackgroundJob)
+        .where(BackgroundJob.workflow_key == str(workflow_key))
+        .where(BackgroundJob.status.in_(("RUNNING", "RECOVERING", "STALLED", "QUEUED")))
+        .order_by(BackgroundJob.last_progress_at.desc().nullslast(), BackgroundJob.id.desc())
+        .limit(1)
+    )
+    return active_child or root_job
 
 
 def _pagination_query_params(request: Request) -> str:

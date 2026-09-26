@@ -189,5 +189,6 @@ def test_t16a_requires_no_migration_or_production_mutation() -> None:
     validation = _json(VALIDATION_PATH)
 
     assert validation["migration_required"] is False
+    # T16A is an immutable historical certificate captured at its own head.
     assert validation["migration_head"] == "0083_winner_scope_truth"
     assert validation["production_runtime_mutations"] == "NONE"

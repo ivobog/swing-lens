@@ -238,7 +238,9 @@ def build_technical_score_identity(
     )
     engine_version = score.technical_engine_version
     input_payload = {
-        "temporal_lineage": (score.debug_json or {}).get("temporal_lineage"),
+        "canonical_source_manifest": (
+            (score.debug_json or {}).get("temporal_lineage") or {}
+        ).get("canonical_source_manifest"),
         "calculation_context_id": score.calculation_context_id,
         "calculation_cutoff_at": score.calculation_cutoff_at,
         "input_as_of_session": score.input_as_of_session,

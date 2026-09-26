@@ -72,7 +72,8 @@ PHASE2_REVISIONS = (
     "0078_ibmi_constituent_evidence",
     "0079_setup_lifecycle_alert_ev",
 )
-CURRENT_HEAD = "0083_winner_scope_truth"
+CURRENT_HEAD = "0084_technical_recovery"
+WINNER_SCOPE_REVISION = "0083_winner_scope_truth"
 PIPELINE_CERI_REVISION = "0082_pipeline_ceri_scope"
 SCOPE_IDENTITY_REVISION = "0081_scope_refresh_identity"
 EFFECTIVE_CONFIGURATION_REVISION = "0080_effective_configuration"
@@ -85,7 +86,8 @@ def test_phase2_postgresql_migration_chain_round_trip_and_schema_contract(
     config = _config(disposable_postgres_database)
     script = ScriptDirectory.from_config(config)
     assert tuple(script.get_heads()) == (CURRENT_HEAD,)
-    assert script.get_revision(CURRENT_HEAD).down_revision == PIPELINE_CERI_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == WINNER_SCOPE_REVISION
+    assert script.get_revision(WINNER_SCOPE_REVISION).down_revision == PIPELINE_CERI_REVISION
     assert script.get_revision(PIPELINE_CERI_REVISION).down_revision == SCOPE_IDENTITY_REVISION
     assert (
         script.get_revision(SCOPE_IDENTITY_REVISION).down_revision

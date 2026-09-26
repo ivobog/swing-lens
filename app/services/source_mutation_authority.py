@@ -437,6 +437,42 @@ def _source_value(db, value):
                 )
             if stored is None:
                 raise ValueError("MUTATION_SOURCE_RECORD_MISSING: " + state.mapper.local_table.name)
+            if state.mapper.local_table.name == "price_bars" and hasattr(
+                value, "_pit_projection_as_of"
+            ):
+                from app.models.tables import PriceBar
+                from app.services.price_bar_repository import project_price_bar_rows_as_of
+
+                as_of = value._pit_projection_as_of
+                revision_id = getattr(value, "_pit_projection_revision_id", None)
+                if (
+                    not state.transient
+                    or not isinstance(as_of, datetime)
+                    or as_of.tzinfo is None
+                    or not isinstance(revision_id, int)
+                    or stored["created_at"] > as_of
+                    or stored["first_seen_at"] > as_of
+                ):
+                    raise ValueError("MUTATION_SOURCE_PIT_PROJECTION_REQUIRED")
+                replay = project_price_bar_rows_as_of(
+                    db, [PriceBar(**dict(stored))], as_of=as_of
+                )
+                if (
+                    len(replay) != 1
+                    or getattr(replay[0], "_pit_projection_revision_id", None) != revision_id
+                    or Canonical.fingerprint(
+                        source_columns(
+                            {column.key: getattr(replay[0], column.key) for column in columns}
+                        )
+                    )
+                    != Canonical.fingerprint(native)
+                ):
+                    raise ValueError("MUTATION_SOURCE_PIT_PROJECTION_MISMATCH")
+                return {
+                    "table": "price_bars",
+                    "state": native,
+                    "pit_projection": {"as_of": as_of, "revision_id": revision_id},
+                }
             # A caller's unflushed source changes are not authoritative input.
             if not _active_source_writers.get() and Canonical.fingerprint(
                 source_columns(stored)

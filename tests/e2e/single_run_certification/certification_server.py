@@ -26,9 +26,16 @@ class DeterministicReadOnlyIB:
         self._connected = False
         self._log_path = Path(os.environ["CERTIFICATION_IB_LOG"])
         self.client = SimpleNamespace(
+            connect=self._connect_api,
             isReady=lambda: self._connected,
             serverVersion=lambda: 180,
         )
+
+    def _connect_api(self, _host, _port, *, clientId, timeout):
+        # Admission probes use the low-level API handshake, without the
+        # account/execution synchronization performed by IB.connect().
+        self._connected = True
+        self._record("api_handshake", {"clientId": clientId, "timeout": timeout})
 
     def connect(self, _host, _port, **kwargs):
         if kwargs.get("readonly") is not True:
@@ -149,21 +156,23 @@ def _install_deterministic_fetch_dependency() -> None:
             pipeline_run_id=int(pipeline_run_id),
             payload=job.payload_json,
         )
-        feature_result = CeriFeatureRebuildService().rebuild(
-            db,
-            CeriFeatureRebuildRequest(
-                as_of_session=market_cutoff.latest_completed_session,
-                cutoff_at=market_cutoff.cutoff_at,
-                mode="AS_KNOWN",
-                calculation_context_id=market_cutoff.context_id,
-                calendar_version=market_cutoff.calendar_version,
-                ownership_mode=CeriArtifactOwnership.PIPELINE.value,
-            ),
-        )
-        if feature_result.failed:
-            raise RuntimeError(
-                f"disposable certification CERI feature preparation failed: {feature_result.errors}"
+        if os.environ.get("CERTIFICATION_FROZEN_CERI_PROVIDERS") != "true":
+            feature_result = CeriFeatureRebuildService().rebuild(
+                db,
+                CeriFeatureRebuildRequest(
+                    as_of_session=market_cutoff.latest_completed_session,
+                    cutoff_at=market_cutoff.cutoff_at,
+                    mode="AS_KNOWN",
+                    calculation_context_id=market_cutoff.context_id,
+                    calendar_version=market_cutoff.calendar_version,
+                    ownership_mode=CeriArtifactOwnership.PIPELINE.value,
+                ),
             )
+            if feature_result.failed:
+                raise RuntimeError(
+                    "disposable certification CERI feature preparation failed: "
+                    f"{feature_result.errors}"
+                )
 
         def lease_guard() -> None:
             heartbeat = getattr(job, "_heartbeat", None)
@@ -180,10 +189,12 @@ def _install_deterministic_fetch_dependency() -> None:
                 pipeline_run_id=int(pipeline_run_id),
                 should_cancel=should_cancel,
                 lease_guard=lease_guard,
+                resume_from_step=job.payload_json.get("resume_from_step"),
                 dependencies=PipelineExecutionDependencies(
                     execute_fetch_plan=deterministic_execute_fetch_plan,
                     check_ib_gateway=deterministic_check_status,
                     check_ib_historical_capability=(deterministic_check_historical_capability),
+                    market_cutoff=market_cutoff,
                 ),
             )
         except PipelineCancelled as exc:
@@ -191,6 +202,21 @@ def _install_deterministic_fetch_dependency() -> None:
         return result.__dict__
 
     background_worker._execute_full_pipeline_job = execute_full_pipeline_job
+
+
+def _install_frozen_ceri_providers() -> None:
+    """Freeze external payloads while retaining the production asynchronous DAG."""
+
+    if os.environ.get("CERTIFICATION_FROZEN_CERI_PROVIDERS") != "true":
+        return
+    from frozen_ceri import frozen_ceri_registry
+
+    registry = frozen_ceri_registry()
+
+    from app.services.ceri import batched_job_handlers, batched_workflow
+
+    batched_workflow.CeriProviderRegistry = lambda *args, **kwargs: registry
+    batched_job_handlers.CeriProviderRegistry = lambda *args, **kwargs: registry
 
 
 def _install_deterministic_outcome_clock() -> None:
@@ -304,6 +330,7 @@ def _install_native_configuration_profile() -> None:
 
 
 _install_native_configuration_profile()
+_install_frozen_ceri_providers()
 _install_deterministic_fetch_dependency()
 _install_deterministic_outcome_clock()
 _install_pipeline_profiler()

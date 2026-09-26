@@ -458,14 +458,19 @@ def _load_bounded_market_frames(
     symbol: str,
     market_cutoff: MarketCalculationCutoff,
 ) -> tuple[pd.DataFrame, pd.DataFrame | None]:
-    parameters = signature(load_preferred_ohlcv_frames).parameters.values()
-    accepts_kwargs = any(item.kind is Parameter.VAR_KEYWORD for item in parameters)
-    if "max_session" in signature(load_preferred_ohlcv_frames).parameters or accepts_kwargs:
+    parameters = signature(load_preferred_ohlcv_frames).parameters
+    accepts_kwargs = any(item.kind is Parameter.VAR_KEYWORD for item in parameters.values())
+    if "max_session" in parameters or accepts_kwargs:
+        boundary: dict[str, Any] = {
+            "max_session": market_cutoff.latest_completed_session,
+            "as_of": market_cutoff.cutoff_at,
+        }
+        if "calculation_context_id" in parameters or accepts_kwargs:
+            boundary["calculation_context_id"] = market_cutoff.context_id
         frames = load_preferred_ohlcv_frames(
             db,
             symbol,
-            max_session=market_cutoff.latest_completed_session,
-            as_of=market_cutoff.cutoff_at,
+            **boundary,
         )
     else:
         frames = load_preferred_ohlcv_frames(db, symbol)

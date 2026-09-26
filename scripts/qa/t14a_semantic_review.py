@@ -295,6 +295,19 @@ non_edges(
     "Outstanding executor Future cancellation; no SEC document receiver or document mutation.",
 )
 non_edges(
+    " ".join(
+        (
+            "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator._drain_completed",
+            "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator._finalize_sequential_fallback",
+            "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator._persist_completed_artifacts",
+            "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator._submit_ready",
+            "app/services/technical_score_service.py:TechnicalScoringOverlapCoordinator.finalize",
+        )
+    ),
+    ("self.lease_guard", "self.should_cancel"),
+    "Constructor-injected lease/cancellation control callbacks; the receiver is not any one of the name-matched durable-job closures, and no financial writer edge may be inferred by shared callback name.",
+)
+non_edges(
     "scripts/qa/ib_fault_proxy.py:_handle_connection",
     ("task.cancel",),
     "asyncio Task cancellation for socket proxy relay; no SEC document state service.",

@@ -14,7 +14,7 @@ import pandas as pd
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import RawCompanyRow, TechnicalScore
+from app.models.tables import RawCompanyRow, TechnicalScore, TechnicalSourceManifest
 from app.services.calculation_identity import CalculationIdentity
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.combined_ranking_identity import (
@@ -131,7 +131,13 @@ def score_run_technicals(
     pipeline_run_id: int | None = None,
     effective_configuration: CoreEffectiveConfiguration | None = None,
     expected_calculation_identity: CalculationIdentity | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> list[TechnicalScore]:
+    should_cancel = should_cancel or (lambda: False)
+    _technical_checkpoint(
+        checkpoint_callback, should_cancel, phase="PREPARING", processed=0, total=0
+    )
     input_started = perf_counter()
     if isinstance(db, Session) and (
         market_cutoff is None or pipeline_run_id is None or effective_configuration is None
@@ -201,6 +207,8 @@ def score_run_technicals(
             feature_config_hash=feature_config_hash,
             scoring_config_hash=scoring_config_hash,
             market_cutoff=market_cutoff,
+            should_cancel=should_cancel,
+            checkpoint_callback=checkpoint_callback,
         )
     elif (
         settings.technical_pure_boundary_enabled
@@ -222,6 +230,8 @@ def score_run_technicals(
             feature_config_hash=feature_config_hash,
             scoring_config_hash=scoring_config_hash,
             market_cutoff=market_cutoff,
+            should_cancel=should_cancel,
+            checkpoint_callback=checkpoint_callback,
         )
     else:
         score_results = _score_tickers_legacy(
@@ -238,6 +248,18 @@ def score_run_technicals(
         )
     _record_technical_duration("worker_span", worker_started, run_id=run_id)
 
+    # Cache/artifact writes are independent of all-or-nothing score publication.
+    # End the long read/calculation transaction before the fenced publish begins.
+    if isinstance(db, Session) and pipeline_run_id is not None:
+        db.commit()
+    _technical_checkpoint(
+        checkpoint_callback,
+        should_cancel,
+        phase="CALCULATED",
+        processed=len(score_results),
+        total=len(symbols),
+        last_completed_item=symbols[-1] if symbols else None,
+    )
     finalize_started = perf_counter()
     scores = finalize_technical_scores(
         db,
@@ -251,6 +273,20 @@ def score_run_technicals(
         market_cutoff=market_cutoff,
         pipeline_run_id=pipeline_run_id,
         effective_configuration=effective_configuration,
+        should_cancel=should_cancel,
+        checkpoint_callback=checkpoint_callback,
+    )
+    if isinstance(db, Session) and pipeline_run_id is not None:
+        # The complete score/evidence set is published atomically here. Pipeline
+        # step bookkeeping is a later control-plane checkpoint.
+        db.commit()
+    _technical_checkpoint(
+        checkpoint_callback,
+        should_cancel,
+        phase="PUBLISHED",
+        processed=len(scores),
+        total=len(symbols),
+        last_completed_item=symbols[-1] if symbols else None,
     )
     _record_technical_duration("finalize", finalize_started, run_id=run_id)
     return scores
@@ -354,7 +390,10 @@ def finalize_technical_scores(
     pipeline_run_id: int | None = None,
     persist: bool = True,
     effective_configuration: CoreEffectiveConfiguration | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> list[TechnicalScore]:
+    should_cancel = should_cancel or (lambda: False)
     if (
         isinstance(db, Session)
         and persist
@@ -423,18 +462,6 @@ def finalize_technical_scores(
         else {}
     )
     scores: list[TechnicalScore] = []
-    cohort_manifests = {
-        f"cohort:{member.ticker.upper()}:{role}": manifest
-        for member in scored
-        for role, manifest in (
-            (
-                (member.debug if isinstance(member, PineReplicaScore) else member.debug_json) or {}
-            ).get("temporal_lineage")
-            or {}
-        )
-        .get("source_manifests", {})
-        .items()
-    }
     for result in score_results:
         _record_temporal_lineage_metrics(result)
         if not isinstance(result, PineReplicaScore):
@@ -444,6 +471,7 @@ def finalize_technical_scores(
                     result.ticker,
                     max_session=market_cutoff.latest_completed_session,
                     as_of=market_cutoff.cutoff_at,
+                    calculation_context_id=market_cutoff.context_id,
                 )
                 manifests = {
                     name: frame.attrs["pit_source_manifest"]
@@ -453,7 +481,7 @@ def finalize_technical_scores(
                 result.debug_json = {
                     **(result.debug_json or {}),
                     "temporal_lineage": {
-                        "source_manifests": {**cohort_manifests, **manifests},
+                        "source_manifests": manifests,
                         "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
                         "calculation_cutoff_at": market_cutoff.cutoff_at.isoformat(),
                         "calculation_context_id": market_cutoff.context_id,
@@ -504,11 +532,10 @@ def finalize_technical_scores(
                 or getattr(settings, "technical_v5_persist_shadow_results", True)
             ),
         )
-        if isinstance(db, Session):
+        if isinstance(db, Session) and v5_context.source_manifests:
             lineage = dict((persisted.debug_json or {}).get("temporal_lineage") or {})
             lineage["source_manifests"] = {
                 **lineage.get("source_manifests", {}),
-                **cohort_manifests,
                 **{
                     f"v5_sector:{symbol}": manifest
                     for symbol, manifest in v5_context.source_manifests.items()
@@ -521,9 +548,33 @@ def finalize_technical_scores(
             persisted.input_as_of_session = market_cutoff.latest_completed_session
             persisted.calendar_version = market_cutoff.calendar_version
         scores.append(persisted)
+    source_manifest_payload = None
+    source_manifest_digest = None
+    technical_identity = None
     if pipeline_run_id is not None:
         if market_cutoff is None:
             raise ValueError("Technical identity production requires an explicit market_cutoff")
+        source_manifest_payload = _canonical_technical_source_manifest(
+            scores,
+            run_id=run_id,
+            pipeline_run_id=pipeline_run_id,
+            market_cutoff=market_cutoff,
+            effective_configuration=effective_configuration,
+        )
+        source_manifest_digest = CanonicalEvidenceSerializer.fingerprint(
+            source_manifest_payload
+        )
+        source_manifest_ref = {
+            "contract": "technical-source-manifest-ref-v1",
+            "digest": source_manifest_digest,
+            "source_count": source_manifest_payload["source_count"],
+            "state_count": source_manifest_payload["state_count"],
+        }
+        for score in scores:
+            lineage = dict((score.debug_json or {}).get("temporal_lineage") or {})
+            lineage.pop("source_manifests", None)
+            lineage["canonical_source_manifest"] = source_manifest_ref
+            score.debug_json = {**(score.debug_json or {}), "temporal_lineage": lineage}
         effective_config = _technical_identity_config(
             pine_params=pine_params,
             v4_params=v4_params,
@@ -542,6 +593,37 @@ def finalize_technical_scores(
                 effective_configuration.bind(identity),
                 policy="TECHNICAL_SCORE_PRODUCER",
             )
+            technical_identity = identity
+    source_manifest_row = None
+    if persist and source_manifest_payload is not None and source_manifest_digest is not None:
+        source_manifest_row = db.scalar(
+            select(TechnicalSourceManifest).where(
+                TechnicalSourceManifest.manifest_digest == source_manifest_digest
+            )
+        )
+        if source_manifest_row is None:
+            source_manifest_row = TechnicalSourceManifest(
+                run_id=run_id,
+                pipeline_run_id=pipeline_run_id,
+                calculation_context_id=market_cutoff.context_id,
+                manifest_digest=source_manifest_digest,
+                manifest_json=source_manifest_payload,
+                source_count=source_manifest_payload["source_count"],
+                state_count=source_manifest_payload["state_count"],
+            )
+            db.add(source_manifest_row)
+            db.flush()
+        for score in scores:
+            score.source_manifest_id = source_manifest_row.id
+        from app.services.core_mutation_authority import validate_technical_source_manifest
+
+        validate_technical_source_manifest(
+            db,
+            source_manifest_row,
+            technical_identity,
+            checkpoint_callback=checkpoint_callback,
+            should_cancel=should_cancel,
+        )
     if persist and symbols:
         db.execute(
             delete(TechnicalScore).where(
@@ -571,6 +653,42 @@ def finalize_technical_scores(
                     ),
                 )
     return scores
+
+
+def _canonical_technical_source_manifest(
+    scores: list[TechnicalScore],
+    *,
+    run_id: int,
+    pipeline_run_id: int,
+    market_cutoff: MarketCalculationCutoff,
+    effective_configuration: CoreEffectiveConfiguration,
+) -> dict[str, Any]:
+    unique: dict[str, dict[str, Any]] = {}
+    for score in scores:
+        lineage = (score.debug_json or {}).get("temporal_lineage") or {}
+        for manifest in (lineage.get("source_manifests") or {}).values():
+            canonical = CanonicalEvidenceSerializer.canonicalize(manifest)
+            unique.setdefault(CanonicalEvidenceSerializer.fingerprint(canonical), canonical)
+    sources = [
+        {"digest": digest, "manifest": unique[digest]}
+        for digest in sorted(unique)
+    ]
+    return CanonicalEvidenceSerializer.canonicalize(
+        {
+            "contract": "technical-source-manifest-v1",
+            "run_id": run_id,
+            "pipeline_run_id": pipeline_run_id,
+            "calculation_context_id": market_cutoff.context_id,
+            "calculation_cutoff_at": market_cutoff.cutoff_at,
+            "input_as_of_session": market_cutoff.latest_completed_session,
+            "configuration_identity": effective_configuration.snapshot.identity.as_dict(),
+            "source_count": len(sources),
+            "state_count": sum(
+                len(item["manifest"].get("states") or ()) for item in sources
+            ),
+            "sources": sources,
+        }
+    )
 
 
 def _record_temporal_lineage_metrics(result: PineReplicaScore | TechnicalScore) -> None:
@@ -1115,9 +1233,21 @@ def _score_tickers_pure_sequential(
     feature_config_hash: str,
     scoring_config_hash: str,
     market_cutoff: MarketCalculationCutoff,
+    should_cancel: Callable[[], bool] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> list[PineReplicaScore | TechnicalScore]:
     results: list[PineReplicaScore | TechnicalScore] = []
-    for ticker in symbols:
+    should_cancel = should_cancel or (lambda: False)
+    for index, ticker in enumerate(symbols):
+        if index % 10 == 0:
+            _technical_checkpoint(
+                checkpoint_callback,
+                should_cancel,
+                phase="CALCULATING",
+                processed=index,
+                total=len(symbols),
+                current_item=ticker,
+            )
         try:
             price, trades = _load_preferred_bounded(db, ticker, market_cutoff)
             artifact_key, cached_artifact = _artifact_cache_context(
@@ -1194,6 +1324,15 @@ def _score_tickers_pure_sequential(
             results.append(
                 unavailable_technical_score(run_id, ticker, str(exc), v4_params=v4_params)
             )
+        if (index + 1) % 10 == 0 or index + 1 == len(symbols):
+            _technical_checkpoint(
+                checkpoint_callback,
+                should_cancel,
+                phase="CALCULATING",
+                processed=index + 1,
+                total=len(symbols),
+                last_completed_item=ticker,
+            )
     operational_metrics.increment(
         "swinglens_technical_scoring_runs_total",
         mode="pure_sequential_shadow" if shadow_compare else "pure_sequential",
@@ -1216,13 +1355,25 @@ def _score_tickers_process_pool(
     feature_config_hash: str,
     scoring_config_hash: str,
     market_cutoff: MarketCalculationCutoff | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> list[PineReplicaScore | TechnicalScore]:
     market_cutoff = market_cutoff or standalone_market_context(
         reason="STANDALONE_TECHNICAL_PROCESS_POOL"
     )
     items: list[tuple[int, TechnicalWorkItem]] = []
     results: list[PineReplicaScore | TechnicalScore | None] = [None] * len(symbols)
+    should_cancel = should_cancel or (lambda: False)
     for index, ticker in enumerate(symbols):
+        if index % 10 == 0:
+            _technical_checkpoint(
+                checkpoint_callback,
+                should_cancel,
+                phase="LOADING_INPUTS",
+                processed=index,
+                total=len(symbols),
+                current_item=ticker,
+            )
         try:
             price, trades = _load_preferred_bounded(db, ticker, market_cutoff)
             artifact_key, cached_artifact = _artifact_cache_context(
@@ -1282,6 +1433,7 @@ def _score_tickers_process_pool(
                     break
                 pending[executor.submit(execute_technical_work_item, item)] = (index, item)
 
+            completed_count = 0
             while pending:
                 completed, _ = wait(pending, return_when=FIRST_COMPLETED)
                 for future in completed:
@@ -1313,6 +1465,16 @@ def _score_tickers_process_pool(
                             str(exc),
                             v4_params=v4_params,
                         )
+                    completed_count += 1
+                    if completed_count % 10 == 0 or completed_count == len(items):
+                        _technical_checkpoint(
+                            checkpoint_callback,
+                            should_cancel,
+                            phase="CALCULATING",
+                            processed=completed_count,
+                            total=len(symbols),
+                            last_completed_item=item.ticker,
+                        )
                     try:
                         next_index, next_item_value = next(next_item)
                     except StopIteration:
@@ -1341,6 +1503,8 @@ def _score_tickers_process_pool(
             feature_config_hash=feature_config_hash,
             scoring_config_hash=scoring_config_hash,
             market_cutoff=market_cutoff,
+            should_cancel=should_cancel,
+            checkpoint_callback=checkpoint_callback,
         )
 
     operational_metrics.increment(
@@ -1359,6 +1523,28 @@ def _score_tickers_process_pool(
         )
         for index, result in enumerate(results)
     ]
+
+
+def _technical_checkpoint(
+    callback: Callable[..., None] | None,
+    should_cancel: Callable[[], bool],
+    *,
+    phase: str,
+    processed: int,
+    total: int,
+    current_item: str | None = None,
+    last_completed_item: str | None = None,
+) -> None:
+    if callback is not None:
+        callback(
+            phase=phase,
+            processed=processed,
+            total=total,
+            current_item=current_item,
+            last_completed_item=last_completed_item,
+        )
+    if should_cancel():
+        raise TechnicalScoringError("Technical scoring was cancelled at a durable checkpoint.")
 
 
 def _record_technical_duration(name: str, started_at: float, *, run_id: int) -> None:
@@ -2075,6 +2261,7 @@ def _load_preferred_bounded(
         ticker,
         max_session=market_cutoff.latest_completed_session,
         as_of=market_cutoff.cutoff_at,
+        calculation_context_id=market_cutoff.context_id,
     )
 
 

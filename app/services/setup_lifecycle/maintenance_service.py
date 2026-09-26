@@ -194,6 +194,8 @@ class SetupLifecycleMaintenanceService:
             db.scalars(
                 select(SetupLifecycleEpisode)
                 .where(SetupLifecycleEpisode.status == "ACTIVE")
+                .where(SetupLifecycleEpisode.latest_evaluation_evidence_id.is_not(None))
+                .where(SetupLifecycleEpisode.latest_transition_evidence_id.is_not(None))
                 .order_by(SetupLifecycleEpisode.ticker, SetupLifecycleEpisode.id)
             )
         )

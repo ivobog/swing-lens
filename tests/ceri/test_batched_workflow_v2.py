@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -11,7 +12,9 @@ from app.services.background_job_service import JobStatus, enqueue_job
 from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.ceri import batched_job_handlers
 from app.services.ceri.batched_job_handlers import (
+    _normalization_checkpoint,
     _require_terminal_stage,
+    _save_checkpoint,
     execute_feature_batch_job,
     execute_provider_ingest_batch_job,
     execute_run_finalize_job,
@@ -400,8 +403,11 @@ def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch
             self.prepared = []
             self.rebuilt = []
 
-        def prepare_batch(self, _db, request):
+        def prepare_batch(self, _db, request, *, progress_callback=None):
             self.prepared.append(request.tickers)
+            if progress_callback is not None:
+                progress_callback("companies", 1)
+                progress_callback("price_bars", 2)
             return SimpleNamespace(
                 load_context_ms=3,
                 select_count=9,
@@ -450,6 +456,7 @@ def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch
     assert service.rebuilt == ["T1", "T2"]
     assert result["processed_tickers"] == 3
     assert result["telemetry"]["sql_select_count"] == 9
+    assert job.operational_metadata_json["ceri_feature_prepare"]["phase"] == "price_bars"
     assert job.operational_metadata_json["ceri_batch"]["completed_tickers"] == [
         "T0",
         "T1",
@@ -490,7 +497,7 @@ def test_feature_batch_cancellation_never_checkpoints_unfinished_ticker(monkeypa
     monkeypatch.setattr(batched_job_handlers.CeriProcessingRunService, "finish", finish)
 
     class Service:
-        def prepare_batch(self, *_args):
+        def prepare_batch(self, *_args, **_kwargs):
             return SimpleNamespace(load_context_ms=0, select_count=1, rows_loaded={})
 
         def rebuild(self, *_args, **_kwargs):
@@ -641,6 +648,50 @@ def test_background_job_schema_has_minimal_workflow_identity() -> None:
     index_names = {index.name for index in BackgroundJob.__table__.indexes}
     assert "idx_background_jobs_workflow_type_status" in index_names
     assert "uq_background_jobs_workflow_stage" in index_names
+
+
+def test_normalization_and_batch_checkpoints_share_latest_progress_origin() -> None:
+    now = datetime.now(UTC)
+    job = BackgroundJob(
+        id=1,
+        job_type=CERI_NORMALIZE_BATCH,
+        status=JobStatus.RUNNING,
+        started_at=now - timedelta(minutes=3),
+        locked_at=now - timedelta(minutes=3),
+        last_progress_at=now - timedelta(seconds=2),
+        payload_json={},
+        operational_metadata_json={
+            "ceri_batch": {
+                "completed_tickers": ["T0"],
+                "results": {"T0": {"status": "COMPLETED"}},
+                "updated_at": (now - timedelta(seconds=2)).isoformat(),
+                "max_checkpoint_gap_seconds": 5.0,
+            }
+        },
+    )
+
+    _normalization_checkpoint(
+        FakeDb(),
+        job,
+        {"last_record_index": 1, "last_source_record_id": 17},
+        ticker="T1",
+    )
+    normalization = job.operational_metadata_json["ceri_normalization"]
+    assert normalization["max_checkpoint_gap_seconds"] < 10
+
+    _save_checkpoint(
+        FakeDb(),
+        job,
+        completed={"T0", "T1"},
+        results={
+            "T0": {"status": "COMPLETED"},
+            "T1": {"status": "COMPLETED"},
+        },
+        total=2,
+        last_completed="T1",
+    )
+    batch = job.operational_metadata_json["ceri_batch"]
+    assert batch["max_checkpoint_gap_seconds"] == 5.0
 
 
 def _provider_batch_job(tickers: list[str]) -> BackgroundJob:

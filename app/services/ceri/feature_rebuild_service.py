@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, date, datetime, timedelta
@@ -197,7 +197,11 @@ class CeriFeatureRebuildService:
         self.price_response = price_response or CeriPriceResponseService(config=self.config)
 
     def prepare_batch(
-        self, db: Session, request: CeriFeatureRebuildRequest
+        self,
+        db: Session,
+        request: CeriFeatureRebuildRequest,
+        *,
+        progress_callback: Callable[[str, int], None] | None = None,
     ) -> CeriFeatureBatchContext:
         started = perf_counter()
         validate_ceri_artifact_lineage(
@@ -209,9 +213,13 @@ class CeriFeatureRebuildService:
         select_count = 0
         rows_loaded: dict[str, int] = {}
         source_bodies = PrefetchedSourceBodies(db) if isinstance(db, Session) else None
+        if progress_callback is not None:
+            progress_callback("starting", select_count)
         companies = self._companies(db, request, source_bodies=source_bodies)
         select_count += 1 + int(request.run_id is not None and not isinstance(db, Session))
         rows_loaded["companies"] = len(companies)
+        if progress_callback is not None:
+            progress_callback("companies", select_count)
         company_ids = [company.id for company in companies]
         explicit_session = request.as_of_session or request.to_session
         if request.cutoff_at is not None:
@@ -240,17 +248,22 @@ class CeriFeatureRebuildService:
         def load(model: Any, statement: Any) -> list[Any]:
             nonlocal select_count
             select_count += 1
+            if source_bodies is not None:
+                source_bodies.refresh()
             rows = (
                 source_bodies.load(model, statement)
                 if source_bodies is not None
                 else _scalars(db, statement)
             )
             rows_loaded[model.__tablename__] = len(rows)
+            if progress_callback is not None:
+                progress_callback(model.__tablename__, select_count)
             return rows
 
         if not company_ids:
             pit = CeriPointInTimeQuery(config=self.config, snapshots=[], source_records={})
             if source_bodies is not None:
+                source_bodies.refresh()
                 source_bodies.seal()
             return CeriFeatureBatchContext(
                 [],
@@ -393,6 +406,8 @@ class CeriFeatureRebuildService:
         )
         if isinstance(db, Session):
             bars = project_price_bar_rows_as_of(db, bars, as_of=cutoff_at)
+            if progress_callback is not None:
+                progress_callback("price_bars_projected", select_count)
         bars = [
             row
             for row in bars
@@ -529,6 +544,7 @@ class CeriFeatureRebuildService:
             config=self.config, snapshots=estimates, source_records=sources_by_id
         )
         if source_bodies is not None:
+            source_bodies.refresh()
             source_bodies.seal()
         return CeriFeatureBatchContext(
             companies,

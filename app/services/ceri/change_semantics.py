@@ -139,6 +139,13 @@ def select_prior_comparison(
             for candidate in candidates
             if candidate is not current
             and getattr(candidate, "id", None) != getattr(current, "id", None)
+            # A certified score may only be compared with another certified
+            # score. Legacy snapshots remain available for historical reads,
+            # but cannot become a financial change-event predecessor.
+            and (
+                getattr(current, "evidence_id", None) is None
+                or getattr(candidate, "evidence_id", None) is not None
+            )
         ),
         key=lambda candidate: (
             getattr(candidate, "as_of_session", None),

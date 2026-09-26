@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -146,6 +147,7 @@ class CeriRunCaptureService:
         market_cutoff: MarketCalculationCutoff | None = None,
         effective_configuration=None,
         expected_calculation_identity=None,
+        progress_callback: Callable[[str, int, int], None] | None = None,
     ) -> CeriRunCaptureResult:
         from copy import deepcopy
 
@@ -251,12 +253,18 @@ class CeriRunCaptureService:
             raise ValueError("cutoff_at conflicts with the frozen market cutoff")
         cutoff_at = market_cutoff.cutoff_at
         as_of_session = market_cutoff.latest_completed_session
+        if progress_callback is not None:
+            progress_callback("PREPARING_COMPANIES", 0, len(rows))
         companies_by_ticker = _companies_for_tickers(db, {str(row.ticker).upper() for row in rows})
+        if progress_callback is not None:
+            progress_callback("PREPARING_PROVIDER_CHECKS", 0, len(rows))
         provider_checks_by_ticker = _provider_checks_for_tickers(
             db,
             {str(row.ticker).upper() for row in rows},
             cutoff_at,
         )
+        if progress_callback is not None:
+            progress_callback("PREPARING_FEATURES", 0, len(rows))
         company_ids = {company.id for company in companies_by_ticker.values()}
         features_by_company = _revision_features_for_companies(
             db,
@@ -275,8 +283,12 @@ class CeriRunCaptureService:
             ]
             for company_id, features in features_by_company.items()
         }
+        if progress_callback is not None:
+            progress_callback("PREPARING_IBMI_CONTEXT", 0, len(rows))
         pipeline_id = pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
         ibmi_candidates = _preload_ibmi_context(db, rows, cutoff_at, settings=settings)
+        if progress_callback is not None:
+            progress_callback("PREPARING_EXISTING_SNAPSHOTS", 0, len(rows))
         existing_snapshot_company_ids = _existing_snapshot_company_ids(
             db,
             run_id,
@@ -285,6 +297,8 @@ class CeriRunCaptureService:
             market_cutoff,
             pipeline_id,
         )
+        if progress_callback is not None:
+            progress_callback("CAPTURE_INPUTS_PREPARED", 0, len(rows))
         counts = {
             "score_snapshots": 0,
             "change_events": 0,
@@ -299,10 +313,14 @@ class CeriRunCaptureService:
         captured_snapshots = []
         from app.services.source_mutation_authority import prefetched_source_scope
 
+        if progress_callback is not None:
+            progress_callback("PREPARING_EARNINGS", 0, len(rows))
         all_earnings = _capture_earnings_rows(db, company_ids)
         earnings_by_company: dict[int, list[CeriEarningsActual]] = {}
         for item in all_earnings:
             earnings_by_company.setdefault(item.company_id, []).append(item)
+        if progress_callback is not None:
+            progress_callback("PREPARING_SOURCE_BUNDLE", 0, len(rows))
         initial_bundle = (
             _capture_source_bundle(
                 db,
@@ -315,6 +333,8 @@ class CeriRunCaptureService:
             if isinstance(db, Session)
             else None
         )
+        if progress_callback is not None:
+            progress_callback("PREPARING_UPCOMING_EARNINGS", 0, len(rows))
         initial_scope = (
             prefetched_source_scope(db, initial_bundle)
             if initial_bundle is not None
@@ -329,7 +349,9 @@ class CeriRunCaptureService:
                 cutoff_at=cutoff_at,
                 config=self.snapshot_service.config,
             )
-            for row in rows:
+            for row_index, row in enumerate(rows, start=1):
+                if progress_callback is not None:
+                    progress_callback(str(row.ticker), row_index - 1, len(rows))
                 try:
                     company = companies_by_ticker.get(str(row.ticker).upper())
                     if company is None:
@@ -679,15 +701,42 @@ class CeriRunCaptureService:
             from app.services.source_mutation_authority import prefetched_source_scope
 
             try:
+                persistence_checkpoint = max(len(rows) - 1, 0)
+                if progress_callback is not None:
+                    progress_callback(
+                        "PERSISTING_SOURCE_BUNDLE",
+                        persistence_checkpoint,
+                        len(rows),
+                    )
                 # Native source enrichment completes before freezing its SQL
                 # witness. No earlier witness survives a source-body mutation.
                 bundle = _capture_source_bundle(db, company_ids, run_id, market_cutoff)
+                if progress_callback is not None:
+                    progress_callback(
+                        "PERSISTING_SNAPSHOTS",
+                        persistence_checkpoint,
+                        len(rows),
+                    )
                 with prefetched_source_scope(db, bundle):
                     for snapshot in captured_snapshots:
                         self.snapshot_service.persist_snapshot(db, snapshot)
+                        if progress_callback is not None:
+                            progress_callback(
+                                f"PERSISTING_SNAPSHOT:{snapshot.ticker}",
+                                persistence_checkpoint,
+                                len(rows),
+                            )
+                if progress_callback is not None:
+                    progress_callback(
+                        "PERSISTING_COMPARISONS",
+                        persistence_checkpoint,
+                        len(rows),
+                    )
                 _capture_score_comparisons(
                     db, self, captured_snapshots, counts, run_id, market_cutoff
                 )
+                if progress_callback is not None:
+                    progress_callback(str(rows[-1].ticker), len(rows), len(rows))
             except Exception:
                 db.rollback()
                 raise

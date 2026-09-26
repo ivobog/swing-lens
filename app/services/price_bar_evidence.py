@@ -19,6 +19,8 @@ PRICE_BAR_FIELD_CLASSIFICATION: dict[str, str] = {
     "source": "IMMUTABLE_MARKET_EVIDENCE",
     "what_to_show": "IMMUTABLE_MARKET_EVIDENCE",
     "adjustment_type": "IMMUTABLE_MARKET_EVIDENCE",
+    "first_fetch_run_id": "IMMUTABLE_PIT_PROVENANCE",
+    "first_fetch_item_id": "IMMUTABLE_PIT_PROVENANCE",
     "created_at": "IMMUTABLE_PIT_PROVENANCE",
     "first_seen_at": "IMMUTABLE_PIT_PROVENANCE",
     "last_seen_at": "MUTABLE_OPERATIONAL_METADATA",

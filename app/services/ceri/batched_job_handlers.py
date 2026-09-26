@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, date, datetime
+from functools import partial
 from time import perf_counter
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -187,8 +188,20 @@ def execute_normalize_batch_job(
         if _heartbeat_and_cancel(db, job, heartbeat=False):
             raise CancelRequested("CERI normalization batch cancelled.")
         ingestion_key = f"{workflow_key}:ingest:{provider}:{dataset.value}:{ticker}"
+        # Frozen semantic authority appends the admitted refresh-cycle identity to
+        # the provider request key.  Keep normalization attached to that exact
+        # workflow while accepting both legacy (unsuffixed) and authoritative
+        # (refresh-suffixed) ingestion rows.
         ingestion_run = db.scalar(
-            select(CeriIngestionRun).where(CeriIngestionRun.request_key == ingestion_key)
+            select(CeriIngestionRun)
+            .where(
+                or_(
+                    CeriIngestionRun.request_key == ingestion_key,
+                    CeriIngestionRun.request_key.startswith(f"{ingestion_key}:refresh:"),
+                )
+            )
+            .order_by(CeriIngestionRun.id.desc())
+            .limit(1)
         )
         if ingestion_run is None:
             failed += 1
@@ -223,8 +236,10 @@ def execute_normalize_batch_job(
                             processing_run=processing,
                             ingestion_run_id=ingestion_run.id,
                             should_cancel=lambda: _heartbeat_and_cancel(db, job, heartbeat=False),
-                            checkpoint_interval=checkpoint_interval,
-                            checkpoint_callback=lambda _checkpoint: _heartbeat_and_cancel(db, job),
+                            checkpoint_interval=1,
+                            checkpoint_callback=partial(
+                                _normalization_checkpoint, db, job, ticker=ticker
+                            ),
                         )
                 except CeriNormalizationCancelled as exc:
                     raise CancelRequested(str(exc)) from exc
@@ -314,6 +329,7 @@ def execute_feature_batch_job(
                 ownership_mode=CeriArtifactOwnership.PIPELINE.value,
                 semantic_authority=semantic_authority,
             ),
+            progress_callback=partial(_feature_prepare_checkpoint, db, job),
         )
     failed = 0
     for ticker in tickers:
@@ -578,6 +594,30 @@ def _save_checkpoint(
     if processed <= len(previous_completed):
         return
     checkpoint_at = datetime.now(UTC)
+    previous_checkpoint_at = _latest_checkpoint_at(
+        job,
+        metadata,
+        "ceri_batch",
+        "ceri_normalization",
+        "ceri_feature_prepare",
+    )
+    if previous_checkpoint_at is not None and previous_checkpoint_at.tzinfo is None:
+        previous_checkpoint_at = previous_checkpoint_at.replace(tzinfo=UTC)
+    checkpoint_gap_seconds = (
+        max(0.0, (checkpoint_at - previous_checkpoint_at).total_seconds())
+        if previous_checkpoint_at is not None
+        else 0.0
+    )
+    max_checkpoint_gap_seconds = max(
+        float(previous.get("max_checkpoint_gap_seconds") or 0.0),
+        float(
+            dict(metadata.get("ceri_feature_prepare") or {}).get(
+                "max_checkpoint_gap_seconds"
+            )
+            or 0.0
+        ),
+        checkpoint_gap_seconds,
+    )
     checkpoint_id = f"{job.job_type}:{processed}:{last_completed}"
     metadata["ceri_batch"] = {
         "completed_tickers": sorted(completed),
@@ -586,6 +626,7 @@ def _save_checkpoint(
         "processed": processed,
         "total": total,
         "updated_at": checkpoint_at.isoformat(),
+        "max_checkpoint_gap_seconds": max_checkpoint_gap_seconds,
     }
     job.operational_metadata_json = metadata
     stage = CERI_PROGRESS_STAGES.get(job.job_type, "CERI_BATCH")
@@ -632,11 +673,160 @@ def _save_checkpoint(
     )
 
 
+def _normalization_checkpoint(
+    db: Session,
+    job: BackgroundJob,
+    checkpoint: dict[str, Any],
+    *,
+    ticker: str,
+) -> None:
+    """Make long per-ticker normalization progress durable and measurable."""
+
+    checkpoint_at = datetime.now(UTC)
+    metadata = dict(job.operational_metadata_json or {})
+    previous = dict(metadata.get("ceri_normalization") or {})
+    previous_at = _latest_checkpoint_at(
+        job,
+        metadata,
+        "ceri_batch",
+        "ceri_normalization",
+    )
+    if previous_at is not None and previous_at.tzinfo is None:
+        previous_at = previous_at.replace(tzinfo=UTC)
+    gap_seconds = (
+        max(0.0, (checkpoint_at - previous_at).total_seconds())
+        if previous_at is not None
+        else 0.0
+    )
+    processed = int(checkpoint.get("last_record_index") or 0)
+    source_record_id = checkpoint.get("last_source_record_id")
+    metadata["ceri_normalization"] = {
+        "ticker": ticker,
+        "processed_records": processed,
+        "last_source_record_id": source_record_id,
+        "updated_at": checkpoint_at.isoformat(),
+        "max_checkpoint_gap_seconds": max(
+            float(previous.get("max_checkpoint_gap_seconds") or 0.0),
+            gap_seconds,
+        ),
+    }
+    job.operational_metadata_json = metadata
+    if job.id is not None and job.execution_token:
+        record_job_progress(
+            db,
+            job_id=job.id,
+            execution_token=str(job.execution_token),
+            stage=CERI_PROGRESS_STAGES[CERI_NORMALIZE_BATCH],
+            current_item=ticker,
+            last_completed_item=ticker,
+            processed=processed,
+            checkpoint_version=f"ceri-normalize:{ticker}:{source_record_id}",
+        )
+    if _heartbeat_and_cancel(db, job):
+        raise CeriNormalizationCancelled("CERI normalization batch cancelled.")
+
+
+def _feature_prepare_checkpoint(
+    db: Session,
+    job: BackgroundJob,
+    phase: str,
+    processed_queries: int,
+) -> None:
+    """Persist prefetch progress before the bundle revalidates after commit."""
+
+    checkpoint_at = datetime.now(UTC)
+    metadata = dict(job.operational_metadata_json or {})
+    previous = dict(metadata.get("ceri_feature_prepare") or {})
+    previous_at = _latest_checkpoint_at(
+        job,
+        metadata,
+        "ceri_batch",
+        "ceri_feature_prepare",
+    )
+    if previous_at is not None and previous_at.tzinfo is None:
+        previous_at = previous_at.replace(tzinfo=UTC)
+    gap_seconds = (
+        max(0.0, (checkpoint_at - previous_at).total_seconds())
+        if previous_at is not None
+        else 0.0
+    )
+    checkpoint_id = f"ceri-feature-prepare:{processed_queries}:{phase}"
+    metadata["ceri_feature_prepare"] = {
+        "phase": phase,
+        "processed_queries": processed_queries,
+        "updated_at": checkpoint_at.isoformat(),
+        "max_checkpoint_gap_seconds": max(
+            float(previous.get("max_checkpoint_gap_seconds") or 0.0),
+            gap_seconds,
+        ),
+    }
+    job.operational_metadata_json = metadata
+    if job.id is not None and job.execution_token:
+        record_job_progress(
+            db,
+            job_id=job.id,
+            execution_token=str(job.execution_token),
+            stage="CERI_FEATURE_PREPARE",
+            current_item=phase,
+            last_completed_item=phase,
+            processed=processed_queries,
+            checkpoint_version=checkpoint_id,
+        )
+    else:
+        job.last_progress_at = checkpoint_at
+        job.progress_sequence = int(job.progress_sequence or 0) + 1
+        job.progress_stage = "CERI_FEATURE_PREPARE"
+        job.progress_current_item = phase
+        job.progress_last_completed_item = phase
+        job.progress_processed = max(int(job.progress_processed or 0), processed_queries)
+        job.checkpoint_version = checkpoint_id
+    if _heartbeat_and_cancel(db, job):
+        raise CancelRequested("CERI feature batch cancelled during context preparation.")
+
+
 def _heartbeat_and_cancel(db: Session, job: BackgroundJob, *, heartbeat: bool = True) -> bool:
     callback = getattr(job, "_heartbeat", None)
     if heartbeat and callable(callback):
         callback()
     return bool(job.id and is_cancel_requested(db, job.id))
+
+
+def _active_attempt_started_at(
+    job: BackgroundJob,
+    metadata: dict[str, Any],
+) -> datetime | None:
+    value = dict(metadata.get("last_attempt") or {}).get("started_at")
+    if value:
+        try:
+            return datetime.fromisoformat(str(value))
+        except ValueError:
+            pass
+    return job.locked_at or job.started_at
+
+
+def _latest_checkpoint_at(
+    job: BackgroundJob,
+    metadata: dict[str, Any],
+    *sections: str,
+) -> datetime | None:
+    """Return the newest durable progress boundary in the active attempt."""
+
+    candidates = [_active_attempt_started_at(job, metadata), job.last_progress_at]
+    for section in sections:
+        value = dict(metadata.get(section) or {}).get("updated_at")
+        if value:
+            try:
+                candidates.append(datetime.fromisoformat(str(value)))
+            except ValueError:
+                continue
+    normalized = []
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        normalized.append(
+            candidate.replace(tzinfo=UTC) if candidate.tzinfo is None else candidate
+        )
+    return max(normalized, default=None)
 
 
 def _workflow_key(job: BackgroundJob, payload: dict[str, Any]) -> str:

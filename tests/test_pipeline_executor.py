@@ -237,9 +237,10 @@ def test_repaired_initial_preflight_restarts_same_pipeline_from_validation() -> 
         resume_from_step="VALIDATING_RUN",
     )
 
-    assert result.status == PipelineStatus.COMPLETED
+    assert result.status == PipelineStatus.WAITING_FOR_CERI_COMPLETION
     assert calls[0] == "fundamentals"
     assert "ceri_schedule" in calls
+    assert "winner_capture" not in calls
     assert db.steps[0].retry_count == 1
 
 
@@ -284,8 +285,8 @@ def test_resume_from_ceri_does_not_reexecute_completed_expensive_stages() -> Non
         resume_from_step="CERI_PROVIDER_INGEST",
     )
 
-    assert calls == ["ceri_schedule", "winner_capture"]
-    assert result.status == PipelineStatus.COMPLETED
+    assert calls == ["ceri_schedule"]
+    assert result.status == PipelineStatus.WAITING_FOR_CERI_COMPLETION
     assert all(
         step.retry_count == 0
         for step in db.steps
@@ -338,8 +339,86 @@ def test_resume_from_ceri_propagates_frozen_context_to_setup_evaluation() -> Non
         resume_from_step="CERI_PROVIDER_INGEST",
     )
 
-    assert result.status == PipelineStatus.COMPLETED
-    assert calls == ["ceri_schedule", "setup_capture", "setup_evaluate"]
+    assert result.status == PipelineStatus.WAITING_FOR_CERI_COMPLETION
+    assert calls == ["ceri_schedule"]
+
+
+def test_post_ceri_continuation_runs_handoff_setup_and_winner_without_upstream_replay() -> None:
+    db = PipelineExecutorFakeDb(
+        tickers=["MSFT"],
+        ceri_provider_ingest_enabled=True,
+        setup_lifecycle_enabled=True,
+    )
+    ceri_index = next(
+        index for index, step in enumerate(db.steps) if step.step_name == "CERI_PROVIDER_INGEST"
+    )
+    handoff = PipelineStep(
+        id=99,
+        pipeline_run_id=3,
+        step_name="FREEZING_DECISION_HANDOFF_MANIFEST",
+        step_order=db.steps[ceri_index].step_order + 1,
+        status=PipelineStepStatus.PENDING,
+        retry_count=0,
+    )
+    db.steps.insert(ceri_index + 1, handoff)
+    for index, step in enumerate(db.steps, start=1):
+        step.step_order = index
+        if step.step_name in {
+            "VALIDATING_RUN",
+            "SCORING_FUNDAMENTALS",
+            "FETCHING_MARKET_DATA",
+            "SCORING_TECHNICALS",
+            "MARKET_REGIME_SNAPSHOT",
+            "COMBINING_RESULTS",
+            "RANKING_PROFILES",
+            "SECTOR_ROTATION_SNAPSHOT",
+            "CERI_PROVIDER_INGEST",
+        }:
+            step.status = PipelineStepStatus.COMPLETED
+    db.pipeline.status = PipelineStatus.PENDING
+    db.pipeline.current_step = handoff.step_name
+    db.pipeline.result_json.update(
+        {
+            "market_data_mode": "IB_GATEWAY",
+            "fundamental_scores": 1,
+            "technical_scores": 1,
+            "combined_results": 1,
+            "ranking_results": 5,
+            "ranking_profiles": 5,
+            "ranking_status": "COMPLETED",
+            "ceri_completion_state": "CERTIFIED",
+            "ceri_provider_workflow_key": "ceri:pipeline:7:test",
+        }
+    )
+    calls: list[str] = []
+    dependencies = replace(
+        _dependencies(
+            calls,
+            setup_lifecycle_enabled=True,
+            setup_capture_result={"snapshots_captured": 1},
+            setup_evaluation_result={"canonical_snapshots": 1},
+            winner_capture_enabled=True,
+        ),
+        ceri_provider_ingest_enabled=True,
+        freeze_decision_handoff=lambda *_args, **_kwargs: SimpleNamespace(
+            id=91,
+            preflight_plan_id=81,
+            run_start_anchor_fingerprint="run-hash",
+            manifest_fingerprint="handoff-hash",
+        ),
+        validate_resume_checkpoint=lambda *_args: {"validated": True},
+    )
+
+    result = execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=dependencies,
+        resume_from_step="FREEZING_DECISION_HANDOFF_MANIFEST",
+    )
+
+    assert result.status == PipelineStatus.COMPLETED, db.pipeline.error_message
+    assert calls == ["setup_capture", "setup_evaluate", "winner_capture"]
+    assert db.pipeline.result_json["decision_handoff_manifest_id"] == 91
 
 
 def test_resume_preflight_schedules_repair_without_ceri_enqueue() -> None:

@@ -1,12 +1,16 @@
 import logging
+from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
 from app.services.background_worker import (
     CancelRequested,
     JobDeferred,
+    _execute_full_pipeline_job,
     execute_job,
     log_worker_startup_configuration,
     run_worker_once,
@@ -52,7 +56,7 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     class Db:
         def scalar(self, _statement):
-            return "0083_winner_scope_truth"
+            return "0084_technical_recovery"
 
     settings = Settings(
         _env_file=None,
@@ -100,6 +104,91 @@ def test_execute_job_exposes_heartbeat_to_handler_until_it_returns() -> None:
     assert result == {"handled": True}
     assert calls["heartbeat"] == 1
     assert not hasattr(job, "_heartbeat")
+
+
+def test_full_pipeline_control_callbacks_use_detached_job_on_independent_sessions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    db = Session(engine)
+    pipeline = SimpleNamespace(id=17)
+    job = BackgroundJob(
+        id=23,
+        job_type="FULL_PIPELINE",
+        status=JobStatus.RUNNING,
+        execution_token="token-23",
+        worker_id="worker-1",
+        payload_json={"pipeline_run_id": 17},
+    )
+    db.get = lambda *_args, **_kwargs: pipeline  # type: ignore[method-assign]
+    heartbeats: list[tuple[Session, BackgroundJob]] = []
+    progress_updates: list[tuple[Session, dict]] = []
+
+    monkeypatch.setattr(
+        "app.services.scope_refresh_adoption.validate_same_authority",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.market_calculation_context_service.validate_pipeline_job_market_context",
+        lambda *_args, **_kwargs: SimpleNamespace(context_id=31),
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.get_settings",
+        lambda: SimpleNamespace(job_stale_after_seconds=900),
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_job",
+        lambda control_db, control_job, **_kwargs: heartbeats.append(
+            (control_db, control_job)
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.record_job_progress",
+        lambda control_db, **progress: progress_updates.append((control_db, progress)),
+    )
+    monkeypatch.setattr(
+        "app.services.background_job_service.is_cancel_requested",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        "app.services.domain_write_fence.current_fenced_domain_session",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def execute_pipeline(
+        *_args, should_cancel, progress_callback, lease_guard, **_kwargs
+    ):
+        assert should_cancel() is False
+        progress_callback(db, stage="SCORING_FUNDAMENTALS", current_item=None)
+        lease_guard()
+        pipeline.current_step = "SCORING_TECHNICALS"
+        progress_callback(
+            db,
+            stage="SCORING_TECHNICALS",
+            processed=10,
+            total=25,
+        )
+        assert should_cancel() is False
+        return SimpleNamespace(status="COMPLETED")
+
+    monkeypatch.setattr(
+        "app.services.pipeline_executor.execute_full_pipeline", execute_pipeline
+    )
+
+    try:
+        assert _execute_full_pipeline_job(db, job) == {"status": "COMPLETED"}
+    finally:
+        db.close()
+        engine.dispose()
+
+    assert len(heartbeats) == 3
+    assert sum(control_db is db for control_db, _control_job in heartbeats) == 1
+    assert sum(control_db is not db for control_db, _control_job in heartbeats) == 2
+    assert all(control_job is not job for _control_db, control_job in heartbeats)
+    assert {control_job.id for _control_db, control_job in heartbeats} == {job.id}
+    assert progress_updates[0][0] is db
+    assert progress_updates[1][0] is not db
+    assert progress_updates[1][1]["processed"] == 10
 
 
 def test_cancellation_can_stop_handler_before_next_bounded_batch() -> None:
@@ -175,7 +264,8 @@ def test_worker_rolls_back_failed_transaction_before_marking_job_failed(
 
     assert ran is True
     assert calls == ["heartbeat", "marked_failed"]
-    assert db.commit_count == 3
+    # Registration/recovery, durable claim, heartbeat, and failure publication.
+    assert db.commit_count == 4
     assert db.closed is True
 
 

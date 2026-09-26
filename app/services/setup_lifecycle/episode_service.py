@@ -103,10 +103,23 @@ class SetupLifecycleEpisodeService:
                 operation = db.get(SetupLifecycleEvaluationRun, evaluation_run_id)
                 if operation is None or operation.mode not in {"LIVE", "REPAIR"}:
                     raise ValueError("MUTATION_LIFECYCLE_CURRENT_EPISODE_MODE_REJECTED")
+            self._retire_legacy_active_episodes(
+                db, snapshot=snapshot, evaluation_run_id=evaluation_run_id
+            )
             if preloaded_episodes is not None:
                 for episode in preloaded_episodes:
                     db.refresh(episode, with_for_update=True)
-                    validate_episode_projection(db, episode)
+                    if (
+                        episode.latest_evaluation_evidence_id is not None
+                        and episode.latest_transition_evidence_id is not None
+                    ):
+                        validate_episode_projection(db, episode)
+                preloaded_episodes = tuple(
+                    episode
+                    for episode in preloaded_episodes
+                    if episode.latest_evaluation_evidence_id is not None
+                    and episode.latest_transition_evidence_id is not None
+                )
         normalized = normalized_snapshot_from_row(snapshot)
         if snapshot.evidence_id is not None:
             setup = get_setup_evidence(db, snapshot.evidence_id)
@@ -246,6 +259,102 @@ class SetupLifecycleEpisodeService:
             completed_observation_sessions=effective_observation_sessions,
             refresh_primary=refresh_primary,
         )
+
+    def _retire_legacy_active_episodes(
+        self, db, *, snapshot: SetupSignalSnapshot, evaluation_run_id: int | None
+    ) -> None:
+        """End legacy *current authority*, never the historical domain episode.
+
+        The old trading state and dates remain on the retained row. Only its
+        administrative current-membership fields change; the audit records the
+        exact boundary. No historical evaluation or transition is certified.
+        """
+        from sqlalchemy import select
+
+        from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+        from app.services.decision_mutation_authority import (
+            operational_decision_authority,
+            validate_setup_projection,
+        )
+
+        active = list(
+            db.scalars(
+                select(SetupLifecycleEpisode)
+                .where(
+                    SetupLifecycleEpisode.ticker == snapshot.ticker.upper(),
+                    SetupLifecycleEpisode.timeframe == snapshot.timeframe,
+                    SetupLifecycleEpisode.status == "ACTIVE",
+                )
+                .order_by(SetupLifecycleEpisode.id)
+                .with_for_update()
+            )
+        )
+        legacy = [
+            episode
+            for episode in active
+            if episode.latest_evaluation_evidence_id is None
+            and episode.latest_transition_evidence_id is None
+        ]
+        if any(
+            (episode.latest_evaluation_evidence_id is None)
+            != (episode.latest_transition_evidence_id is None)
+            for episode in active
+        ):
+            raise ValueError("MUTATION_LIFECYCLE_PARTIAL_CERTIFIED_CHAIN")
+        if not legacy:
+            return
+        if any(episode.current_as_of_date > snapshot.data_as_of_date for episode in legacy):
+            raise ValueError("MUTATION_LIFECYCLE_LEGACY_FUTURE_STATE")
+        validate_setup_projection(db, snapshot)
+        before = [
+            {
+                "id": episode.id,
+                "status": episode.status,
+                "current_state": episode.current_state,
+                "current_phase": episode.current_phase,
+                "current_as_of_date": episode.current_as_of_date.isoformat(),
+                "last_observed_on": episode.last_observed_on.isoformat(),
+                "is_primary": episode.is_primary,
+                "primary_rank": episode.primary_rank,
+            }
+            for episode in legacy
+        ]
+        operational_decision_authority(
+            db,
+            writer="lifecycle_legacy_certification_boundary",
+            manifest={
+                "contract": "lifecycle-legacy-certification-boundary-v1",
+                "snapshot_id": snapshot.id,
+                "setup_evidence_id": snapshot.evidence_id,
+                "evaluation_run_id": evaluation_run_id,
+                "before": before,
+            },
+            run_id=snapshot.run_id,
+            job_types=("FULL_PIPELINE", "SETUP_LIFECYCLE_EVALUATE_RUN"),
+        )
+        for episode, prior in zip(legacy, before, strict=True):
+            episode.status = "LEGACY_RETIRED"
+            episode.is_primary = False
+            episode.primary_rank = None
+            self.repository.write_admin_audit_event(
+                db,
+                event_type="LEGACY_CERTIFICATION_BOUNDARY",
+                requester="lifecycle-certification-boundary",
+                evaluation_run_id=evaluation_run_id,
+                reason="Legacy mutable episode retired from certified-current authority",
+                scope={
+                    "episode_id": episode.id,
+                    "ticker": episode.ticker,
+                    "timeframe": episode.timeframe,
+                    "setup_family": episode.setup_family,
+                    "setup_snapshot_id": snapshot.id,
+                    "setup_evidence_id": snapshot.evidence_id,
+                },
+                before={**prior, "fingerprint": Canonical.fingerprint(prior)},
+                after={"status": "LEGACY_RETIRED", "is_primary": False, "primary_rank": None},
+                affected_counts={"episodes": 1},
+            )
+        db.flush()
 
     @anchored_decision_calculator
     @core_writer_transaction
@@ -404,6 +513,8 @@ class SetupLifecycleEpisodeService:
                     SetupLifecycleEpisode.ticker == ticker.upper(),
                     SetupLifecycleEpisode.timeframe == timeframe,
                     SetupLifecycleEpisode.status == "ACTIVE",
+                    SetupLifecycleEpisode.latest_evaluation_evidence_id.is_not(None),
+                    SetupLifecycleEpisode.latest_transition_evidence_id.is_not(None),
                 )
                 .order_by(SetupLifecycleEpisode.id)
                 .with_for_update()

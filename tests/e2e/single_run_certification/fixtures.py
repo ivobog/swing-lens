@@ -604,6 +604,7 @@ def _seed_ceri_manual_evidence(
     db: Session,
     *,
     as_of_session: date,
+    tickers: tuple[str, ...] = CANONICAL_TICKERS,
     baseline_tickers: tuple[str, ...] = ("ALFA",),
 ) -> tuple[list[int], list[int], int]:
     # Anchor the fixture to its explicit completed market session. A wall-clock
@@ -615,7 +616,7 @@ def _seed_ceri_manual_evidence(
         datetime.min.time().replace(hour=20, minute=15),
         tzinfo=UTC,
     ).isoformat()
-    for ticker in CANONICAL_TICKERS:
+    for ticker in tickers:
         db.add(
             CeriCompany(
                 ticker=ticker,
@@ -627,7 +628,7 @@ def _seed_ceri_manual_evidence(
     db.flush()
 
     records: dict[CeriDataset, list[dict[str, Any]]] = {dataset: [] for dataset in CeriDataset}
-    for ticker_index, ticker in enumerate(CANONICAL_TICKERS):
+    for ticker_index, ticker in enumerate(tickers):
         direction = -1 if ticker == "RISK" else 1
         base = Decimal("1.00") + Decimal(ticker_index) / Decimal("10")
         for observation, observed_at, multiplier in (
@@ -719,7 +720,11 @@ def _seed_ceri_manual_evidence(
 
     # Acquire and calculate the modest baseline before acquiring the richer
     # current input. Both decisions retain their actual acquisition/cutoff time.
-    baseline_snapshot_id = _seed_ceri_baseline_snapshot(db, records, tickers=baseline_tickers)
+    baseline_snapshot_id = (
+        _seed_ceri_baseline_snapshot(db, records, tickers=baseline_tickers)
+        if baseline_tickers
+        else 0
+    )
     db.commit()
     provider = ManualCeriProvider(records, provider_terms_version=FIXTURE_VERSION)
     service = CeriIngestionService(registry=CeriProviderRegistry(providers={"manual": provider}))
@@ -731,7 +736,7 @@ def _seed_ceri_manual_evidence(
         CeriDataset.GUIDANCE,
         CeriDataset.CATALYSTS,
     ):
-        for ticker in CANONICAL_TICKERS:
+        for ticker in tickers:
             result = service.ingest(
                 db,
                 CeriIngestionRequest(
@@ -765,7 +770,11 @@ def _seed_ceri_manual_evidence(
     feature_result = CeriFeatureRebuildService().rebuild(
         db,
         CeriFeatureRebuildRequest(
-            ticker=None,
+            company_ids=tuple(
+                db.scalars(
+                    select(CeriCompany.id).where(CeriCompany.ticker.in_(tickers))
+                )
+            ),
             # Use the same canonical completed exchange session as the seeded
             # market bars, including on weekends and exchange holidays.
             as_of_session=as_of_session,
@@ -775,8 +784,13 @@ def _seed_ceri_manual_evidence(
     feature_run, _ = CeriProcessingRunService().create_or_get(
         db,
         job_type="CERI_REBUILD_FEATURES",
-        request_key=f"certification:features:{FIXTURE_VERSION}",
-        scope={"tickers": list(CANONICAL_TICKERS)},
+        request_key=(
+            f"certification:features:{FIXTURE_VERSION}"
+            if tickers == CANONICAL_TICKERS
+            else "certification:features:"
+            + hashlib.sha256("|".join(tickers).encode()).hexdigest()
+        ),
+        scope={"tickers": list(tickers)},
     )
     CeriProcessingRunService().finish(
         db,

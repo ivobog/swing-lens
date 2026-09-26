@@ -454,6 +454,10 @@ def _execute_legacy_fixture(database_url: str) -> dict:
         _execute_handler(db, feature, execute_rebuild_features_job)
         capture = db.scalar(select(BackgroundJob).where(BackgroundJob.job_type == CERI_CAPTURE_RUN))
         _execute_handler(db, capture, execute_capture_run_job)
+        db.refresh(capture)
+        capture_metadata = dict((capture.operational_metadata_json or {}).get("ceri_capture") or {})
+        assert capture_metadata.get("processed") == 1
+        assert capture.progress_sequence >= 15
         change = db.scalar(
             select(BackgroundJob).where(BackgroundJob.job_type == CERI_CHANGE_DETECTION)
         )
@@ -483,7 +487,9 @@ def _execute_batched_fixture(database_url: str) -> dict:
         )
         workflow_key = f"ceri:pipeline:{pipeline.id}:fixture-config"
         ingestion = db.get(CeriIngestionRun, ingestion_run_id)
-        ingestion.request_key = f"{workflow_key}:ingest:eodhd:estimates:MSFT"
+        ingestion.request_key = (
+            f"{workflow_key}:ingest:eodhd:estimates:MSFT:refresh:{authority.refresh_cycle_id}"
+        )
         temporal_payload = {
             "pipeline_run_id": pipeline.id,
             "calculation_context_id": cutoff.context_id,
