@@ -16,7 +16,9 @@ from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 from test_technical_work import _synthetic_frame
 
+import app.services.pipeline_executor as pipeline_executor_service
 import app.services.technical_score_service as technical_score_service
+import app.settings as app_settings
 from alembic import command
 from app.models.tables import (
     AcquisitionPlanRecord,
@@ -75,7 +77,6 @@ from app.services.technical_score_service import (
     _technical_checkpoint,
     score_run_technicals,
 )
-from app.settings import get_settings
 
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
@@ -300,10 +301,15 @@ def test_deterministic_pipeline_10_25_100(
 ):
     """Production Technical/PG path plus deterministic downstream orchestration."""
 
-    recovery_settings = get_settings().model_copy(
+    recovery_settings = app_settings.get_settings().model_copy(
         update={"ceri_provider_ingest_enabled": False}
     )
-    monkeypatch.setattr("app.settings.get_settings", lambda: recovery_settings)
+
+    def recovery_get_settings():
+        return recovery_settings
+
+    monkeypatch.setattr(app_settings, "get_settings", recovery_get_settings)
+    monkeypatch.setattr(pipeline_executor_service, "get_settings", recovery_get_settings)
 
     with disposable_postgres_database_factory() as database_url:
         config = Config("alembic.ini")
@@ -428,7 +434,7 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
         ]
     stage_calls: list[str] = []
     checkpoint_times: list[float] = []
-    settings = get_settings()
+    settings = app_settings.get_settings()
     cutoff_at = CUTOFF
     frame = _synthetic_frame()
     frame["date"] = pd.bdate_range(end=SESSION, periods=len(frame))
