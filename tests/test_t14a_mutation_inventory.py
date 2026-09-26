@@ -10,25 +10,43 @@ from scripts.qa.t14a_reviewed_inventory import export_inventory, handler_registr
 CURRENT_RELEASE_MISSING_OR_STALE_DELTAS = [
     "app/models/tables.py",
     "app/observability/metrics.py",
+    "app/routers/run_routes.py",
     "app/services/background_job_service.py",
     "app/services/background_worker.py",
     "app/services/bar_cache_service.py",
+    "app/services/ceri/batched_job_handlers.py",
+    "app/services/ceri/capture_service.py",
+    "app/services/ceri/feature_rebuild_service.py",
+    "app/services/ceri/job_handlers.py",
     "app/services/configuration_delivery.py",
     "app/services/core_mutation_authority.py",
     "app/services/ib_fetch_executor.py",
+    "app/services/ib_gateway_health_service.py",
     "app/services/market_regime_command_center.py",
     "app/services/pipeline_executor.py",
     "app/services/pipeline_service.py",
+    "app/services/setup_lifecycle/episode_service.py",
+    "app/services/setup_lifecycle/maintenance_service.py",
+    "app/services/setup_lifecycle/repository.py",
+    "app/services/source_mutation_authority.py",
     "app/services/technical_score_service.py",
+    "app/services/winner_probability/cohort_authority.py",
     "app/services/winner_probability/cohort_refresh_planner.py",
+    "app/services/winner_probability/episode_service.py",
     "app/services/winner_probability/market_data_obligation_service.py",
+    "app/services/winner_probability/probability_estimator.py",
+    "app/services/winner_probability/repository.py",
     "app/services/winner_probability/scope_refresh.py",
     "scripts/qa/t14a_reviewed_inventory.py",
 ]
 CURRENT_RELEASE_STALE_SOURCE_DELTAS = [
     path
     for path in CURRENT_RELEASE_MISSING_OR_STALE_DELTAS
-    if path != "app/observability/metrics.py"
+    if path
+    not in {
+        "app/observability/metrics.py",
+        "app/services/ib_gateway_health_service.py",
+    }
 ]
 
 

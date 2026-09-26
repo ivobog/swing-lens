@@ -15343,6 +15343,11 @@
       "proof": "Execution status/stage attempts and prerequisite source scheduling; financial stage algorithms remain separate writer families.",
       "role": "DOMAIN_SUPPORTING_STATE"
     },
+    "app/services/pipeline_executor.py:_mark_pipeline_waiting_for_ceri": {
+      "family_id": "WF_PIPELINE_STAGE_STATE",
+      "proof": "Durable pipeline wait-state publication after the CERI provider DAG is scheduled; financial CERI writers remain separate writer families.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
     "app/services/pipeline_executor.py:_pipeline_step": {
       "family_id": "WF_PIPELINE_STAGE_STATE",
       "proof": "Execution status/stage attempts and prerequisite source scheduling; financial stage algorithms remain separate writer families.",
@@ -15368,9 +15373,19 @@
       "proof": "Start/resume/cancel/SEC continuation of pipeline root and steps with Phase-4 binding delivery.",
       "role": "DOMAIN_SUPPORTING_STATE"
     },
+    "app/services/pipeline_service.py:_roll_up_ceri_pipeline_failure": {
+      "family_id": "WF_PIPELINE_CONTROL",
+      "proof": "Terminal CERI child failure is rolled up to the retained pipeline root and step without mutating CERI financial evidence.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
     "app/services/pipeline_service.py:cancel_pipeline": {
       "family_id": "WF_PIPELINE_CONTROL",
       "proof": "Start/resume/cancel/SEC continuation of pipeline root and steps with Phase-4 binding delivery.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_service.py:enqueue_pipeline_after_ceri_completion": {
+      "family_id": "WF_PIPELINE_CONTROL",
+      "proof": "Exactly-once post-CERI continuation preserves the retained pipeline authority and only mutates pipeline control/job state.",
       "role": "DOMAIN_SUPPORTING_STATE"
     },
     "app/services/pipeline_service.py:enqueue_pipeline_after_sec_repair": {
@@ -15386,6 +15401,11 @@
     "app/services/pipeline_service.py:resume_pipeline": {
       "family_id": "WF_PIPELINE_CONTROL",
       "proof": "Start/resume/cancel/SEC continuation of pipeline root and steps with Phase-4 binding delivery.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_service.py:roll_up_ceri_pipeline_job_failure": {
+      "family_id": "WF_PIPELINE_CONTROL",
+      "proof": "Worker-facing CERI failure rollup delegates to retained pipeline control state and does not rewrite downstream financial artifacts.",
       "role": "DOMAIN_SUPPORTING_STATE"
     },
     "app/services/pipeline_service.py:start_pipeline": {
@@ -15471,6 +15491,11 @@
     "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService._maybe_open_episode": {
       "family_id": "WF_LIFECYCLE_EPISODE",
       "proof": "Episode open/update/close and primary flags plus snapshot denormalization; distinct from dedicated retained decision ledgers.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService._retire_legacy_active_episodes": {
+      "family_id": "WF_LIFECYCLE_EPISODE",
+      "proof": "Fail-closed retirement of historical active episodes uses the lifecycle episode writer family and preserves retained decision evidence.",
       "role": "SEMANTIC_WRITER_MEMBER"
     },
     "app/services/setup_lifecycle/episode_service.py:SetupLifecycleEpisodeService._update_episode": {
