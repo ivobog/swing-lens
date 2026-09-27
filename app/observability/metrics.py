@@ -246,6 +246,15 @@ DEFINITIONS: dict[str, MetricDefinition] = {
     "swinglens_worker_memory_bytes": _gauge("Worker memory measurement.", ("worker_id",), "bytes"),
     "swinglens_worker_cpu_percent": _gauge("Worker CPU utilization.", ("worker_id",), "percent"),
     "swinglens_worker_restarts_total": _counter("Supervisor worker restarts.", ("worker_id",)),
+    "swinglens_worker_infrastructure_failures_total": _counter(
+        "Contained pre-claim database infrastructure failures.",
+        ("worker_id", "reason"),
+    ),
+    "swinglens_worker_infrastructure_degraded": _gauge(
+        "Whether a worker is retrying after a pre-claim database infrastructure failure.",
+        ("worker_id",),
+        "boolean",
+    ),
     "swinglens_worker_memory_status": _gauge(
         "Worker memory state indicator.", ("worker_id", "status"), "boolean"
     ),

@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import ctypes
 import io
 import ipaddress
 import json
+import os
+import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -20,6 +23,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import psutil
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import text
@@ -39,10 +43,17 @@ from app.settings import RuntimeMode, Settings  # noqa: E402
 from scripts.check_architecture_registry import main as architecture_registry_main  # noqa: E402
 
 ACTIVE_JOB_STATUSES = ("QUEUED", "RUNNING", "STALLED", "RECOVERING", "RETRYING")
+GIB = 1024**3
+HOST_COMMIT_WARNING_PERCENT = 85.0
+HOST_COMMIT_CRITICAL_PERCENT = 90.0
+HOST_COMMIT_WARNING_HEADROOM_BYTES = 8 * GIB
+HOST_COMMIT_CRITICAL_HEADROOM_BYTES = 4 * GIB
 REQUIRED_CHECKS = (
     "expected_head",
     "tracked_worktree_clean",
     "architecture_registry",
+    "host_commit",
+    "disk_space",
     "runtime_mode_policy",
     "certification_session",
     "database_identity",
@@ -60,6 +71,31 @@ REQUIRED_CHECKS = (
 class ReadinessCheck:
     passed: bool
     detail: Any
+
+
+@dataclass(frozen=True)
+class HostCommitSnapshot:
+    commit_limit_bytes: int
+    commit_charge_bytes: int
+    total_physical_bytes: int
+    available_physical_bytes: int
+
+    @property
+    def commit_headroom_bytes(self) -> int:
+        return max(0, self.commit_limit_bytes - self.commit_charge_bytes)
+
+    @property
+    def commit_utilization_percent(self) -> float:
+        if self.commit_limit_bytes <= 0:
+            return 100.0
+        return self.commit_charge_bytes / self.commit_limit_bytes * 100.0
+
+    @property
+    def physical_utilization_percent(self) -> float:
+        if self.total_physical_bytes <= 0:
+            return 100.0
+        used = max(0, self.total_physical_bytes - self.available_physical_bytes)
+        return used / self.total_physical_bytes * 100.0
 
 
 def finalize_report(checks: dict[str, ReadinessCheck]) -> dict[str, Any]:
@@ -93,6 +129,8 @@ def collect_report(
         "no tracked source drift" if tracked_clean else "tracked source differs from HEAD",
     )
     checks["architecture_registry"] = _architecture_check()
+    checks["host_commit"] = _host_commit_check()
+    checks["disk_space"] = _disk_space_check(settings)
     checks["runtime_mode_policy"] = _runtime_policy_check(settings)
     configured_session = str(settings.runtime_instance_id or "").strip()
     checks["certification_session"] = ReadinessCheck(
@@ -248,6 +286,156 @@ def _architecture_check() -> ReadinessCheck:
         result = architecture_registry_main(["--check"])
     detail = (stdout.getvalue() or stderr.getvalue()).strip()
     return ReadinessCheck(result == 0, detail)
+
+
+def _host_commit_check(
+    snapshot_provider=None,
+    consumers_provider=None,
+) -> ReadinessCheck:
+    snapshot_provider = snapshot_provider or _windows_host_commit_snapshot
+    consumers_provider = consumers_provider or _top_private_memory_consumers
+    try:
+        snapshot = snapshot_provider()
+        if snapshot.commit_limit_bytes <= 0 or snapshot.commit_charge_bytes < 0:
+            raise RuntimeError("Windows commit metrics were invalid")
+    except Exception as exc:
+        return ReadinessCheck(
+            False,
+            {
+                "verdict": "FAIL",
+                "error": f"{type(exc).__name__}: {exc}",
+                "metric_source": "Windows GlobalMemoryStatusEx",
+            },
+        )
+
+    utilization = snapshot.commit_utilization_percent
+    headroom = snapshot.commit_headroom_bytes
+    failed = (
+        utilization >= HOST_COMMIT_CRITICAL_PERCENT
+        or headroom < HOST_COMMIT_CRITICAL_HEADROOM_BYTES
+    )
+    warned = (
+        utilization >= HOST_COMMIT_WARNING_PERCENT
+        or headroom < HOST_COMMIT_WARNING_HEADROOM_BYTES
+    )
+    verdict = "FAIL" if failed else ("WARN" if warned else "PASS")
+    detail: dict[str, Any] = {
+        "limit_bytes": snapshot.commit_limit_bytes,
+        "charge_bytes": snapshot.commit_charge_bytes,
+        "headroom_bytes": headroom,
+        "utilization_percent": round(utilization, 3),
+        "physical_total_bytes": snapshot.total_physical_bytes,
+        "physical_available_bytes": snapshot.available_physical_bytes,
+        "physical_utilization_percent": round(snapshot.physical_utilization_percent, 3),
+        "verdict": verdict,
+        "metric_source": "Windows GlobalMemoryStatusEx",
+        "policy": {
+            "warning_utilization_percent": HOST_COMMIT_WARNING_PERCENT,
+            "critical_utilization_percent": HOST_COMMIT_CRITICAL_PERCENT,
+            "warning_headroom_bytes": HOST_COMMIT_WARNING_HEADROOM_BYTES,
+            "critical_headroom_bytes": HOST_COMMIT_CRITICAL_HEADROOM_BYTES,
+        },
+    }
+    if warned:
+        try:
+            detail["top_private_memory_consumers"] = consumers_provider()
+        except Exception as exc:
+            detail["top_private_memory_consumers_error"] = f"{type(exc).__name__}: {exc}"
+    return ReadinessCheck(not failed, detail)
+
+
+def _windows_host_commit_snapshot() -> HostCommitSnapshot:
+    if os.name != "nt":
+        raise RuntimeError("Windows committed-memory metrics are unavailable on this host")
+
+    class MemoryStatusEx(ctypes.Structure):
+        _fields_ = [
+            ("dwLength", ctypes.c_ulong),
+            ("dwMemoryLoad", ctypes.c_ulong),
+            ("ullTotalPhys", ctypes.c_ulonglong),
+            ("ullAvailPhys", ctypes.c_ulonglong),
+            ("ullTotalPageFile", ctypes.c_ulonglong),
+            ("ullAvailPageFile", ctypes.c_ulonglong),
+            ("ullTotalVirtual", ctypes.c_ulonglong),
+            ("ullAvailVirtual", ctypes.c_ulonglong),
+            ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+        ]
+
+    status = MemoryStatusEx()
+    status.dwLength = ctypes.sizeof(status)
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        raise ctypes.WinError()
+    return HostCommitSnapshot(
+        commit_limit_bytes=int(status.ullTotalPageFile),
+        commit_charge_bytes=int(status.ullTotalPageFile - status.ullAvailPageFile),
+        total_physical_bytes=int(status.ullTotalPhys),
+        available_physical_bytes=int(status.ullAvailPhys),
+    )
+
+
+def _top_private_memory_consumers(limit: int = 5) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for process in psutil.process_iter(["pid", "name"]):
+        try:
+            memory = process.memory_full_info()
+            private = getattr(memory, "private", None)
+            if private is None:
+                continue
+            rows.append(
+                {
+                    "pid": int(process.pid),
+                    "name": str(process.info.get("name") or "<unknown>"),
+                    "private_bytes": int(private),
+                }
+            )
+        except (OSError, psutil.Error):
+            continue
+    rows.sort(key=lambda row: int(row["private_bytes"]), reverse=True)
+    return rows[: max(1, int(limit))]
+
+
+def _disk_space_check(
+    settings: Settings,
+    *,
+    usage_provider=shutil.disk_usage,
+    paths: tuple[Path, ...] | None = None,
+) -> ReadinessCheck:
+    candidates = paths or (
+        ROOT,
+        settings.upload_dir,
+        settings.export_dir,
+        settings.cache_dir,
+        settings.db_monitor_log_dir,
+    )
+    observed: dict[str, dict[str, Any]] = {}
+    try:
+        for candidate in candidates:
+            path = Path(candidate).resolve()
+            while not path.exists() and path != path.parent:
+                path = path.parent
+            usage = usage_provider(path)
+            percent = usage.free / usage.total * 100.0 if usage.total else 0.0
+            observed[str(path)] = {
+                "total_bytes": int(usage.total),
+                "used_bytes": int(usage.used),
+                "free_bytes": int(usage.free),
+                "free_percent": round(percent, 3),
+            }
+    except OSError as exc:
+        return ReadinessCheck(False, {"verdict": "FAIL", "error": str(exc)})
+    minimum = min((row["free_percent"] for row in observed.values()), default=0.0)
+    failed = minimum <= settings.observability_disk_critical_percent
+    warned = minimum <= settings.observability_disk_warning_percent
+    return ReadinessCheck(
+        not failed,
+        {
+            "verdict": "FAIL" if failed else ("WARN" if warned else "PASS"),
+            "minimum_free_percent": minimum,
+            "critical_free_percent": settings.observability_disk_critical_percent,
+            "warning_free_percent": settings.observability_disk_warning_percent,
+            "volumes": observed,
+        },
+    )
 
 
 def _runtime_policy_check(settings: Settings) -> ReadinessCheck:

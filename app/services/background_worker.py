@@ -5,6 +5,7 @@ import os
 import socket
 import time
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from typing import Any
@@ -12,6 +13,7 @@ from uuid import uuid4
 
 import psutil
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal
@@ -63,6 +65,8 @@ from app.services.runtime_mutation_authority import RecoveryAuthority, RuntimeMu
 from app.services.worker_registry import (
     heartbeat_worker,
     heartbeat_worker_control_loop,
+    mark_worker_infrastructure_degraded,
+    mark_worker_infrastructure_healthy,
     mark_worker_stopping,
     register_worker,
 )
@@ -82,6 +86,33 @@ class JobDeferred(Exception):
         super().__init__(reason)
         self.reason = reason
         self.delay_seconds = max(1, int(delay_seconds))
+
+
+class PreClaimInfrastructureError(RuntimeError):
+    """A narrowly classified database infrastructure fault before any job claim."""
+
+    def __init__(self, reason_code: str, original: BaseException) -> None:
+        super().__init__(f"{reason_code}: {type(original).__name__}: {original}")
+        self.reason_code = reason_code
+        self.original = original
+
+
+@dataclass
+class InfrastructureBackoff:
+    initial_seconds: float
+    maximum_seconds: float
+    failures: int = 0
+
+    def record_failure(self) -> float:
+        delay = min(
+            self.maximum_seconds,
+            self.initial_seconds * (2 ** max(0, self.failures)),
+        )
+        self.failures += 1
+        return delay
+
+    def reset(self) -> None:
+        self.failures = 0
 
 
 def run_worker(
@@ -178,49 +209,19 @@ def run_worker(
     finally:
         startup_db.close()
 
-    next_evidence_cleanup = 0.0
-
     try:
-        while not runtime_stop_event.is_set():
-            if (
-                settings.runtime_mode is not RuntimeMode.CERTIFICATION
-                and time.monotonic() >= next_evidence_cleanup
-            ):
-                cleanup_db = session_factory()
-                try:
-                    execute_durable_evidence_retention(cleanup_db, settings)
-                    cleanup_db.commit()
-                except Exception:
-                    cleanup_db.rollback()
-                    logger.exception("job.worker.durable_evidence_retention_failed")
-                finally:
-                    cleanup_db.close()
-                next_evidence_cleanup = time.monotonic() + float(
-                    settings.observability_evidence_cleanup_interval_seconds
-                )
-            ran_job = run_worker_once(
-                worker_id=worker_id,
-                worker_instance_id=instance_id,
-                queues=queue_names,
-                stale_after_seconds=settings.job_stale_after_seconds,
-                heartbeat_timeout_seconds=settings.job_worker_heartbeat_timeout_seconds,
-                fairness_enabled=settings.queue_fairness_enabled,
-                max_consecutive_interactive=(settings.job_max_consecutive_interactive_claims),
-                age_promotion_seconds=settings.job_age_promotion_seconds,
-                claim_state=claim_state,
-                session_factory=session_factory,
-                handlers=handlers,
-                schedule_winner_probability=(settings.winner_probability_auto_maturation_enabled),
-                certification_mode=settings.runtime_mode is RuntimeMode.CERTIFICATION,
-                certification_session_id=certification_session_id,
-                sec_capability_required=(
-                    settings.ceri_enabled or settings.ceri_provider_ingest_enabled
-                ),
-            )
-            if stop_after_one:
-                return
-            if not ran_job:
-                runtime_stop_event.wait(settings.job_poll_interval_seconds)
+        _run_worker_control_loop(
+            settings=settings,
+            worker_id=worker_id,
+            worker_instance_id=instance_id,
+            queue_names=queue_names,
+            handlers=handlers,
+            claim_state=claim_state,
+            session_factory=session_factory,
+            runtime_stop_event=runtime_stop_event,
+            certification_session_id=certification_session_id,
+            stop_after_one=stop_after_one,
+        )
     finally:
         runtime_stop_event.set()
         heartbeat_thread.join(timeout=max(1.0, settings.job_worker_heartbeat_interval_seconds * 2))
@@ -239,6 +240,218 @@ def run_worker(
             logger.exception("job.worker.stop_heartbeat_failed", extra={"worker_id": worker_id})
         finally:
             db.close()
+
+
+def _run_worker_control_loop(
+    *,
+    settings: Settings,
+    worker_id: str,
+    worker_instance_id: str,
+    queue_names: Iterable[str],
+    handlers: Mapping[str, JobHandler],
+    claim_state: WorkerClaimState,
+    session_factory: sessionmaker[Session],
+    runtime_stop_event: Event,
+    certification_session_id: str | None,
+    stop_after_one: bool,
+    poll_once: Callable[..., bool] | None = None,
+) -> None:
+    """Run claims while containing only classified pre-claim DB infrastructure faults."""
+    poll_once = poll_once or run_worker_once
+    backoff = InfrastructureBackoff(
+        initial_seconds=settings.worker_infrastructure_backoff_initial_seconds,
+        maximum_seconds=settings.worker_infrastructure_backoff_max_seconds,
+    )
+    next_evidence_cleanup = 0.0
+    while not runtime_stop_event.is_set():
+        if (
+            settings.runtime_mode is not RuntimeMode.CERTIFICATION
+            and time.monotonic() >= next_evidence_cleanup
+        ):
+            cleanup_db = session_factory()
+            try:
+                execute_durable_evidence_retention(cleanup_db, settings)
+                cleanup_db.commit()
+            except Exception:
+                cleanup_db.rollback()
+                logger.exception("job.worker.durable_evidence_retention_failed")
+            finally:
+                cleanup_db.close()
+            next_evidence_cleanup = time.monotonic() + float(
+                settings.observability_evidence_cleanup_interval_seconds
+            )
+        try:
+            ran_job = poll_once(
+                worker_id=worker_id,
+                worker_instance_id=worker_instance_id,
+                queues=queue_names,
+                stale_after_seconds=settings.job_stale_after_seconds,
+                heartbeat_timeout_seconds=settings.job_worker_heartbeat_timeout_seconds,
+                fairness_enabled=settings.queue_fairness_enabled,
+                max_consecutive_interactive=settings.job_max_consecutive_interactive_claims,
+                age_promotion_seconds=settings.job_age_promotion_seconds,
+                claim_state=claim_state,
+                session_factory=session_factory,
+                handlers=handlers,
+                schedule_winner_probability=(settings.winner_probability_auto_maturation_enabled),
+                certification_mode=settings.runtime_mode is RuntimeMode.CERTIFICATION,
+                certification_session_id=certification_session_id,
+                sec_capability_required=(
+                    settings.ceri_enabled or settings.ceri_provider_ingest_enabled
+                ),
+            )
+        except PreClaimInfrastructureError as exc:
+            delay = backoff.record_failure()
+            _publish_worker_infrastructure_state(
+                session_factory=session_factory,
+                worker_id=worker_id,
+                worker_instance_id=worker_instance_id,
+                degraded_reason=exc.reason_code,
+            )
+            operational_metrics.increment(
+                "swinglens_worker_infrastructure_failures_total",
+                worker_id=worker_id,
+                reason=exc.reason_code,
+            )
+            operational_metrics.set_gauge(
+                "swinglens_worker_infrastructure_degraded",
+                1,
+                worker_id=worker_id,
+            )
+            logger.error(
+                "job.worker.preclaim_infrastructure_degraded",
+                extra={
+                    "worker_id": worker_id,
+                    "worker_instance_id": worker_instance_id,
+                    "reason_code": exc.reason_code,
+                    "failure_count": backoff.failures,
+                    "backoff_seconds": delay,
+                    "error_type": type(exc.original).__name__,
+                },
+            )
+            if runtime_stop_event.wait(delay):
+                return
+            continue
+        if backoff.failures:
+            recovered_after = backoff.failures
+            backoff.reset()
+            operational_metrics.set_gauge(
+                "swinglens_worker_infrastructure_degraded",
+                0,
+                worker_id=worker_id,
+            )
+            logger.info(
+                "job.worker.preclaim_infrastructure_recovered",
+                extra={
+                    "worker_id": worker_id,
+                    "worker_instance_id": worker_instance_id,
+                    "recovered_after_failures": recovered_after,
+                },
+            )
+        if stop_after_one:
+            return
+        if not ran_job:
+            runtime_stop_event.wait(settings.job_poll_interval_seconds)
+
+
+def _publish_worker_infrastructure_state(
+    *,
+    session_factory: sessionmaker[Session],
+    worker_id: str,
+    worker_instance_id: str,
+    degraded_reason: str,
+) -> bool:
+    db = session_factory()
+    try:
+        worker = mark_worker_infrastructure_degraded(
+            db,
+            worker_id,
+            instance_id=worker_instance_id,
+            reason_code=degraded_reason,
+        )
+        db.commit()
+        return worker is not None
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "job.worker.infrastructure_state_publish_failed",
+            extra={
+                "worker_id": worker_id,
+                "worker_instance_id": worker_instance_id,
+                "reason_code": degraded_reason,
+            },
+        )
+        return False
+    finally:
+        db.close()
+
+
+def _database_sqlstate(exc: BaseException) -> str | None:
+    """Return a normalized SQLSTATE from a SQLAlchemy/driver exception chain."""
+    candidates: list[BaseException] = [exc]
+    if isinstance(exc, DBAPIError) and isinstance(exc.orig, BaseException):
+        candidates.insert(0, exc.orig)
+    for candidate in candidates:
+        for attribute in ("sqlstate", "pgcode"):
+            value = getattr(candidate, attribute, None)
+            if value:
+                return str(value).upper()
+        diagnostic = getattr(candidate, "diag", None)
+        value = getattr(diagnostic, "sqlstate", None) if diagnostic is not None else None
+        if value:
+            return str(value).upper()
+    return None
+
+
+def _classify_preclaim_infrastructure_error(exc: BaseException) -> str | None:
+    """Classify only database availability/resource failures safe to retry pre-claim."""
+    sqlstate = _database_sqlstate(exc)
+    if sqlstate == "53200":
+        return "POSTGRES_OUT_OF_MEMORY"
+    if sqlstate is not None and sqlstate.startswith("53"):
+        return "DATABASE_RESOURCE_EXHAUSTED"
+    if sqlstate is not None and sqlstate.startswith("08"):
+        return "DATABASE_CONNECTION_FAILURE"
+    if sqlstate in {"57P01", "57P02", "57P03"}:
+        return "DATABASE_UNAVAILABLE"
+    if isinstance(exc, OperationalError) and sqlstate is None:
+        original = exc.orig
+        if isinstance(original, OSError):
+            return "DATABASE_CONNECTION_FAILURE"
+        original_type = type(original)
+        if original_type.__module__.startswith("psycopg") and original_type.__name__ in {
+            "InterfaceError",
+            "OperationalError",
+        }:
+            return "DATABASE_CONNECTION_FAILURE"
+        message = str(original).lower()
+        if any(
+            token in message
+            for token in (
+                "connection refused",
+                "connection reset",
+                "connection is closed",
+                "server closed the connection",
+                "could not connect to server",
+                "terminating connection",
+            )
+        ):
+            return "DATABASE_CONNECTION_FAILURE"
+    return None
+
+
+def _rollback_and_invalidate(db: Any) -> None:
+    """Discard the failed transaction and its possibly poisoned connection."""
+    try:
+        db.rollback()
+    except Exception:
+        logger.exception("job.worker.preclaim_rollback_failed")
+    try:
+        invalidate = getattr(db, "invalidate", None)
+        if callable(invalidate):
+            invalidate()
+    except Exception:
+        logger.exception("job.worker.preclaim_connection_invalidation_failed")
 
 
 def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str, Any]:
@@ -425,6 +638,7 @@ def run_worker_once(
         )
     handlers = handlers or default_job_handlers()
     db = session_factory()
+    claim_committed = False
     try:
         queue_names = normalize_worker_queues(queues)
         hostname = socket.gethostname()
@@ -505,6 +719,13 @@ def run_worker_once(
             certification_session_id=certification_session_id,
             excluded_job_types=excluded_job_types,
         )
+        mark_worker_infrastructure_healthy(
+            db,
+            worker_id,
+            hostname=hostname,
+            process_id=process_id,
+            instance_id=worker_instance_id,
+        )
         if job is None:
             db.commit()
             return False
@@ -531,6 +752,7 @@ def run_worker_once(
         # transaction. Otherwise PostgreSQL correctly exposes the prior QUEUED
         # row to that session and the first heartbeat fences its own worker.
         db.commit()
+        claim_committed = True
         try:
 
             def heartbeat() -> None:
@@ -691,7 +913,13 @@ def run_worker_once(
             logger.exception("job.failed", extra={"job_id": job.id, "job_type": job.job_type})
         db.commit()
         return True
-    except Exception:
+    except Exception as exc:
+        reason_code = (
+            None if claim_committed else _classify_preclaim_infrastructure_error(exc)
+        )
+        if reason_code is not None:
+            _rollback_and_invalidate(db)
+            raise PreClaimInfrastructureError(reason_code, exc) from exc
         db.rollback()
         raise
     finally:

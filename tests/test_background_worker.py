@@ -1,8 +1,10 @@
 import logging
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
@@ -10,13 +12,15 @@ from app.services.background_job_service import JobStatus
 from app.services.background_worker import (
     CancelRequested,
     JobDeferred,
+    PreClaimInfrastructureError,
     _execute_full_pipeline_job,
+    _run_worker_control_loop,
     execute_job,
     log_worker_startup_configuration,
     run_worker_once,
 )
 from app.services.pipeline_prerequisites import CeriBootstrapRequiredError
-from app.settings import SecDocumentIncrementalMode, Settings
+from app.settings import RuntimeMode, SecDocumentIncrementalMode, Settings
 
 
 @pytest.fixture(autouse=True)
@@ -31,6 +35,10 @@ def _stub_worker_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.background_worker.heartbeat_worker",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_worker_infrastructure_healthy",
         lambda *_args, **_kwargs: None,
     )
 
@@ -368,16 +376,338 @@ def test_worker_blocks_deterministic_prerequisite_without_retry(
 
 
 class FakeWorkerDb:
-    def __init__(self) -> None:
+    def __init__(self, *, commit_failure: tuple[int, Exception] | None = None) -> None:
         self.commit_count = 0
         self.rollback_count = 0
+        self.invalidate_count = 0
         self.closed = False
+        self.commit_failure = commit_failure
 
     def commit(self) -> None:
         self.commit_count += 1
+        if self.commit_failure is not None and self.commit_count == self.commit_failure[0]:
+            raise self.commit_failure[1]
 
     def rollback(self) -> None:
         self.rollback_count += 1
 
+    def invalidate(self) -> None:
+        self.invalidate_count += 1
+
     def close(self) -> None:
         self.closed = True
+
+
+class DriverFailure(Exception):
+    def __init__(self, message: str, *, sqlstate: str | None = None) -> None:
+        super().__init__(message)
+        self.sqlstate = sqlstate
+
+
+def _prepare_preclaim_failure(monkeypatch: pytest.MonkeyPatch, exc: Exception) -> None:
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.claim_next_job",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(exc),
+    )
+
+
+def test_preclaim_postgres_out_of_memory_is_contained_without_job_effects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = FakeWorkerDb()
+    job = BackgroundJob(id=7, job_type="TEST_JOB", status=JobStatus.QUEUED)
+    failure = OperationalError(
+        "select next job",
+        {},
+        DriverFailure("out of memory", sqlstate="53200"),
+    )
+    _prepare_preclaim_failure(monkeypatch, failure)
+    mutation_calls: list[str] = []
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_job_failed_or_retry",
+        lambda *_args, **_kwargs: mutation_calls.append("job_failed"),
+    )
+
+    with pytest.raises(PreClaimInfrastructureError) as caught:
+        run_worker_once(
+            worker_id="worker-a",
+            worker_instance_id="instance-a",
+            stale_after_seconds=60,
+            session_factory=lambda: db,
+            handlers={},
+            certification_mode=True,
+            certification_session_id="cert-a",
+        )
+
+    assert caught.value.reason_code == "POSTGRES_OUT_OF_MEMORY"
+    assert db.rollback_count == 1
+    assert db.invalidate_count == 1
+    assert db.closed is True
+    assert mutation_calls == []
+    assert job.status == JobStatus.QUEUED
+
+
+def test_preclaim_connection_reset_is_contained(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = FakeWorkerDb()
+    failure = OperationalError(
+        "select next job",
+        {},
+        DriverFailure("server closed the connection unexpectedly", sqlstate="08006"),
+    )
+    _prepare_preclaim_failure(monkeypatch, failure)
+
+    with pytest.raises(PreClaimInfrastructureError) as caught:
+        run_worker_once(
+            worker_id="worker-a",
+            stale_after_seconds=60,
+            session_factory=lambda: db,
+            handlers={},
+        )
+
+    assert caught.value.reason_code == "DATABASE_CONNECTION_FAILURE"
+    assert db.invalidate_count == 1
+
+
+def test_claim_commit_infrastructure_failure_is_contained_before_durable_ownership(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failure = OperationalError(
+        "commit claim",
+        {},
+        DriverFailure("out of memory", sqlstate="53200"),
+    )
+    db = FakeWorkerDb(commit_failure=(2, failure))
+    job = BackgroundJob(
+        id=8,
+        job_type="TEST_JOB",
+        status=JobStatus.RUNNING,
+        execution_token="uncommitted-token",
+    )
+    mutation_calls: list[str] = []
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.claim_next_job",
+        lambda *_args, **_kwargs: job,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_job_failed_or_retry",
+        lambda *_args, **_kwargs: mutation_calls.append("job_failed"),
+    )
+
+    with pytest.raises(PreClaimInfrastructureError) as caught:
+        run_worker_once(
+            worker_id="worker-a",
+            stale_after_seconds=60,
+            session_factory=lambda: db,
+            handlers={},
+        )
+
+    assert caught.value.reason_code == "POSTGRES_OUT_OF_MEMORY"
+    assert db.rollback_count == 1
+    assert db.invalidate_count == 1
+    assert mutation_calls == []
+
+
+def test_preclaim_programming_error_is_not_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = FakeWorkerDb()
+    failure = ProgrammingError(
+        "broken SQL",
+        {},
+        DriverFailure("syntax error", sqlstate="42601"),
+    )
+    _prepare_preclaim_failure(monkeypatch, failure)
+
+    with pytest.raises(ProgrammingError):
+        run_worker_once(
+            worker_id="worker-a",
+            stale_after_seconds=60,
+            session_factory=lambda: db,
+            handlers={},
+        )
+
+    assert db.rollback_count == 1
+    assert db.invalidate_count == 0
+
+
+def test_preclaim_semantic_operational_error_is_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = FakeWorkerDb()
+    failure = OperationalError(
+        "select next job",
+        {},
+        DriverFailure("serialization failure", sqlstate="40001"),
+    )
+    _prepare_preclaim_failure(monkeypatch, failure)
+
+    with pytest.raises(OperationalError):
+        run_worker_once(
+            worker_id="worker-a",
+            stale_after_seconds=60,
+            session_factory=lambda: db,
+            handlers={},
+        )
+
+    assert db.rollback_count == 1
+    assert db.invalidate_count == 0
+
+
+def test_worker_control_loop_retries_with_bounded_backoff_then_recovers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    waits: list[float] = []
+    published: list[str] = []
+
+    class RecordingEvent(Event):
+        def wait(self, timeout=None):
+            waits.append(float(timeout or 0))
+            return False
+
+    def poll_once(**_kwargs) -> bool:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise PreClaimInfrastructureError("POSTGRES_OUT_OF_MEMORY", RuntimeError("oom"))
+        return False
+
+    monkeypatch.setattr(
+        "app.services.background_worker._publish_worker_infrastructure_state",
+        lambda **kwargs: published.append(kwargs["degraded_reason"]) or True,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.operational_metrics.increment",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.operational_metrics.set_gauge",
+        lambda *_args, **_kwargs: None,
+    )
+    settings = SimpleNamespace(
+        runtime_mode=RuntimeMode.CERTIFICATION,
+        worker_infrastructure_backoff_initial_seconds=1.0,
+        worker_infrastructure_backoff_max_seconds=4.0,
+        job_stale_after_seconds=60,
+        job_worker_heartbeat_timeout_seconds=30,
+        queue_fairness_enabled=False,
+        job_max_consecutive_interactive_claims=4,
+        job_age_promotion_seconds=300,
+        winner_probability_auto_maturation_enabled=False,
+        ceri_enabled=False,
+        ceri_provider_ingest_enabled=False,
+        job_poll_interval_seconds=0.1,
+    )
+
+    _run_worker_control_loop(
+        settings=settings,
+        worker_id="worker-a",
+        worker_instance_id="instance-a",
+        queue_names=("interactive",),
+        handlers={},
+        claim_state=SimpleNamespace(),
+        session_factory=lambda: FakeWorkerDb(),
+        runtime_stop_event=RecordingEvent(),
+        certification_session_id="cert-a",
+        stop_after_one=True,
+        poll_once=poll_once,
+    )
+
+    assert calls == 2
+    assert waits == [1.0]
+    assert published == ["POSTGRES_OUT_OF_MEMORY"]
+
+
+def test_worker_control_loop_caps_repeated_infrastructure_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waits: list[float] = []
+
+    class StopAfterThirdWait(Event):
+        def wait(self, timeout=None):
+            waits.append(float(timeout or 0))
+            return len(waits) == 4
+
+    monkeypatch.setattr(
+        "app.services.background_worker._publish_worker_infrastructure_state",
+        lambda **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.operational_metrics.increment",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.operational_metrics.set_gauge",
+        lambda *_args, **_kwargs: None,
+    )
+    settings = SimpleNamespace(
+        runtime_mode=RuntimeMode.CERTIFICATION,
+        worker_infrastructure_backoff_initial_seconds=1.0,
+        worker_infrastructure_backoff_max_seconds=4.0,
+        job_stale_after_seconds=60,
+        job_worker_heartbeat_timeout_seconds=30,
+        queue_fairness_enabled=False,
+        job_max_consecutive_interactive_claims=4,
+        job_age_promotion_seconds=300,
+        winner_probability_auto_maturation_enabled=False,
+        ceri_enabled=False,
+        ceri_provider_ingest_enabled=False,
+        job_poll_interval_seconds=0.1,
+    )
+
+    _run_worker_control_loop(
+        settings=settings,
+        worker_id="worker-a",
+        worker_instance_id="instance-a",
+        queue_names=("interactive",),
+        handlers={},
+        claim_state=SimpleNamespace(),
+        session_factory=lambda: FakeWorkerDb(),
+        runtime_stop_event=StopAfterThirdWait(),
+        certification_session_id="cert-a",
+        stop_after_one=False,
+        poll_once=lambda **_kwargs: (_ for _ in ()).throw(
+            PreClaimInfrastructureError("POSTGRES_OUT_OF_MEMORY", RuntimeError("oom"))
+        ),
+    )
+
+    assert waits == [1.0, 2.0, 4.0, 4.0]
+
+
+def test_successful_preclaim_interaction_clears_degraded_registration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = FakeWorkerDb()
+    healthy_calls: list[tuple[str, str | None]] = []
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.claim_next_job",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_worker_infrastructure_healthy",
+        lambda _db, worker_id, **kwargs: healthy_calls.append(
+            (worker_id, kwargs["instance_id"])
+        ),
+    )
+
+    assert (
+        run_worker_once(
+            worker_id="worker-a",
+            worker_instance_id="instance-a",
+            stale_after_seconds=60,
+            session_factory=lambda: db,
+            handlers={},
+        )
+        is False
+    )
+    assert healthy_calls == [("worker-a", "instance-a")]

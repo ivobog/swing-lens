@@ -30,7 +30,7 @@ from app.services.transition_preflight_plan_service import (
     VerifiedTransitionPreflight,
     verify_transition_preflight_for_enqueue,
 )
-from app.services.worker_registry import live_workers
+from app.services.worker_registry import live_workers, worker_infrastructure_degraded
 from app.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
@@ -137,6 +137,7 @@ def validate_pre_enqueue_operational_gate(
         worker
         for worker in workers
         if job_queue_class("FULL_PIPELINE") in set(worker.queues_json or [])
+        and not worker_infrastructure_degraded(worker)
         and worker.control_loop_heartbeat_at is not None
         and worker.control_loop_heartbeat_at
         >= observed_at.astimezone(UTC)
@@ -151,6 +152,9 @@ def validate_pre_enqueue_operational_gate(
             details={
                 "worker_count": len(workers),
                 "full_pipeline_worker_count": len(capable_workers),
+                "degraded_worker_count": sum(
+                    1 for worker in workers if worker_infrastructure_degraded(worker)
+                ),
             },
         )
 

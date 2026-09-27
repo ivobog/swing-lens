@@ -16,7 +16,7 @@ from time import monotonic
 from uuid import uuid4
 
 from app.db import SessionLocal
-from app.models.tables import BackgroundWorker
+from app.models.tables import BackgroundSupervisor, BackgroundWorker
 from app.observability.logging import configure_json_logging, log_event
 from app.observability.metrics import operational_metrics, start_metrics_http_server
 from app.observability.resource_sampler import ResourceSampler
@@ -503,13 +503,18 @@ def _write_supervisor_state(
     cycle_failed: bool = False,
 ) -> None:
     root = Path(args.repo_root).resolve()
+    registrations = _registration_snapshot(args.worker_id)
     payload = {
-        "version": 1,
+        "version": 2,
         "timestamp": datetime.now(UTC).isoformat(),
         "runtime_instance_id": args.runtime_instance_id,
         "runtime_config_fingerprint": os.environ.get(RUNTIME_FINGERPRINT_ENV),
         "topology_version": TOPOLOGY_VERSION,
-        "supervisor": {"pid": os.getpid(), "instance_id": instance_id},
+        "supervisor": {
+            "pid": os.getpid(),
+            "instance_id": instance_id,
+            **registrations["supervisor"],
+        },
         "web": {
             "launcher_pid": web.process.pid if web is not None else None,
             "state": "CRASH_LOOP" if web_restarts.crash_loop else "RUNNING",
@@ -517,6 +522,7 @@ def _write_supervisor_state(
         "worker": {
             "launcher_pid": worker.process.pid if worker is not None else None,
             "state": "CRASH_LOOP" if worker_restarts.crash_loop else "RUNNING",
+            **registrations["worker"],
         },
         "restart": {
             "web": web_restarts.snapshot(),
@@ -531,6 +537,40 @@ def _write_supervisor_state(
             "runtime.supervisor.state_write_failed",
             extra={"reason_code": "SUPERVISOR_STATE_WRITE_FAILED"},
         )
+
+
+def _registration_snapshot(worker_id: str) -> dict[str, dict[str, object]]:
+    """Capture exact control-plane identities for safe dead-generation retirement."""
+    empty = {"supervisor": {}, "worker": {}}
+    try:
+        with SessionLocal() as db:
+            supervisor = db.get(BackgroundSupervisor, worker_id)
+            worker = db.get(BackgroundWorker, worker_id)
+            return {
+                "supervisor": (
+                    {
+                        "worker_id": supervisor.worker_id,
+                        "registered_instance_id": supervisor.instance_id,
+                        "registered_pid": supervisor.process_id,
+                        "registered_generation": int(supervisor.generation or 0),
+                    }
+                    if supervisor is not None
+                    else {}
+                ),
+                "worker": (
+                    {
+                        "worker_id": worker.worker_id,
+                        "registered_instance_id": worker.instance_id,
+                        "registered_pid": worker.process_id,
+                        "registered_generation": int(worker.generation or 0),
+                    }
+                    if worker is not None
+                    else {}
+                ),
+            }
+    except Exception:
+        logger.exception("runtime.supervisor.registration_snapshot_failed")
+        return empty
 
 
 def _acquire_or_heartbeat_supervisor(

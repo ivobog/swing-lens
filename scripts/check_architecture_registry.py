@@ -678,6 +678,16 @@ def _default_coverage() -> dict[str, list[str]]:
         coverage[f"STATE-{number:03d}"] = ["tests/test_background_job_service.py"]
     coverage.update(
         {
+            "AUTO-018": [
+                "tests/test_background_worker.py",
+                "tests/test_pre_enqueue_operational_gate.py",
+                "tests/test_readiness_observability.py",
+                "tests/integration/test_worker_preclaim_resilience_postgresql.py",
+            ],
+            "TX-26": [
+                "tests/test_background_worker.py",
+                "tests/integration/test_worker_preclaim_resilience_postgresql.py",
+            ],
             "GAP-009": ["tests/test_architecture_registry.py"],
             "GAP-012": ["tests/test_architecture_registry.py"],
             "ROUTES": ["tests/test_route_security.py"],

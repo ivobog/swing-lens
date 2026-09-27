@@ -1,6 +1,6 @@
 # Transaction-boundary registry
 
-Mechanical AST search found 276 production functions containing `commit`, `rollback`, `flush`, `begin`, or transaction-context primitives. Most are leaf API/service boundaries. The 25 normalized boundaries below cover every pipeline, worker, recovery, continuation, publication, and autonomous path; the exact leaf-site census remains available in the T14A raw persistence artifacts.
+Mechanical AST search found 301 production functions containing `commit`, `rollback`, `flush`, `begin`, or transaction-context primitives. Most are leaf API/service boundaries. The 26 normalized boundaries below cover every pipeline, worker, recovery, continuation, publication, and autonomous path; the exact leaf-site census remains available in the T14A raw persistence artifacts.
 
 At every `commit`, row/advisory locks end, database-trigger/event state becomes visible, and loaded ORM objects may be expired or stale. Python payloads, IDs, dataclasses, and pre-fetched bodies remain in memory but are not authority. A continuation must reload by durable identity and revalidate its authority.
 
@@ -31,6 +31,7 @@ At every `commit`, row/advisory locks end, database-trigger/event state becomes 
 | TX-23 | worker stale/abandoned recovery and failure retry commit | job locks | lease expiry/worker identity/retry classification/cancel flag | later claim |
 | TX-24 | periodic evidence retention/admin cleanup commit | operational evidence/job-attempt locks | retention cutoff, terminal status, protected evidence refs | periodic loop |
 | TX-25 | licensed-data purge preview/execute transactions | only exact sorted purge-set rows locked in batches of 200; one atomic execution transaction | canonical provider/license/eligible source predicate, preview manifest hash, confirmation token, immutable decision refs, exact candidate IDs while locking | rebuild required flag only |
+| TX-26 | pre-claim database infrastructure failure publishes worker degraded state in an independent control-plane transaction | exact worker ID/instance and classified infrastructure reason only; no job row or claim authority | worker registration must still be owned by the same process instance; a successful later pre-claim interaction clears the marker | bounded exponential backoff, then another claim attempt |
 
 ## Rollback paths
 

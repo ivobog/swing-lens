@@ -1,6 +1,6 @@
 # Autonomous mutation registry
 
-Seventeen mechanisms can mutate production state without a new main-pipeline POST. Read-only samplers/preflight are listed separately and are not included in that count.
+Eighteen mechanisms can mutate production state without a new main-pipeline POST. Read-only samplers/preflight are listed separately and are not included in that count.
 
 | ID | Autonomous trigger | Job/action created | Conditions and scope | Production mutation | Certification behavior |
 | --- | --- | --- | --- | --- | --- |
@@ -21,6 +21,7 @@ Seventeen mechanisms can mutate production state without a new main-pipeline POS
 | AUTO-015 | SEC readiness branch/repair completion | repair and FULL_PIPELINE continuation | missing SEC readiness, then durable repair | jobs/SEC data/pipeline | only authorized descendant |
 | AUTO-016 | Winner maturation/revision handler | next continuation and possible cohort request | pending scope, depth, watermark | jobs/outcomes/cohorts | only authorized descendant; independent scheduler disabled |
 | AUTO-017 | alert calculation/finalizers | CERI/setup alert persistence | new change/lifecycle evidence and rule match | alert tables | pipeline descendants authorized; direct admin ack/dismiss remain callable |
+| AUTO-018 | classified database infrastructure failure before job claim | invalidate failed session, publish degraded worker state, and retry after bounded exponential backoff | SQLSTATE 53200/53/08, PostgreSQL unavailable/shutdown, or narrowly recognized connection loss before a claim exists | exact owned `background_workers` registration only; no job mutation | enabled control-plane behavior; certification claim isolation remains unchanged |
 
 ## Explicit non-pipeline user/admin triggers
 

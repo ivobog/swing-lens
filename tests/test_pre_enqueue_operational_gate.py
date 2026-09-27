@@ -93,6 +93,7 @@ def _green_dependencies(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         worker_id="certification-worker",
         queues_json=["interactive"],
         control_loop_heartbeat_at=NOW,
+        telemetry_status="OK",
     )
     verified = SimpleNamespace(plan=SimpleNamespace(id=3, market_calculation_context_id=7))
     monkeypatch.setattr(
@@ -133,6 +134,49 @@ def test_all_green_gate_returns_authoritative_observability(
     assert result.to_dict()["passed"] is True
     assert result.to_dict()["worker_count"] == 1
     assert result.to_dict()["queue_isolation"]["unrelated_runnable_jobs"] == 0
+    assert gate_db.added == []
+
+
+def test_degraded_worker_blocks_pipeline_admission_until_recovered(
+    monkeypatch: pytest.MonkeyPatch,
+    gate_db,
+) -> None:
+    _green_dependencies(monkeypatch)
+    worker = SimpleNamespace(
+        worker_id="certification-worker",
+        queues_json=["interactive"],
+        control_loop_heartbeat_at=NOW,
+        telemetry_status="INFRASTRUCTURE_DEGRADED:POSTGRES_OUT_OF_MEMORY",
+    )
+    monkeypatch.setattr(
+        "app.services.pre_enqueue_operational_gate.live_workers",
+        lambda *_args, **_kwargs: [worker],
+    )
+
+    with pytest.raises(PreEnqueueOperationalGateError) as caught:
+        validate_pre_enqueue_operational_gate(
+            gate_db,
+            upload_run_id=154,
+            plan_id=3,
+            settings=_settings(),
+            health_probe=lambda **_kwargs: _ib_status(),
+            now=NOW,
+        )
+
+    assert caught.value.code == "DURABLE_WORKER_ISOLATION_FAILED"
+    assert caught.value.details["degraded_worker_count"] == 1
+    assert gate_db.added == []
+
+    worker.telemetry_status = "OK"
+    recovered = validate_pre_enqueue_operational_gate(
+        gate_db,
+        upload_run_id=154,
+        plan_id=3,
+        settings=_settings(),
+        health_probe=lambda **_kwargs: _ib_status(),
+        now=NOW,
+    )
+    assert recovered.worker_id == "certification-worker"
     assert gate_db.added == []
 
 

@@ -29,7 +29,11 @@ from app.services.lifecycle_safety import verify_authoritative_connection
 from app.services.process_identity import process_is_alive
 from app.services.redaction import redact_text
 from app.services.supervisor_registry import live_supervisors
-from app.services.worker_registry import has_live_worker_for_job, live_workers
+from app.services.worker_registry import (
+    has_live_worker_for_job,
+    live_workers,
+    worker_infrastructure_degraded,
+)
 from app.settings import ProcessRole, RuntimeMode, Settings
 
 logger = logging.getLogger(__name__)
@@ -245,6 +249,11 @@ class ReadinessService:
         row = rows[0]
         if not process_is_alive(row.process_id, row.process_started_at):
             return ReadinessCheck(False, "WORKER_PROCESS_IDENTITY_INVALID")
+        if worker_infrastructure_degraded(row):
+            return ReadinessCheck(
+                False,
+                f"WORKER_INFRASTRUCTURE_DEGRADED:{row.telemetry_status}",
+            )
         return ReadinessCheck(True, f"live:{row.process_id}")
 
     def _core_web_check(self) -> ReadinessCheck:
@@ -703,6 +712,11 @@ class ReadinessService:
         for telemetry_row in telemetry:
             worker_id, telemetry_status, collector_status, collector_at = telemetry_row[:4]
             control_at = telemetry_row[4] if len(telemetry_row) > 4 else None
+            if str(telemetry_status or "").upper().startswith("INFRASTRUCTURE_DEGRADED:"):
+                return ReadinessCheck(
+                    False,
+                    f"worker_infrastructure_degraded:{worker_id}:{telemetry_status}",
+                )
             if str(telemetry_status or "UNKNOWN").upper() == "FAILED":
                 return ReadinessCheck(False, f"worker_recorder_failed:{worker_id}")
             if str(collector_status or "UNKNOWN").upper() == "FAILED":

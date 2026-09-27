@@ -230,6 +230,192 @@ def test_dead_stale_retirement_archives_and_journals_safe_generation_evidence(
     assert event["retirement_operation_id"] == "retire-test"
 
 
+def test_dead_generation_retires_only_exact_control_plane_registrations(
+    incident, monkeypatch
+):
+    _path, state = incident
+    supervisor_state = lifecycle_probe.supervisor_state_path(lifecycle_probe.ROOT)
+    atomic_write_json(
+        supervisor_state,
+        {
+            "runtime_instance_id": RUNTIME_ID,
+            "supervisor": {
+                "worker_id": "canonical-worker",
+                "registered_instance_id": "supervisor-instance",
+                "registered_pid": 15972,
+                "registered_generation": 4,
+            },
+            "worker": {
+                "worker_id": "canonical-worker",
+                "registered_instance_id": "worker-instance",
+                "registered_pid": 8820,
+                "registered_generation": 9,
+            },
+        },
+    )
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class FakeEngine:
+        @staticmethod
+        def dispose():
+            return None
+
+    class FakeDb:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def commit(self):
+            calls.append(("commit", {}))
+
+    monkeypatch.setattr(
+        lifecycle_probe,
+        "_settings",
+        lambda: type(
+            "SettingsStub",
+            (),
+            {"database_url": "postgresql://unused", "database_connect_timeout_seconds": 1},
+        )(),
+    )
+    monkeypatch.setattr(lifecycle_probe, "create_engine", lambda *_a, **_k: FakeEngine())
+    monkeypatch.setattr(lifecycle_probe, "Session", lambda _engine: FakeDb())
+
+    def retire_worker(_db, **kwargs):
+        calls.append(("worker", kwargs))
+        return object()
+
+    def retire_supervisor(_db, **kwargs):
+        calls.append(("supervisor", kwargs))
+        return object()
+
+    monkeypatch.setattr(lifecycle_probe, "retire_worker_registration", retire_worker)
+    monkeypatch.setattr(
+        lifecycle_probe,
+        "retire_supervisor_registration",
+        retire_supervisor,
+    )
+
+    result = lifecycle_probe._retire_dead_generation_registrations(state)
+
+    assert result == {
+        "attempted": True,
+        "workerRetired": True,
+        "supervisorRetired": True,
+    }
+    assert calls == [
+        (
+            "worker",
+            {
+                "worker_id": "canonical-worker",
+                "expected_instance_id": "worker-instance",
+                "expected_generation": 9,
+                "expected_process_id": 8820,
+            },
+        ),
+        (
+            "supervisor",
+            {
+                "worker_id": "canonical-worker",
+                "expected_instance_id": "supervisor-instance",
+                "expected_generation": 4,
+                "expected_process_id": 15972,
+            },
+        ),
+        ("commit", {}),
+    ]
+
+
+def test_legacy_dead_generation_snapshot_is_upgraded_from_dead_registrations(
+    incident, monkeypatch
+):
+    _path, state = incident
+    supervisor_state = lifecycle_probe.supervisor_state_path(lifecycle_probe.ROOT)
+    atomic_write_json(
+        supervisor_state,
+        {
+            "runtime_instance_id": RUNTIME_ID,
+            "supervisor": {"pid": 15972, "instance_id": "supervisor-instance"},
+            "worker": {"launcher_pid": 8821, "state": "RUNNING"},
+        },
+    )
+    supervisor_row = type(
+        "SupervisorRow",
+        (),
+        {
+            "worker_id": "canonical-worker",
+            "instance_id": "supervisor-instance",
+            "process_id": 15972,
+            "generation": 4,
+        },
+    )()
+    worker_row = type(
+        "WorkerRow",
+        (),
+        {
+            "worker_id": "canonical-worker",
+            "instance_id": "worker-instance",
+            "process_id": 8820,
+            "process_started_at": None,
+            "generation": 9,
+        },
+    )()
+    calls: list[str] = []
+
+    class FakeEngine:
+        @staticmethod
+        def dispose():
+            return None
+
+    class FakeDb:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        @staticmethod
+        def get(model, _worker_id):
+            return supervisor_row if model.__name__ == "BackgroundSupervisor" else worker_row
+
+        def commit(self):
+            calls.append("commit")
+
+    monkeypatch.setattr(
+        lifecycle_probe,
+        "_settings",
+        lambda: type(
+            "SettingsStub",
+            (),
+            {
+                "database_url": "postgresql://unused",
+                "database_connect_timeout_seconds": 1,
+                "job_worker_id": "canonical-worker",
+            },
+        )(),
+    )
+    monkeypatch.setattr(lifecycle_probe, "create_engine", lambda *_a, **_k: FakeEngine())
+    monkeypatch.setattr(lifecycle_probe, "Session", lambda _engine: FakeDb())
+    monkeypatch.setattr(lifecycle_probe, "process_is_alive", lambda *_a, **_k: False)
+    monkeypatch.setattr(
+        lifecycle_probe,
+        "retire_worker_registration",
+        lambda *_a, **_k: calls.append("worker") or object(),
+    )
+    monkeypatch.setattr(
+        lifecycle_probe,
+        "retire_supervisor_registration",
+        lambda *_a, **_k: calls.append("supervisor") or object(),
+    )
+
+    result = lifecycle_probe._retire_dead_generation_registrations(state)
+
+    assert result["workerRetired"] is True
+    assert result["supervisorRetired"] is True
+    assert calls == ["worker", "supervisor", "commit"]
+
+
 def test_active_runtime_state_is_never_retired(incident, monkeypatch):
     path, state = incident
     actual = {

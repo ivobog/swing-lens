@@ -12,8 +12,8 @@ reviewed registry change. CI uses `--check` and never rewrites files.
 | Mutable tables | 119 |
 | Writer families | 73 |
 | Recovery paths | 22 |
-| Autonomous triggers | 17 |
-| Material transaction families | 25 |
+| Autonomous triggers | 18 |
+| Material transaction families | 26 |
 | High-risk tables | 71 |
 | Certified aggregate policies | 8 |
 | Deferred R4 aggregate scans | 0 |

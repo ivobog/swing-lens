@@ -17,6 +17,14 @@ from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_queue import job_queue_class, normalize_worker_queues
 from app.services.process_identity import process_started_at
 
+WORKER_INFRASTRUCTURE_DEGRADED_PREFIX = "INFRASTRUCTURE_DEGRADED:"
+
+
+def worker_infrastructure_degraded(worker: BackgroundWorker) -> bool:
+    return str(getattr(worker, "telemetry_status", None) or "").startswith(
+        WORKER_INFRASTRUCTURE_DEGRADED_PREFIX
+    )
+
 
 def register_worker(
     db: Session,
@@ -77,6 +85,7 @@ def register_worker(
         worker.launcher_process_id = None
         worker.quiesce_requested_at = None
         worker.quiesced_at = None
+        worker.telemetry_status = None
     worker.heartbeat_at = registered_at
     worker.control_loop_heartbeat_at = registered_at
     worker.stopping_at = None
@@ -158,16 +167,72 @@ def heartbeat_worker(
     monitor = get_database_monitor()
     if _telemetry_columns_available(db):
         monitor_status = monitor.status() if monitor is not None and monitor.enabled else {}
-        worker.telemetry_status = (
-            "FAILED"
-            if monitor_status.get("fatal_error") or monitor_status.get("writer_alive") is False
-            else ("OPTIONAL_UNAVAILABLE" if monitor is None or not monitor.enabled else "OK")
-        )
+        if not worker_infrastructure_degraded(worker):
+            worker.telemetry_status = (
+                "FAILED"
+                if monitor_status.get("fatal_error")
+                or monitor_status.get("writer_alive") is False
+                else ("OPTIONAL_UNAVAILABLE" if monitor is None or not monitor.enabled else "OK")
+            )
         failed_categories = [
             key for key, value in sampler.items() if key != "last_observed_at" and value == "failed"
         ]
         worker.resource_collector_status = "FAILED" if failed_categories else "OK"
         worker.resource_collector_heartbeat_at = sampler.get("last_observed_at")
+    db.flush()
+    return worker
+
+
+def mark_worker_infrastructure_degraded(
+    db: Session,
+    worker_id: str,
+    *,
+    reason_code: str,
+    hostname: str | None = None,
+    process_id: int | None = None,
+    instance_id: str | None = None,
+    now: datetime | None = None,
+) -> BackgroundWorker | None:
+    """Publish a pre-claim infrastructure fault without touching job state."""
+    worker = db.get(BackgroundWorker, worker_id)
+    if worker is None:
+        return None
+    _require_owner(
+        worker,
+        hostname=hostname or socket.gethostname(),
+        process_id=process_id or os.getpid(),
+        instance_id=instance_id,
+    )
+    observed_at = now or datetime.now(UTC)
+    worker.heartbeat_at = observed_at
+    worker.telemetry_status = WORKER_INFRASTRUCTURE_DEGRADED_PREFIX + reason_code
+    db.flush()
+    return worker
+
+
+def mark_worker_infrastructure_healthy(
+    db: Session,
+    worker_id: str,
+    *,
+    hostname: str | None = None,
+    process_id: int | None = None,
+    instance_id: str | None = None,
+    now: datetime | None = None,
+) -> BackgroundWorker | None:
+    """Clear the degraded marker after a successful pre-claim database interaction."""
+    worker = db.get(BackgroundWorker, worker_id)
+    if worker is None:
+        return None
+    _require_owner(
+        worker,
+        hostname=hostname or socket.gethostname(),
+        process_id=process_id or os.getpid(),
+        instance_id=instance_id,
+    )
+    if not worker_infrastructure_degraded(worker):
+        return worker
+    worker.heartbeat_at = now or datetime.now(UTC)
+    worker.telemetry_status = "OK"
     db.flush()
     return worker
 

@@ -56,7 +56,10 @@ from app.services.lifecycle_safety import (
     validate_runtime_process,
     verify_postgres_provenance,
 )
+from app.services.process_identity import process_is_alive
 from app.services.redaction import redact_sensitive, redact_text
+from app.services.supervisor_registry import retire_supervisor_registration
+from app.services.worker_registry import retire_worker_registration
 from app.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -634,6 +637,7 @@ def _retire_stale_runtime_state() -> dict[str, object]:
             "error": report.get("error") or "runtime state is not safely stale",
         }
     state = report["state"]
+    registration_retirement = _retire_dead_generation_registrations(state)
     archive_dir = ROOT / "data" / "cache" / "lifecycle-archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
     operation_id = os.environ.get("SWINGLENS_LIFECYCLE_OPERATION_ID") or uuid4().hex
@@ -665,8 +669,110 @@ def _retire_stale_runtime_state() -> dict[str, object]:
         "classification": RuntimeStateClassification.DEAD_STALE.value,
         "reasonCode": "DEAD_GENERATION_RETIRED",
         "archive": str(archive),
+        "registrationRetirement": registration_retirement,
         **_runtime_diagnostics(state),
     }
+
+
+def _retire_dead_generation_registrations(
+    runtime_state: dict[str, object],
+) -> dict[str, object]:
+    """Retire exact worker/supervisor rows recorded by a proven-dead generation."""
+    state_path = supervisor_state_path(ROOT)
+    recorded = read_runtime_state(state_path) if state_path.is_file() else None
+    runtime_instance_id = str(runtime_state.get("runtimeInstanceId") or "")
+    if not isinstance(recorded, dict) or str(recorded.get("runtime_instance_id") or "") != (
+        runtime_instance_id
+    ):
+        return {"attempted": False, "reason": "SUPERVISOR_SNAPSHOT_UNAVAILABLE"}
+    supervisor = recorded.get("supervisor")
+    worker = recorded.get("worker")
+    if not isinstance(supervisor, dict) or not isinstance(worker, dict):
+        return {"attempted": False, "reason": "REGISTRATION_SNAPSHOT_INCOMPLETE"}
+
+    def exact(record: dict[str, object]) -> bool:
+        return all(
+            record.get(key) is not None
+            for key in (
+                "worker_id",
+                "registered_instance_id",
+                "registered_pid",
+                "registered_generation",
+            )
+        )
+
+    settings = _settings()
+    engine = create_engine(
+        settings.database_url,
+        poolclass=NullPool,
+        connect_args={"connect_timeout": settings.database_connect_timeout_seconds},
+    )
+    try:
+        with Session(engine) as db:
+            if not exact(supervisor):
+                registered_supervisor = db.get(
+                    BackgroundSupervisor,
+                    str(supervisor.get("worker_id") or settings.job_worker_id),
+                )
+                if (
+                    registered_supervisor is None
+                    or str(supervisor.get("instance_id") or "")
+                    != registered_supervisor.instance_id
+                    or int(supervisor.get("pid") or 0) != registered_supervisor.process_id
+                ):
+                    return {
+                        "attempted": False,
+                        "reason": "SUPERVISOR_REGISTRATION_IDENTITY_UNPROVEN",
+                    }
+                supervisor.update(
+                    worker_id=registered_supervisor.worker_id,
+                    registered_instance_id=registered_supervisor.instance_id,
+                    registered_pid=registered_supervisor.process_id,
+                    registered_generation=int(registered_supervisor.generation or 0),
+                )
+            if not exact(worker):
+                registered_worker = db.get(BackgroundWorker, settings.job_worker_id)
+                if (
+                    registered_worker is None
+                    or registered_worker.instance_id is None
+                    or registered_worker.process_id is None
+                    or process_is_alive(
+                        registered_worker.process_id,
+                        registered_worker.process_started_at,
+                    )
+                ):
+                    return {
+                        "attempted": False,
+                        "reason": "WORKER_REGISTRATION_IDENTITY_UNPROVEN",
+                    }
+                worker.update(
+                    worker_id=registered_worker.worker_id,
+                    registered_instance_id=registered_worker.instance_id,
+                    registered_pid=registered_worker.process_id,
+                    registered_generation=int(registered_worker.generation or 0),
+                )
+            retired_worker = retire_worker_registration(
+                db,
+                worker_id=str(worker["worker_id"]),
+                expected_instance_id=str(worker["registered_instance_id"]),
+                expected_generation=int(worker["registered_generation"]),
+                expected_process_id=int(worker["registered_pid"]),
+            )
+            retired_supervisor = retire_supervisor_registration(
+                db,
+                worker_id=str(supervisor["worker_id"]),
+                expected_instance_id=str(supervisor["registered_instance_id"]),
+                expected_generation=int(supervisor["registered_generation"]),
+                expected_process_id=int(supervisor["registered_pid"]),
+            )
+            db.commit()
+            return {
+                "attempted": True,
+                "workerRetired": retired_worker is not None,
+                "supervisorRetired": retired_supervisor is not None,
+            }
+    finally:
+        engine.dispose()
 
 
 def _quiesce_report(resume: bool = False) -> dict[str, object]:

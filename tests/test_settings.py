@@ -308,6 +308,18 @@ def test_winner_auto_refresh_requires_generation_architecture() -> None:
         )
 
 
+def test_worker_infrastructure_backoff_initial_cannot_exceed_maximum() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="worker infrastructure initial backoff must not exceed maximum backoff",
+    ):
+        Settings(
+            _env_file=None,
+            worker_infrastructure_backoff_initial_seconds=10,
+            worker_infrastructure_backoff_max_seconds=5,
+        )
+
+
 @pytest.mark.parametrize(
     ("field_name", "value"),
     (

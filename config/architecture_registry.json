@@ -3132,9 +3132,9 @@
       "tables": [
         "background_workers"
       ],
-      "functions": "worker_registry.register_worker, heartbeat_worker, heartbeat_worker_control_loop, mark_worker_stopping, retire_worker_registration, associate_worker_launcher",
-      "entrypoints": "worker/supervisor/lifecycle control",
-      "authority_transaction": "worker/process instance; TX-03/21/22"
+      "functions": "worker_registry.register_worker, heartbeat_worker, heartbeat_worker_control_loop, mark_worker_stopping, retire_worker_registration, associate_worker_launcher, mark_worker_infrastructure_degraded, mark_worker_infrastructure_healthy",
+      "entrypoints": "worker/supervisor/lifecycle control and pre-claim infrastructure retry",
+      "authority_transaction": "worker/process instance; TX-03/21/22/26"
     },
     {
       "id": "WRITE-013",
@@ -3150,8 +3150,8 @@
       "tables": [
         "background_supervisors"
       ],
-      "functions": "supervisor_registry.acquire_supervisor, heartbeat_supervisor, release_supervisor",
-      "entrypoints": "supervisor main loop",
+      "functions": "supervisor_registry.acquire_supervisor, heartbeat_supervisor, release_supervisor, retire_supervisor_registration",
+      "entrypoints": "supervisor main loop and exact dead-generation lifecycle retirement",
       "authority_transaction": "supervisor instance lease; TX-22"
     },
     {
@@ -12155,6 +12155,13 @@
       "retained": "only exact sorted purge-set rows locked in batches of 200; one atomic execution transaction",
       "revalidation": "canonical provider/license/eligible source predicate, preview manifest hash, confirmation token, immutable decision refs, exact candidate IDs while locking",
       "continuation": "rebuild required flag only"
+    },
+    {
+      "id": "TX-26",
+      "boundary": "pre-claim database infrastructure failure publishes worker degraded state in an independent control-plane transaction",
+      "retained": "exact worker ID/instance and classified infrastructure reason only; no job row or claim authority",
+      "revalidation": "worker registration must still be owned by the same process instance; a successful later pre-claim interaction clears the marker",
+      "continuation": "bounded exponential backoff, then another claim attempt"
     }
   ],
   "transaction_sites": [
@@ -12624,6 +12631,41 @@
       "path": "app/services/background_worker.py",
       "function": "_execute_full_pipeline_job",
       "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "_publish_worker_infrastructure_state",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "_publish_worker_infrastructure_state",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "_rollback_and_invalidate",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "_run_worker_control_loop",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "_run_worker_control_loop",
+      "primitive": "rollback",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -13909,6 +13951,13 @@
       "reason": "Exact production transaction site reviewed at R3."
     },
     {
+      "path": "app/services/supervisor_registry.py",
+      "function": "retire_supervisor_registration",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
       "path": "app/services/supporting_mutation_authority.py",
       "function": "adopt",
       "primitive": "rollback",
@@ -14435,6 +14484,20 @@
     },
     {
       "path": "app/services/worker_registry.py",
+      "function": "mark_worker_infrastructure_degraded",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/worker_registry.py",
+      "function": "mark_worker_infrastructure_healthy",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/worker_registry.py",
       "function": "mark_worker_stopping",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -14513,6 +14576,13 @@
     {
       "path": "app/worker_supervisor.py",
       "function": "_registered_worker",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/worker_supervisor.py",
+      "function": "_registration_snapshot",
       "primitive": "autonomous_session",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
@@ -15572,6 +15642,19 @@
         "NORMAL": "ENABLED",
         "CERTIFICATION": "SESSION_SCOPED"
       }
+    },
+    {
+      "id": "AUTO-018",
+      "trigger": "classified database infrastructure failure before job claim",
+      "action": "invalidate failed session, publish degraded worker state, and retry after bounded exponential backoff",
+      "conditions": "SQLSTATE 53200/53/08, PostgreSQL unavailable/shutdown, or narrowly recognized connection loss before a claim exists",
+      "production_mutation": "exact owned `background_workers` registration only; no job mutation",
+      "certification": "enabled control-plane behavior; certification claim isolation remains unchanged",
+      "entrypoint": "classified database infrastructure failure before job claim",
+      "modes": {
+        "NORMAL": "ENABLED",
+        "CERTIFICATION": "CONTROL_ONLY"
+      }
     }
   ],
   "autonomous_sites": [
@@ -15624,6 +15707,15 @@
       "path": "app/services/background_worker.py",
       "function": "_execute_worker_recovery_probe",
       "callee": "heartbeat",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "_run_worker_control_loop",
+      "callee": "execute_durable_evidence_retention",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
       ],
@@ -15723,15 +15815,6 @@
       "path": "app/services/background_worker.py",
       "function": "progress_callback",
       "callee": "heartbeat_job",
-      "trigger_ids": [
-        "AUTO-STATIC-CENSUS"
-      ],
-      "reason": "Exact autonomous-control callsite reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
-      "function": "run_worker",
-      "callee": "execute_durable_evidence_retention",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
       ],
@@ -17606,6 +17689,16 @@
     ],
     "STATE-070": [
       "tests/test_background_job_service.py"
+    ],
+    "AUTO-018": [
+      "tests/test_background_worker.py",
+      "tests/test_pre_enqueue_operational_gate.py",
+      "tests/test_readiness_observability.py",
+      "tests/integration/test_worker_preclaim_resilience_postgresql.py"
+    ],
+    "TX-26": [
+      "tests/test_background_worker.py",
+      "tests/integration/test_worker_preclaim_resilience_postgresql.py"
     ],
     "GAP-009": [
       "tests/test_architecture_registry.py"

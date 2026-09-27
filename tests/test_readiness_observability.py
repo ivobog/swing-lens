@@ -227,8 +227,64 @@ def test_worker_recorder_and_collector_failures_are_durable_readiness_inputs(
     service = _service(tmp_path)
     service._worker_telemetry_rows = lambda *_a: [("worker-1", "FAILED", "OK", service.now)]
     assert service._worker_check().message == "worker_recorder_failed:worker-1"
+    service._worker_telemetry_rows = lambda *_a: [
+        (
+            "worker-1",
+            "INFRASTRUCTURE_DEGRADED:POSTGRES_OUT_OF_MEMORY",
+            "OK",
+            service.now,
+        )
+    ]
+    degraded = service._worker_check()
+    assert degraded.ok is False
+    assert degraded.message.startswith("worker_infrastructure_degraded:worker-1:")
     service._worker_telemetry_rows = lambda *_a: [("worker-1", "OK", "FAILED", service.now)]
     assert service._worker_check().message == "worker_collector_failed:worker-1"
+
+
+def test_core_readiness_tracks_missing_degraded_and_recovered_durable_worker(
+    tmp_path, monkeypatch
+) -> None:
+    class FakeSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    service = _service(tmp_path)
+    service.settings.use_durable_pipeline = True
+    rows: list[SimpleNamespace] = []
+    monkeypatch.setattr("app.services.readiness_service.Session", lambda _engine: FakeSession())
+    monkeypatch.setattr(
+        "app.services.readiness_service.live_workers",
+        lambda *_args, **_kwargs: rows,
+    )
+    monkeypatch.setattr(
+        "app.services.readiness_service.process_is_alive",
+        lambda *_args, **_kwargs: True,
+    )
+
+    missing = service._core_worker_check()
+    assert missing.ok is False
+    assert missing.message == "EXPECTED_ONE_DURABLE_WORKER:found=0"
+
+    rows.append(
+        SimpleNamespace(
+            worker_id=service.settings.job_worker_id,
+            process_id=8820,
+            process_started_at=service.now,
+            telemetry_status="INFRASTRUCTURE_DEGRADED:POSTGRES_OUT_OF_MEMORY",
+        )
+    )
+    degraded = service._core_worker_check()
+    assert degraded.ok is False
+    assert degraded.message.startswith("WORKER_INFRASTRUCTURE_DEGRADED:")
+
+    rows[0].telemetry_status = "OK"
+    healthy = service._core_worker_check()
+    assert healthy.ok is True
+    assert healthy.message == "live:8820"
 
 
 def test_resource_collector_dead_and_supervisor_missing(tmp_path, monkeypatch) -> None:

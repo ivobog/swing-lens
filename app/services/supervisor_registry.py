@@ -119,6 +119,32 @@ def release_supervisor(
     return True
 
 
+def retire_supervisor_registration(
+    db: Session,
+    *,
+    worker_id: str,
+    expected_instance_id: str,
+    expected_generation: int,
+    expected_process_id: int,
+    now: datetime | None = None,
+) -> BackgroundSupervisor | None:
+    """Retire only the exact stale supervisor registration snapshot."""
+    supervisor = db.get(BackgroundSupervisor, worker_id)
+    if supervisor is None:
+        return None
+    if (
+        supervisor.instance_id != expected_instance_id
+        or int(supervisor.generation or 0) != int(expected_generation)
+        or int(supervisor.process_id) != int(expected_process_id)
+    ):
+        return None
+    stopped_at = now or datetime.now(UTC)
+    supervisor.heartbeat_at = stopped_at
+    supervisor.stopping_at = stopped_at
+    db.flush()
+    return supervisor
+
+
 def live_supervisors(
     db: Session,
     *,

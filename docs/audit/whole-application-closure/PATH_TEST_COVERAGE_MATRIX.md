@@ -57,6 +57,13 @@ Coverage means a test explicitly asserts the path's authority, state, isolation,
 | WRITE-071/072 IBMI | IBMI unit/persistence/resilience suites plus R2 600-episode/link/candidate page and target-lock proof | global journal access gap closed; no deferred R4 aggregate is attached to this writer family |
 | WRITE-073 read-only | no writer test required | schema should enforce/document read-only intent |
 
+## R5.1 operational control paths
+
+| Path ID | Unit test | PostgreSQL integration | Runtime/canary |
+| --- | --- | --- | --- |
+| AUTO-018 | `tests/test_background_worker.py`, `tests/test_pre_enqueue_operational_gate.py`, `tests/test_readiness_observability.py` | `tests/integration/test_worker_preclaim_resilience_postgresql.py` | no canary; host remains blocked by committed-memory admission |
+| TX-26 | `tests/test_background_worker.py` | `tests/integration/test_worker_preclaim_resilience_postgresql.py` | no canary; exact worker registration only |
+
 ## Job-type cross-check
 
 All 34 registered handler keys have at least a unit test that constructs or invokes the handler family. The strongest PostgreSQL coverage exists for FULL_PIPELINE, SEC repair, IB_FETCH, CERI batched/continuation, setup lifecycle evaluation, Winner capture/maturation/cohort, market prewarm, and certification claims. The operational `WORKER_RECOVERY_PROBE` has unit/e2e operational coverage. The disabled Winner training/similarity constants have an explicit negative registration test in `tests/winner_probability/test_job_handlers.py`.

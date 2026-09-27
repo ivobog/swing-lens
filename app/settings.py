@@ -307,6 +307,12 @@ class Settings(BaseSettings):
     worker_memory_tracemalloc_enabled: bool = False
     worker_memory_top_allocations: int = Field(default=10, ge=1, le=50)
     worker_shutdown_grace_seconds: float = Field(default=15.0, ge=1.0, le=300.0)
+    worker_infrastructure_backoff_initial_seconds: float = Field(
+        default=1.0, ge=0.1, le=60.0
+    )
+    worker_infrastructure_backoff_max_seconds: float = Field(
+        default=30.0, ge=0.1, le=300.0
+    )
     supervisor_restart_budget: int = Field(default=5, ge=1, le=50)
     supervisor_restart_window_seconds: float = Field(default=60.0, ge=1.0, le=3600.0)
     supervisor_restart_backoff_initial_seconds: float = Field(default=0.5, ge=0.0, le=60.0)
@@ -539,6 +545,13 @@ class Settings(BaseSettings):
             > self.supervisor_restart_backoff_max_seconds
         ):
             raise ValueError("supervisor restart initial backoff must not exceed maximum backoff")
+        if (
+            self.worker_infrastructure_backoff_initial_seconds
+            > self.worker_infrastructure_backoff_max_seconds
+        ):
+            raise ValueError(
+                "worker infrastructure initial backoff must not exceed maximum backoff"
+            )
         if self.runtime_mode is RuntimeMode.CERTIFICATION:
             if not self.use_durable_pipeline:
                 raise ValueError("CERTIFICATION runtime requires USE_DURABLE_PIPELINE=true")
