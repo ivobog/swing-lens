@@ -23,6 +23,7 @@ from app.services.background_job_service import (
     JobStatus,
     claim_next_job,
     heartbeat_job,
+    is_cancel_requested,
     mark_job_blocked,
     mark_job_cancelled,
     mark_job_completed,
@@ -606,7 +607,35 @@ def run_worker_once(
                     if control_db is not db:
                         control_db.close()
 
+            def detached_control_progress(**progress: Any) -> bool:
+                """Commit only lease/progress state on an independent connection."""
+                control_db = session_factory()
+                try:
+                    heartbeat_job(
+                        control_db,
+                        control_job,
+                        lease_seconds=stale_after_seconds,
+                        execution_token=execution_token,
+                    )
+                    if progress:
+                        record_job_progress(
+                            control_db,
+                            job_id=int(job_id),
+                            execution_token=str(execution_token),
+                            **progress,
+                        )
+                    requested = is_cancel_requested(control_db, int(job_id))
+                    control_db.commit()
+                    return requested
+                except Exception:
+                    control_db.rollback()
+                    raise
+                finally:
+                    control_db.close()
+
             heartbeat()
+            if job.job_type == "CERI_CHANGE_DETECTION":
+                job._control_plane_progress = detached_control_progress
             result = execute_job(
                 db,
                 job,
@@ -729,6 +758,8 @@ def execute_job(
     finally:
         if heartbeat is not None and hasattr(job, "_heartbeat"):
             delattr(job, "_heartbeat")
+        if hasattr(job, "_control_plane_progress"):
+            delattr(job, "_control_plane_progress")
 
 
 def default_job_handlers() -> dict[str, JobHandler]:

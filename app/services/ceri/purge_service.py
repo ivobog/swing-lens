@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import BigInteger, cast, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
@@ -40,6 +40,15 @@ CERI_REBUILD_FEATURES_JOB_TYPE = "CERI_REBUILD_FEATURES"
 PURGED_SOURCE_EXPORT_POLICY = "purged"
 PURGE_INVALIDATION_FLAG = "provider_license_purge_invalidated"
 PURGE_QUARANTINE_PREFIX = "provider_license_purge"
+LICENSE_PURGE_BATCH_SIZE = 200
+
+
+@dataclass(frozen=True)
+class PurgeSourceIdentity:
+    id: int
+    provider_record_id: str
+    content_hash: str
+    normalized_hash: str | None
 
 
 class CeriPurgeError(ValueError):
@@ -192,6 +201,7 @@ class CeriPurgeService:
                 f"by immutable CERI decision evidence ids={certified_evidence_ids}."
             )
         lifecycle = _apply_purge_lifecycle(
+            db,
             manifest,
             preview_manifest_hash=request.preview_manifest_hash,
             audit_id=audit.id,
@@ -245,9 +255,11 @@ class CeriPurgeService:
         }
 
     def _lifecycle_manifest(self, db: Session, provider: str, license_scope: str) -> dict[str, Any]:
+        if isinstance(db, Session):
+            return _sql_lifecycle_manifest(db, provider=provider, license_scope=license_scope)
         sources = [
             source
-            for source in _load(db, CeriSourceRecord)
+            for source in _fixture_rows(db, CeriSourceRecord)
             if source.provider == provider and _source_matches_scope(source, license_scope)
         ]
         source_ids = {source.id for source in sources if source.id is not None}
@@ -261,12 +273,12 @@ class CeriPurgeService:
         catalyst_sources = _rows_with_source_ids(db, CeriCatalystSource, source_ids)
         revision_features = [
             feature
-            for feature in _load(db, CeriRevisionFeature)
+            for feature in _fixture_rows(db, CeriRevisionFeature)
             if source_ids.intersection(set(feature.source_observation_ids_json or []))
         ]
         derived_features = [
             feature
-            for feature in _load(db, CeriDerivedFeature)
+            for feature in _fixture_rows(db, CeriDerivedFeature)
             if source_ids.intersection(set(feature.source_ids_json or []))
         ]
         normalized_ids = {
@@ -274,13 +286,13 @@ class CeriPurgeService:
         }
         price_response_features = [
             feature
-            for feature in _load(db, CeriPriceResponseFeature)
+            for feature in _fixture_rows(db, CeriPriceResponseFeature)
             if feature.event_id in normalized_ids
         ]
         affected_source_ids = source_ids
         score_snapshots = [
             snapshot
-            for snapshot in _load(db, CeriScoreSnapshot)
+            for snapshot in _fixture_rows(db, CeriScoreSnapshot)
             if affected_source_ids.intersection(_snapshot_source_ids(snapshot))
         ]
         score_snapshot_ids = {
@@ -291,7 +303,7 @@ class CeriPurgeService:
         }
         change_events = [
             change
-            for change in _load(db, CeriChangeEvent)
+            for change in _fixture_rows(db, CeriChangeEvent)
             if change.from_snapshot_id in score_snapshot_ids
             or change.to_snapshot_id in score_snapshot_ids
             or change.catalyst_revision_id in catalyst_revision_ids
@@ -299,7 +311,7 @@ class CeriPurgeService:
         change_event_ids = {change.id for change in change_events if change.id is not None}
         alert_events = [
             alert
-            for alert in _load(db, CeriAlertEvent)
+            for alert in _fixture_rows(db, CeriAlertEvent)
             if alert.source_change_event_id in change_event_ids
             or alert.source_catalyst_revision_id in catalyst_revision_ids
         ]
@@ -344,6 +356,267 @@ class CeriPurgeService:
             "affected_counts": affected_counts,
             "invalidated_derivatives": invalidated_derivatives,
         }
+
+
+def _sql_lifecycle_manifest(
+    db: Session,
+    *,
+    provider: str,
+    license_scope: str,
+) -> dict[str, Any]:
+    """Build the legal purge set using SQL predicates and ID-only projections."""
+    source_scope = (
+        (CeriSourceRecord.provider == provider),
+        (CeriSourceRecord.license_scope == license_scope.strip()),
+        CeriSourceRecord.purge_eligible.is_(True),
+    )
+    source_rows = db.execute(
+        select(
+            CeriSourceRecord.id,
+            CeriSourceRecord.provider_record_id,
+            CeriSourceRecord.content_hash,
+            CeriSourceRecord.normalized_hash,
+        )
+        .where(*source_scope)
+        .order_by(CeriSourceRecord.id)
+    ).all()
+    sources = [
+        PurgeSourceIdentity(
+            id=int(row.id),
+            provider_record_id=row.provider_record_id,
+            content_hash=row.content_hash,
+            normalized_hash=row.normalized_hash,
+        )
+        for row in source_rows
+    ]
+    source_ids = [source.id for source in sources]
+    source_id_query = select(CeriSourceRecord.id).where(*source_scope)
+
+    def source_fk_ids(model: type) -> list[int]:
+        return _selected_ids(
+            db,
+            select(model.id)
+            .where(model.source_record_id.in_(source_id_query))
+            .order_by(model.id),
+        )
+
+    ids: dict[str, list[int]] = {
+        "estimates": source_fk_ids(CeriEstimateSnapshot),
+        "earnings": source_fk_ids(CeriEarningsActual),
+        "guidance": source_fk_ids(CeriGuidanceEvent),
+        "catalyst_revisions": source_fk_ids(CeriCatalystEventRevision),
+        "catalyst_sources": source_fk_ids(CeriCatalystSource),
+    }
+    ids["revision_features"] = _selected_ids(
+        db,
+        select(CeriRevisionFeature.id)
+        .where(
+            _json_array_references_source(
+                CeriRevisionFeature.source_observation_ids_json,
+                source_id_query,
+                "purge_revision_sources",
+            )
+        )
+        .order_by(CeriRevisionFeature.id),
+    )
+    ids["derived_features"] = _selected_ids(
+        db,
+        select(CeriDerivedFeature.id)
+        .where(
+            _json_array_references_source(
+                CeriDerivedFeature.source_ids_json,
+                source_id_query,
+                "purge_derived_sources",
+            )
+        )
+        .order_by(CeriDerivedFeature.id),
+    )
+    normalized_ids = sorted(
+        {
+            *ids["estimates"],
+            *ids["earnings"],
+            *ids["guidance"],
+            *ids["catalyst_revisions"],
+        }
+    )
+    ids["price_response_features"] = _selected_ids_for_values(
+        db,
+        CeriPriceResponseFeature,
+        CeriPriceResponseFeature.event_id,
+        normalized_ids,
+    )
+    snapshot_predicates = [
+        _json_array_references_source(
+            CeriScoreSnapshot.component_json["source_ids"],
+            source_id_query,
+            "purge_snapshot_component_sources",
+        )
+    ]
+    for index, key in enumerate(
+        (
+            "revision_source_ids",
+            "earnings_source_ids",
+            "guidance_source_ids",
+            "catalyst_source_ids",
+        )
+    ):
+        snapshot_predicates.append(
+            _json_array_references_source(
+                CeriScoreSnapshot.evidence_lineage_json[key],
+                source_id_query,
+                f"purge_snapshot_lineage_sources_{index}",
+            )
+        )
+    ids["score_snapshots"] = _selected_ids(
+        db,
+        select(CeriScoreSnapshot.id)
+        .where(or_(*snapshot_predicates))
+        .order_by(CeriScoreSnapshot.id),
+    )
+    score_ids = ids["score_snapshots"]
+    catalyst_revision_ids = ids["catalyst_revisions"]
+    ids["change_events"] = _selected_ids_for_change_scope(
+        db,
+        score_ids=score_ids,
+        catalyst_revision_ids=catalyst_revision_ids,
+    )
+    ids["alert_events"] = _selected_ids_for_alert_scope(
+        db,
+        change_ids=ids["change_events"],
+        catalyst_revision_ids=catalyst_revision_ids,
+    )
+
+    from app.services.ceri.decision_evidence import referenced_ceri_evidence_ids
+
+    certified_decision_evidence_ids = referenced_ceri_evidence_ids(db, source_ids)
+    affected_counts = {
+        "source_records": len(sources),
+        "estimate_snapshots": len(ids["estimates"]),
+        "earnings_actuals": len(ids["earnings"]),
+        "guidance_events": len(ids["guidance"]),
+        "catalyst_revisions": len(ids["catalyst_revisions"]),
+        "catalyst_sources": len(ids["catalyst_sources"]),
+        "derived_features": len(ids["derived_features"]),
+        "price_response_features": len(ids["price_response_features"]),
+    }
+    invalidated_derivatives = {
+        "revision_features": len(ids["revision_features"]),
+        "derived_features": len(ids["derived_features"]),
+        "price_response_features": len(ids["price_response_features"]),
+        "score_snapshots": len(ids["score_snapshots"]),
+        "change_events": len(ids["change_events"]),
+        "alert_events": len(ids["alert_events"]),
+        "requires_rebuild": bool(
+            ids["revision_features"]
+            or ids["score_snapshots"]
+            or ids["change_events"]
+            or ids["alert_events"]
+        ),
+        "immutable_decision_evidence_ids": certified_decision_evidence_ids,
+        "purge_blocked_by_immutable_decision_evidence": bool(
+            certified_decision_evidence_ids
+        ),
+    }
+    return {
+        "source_ids": source_ids,
+        "sources": sources,
+        **ids,
+        "certified_decision_evidence_ids": certified_decision_evidence_ids,
+        "affected_counts": affected_counts,
+        "invalidated_derivatives": invalidated_derivatives,
+    }
+
+
+def _selected_ids(db: Session, statement) -> list[int]:
+    return [int(value) for value in db.scalars(statement)]
+
+
+def _json_array_references_source(column, source_id_query, alias_name: str):
+    values = func.jsonb_array_elements_text(column).table_valued("value").alias(alias_name)
+    return exists(
+        select(1)
+        .select_from(values)
+        .where(cast(values.c.value, BigInteger).in_(source_id_query))
+    )
+
+
+def _selected_ids_for_values(
+    db: Session,
+    model: type,
+    column,
+    values: list[int],
+) -> list[int]:
+    selected: set[int] = set()
+    for batch in _batches(values, LICENSE_PURGE_BATCH_SIZE):
+        selected.update(
+            _selected_ids(
+                db,
+                select(model.id).where(column.in_(batch)).order_by(model.id),
+            )
+        )
+    return sorted(selected)
+
+
+def _selected_ids_for_change_scope(
+    db: Session,
+    *,
+    score_ids: list[int],
+    catalyst_revision_ids: list[int],
+) -> list[int]:
+    selected: set[int] = set()
+    for batch in _batches(score_ids, LICENSE_PURGE_BATCH_SIZE):
+        selected.update(
+            _selected_ids(
+                db,
+                select(CeriChangeEvent.id)
+                .where(
+                    or_(
+                        CeriChangeEvent.from_snapshot_id.in_(batch),
+                        CeriChangeEvent.to_snapshot_id.in_(batch),
+                    )
+                )
+                .order_by(CeriChangeEvent.id),
+            )
+        )
+    selected.update(
+        _selected_ids_for_values(
+            db,
+            CeriChangeEvent,
+            CeriChangeEvent.catalyst_revision_id,
+            catalyst_revision_ids,
+        )
+    )
+    return sorted(selected)
+
+
+def _selected_ids_for_alert_scope(
+    db: Session,
+    *,
+    change_ids: list[int],
+    catalyst_revision_ids: list[int],
+) -> list[int]:
+    selected = set(
+        _selected_ids_for_values(
+            db,
+            CeriAlertEvent,
+            CeriAlertEvent.source_change_event_id,
+            change_ids,
+        )
+    )
+    selected.update(
+        _selected_ids_for_values(
+            db,
+            CeriAlertEvent,
+            CeriAlertEvent.source_catalyst_revision_id,
+            catalyst_revision_ids,
+        )
+    )
+    return sorted(selected)
+
+
+def _batches(values: list[int], size: int):
+    for start in range(0, len(values), size):
+        yield values[start : start + size]
 
 
 def confirmation_token_for_preview(preview_manifest_hash: str) -> str:
@@ -396,7 +669,11 @@ def _find_audit(db: Session, preview_manifest_hash: str) -> CeriPurgeAudit | Non
 
 
 def _rows_with_source_ids(db: Session, model: type, source_ids: set[int]) -> list[Any]:
-    return [row for row in _load(db, model) if getattr(row, "source_record_id", None) in source_ids]
+    return [
+        row
+        for row in _fixture_rows(db, model)
+        if getattr(row, "source_record_id", None) in source_ids
+    ]
 
 
 def _snapshot_source_ids(snapshot: CeriScoreSnapshot) -> set[int]:
@@ -434,7 +711,10 @@ def _manifest_hash_input(
             key=lambda row: (row["id"] or 0, row["provider_record_id"]),
         ),
         "normalized_ids": {
-            key: sorted(getattr(row, "id", None) for row in manifest[key])
+            key: sorted(
+                int(row) if isinstance(row, int) else int(row.id)
+                for row in manifest[key]
+            )
             for key in (
                 "estimates",
                 "earnings",
@@ -445,7 +725,10 @@ def _manifest_hash_input(
             )
         },
         "derived_ids": {
-            key: sorted(getattr(row, "id", None) for row in manifest[key])
+            key: sorted(
+                int(row) if isinstance(row, int) else int(row.id)
+                for row in manifest[key]
+            )
             for key in (
                 "revision_features",
                 "derived_features",
@@ -466,6 +749,91 @@ def _manifest_hash(manifest: dict[str, Any]) -> str:
 
 @source_writer_member("app.services.ceri.purge_service:CeriPurgeService.execute")
 def _apply_purge_lifecycle(
+    db: Session,
+    manifest: dict[str, Any],
+    *,
+    preview_manifest_hash: str,
+    audit_id: int | None,
+) -> dict[str, Any]:
+    if isinstance(db, Session):
+        return _apply_purge_lifecycle_batched(
+            db,
+            manifest,
+            preview_manifest_hash=preview_manifest_hash,
+            audit_id=audit_id,
+        )
+    return _apply_purge_lifecycle_rows(
+        manifest,
+        preview_manifest_hash=preview_manifest_hash,
+        audit_id=audit_id,
+    )
+
+
+def _apply_purge_lifecycle_batched(
+    db: Session,
+    manifest: dict[str, Any],
+    *,
+    preview_manifest_hash: str,
+    audit_id: int | None,
+) -> dict[str, Any]:
+    model_by_key = {
+        "sources": CeriSourceRecord,
+        "estimates": CeriEstimateSnapshot,
+        "earnings": CeriEarningsActual,
+        "guidance": CeriGuidanceEvent,
+        "catalyst_revisions": CeriCatalystEventRevision,
+        "catalyst_sources": CeriCatalystSource,
+        "revision_features": CeriRevisionFeature,
+        "derived_features": CeriDerivedFeature,
+        "price_response_features": CeriPriceResponseFeature,
+        "score_snapshots": CeriScoreSnapshot,
+        "change_events": CeriChangeEvent,
+        "alert_events": CeriAlertEvent,
+    }
+    empty_manifest = {
+        key: [] for key in model_by_key
+    }
+    empty_manifest.update(
+        affected_counts=manifest["affected_counts"],
+        invalidated_derivatives=manifest["invalidated_derivatives"],
+    )
+    for key, model in model_by_key.items():
+        raw_ids = manifest["source_ids"] if key == "sources" else manifest[key]
+        ids = [int(value.id) if hasattr(value, "id") else int(value) for value in raw_ids]
+        for batch in _batches(ids, LICENSE_PURGE_BATCH_SIZE):
+            rows = list(
+                db.scalars(
+                    select(model)
+                    .where(model.id.in_(batch))
+                    .order_by(model.id)
+                    .with_for_update()
+                )
+            )
+            if [int(row.id) for row in rows] != batch:
+                raise CeriPurgeError(
+                    f"Provider-license purge candidate set changed while locking {key}."
+                )
+            scoped = {**empty_manifest, key: rows}
+            _apply_purge_lifecycle_rows(
+                scoped,
+                preview_manifest_hash=preview_manifest_hash,
+                audit_id=audit_id,
+            )
+            db.flush()
+            for row in rows:
+                db.expunge(row)
+    return {
+        "affected_counts": manifest["affected_counts"],
+        "invalidated_derivatives": {
+            **manifest["invalidated_derivatives"],
+            "policy": "tombstone_redact_invalidate",
+            "preview_manifest_hash": preview_manifest_hash,
+            "batch_size": LICENSE_PURGE_BATCH_SIZE,
+        },
+    }
+
+
+def _apply_purge_lifecycle_rows(
     manifest: dict[str, Any],
     *,
     preview_manifest_hash: str,
@@ -618,7 +986,9 @@ def _confirmation_token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _load(db: Session, model: type) -> list[Any]:
+def _fixture_rows(db: Session, model: type) -> list[Any]:
+    if isinstance(db, Session):
+        raise TypeError("fixture-only CERI row access cannot run against a production Session")
     scalars = getattr(db, "scalars", None)
     if not callable(scalars):
         return []

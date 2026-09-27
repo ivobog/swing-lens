@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, union_all
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
@@ -27,6 +27,7 @@ from app.services.csv_export import write_csv
 
 CERI_EXPORT_SCHEMA_ID = "swinglens.ceri.export.v1"
 PURGE_INVALIDATION_FLAG = "provider_license_purge_invalidated"
+CERI_EXPORT_ROW_LIMIT = 5000
 
 
 @dataclass(frozen=True)
@@ -70,10 +71,41 @@ class CeriExportService:
         snapshots: list[CeriScoreSnapshot] | None = None,
     ) -> CeriExportResult:
         tickers_set = {ticker.upper() for ticker in tickers or []}
-        candidates = filter_eligible_snapshots(
-            db,
-            snapshots if snapshots is not None else _load(db, CeriScoreSnapshot),
-        )
+        if snapshots is not None:
+            candidate_rows = snapshots
+        elif isinstance(db, Session):
+            statement = select(CeriScoreSnapshot)
+            if run_id is not None:
+                statement = statement.where(CeriScoreSnapshot.run_id == run_id)
+            if tickers_set:
+                statement = statement.where(func.upper(CeriScoreSnapshot.ticker).in_(tickers_set))
+            if run_id is None:
+                ranked = select(
+                    CeriScoreSnapshot.id.label("snapshot_id"),
+                    func.row_number()
+                    .over(
+                        partition_by=func.upper(CeriScoreSnapshot.ticker),
+                        order_by=(
+                            CeriScoreSnapshot.as_of_session.desc(),
+                            CeriScoreSnapshot.cutoff_at.desc(),
+                            CeriScoreSnapshot.id.desc(),
+                        ),
+                    )
+                    .label("row_number"),
+                )
+                if tickers_set:
+                    ranked = ranked.where(func.upper(CeriScoreSnapshot.ticker).in_(tickers_set))
+                ranked = ranked.subquery("ranked_ceri_export_snapshots")
+                statement = select(CeriScoreSnapshot).join(
+                    ranked,
+                    (ranked.c.snapshot_id == CeriScoreSnapshot.id)
+                    & (ranked.c.row_number == 1),
+                )
+            statement = statement.order_by(CeriScoreSnapshot.id).limit(CERI_EXPORT_ROW_LIMIT)
+            candidate_rows = list(db.scalars(statement))
+        else:
+            candidate_rows = _fixture_rows(db, CeriScoreSnapshot)
+        candidates = filter_eligible_snapshots(db, candidate_rows)
         if run_id is None:
             candidates = _latest_snapshot_rows(candidates)
         rows = []
@@ -117,12 +149,28 @@ class CeriExportService:
         output_format: str = "json",
         source_records: list[CeriSourceRecord] | None = None,
     ) -> CeriExportResult:
-        sources = source_records if source_records is not None else _load(db, CeriSourceRecord)
-        source_company_ids = _source_company_ids(db)
+        if source_records is not None:
+            sources = source_records
+        elif isinstance(db, Session):
+            statement = select(CeriSourceRecord)
+            if company_id is not None:
+                statement = statement.where(
+                    CeriSourceRecord.id.in_(_source_ids_for_company(company_id))
+                )
+            sources = list(
+                db.scalars(
+                    statement.order_by(CeriSourceRecord.id).limit(CERI_EXPORT_ROW_LIMIT)
+                )
+            )
+        else:
+            sources = _fixture_rows(db, CeriSourceRecord)
+        source_company_ids = _source_company_ids(db) if not isinstance(db, Session) else {}
         rows = []
         for source in sources:
-            if company_id is not None and not _source_belongs_to_company(
-                source, company_id, source_company_ids, db
+            if (
+                not isinstance(db, Session)
+                and company_id is not None
+                and not _source_belongs_to_company(source, company_id, source_company_ids, db)
             ):
                 continue
             row = {
@@ -170,7 +218,17 @@ def _revision_rows(
     as_of_session: date | None,
 ) -> list[dict[str, Any]]:
     rows = []
-    for feature in _load(db, CeriRevisionFeature):
+    statement = select(CeriRevisionFeature)
+    if company_id is not None:
+        statement = statement.where(CeriRevisionFeature.company_id == company_id)
+    if as_of_session is not None:
+        statement = statement.where(CeriRevisionFeature.as_of_session <= as_of_session)
+    features = (
+        list(db.scalars(statement.order_by(CeriRevisionFeature.id).limit(CERI_EXPORT_ROW_LIMIT)))
+        if isinstance(db, Session)
+        else _fixture_rows(db, CeriRevisionFeature)
+    )
+    for feature in features:
         if company_id is not None and feature.company_id != company_id:
             continue
         if as_of_session is not None and feature.as_of_session > as_of_session:
@@ -199,7 +257,17 @@ def _guidance_rows(
     as_of_session: date | None,
 ) -> list[dict[str, Any]]:
     rows = []
-    for guidance in _load(db, CeriGuidanceEvent):
+    statement = select(CeriGuidanceEvent)
+    if company_id is not None:
+        statement = statement.where(CeriGuidanceEvent.company_id == company_id)
+    if as_of_session is not None:
+        statement = statement.where(CeriGuidanceEvent.effective_session <= as_of_session)
+    guidance_rows = (
+        list(db.scalars(statement.order_by(CeriGuidanceEvent.id).limit(CERI_EXPORT_ROW_LIMIT)))
+        if isinstance(db, Session)
+        else _fixture_rows(db, CeriGuidanceEvent)
+    )
+    for guidance in guidance_rows:
         if company_id is not None and guidance.company_id != company_id:
             continue
         if as_of_session is not None and (
@@ -222,7 +290,25 @@ def _guidance_rows(
 
 def _catalyst_rows(db: Session, as_of_session: date | None) -> list[dict[str, Any]]:
     rows = []
-    for revision in _load(db, CeriCatalystEventRevision):
+    statement = select(CeriCatalystEventRevision)
+    if as_of_session is not None:
+        statement = statement.where(
+            or_(
+                CeriCatalystEventRevision.effective_session <= as_of_session,
+                (CeriCatalystEventRevision.effective_session.is_(None))
+                & (func.date(CeriCatalystEventRevision.announced_at) <= as_of_session),
+            )
+        )
+    revisions = (
+        list(
+            db.scalars(
+                statement.order_by(CeriCatalystEventRevision.id).limit(CERI_EXPORT_ROW_LIMIT)
+            )
+        )
+        if isinstance(db, Session)
+        else _fixture_rows(db, CeriCatalystEventRevision)
+    )
+    for revision in revisions:
         effective_session = revision.effective_session or (
             revision.announced_at.date() if revision.announced_at else None
         )
@@ -271,10 +357,10 @@ def _snapshot_sort_key(snapshot: CeriScoreSnapshot) -> tuple[Any, Any, int]:
 def _source_company_ids(db: Session) -> dict[int, set[int]]:
     links: dict[int, set[int]] = {}
     for model in (CeriEstimateSnapshot, CeriEarningsActual, CeriGuidanceEvent):
-        for row in _load(db, model):
+        for row in _fixture_rows(db, model):
             links.setdefault(row.source_record_id, set()).add(row.company_id)
-    events_by_id = {event.id: event for event in _load(db, CeriCatalystEvent)}
-    for row in _load(db, CeriCatalystSource):
+    events_by_id = {event.id: event for event in _fixture_rows(db, CeriCatalystEvent)}
+    for row in _fixture_rows(db, CeriCatalystSource):
         event = events_by_id.get(row.catalyst_event_id)
         if event is not None:
             links.setdefault(row.source_record_id, set()).add(event.company_id)
@@ -314,7 +400,7 @@ def _get_company(db: Session, company_id: int) -> CeriCompany | None:
     getter = getattr(db, "get", None)
     if callable(getter):
         return getter(CeriCompany, company_id)
-    return next((row for row in _load(db, CeriCompany) if row.id == company_id), None)
+    return next((row for row in _fixture_rows(db, CeriCompany) if row.id == company_id), None)
 
 
 def _current_view_metadata() -> dict[str, Any]:
@@ -347,7 +433,29 @@ def _is_purged_source(source: CeriSourceRecord) -> bool:
     )
 
 
-def _load(db: Session, model):
+def _source_ids_for_company(company_id: int):
+    return union_all(
+        select(CeriEstimateSnapshot.source_record_id.label("source_record_id")).where(
+            CeriEstimateSnapshot.company_id == company_id
+        ),
+        select(CeriEarningsActual.source_record_id.label("source_record_id")).where(
+            CeriEarningsActual.company_id == company_id
+        ),
+        select(CeriGuidanceEvent.source_record_id.label("source_record_id")).where(
+            CeriGuidanceEvent.company_id == company_id
+        ),
+        select(CeriCatalystSource.source_record_id.label("source_record_id"))
+        .join(
+            CeriCatalystEvent,
+            CeriCatalystEvent.id == CeriCatalystSource.catalyst_event_id,
+        )
+        .where(CeriCatalystEvent.company_id == company_id),
+    )
+
+
+def _fixture_rows(db: Session, model):
+    if isinstance(db, Session):
+        raise TypeError("fixture-only CERI row access cannot run against production")
     scalars = getattr(db, "scalars", None)
     if not callable(scalars):
         return []

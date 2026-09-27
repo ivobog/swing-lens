@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, false, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.ib_market_intelligence_tables import (
@@ -27,6 +27,11 @@ from app.services.ib_market_intelligence.scanner_identity import (
     scanner_conids_by_ticker,
 )
 from app.services.operational_metrics import operational_metrics
+
+IB_SCANNER_RUN_PAGE_SIZE = 50
+IB_SCANNER_CANDIDATE_PAGE_SIZE = 500
+IB_JOURNAL_PAGE_SIZE = 100
+IB_JOURNAL_MAX_PAGE_SIZE = 500
 
 
 def overview(db: Session) -> dict[str, Any]:
@@ -95,16 +100,26 @@ def feature_evidence(db: Session, *, evidence_id: int) -> dict[str, Any]:
     return evidence_view(get_ibmi_evidence(db, evidence_id), mode=ReadMode.EVIDENCE)
 
 
-def scanner_runs(db: Session, *, limit: int = 50) -> dict[str, Any]:
+def scanner_runs(
+    db: Session,
+    *,
+    limit: int = IB_SCANNER_RUN_PAGE_SIZE,
+    candidate_limit: int = IB_SCANNER_CANDIDATE_PAGE_SIZE,
+) -> dict[str, Any]:
+    limit = max(1, min(int(limit), IB_SCANNER_RUN_PAGE_SIZE))
+    candidate_limit = max(1, min(int(candidate_limit), IB_SCANNER_CANDIDATE_PAGE_SIZE))
     runs = db.scalars(
         select(IBScannerRun).order_by(IBScannerRun.started_at.desc()).limit(limit)
     ).all()
+    run_ids = [int(run.id) for run in runs]
     candidates = db.execute(
         select(IBScannerCandidate, IBScannerRun)
         .join(IBScannerRun, IBScannerRun.id == IBScannerCandidate.scanner_run_id)
+        .where(IBScannerCandidate.scanner_run_id.in_(run_ids))
         .order_by(
             IBScannerCandidate.ticker, IBScannerCandidate.rank, IBScannerRun.started_at.desc()
         )
+        .limit(candidate_limit)
     ).all()
     known_conids = scanner_conids_by_ticker(
         (candidate.ticker, candidate.ib_conid) for candidate, _run in candidates
@@ -137,6 +152,7 @@ def scanner_runs(db: Session, *, limit: int = 50) -> dict[str, Any]:
     return {
         "runs": [_scanner_run_dict(run) for run in runs],
         "candidate_pool": list(merged.values()),
+        "candidate_limit": candidate_limit,
     }
 
 
@@ -180,14 +196,49 @@ def histogram_detail(db: Session, ticker: str) -> dict[str, Any] | None:
 
 
 def trade_journal(
-    db: Session, *, group_by: str = "setup_family", include_account: bool = False
+    db: Session,
+    *,
+    group_by: str = "setup_family",
+    include_account: bool = False,
+    page_size: int = IB_JOURNAL_PAGE_SIZE,
+    before_id: int | None = None,
 ) -> dict[str, Any]:
-    episodes = db.scalars(
+    page_size = max(1, min(int(page_size), IB_JOURNAL_MAX_PAGE_SIZE))
+    episode_statement = (
         select(IBTradeEpisode)
         .where(IBTradeEpisode.status != "SUPERSEDED")
-        .order_by(IBTradeEpisode.opened_at.desc())
-    ).all()
-    links = {row.trade_episode_id: row for row in db.scalars(select(IBTradeResearchLink)).all()}
+        .order_by(IBTradeEpisode.opened_at.desc(), IBTradeEpisode.id.desc())
+        .limit(page_size + 1)
+    )
+    if before_id is not None:
+        anchor = db.execute(
+            select(IBTradeEpisode.opened_at, IBTradeEpisode.id).where(
+                IBTradeEpisode.id == int(before_id)
+            )
+        ).one_or_none()
+        episode_statement = episode_statement.where(
+            or_(
+                IBTradeEpisode.opened_at < anchor.opened_at,
+                and_(
+                    IBTradeEpisode.opened_at == anchor.opened_at,
+                    IBTradeEpisode.id < anchor.id,
+                ),
+            )
+            if anchor is not None
+            else false()
+        )
+    episode_page = list(db.scalars(episode_statement))
+    has_more = len(episode_page) > page_size
+    episodes = episode_page[:page_size]
+    episode_ids = [int(row.id) for row in episodes]
+    links = {
+        row.trade_episode_id: row
+        for row in db.scalars(
+            select(IBTradeResearchLink).where(
+                IBTradeResearchLink.trade_episode_id.in_(episode_ids)
+            )
+        )
+    }
     fills = db.scalars(
         select(IBExecutionFill).order_by(IBExecutionFill.execution_time.desc()).limit(500)
     ).all()
@@ -232,6 +283,11 @@ def trade_journal(
             for row in fills
         ],
         "analytics": journal_analytics(db, group_by=group_by),
+        "pagination": {
+            "page_size": page_size,
+            "has_more": has_more,
+            "next_before_id": int(episodes[-1].id) if has_more and episodes else None,
+        },
     }
 
 

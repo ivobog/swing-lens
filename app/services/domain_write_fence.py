@@ -40,6 +40,12 @@ _fenced_session: ContextVar[tuple[Session, DomainWriteOwnership] | None] = Conte
 _retained_batch_ownership: ContextVar[tuple | None] = ContextVar(
     "swinglens_retained_batch_ownership", default=None
 )
+_defer_execution_lock: ContextVar[bool] = ContextVar(
+    "swinglens_defer_execution_ownership_lock", default=False
+)
+_force_execution_lock: ContextVar[bool] = ContextVar(
+    "swinglens_force_execution_ownership_lock", default=False
+)
 
 
 @contextmanager
@@ -160,11 +166,13 @@ def assert_current_execution_ownership(
     job_id: int,
     execution_token: str,
 ) -> dict:
-    """Lock and validate the job attempt in the transaction about to commit.
+    """Validate the job attempt and normally retain its row lock.
 
     The row lock is retained by ``db`` through its commit or rollback. Reclaim
     must update the same job row, so ownership validation and the domain commit
     have one database serialization point instead of a check-then-commit gap.
+    A long-work deferred scope performs only the token check; ``before_commit``
+    always forces the locking validation before domain state can publish.
     """
 
     ownership = DomainWriteOwnership(job_id, execution_token)
@@ -191,18 +199,17 @@ def assert_current_execution_ownership(
             and sql_transaction.is_active
         ):
             return deepcopy(job_scope)
+    statement = select(
+        BackgroundJob.status,
+        BackgroundJob.execution_token,
+        BackgroundJob.job_type,
+        BackgroundJob.related_run_id,
+        BackgroundJob.payload_json,
+    ).where(BackgroundJob.id == job_id)
+    if not _defer_execution_lock.get() or _force_execution_lock.get():
+        statement = statement.with_for_update()
     with db.no_autoflush:
-        current = db.execute(
-            select(
-                BackgroundJob.status,
-                BackgroundJob.execution_token,
-                BackgroundJob.job_type,
-                BackgroundJob.related_run_id,
-                BackgroundJob.payload_json,
-            )
-            .where(BackgroundJob.id == job_id)
-            .with_for_update()
-        ).one_or_none()
+        current = db.execute(statement).one_or_none()
     if (
         current is None
         or current.status != JobStatus.RUNNING
@@ -218,6 +225,16 @@ def retained_execution_job_scope(db, *, job_id, execution_token):
     if _retained_batch_ownership.get() is None:
         return None
     return assert_current_execution_ownership(db, job_id=job_id, execution_token=execution_token)
+
+
+@contextmanager
+def deferred_execution_ownership_lock() -> Iterator[None]:
+    """Check ownership during long work, reserving the row lock for commit."""
+    token = _defer_execution_lock.set(True)
+    try:
+        yield
+    finally:
+        _defer_execution_lock.reset(token)
 
 
 @contextmanager
@@ -245,8 +262,12 @@ def _fence_active_domain_commit(db: Session) -> None:
     ownership = _current_ownership.get()
     if ownership is None:
         return
-    assert_current_execution_ownership(
-        db,
-        job_id=ownership.job_id,
-        execution_token=ownership.execution_token,
-    )
+    token = _force_execution_lock.set(True)
+    try:
+        assert_current_execution_ownership(
+            db,
+            job_id=ownership.job_id,
+            execution_token=ownership.execution_token,
+        )
+    finally:
+        _force_execution_lock.reset(token)

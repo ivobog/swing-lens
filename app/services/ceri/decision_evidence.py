@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
@@ -403,12 +403,28 @@ def referenced_ceri_evidence_ids(db: Session, source_ids: Iterable[int]) -> list
     if not isinstance(db, Session):
         # Lightweight legacy purge adapters do not model the Phase-2 ledger.
         return []
-    evidence_rows = list(
-        db.scalars(
-            select(CoreCalculationEvidence).where(
-                CoreCalculationEvidence.artifact_kind == CoreEvidenceKind.CERI.value
+    if db.get_bind().dialect.name == "postgresql":
+        referenced: set[int] = set()
+        ordered = sorted(wanted)
+        for start in range(0, len(ordered), 200):
+            batch = ordered[start : start + 200]
+            source_manifest = CoreCalculationEvidence.payload_json["source_manifest"][
+                "source_records"
+            ]
+            referenced.update(
+                int(value)
+                for value in db.scalars(
+                    select(CoreCalculationEvidence.id).where(
+                        CoreCalculationEvidence.artifact_kind == CoreEvidenceKind.CERI.value,
+                        or_(*(source_manifest.contains([{"id": value}]) for value in batch)),
+                    )
+                )
             )
-        )
+        return sorted(referenced)
+    evidence_rows = db.execute(
+        select(CoreCalculationEvidence.id, CoreCalculationEvidence.payload_json)
+        .where(CoreCalculationEvidence.artifact_kind == CoreEvidenceKind.CERI.value)
+        .execution_options(yield_per=200)
     )
     referenced: list[int] = []
     for evidence in evidence_rows:

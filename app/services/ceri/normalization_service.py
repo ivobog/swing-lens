@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
@@ -261,17 +261,7 @@ class CeriNormalizationService:
                     return 1
                 if current is not None:
                     current.is_current = False
-                next_number = (
-                    max(
-                        [
-                            revision.revision_number
-                            for revision in _load(db, CeriCatalystEventRevision)
-                            if revision.catalyst_event_id == event.id
-                        ]
-                        or [0]
-                    )
-                    + 1
-                )
+                next_number = _next_catalyst_revision_number(db, int(event.id))
                 revision = CeriCatalystEventRevision(
                     catalyst_event_id=event.id,
                     source_record_id=source_record.id,
@@ -433,12 +423,17 @@ def _find_catalyst_event(
     scalar = getattr(db, "scalar", None)
     if not callable(scalar):
         return None
-    return scalar(
+    statement = (
         select(CeriCatalystEvent)
         .where(CeriCatalystEvent.company_id == company_id)
         .where(CeriCatalystEvent.category == category)
         .where(CeriCatalystEvent.subject_key == subject_key)
     )
+    if isinstance(db, Session):
+        # Serialize revision allocation for this canonical event.  The existing
+        # unique constraints remain the final race guard.
+        statement = statement.with_for_update()
+    return scalar(statement)
 
 
 def _exists_by_source(db: Session, model: Any, source_record_id: int) -> bool:
@@ -506,12 +501,14 @@ def _catalyst_revision_matches(current: CeriCatalystEventRevision, record) -> bo
     )
 
 
-def _load(db: Session, model: Any) -> list[Any]:
-    scalars = getattr(db, "scalars", None)
-    if not callable(scalars):
-        return []
-    result = scalars(select(model))
-    return list(result.all() if hasattr(result, "all") else result)
+def _next_catalyst_revision_number(db: Session, catalyst_event_id: int) -> int:
+    maximum = _maybe_scalar(
+        db,
+        select(func.max(CeriCatalystEventRevision.revision_number)).where(
+            CeriCatalystEventRevision.catalyst_event_id == catalyst_event_id
+        ),
+    )
+    return int(maximum or 0) + 1
 
 
 def _warning_count_for_last(db: Session) -> int:

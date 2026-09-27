@@ -7,8 +7,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import case, cast, func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.types import Float, String
 
 from app.models.ceri_tables import CeriScoreSnapshot
 from app.models.ib_market_intelligence_tables import (
@@ -34,6 +35,7 @@ from app.services.source_mutation_authority import source_mutation_writer
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 
 ZERO = Decimal("0")
+IB_JOURNAL_ANALYTICS_FALLBACK_LIMIT = 500
 
 
 @source_mutation_writer(
@@ -54,22 +56,32 @@ def exclude_execution_fill(
     fill.is_excluded = excluded
     fill.exclusion_reason = reason if excluded else None
     affected = 0
-    for episode in db.scalars(select(IBTradeEpisode).with_for_update()):
-        if fill.id in (episode.fill_ids_json or []):
-            episode.is_excluded = excluded or bool(
-                db.scalar(
-                    select(IBExecutionFill.id)
-                    .where(
-                        IBExecutionFill.id.in_(episode.fill_ids_json),
-                        IBExecutionFill.id != fill.id,
-                        IBExecutionFill.is_excluded.is_(True),
-                    )
-                    .limit(1)
+    episodes = db.scalars(_episodes_for_fill_statement(fill.id))
+    for episode in episodes:
+        episode.is_excluded = excluded or bool(
+            db.scalar(
+                select(IBExecutionFill.id)
+                .where(
+                    IBExecutionFill.id.in_(episode.fill_ids_json),
+                    IBExecutionFill.id != fill.id,
+                    IBExecutionFill.is_excluded.is_(True),
                 )
+                .limit(1)
             )
-            affected += 1
+        )
+        affected += 1
     db.flush()
     return affected
+
+
+def _episodes_for_fill_statement(fill_id: int):
+    """Return the exact deterministic lock scope for one execution fill."""
+    return (
+        select(IBTradeEpisode)
+        .where(IBTradeEpisode.fill_ids_json.contains([fill_id]))
+        .order_by(IBTradeEpisode.id)
+        .with_for_update()
+    )
 
 
 @dataclass
@@ -122,7 +134,16 @@ def rebuild_trade_episodes(
     ):
         raise ValueError("TRADE_EPISODE_ACTIVE_FILL_AUTHORITY_REQUIRED")
     drafts = construct_trade_episodes(fills)
-    existing_rows = {row.episode_key: row for row in db.scalars(select(IBTradeEpisode)).all()}
+    tickers = sorted({fill.symbol.upper() for fill in fills})
+    existing_rows = {
+        row.episode_key: row
+        for row in db.scalars(
+            select(IBTradeEpisode)
+            .where(func.upper(IBTradeEpisode.ticker).in_(tickers))
+            .order_by(IBTradeEpisode.id)
+            .with_for_update()
+        )
+    }
     active_keys: set[str] = set()
     persisted: list[IBTradeEpisode] = []
     for draft in drafts:
@@ -410,21 +431,6 @@ def _serving_winner_estimate(
 
 
 def journal_analytics(db: Session, *, group_by: str | None = None) -> dict[str, Any]:
-    episodes = db.scalars(
-        select(IBTradeEpisode)
-        .where(IBTradeEpisode.status == "CLOSED")
-        .where(IBTradeEpisode.is_excluded.is_(False))
-        .order_by(IBTradeEpisode.closed_at)
-    ).all()
-    links = {link.trade_episode_id: link for link in db.scalars(select(IBTradeResearchLink)).all()}
-    overall = _summarize(episodes)
-    overall["average_slippage_pct"] = _average(
-        [
-            float(link.context_json["execution_slippage_pct"])
-            for link in links.values()
-            if link.context_json.get("execution_slippage_pct") is not None
-        ]
-    )
     allowed = {
         "setup_family",
         "score_band",
@@ -438,24 +444,121 @@ def journal_analytics(db: Session, *, group_by: str | None = None) -> dict[str, 
         group_by = "setup_family"
     if group_by not in allowed:
         raise ValueError(f"Unsupported journal analytics grouping: {group_by}")
-    grouped: dict[str, list[IBTradeEpisode]] = defaultdict(list)
-    for episode in episodes:
-        context = (links.get(episode.id).context_json if links.get(episode.id) else {}) or {}
-        value = _analytics_dimension(group_by, context)
-        grouped[str(value or "UNAVAILABLE")].append(episode)
-    group_summaries: dict[str, dict[str, Any]] = {}
-    for key, rows in sorted(grouped.items()):
-        summary = _summarize(rows)
-        summary["average_slippage_pct"] = _average(
-            [
-                float(links[row.id].context_json["execution_slippage_pct"])
-                for row in rows
-                if row.id in links
-                and links[row.id].context_json.get("execution_slippage_pct") is not None
-            ]
+    base = (
+        IBTradeEpisode.status == "CLOSED",
+        IBTradeEpisode.is_excluded.is_(False),
+    )
+    context = IBTradeResearchLink.context_json
+    slippage = cast(context["execution_slippage_pct"].as_string(), Float)
+    overall_row = db.execute(
+        select(*_summary_columns(slippage))
+        .select_from(IBTradeEpisode)
+        .outerjoin(
+            IBTradeResearchLink,
+            IBTradeResearchLink.trade_episode_id == IBTradeEpisode.id,
         )
-        group_summaries[key] = summary
-    return {"overall": overall, "group_by": group_by, "groups": group_summaries}
+        .where(*base)
+    ).one()
+    overall = _summary_from_sql(overall_row, _median_return(db, base))
+
+    dimension = _analytics_dimension_sql(group_by, context)
+    grouped_rows = db.execute(
+        select(dimension.label("dimension"), *_summary_columns(slippage))
+        .select_from(IBTradeEpisode)
+        .outerjoin(
+            IBTradeResearchLink,
+            IBTradeResearchLink.trade_episode_id == IBTradeEpisode.id,
+        )
+        .where(*base)
+        .group_by(dimension)
+        .order_by(dimension)
+    ).all()
+    groups = {
+        str(row.dimension or "UNAVAILABLE"): _summary_from_sql(
+            row,
+            _median_return(db, (*base, dimension == row.dimension)),
+        )
+        for row in grouped_rows
+    }
+    return {"overall": overall, "group_by": group_by, "groups": groups}
+
+
+def _summary_columns(slippage):
+    return (
+        func.count(IBTradeEpisode.id).label("trade_count"),
+        func.sum(case((IBTradeEpisode.net_pnl > 0, 1), else_=0)).label("wins"),
+        func.avg(IBTradeEpisode.return_pct).label("average_return_pct"),
+        func.sum(IBTradeEpisode.net_pnl).label("realized_net_pnl"),
+        func.sum(IBTradeEpisode.commissions + IBTradeEpisode.fees).label(
+            "commission_impact"
+        ),
+        (
+            func.sum(func.coalesce(IBTradeEpisode.holding_seconds, 0))
+            / func.nullif(func.count(IBTradeEpisode.id), 0)
+        ).label("average_holding_seconds"),
+        func.sum(IBTradeEpisode.broker_realized_pnl).label("broker_reported_realized_pnl"),
+        func.count(IBTradeEpisode.broker_realized_pnl).label("broker_reported_count"),
+        func.avg(slippage).label("average_slippage_pct"),
+    )
+
+
+def _summary_from_sql(row, median: float | None) -> dict[str, Any]:
+    count = int(row.trade_count or 0)
+    return {
+        "trade_count": count,
+        "win_rate": int(row.wins or 0) / count if count else None,
+        "average_return_pct": _number(row.average_return_pct),
+        "median_return_pct": median,
+        "realized_net_pnl": _number(row.realized_net_pnl) or 0.0,
+        "commission_impact": _number(row.commission_impact) or 0.0,
+        "average_holding_seconds": _number(row.average_holding_seconds) if count else None,
+        "broker_reported_realized_pnl": _number(row.broker_reported_realized_pnl) or 0.0,
+        "broker_reported_count": int(row.broker_reported_count or 0),
+        "average_slippage_pct": _number(row.average_slippage_pct),
+    }
+
+
+def _median_return(db: Session, predicates) -> float | None:
+    if db.get_bind().dialect.name == "postgresql":
+        value = db.scalar(
+            select(func.percentile_cont(0.5).within_group(IBTradeEpisode.return_pct)).where(
+                *predicates
+            )
+        )
+        return _number(value)
+    values = list(
+        db.scalars(
+            select(IBTradeEpisode.return_pct)
+            .where(*predicates, IBTradeEpisode.return_pct.is_not(None))
+            .order_by(IBTradeEpisode.return_pct)
+            .limit(IB_JOURNAL_ANALYTICS_FALLBACK_LIMIT)
+        )
+    )
+    return _median([float(value) for value in values])
+
+
+def _analytics_dimension_sql(group_by: str, context):
+    if group_by == "score_band":
+        value = cast(context["final_score"].as_string(), Float)
+        return case(
+            (value < 50, "LOW"),
+            (value < 65, "MEDIUM"),
+            (value < 80, "HIGH"),
+            else_="VERY_HIGH",
+        )
+    if group_by == "ceri_band":
+        value = cast(context["ceri_opportunity_score"].as_string(), Float)
+        return case(
+            (value < 3, "LOW"),
+            (value < 6, "MEDIUM"),
+            (value < 8, "HIGH"),
+            else_="VERY_HIGH",
+        )
+    return cast(context[group_by].as_string(), String)
+
+
+def _number(value: Any) -> float | None:
+    return float(value) if value is not None else None
 
 
 def _apply_entry(draft: EpisodeDraft, fill: IBExecutionFill, quantity: Decimal) -> None:

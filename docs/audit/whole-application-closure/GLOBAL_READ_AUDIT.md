@@ -22,13 +22,13 @@ The audit distinguishes row payload size from scan cost. “Schema-bounded” me
 | READ-010 | same | grouped ingestion provider/dataset | unbounded scan, small result | diagnostics/UI |
 | READ-011 | `ceri.query_service._grouped_counts` | generic grouped count | unbounded scan, small result | diagnostics/UI |
 | READ-012 | `ceri.query_service._provider_cost_summary` | telemetry aggregates | production-unbounded scan | diagnostics; telemetry growth |
-| READ-013 | `ib_market_intelligence.journal.exclude_execution_fill` | all `IBTradeEpisode FOR UPDATE` | **large-payload dangerous** | direct mutation API; locks all episodes |
-| READ-014 | `ib_market_intelligence.journal.rebuild_trade_episodes` | all `IBTradeEpisode` | **large-payload dangerous** | durable/direct rebuild; Python reconciliation |
-| READ-015 | `ib_market_intelligence.journal.journal_analytics` | all `IBTradeResearchLink` | potentially unbounded | UI/analytics |
+| READ-013 | `ib_market_intelligence.journal.exclude_execution_fill` | episodes containing exact fill ID `FOR UPDATE` | **R2 closed: target-scoped** | direct mutation API; locks only reachable episodes |
+| READ-014 | `ib_market_intelligence.journal.rebuild_trade_episodes` | episodes for exact input ticker set | **R2 closed: authority-scoped** | durable/direct rebuild; deterministic target reconciliation |
+| READ-015 | `ib_market_intelligence.journal.journal_analytics` | server-side grouped aggregates/percentiles | aggregate scan, small result | UI/analytics; scan budget deferred unchanged to GAP-011 |
 | READ-016 | `ib_market_intelligence.query_service.overview` | ordered `IBScannerRun` scalar | unbounded sort, one result | UI; add LIMIT for plan clarity |
 | READ-017 | same | ordered `IBFlexImportRun` scalar | unbounded sort, one result | UI |
-| READ-018 | `ib_market_intelligence.query_service.trade_journal` | all research links | **large-payload dangerous** | UI joins in Python |
-| READ-019 | `ib_market_intelligence.query_service.scanner_runs` | all candidate/run joins | **large-payload dangerous** | UI; no pagination at this statement |
+| READ-018 | `ib_market_intelligence.query_service.trade_journal` | links for one bounded episode page | **R2 closed: paginated/scoped** | UI page uses stable `(opened_at,id)` cursor |
+| READ-019 | `ib_market_intelligence.query_service.scanner_runs` | candidates for bounded selected run IDs | **R2 closed: bounded** | UI candidate cap 500 |
 | READ-020 | `setup_lifecycle.alert_service.seed_builtin_rules` | all rule IDs | harmless small rules | alert service startup-on-use |
 | READ-021 | `setup_lifecycle.alert_service._rules` | all rule IDs | harmless small rules | pipeline alert calculation |
 | READ-022 | `setup_lifecycle.query_service._alerts_summary` | grouped status count | unbounded scan, small result | UI/ops |
@@ -45,17 +45,17 @@ The audit distinguishes row payload size from scan cost. “Schema-bounded” me
 
 | ID | File:function | Runtime model(s) | Classification / reach |
 | --- | --- | --- | --- |
-| READ-031 | `ceri.job_handlers._load_rows` via `_eligible_changes` | `CeriChangeEvent`, `CeriScoreSnapshot`, `CeriCompany` | **large-payload dangerous**; `CERI_ALERT_REBUILD` globally loads before Python filtering; main pipeline continuation |
-| READ-032 | `ceri.normalization_service._load` | `CeriCatalystEventRevision` | **production-unbounded** per normalized catalyst; used only to compute next revision for one event |
-| READ-033 | `ceri.purge_service._load` / `_rows_with_source_ids` | source, estimates, earnings, guidance, revisions, sources, features, scores, changes, alerts | **large-JSON dangerous**; purge preview and execution load most CERI corpus |
-| READ-034 | `ceri.query_service` generic model loader | multiple CERI diagnostics/export models | large-payload dangerous if called without pagination; UI/diagnostics |
-| READ-035 | `ceri.export_service._load` | export-selected CERI models | production-unbounded by design; operator export path |
+| READ-031 | `ceri.job_handlers._eligible_changes` | exact change/run/company/ticker/time authority | **R2 closed: SQL-scoped/keyset batched**; fixture loader rejects production `Session` |
+| READ-032 | `ceri.normalization_service._next_catalyst_revision_number` | event-scoped `MAX(revision_number)` | **R2 closed: scalar/event locked** |
+| READ-033 | `ceri.purge_service._sql_lifecycle_manifest` | provider/license source IDs and relational dependent IDs | **R2 closed: ID projection/batched target locks**; preview does not project source bodies |
+| READ-034 | `ceri.query_service` generic model loader | multiple CERI diagnostics models | **R2 closed:** production `Session` rejected; production branches are named/scoped/bounded |
+| READ-035 | `ceri.export_service._fixture_rows` | fixture collections only | **R2 closed:** production `Session` rejected; export SQL is scope-pushed and capped at 5,000 rows |
 | READ-036 | `ceri.identity_resolver` generic loaders | all companies and aliases | schema-bounded universe; ingest/repair |
-| READ-037 | `ceri.backfill_service._load` | backfill-selected CERI models | potentially production-unbounded; explicit maintenance |
-| READ-038 | `ceri.alert_service._load` | alert/change/rule models depending call | potentially unbounded; alert rebuild/direct service |
-| READ-039 | `ceri.feature_rebuild_service` generic result loader | feature/source models | potentially large; rebuild path; predicates must be verified at caller |
-| READ-040 | `ceri.capture_service` generic/result loader | snapshots/evidence/source rows | potentially large; capture path; many calls are run-scoped but helper permits unscoped use |
-| READ-041 | `ceri.price_response_service` generic result loader | event/price feature rows | potentially large; feature rebuild |
+| READ-037 | `ceri.backfill_service._fixture_companies` | fixture adapter plus explicit all-universe maintenance projection | intentionally retained maintenance/schema-universe path; no dynamic production large-model loader |
+| READ-038 | `ceri.alert_service` named rule/cooldown queries | rules plus ticker/rule cooldown history | **R2 closed:** rule table schema-small; alert history SQL-scoped |
+| READ-039 | `ceri.feature_rebuild_service._scalars` | caller-supplied statements | **R2 closed:** large CERI entities require SQL criteria; catalyst/earnings/guidance fallback predicates are explicit |
+| READ-040 | `ceri.capture_service._scalars` | caller-supplied run/evidence/source statements | **R2 closed:** large CERI entities require SQL criteria |
+| READ-041 | `ceri.price_response_service._scalars` | ticker/session/cutoff price/event statements | **R2 closed:** large CERI entities require SQL criteria |
 
 ## Large JSON/evidence/source focus
 
@@ -67,7 +67,7 @@ The audit distinguishes row payload size from scan cost. “Schema-bounded” me
 | Medium | READ-032 | repeats a full catalyst-revision load for individual normalization; quadratic behavior as corpus grows |
 | Medium | READ-005/008 | company universe is expected to be modest but no SQL/schema bound exists |
 
-The previously reported CERI change-detection global reads are no longer present in the current uncommitted `change_rebuild_service`: `_scoped_scalars` rejects predicate-free reads for the five large CERI models and the implementation chunks by company. That remediation does not cover the downstream CERI alert handler (READ-031), normalizer (READ-032), or purge (READ-033).
+The CERI change-detection global reads remain closed by `_scoped_scalars` and company chunks. R2 extends the same structural rule through downstream alerts, normalization, purge, query/export, feature, capture, and price-response paths.
 
 ## Required remediation shape
 
@@ -77,6 +77,20 @@ The previously reported CERI change-detection global reads are no longer present
 - READ-013/014/018/019: episode/run/user/date pagination and target-only row locking.
 - READ-034/035/037..041: require a scope/pagination object at the helper signature so unscoped use is structurally impossible.
 
+## R2 mechanical reconciliation
+
+The original 41-family inventory remains the stable census; R2 changed classifications rather than deleting audit identities. Repeated AST/text search plus PostgreSQL SQL capture gives these exact post-R2 counts:
+
+| Risk family | Before | After | Retained/deferred |
+| --- | ---: | ---: | --- |
+| Predicate-free/potentially unscoped large CERI production read families in READ-031..041 | 10 | 0 | READ-036 company/alias identity is schema-small; explicit all-universe maintenance is retained without a dynamic large-model loader |
+| High-risk large-payload read families | 7 | 0 | server-side aggregate scan cost remains GAP-011, without large ORM materialization |
+| Global IB journal payload reads | 3 | 0 | journal aggregates remain server-side and GAP-011 owns plan budgets |
+| Global IB journal lock paths | 2 | 0 | exact fill-reachable or input-ticker rows only |
+| Production-capable unsafe generic CERI loader families | 10 | 0 | fixture-only adapters remain and explicitly reject `Session` |
+
+PostgreSQL regression capture observed zero predicate-free reads across the alert, purge, catalyst, and IB R2 families. The retained READ-002/003/010/012/022/023/025/026 aggregate scans are deliberately unchanged by this task and remain GAP-011.
+
 ## Verdict
 
-The candidate audit is complete: 41 exact read families are classified. Seven are large-payload dangerous (READ-013, 014, 018, 019, 031, 033, and the unbounded branches of READ-034/035), six are potentially production-unbounded pipeline/maintenance reads, eight are unbounded aggregate scans with small result sets, and the remainder are schema-small or false positives. The high-risk reads are P1/P2 closure blockers.
+R2 closes every high-risk payload/materialization family identified for GAP-004 through GAP-008. The remaining unbounded reads are classified schema-universe, explicit maintenance, or small-result aggregate scans; the aggregate/index/retention budget is still GAP-011 and was not altered.

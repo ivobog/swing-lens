@@ -12,10 +12,11 @@
 - TEST-COVERAGE MATRIX COMPLETE: **YES**
 - TOP-DOWN/BOTTOM-UP RECONCILIATION: **PASS**
 - R1 UNIFIED RUNTIME MUTATION AUTHORITY: **CLOSED**
-- SAFE TO PROCEED TO R2: **YES**
+- R2 BOUNDED READS AND TRANSACTION SAFETY: **CLOSED**
+- SAFE TO PROCEED TO R3: **YES**
 - SAFE TO RESUME LIVE CANARY REMEDIATION: **NO**
 
-“Complete” means the finite current-tree inventory has no unknown caller or writer. R1 closes GAP-001, GAP-002, and GAP-003 with a shared typed authority boundary and disposable-PostgreSQL negative proofs. GAP-004 and GAP-005 remain open and continue to block live canary resumption.
+“Complete” means the finite current-tree inventory has no unknown caller or writer. R1 closes GAP-001, GAP-002, and GAP-003 with a shared typed authority boundary and disposable-PostgreSQL negative proofs. R2 closes GAP-004, GAP-005, GAP-006, GAP-007, GAP-008, and GAP-010 with SQL-scoped access, bounded deterministic batches/pages, target-only locks, structural loader guards, and a separately committed control plane. Live canary resumption remains prohibited pending R3–R5.
 
 ## Exact counts
 
@@ -86,7 +87,7 @@ Authority inferred from status/latest/ticker/worker alone remains flagged in the
 
 ### P0 correctness/authority
 
-No unresolved P0 was proven. This is not a canary approval: R0/R1 are committed and verified, but GAP-004 and GAP-005 remain reachable and block live work.
+No unresolved P0 was proven. This is not a canary approval: R0–R2 are committed and verified, but the required R3–R5 sequence remains incomplete.
 
 ### P1 production safety
 
@@ -122,58 +123,54 @@ No unresolved P0 was proven. This is not a canary approval: R0/R1 are committed 
 - Caller closure: six production call sites are structurally enumerated; all supply `authority=`. Worker stale/abandoned recovery supplies NORMAL authority; supervisor watchdog/loss/requeue derives NORMAL or CERTIFICATION authority from the validated supervisor session.
 - Evidence: missing/untyped authority tests, cancellation-precedence tests, structural caller guards, existing supervisor-isolation PostgreSQL tests, and a new PostgreSQL before/after proof for unrelated-session nonmutation plus authorized NORMAL transition.
 
-#### GAP-004 — CERI alert rebuild globally loads changes/snapshots/companies
+#### GAP-004 — CERI alert rebuild globally loads changes/snapshots/companies — **CLOSED**
 
 - Path IDs: EXEC-013/022, WRITE-043, READ-031, TX-20.
-- Source: `ceri.job_handlers._eligible_changes` -> `_load_rows(select(model))`.
+- Previous source: `ceri.job_handlers._eligible_changes` -> `_load_rows(select(model))`.
 - Reachability: `CERI_ALERT_REBUILD` after every CERI change job and via admin API.
 - Affected state: memory/DB load and `ceri_alert_events`; pipeline release waits for it.
-- Existing guard: payload filtering by IDs/run/company/ticker/since happens in Python; alert persistence has evidence guards.
-- Missing guard: SQL predicates/pagination derived from exact job authority and a bounded payload.
-- Tests: functional alert tests only; no query-shape/cardinality test.
-- Recommended phase: R2 bounded CERI downstream reads before any canary.
+- Closure: production `Session` reads derive SQL predicates from exact change IDs, run snapshot IDs, company IDs, ticker-company identity, and `changed_since`; deterministic `(created_at,id)` keyset batches use `ALERT_REBUILD_BATCH_SIZE=250`. Company reads use only batch company IDs, and cooldown history is constrained by ticker plus rule identity. The fixture-only dynamic loader rejects production sessions.
+- Semantics preserved: the alert service still owns eligibility, cooldown, evidence disposition, duplicate identity, and predecessor/current-rule behavior; only access shape changed.
+- Evidence: `test_r2_bounded_access_postgresql.py` seeds 1,022 changes, two alerts, and 255 companies; three predicated queries materialize only five exact-authority changes, their five companies, and one latest ticker/rule cooldown row. Focused alert/orchestration suites remain green.
 
-#### GAP-005 — Licensed-data purge materializes the global CERI corpus
+#### GAP-005 — Licensed-data purge materializes the global CERI corpus — **CLOSED**
 
 - Path IDs: WRITE-045/048, READ-033, TX-25.
-- Source: `CeriPurgeService._lifecycle_manifest`, `_load`, `_rows_with_source_ids`.
+- Previous source: `CeriPurgeService._lifecycle_manifest`, `_load`, `_rows_with_source_ids`.
 - Reachability: purge preview and durable execute API/job.
 - Affected state: source, estimates, earnings, guidance, revisions, derived/price features, scores, changes, alerts, purge audit.
-- Existing guard: explicit EODHD provider/license scope, preview manifest hash, confirmation token, immutable decision-evidence block.
-- Missing guard: provider/source-set SQL scoping, streaming/chunking, target-only locks, bounded manifest construction.
-- Tests: correctness tests, no production-cardinality/lock-scope proof.
-- Recommended phase: R2 purge query/transaction redesign.
+- Closure: one canonical provider/license/`purge_eligible` source predicate drives preview and execution. The manifest projects source identity only, derives dependent IDs with FK subqueries/JSONB `EXISTS`, batches ID fan-out at `LICENSE_PURGE_BATCH_SIZE=200`, and never projects raw bodies during preview. Execution reuses the manifest, locks only exact sorted candidate IDs, and applies deterministic batches inside one atomic legal transaction; the preview hash/confirmation/immutable-evidence rules are unchanged.
+- Evidence: the PostgreSQL R2 fixture seeds 251 16-KiB source payloads plus target/unrelated derivatives. Preview selects exactly one source, one snapshot, one change, and one alert; execution mutates exactly those four rows, preserves all unrelated rows, and materializes one large source body.
 
 ### P2 scalability/operability
 
-#### GAP-006 — Catalyst normalization performs a global revision read per changed event
+#### GAP-006 — Catalyst normalization performs a global revision read per changed event — **CLOSED**
 
 - Path: WRITE-037, READ-032, TX-09.
-- Source: `normalization_service.normalize` uses `_load(CeriCatalystEventRevision)` then filters in Python to compute next revision number.
-- Guard: event identity and current-row query; missing event-scoped aggregate/lock.
-- Tests: functional only. Phase R2.
+- Previous source: `normalization_service.normalize` loaded every `CeriCatalystEventRevision` and filtered in Python.
+- Closure: the event row is locked and the next number is computed by `MAX(revision_number) WHERE catalyst_event_id=:event`. Existing uniqueness/correction semantics remain authoritative.
+- Evidence: 253 seeded revisions; one predicated scalar query returns the next number for the target event without ORM revision materialization.
 
-#### GAP-007 — IB journal mutation and UI paths globally read/lock episode/link/candidate tables
+#### GAP-007 — IB journal mutation and UI paths globally read/lock episode/link/candidate tables — **CLOSED**
 
 - Path: WRITE-072, READ-013/014/018/019.
-- Source: `journal.exclude_execution_fill`, `rebuild_trade_episodes`, `journal_analytics`, `query_service.trade_journal/scanner_runs`.
-- Guard: target fill is locked first; missing target-only episode lock and pagination.
-- Tests: functional/resilience, no lock-cardinality proof. Phase R2.
+- Previous source: `journal.exclude_execution_fill`, `rebuild_trade_episodes`, `journal_analytics`, and `query_service.trade_journal/scanner_runs` read or locked whole tables.
+- Closure: fill exclusion locks only episodes whose JSON fill set contains the target; rebuild locks only input tickers; journal pages are capped and deterministically ordered with an `(opened_at,id)` anchor; links are restricted to page episode IDs; candidates are restricted to selected run IDs and capped at 500; analytics uses server-side aggregates/percentiles. Aggregate scan budgets remain GAP-011 and were not changed here.
+- Evidence: 600 episodes, 600 links, and 600 candidates prove a 100-row page (+ one lookahead), 100 page links, 500 candidates, and one target episode lock.
 
-#### GAP-008 — Generic CERI helpers permit unscoped dynamic model reads
+#### GAP-008 — Generic CERI helpers permit unscoped dynamic model reads — **CLOSED**
 
 - Path: READ-034..041.
-- Source: query/export/identity/backfill/alert/feature/capture/price-response `_load` helpers.
-- Guard: many callers add in-memory scope; missing scope object/SQL predicate requirement at helper signature.
-- Tests: no structural ban comparable to current `change_rebuild_service._scoped_scalars`. Phase R2/R3.
+- Previous source: query/export/identity/backfill/alert/feature/capture/price-response generic loaders could accept a predicate-free large CERI model.
+- Closure: production dynamic-model loading is rejected; export/purge helpers are fixture-only and reject `Session`; alert/normalization use named scoped queries; feature/capture/price-response statement helpers reject a large CERI entity without SQL criteria. The identity/company universe and rule registry remain explicitly classified schema-small; backfill's all-universe operation remains an explicit maintenance path.
+- Evidence: `test_r2_scoped_loader_guards.py` directly proves production rejection and scoped fixture compatibility; PostgreSQL query capture proves zero predicate-free R2 large-table reads.
 
-#### GAP-010 — CERI change progress writes share the long domain transaction
+#### GAP-010 — CERI change progress writes share the long domain transaction — **CLOSED**
 
 - Path: EXEC-013, TX-12, AUTO-003.
-- Source: `execute_change_detection_job.report_progress` calls `heartbeat_job/record_job_progress` on the same session without committing.
-- Guard: company chunk size 25; missing multi-connection visibility or a formally bounded worst-case chunk-time proof.
-- Risk: supervisor may observe stale progress and fence a live long chunk.
-- Tests: no two-connection progress visibility assertion. Phase R2.
+- Previous source: `execute_change_detection_job.report_progress` called heartbeat/progress on the long domain session.
+- Closure: the worker attaches a short-lived control-plane session callback for CERI change detection. Heartbeat, progress, lease extension, and cancellation observation commit independently; domain change rows remain in the semantic transaction. Early job-row locking was removed from the domain authority scope, while the final commit fence still locks and revalidates the execution token.
+- Evidence: the PostgreSQL test leaves a CERI company row uncommitted, commits progress/heartbeat through another connection, observes both plus cancellation externally, rolls the domain transaction back, then proves liveness remains and the company row is absent.
 
 #### GAP-011 — Aggregate/diagnostic scans have no retention/index budget
 
@@ -242,7 +239,7 @@ The old T14A audit was strong within its declared boundary: 187 Python business 
 11. top-down graph and bottom-up table inventory have no orphan;
 12. generated CI checks fail on a new table, job type, mutating route, executable entrypoint, autonomous trigger, or recovery mutator until it is classified.
 
-Criteria 1–11 are satisfied as an audit inventory. R1 implements executable drift guards for mutating HTTP registrations and production recovery/SEC-registration callers. Criterion 12 remains broader than R1 because table/job/writer/transition generation is assigned to R3. GAP-004 and GAP-005 still block canaries.
+Criteria 1–11 are satisfied as an audit inventory. R1 implements executable drift guards for mutating HTTP registrations and production recovery/SEC-registration callers; R2 adds production query-shape and transaction-separation guards. Criterion 12 remains broader because table/job/writer/transition generation is assigned to R3. Live canaries remain prohibited until the full R3–R5 sequence is complete.
 
 ## Remediation DAG status
 
@@ -258,7 +255,7 @@ R0 freeze and baseline
   |      - require authority in recovery primitives (GAP-003)
   |      - committed PostgreSQL negative/isolation matrix
   |
-  +--> R2 bounded reads and long-transaction safety [depends on R1 contracts]
+  +--> R2 bounded reads and long-transaction safety [COMPLETE]
   |      - CERI alert SQL scope/chunks (GAP-004)
   |      - purge set-based streaming/locked recheck (GAP-005)
   |      - catalyst revision event-scoped query (GAP-006)
@@ -284,4 +281,4 @@ R0 freeze and baseline
 
 ## Final conclusion
 
-The application now has a finite current-state map and a fail-closed R1 runtime mutation boundary. GAP-001, GAP-002, and GAP-003 are closed; GAP-004 and GAP-005 remain open. It is safe to begin R2, but not to repair job 43415 or start another canary.
+The application now has a finite current-state map, a fail-closed R1 runtime mutation boundary, and bounded R2 data-access/control-plane paths. GAP-001 through GAP-008 and GAP-010 are closed. Remaining counts are P1: **0**, P2: **1** (GAP-011, unchanged), and P3: **2**. It is safe to proceed to R3, but not to repair historical jobs or start another canary.

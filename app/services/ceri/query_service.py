@@ -3746,6 +3746,10 @@ def _snapshot_reproduction_failure_count(
 
 
 def _load(db: Session, model):
+    if isinstance(db, Session):
+        raise TypeError(
+            "predicate-free CERI model loading is fixture-only; production reads require SQL scope"
+        )
     collections = getattr(db, "collections", None)
     if isinstance(collections, dict):
         return list(collections.get(model, ()))

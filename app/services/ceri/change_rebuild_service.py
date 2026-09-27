@@ -239,7 +239,14 @@ class CeriChangeRebuildService:
             if identifiers:
                 bundle.load(model, select(model).where(model.id.in_(sorted(identifiers))))
         bundle.seal()
-        with db.no_autoflush, prefetched_source_scope(db, bundle):
+        # The semantic transaction is fenced again immediately before commit.
+        # Do not retain the background-job row lock during long company chunks;
+        # the detached control plane must be able to publish progress/cancel.
+        with db.no_autoflush, prefetched_source_scope(
+            db,
+            bundle,
+            retain_execution_ownership=False,
+        ):
             return self._rebuild(
                 db,
                 prepared,

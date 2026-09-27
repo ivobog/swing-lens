@@ -105,15 +105,15 @@ The executable source of truth is `app.security.http_mutation_route_registry`; `
 | WRITE-034 | `ceri_companies`, `ceri_company_aliases` | CERI identity resolver/company ensure/SEC identity repair | CERI ingest, batch setup, repair scripts | ticker/provider identity; TX-08 |
 | WRITE-035 | `ceri_ingestion_runs`, `ceri_source_records`, `ceri_provider_request_telemetry` | `source_record_service.start/finish_ingestion_run`, source upsert, provider telemetry writer | CERI provider handlers/API | provider/dataset/request/run; TX-08 |
 | WRITE-036 | `ceri_estimate_snapshots`, `ceri_earnings_actuals`, `ceri_guidance_events` | `normalization_service.normalize` and dataset-specific normalization | normalize handlers/backfill | source record/company/PIT cutoff; TX-09 |
-| WRITE-037 | `ceri_catalyst_events`, `ceri_catalyst_event_revisions`, `ceri_catalyst_sources` | `normalization_service` catalyst persistence | normalize handlers/backfill | source/company/event identity; TX-09 |
+| WRITE-037 | `ceri_catalyst_events`, `ceri_catalyst_event_revisions`, `ceri_catalyst_sources` | `normalization_service` catalyst persistence | normalize handlers/backfill | source/company/event identity; event row lock plus event-scoped revision `MAX`; TX-09 |
 | WRITE-038 | `ceri_processing_runs` | `processing_run_service.start/finish`; handler `_finish_processing_run` equivalents | all CERI jobs | job/type/run scope; TX-08..12 |
 | WRITE-039 | `ceri_feature_build_states`, `ceri_revision_features`, `ceri_derived_features`, `ceri_price_response_features` | CERI feature rebuild and price-response services | feature handlers/recalculate/backfill | run/company/cutoff/source pins; TX-10 |
 | WRITE-040 | `ceri_score_snapshots` | `capture_service.CeriRunCaptureService` | capture handler/pipeline | run/calculation/evidence/source bundle; TX-11 |
 | WRITE-041 | `ceri_change_events` | `change_detection_service.CeriChangeDetectionService` via `CeriChangeRebuildService.rebuild` | change job/direct service | run/company/session/cutoff/exact bundle; TX-12 |
 | WRITE-042 | `ceri_alert_rules` | CERI alert rule seed/config writer | alert initialization/admin | current-rules authority; TX-20 |
-| WRITE-043 | `ceri_alert_events` | `CeriAlertService.persist_alert_for_change` | alert rebuild handler | change/revision evidence; TX-20 |
+| WRITE-043 | `ceri_alert_events` | `CeriAlertService.persist_alert_for_change` | alert rebuild handler | exact change/run/company/ticker/time authority in 250-row keyset batches; ticker/rule cooldown scope; TX-20 |
 | WRITE-044 | `ceri_alert_events` | `CeriAlertService.acknowledge`, `dismiss` | direct local-admin API | row ID + local-admin + central `NORMAL_ONLY` capability; TX-20 |
-| WRITE-045 | `ceri_alert_events` plus CERI source/derived rows | `CeriPurgeService._apply_purge_lifecycle` | licensed-data purge API/job | provider/license/preview hash/confirmation; TX-25 |
+| WRITE-045 | `ceri_alert_events` plus CERI source/derived rows | `CeriPurgeService._apply_purge_lifecycle` | licensed-data purge API/job | provider/license/preview hash/confirmation; canonical ID manifest and exact 200-row locks; TX-25 |
 | WRITE-046 | `ceri_manual_reviews` and catalyst revision review field | `ceri_routes.review_ceri_event` | direct local-admin API | review target/human review context + central `NORMAL_ONLY` capability |
 | WRITE-047 | `ceri_controlled_replays` | `controlled_replay_service.replay` | replay CLI/service | replay manifest/cutoff/source set; caller transaction |
 | WRITE-048 | `ceri_purge_audits` | `CeriPurgeService.preview/execute` audit persistence | purge API/job | preview/confirmation/actor; TX-25 |
@@ -140,7 +140,7 @@ The executable source of truth is `app.security.http_mutation_route_registry`; `
 | WRITE-069 | `winner_similarity_links` | Winner similarity service | supported direct service/diagnostics | prediction/evidence/model identity |
 | WRITE-070 | `winner_training_eligibility_decisions`, `winner_training_outcome_replays` | pre-11 compatibility/training eligibility services | explicit compatibility CLI/service | retained prediction/outcome authority |
 | WRITE-071 | all 15 `ib_*` intelligence tables | IBMI orchestration/repository/flex/journal services | six IBMI queue APIs and direct exclude-fill API | request/run/contract/fill identities; handler transactions |
-| WRITE-072 | `ib_execution_fills`, `ib_trade_episodes`, `ib_trade_research_links` | `journal.exclude_execution_fill`, `rebuild_trade_episodes`, `match_episode_to_research` | direct API/services | fill/episode/research IDs; global rebuild reads |
+| WRITE-072 | `ib_execution_fills`, `ib_trade_episodes`, `ib_trade_research_links` | `journal.exclude_execution_fill`, `rebuild_trade_episodes`, `match_episode_to_research` | direct API/services | target fill/reachable episode or explicit input ticker/research IDs; target-only deterministic locks |
 | WRITE-073 | `engine_parameters` | none | none | intentionally read-only legacy table |
 
 ## Physical table index (all 120)
@@ -158,4 +158,4 @@ The comma-separated IDs mean the table has multiple independent writers and ther
 
 ## Bottom-up verdict
 
-All 120 mappings are accounted for: 119 mutable table families have at least one production writer and mapped entry chain; one (`engine_parameters`) is intentionally read-only. There are no unknown callers. R1 closes the authority findings on WRITE-007/008/009/044/046/051/058. Remaining findings are the explicitly deferred R2/R3 scalability and generated-registry work, including WRITE-072's journal read/lock cardinality.
+All 120 mappings are accounted for: 119 mutable table families have at least one production writer and mapped entry chain; one (`engine_parameters`) is intentionally read-only. There are no unknown callers. R1 closes the authority findings on WRITE-007/008/009/044/046/051/058; R2 closes the bounded-read/lock findings on WRITE-037/043/045/072 without changing writer ownership. Remaining work is the R3 generated-registry closure and R4 aggregate-operability budget.

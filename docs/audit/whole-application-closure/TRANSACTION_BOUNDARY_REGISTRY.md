@@ -17,7 +17,7 @@ At every `commit`, row/advisory locks end, database-trigger/event state becomes 
 | TX-09 | CERI normalization batch/job | source/normalized/revision locks | exact source row content, current revision under lock, cutoff | feature enqueue |
 | TX-10 | CERI feature batch/job | feature/build-state locks | company/run/cutoff and exact normalized source pins | finalizer/capture enqueue |
 | TX-11 | CERI capture | score/evidence locks | calculation identity, source bundle, run/session/cutoff | change enqueue |
-| TX-12 | CERI change detection (currently one handler transaction across company chunks) | locks held until terminal handler commit; chunk Python data retained | source-bundle event revalidation immediately before commit; job token/cancel | alert enqueue |
+| TX-12 | CERI change detection domain transaction plus independent per-chunk control-plane commits | domain locks held until terminal handler commit; heartbeat/progress/lease/cancel state commits independently | exact source-bundle event revalidation and final execution-token row lock before domain commit; detached control updates require the same token | alert enqueue |
 | TX-13 | child finalizer/continuation enqueue commits | child/pipeline/job locks; root/pipeline IDs retained | durable child terminal state, root causality, session marker, active continuation uniqueness | FULL_PIPELINE continuation |
 | TX-14 | preflight consume and decision-handoff freeze | plan/manifest locks | exact plan status/session and complete frozen evidence/config/cutoff | setup/lifecycle stages |
 | TX-15 | setup capture/lifecycle/alert transaction | signal/episode/evidence locks | handoff manifest, immutable evidence, original-context decision | Winner stage or maintenance terminalization |
@@ -30,7 +30,7 @@ At every `commit`, row/advisory locks end, database-trigger/event state becomes 
 | TX-22 | supervisor acquire/heartbeat/fence/reconcile/shutdown commit | supervisor/worker/job/pipeline-step locks | worker instance/process liveness and certification claim where applicable | RECOVERING requeue/restart |
 | TX-23 | worker stale/abandoned recovery and failure retry commit | job locks | lease expiry/worker identity/retry classification/cancel flag | later claim |
 | TX-24 | periodic evidence retention/admin cleanup commit | operational evidence/job-attempt locks | retention cutoff, terminal status, protected evidence refs | periodic loop |
-| TX-25 | licensed-data purge preview/execute transactions | broad CERI artifact locks | provider/license scope, preview manifest hash, confirmation token, immutable decision refs | rebuild required flag only |
+| TX-25 | licensed-data purge preview/execute transactions | only exact sorted purge-set rows locked in batches of 200; one atomic execution transaction | canonical provider/license/eligible source predicate, preview manifest hash, confirmation token, immutable decision refs, exact candidate IDs while locking | rebuild required flag only |
 
 ## Rollback paths
 
@@ -55,7 +55,11 @@ The FULL_PIPELINE heartbeat may use an independent control session so lease rene
 
 ### CERI company chunks
 
-The current CERI change implementation chunks data loading and progress reporting but intentionally does not commit each company chunk. This avoids partial change publication and keeps source-bundle validation atomic, at the cost of one potentially long transaction. Progress heartbeats written in the same transaction are not externally visible until commit, so supervisor timeout policy remains material.
+The CERI change implementation chunks data loading but intentionally does not commit semantic results per company chunk. This avoids partial change publication and keeps source-bundle validation atomic. The worker now supplies a detached control-plane callback: heartbeat, lease, progress, and cancellation use a short separate session and commit while the domain transaction remains open. The domain path no longer retains the background-job row lock during chunk work; the final domain fence reacquires that row and revalidates the token before commit. A control commit cannot publish domain rows, and a domain rollback cannot erase already committed liveness.
+
+### Licensed purge batches
+
+Preview and execution share one canonical ID manifest. Preview projects source identity and dependent IDs only. Execution locks exact sorted IDs in `LICENSE_PURGE_BATCH_SIZE=200` batches, flushes/expunges each batch to bound the identity map, and retains one whole-operation transaction because legal preview/hash parity and all-or-nothing invalidation remain mandatory. No batch commit or resume contract was introduced.
 
 ### Continuations
 
@@ -63,7 +67,7 @@ Every CERI, SEC, Winner, and pipeline continuation crosses a commit. Payload anc
 
 ## Transaction findings
 
-- GAP-003: recovery/session authority is optional at shared lower-level boundaries.
-- GAP-004: CERI alert rebuild loads globally before the terminal transaction and therefore creates memory/latency risk.
-- GAP-005: purge builds a broad in-memory manifest before mutation, increasing time between authority preview and locked application despite hash recheck.
-- GAP-010: the change job's progress heartbeat is same-transaction and may not advance the externally observed progress timestamp during a long chunk; chunk size currently bounds but does not prove timeout safety under production payload size.
+- GAP-003: **CLOSED in R1**; shared recovery boundaries require typed authority.
+- GAP-004: **CLOSED in R2**; alert authority is pushed into SQL and deterministic batches.
+- GAP-005: **CLOSED in R2**; purge uses an ID-only canonical manifest and target-only batched locks.
+- GAP-010: **CLOSED in R2**; the control plane commits independently while the semantic transaction remains atomic.

@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -60,6 +60,23 @@ from app.services.source_mutation_authority import (
 from app.services.us_market_calendar import us_market_session
 
 FEATURE_REBUILD_IMPL_VERSION = "batch-prefetch-pit-v2"
+_LARGE_CERI_TABLES = frozenset(
+    {
+        "ceri_source_records",
+        "ceri_estimate_snapshots",
+        "ceri_earnings_actuals",
+        "ceri_guidance_events",
+        "ceri_catalyst_events",
+        "ceri_catalyst_event_revisions",
+        "ceri_catalyst_sources",
+        "ceri_revision_features",
+        "ceri_derived_features",
+        "ceri_price_response_features",
+        "ceri_score_snapshots",
+        "ceri_change_events",
+        "ceri_alert_events",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -1553,6 +1570,12 @@ def _is_postgresql(db: Session) -> bool:
 
 
 def _scalars(db: Session | None, statement: Any) -> list[Any]:
+    if isinstance(db, Session):
+        descriptions = getattr(statement, "column_descriptions", ())
+        entity = descriptions[0].get("entity") if descriptions else None
+        table = getattr(entity, "__tablename__", None)
+        if table in _LARGE_CERI_TABLES and not getattr(statement, "_where_criteria", ()):
+            raise ValueError(f"CERI_FEATURE_UNSCOPED_READ_FORBIDDEN:{table}")
     scalars = getattr(db, "scalars", None)
     if not callable(scalars):
         return []
@@ -1735,9 +1758,32 @@ def _current_catalysts(
     events: list[CeriCatalystEvent] | None = None,
     revisions: list[CeriCatalystEventRevision] | None = None,
 ) -> list[tuple[CeriCatalystEvent, CeriCatalystEventRevision]]:
-    event_rows = events if events is not None else _scalars(db, select(CeriCatalystEvent))
+    event_rows = (
+        events
+        if events is not None
+        else _scalars(
+            db,
+            select(CeriCatalystEvent).where(CeriCatalystEvent.company_id == company_id),
+        )
+    )
+    event_ids = [event.id for event in event_rows]
     revision_rows = (
-        revisions if revisions is not None else _scalars(db, select(CeriCatalystEventRevision))
+        revisions
+        if revisions is not None
+        else (
+            _scalars(
+                db,
+                select(CeriCatalystEventRevision).where(
+                    CeriCatalystEventRevision.catalyst_event_id.in_(event_ids),
+                    or_(
+                        CeriCatalystEventRevision.effective_session.is_(None),
+                        CeriCatalystEventRevision.effective_session <= cutoff,
+                    ),
+                ),
+            )
+            if event_ids
+            else []
+        )
     )
     event_map = {event.id: event for event in event_rows if event.company_id == company_id}
     eligible = [
@@ -1776,7 +1822,23 @@ def _latest_price_event(
     current_catalysts: list[tuple[CeriCatalystEvent, CeriCatalystEventRevision]] | None = None,
 ) -> tuple[str, int | None, datetime | None, date | None] | None:
     candidates: list[tuple[str, int | None, datetime | None, date | None]] = []
-    earnings_rows = earnings if earnings is not None else _scalars(db, select(CeriEarningsActual))
+    earnings_rows = (
+        earnings
+        if earnings is not None
+        else _scalars(
+            db,
+            select(CeriEarningsActual).where(
+                CeriEarningsActual.company_id == company_id,
+                CeriEarningsActual.actual_value.is_not(None),
+                or_(
+                    CeriEarningsActual.event_kind.is_(None),
+                    CeriEarningsActual.event_kind == "REPORTED",
+                ),
+                CeriEarningsActual.report_session.is_not(None),
+                CeriEarningsActual.report_session <= cutoff,
+            ),
+        )
+    )
     reported = [
         row
         for row in earnings_rows
@@ -1789,7 +1851,21 @@ def _latest_price_event(
     if reported:
         row = max(reported, key=lambda item: (item.report_session, item.id or 0))
         candidates.append(("EARNINGS", row.id, row.report_at, row.report_session))
-    guidance_rows = guidance if guidance is not None else _scalars(db, select(CeriGuidanceEvent))
+    guidance_rows = (
+        guidance
+        if guidance is not None
+        else _scalars(
+            db,
+            select(CeriGuidanceEvent).where(
+                CeriGuidanceEvent.company_id == company_id,
+                CeriGuidanceEvent.accepted_for_scoring.is_(True),
+                or_(
+                    CeriGuidanceEvent.effective_session.is_(None),
+                    CeriGuidanceEvent.effective_session <= cutoff,
+                ),
+            ),
+        )
+    )
     accepted = [
         row
         for row in guidance_rows

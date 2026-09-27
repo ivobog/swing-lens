@@ -203,7 +203,6 @@ def validate_core_mutation_authority(
                     db.execute(
                         select(BackgroundJob.related_run_id, BackgroundJob.payload_json)
                         .where(BackgroundJob.id == context.execution.job_id)
-                        .with_for_update()
                     )
                     .one()
                     ._mapping

@@ -90,14 +90,25 @@ class CeriBackfillService:
             )
         )
         if not tickers and request.provider == "eodhd":
-            tickers = tuple(
-                company.ticker.upper()
-                for company in sorted(
-                    _load(db, CeriCompany),
-                    key=lambda company: (company.ticker.upper(), company.id or 0),
+            if isinstance(db, Session):
+                tickers = tuple(
+                    str(row.ticker).upper()
+                    for row in db.execute(
+                        select(CeriCompany.id, CeriCompany.ticker)
+                        .where(CeriCompany.ticker.is_not(None))
+                        .order_by(CeriCompany.ticker, CeriCompany.id)
+                        .execution_options(yield_per=self.config.backfill.company_batch_size)
+                    )
                 )
-                if company.ticker
-            )
+            else:
+                tickers = tuple(
+                    company.ticker.upper()
+                    for company in sorted(
+                        _fixture_companies(db),
+                        key=lambda company: (company.ticker.upper(), company.id or 0),
+                    )
+                    if company.ticker
+                )
         authority = request.semantic_authority
         processing_request_key = self.request_key(request)
         if isinstance(db, Session) and authority is None:
@@ -296,9 +307,11 @@ class CeriBackfillService:
         )
 
 
-def _load(db: Session, model: Any) -> list[Any]:
+def _fixture_companies(db: Session) -> list[CeriCompany]:
+    if isinstance(db, Session):
+        raise TypeError("fixture-only company loading cannot run against production")
     scalars = getattr(db, "scalars", None)
     if not callable(scalars):
         return []
-    result = scalars(select(model))
+    result = scalars(select(CeriCompany))
     return list(result.all() if hasattr(result, "all") else result)

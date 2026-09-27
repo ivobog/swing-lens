@@ -43,6 +43,7 @@ from app.services.domain_mutation import (
 from app.services.domain_write_fence import (
     DomainWriteOwnership,
     current_domain_write_ownership,
+    deferred_execution_ownership_lock,
     fence_domain_commits,
     retained_execution_ownership_scope,
 )
@@ -326,7 +327,7 @@ class PrefetchedSourceBodies:
 
 
 @contextmanager
-def prefetched_source_scope(db, bundle):
+def prefetched_source_scope(db, bundle, *, retain_execution_ownership: bool = True):
     if bundle is None or not isinstance(db, Session):
         yield
         return
@@ -337,7 +338,12 @@ def prefetched_source_scope(db, bundle):
         bundle.refresh()
         token = _prefetched_source_bodies.set(bundle)
         try:
-            with retained_execution_ownership_scope(db):
+            ownership_scope = (
+                retained_execution_ownership_scope(db)
+                if retain_execution_ownership
+                else deferred_execution_ownership_lock()
+            )
+            with ownership_scope:
                 yield
         finally:
             _prefetched_source_bodies.reset(token)

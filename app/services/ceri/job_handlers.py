@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -69,6 +69,11 @@ CERI_CHANGE_DETECTION = "CERI_CHANGE_DETECTION"
 CERI_BACKFILL = "CERI_BACKFILL"
 CERI_ALERT_REBUILD = "CERI_ALERT_REBUILD"
 CERI_PURGE_LICENSED_DATA = "CERI_PURGE_LICENSED_DATA"
+
+# Alert work is intentionally bounded below the PostgreSQL parameter budget and
+# ordered by the immutable (created_at, id) cursor.  The result is invariant to
+# this value; it controls only how much ORM state can be resident at once.
+ALERT_REBUILD_BATCH_SIZE = 250
 
 CeriJobHandler = Callable[[Session, BackgroundJob], dict[str, Any] | None]
 
@@ -574,8 +579,11 @@ def execute_change_detection_job(
     with job_phase("change_calculation_and_persistence"):
         if isinstance(db, Session):
             execution_token = str(job.execution_token or "")
+            control_plane = getattr(job, "_control_plane_progress", None)
 
             def should_cancel() -> bool:
+                if callable(control_plane):
+                    return bool(control_plane())
                 heartbeat_job(db, job, execution_token=execution_token)
                 return is_cancel_requested(db, job.id)
 
@@ -584,6 +592,17 @@ def execute_change_detection_job(
                 total: int,
                 company_ids: tuple[int, ...],
             ) -> None:
+                if callable(control_plane):
+                    control_plane(
+                        stage="CERI_CHANGE_DETECTION",
+                        current_item=f"companies:{company_ids[0]}-{company_ids[-1]}",
+                        last_completed_item=str(company_ids[-1]),
+                        processed=processed,
+                        total=total,
+                        checkpoint_version="ceri-change-company-chunks-v1",
+                        only_if_advanced=True,
+                    )
+                    return
                 heartbeat_job(db, job, execution_token=execution_token)
                 record_job_progress(
                     db,
@@ -710,35 +729,47 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         }
         _release_pipeline_after_ceri(db, job)
         return values
-    changes = _eligible_changes(db, payload)
-    ticker_by_company = {
-        company.id: company.ticker
-        for company in _load_rows(db, CeriCompany)
-        if company.id in {change.company_id for change in changes}
-    }
     alerts_enabled = parse_explicit_bool(payload.get("alerts_enabled"), default=ceri_flags().alerts)
     from app.services.configuration_delivery import current_delivery, delivered_configuration
 
     if current_delivery() is not None:
         alerts_enabled = delivered_configuration("decision.alerts.ceri").values["enabled"]
-    result = CeriAlertService(alerts_enabled=bool(alerts_enabled)).rebuild_alerts(
-        db,
-        changes=changes,
-        ticker_by_company=ticker_by_company,
-    )
+    service = CeriAlertService(alerts_enabled=bool(alerts_enabled))
+    alert_count = duplicate_count = skipped_count = eligible_change_count = 0
+    for changes in _eligible_change_batches(db, payload):
+        company_ids = sorted({int(change.company_id) for change in changes})
+        ticker_by_company = {
+            int(company.id): company.ticker
+            for company in db.scalars(
+                select(CeriCompany).where(CeriCompany.id.in_(company_ids))
+            )
+        } if isinstance(db, Session) else {
+            company.id: company.ticker
+            for company in _load_rows(db, CeriCompany)
+            if company.id in set(company_ids)
+        }
+        batch_result = service.rebuild_alerts(
+            db,
+            changes=changes,
+            ticker_by_company=ticker_by_company,
+        )
+        eligible_change_count += len(changes)
+        alert_count += batch_result.alerts
+        duplicate_count += batch_result.duplicates
+        skipped_count += batch_result.skipped
     CeriProcessingRunService().finish(
         db,
         processing,
         status="COMPLETED",
         counts={
-            "alerts": result.alerts,
+            "alerts": alert_count,
             "warnings": 0,
             "failed": 0,
         },
         checkpoint={
-            "duplicates": result.duplicates,
-            "skipped": result.skipped,
-            "eligible_change_count": len(changes),
+            "duplicates": duplicate_count,
+            "skipped": skipped_count,
+            "eligible_change_count": eligible_change_count,
             "alerts_enabled": bool(alerts_enabled),
         },
     )
@@ -747,7 +778,9 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         "processing_run_id": processing.id,
         "status": processing.status,
         "alerts_status": "REBUILT" if alerts_enabled else "SKIPPED_DISABLED",
-        **result.as_dict(),
+        "alerts": alert_count,
+        "duplicates": duplicate_count,
+        "skipped": skipped_count,
     }
     _release_pipeline_after_ceri(db, job)
     return values
@@ -909,7 +942,74 @@ def _processing_run(
     )
 
 
-def _eligible_changes(db: Session, payload: dict[str, Any]) -> list[CeriChangeEvent]:
+def _eligible_changes(
+    db: Session,
+    payload: dict[str, Any],
+    *,
+    after: tuple[datetime, int] | None = None,
+    limit: int | None = None,
+) -> list[CeriChangeEvent]:
+    if isinstance(db, Session):
+        statement = select(CeriChangeEvent)
+        ids = sorted(
+            {
+                int(value)
+                for value in payload.get("change_ids", [])
+                if str(value).isdigit()
+            }
+        )
+        has_authoritative_scope = bool(ids)
+        if ids:
+            statement = statement.where(CeriChangeEvent.id.in_(ids))
+        else:
+            run_id = _optional_int(payload.get("run_id"))
+            if run_id is not None:
+                has_authoritative_scope = True
+                run_snapshot_ids = select(CeriScoreSnapshot.id).where(
+                    CeriScoreSnapshot.run_id == run_id
+                )
+                statement = statement.where(
+                    or_(
+                        CeriChangeEvent.from_snapshot_id.in_(run_snapshot_ids),
+                        CeriChangeEvent.to_snapshot_id.in_(run_snapshot_ids),
+                    )
+                )
+        company_ids = set(_optional_int_tuple(payload.get("company_ids")) or ())
+        if company_ids:
+            has_authoritative_scope = True
+            statement = statement.where(CeriChangeEvent.company_id.in_(sorted(company_ids)))
+        ticker = str(payload.get("ticker") or "").strip()
+        if ticker:
+            has_authoritative_scope = True
+            statement = statement.where(
+                CeriChangeEvent.company_id.in_(
+                    select(CeriCompany.id).where(CeriCompany.ticker == ticker.upper())
+                )
+            )
+        since = _optional_datetime(payload.get("changed_since"))
+        if since is not None:
+            has_authoritative_scope = True
+            statement = statement.where(CeriChangeEvent.created_at >= since)
+        if not has_authoritative_scope:
+            raise ValueError("CERI_ALERT_REBUILD_SCOPE_REQUIRED")
+        if after is not None:
+            after_created, after_id = after
+            statement = statement.where(
+                or_(
+                    CeriChangeEvent.created_at > after_created,
+                    and_(
+                        CeriChangeEvent.created_at == after_created,
+                        CeriChangeEvent.id > after_id,
+                    ),
+                )
+            )
+        statement = statement.order_by(CeriChangeEvent.created_at, CeriChangeEvent.id)
+        if limit is not None:
+            statement = statement.limit(limit)
+        return list(db.scalars(statement))
+
+    # Lightweight unit-test adapters do not execute SQL expressions.  Preserve
+    # their fixture behavior while the production path above remains SQL-scoped.
     changes = _load_rows(db, CeriChangeEvent)
     ids = {int(value) for value in payload.get("change_ids", []) if str(value).isdigit()}
     if ids:
@@ -942,7 +1042,42 @@ def _eligible_changes(db: Session, payload: dict[str, Any]) -> list[CeriChangeEv
     return sorted(changes, key=lambda change: (change.created_at, change.id or 0))
 
 
+def _eligible_change_batches(
+    db: Session,
+    payload: dict[str, Any],
+    *,
+    batch_size: int = ALERT_REBUILD_BATCH_SIZE,
+):
+    if batch_size <= 0:
+        raise ValueError("alert rebuild batch_size must be positive")
+    if not isinstance(db, Session):
+        rows = _eligible_changes(db, payload)
+        for start in range(0, len(rows), batch_size):
+            yield rows[start : start + batch_size]
+        return
+    ids = sorted({int(value) for value in payload.get("change_ids", []) if str(value).isdigit()})
+    if ids:
+        for start in range(0, len(ids), batch_size):
+            scoped_payload = {**payload, "change_ids": ids[start : start + batch_size]}
+            rows = _eligible_changes(db, scoped_payload)
+            if rows:
+                yield rows
+        return
+    cursor: tuple[datetime, int] | None = None
+    while True:
+        rows = _eligible_changes(db, payload, after=cursor, limit=batch_size)
+        if not rows:
+            return
+        yield rows
+        tail = rows[-1]
+        cursor = (tail.created_at, int(tail.id))
+
+
 def _load_rows(db: Session, model: Any) -> list[Any]:
+    if isinstance(db, Session):
+        raise TypeError(
+            "predicate-free CERI model loading is fixture-only; production reads require SQL scope"
+        )
     scalars = getattr(db, "scalars", None)
     if not callable(scalars):
         return []

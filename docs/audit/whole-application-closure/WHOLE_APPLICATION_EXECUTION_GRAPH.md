@@ -63,7 +63,7 @@ EXEC-029 migration/bootstrap execution (external operator authority)
 | EXEC-010 | combined score service | synchronous stage | TX-05 | C,E,P | Fail blocks/terminates stage. |
 | EXEC-011 | ranking/profile service | synchronous stage | TX-05 | C,E,P | Persists profile-specific ranks; pipeline cancellation applies. |
 | EXEC-012 | `SectorRotationRepository.save_snapshot` | synchronous stage | TX-05 | C,E,P | Snapshot plus rows in same caller transaction. |
-| EXEC-013 | `_schedule_ceri_provider_ingest`, `schedule_ceri_batched_workflow`, CERI handlers | asynchronous DAG | TX-08..12 | P,C,E,S inherited from parent | Partial status, child coalescing, cancellation between batches, finalizer roll-up. |
+| EXEC-013 | `_schedule_ceri_provider_ingest`, `schedule_ceri_batched_workflow`, CERI handlers | asynchronous DAG | TX-08..12 | P,C,E,S inherited from parent | Partial status, child coalescing, cancellation between batches, finalizer roll-up; CERI change domain work is atomic while progress/heartbeat/cancel use a detached control transaction. |
 | EXEC-014 | `enqueue_pipeline_after_ceri_completion` / `_release_pipeline_after_ceri` | finalizer/callback | TX-13 | P, root correlation, S inherited | One continuation; CERI failure can roll up PARTIAL/FAILED. |
 | EXEC-015 | transition preflight and handoff manifest service | synchronous stage | TX-14 | P,C,E, frozen cutoff/manifest | Manifest is terminal input to downstream calculation. |
 | EXEC-016 | setup signal capture/repository | synchronous stage | TX-05 | C,E,P,handoff | Current selection and immutable selection event are written together. |
@@ -72,8 +72,8 @@ EXEC-029 migration/bootstrap execution (external operator authority)
 | EXEC-019 | `_mark_pipeline_finished/failed/blocked/cancelled`, worker terminalizers | pipeline/worker | TX-17 | P,W | Cancels unfinished steps; background job terminal state committed afterward. |
 | EXEC-020 | Winner maturation/revision/backfill/rescore handlers | scheduler, API, continuation | TX-18 | prediction/outcome authority, G | Can create bounded continuation chain; coalesced job keys. |
 | EXEC-021 | cohort planner/generation/materialization/publication | API or maturation continuation | TX-19 | evidence watermark, G/publication generation | BUILDING -> READY -> PUBLISHED; supersedes prior generation. |
-| EXEC-022 | CERI/setup alerts, Winner publication/read models | pipeline jobs or admin APIs | TX-20 | source change/evidence IDs; G | Ack/dismiss are direct synchronous mutations. |
-| EXEC-023 | 52 mutating route registrations | external local-admin/browser | route-specific | CSRF/local-admin plus domain-specific authority | Queue writes pass enqueue gate; direct writes do not share one certification-mode gate (GAP-001). |
+| EXEC-022 | CERI/setup alerts, Winner publication/read models | pipeline jobs or admin APIs | TX-20 | exact change/run/company/ticker/time authority; source evidence IDs; G | CERI alerts keyset-batch changes and scope cooldown history; ack/dismiss remain direct synchronous mutations. |
+| EXEC-023 | 52 mutating route registrations | external local-admin/browser | route-specific | central runtime mutation capability plus domain authority | R1 classifies all writes and fails closed in certification. |
 | EXEC-024 | 49 mutation-indicator CLI scripts | operator/process | script-specific | manifest/flags/database safety varies | Production ops scripts and disposable-only historical QA are separate chains. |
 | EXEC-025 | `background_worker.run_worker/run_worker_once` | process startup/loop | TX-03/04/21 | W, process role; S claim in certification | Registers worker, registers SEC processor, NORMAL-only retention/recovery/scheduler. |
 | EXEC-026 | `worker_supervisor.main/_supervise_once/_shutdown_owned_worker` | independent process loop | TX-22 | supervisor lease, worker identity; S passed in certification | Watchdog/death/memory/shutdown fence and requeue. |
@@ -116,10 +116,10 @@ Every registered type maps to creator/handler/recovery/cancellation/authority. A
 | `CERI_REBUILD_FEATURES`, `CERI_FEATURE_BATCH` | normalize/API | feature handlers | run/company/cutoff; enqueue finalizer/capture |
 | `CERI_RUN_FINALIZE` | batched feature workflow | run finalizer | root/run completeness; enqueue capture |
 | `CERI_CAPTURE_RUN` | pipeline/finalizer/API | capture handler | run/calculation/evidence identity; enqueue change |
-| `CERI_CHANGE_DETECTION` | capture/API | change handler | run/company/session/cutoff; enqueue alert |
-| `CERI_ALERT_REBUILD` | change handler/API | alert handler | change IDs/run/ticker; releases pipeline |
+| `CERI_CHANGE_DETECTION` | capture/API | change handler | run/company/session/cutoff; detached token-fenced progress/cancel; atomic domain commit; enqueue alert |
+| `CERI_ALERT_REBUILD` | change handler/API | alert handler | exact change IDs or run/company/ticker/time SQL scope; 250-row keyset batches; releases pipeline |
 | `CERI_BACKFILL` | CERI backfill API | backfill handler | explicit request scope |
-| `CERI_PURGE_LICENSED_DATA` | purge preview/execute API | purge handler | provider/license/confirmation manifest |
+| `CERI_PURGE_LICENSED_DATA` | purge preview/execute API | purge handler | provider/license/confirmation canonical ID manifest; exact 200-row locks in one atomic transaction |
 | `IB_SCANNER_RUN` | IBMI API | scanner handler | request/run identity |
 | `IB_FLEX_IMPORT` | IBMI API | flex handler | source report identity |
 | `IB_HISTOGRAM_FETCH` | IBMI API | histogram handler | contract/request identity |
@@ -143,4 +143,4 @@ Every registered type maps to creator/handler/recovery/cancellation/authority. A
 
 ## Reconciliation result
 
-Top-down nodes reach every one of the 119 mutable SQLAlchemy table families. `engine_parameters` is the single intentional read-only/legacy mapping. The apparent static orphan `sector_rotation_rows` resolves interprocedurally through `SectorRotationRepository.save_snapshot -> _to_row_model -> add_all`. The five tables added after the T14A census are reached through `work_scope_identity` (four) and `technical_score_service` (one). No unknown production writer caller remains in the current tree, but the authority and safety findings in the gap report prevent a closure PASS.
+Top-down nodes reach every one of the 119 mutable SQLAlchemy table families. `engine_parameters` is the single intentional read-only/legacy mapping. The apparent static orphan `sector_rotation_rows` resolves interprocedurally through `SectorRotationRepository.save_snapshot -> _to_row_model -> add_all`. The five tables added after the T14A census are reached through `work_scope_identity` (four) and `technical_score_service` (one). No unknown production writer caller remains. R1 authority and R2 bounded-access inventories reconcile; R3 generated drift enforcement and R4 aggregate budgets remain, so this is not a live-canary approval.

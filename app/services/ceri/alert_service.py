@@ -5,7 +5,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
@@ -22,6 +22,8 @@ from app.services.ceri.evidence_eligibility import EXCLUDED, effective_dispositi
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.configuration_delivery import anchored_decision_calculator
 from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
+
+ALERT_COOLDOWN_LATEST_PER_RULE = 1
 
 
 @dataclass(frozen=True)
@@ -441,7 +443,9 @@ class CeriAlertService:
 
         if current_delivery() is None:
             self.effective_configuration = resolve_ceri_decision_configuration(
-                self.config, enabled=self.alerts_enabled, rules=tuple(_load(db, CeriAlertRule))
+                self.config,
+                enabled=self.alerts_enabled,
+                rules=tuple(_configured_rules(db)),
             )
         self._rule_values = {
             row["rule_id"]: row for row in self.effective_configuration.values["rules"]
@@ -460,7 +464,7 @@ class CeriAlertService:
             # Material canonical event revisions carry their own deterministic
             # identity and must not be swallowed by a ticker-wide cooldown.
             return False
-        alerts = _load(db, CeriAlertEvent)
+        alerts = _cooldown_alerts(db, rule=rule, ticker=ticker)
         for alert in alerts:
             historical_rule = (alert.evidence_json or {}).get("alert_rule")
             same_rule = (
@@ -561,12 +565,53 @@ def _get_snapshot(db: Session, snapshot_id: int) -> CeriScoreSnapshot | None:
     return None
 
 
-def _load(db: Session, model):
+def _configured_rules(db: Session) -> list[CeriAlertRule]:
     scalars = getattr(db, "scalars", None)
     if not callable(scalars):
         return []
-    result = scalars(select(model))
+    result = scalars(select(CeriAlertRule).order_by(CeriAlertRule.rule_id))
     return list(result.all() if hasattr(result, "all") else result)
+
+
+def _cooldown_alerts(
+    db: Session,
+    *,
+    rule: CeriAlertRule,
+    ticker: str,
+) -> list[CeriAlertEvent]:
+    scalars = getattr(db, "scalars", None)
+    if not callable(scalars):
+        return []
+    if not isinstance(db, Session):
+        collections = getattr(db, "collections", {})
+        return [
+            row
+            for row in collections.get(CeriAlertEvent, ())
+            if row.ticker.upper() == ticker.upper()
+        ]
+    historical_rule = CeriAlertEvent.evidence_json["alert_rule"].as_string()
+    statement = (
+        select(CeriAlertEvent)
+        .where(CeriAlertEvent.ticker == ticker.upper())
+        .where(
+            or_(
+                historical_rule == rule.rule_id,
+                and_(historical_rule.is_(None), CeriAlertEvent.alert_rule_id == rule.id),
+            )
+        )
+        .order_by(
+            CeriAlertEvent.evidence_json["native_alert_proof"]["operation_time"][
+                "session"
+            ]
+            .as_string()
+            .desc()
+            .nulls_last(),
+            CeriAlertEvent.created_at.desc(),
+            CeriAlertEvent.id.desc(),
+        )
+        .limit(ALERT_COOLDOWN_LATEST_PER_RULE)
+    )
+    return list(db.scalars(statement))
 
 
 def _trading_sessions_between(start, end, sessions: CeriEffectiveSessionService) -> int:

@@ -1872,7 +1872,32 @@ def _maybe_scalar(db: Session, statement):
     return None
 
 
+_LARGE_CERI_TABLES = frozenset(
+    {
+        "ceri_source_records",
+        "ceri_estimate_snapshots",
+        "ceri_earnings_actuals",
+        "ceri_guidance_events",
+        "ceri_catalyst_events",
+        "ceri_catalyst_event_revisions",
+        "ceri_catalyst_sources",
+        "ceri_revision_features",
+        "ceri_derived_features",
+        "ceri_price_response_features",
+        "ceri_score_snapshots",
+        "ceri_change_events",
+        "ceri_alert_events",
+    }
+)
+
+
 def _scalars(db: Session, statement):
+    if isinstance(db, Session):
+        descriptions = getattr(statement, "column_descriptions", ())
+        entity = descriptions[0].get("entity") if descriptions else None
+        table = getattr(entity, "__tablename__", None)
+        if table in _LARGE_CERI_TABLES and not getattr(statement, "_where_criteria", ()):
+            raise ValueError(f"CERI_CAPTURE_UNSCOPED_READ_FORBIDDEN:{table}")
     scalars = getattr(db, "scalars", None)
     if not callable(scalars):
         return []

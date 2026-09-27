@@ -187,8 +187,16 @@ def histogram_api(ticker: str, db: DbSession) -> dict:
 def trade_journal_api(
     db: DbSession,
     group_by: Annotated[str, Query()] = "setup_family",
+    page_size: Annotated[int, Query(ge=1, le=500)] = 100,
+    before_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> dict:
-    return trade_journal(db, group_by=group_by, include_account=False)
+    return trade_journal(
+        db,
+        group_by=group_by,
+        include_account=False,
+        page_size=page_size,
+        before_id=before_id,
+    )
 
 
 @router.get("/api/ib-intelligence/operations")
