@@ -11,31 +11,31 @@ The audit distinguishes row payload size from scan cost. “Schema-bounded” me
 | ID | File:function | Read | Classification | Pipeline reach / risk |
 | --- | --- | --- | --- | --- |
 | READ-001 | `ceri_routes._admit_ceri_job_authority` | all `CeriCompany.ticker` | schema-bounded universe | mutating CERI APIs; linear ticker universe |
-| READ-002 | `background_performance_baseline._technical_artifact_report` | grouped artifact status counts | unbounded scan, small result | diagnostics only; index/scan cost |
-| READ-003 | same | grouped shadow validation sums | unbounded scan, small result | diagnostics only |
+| READ-002 | `background_performance_baseline._technical_artifact_report` | grouped artifact status counts | **R4 certified current-state aggregate** | diagnostics; entire online cache, 250k-row/750-ms budget |
+| READ-003 | same | grouped shadow validation sums | **R4 certified current-state aggregate** | diagnostics; entire online cache, 250k-row/750-ms budget |
 | READ-004 | `configuration_delivery.resolve_pipeline_configurations` | all `CeriAlertRule` | harmless small rules | pipeline config |
 | READ-005 | `pipeline_executor._schedule_ceri_provider_ingest` | all `CeriCompany` | potentially unbounded | main pipeline; unnecessary ORM payload if run rows define scope |
 | READ-006 | `readiness_service._ib_workload_required` | `EXISTS` scalar | harmless/false positive | readiness; bounded by EXISTS semantics |
 | READ-007 | `ceri.backlog_cleanup_service.inspect_legacy_ceri_backlog` | all `UploadRun.id` | potentially unbounded | maintenance; historical upload count |
 | READ-008 | `ceri.batched_workflow._ensure_ceri_companies` | all `CeriCompany` | schema-bounded universe | CERI pipeline setup |
 | READ-009 | `ceri.query_service._database_freshness_records` | all company tickers | schema-bounded universe | diagnostics/UI |
-| READ-010 | same | grouped ingestion provider/dataset | unbounded scan, small result | diagnostics/UI |
+| READ-010 | same | grouped ingestion provider/dataset | **R4 certified whole-history aggregate** | diagnostics/UI; one-million-row/one-second budget |
 | READ-011 | `ceri.query_service._grouped_counts` | generic grouped count | unbounded scan, small result | diagnostics/UI |
-| READ-012 | `ceri.query_service._provider_cost_summary` | telemetry aggregates | production-unbounded scan | diagnostics; telemetry growth |
+| READ-012 | `ceri.query_service._provider_cost_summary` | telemetry aggregates | **R4 certified whole-history aggregate** | diagnostics; five-million-row/two-second online ledger budget |
 | READ-013 | `ib_market_intelligence.journal.exclude_execution_fill` | episodes containing exact fill ID `FOR UPDATE` | **R2 closed: target-scoped** | direct mutation API; locks only reachable episodes |
 | READ-014 | `ib_market_intelligence.journal.rebuild_trade_episodes` | episodes for exact input ticker set | **R2 closed: authority-scoped** | durable/direct rebuild; deterministic target reconciliation |
-| READ-015 | `ib_market_intelligence.journal.journal_analytics` | server-side grouped aggregates/percentiles | aggregate scan, small result | UI/analytics; scan budget deferred unchanged to GAP-011 |
+| READ-015 | `ib_market_intelligence.journal.journal_analytics` | server-side grouped aggregates/percentiles | R2 server-side analytics path | UI/analytics; not part of the eight-family deferred R4 census |
 | READ-016 | `ib_market_intelligence.query_service.overview` | ordered `IBScannerRun` scalar | unbounded sort, one result | UI; add LIMIT for plan clarity |
 | READ-017 | same | ordered `IBFlexImportRun` scalar | unbounded sort, one result | UI |
 | READ-018 | `ib_market_intelligence.query_service.trade_journal` | links for one bounded episode page | **R2 closed: paginated/scoped** | UI page uses stable `(opened_at,id)` cursor |
 | READ-019 | `ib_market_intelligence.query_service.scanner_runs` | candidates for bounded selected run IDs | **R2 closed: bounded** | UI candidate cap 500 |
 | READ-020 | `setup_lifecycle.alert_service.seed_builtin_rules` | all rule IDs | harmless small rules | alert service startup-on-use |
 | READ-021 | `setup_lifecycle.alert_service._rules` | all rule IDs | harmless small rules | pipeline alert calculation |
-| READ-022 | `setup_lifecycle.query_service._alerts_summary` | grouped status count | unbounded scan, small result | UI/ops |
-| READ-023 | same | grouped severity count | unbounded scan, small result | UI/ops |
+| READ-022 | `setup_lifecycle.query_service._alerts_summary` | grouped status count | **R4 certified current-state aggregate** | filtered UI/ops projection; one-million-row/one-second budget |
+| READ-023 | same | grouped severity count | **R4 certified current-state aggregate** | filtered UI/ops projection; one-million-row/one-second budget |
 | READ-024 | `winner_probability.api_service.list_models` | all model versions | schema-small but growing | API; should paginate |
-| READ-025 | `winner_probability.cohort_generation_service.current_material_watermark` | aggregate maxima | unbounded aggregate, one row | autonomous cohort planning |
-| READ-026 | `winner_probability.operations_service.status` | grouped obligations | unbounded scan, small result | operations UI |
+| READ-025 | `winner_probability.cohort_generation_service.current_material_watermark` | newest scoped evidence IDs | **R4 certified current-state aggregate** | autonomous cohort planning; index-limit/no-seq-scan/100-row budget |
+| READ-026 | `winner_probability.operations_service.status` | grouped obligations | **R4 certified current-state aggregate** | current operations ledger; one-million-row/one-second budget |
 | READ-027 | `winner_probability.temporal_eligibility.load_current_temporal_decisions` | all latest decisions | potentially large payload | training/cohort services |
 | READ-028 | `ceri.sec.processor_capability.evaluate_sec_processor_capability` | all releases | harmless small registry | worker/startup/readiness |
 | READ-029 | `ceri.sec.processor_lifecycle.lifecycle_state` | all releases | harmless small registry | worker startup/readiness |
@@ -84,13 +84,13 @@ The original 41-family inventory remains the stable census; R2 changed classific
 | Risk family | Before | After | Retained/deferred |
 | --- | ---: | ---: | --- |
 | Predicate-free/potentially unscoped large CERI production read families in READ-031..041 | 10 | 0 | READ-036 company/alias identity is schema-small; explicit all-universe maintenance is retained without a dynamic large-model loader |
-| High-risk large-payload read families | 7 | 0 | server-side aggregate scan cost remains GAP-011, without large ORM materialization |
-| Global IB journal payload reads | 3 | 0 | journal aggregates remain server-side and GAP-011 owns plan budgets |
+| High-risk large-payload read families | 7 | 0 | retained aggregates remain server-side; the eight R4 families have explicit plan budgets |
+| Global IB journal payload reads | 3 | 0 | journal reads remain server-side; no R4 regression to payload materialization |
 | Global IB journal lock paths | 2 | 0 | exact fill-reachable or input-ticker rows only |
 | Production-capable unsafe generic CERI loader families | 10 | 0 | fixture-only adapters remain and explicitly reject `Session` |
 
-PostgreSQL regression capture observed zero predicate-free reads across the alert, purge, catalyst, and IB R2 families. The retained READ-002/003/010/012/022/023/025/026 aggregate scans are deliberately unchanged by this task and remain GAP-011.
+PostgreSQL regression capture observed zero predicate-free reads across the alert, purge, catalyst, and IB R2 families. R4 retains READ-002/003/010/012/022/023/025/026 as server-side small-result families, certifies their semantic scope and budgets, and changes only READ-025 from full matching-set `MAX` aggregation to equivalent descending index-limit lookups.
 
 ## Verdict
 
-R2 closes every high-risk payload/materialization family identified for GAP-004 through GAP-008. The remaining unbounded reads are classified schema-universe, explicit maintenance, or small-result aggregate scans; the aggregate/index/retention budget is still GAP-011 and was not altered.
+R2 closes every high-risk payload/materialization family identified for GAP-004 through GAP-008. R4 closes GAP-011 for the eight registered aggregates with production cardinality evidence, retention decisions, registry budgets, and targeted PostgreSQL plan regression coverage. No deferred R4 aggregate remains.

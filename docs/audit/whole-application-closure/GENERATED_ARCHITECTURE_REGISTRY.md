@@ -15,7 +15,8 @@ reviewed registry change. CI uses `--check` and never rewrites files.
 | Autonomous triggers | 17 |
 | Material transaction families | 25 |
 | High-risk tables | 71 |
-| Deferred R4 aggregate scans | 8 |
+| Certified aggregate policies | 8 |
+| Deferred R4 aggregate scans | 0 |
 
 ## Closure invariants
 
@@ -27,15 +28,15 @@ reviewed registry change. CI uses `--check` and never rewrites files.
 - Every route, job, and autonomous trigger has NORMAL and CERTIFICATION behavior.
 - Material path IDs reference test files/nodes that exist.
 
-## Explicit deferred work
+## Certified aggregate budgets
 
-- `READ-002` — `app/services/background_performance_baseline.py:_technical_artifact_report:artifact_status_counts` — `DEFERRED_R4_AGGREGATE` (`GAP-011`)
-- `READ-003` — `app/services/background_performance_baseline.py:_technical_artifact_report:shadow_validation_sums` — `DEFERRED_R4_AGGREGATE` (`GAP-011`)
-- `READ-010` — `app/services/ceri/query_service.py:_database_freshness_records:provider_dataset_counts` — `DEFERRED_R4_AGGREGATE` (`GAP-011`)
-- `READ-012` — `app/services/ceri/query_service.py:_provider_cost_summary:telemetry_aggregates` — `DEFERRED_R4_AGGREGATE` (`GAP-011`)
-- `READ-022` — `app/services/setup_lifecycle/query_service.py:_alerts_summary:status_counts` — `DEFERRED_R4_AGGREGATE` (`GAP-011`)
-- `READ-023` — `app/services/setup_lifecycle/query_service.py:_alerts_summary:severity_counts` — `DEFERRED_R4_AGGREGATE` (`GAP-011`)
-- `READ-025` — `app/services/winner_probability/cohort_generation_service.py:current_material_watermark` — `DEFERRED_R4_AGGREGATE` (`GAP-011`)
-- `READ-026` — `app/services/winner_probability/operations_service.py:status:obligation_counts` — `DEFERRED_R4_AGGREGATE` (`GAP-011`)
+- `READ-002` — `CERTIFIED_CURRENT_STATE_AGGREGATE` — horizon `ONLINE_CACHE_CURRENT_STATE` — 750 ms
+- `READ-003` — `CERTIFIED_CURRENT_STATE_AGGREGATE` — horizon `ONLINE_CACHE_CURRENT_STATE` — 750 ms
+- `READ-010` — `CERTIFIED_WHOLE_HISTORY_AGGREGATE` — horizon `ALL_RETAINED_INGESTION_RUNS` — 1000 ms
+- `READ-012` — `CERTIFIED_WHOLE_HISTORY_AGGREGATE` — horizon `ALL_RETAINED_PROVIDER_TELEMETRY` — 2000 ms
+- `READ-022` — `CERTIFIED_CURRENT_STATE_AGGREGATE` — horizon `FILTERED_CURRENT_ALERT_PROJECTION` — 1000 ms
+- `READ-023` — `CERTIFIED_CURRENT_STATE_AGGREGATE` — horizon `FILTERED_CURRENT_ALERT_PROJECTION` — 1000 ms
+- `READ-025` — `CERTIFIED_CURRENT_STATE_AGGREGATE` — horizon `OUTCOME_DEFINITION_CURRENT_WATERMARK` — 250 ms
+- `READ-026` — `CERTIFIED_CURRENT_STATE_AGGREGATE` — horizon `CURRENT_OBLIGATION_LEDGER` — 1000 ms
 
-No GAP-011 remediation is performed by this registry.
+GAP-011 is closed; no deferred aggregate policy remains.

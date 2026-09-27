@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.orm import Session
 
@@ -257,14 +257,16 @@ class EvidenceWatermarkService:
         outcome_definition_id: int,
     ) -> EvidenceWatermark:
         target_stop_max = (
-            select(func.max(WinnerTargetStopOutcome.id))
+            select(WinnerTargetStopOutcome.id)
             .where(WinnerTargetStopOutcome.outcome_definition_id == outcome_definition_id)
             .where(WinnerTargetStopOutcome.status == OutcomeStatus.MATURED)
             .where(WinnerTargetStopOutcome.is_current_revision.is_(True))
+            .order_by(WinnerTargetStopOutcome.id.desc())
+            .limit(1)
             .scalar_subquery()
         )
         forward_max = (
-            select(func.max(WinnerForwardOutcome.id))
+            select(WinnerForwardOutcome.id)
             .join(
                 WinnerTargetStopOutcome,
                 WinnerTargetStopOutcome.forward_outcome_id == WinnerForwardOutcome.id,
@@ -273,31 +275,39 @@ class EvidenceWatermarkService:
             .where(WinnerTargetStopOutcome.status == OutcomeStatus.MATURED)
             .where(WinnerTargetStopOutcome.is_current_revision.is_(True))
             .where(WinnerForwardOutcome.is_current_revision.is_(True))
+            .order_by(WinnerForwardOutcome.id.desc())
+            .limit(1)
             .scalar_subquery()
         )
         eligibility_max = (
-            select(func.max(WinnerTrainingEligibilityDecision.id))
+            select(WinnerTrainingEligibilityDecision.id)
             .where(
                 WinnerTrainingEligibilityDecision.target_outcome_definition_id
                 == outcome_definition_id
             )
+            .order_by(WinnerTrainingEligibilityDecision.id.desc())
+            .limit(1)
             .scalar_subquery()
         )
         replay_max = (
-            select(func.max(WinnerTrainingOutcomeReplay.id))
+            select(WinnerTrainingOutcomeReplay.id)
             .where(
                 WinnerTrainingOutcomeReplay.target_outcome_definition_id == outcome_definition_id
             )
+            .order_by(WinnerTrainingOutcomeReplay.id.desc())
+            .limit(1)
             .scalar_subquery()
         )
         temporal_max = (
-            select(func.max(WinnerTemporalValidityDecision.id))
+            select(WinnerTemporalValidityDecision.id)
             .join(
                 WinnerTargetStopOutcome,
                 WinnerTargetStopOutcome.prediction_id
                 == WinnerTemporalValidityDecision.prediction_id,
             )
             .where(WinnerTargetStopOutcome.outcome_definition_id == outcome_definition_id)
+            .order_by(WinnerTemporalValidityDecision.id.desc())
+            .limit(1)
             .scalar_subquery()
         )
         row = db.execute(

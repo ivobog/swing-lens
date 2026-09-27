@@ -1,0 +1,292 @@
+{
+  "plans": {
+    "READ-002": {
+      "actual_result_rows": 6.0,
+      "estimated_rows_examined": 50000,
+      "execution_time_ms": 55.871,
+      "hash_nodes": 0,
+      "planning_time_ms": 0.126,
+      "read_id": "READ-002",
+      "rows_examined": 50000.0,
+      "scan_nodes": [
+        {
+          "actual_rows": 50000.0,
+          "index": null,
+          "loops": 1,
+          "node_type": "Seq Scan",
+          "relation": "technical_feature_artifacts",
+          "rows_removed_by_filter": 0
+        }
+      ],
+      "shared_hit_blocks": 0,
+      "shared_read_blocks": 2120,
+      "sort_nodes": [],
+      "temp_read_blocks": 0,
+      "temp_written_blocks": 0,
+      "top_node": "Aggregate"
+    },
+    "READ-003": {
+      "actual_result_rows": 3.0,
+      "estimated_rows_examined": 50000,
+      "execution_time_ms": 36.577,
+      "hash_nodes": 0,
+      "planning_time_ms": 0.141,
+      "read_id": "READ-003",
+      "rows_examined": 50000.0,
+      "scan_nodes": [
+        {
+          "actual_rows": 50000.0,
+          "index": null,
+          "loops": 1,
+          "node_type": "Seq Scan",
+          "relation": "technical_feature_artifacts",
+          "rows_removed_by_filter": 0
+        }
+      ],
+      "shared_hit_blocks": 2120,
+      "shared_read_blocks": 0,
+      "sort_nodes": [],
+      "temp_read_blocks": 0,
+      "temp_written_blocks": 0,
+      "top_node": "Aggregate"
+    },
+    "READ-010": {
+      "actual_result_rows": 4.0,
+      "estimated_rows_examined": 343749,
+      "execution_time_ms": 206.294,
+      "hash_nodes": 0,
+      "planning_time_ms": 0.169,
+      "read_id": "READ-010",
+      "rows_examined": 275000.01,
+      "scan_nodes": [
+        {
+          "actual_rows": 91666.67,
+          "index": null,
+          "loops": 3,
+          "node_type": "Seq Scan",
+          "relation": "ceri_ingestion_runs",
+          "rows_removed_by_filter": 0
+        }
+      ],
+      "shared_hit_blocks": 48,
+      "shared_read_blocks": 26390,
+      "sort_nodes": [
+        {
+          "method": "quicksort",
+          "space_kb": 25,
+          "space_type": "Memory"
+        }
+      ],
+      "temp_read_blocks": 0,
+      "temp_written_blocks": 0,
+      "top_node": "Group"
+    },
+    "READ-012": {
+      "actual_result_rows": 4.0,
+      "estimated_rows_examined": 249999,
+      "execution_time_ms": 262.609,
+      "hash_nodes": 0,
+      "planning_time_ms": 0.237,
+      "read_id": "READ-012",
+      "rows_examined": 200000.01,
+      "scan_nodes": [
+        {
+          "actual_rows": 66666.67,
+          "index": null,
+          "loops": 3,
+          "node_type": "Seq Scan",
+          "relation": "ceri_provider_request_telemetry",
+          "rows_removed_by_filter": 0
+        }
+      ],
+      "shared_hit_blocks": 48,
+      "shared_read_blocks": 15385,
+      "sort_nodes": [
+        {
+          "method": "quicksort",
+          "space_kb": 25,
+          "space_type": "Memory"
+        }
+      ],
+      "temp_read_blocks": 0,
+      "temp_written_blocks": 0,
+      "top_node": "Aggregate"
+    },
+    "READ-022": {
+      "actual_result_rows": 3.0,
+      "estimated_rows_examined": 25150,
+      "execution_time_ms": 19.189,
+      "hash_nodes": 2,
+      "planning_time_ms": 0.245,
+      "read_id": "READ-022",
+      "rows_examined": 25004.0,
+      "scan_nodes": [
+        {
+          "actual_rows": 25000.0,
+          "index": null,
+          "loops": 1,
+          "node_type": "Seq Scan",
+          "relation": "signal_alert_events",
+          "rows_removed_by_filter": 0
+        },
+        {
+          "actual_rows": 4.0,
+          "index": null,
+          "loops": 1,
+          "node_type": "Seq Scan",
+          "relation": "signal_alert_rules",
+          "rows_removed_by_filter": 0
+        }
+      ],
+      "shared_hit_blocks": 1186,
+      "shared_read_blocks": 0,
+      "sort_nodes": [],
+      "temp_read_blocks": 0,
+      "temp_written_blocks": 0,
+      "top_node": "Aggregate"
+    },
+    "READ-023": {
+      "actual_result_rows": 4.0,
+      "estimated_rows_examined": 25150,
+      "execution_time_ms": 22.236,
+      "hash_nodes": 2,
+      "planning_time_ms": 0.216,
+      "read_id": "READ-023",
+      "rows_examined": 25004.0,
+      "scan_nodes": [
+        {
+          "actual_rows": 25000.0,
+          "index": null,
+          "loops": 1,
+          "node_type": "Seq Scan",
+          "relation": "signal_alert_events",
+          "rows_removed_by_filter": 0
+        },
+        {
+          "actual_rows": 4.0,
+          "index": null,
+          "loops": 1,
+          "node_type": "Seq Scan",
+          "relation": "signal_alert_rules",
+          "rows_removed_by_filter": 0
+        }
+      ],
+      "shared_hit_blocks": 1186,
+      "shared_read_blocks": 0,
+      "sort_nodes": [],
+      "temp_read_blocks": 0,
+      "temp_written_blocks": 0,
+      "top_node": "Aggregate"
+    },
+    "READ-025": {
+      "actual_result_rows": 1.0,
+      "estimated_rows_examined": 110372,
+      "execution_time_ms": 0.213,
+      "hash_nodes": 0,
+      "planning_time_ms": 1.102,
+      "read_id": "READ-025",
+      "rows_examined": 7.0,
+      "scan_nodes": [
+        {
+          "actual_rows": 1.0,
+          "index": "idx_winner_target_stop_outcomes_forward_current",
+          "loops": 1,
+          "node_type": "Index Scan",
+          "relation": "winner_target_stop_outcomes",
+          "rows_removed_by_filter": 0
+        },
+        {
+          "actual_rows": 1.0,
+          "index": "winner_forward_outcomes_pkey",
+          "loops": 1,
+          "node_type": "Index Scan",
+          "relation": "winner_forward_outcomes",
+          "rows_removed_by_filter": 0
+        },
+        {
+          "actual_rows": 1.0,
+          "index": "winner_target_stop_outcomes_pkey",
+          "loops": 1,
+          "node_type": "Index Scan",
+          "relation": "winner_target_stop_outcomes",
+          "rows_removed_by_filter": 0
+        },
+        {
+          "actual_rows": 1.0,
+          "index": "winner_training_eligibility_decisions_pkey",
+          "loops": 1,
+          "node_type": "Index Scan",
+          "relation": "winner_training_eligibility_decisions",
+          "rows_removed_by_filter": 0
+        },
+        {
+          "actual_rows": 1.0,
+          "index": "winner_training_outcome_replays_pkey",
+          "loops": 1,
+          "node_type": "Index Scan",
+          "relation": "winner_training_outcome_replays",
+          "rows_removed_by_filter": 0
+        },
+        {
+          "actual_rows": 1.0,
+          "index": "winner_temporal_validity_decisions_pkey",
+          "loops": 1,
+          "node_type": "Index Scan",
+          "relation": "winner_temporal_validity_decisions",
+          "rows_removed_by_filter": 0
+        },
+        {
+          "actual_rows": 1.0,
+          "index": "idx_winner_target_stop_outcomes_prediction_definition",
+          "loops": 1,
+          "node_type": "Index Only Scan",
+          "relation": "winner_target_stop_outcomes",
+          "rows_removed_by_filter": 0
+        }
+      ],
+      "shared_hit_blocks": 90,
+      "shared_read_blocks": 0,
+      "sort_nodes": [],
+      "temp_read_blocks": 0,
+      "temp_written_blocks": 0,
+      "top_node": "Result"
+    },
+    "READ-026": {
+      "actual_result_rows": 5.0,
+      "estimated_rows_examined": 45000,
+      "execution_time_ms": 19.145,
+      "hash_nodes": 0,
+      "planning_time_ms": 0.151,
+      "read_id": "READ-026",
+      "rows_examined": 45000.0,
+      "scan_nodes": [
+        {
+          "actual_rows": 45000.0,
+          "index": null,
+          "loops": 1,
+          "node_type": "Seq Scan",
+          "relation": "winner_market_data_obligations",
+          "rows_removed_by_filter": 0
+        }
+      ],
+      "shared_hit_blocks": 1800,
+      "shared_read_blocks": 0,
+      "sort_nodes": [],
+      "temp_read_blocks": 0,
+      "temp_written_blocks": 0,
+      "top_node": "Aggregate"
+    }
+  },
+  "seed_rows": {
+    "ceri_ingestion_runs": 275000,
+    "ceri_provider_request_telemetry": 200000,
+    "signal_alert_events": 25000,
+    "technical_feature_artifacts": 50000,
+    "winner_forward_outcomes": 900000,
+    "winner_market_data_obligations": 45000,
+    "winner_target_stop_outcomes": 175000,
+    "winner_temporal_validity_decisions": 30000,
+    "winner_training_eligibility_decisions": 45000,
+    "winner_training_outcome_replays": 2000
+  }
+}

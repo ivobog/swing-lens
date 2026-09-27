@@ -54,7 +54,7 @@ Coverage means a test explicitly asserts the path's authority, state, isolation,
 | WRITE-034..052 CERI | extensive CERI unit/PIT/source/postgres suites; R1 authority plus R2 alert/purge/normalizer query-shape and control-plane isolation | no remaining R2 bounded-access gap |
 | WRITE-053..059 setup/lifecycle/alerts | setup unit + lifecycle/alert evidence PostgreSQL + real setup-route certification denial | R1 authority closed; restart composition remains |
 | WRITE-060..070 Winner | Winner unit + reliability/canary PostgreSQL suites; all direct mutation routes classified NORMAL_ONLY | R1 mode isolation closed; publication race remains separate |
-| WRITE-071/072 IBMI | IBMI unit/persistence/resilience suites plus R2 600-episode/link/candidate page and target-lock proof | global journal access gap closed; aggregate plan budgets remain GAP-011 |
+| WRITE-071/072 IBMI | IBMI unit/persistence/resilience suites plus R2 600-episode/link/candidate page and target-lock proof | global journal access gap closed; no deferred R4 aggregate is attached to this writer family |
 | WRITE-073 read-only | no writer test required | schema should enforce/document read-only intent |
 
 ## Job-type cross-check
@@ -78,7 +78,8 @@ The missing cross-cutting assertion is not handler existence; it is that each cr
 | GAP-009 previous audit drift (115 -> 120 tables) | **Yes — CLOSED:** generated 120-table census, 119 mutable writer mappings, synthetic table drift rejection, CI registry gate |
 | GAP-012 split runtime policy | **Yes — CLOSED:** explicit NORMAL/CERTIFICATION policy for routes, jobs, and autonomous triggers plus synthetic missing-mode rejection |
 | GAP-010 same-transaction CERI progress visibility | **Yes — CLOSED:** independent connection sees progress/cancel before domain rollback; liveness survives while domain row does not |
+| GAP-011 retained aggregate operability | **Yes — CLOSED:** `test_aggregate_operability_postgresql.py` seeds 1.747 million rows, proves semantics, and enforces rows/result/estimate/index/seq-scan/time/spill budgets for READ-002/003/010/012/022/023/025/026; the static registry guard enforces policy/source/index/test presence |
 
 ## Coverage verdict
 
-The matrix is now backed by a machine-readable path-to-test registry whose file/node references are checked in CI. R1 authority, R2 bounded-read/transaction coverage, and R3 drift closure are PASS. Remaining P1 count is zero; remaining P2 count is one (GAP-011, unchanged and assigned to R4). This permits R4 work but is not approval for canary resumption.
+The matrix is now backed by a machine-readable path-to-test registry whose file/node references are checked in CI. R1 authority, R2 bounded-read/transaction coverage, R3 drift closure, and R4 aggregate operability are PASS. Remaining P0/P1/P2 counts are all zero. This permits R5 work but is not approval for canary resumption.

@@ -1,0 +1,623 @@
+{
+  "captured_at": "2026-09-27T15:19:27.674267+00:00",
+  "cardinality": {
+    "ceri_ingestion_runs": {
+      "distinct": {
+        "dataset": 4,
+        "provider": 2,
+        "status": 4
+      },
+      "index_bytes": 21749760,
+      "index_details": [
+        {
+          "bytes": 2031616,
+          "name": "ceri_ingestion_runs_pkey"
+        },
+        {
+          "bytes": 434176,
+          "name": "idx_ceri_ingestion_runs_scope_refresh"
+        },
+        {
+          "bytes": 761856,
+          "name": "ix_ceri_ingestion_runs_provider_dataset_status"
+        },
+        {
+          "bytes": 18497536,
+          "name": "uq_ceri_ingestion_runs_request_key"
+        }
+      ],
+      "indexes": [
+        "ceri_ingestion_runs_pkey",
+        "idx_ceri_ingestion_runs_scope_refresh",
+        "ix_ceri_ingestion_runs_provider_dataset_status",
+        "uq_ceri_ingestion_runs_request_key"
+      ],
+      "rows": 54039,
+      "table_bytes": 57573376,
+      "temporal_column": "created_at",
+      "temporal_max": "2026-09-26T20:51:42.064154+02:00",
+      "temporal_min": "2026-08-08T01:47:25.143501+02:00",
+      "total_bytes": 79372288
+    },
+    "ceri_provider_request_telemetry": {
+      "distinct": {
+        "dataset": 4,
+        "endpoint": 4,
+        "provider": 2
+      },
+      "index_bytes": 8814592,
+      "index_details": [
+        {
+          "bytes": 868352,
+          "name": "ceri_provider_request_telemetry_pkey"
+        },
+        {
+          "bytes": 3219456,
+          "name": "ix_ceri_provider_telemetry_endpoint_observed"
+        },
+        {
+          "bytes": 2056192,
+          "name": "ix_ceri_provider_telemetry_observed_provider"
+        },
+        {
+          "bytes": 1228800,
+          "name": "ix_ceri_provider_telemetry_provider_observed"
+        },
+        {
+          "bytes": 1441792,
+          "name": "ix_ceri_provider_telemetry_root"
+        }
+      ],
+      "indexes": [
+        "ceri_provider_request_telemetry_pkey",
+        "ix_ceri_provider_telemetry_endpoint_observed",
+        "ix_ceri_provider_telemetry_observed_provider",
+        "ix_ceri_provider_telemetry_provider_observed",
+        "ix_ceri_provider_telemetry_root"
+      ],
+      "rows": 38070,
+      "table_bytes": 10215424,
+      "temporal_column": "observed_at",
+      "temporal_max": "2026-09-26T20:51:35.675997+02:00",
+      "temporal_min": "2026-08-08T01:47:35.070837+02:00",
+      "total_bytes": 19070976
+    },
+    "signal_alert_events": {
+      "distinct": {
+        "severity": 3,
+        "status": 3,
+        "ticker": 981
+      },
+      "index_bytes": 1212416,
+      "index_details": [
+        {
+          "bytes": 49152,
+          "name": "idx_signal_alert_events_rule"
+        },
+        {
+          "bytes": 65536,
+          "name": "idx_signal_alert_events_status_severity"
+        },
+        {
+          "bytes": 172032,
+          "name": "idx_signal_alert_events_ticker_date"
+        },
+        {
+          "bytes": 114688,
+          "name": "signal_alert_events_pkey"
+        },
+        {
+          "bytes": 114688,
+          "name": "uq_signal_alert_events_decision_evidence"
+        },
+        {
+          "bytes": 573440,
+          "name": "uq_signal_alert_events_event_key"
+        }
+      ],
+      "indexes": [
+        "idx_signal_alert_events_rule",
+        "idx_signal_alert_events_status_severity",
+        "idx_signal_alert_events_ticker_date",
+        "signal_alert_events_pkey",
+        "uq_signal_alert_events_decision_evidence",
+        "uq_signal_alert_events_event_key"
+      ],
+      "rows": 4305,
+      "table_bytes": 6012928,
+      "temporal_column": "created_at",
+      "temporal_max": "2026-09-13T22:37:34.098904+02:00",
+      "temporal_min": "2026-08-12T01:59:04.348049+02:00",
+      "total_bytes": 7266304
+    },
+    "technical_feature_artifacts": {
+      "distinct": {
+        "artifact_kind": 1,
+        "status": 1,
+        "ticker": 1068
+      },
+      "index_bytes": 2506752,
+      "index_details": [
+        {
+          "bytes": 557056,
+          "name": "idx_technical_feature_artifacts_last_used"
+        },
+        {
+          "bytes": 417792,
+          "name": "technical_feature_artifacts_pkey"
+        },
+        {
+          "bytes": 1507328,
+          "name": "uq_technical_feature_artifacts_signature"
+        }
+      ],
+      "indexes": [
+        "idx_technical_feature_artifacts_last_used",
+        "technical_feature_artifacts_pkey",
+        "uq_technical_feature_artifacts_signature"
+      ],
+      "rows": 9352,
+      "table_bytes": 6389760,
+      "temporal_column": "created_at",
+      "temporal_max": "2026-09-26T20:49:04.401609+02:00",
+      "temporal_min": "2026-08-06T13:46:19.058735+02:00",
+      "total_bytes": 48832512
+    },
+    "winner_forward_outcomes": {
+      "distinct": {
+        "entry_model": 2,
+        "status": 2
+      },
+      "index_bytes": 59572224,
+      "index_details": [
+        {
+          "bytes": 3391488,
+          "name": "idx_winner_forward_outcomes_bar_lineage_current"
+        },
+        {
+          "bytes": 8658944,
+          "name": "idx_winner_forward_outcomes_current_revision"
+        },
+        {
+          "bytes": 22740992,
+          "name": "idx_winner_forward_outcomes_h5_due_retry"
+        },
+        {
+          "bytes": 8675328,
+          "name": "idx_winner_forward_outcomes_prediction_entry_horizon"
+        },
+        {
+          "bytes": 2187264,
+          "name": "idx_winner_forward_outcomes_status_due"
+        },
+        {
+          "bytes": 9830400,
+          "name": "uq_winner_forward_outcomes_prediction_entry_horizon_revision"
+        },
+        {
+          "bytes": 4063232,
+          "name": "winner_forward_outcomes_pkey"
+        }
+      ],
+      "indexes": [
+        "idx_winner_forward_outcomes_bar_lineage_current",
+        "idx_winner_forward_outcomes_current_revision",
+        "idx_winner_forward_outcomes_h5_due_retry",
+        "idx_winner_forward_outcomes_prediction_entry_horizon",
+        "idx_winner_forward_outcomes_status_due",
+        "uq_winner_forward_outcomes_prediction_entry_horizon_revision",
+        "winner_forward_outcomes_pkey"
+      ],
+      "rows": 175835,
+      "table_bytes": 31621120,
+      "temporal_column": "matured_at",
+      "temporal_max": "2026-09-06T14:20:08.525916+02:00",
+      "temporal_min": "2026-08-04T15:46:28.207524+02:00",
+      "total_bytes": 91234304
+    },
+    "winner_market_data_obligations": {
+      "distinct": {
+        "status": 2,
+        "ticker_snapshot": 981,
+        "what_to_show": 2
+      },
+      "index_bytes": 1949696,
+      "index_details": [
+        {
+          "bytes": 270336,
+          "name": "idx_winner_market_data_obligation_contract_status"
+        },
+        {
+          "bytes": 352256,
+          "name": "idx_winner_market_data_obligation_prediction"
+        },
+        {
+          "bytes": 286720,
+          "name": "idx_winner_market_data_obligation_status_range"
+        },
+        {
+          "bytes": 622592,
+          "name": "uq_winner_market_data_obligation_outcome_basis"
+        },
+        {
+          "bytes": 393216,
+          "name": "winner_market_data_obligations_pkey"
+        }
+      ],
+      "indexes": [
+        "idx_winner_market_data_obligation_contract_status",
+        "idx_winner_market_data_obligation_prediction",
+        "idx_winner_market_data_obligation_status_range",
+        "uq_winner_market_data_obligation_outcome_basis",
+        "winner_market_data_obligations_pkey"
+      ],
+      "rows": 8346,
+      "table_bytes": 7118848,
+      "temporal_column": "created_at",
+      "temporal_max": "2026-09-13T22:43:15.895783+02:00",
+      "temporal_min": "2026-09-05T23:01:24.506149+02:00",
+      "total_bytes": 9109504
+    },
+    "winner_target_stop_outcomes": {
+      "distinct": {
+        "outcome_definition_id": 4,
+        "status": 2
+      },
+      "index_bytes": 10305536,
+      "index_details": [
+        {
+          "bytes": 1196032,
+          "name": "idx_winner_target_stop_outcomes_current_revision"
+        },
+        {
+          "bytes": 1679360,
+          "name": "idx_winner_target_stop_outcomes_forward_current"
+        },
+        {
+          "bytes": 3342336,
+          "name": "idx_winner_target_stop_outcomes_generation_source"
+        },
+        {
+          "bytes": 1187840,
+          "name": "idx_winner_target_stop_outcomes_prediction_definition"
+        },
+        {
+          "bytes": 483328,
+          "name": "idx_winner_target_stop_outcomes_status"
+        },
+        {
+          "bytes": 1515520,
+          "name": "uq_winner_target_stop_outcomes_prediction_definition_revision"
+        },
+        {
+          "bytes": 876544,
+          "name": "winner_target_stop_outcomes_pkey"
+        }
+      ],
+      "indexes": [
+        "idx_winner_target_stop_outcomes_current_revision",
+        "idx_winner_target_stop_outcomes_forward_current",
+        "idx_winner_target_stop_outcomes_generation_source",
+        "idx_winner_target_stop_outcomes_prediction_definition",
+        "idx_winner_target_stop_outcomes_status",
+        "uq_winner_target_stop_outcomes_prediction_definition_revision",
+        "winner_target_stop_outcomes_pkey"
+      ],
+      "rows": 34204,
+      "table_bytes": 8724480,
+      "temporal_column": "evaluated_at",
+      "temporal_max": "2026-09-06T14:20:08.525916+02:00",
+      "temporal_min": "2026-08-10T22:54:40.897507+02:00",
+      "total_bytes": 19070976
+    },
+    "winner_temporal_validity_decisions": {
+      "distinct": {
+        "status": 2
+      },
+      "index_bytes": 892928,
+      "index_details": [
+        {
+          "bytes": 204800,
+          "name": "idx_winner_temporal_validity_evidence_eligible"
+        },
+        {
+          "bytes": 270336,
+          "name": "idx_winner_temporal_validity_prediction_sequence"
+        },
+        {
+          "bytes": 270336,
+          "name": "uq_winner_temporal_validity_prediction_sequence"
+        },
+        {
+          "bytes": 147456,
+          "name": "winner_temporal_validity_decisions_pkey"
+        }
+      ],
+      "indexes": [
+        "idx_winner_temporal_validity_evidence_eligible",
+        "idx_winner_temporal_validity_prediction_sequence",
+        "uq_winner_temporal_validity_prediction_sequence",
+        "winner_temporal_validity_decisions_pkey"
+      ],
+      "rows": 5478,
+      "table_bytes": 5726208,
+      "temporal_column": "evaluated_at",
+      "temporal_max": "2026-09-13T22:43:15.896906+02:00",
+      "temporal_min": "2026-09-05T21:37:27.078611+02:00",
+      "total_bytes": 6660096
+    },
+    "winner_training_eligibility_decisions": {
+      "distinct": {
+        "target_outcome_definition_id": 1,
+        "training_family": 1
+      },
+      "index_bytes": 2318336,
+      "index_details": [
+        {
+          "bytes": 81920,
+          "name": "idx_winner_training_eligibility_decision_lookup"
+        },
+        {
+          "bytes": 1130496,
+          "name": "uq_winner_training_eligibility_decision_hash"
+        },
+        {
+          "bytes": 884736,
+          "name": "uq_winner_training_eligibility_decision_revision"
+        },
+        {
+          "bytes": 221184,
+          "name": "winner_training_eligibility_decisions_pkey"
+        }
+      ],
+      "indexes": [
+        "idx_winner_training_eligibility_decision_lookup",
+        "uq_winner_training_eligibility_decision_hash",
+        "uq_winner_training_eligibility_decision_revision",
+        "winner_training_eligibility_decisions_pkey"
+      ],
+      "rows": 8859,
+      "table_bytes": 18145280,
+      "temporal_column": "classified_at",
+      "temporal_max": "2026-08-15T00:59:09.030991+02:00",
+      "temporal_min": "2026-08-15T00:59:09.030991+02:00",
+      "total_bytes": 20504576
+    },
+    "winner_training_outcome_replays": {
+      "distinct": {
+        "status": 1,
+        "target_outcome_definition_id": 1,
+        "training_family": 1
+      },
+      "index_bytes": 122880,
+      "index_details": [
+        {
+          "bytes": 16384,
+          "name": "idx_winner_training_outcome_replay_lookup"
+        },
+        {
+          "bytes": 57344,
+          "name": "uq_winner_training_outcome_replay_hash"
+        },
+        {
+          "bytes": 32768,
+          "name": "uq_winner_training_outcome_replay_revision"
+        },
+        {
+          "bytes": 16384,
+          "name": "winner_training_outcome_replays_pkey"
+        }
+      ],
+      "indexes": [
+        "idx_winner_training_outcome_replay_lookup",
+        "uq_winner_training_outcome_replay_hash",
+        "uq_winner_training_outcome_replay_revision",
+        "winner_training_outcome_replays_pkey"
+      ],
+      "rows": 390,
+      "table_bytes": 532480,
+      "temporal_column": "replayed_at",
+      "temporal_max": "2026-08-15T00:59:09.030991+02:00",
+      "temporal_min": "2026-08-15T00:59:09.030991+02:00",
+      "total_bytes": 688128
+    }
+  },
+  "database": "swinglens",
+  "plans": {
+    "READ-002": {
+      "estimated_rows": 1,
+      "hash_nodes": 0,
+      "scan_nodes": [
+        {
+          "estimated_rows": 9158,
+          "filter": null,
+          "index": null,
+          "index_condition": null,
+          "node_type": "Seq Scan",
+          "relation": "technical_feature_artifacts"
+        }
+      ],
+      "sort_nodes": 0,
+      "top_node": "Aggregate"
+    },
+    "READ-003": {
+      "estimated_rows": 2,
+      "hash_nodes": 0,
+      "scan_nodes": [
+        {
+          "estimated_rows": 9158,
+          "filter": null,
+          "index": null,
+          "index_condition": null,
+          "node_type": "Seq Scan",
+          "relation": "technical_feature_artifacts"
+        }
+      ],
+      "sort_nodes": 0,
+      "top_node": "Aggregate"
+    },
+    "READ-010": {
+      "estimated_rows": 8,
+      "hash_nodes": 0,
+      "scan_nodes": [
+        {
+          "estimated_rows": 55397,
+          "filter": null,
+          "index": null,
+          "index_condition": null,
+          "node_type": "Seq Scan",
+          "relation": "ceri_ingestion_runs"
+        }
+      ],
+      "sort_nodes": 1,
+      "top_node": "Sort"
+    },
+    "READ-012": {
+      "estimated_rows": 2,
+      "hash_nodes": 0,
+      "scan_nodes": [
+        {
+          "estimated_rows": 38906,
+          "filter": null,
+          "index": null,
+          "index_condition": null,
+          "node_type": "Seq Scan",
+          "relation": "ceri_provider_request_telemetry"
+        }
+      ],
+      "sort_nodes": 1,
+      "top_node": "Sort"
+    },
+    "READ-022": {
+      "estimated_rows": 3,
+      "hash_nodes": 2,
+      "scan_nodes": [
+        {
+          "estimated_rows": 4305,
+          "filter": null,
+          "index": null,
+          "index_condition": null,
+          "node_type": "Seq Scan",
+          "relation": "signal_alert_events"
+        },
+        {
+          "estimated_rows": 150,
+          "filter": null,
+          "index": null,
+          "index_condition": null,
+          "node_type": "Seq Scan",
+          "relation": "signal_alert_rules"
+        }
+      ],
+      "sort_nodes": 0,
+      "top_node": "Aggregate"
+    },
+    "READ-023": {
+      "estimated_rows": 3,
+      "hash_nodes": 2,
+      "scan_nodes": [
+        {
+          "estimated_rows": 4305,
+          "filter": null,
+          "index": null,
+          "index_condition": null,
+          "node_type": "Seq Scan",
+          "relation": "signal_alert_events"
+        },
+        {
+          "estimated_rows": 150,
+          "filter": null,
+          "index": null,
+          "index_condition": null,
+          "node_type": "Seq Scan",
+          "relation": "signal_alert_rules"
+        }
+      ],
+      "sort_nodes": 0,
+      "top_node": "Aggregate"
+    },
+    "READ-025": {
+      "estimated_rows": 1,
+      "hash_nodes": 0,
+      "scan_nodes": [
+        {
+          "estimated_rows": 5904,
+          "filter": "(status = 'MATURED'::text)",
+          "index": "idx_winner_target_stop_outcomes_forward_current",
+          "index_condition": "((outcome_definition_id = 4) AND (is_current_revision = true))",
+          "node_type": "Index Scan",
+          "relation": "winner_target_stop_outcomes"
+        },
+        {
+          "estimated_rows": 1,
+          "filter": "(is_current_revision IS TRUE)",
+          "index": "winner_forward_outcomes_pkey",
+          "index_condition": "(id = target.forward_outcome_id)",
+          "node_type": "Index Scan",
+          "relation": "winner_forward_outcomes"
+        },
+        {
+          "estimated_rows": 5904,
+          "filter": null,
+          "index": "idx_winner_target_stop_outcomes_generation_source",
+          "index_condition": "((outcome_definition_id = 4) AND (status = 'MATURED'::text) AND (is_current_revision = true))",
+          "node_type": "Index Only Scan",
+          "relation": "winner_target_stop_outcomes"
+        },
+        {
+          "estimated_rows": 1,
+          "filter": null,
+          "index": "idx_winner_training_eligibility_decision_lookup",
+          "index_condition": "(target_outcome_definition_id = 4)",
+          "node_type": "Index Scan",
+          "relation": "winner_training_eligibility_decisions"
+        },
+        {
+          "estimated_rows": 1,
+          "filter": null,
+          "index": "idx_winner_training_outcome_replay_lookup",
+          "index_condition": "(target_outcome_definition_id = 4)",
+          "node_type": "Index Scan",
+          "relation": "winner_training_outcome_replays"
+        },
+        {
+          "estimated_rows": 5281,
+          "filter": null,
+          "index": "winner_temporal_validity_decisions_pkey",
+          "index_condition": null,
+          "node_type": "Index Scan",
+          "relation": "winner_temporal_validity_decisions"
+        },
+        {
+          "estimated_rows": 1,
+          "filter": null,
+          "index": "idx_winner_target_stop_outcomes_prediction_definition",
+          "index_condition": "((prediction_id = temporal.prediction_id) AND (outcome_definition_id = 4))",
+          "node_type": "Index Only Scan",
+          "relation": "winner_target_stop_outcomes"
+        }
+      ],
+      "sort_nodes": 2,
+      "top_node": "Result"
+    },
+    "READ-026": {
+      "estimated_rows": 1,
+      "hash_nodes": 0,
+      "scan_nodes": [
+        {
+          "estimated_rows": 7978,
+          "filter": null,
+          "index": null,
+          "index_condition": null,
+          "node_type": "Seq Scan",
+          "relation": "winner_market_data_obligations"
+        }
+      ],
+      "sort_nodes": 0,
+      "top_node": "Aggregate"
+    }
+  },
+  "server_version": "18.3",
+  "transaction_read_only": true,
+  "user": "postgres"
+}

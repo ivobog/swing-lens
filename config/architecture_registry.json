@@ -15142,56 +15142,215 @@
       "gap_id": "GLOBAL-READ-AUDIT"
     }
   ],
-  "deferred_r4_aggregates": [
+  "aggregate_query_policies": [
     {
       "id": "READ-002",
-      "site": "app/services/background_performance_baseline.py:_technical_artifact_report:artifact_status_counts",
-      "classification": "DEFERRED_R4_AGGREGATE",
-      "gap_id": "GAP-011"
+      "site": "app/services/background_performance_baseline.py:_technical_artifact_report",
+      "tables": [
+        "technical_feature_artifacts"
+      ],
+      "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+      "semantic_scope": "Entire online artifact cache; one row per unique artifact signature.",
+      "production_horizon": "ONLINE_CACHE_CURRENT_STATE",
+      "retention": "Evictable cache rows; immutable calculation evidence is stored elsewhere.",
+      "maximum_expected_rows_scanned": 250000,
+      "maximum_result_rows": 16,
+      "required_indexes": [],
+      "sequential_scan_allowed": true,
+      "large_table_threshold_rows": 100000,
+      "execution_budget_ms": 750,
+      "plan_rows_multiplier": 1.1,
+      "required_source_tokens": [
+        "TechnicalFeatureArtifact.status",
+        "artifact_kind",
+        "group_by"
+      ]
     },
     {
       "id": "READ-003",
-      "site": "app/services/background_performance_baseline.py:_technical_artifact_report:shadow_validation_sums",
-      "classification": "DEFERRED_R4_AGGREGATE",
-      "gap_id": "GAP-011"
+      "site": "app/services/background_performance_baseline.py:_technical_artifact_report",
+      "tables": [
+        "technical_feature_artifacts"
+      ],
+      "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+      "semantic_scope": "Entire online cache shadow-validation state.",
+      "production_horizon": "ONLINE_CACHE_CURRENT_STATE",
+      "retention": "Evictable cache rows; mismatch evidence remains immutable elsewhere.",
+      "maximum_expected_rows_scanned": 250000,
+      "maximum_result_rows": 3,
+      "required_indexes": [],
+      "sequential_scan_allowed": true,
+      "large_table_threshold_rows": 100000,
+      "execution_budget_ms": 750,
+      "plan_rows_multiplier": 1.1,
+      "required_source_tokens": [
+        "shadow_validation_status",
+        "shadow_validation_count",
+        "group_by"
+      ]
     },
     {
       "id": "READ-010",
-      "site": "app/services/ceri/query_service.py:_database_freshness_records:provider_dataset_counts",
-      "classification": "DEFERRED_R4_AGGREGATE",
-      "gap_id": "GAP-011"
+      "site": "app/services/ceri/query_service.py:_database_freshness_records",
+      "tables": [
+        "ceri_ingestion_runs"
+      ],
+      "classification": "CERTIFIED_WHOLE_HISTORY_AGGREGATE",
+      "semantic_scope": "Every provider/dataset identity in retained ingestion history.",
+      "production_horizon": "ALL_RETAINED_INGESTION_RUNS",
+      "retention": "Append-only audit; archived rows must preserve provider/dataset identities.",
+      "maximum_expected_rows_scanned": 1000000,
+      "maximum_result_rows": 256,
+      "required_indexes": [
+        "ix_ceri_ingestion_runs_provider_dataset_status"
+      ],
+      "sequential_scan_allowed": true,
+      "large_table_threshold_rows": 250000,
+      "execution_budget_ms": 1000,
+      "plan_rows_multiplier": 1.1,
+      "required_source_tokens": [
+        "CeriIngestionRun.provider",
+        "CeriIngestionRun.dataset",
+        "group_by"
+      ]
     },
     {
       "id": "READ-012",
-      "site": "app/services/ceri/query_service.py:_provider_cost_summary:telemetry_aggregates",
-      "classification": "DEFERRED_R4_AGGREGATE",
-      "gap_id": "GAP-011"
+      "site": "app/services/ceri/query_service.py:_provider_cost_summary",
+      "tables": [
+        "ceri_provider_request_telemetry"
+      ],
+      "classification": "CERTIFIED_WHOLE_HISTORY_AGGREGATE",
+      "semantic_scope": "Lifetime retained provider request cost and byte ledger.",
+      "production_horizon": "ALL_RETAINED_PROVIDER_TELEMETRY",
+      "retention": "Online to five-million rows; archive or rollup before exceeding the budget.",
+      "maximum_expected_rows_scanned": 5000000,
+      "maximum_result_rows": 64,
+      "required_indexes": [
+        "ix_ceri_provider_telemetry_provider_observed"
+      ],
+      "sequential_scan_allowed": true,
+      "large_table_threshold_rows": 250000,
+      "execution_budget_ms": 2000,
+      "plan_rows_multiplier": 1.1,
+      "required_source_tokens": [
+        "CeriProviderRequestTelemetry.provider",
+        "call_cost",
+        "response_bytes",
+        "group_by"
+      ]
     },
     {
       "id": "READ-022",
-      "site": "app/services/setup_lifecycle/query_service.py:_alerts_summary:status_counts",
-      "classification": "DEFERRED_R4_AGGREGATE",
-      "gap_id": "GAP-011"
+      "site": "app/services/setup_lifecycle/query_service.py:_alerts_summary",
+      "tables": [
+        "signal_alert_events"
+      ],
+      "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+      "semantic_scope": "Current notification status under the caller's alert filters.",
+      "production_horizon": "FILTERED_CURRENT_ALERT_PROJECTION",
+      "retention": "Event rows are online state; linked decision evidence remains immutable.",
+      "maximum_expected_rows_scanned": 1000000,
+      "maximum_result_rows": 3,
+      "required_indexes": [
+        "idx_signal_alert_events_status_severity"
+      ],
+      "sequential_scan_allowed": true,
+      "large_table_threshold_rows": 250000,
+      "execution_budget_ms": 1000,
+      "plan_rows_multiplier": 1.1,
+      "required_source_tokens": [
+        "alerts.c.status",
+        "func.count",
+        "group_by"
+      ]
     },
     {
       "id": "READ-023",
-      "site": "app/services/setup_lifecycle/query_service.py:_alerts_summary:severity_counts",
-      "classification": "DEFERRED_R4_AGGREGATE",
-      "gap_id": "GAP-011"
+      "site": "app/services/setup_lifecycle/query_service.py:_alerts_summary",
+      "tables": [
+        "signal_alert_events"
+      ],
+      "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+      "semantic_scope": "Current notification severity under the caller's alert filters.",
+      "production_horizon": "FILTERED_CURRENT_ALERT_PROJECTION",
+      "retention": "Event rows are online state; linked decision evidence remains immutable.",
+      "maximum_expected_rows_scanned": 1000000,
+      "maximum_result_rows": 4,
+      "required_indexes": [
+        "idx_signal_alert_events_status_severity"
+      ],
+      "sequential_scan_allowed": true,
+      "large_table_threshold_rows": 250000,
+      "execution_budget_ms": 1000,
+      "plan_rows_multiplier": 1.1,
+      "required_source_tokens": [
+        "alerts.c.severity",
+        "func.count",
+        "group_by"
+      ]
     },
     {
       "id": "READ-025",
       "site": "app/services/winner_probability/cohort_generation_service.py:current_material_watermark",
-      "classification": "DEFERRED_R4_AGGREGATE",
-      "gap_id": "GAP-011"
+      "tables": [
+        "winner_forward_outcomes",
+        "winner_target_stop_outcomes",
+        "winner_training_eligibility_decisions",
+        "winner_training_outcome_replays",
+        "winner_temporal_validity_decisions"
+      ],
+      "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+      "semantic_scope": "Newest material evidence IDs for exactly one outcome definition.",
+      "production_horizon": "OUTCOME_DEFINITION_CURRENT_WATERMARK",
+      "retention": "Evidence remains immutable; descending scoped indexes avoid history scans.",
+      "maximum_expected_rows_scanned": 100,
+      "maximum_result_rows": 1,
+      "required_indexes": [
+        "idx_winner_target_stop_outcomes_forward_current",
+        "idx_winner_target_stop_outcomes_generation_source",
+        "idx_winner_target_stop_outcomes_prediction_definition",
+        "idx_winner_training_eligibility_decision_lookup",
+        "idx_winner_training_outcome_replay_lookup",
+        "idx_winner_temporal_validity_prediction_sequence"
+      ],
+      "sequential_scan_allowed": false,
+      "large_table_threshold_rows": 10000,
+      "execution_budget_ms": 250,
+      "plan_rows_multiplier": 2.5,
+      "required_source_tokens": [
+        "outcome_definition_id",
+        "order_by",
+        ".limit(1)"
+      ]
     },
     {
       "id": "READ-026",
-      "site": "app/services/winner_probability/operations_service.py:status:obligation_counts",
-      "classification": "DEFERRED_R4_AGGREGATE",
-      "gap_id": "GAP-011"
+      "site": "app/services/winner_probability/operations_service.py:status",
+      "tables": [
+        "winner_market_data_obligations"
+      ],
+      "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+      "semantic_scope": "Current durable market-data obligation state by status.",
+      "production_horizon": "CURRENT_OBLIGATION_LEDGER",
+      "retention": "Rows remain for lineage; one current row exists per outcome and basis.",
+      "maximum_expected_rows_scanned": 1000000,
+      "maximum_result_rows": 5,
+      "required_indexes": [
+        "idx_winner_market_data_obligation_status_range"
+      ],
+      "sequential_scan_allowed": true,
+      "large_table_threshold_rows": 250000,
+      "execution_budget_ms": 1000,
+      "plan_rows_multiplier": 1.1,
+      "required_source_tokens": [
+        "WinnerMarketDataObligation.status",
+        "func.count",
+        "group_by"
+      ]
     }
   ],
+  "deferred_r4_aggregates": [],
   "autonomous_triggers": [
     {
       "id": "AUTO-001",
@@ -17462,6 +17621,30 @@
     ],
     "DANGEROUS-READS": [
       "tests/test_architecture_registry.py"
+    ],
+    "READ-002": [
+      "tests/integration/test_aggregate_operability_postgresql.py"
+    ],
+    "READ-003": [
+      "tests/integration/test_aggregate_operability_postgresql.py"
+    ],
+    "READ-010": [
+      "tests/integration/test_aggregate_operability_postgresql.py"
+    ],
+    "READ-012": [
+      "tests/integration/test_aggregate_operability_postgresql.py"
+    ],
+    "READ-022": [
+      "tests/integration/test_aggregate_operability_postgresql.py"
+    ],
+    "READ-023": [
+      "tests/integration/test_aggregate_operability_postgresql.py"
+    ],
+    "READ-025": [
+      "tests/integration/test_aggregate_operability_postgresql.py"
+    ],
+    "READ-026": [
+      "tests/integration/test_aggregate_operability_postgresql.py"
     ]
   },
   "exceptions": [],

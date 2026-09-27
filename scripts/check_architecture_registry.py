@@ -42,27 +42,172 @@ RECOVERY_PRIMITIVES = {
     "reconcile_jobs_for_worker_loss",
     "fence_jobs_for_worker",
 }
-DEFERRED_R4_AGGREGATES = (
-    (
-        "READ-002",
-        "app/services/background_performance_baseline.py:_technical_artifact_report:artifact_status_counts",
-    ),
-    (
-        "READ-003",
-        "app/services/background_performance_baseline.py:_technical_artifact_report:shadow_validation_sums",
-    ),
-    (
-        "READ-010",
-        "app/services/ceri/query_service.py:_database_freshness_records:provider_dataset_counts",
-    ),
-    ("READ-012", "app/services/ceri/query_service.py:_provider_cost_summary:telemetry_aggregates"),
-    ("READ-022", "app/services/setup_lifecycle/query_service.py:_alerts_summary:status_counts"),
-    ("READ-023", "app/services/setup_lifecycle/query_service.py:_alerts_summary:severity_counts"),
-    (
-        "READ-025",
-        "app/services/winner_probability/cohort_generation_service.py:current_material_watermark",
-    ),
-    ("READ-026", "app/services/winner_probability/operations_service.py:status:obligation_counts"),
+R4_AGGREGATE_POLICIES: tuple[dict[str, Any], ...] = (
+    {
+        "id": "READ-002",
+        "site": "app/services/background_performance_baseline.py:_technical_artifact_report",
+        "tables": ["technical_feature_artifacts"],
+        "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+        "semantic_scope": "Entire online artifact cache; one row per unique artifact signature.",
+        "production_horizon": "ONLINE_CACHE_CURRENT_STATE",
+        "retention": "Evictable cache rows; immutable calculation evidence is stored elsewhere.",
+        "maximum_expected_rows_scanned": 250_000,
+        "maximum_result_rows": 16,
+        "required_indexes": [],
+        "sequential_scan_allowed": True,
+        "large_table_threshold_rows": 100_000,
+        "execution_budget_ms": 750,
+        "plan_rows_multiplier": 1.1,
+        "required_source_tokens": ["TechnicalFeatureArtifact.status", "artifact_kind", "group_by"],
+    },
+    {
+        "id": "READ-003",
+        "site": "app/services/background_performance_baseline.py:_technical_artifact_report",
+        "tables": ["technical_feature_artifacts"],
+        "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+        "semantic_scope": "Entire online cache shadow-validation state.",
+        "production_horizon": "ONLINE_CACHE_CURRENT_STATE",
+        "retention": "Evictable cache rows; mismatch evidence remains immutable elsewhere.",
+        "maximum_expected_rows_scanned": 250_000,
+        "maximum_result_rows": 3,
+        "required_indexes": [],
+        "sequential_scan_allowed": True,
+        "large_table_threshold_rows": 100_000,
+        "execution_budget_ms": 750,
+        "plan_rows_multiplier": 1.1,
+        "required_source_tokens": [
+            "shadow_validation_status",
+            "shadow_validation_count",
+            "group_by",
+        ],
+    },
+    {
+        "id": "READ-010",
+        "site": "app/services/ceri/query_service.py:_database_freshness_records",
+        "tables": ["ceri_ingestion_runs"],
+        "classification": "CERTIFIED_WHOLE_HISTORY_AGGREGATE",
+        "semantic_scope": "Every provider/dataset identity in retained ingestion history.",
+        "production_horizon": "ALL_RETAINED_INGESTION_RUNS",
+        "retention": "Append-only audit; archived rows must preserve provider/dataset identities.",
+        "maximum_expected_rows_scanned": 1_000_000,
+        "maximum_result_rows": 256,
+        "required_indexes": ["ix_ceri_ingestion_runs_provider_dataset_status"],
+        "sequential_scan_allowed": True,
+        "large_table_threshold_rows": 250_000,
+        "execution_budget_ms": 1_000,
+        "plan_rows_multiplier": 1.1,
+        "required_source_tokens": [
+            "CeriIngestionRun.provider",
+            "CeriIngestionRun.dataset",
+            "group_by",
+        ],
+    },
+    {
+        "id": "READ-012",
+        "site": "app/services/ceri/query_service.py:_provider_cost_summary",
+        "tables": ["ceri_provider_request_telemetry"],
+        "classification": "CERTIFIED_WHOLE_HISTORY_AGGREGATE",
+        "semantic_scope": "Lifetime retained provider request cost and byte ledger.",
+        "production_horizon": "ALL_RETAINED_PROVIDER_TELEMETRY",
+        "retention": "Online to five-million rows; archive or rollup before exceeding the budget.",
+        "maximum_expected_rows_scanned": 5_000_000,
+        "maximum_result_rows": 64,
+        "required_indexes": ["ix_ceri_provider_telemetry_provider_observed"],
+        "sequential_scan_allowed": True,
+        "large_table_threshold_rows": 250_000,
+        "execution_budget_ms": 2_000,
+        "plan_rows_multiplier": 1.1,
+        "required_source_tokens": [
+            "CeriProviderRequestTelemetry.provider",
+            "call_cost",
+            "response_bytes",
+            "group_by",
+        ],
+    },
+    {
+        "id": "READ-022",
+        "site": "app/services/setup_lifecycle/query_service.py:_alerts_summary",
+        "tables": ["signal_alert_events"],
+        "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+        "semantic_scope": "Current notification status under the caller's alert filters.",
+        "production_horizon": "FILTERED_CURRENT_ALERT_PROJECTION",
+        "retention": "Event rows are online state; linked decision evidence remains immutable.",
+        "maximum_expected_rows_scanned": 1_000_000,
+        "maximum_result_rows": 3,
+        "required_indexes": ["idx_signal_alert_events_status_severity"],
+        "sequential_scan_allowed": True,
+        "large_table_threshold_rows": 250_000,
+        "execution_budget_ms": 1_000,
+        "plan_rows_multiplier": 1.1,
+        "required_source_tokens": ["alerts.c.status", "func.count", "group_by"],
+    },
+    {
+        "id": "READ-023",
+        "site": "app/services/setup_lifecycle/query_service.py:_alerts_summary",
+        "tables": ["signal_alert_events"],
+        "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+        "semantic_scope": "Current notification severity under the caller's alert filters.",
+        "production_horizon": "FILTERED_CURRENT_ALERT_PROJECTION",
+        "retention": "Event rows are online state; linked decision evidence remains immutable.",
+        "maximum_expected_rows_scanned": 1_000_000,
+        "maximum_result_rows": 4,
+        "required_indexes": ["idx_signal_alert_events_status_severity"],
+        "sequential_scan_allowed": True,
+        "large_table_threshold_rows": 250_000,
+        "execution_budget_ms": 1_000,
+        "plan_rows_multiplier": 1.1,
+        "required_source_tokens": ["alerts.c.severity", "func.count", "group_by"],
+    },
+    {
+        "id": "READ-025",
+        "site": (
+            "app/services/winner_probability/cohort_generation_service.py:"
+            "current_material_watermark"
+        ),
+        "tables": [
+            "winner_forward_outcomes",
+            "winner_target_stop_outcomes",
+            "winner_training_eligibility_decisions",
+            "winner_training_outcome_replays",
+            "winner_temporal_validity_decisions",
+        ],
+        "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+        "semantic_scope": "Newest material evidence IDs for exactly one outcome definition.",
+        "production_horizon": "OUTCOME_DEFINITION_CURRENT_WATERMARK",
+        "retention": "Evidence remains immutable; descending scoped indexes avoid history scans.",
+        "maximum_expected_rows_scanned": 100,
+        "maximum_result_rows": 1,
+        "required_indexes": [
+            "idx_winner_target_stop_outcomes_forward_current",
+            "idx_winner_target_stop_outcomes_generation_source",
+            "idx_winner_target_stop_outcomes_prediction_definition",
+            "idx_winner_training_eligibility_decision_lookup",
+            "idx_winner_training_outcome_replay_lookup",
+            "idx_winner_temporal_validity_prediction_sequence",
+        ],
+        "sequential_scan_allowed": False,
+        "large_table_threshold_rows": 10_000,
+        "execution_budget_ms": 250,
+        "plan_rows_multiplier": 2.5,
+        "required_source_tokens": ["outcome_definition_id", "order_by", ".limit(1)"],
+    },
+    {
+        "id": "READ-026",
+        "site": "app/services/winner_probability/operations_service.py:status",
+        "tables": ["winner_market_data_obligations"],
+        "classification": "CERTIFIED_CURRENT_STATE_AGGREGATE",
+        "semantic_scope": "Current durable market-data obligation state by status.",
+        "production_horizon": "CURRENT_OBLIGATION_LEDGER",
+        "retention": "Rows remain for lineage; one current row exists per outcome and basis.",
+        "maximum_expected_rows_scanned": 1_000_000,
+        "maximum_result_rows": 5,
+        "required_indexes": ["idx_winner_market_data_obligation_status_range"],
+        "sequential_scan_allowed": True,
+        "large_table_threshold_rows": 250_000,
+        "execution_budget_ms": 1_000,
+        "plan_rows_multiplier": 1.1,
+        "required_source_tokens": ["WinnerMarketDataObligation.status", "func.count", "group_by"],
+    },
 )
 
 
@@ -234,6 +379,31 @@ def discover_tables(root: Path = ROOT) -> list[dict[str, str]]:
                     }
                 )
     return sorted(records, key=lambda row: row["table"])
+
+
+def discover_index_names(root: Path = ROOT) -> set[str]:
+    names: set[str] = set()
+    for path in _python_files(root, "app", "models"):
+        for node in ast.walk(_parse(path)):
+            if not isinstance(node, ast.Call) or not _call_name(node.func).endswith("Index"):
+                continue
+            if node.args:
+                name = _literal(node.args[0])
+                if isinstance(name, str):
+                    names.add(name)
+    return names
+
+
+def _function_source(root: Path, site: str) -> str:
+    path_text, _, function = site.partition(":")
+    path = root / path_text
+    if not path.is_file() or not function:
+        return ""
+    source = path.read_text(encoding="utf-8")
+    for name, node in _functions(_parse(path)):
+        if name == function:
+            return ast.get_source_segment(source, node) or ""
+    return ""
 
 
 def discover_writer_candidates(root: Path = ROOT) -> list[dict[str, str]]:
@@ -515,6 +685,8 @@ def _default_coverage() -> dict[str, list[str]]:
             "DANGEROUS-READS": ["tests/test_architecture_registry.py"],
         }
     )
+    for policy in R4_AGGREGATE_POLICIES:
+        coverage[policy["id"]] = ["tests/integration/test_aggregate_operability_postgresql.py"]
     return coverage
 
 
@@ -713,15 +885,8 @@ def build_registry(*, root: Path = ROOT, bootstrap: bool = False) -> dict[str, A
             }
             for row in dangerous
         ],
-        "deferred_r4_aggregates": [
-            {
-                "id": read_id,
-                "site": site,
-                "classification": "DEFERRED_R4_AGGREGATE",
-                "gap_id": "GAP-011",
-            }
-            for read_id, site in DEFERRED_R4_AGGREGATES
-        ],
+        "aggregate_query_policies": [dict(policy) for policy in R4_AGGREGATE_POLICIES],
+        "deferred_r4_aggregates": [],
         "autonomous_triggers": autonomous,
         "autonomous_sites": [
             {
@@ -942,16 +1107,71 @@ def validate_registry(
         ("path", "function", "models", "shape"),
     )
     deferred = registry.get("deferred_r4_aggregates", [])
-    if len(deferred) != 8 or any(
-        row.get("classification") != "DEFERRED_R4_AGGREGATE" or row.get("gap_id") != "GAP-011"
-        for row in deferred
-    ):
+    if deferred:
         findings.append(
             Finding(
                 "ARCH_DEFERRED_AGGREGATE_POLICY_DRIFT",
-                "expected exactly eight GAP-011 deferred aggregates",
+                f"expected zero deferred aggregates after R4, found {len(deferred)}",
             )
         )
+    aggregate_policies = registry.get("aggregate_query_policies", [])
+    expected_aggregate_ids = {policy["id"] for policy in R4_AGGREGATE_POLICIES}
+    actual_aggregate_ids = {policy.get("id") for policy in aggregate_policies}
+    if actual_aggregate_ids != expected_aggregate_ids or len(aggregate_policies) != 8:
+        findings.append(
+            Finding(
+                "ARCH_AGGREGATE_POLICY_DRIFT",
+                f"expected {sorted(expected_aggregate_ids)}, found {sorted(actual_aggregate_ids)}",
+            )
+        )
+    known_indexes = discover_index_names(root)
+    certified_classes = {
+        "CERTIFIED_CURRENT_STATE_AGGREGATE",
+        "CERTIFIED_WINDOWED_AGGREGATE",
+        "CERTIFIED_WHOLE_HISTORY_AGGREGATE",
+    }
+    for policy in aggregate_policies:
+        read_id = str(policy.get("id"))
+        if policy.get("classification") not in certified_classes:
+            findings.append(
+                Finding("ARCH_AGGREGATE_POLICY_UNCERTIFIED", f"{read_id} classification")
+            )
+        required_fields = (
+            "semantic_scope",
+            "production_horizon",
+            "retention",
+            "maximum_expected_rows_scanned",
+            "maximum_result_rows",
+            "execution_budget_ms",
+            "plan_rows_multiplier",
+        )
+        missing_fields = [field for field in required_fields if not policy.get(field)]
+        if missing_fields:
+            findings.append(
+                Finding(
+                    "ARCH_AGGREGATE_BUDGET_INCOMPLETE",
+                    f"{read_id}: {missing_fields}",
+                )
+            )
+        missing_indexes = set(policy.get("required_indexes", [])) - known_indexes
+        if missing_indexes:
+            findings.append(
+                Finding(
+                    "ARCH_AGGREGATE_INDEX_MISSING",
+                    f"{read_id}: {sorted(missing_indexes)}",
+                )
+            )
+        source = _function_source(root, str(policy.get("site", "")))
+        missing_tokens = [
+            token for token in policy.get("required_source_tokens", []) if token not in source
+        ]
+        if not source or missing_tokens:
+            findings.append(
+                Finding(
+                    "ARCH_AGGREGATE_SCOPE_DRIFT",
+                    f"{read_id}: missing source tokens {missing_tokens}",
+                )
+            )
 
     _compare_set(
         findings,
@@ -1003,6 +1223,7 @@ def validate_registry(
         "autonomous_triggers": len(registry.get("autonomous_triggers", [])),
         "transaction_families": len(registry.get("transaction_families", [])),
         "high_risk_tables": len(registry.get("high_risk_tables", [])),
+        "certified_aggregates": len(aggregate_policies),
         "deferred_r4_aggregates": len(deferred),
     }
     return findings, counts
@@ -1021,16 +1242,20 @@ def _check_modes(findings: list[Finding], label: str, modes: Any) -> None:
 
 def _validate_test_coverage(findings: list[Finding], registry: dict[str, Any], root: Path) -> None:
     coverage = registry.get("test_coverage", {})
-    material_ids = {
-        row["id"]
-        for section in (
-            "recovery_paths",
-            "autonomous_triggers",
-            "transaction_families",
-            "state_transitions",
-        )
-        for row in registry.get(section, [])
-    } | {"GAP-009", "GAP-012", "ROUTES", "JOBS", "DANGEROUS-READS"}
+    material_ids = (
+        {
+            row["id"]
+            for section in (
+                "recovery_paths",
+                "autonomous_triggers",
+                "transaction_families",
+                "state_transitions",
+            )
+            for row in registry.get(section, [])
+        }
+        | {row["id"] for row in registry.get("aggregate_query_policies", [])}
+        | {"GAP-009", "GAP-012", "ROUTES", "JOBS", "DANGEROUS-READS"}
+    )
     for path_id in sorted(material_ids - set(coverage)):
         findings.append(
             Finding("ARCH_TEST_COVERAGE_MISSING", f"{path_id} has no direct test reference")
@@ -1076,6 +1301,7 @@ def render_document(registry: dict[str, Any]) -> str:
         f"| Autonomous triggers | {len(registry.get('autonomous_triggers', []))} |",
         f"| Material transaction families | {len(registry.get('transaction_families', []))} |",
         f"| High-risk tables | {len(registry.get('high_risk_tables', []))} |",
+        f"| Certified aggregate policies | {len(registry.get('aggregate_query_policies', []))} |",
         f"| Deferred R4 aggregate scans | {len(registry.get('deferred_r4_aggregates', []))} |",
         "",
         "## Closure invariants",
@@ -1088,14 +1314,15 @@ def render_document(registry: dict[str, Any]) -> str:
         "- Every route, job, and autonomous trigger has NORMAL and CERTIFICATION behavior.",
         "- Material path IDs reference test files/nodes that exist.",
         "",
-        "## Explicit deferred work",
+        "## Certified aggregate budgets",
         "",
     ]
-    for row in registry.get("deferred_r4_aggregates", []):
+    for row in registry.get("aggregate_query_policies", []):
         lines.append(
-            f"- `{row['id']}` — `{row['site']}` — `{row['classification']}` (`{row['gap_id']}`)"
+            f"- `{row['id']}` — `{row['classification']}` — "
+            f"horizon `{row['production_horizon']}` — {row['execution_budget_ms']} ms"
         )
-    lines.extend(["", "No GAP-011 remediation is performed by this registry.", ""])
+    lines.extend(["", "GAP-011 is closed; no deferred aggregate policy remains.", ""])
     return "\n".join(lines)
 
 

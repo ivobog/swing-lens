@@ -156,7 +156,7 @@ No unresolved P0 was proven. This is not a canary approval: R0–R3 are committe
 
 - Path: WRITE-072, READ-013/014/018/019.
 - Previous source: `journal.exclude_execution_fill`, `rebuild_trade_episodes`, `journal_analytics`, and `query_service.trade_journal/scanner_runs` read or locked whole tables.
-- Closure: fill exclusion locks only episodes whose JSON fill set contains the target; rebuild locks only input tickers; journal pages are capped and deterministically ordered with an `(opened_at,id)` anchor; links are restricted to page episode IDs; candidates are restricted to selected run IDs and capped at 500; analytics uses server-side aggregates/percentiles. Aggregate scan budgets remain GAP-011 and were not changed here.
+- Closure: fill exclusion locks only episodes whose JSON fill set contains the target; rebuild locks only input tickers; journal pages are capped and deterministically ordered with an `(opened_at,id)` anchor; links are restricted to page episode IDs; candidates are restricted to selected run IDs and capped at 500; analytics uses server-side aggregates/percentiles. The separately registered R4 aggregate families are now certified under GAP-011.
 - Evidence: 600 episodes, 600 links, and 600 candidates prove a 100-row page (+ one lookahead), 100 page links, 500 candidates, and one target episode lock.
 
 #### GAP-008 — Generic CERI helpers permit unscoped dynamic model reads — **CLOSED**
@@ -173,12 +173,13 @@ No unresolved P0 was proven. This is not a canary approval: R0–R3 are committe
 - Closure: the worker attaches a short-lived control-plane session callback for CERI change detection. Heartbeat, progress, lease extension, and cancellation observation commit independently; domain change rows remain in the semantic transaction. Early job-row locking was removed from the domain authority scope, while the final commit fence still locks and revalidates the execution token.
 - Evidence: the PostgreSQL test leaves a CERI company row uncommitted, commits progress/heartbeat through another connection, observes both plus cancellation externally, rolls the domain transaction back, then proves liveness remains and the company row is absent.
 
-#### GAP-011 — Aggregate/diagnostic scans have no retention/index budget
+#### GAP-011 — Aggregate/diagnostic scans have no retention/index budget — **CLOSED**
 
 - Path: READ-002/003/010/012/022/023/025/026.
 - Source: background/CERI/setup/Winner operations summaries.
-- Guard: small result sets; missing scan/retention budgets.
-- Tests: performance tests do not assert query plans for all aggregates. Phase R4 operability.
+- Closure: all eight reads have a certified current-state or whole-history semantic scope, explicit online retention/horizon, schema-index contract, row/result/plan-estimate/execution budgets, and a sequential-scan policy. READ-025 now uses scoped descending `LIMIT 1` lookups instead of aggregating every matching historical ID; the other full-scope aggregates retain intentional server-side scans.
+- Evidence: read-only production cardinality/plan capture plus a 1.747-million-row disposable PostgreSQL fixture with `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`, semantic equivalence, no temporary spills, and no READ-025 large-table sequential scan. See `R4_AGGREGATE_OPERABILITY_CERTIFICATION.md`.
+- Guard: `architecture_registry.json` contains eight certified policies and zero deferred R4 aggregates; the fast checker fails on policy/source/index/test drift and the targeted PostgreSQL plan test enforces runtime plan properties.
 
 ### P3 maintainability
 
@@ -220,7 +221,7 @@ The old T14A audit was strong within its declared boundary: 187 Python business 
 3. “Worker disables recovery in certification” was treated as system policy even though the supervisor is an independent writer.
 4. Operational writers were classified separately and therefore not always tested against financial certification isolation.
 5. Dynamic generic model helpers and Python-side filters defeated simple model-name/static predicate searches.
-6. Point-in-time inventories were not continuously reconciled against schema and route growth.
+6. Point-in-time inventories were not continuously reconciled against schema and route growth before R3/R4.
 7. Commit/heartbeat boundaries were audited for correctness within services, not as edges that invalidate previously proven authority.
 
 ## Objective closure criteria
@@ -240,7 +241,7 @@ The old T14A audit was strong within its declared boundary: 187 Python business 
 11. top-down graph and bottom-up table inventory have no orphan;
 12. generated CI checks fail on a new table, job type, mutating route, executable entrypoint, autonomous trigger, or recovery mutator until it is classified.
 
-Criteria 1–12 are mechanically guarded. R1 implements executable authority boundaries for mutating HTTP registrations and production recovery/SEC-registration callers; R2 adds production query-shape and transaction-separation guards; R3 reconciles generated route, job, table/writer, recovery, transaction, read, autonomous, mode, state, and test inventories in CI. Live canaries remain prohibited until the remaining R4–R5 sequence is complete.
+Criteria 1–12 are mechanically guarded. R1 implements executable authority boundaries for mutating HTTP registrations and production recovery/SEC-registration callers; R2 adds production query-shape and transaction-separation guards; R3 reconciles generated route, job, table/writer, recovery, transaction, read, autonomous, mode, state, and test inventories in CI; R4 adds explicit operability contracts and PostgreSQL plan certification for all retained aggregate families. Live canaries remain prohibited until R5 is complete.
 
 ## Remediation DAG status
 
@@ -269,7 +270,7 @@ R0 freeze and baseline
   |      - CI orphan/drift checks (GAP-009/012)
   |      - 34-job seven-dimension conformance test
   |
-  +--> R4 operability budgets [depends on R2 query shapes]
+  +--> R4 operability budgets [COMPLETE]
   |      - aggregate indexes/retention/query-plan budgets (GAP-011)
   |      - production-cardinality synthetic certification
   |
@@ -282,4 +283,4 @@ R0 freeze and baseline
 
 ## Final conclusion
 
-The application now has a finite current-state map, a fail-closed R1 runtime mutation boundary, bounded R2 data-access/control-plane paths, and an R3 generated architecture drift gate. GAP-001 through GAP-010 and GAP-012 are closed. Remaining counts are P1: **0**, P2: **1** (GAP-011, unchanged), and P3: **0**. It is safe to proceed to R4, but not to repair historical jobs or start another canary.
+The application now has a finite current-state map, a fail-closed R1 runtime mutation boundary, bounded R2 data-access/control-plane paths, an R3 generated architecture drift gate, and R4 certified aggregate operability budgets. GAP-001 through GAP-012 are closed. Remaining counts are P0: **0**, P1: **0**, P2: **0**, and P3: **0**. It is safe to proceed to R5, but not to repair historical jobs or start another canary.
