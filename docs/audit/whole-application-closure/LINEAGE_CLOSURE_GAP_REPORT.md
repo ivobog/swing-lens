@@ -13,10 +13,11 @@
 - TOP-DOWN/BOTTOM-UP RECONCILIATION: **PASS**
 - R1 UNIFIED RUNTIME MUTATION AUTHORITY: **CLOSED**
 - R2 BOUNDED READS AND TRANSACTION SAFETY: **CLOSED**
-- SAFE TO PROCEED TO R3: **YES**
+- R3 GENERATED ARCHITECTURE REGISTRIES: **CLOSED**
+- SAFE TO PROCEED TO R4: **YES**
 - SAFE TO RESUME LIVE CANARY REMEDIATION: **NO**
 
-“Complete” means the finite current-tree inventory has no unknown caller or writer. R1 closes GAP-001, GAP-002, and GAP-003 with a shared typed authority boundary and disposable-PostgreSQL negative proofs. R2 closes GAP-004, GAP-005, GAP-006, GAP-007, GAP-008, and GAP-010 with SQL-scoped access, bounded deterministic batches/pages, target-only locks, structural loader guards, and a separately committed control plane. Live canary resumption remains prohibited pending R3–R5.
+“Complete” means the finite current-tree inventory has no unknown caller or writer. R1 closes GAP-001, GAP-002, and GAP-003 with a shared typed authority boundary and disposable-PostgreSQL negative proofs. R2 closes GAP-004, GAP-005, GAP-006, GAP-007, GAP-008, and GAP-010 with SQL-scoped access, bounded deterministic batches/pages, target-only locks, structural loader guards, and a separately committed control plane. R3 closes GAP-009 and GAP-012 with a checked machine registry and CI drift guard. Live canary resumption remains prohibited pending R4–R5.
 
 ## Exact counts
 
@@ -87,7 +88,7 @@ Authority inferred from status/latest/ticker/worker alone remains flagged in the
 
 ### P0 correctness/authority
 
-No unresolved P0 was proven. This is not a canary approval: R0–R2 are committed and verified, but the required R3–R5 sequence remains incomplete.
+No unresolved P0 was proven. This is not a canary approval: R0–R3 are committed or staged and verified, but the required R4–R5 sequence remains incomplete.
 
 ### P1 production safety
 
@@ -181,21 +182,21 @@ No unresolved P0 was proven. This is not a canary approval: R0–R2 are committe
 
 ### P3 maintainability
 
-#### GAP-009 — The writer census drifted from 115 to 120 tables without automatic failure
+#### GAP-009 — CLOSED: generated table/writer census fails CI on drift
 
 - Path: writer registry cross-check.
 - Source: five scope/manifest tables added after T14A.
-- Existing guard: T14A artifacts/tests; missing current-schema-to-registry CI reconciliation.
-- Tests: inventory tests validate artifacts but did not force these tables into the old reverse index.
-- Phase R3 generated inventories and CI orphan check.
+- Guard: `scripts/check_architecture_registry.py --check` discovers every model `__tablename__`, compares all 120 mappings with the checked machine registry, and requires a writer ID for all 119 mutable mappings.
+- Tests: synthetic new-table rejection plus the normal CI architecture gate.
+- Closure: **R3**; new, removed, or reclassified table drift is an actionable CI failure.
 
-#### GAP-012 — Runtime policy is descriptive in one module and enforced piecemeal elsewhere
+#### GAP-012 — CLOSED: one generated runtime-mode registry guards all mutating surfaces
 
 - Path: MODE-001..006.
 - Source: `CERTIFICATION_DISABLED_AUTOMATIC_WORKFLOWS` is a reporting tuple; callers independently branch.
-- Existing guard: many correct explicit branches; missing executable central policy/capability.
-- Tests: subsystem tests, no complete conformance matrix.
-- Phase R1/R3.
+- Guard: R1 central authority remains the runtime boundary; R3 requires explicit NORMAL and CERTIFICATION policy for every mutating route, durable job, and autonomous trigger and reconciles route/job/recovery discovery independently.
+- Tests: mode-policy negative test, route classification tests, recovery structural tests, and CI registry reconciliation.
+- Closure: **R1/R3**; no registered mutating/autonomous surface may inherit an implicit certification default.
 
 ## Previously missed paths
 
@@ -239,7 +240,7 @@ The old T14A audit was strong within its declared boundary: 187 Python business 
 11. top-down graph and bottom-up table inventory have no orphan;
 12. generated CI checks fail on a new table, job type, mutating route, executable entrypoint, autonomous trigger, or recovery mutator until it is classified.
 
-Criteria 1–11 are satisfied as an audit inventory. R1 implements executable drift guards for mutating HTTP registrations and production recovery/SEC-registration callers; R2 adds production query-shape and transaction-separation guards. Criterion 12 remains broader because table/job/writer/transition generation is assigned to R3. Live canaries remain prohibited until the full R3–R5 sequence is complete.
+Criteria 1–12 are mechanically guarded. R1 implements executable authority boundaries for mutating HTTP registrations and production recovery/SEC-registration callers; R2 adds production query-shape and transaction-separation guards; R3 reconciles generated route, job, table/writer, recovery, transaction, read, autonomous, mode, state, and test inventories in CI. Live canaries remain prohibited until the remaining R4–R5 sequence is complete.
 
 ## Remediation DAG status
 
@@ -263,7 +264,7 @@ R0 freeze and baseline
   |      - scoped generic read API and progress visibility (GAP-008/010)
   |      - cardinality/query-count/timeout tests
   |
-  +--> R3 executable architecture registry [can begin after R1 interface freezes]
+  +--> R3 executable architecture registry [complete]
   |      - generate route/job/table/writer/transition inventories
   |      - CI orphan/drift checks (GAP-009/012)
   |      - 34-job seven-dimension conformance test
@@ -281,4 +282,4 @@ R0 freeze and baseline
 
 ## Final conclusion
 
-The application now has a finite current-state map, a fail-closed R1 runtime mutation boundary, and bounded R2 data-access/control-plane paths. GAP-001 through GAP-008 and GAP-010 are closed. Remaining counts are P1: **0**, P2: **1** (GAP-011, unchanged), and P3: **2**. It is safe to proceed to R3, but not to repair historical jobs or start another canary.
+The application now has a finite current-state map, a fail-closed R1 runtime mutation boundary, bounded R2 data-access/control-plane paths, and an R3 generated architecture drift gate. GAP-001 through GAP-010 and GAP-012 are closed. Remaining counts are P1: **0**, P2: **1** (GAP-011, unchanged), and P3: **0**. It is safe to proceed to R4, but not to repair historical jobs or start another canary.

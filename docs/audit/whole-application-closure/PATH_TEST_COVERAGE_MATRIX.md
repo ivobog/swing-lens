@@ -75,9 +75,10 @@ The missing cross-cutting assertion is not handler existence; it is that each cr
 | GAP-006 catalyst revision global read | **Yes — CLOSED:** 253 revisions, event-scoped `MAX`, one scalar materialization |
 | GAP-007 IB journal global locks/reads | **Yes — CLOSED:** 600 episodes/links/candidates, bounded page/candidate pool and one target lock |
 | GAP-008 generic unscoped CERI helper APIs | **Yes — CLOSED:** production-session rejection and statement-level large-entity guards |
-| GAP-009 previous audit drift (115 -> 120 tables) | T14A inventory test covers old artifacts, not current schema delta automatically |
+| GAP-009 previous audit drift (115 -> 120 tables) | **Yes — CLOSED:** generated 120-table census, 119 mutable writer mappings, synthetic table drift rejection, CI registry gate |
+| GAP-012 split runtime policy | **Yes — CLOSED:** explicit NORMAL/CERTIFICATION policy for routes, jobs, and autonomous triggers plus synthetic missing-mode rejection |
 | GAP-010 same-transaction CERI progress visibility | **Yes — CLOSED:** independent connection sees progress/cancel before domain rollback; liveness survives while domain row does not |
 
 ## Coverage verdict
 
-The matrix is complete as an inventory and identifies direct evidence versus adjacency. R1 authority and R2 bounded-read/transaction coverage are PASS. Remaining P1 count is zero; remaining P2 count is one (GAP-011, unchanged and assigned to R4). This permits R3 work but is not approval for canary resumption.
+The matrix is now backed by a machine-readable path-to-test registry whose file/node references are checked in CI. R1 authority, R2 bounded-read/transaction coverage, and R3 drift closure are PASS. Remaining P1 count is zero; remaining P2 count is one (GAP-011, unchanged and assigned to R4). This permits R4 work but is not approval for canary resumption.

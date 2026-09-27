@@ -52,6 +52,9 @@ jobs:
       - name: Sync dependencies
         run: uv sync --locked --extra dev
 
+      - name: Check generated architecture closure registry
+        run: uv run python scripts/check_architecture_registry.py --check
+
       - name: Install PostgreSQL client tools
         run: |
           sudo apt-get update

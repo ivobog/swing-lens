@@ -11,9 +11,9 @@ from app.models.tables import (
     WinnerPredictionSnapshot,
     WinnerTargetStopOutcome,
 )
+from app.services.winner_probability.cohort_authority import certified_financial_population
 from app.services.winner_probability.cohort_definition import CohortKey
 from app.services.winner_probability.cohort_statistics import CohortStatisticsService
-from app.services.winner_probability.cohort_authority import certified_financial_population
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.evidence_manifest_service import (
     _hash_payload,

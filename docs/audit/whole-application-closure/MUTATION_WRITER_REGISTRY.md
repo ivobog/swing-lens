@@ -158,4 +158,4 @@ The comma-separated IDs mean the table has multiple independent writers and ther
 
 ## Bottom-up verdict
 
-All 120 mappings are accounted for: 119 mutable table families have at least one production writer and mapped entry chain; one (`engine_parameters`) is intentionally read-only. There are no unknown callers. R1 closes the authority findings on WRITE-007/008/009/044/046/051/058; R2 closes the bounded-read/lock findings on WRITE-037/043/045/072 without changing writer ownership. Remaining work is the R3 generated-registry closure and R4 aggregate-operability budget.
+All 120 mappings are accounted for: 119 mutable table families have at least one production writer and mapped entry chain; one (`engine_parameters`) is intentionally read-only. There are no unknown callers. R1 closes the authority findings on WRITE-007/008/009/044/046/051/058; R2 closes the bounded-read/lock findings on WRITE-037/043/045/072 without changing writer ownership; R3 checks this census and the production mutation-candidate census in CI. Remaining work is the R4 aggregate-operability budget.
