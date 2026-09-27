@@ -22,6 +22,7 @@ from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import (
     JobStatus,
     enqueue_job,
+    heartbeat_job,
     is_cancel_requested,
     record_job_progress,
 )
@@ -31,6 +32,7 @@ from app.services.ceri.artifact_lineage import CeriArtifactOwnership
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.capture_service import CeriRunCaptureService
 from app.services.ceri.change_rebuild_service import (
+    CeriChangeRebuildCancelled,
     CeriChangeRebuildRequest,
     CeriChangeRebuildService,
 )
@@ -557,21 +559,56 @@ def execute_change_detection_job(
         else:
             _release_pipeline_after_ceri(db, job)
         return values
+    request = CeriChangeRebuildRequest(
+        company_ids=_optional_int_tuple(payload.get("company_ids")),
+        ticker=payload.get("ticker"),
+        run_id=_optional_int(payload.get("run_id")),
+        from_session=_optional_date(payload.get("from_session")),
+        to_session=_optional_date(payload.get("to_session")),
+        changed_since=_optional_datetime(payload.get("changed_since")),
+        as_of_session=_optional_date(payload.get("as_of_session")),
+        cutoff_at=_optional_datetime(payload.get("cutoff_at")),
+        semantic_authority=semantic_authority,
+    )
+    service = change_service or CeriChangeRebuildService()
     with job_phase("change_calculation_and_persistence"):
-        result = (change_service or CeriChangeRebuildService()).rebuild(
-            db,
-            CeriChangeRebuildRequest(
-                company_ids=_optional_int_tuple(payload.get("company_ids")),
-                ticker=payload.get("ticker"),
-                run_id=_optional_int(payload.get("run_id")),
-                from_session=_optional_date(payload.get("from_session")),
-                to_session=_optional_date(payload.get("to_session")),
-                changed_since=_optional_datetime(payload.get("changed_since")),
-                as_of_session=_optional_date(payload.get("as_of_session")),
-                cutoff_at=_optional_datetime(payload.get("cutoff_at")),
-                semantic_authority=semantic_authority,
-            ),
-        )
+        if isinstance(db, Session):
+            execution_token = str(job.execution_token or "")
+
+            def should_cancel() -> bool:
+                heartbeat_job(db, job, execution_token=execution_token)
+                return is_cancel_requested(db, job.id)
+
+            def report_progress(
+                processed: int,
+                total: int,
+                company_ids: tuple[int, ...],
+            ) -> None:
+                heartbeat_job(db, job, execution_token=execution_token)
+                record_job_progress(
+                    db,
+                    job_id=job.id,
+                    execution_token=execution_token,
+                    stage="CERI_CHANGE_DETECTION",
+                    current_item=f"companies:{company_ids[0]}-{company_ids[-1]}",
+                    last_completed_item=str(company_ids[-1]),
+                    processed=processed,
+                    total=total,
+                    checkpoint_version="ceri-change-company-chunks-v1",
+                    only_if_advanced=True,
+                )
+
+            try:
+                result = service.rebuild(
+                    db,
+                    request,
+                    should_cancel=should_cancel,
+                    progress_callback=report_progress,
+                )
+            except CeriChangeRebuildCancelled as exc:
+                raise CancelRequested(str(exc)) from exc
+        else:
+            result = service.rebuild(db, request)
     raw_change_ids = getattr(result, "change_ids", None)
     change_ids = tuple(int(value) for value in (raw_change_ids or ()))
     CeriProcessingRunService().finish(

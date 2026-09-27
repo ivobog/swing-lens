@@ -69,6 +69,28 @@ _active_source_writers = ContextVar("source_mutation_transactions", default=())
 _prefetched_source_bodies = ContextVar("prefetched_source_bodies", default=None)
 _locked_source_bundles = WeakKeyDictionary()
 
+# Psycopg's extended-query protocol rejects more than 65,535 bind parameters.
+# Keep substantial headroom for future non-identity predicates instead of
+# treating the protocol ceiling as an available identity budget.
+SOURCE_REFRESH_QUERY_PARAMETER_BUDGET = 50_000
+
+
+def source_refresh_identity_chunk_size(
+    primary_key_width: int,
+    *,
+    additional_parameter_count: int = 0,
+) -> int:
+    """Return a safe deterministic identity count for one refresh statement."""
+
+    if primary_key_width <= 0:
+        raise ValueError("MUTATION_SOURCE_PRIMARY_KEY_REQUIRED")
+    if additional_parameter_count < 0:
+        raise ValueError("MUTATION_SOURCE_PARAMETER_COUNT_INVALID")
+    available = SOURCE_REFRESH_QUERY_PARAMETER_BUDGET - additional_parameter_count
+    if available < primary_key_width:
+        raise ValueError("MUTATION_SOURCE_PARAMETER_BUDGET_EXHAUSTED")
+    return available // primary_key_width
+
 
 @event.listens_for(Engine, "after_cursor_execute")
 def _invalidate_changed_source_bundles(conn, cursor, statement, parameters, context, executemany):
@@ -244,23 +266,51 @@ class PrefetchedSourceBodies:
         from sqlalchemy import tuple_
 
         # No ambient selectors: retain precisely the addresses admitted earlier.
+        # All chunks use this Session's current transaction, preserving FOR UPDATE
+        # ownership while keeping every statement below the driver parameter budget.
+        expected_by_table = {}
+        refreshed_by_table = {}
         with self.db.no_autoflush:
             for table, model in self.models.items():
                 columns = list(inspect(model).columns)
                 primary = list(inspect(model).primary_key)
-                addresses = [key[1] for key in self.bodies if key[0] == table]
+                addresses = tuple(
+                    sorted(
+                        (key[1] for key in self.bodies if key[0] == table),
+                        key=str,
+                    )
+                )
                 if not addresses:
                     continue
-                retained = (
-                    self.db.execute(
-                        select(*columns).where(tuple_(*primary).in_(addresses)).with_for_update()
+                chunk_size = source_refresh_identity_chunk_size(len(primary))
+                found = {}
+                for start in range(0, len(addresses), chunk_size):
+                    address_chunk = addresses[start : start + chunk_size]
+                    retained = (
+                        self.db.execute(
+                            select(*columns)
+                            .where(tuple_(*primary).in_(address_chunk))
+                            .with_for_update()
+                        )
+                        .mappings()
+                        .all()
                     )
-                    .mappings()
-                    .all()
-                )
-                found = {tuple(row[c.key] for c in primary): dict(row) for row in retained}
-                if set(found) != set(addresses):
+                    for row in retained:
+                        address = tuple(row[c.key] for c in primary)
+                        found[address] = dict(row)
+                expected_by_table[table] = addresses
+                refreshed_by_table[table] = found
+
+            # Validate only after every table and chunk was read successfully.
+            # Until this completes the bundle remains marked for revalidation.
+            for table, addresses in expected_by_table.items():
+                found = refreshed_by_table[table]
+                expected = set(addresses)
+                observed = set(found)
+                if expected - observed:
                     raise ValueError("MUTATION_SOURCE_RECORD_MISSING: " + table)
+                if observed - expected:
+                    raise ValueError("MUTATION_SOURCE_RECORD_UNEXPECTED: " + table)
                 for address in addresses:
                     if Canonical.fingerprint(found[address]) != Canonical.fingerprint(
                         self.bodies[(table, address)]

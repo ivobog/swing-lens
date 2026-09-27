@@ -1117,6 +1117,13 @@ class CeriScoreSnapshot(Base):
             name="uq_ceri_score_snapshots_run_company_version",
         ),
         Index("ix_ceri_score_snapshots_run_ticker", "run_id", "ticker"),
+        Index(
+            "ix_ceri_score_snapshots_company_temporal",
+            "company_id",
+            "as_of_session",
+            "cutoff_at",
+            "id",
+        ),
         Index("ix_ceri_score_snapshots_scores", "opportunity_score", "event_risk_score"),
         Index("ix_ceri_score_snapshots_confidence", "data_confidence"),
         Index("ix_ceri_score_snapshots_comparison_state", "comparison_state"),

@@ -305,6 +305,7 @@ class EodhdCeriProvider:
             and provider_surprise is not None
             else None
         )
+        report_at = _report_at(row, report_date)
         payload = {
             "ticker": canonical_ticker_from_eodhd_symbol(symbol),
             "provider_company_id": symbol,
@@ -312,7 +313,7 @@ class EodhdCeriProvider:
             "period_type": ptype,
             "fiscal_period_end": provider_date(_first_present(row, "date", "fiscalPeriodEnd"))
             or report_date,
-            "report_at": _report_at(row, report_date),
+            "report_at": report_at,
             "source_date": report_date.isoformat(),
             "actual_value": actual,
             "estimate": estimate,
@@ -333,11 +334,7 @@ class EodhdCeriProvider:
             CeriDataset.EARNINGS,
             provider_id,
             payload,
-            (
-                _first_present(row, "report_date", "reportDate")
-                if event_kind == "REPORTED"
-                else None
-            ),
+            report_at if event_kind == "REPORTED" else None,
         )
 
     def fetch_guidance(self, request: GuidanceRequest) -> Iterable[RawProviderRecord]:
@@ -512,9 +509,20 @@ def _datetime(value: Any) -> datetime | None:
 
 def _report_at(row: dict[str, Any], report_date: date) -> datetime:
     value = _datetime(row.get("reportDateTime") or row.get("report_at"))
-    if value is not None:
-        return value
-    return datetime(report_date.year, report_date.month, report_date.day, 21, 0, tzinfo=UTC)
+    if value is not None and value.tzinfo is not None and value.utcoffset() is not None:
+        return value.astimezone(UTC)
+
+    # EODHD's official calendar commonly supplies only a business date plus
+    # before/after-market classification. SwingLens uses conservative UTC
+    # report instants: 13:00 for BMO and the established 21:00 fallback for
+    # AMC or an absent/unknown classification. A naive provider datetime is
+    # ambiguous and therefore falls back to the same explicit policy.
+    report_time = str(
+        _first_present(row, "before_after_market", "beforeAfterMarket") or ""
+    )
+    normalized = re.sub(r"[^a-z]", "", report_time.lower())
+    hour = 13 if normalized in {"beforemarket", "beforemarketopen", "bmo"} else 21
+    return datetime(report_date.year, report_date.month, report_date.day, hour, 0, tzinfo=UTC)
 
 
 def _classify_news(text: str) -> tuple[str, str, str]:

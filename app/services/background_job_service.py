@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Callable, Iterable
+import re
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from threading import RLock
@@ -41,6 +43,10 @@ TERMINAL_JOB_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED
 DEFAULT_LEASE_SECONDS = 900
 LEASE_EVENT_MAX_COUNT = 50
 logger = logging.getLogger(__name__)
+_DB_PARAMETER_LIMIT_PATTERN = re.compile(
+    r"number of parameters must be between\s+\d+\s+and\s+(?P<maximum>\d+)",
+    re.IGNORECASE,
+)
 _schema_capability_lock = RLock()
 _schema_capability_cache: WeakKeyDictionary[object, tuple[frozenset[str], bool, bool]] = (
     WeakKeyDictionary()
@@ -95,6 +101,15 @@ class JobStatus:
     STALE = "STALE"
     STALLED = "STALLED"
     RECOVERING = "RECOVERING"
+
+
+@dataclass(frozen=True)
+class WorkerJobReconciliation:
+    """Per-job outcomes after a worker process is proven lost."""
+
+    fenced_job_ids: tuple[int, ...] = ()
+    cancelled_job_ids: tuple[int, ...] = ()
+    untouched_job_ids: tuple[int, ...] = ()
 
 
 ACTIVE_JOB_STATUSES = (JobStatus.QUEUED, JobStatus.RECOVERING, JobStatus.RUNNING)
@@ -939,6 +954,7 @@ def fence_stalled_jobs(
     worker_instance_id: str | None = None,
     worker_heartbeat_at: datetime | None = None,
     long_stage_timeout_seconds: int = 1800,
+    certification_session_id: str | None = None,
 ) -> list[int]:
     """Fence live-but-not-progressing executions without trusting lease freshness."""
     observed_at = now or _utcnow()
@@ -952,6 +968,13 @@ def fence_stalled_jobs(
     if worker_instance_id is not None:
         candidate_query = candidate_query.where(
             BackgroundJob.worker_instance_id == worker_instance_id
+        )
+    if certification_session_id is not None:
+        from app.services.certification_runtime import apply_certification_claim_scope
+
+        candidate_query = apply_certification_claim_scope(
+            candidate_query,
+            certification_session_id=certification_session_id,
         )
     # A non-locking MVCC read makes SKIP LOCKED observable.  It does not grant
     # the watchdog authority to mutate the row, but prevents an owned/stalled
@@ -980,6 +1003,9 @@ def fence_stalled_jobs(
         logger.warning("job.watchdog.decision %s", decision_context, extra=decision_context)
     fenced: list[int] = []
     for job in locked_candidates:
+        if job.requested_cancel:
+            _finalize_recovery_cancellation(db, job, now=observed_at)
+            continue
         if job.progress_stage == "FETCHING_MARKET_DATA":
             timeout = market_data_timeout_seconds
         elif job.progress_stage in {
@@ -1147,6 +1173,9 @@ def requeue_stalled_jobs(
         query = query.where(BackgroundJob.id.in_(tuple(job_ids)))
     recovered = 0
     for job in db.scalars(query.with_for_update(skip_locked=True)).all():
+        if job.requested_cancel:
+            _finalize_recovery_cancellation(db, job, now=observed_at)
+            continue
         job.status = JobStatus.RECOVERING
         job.recovery_count = int(job.recovery_count or 0) + 1
         job.operational_metadata_json = _with_lease_event(
@@ -1171,9 +1200,34 @@ def fence_jobs_for_worker(
     now: datetime | None = None,
 ) -> list[int]:
     """Fence jobs after a supervisor has proven their owning process exited."""
+    return list(
+        reconcile_jobs_for_worker_loss(
+            db,
+            worker_id=worker_id,
+            worker_instance_id=worker_instance_id,
+            reason=reason,
+            now=now,
+        ).fenced_job_ids
+    )
+
+
+def reconcile_jobs_for_worker_loss(
+    db: Session,
+    *,
+    worker_id: str,
+    reason: str,
+    worker_instance_id: str | None = None,
+    certification_session_id: str | None = None,
+    now: datetime | None = None,
+) -> WorkerJobReconciliation:
+    """Apply recovery policy independently to each job owned by a lost worker.
+
+    A certification session grants mutation authority only through the canonical
+    explicit certification claim predicate. Jobs outside that predicate are
+    observed for diagnostics but are not locked or changed.
+    """
     observed_at = now or _utcnow()
-    fenced: list[int] = []
-    jobs = db.scalars(
+    owned_query = (
         select(BackgroundJob)
         .where(BackgroundJob.status == JobStatus.RUNNING)
         .where(BackgroundJob.worker_id == worker_id)
@@ -1182,9 +1236,32 @@ def fence_jobs_for_worker(
             if worker_instance_id is not None
             else BackgroundJob.worker_id == worker_id
         )
-        .with_for_update(skip_locked=True)
-    ).all()
+    )
+    authorized_query = owned_query
+    if certification_session_id is not None:
+        from app.services.certification_runtime import apply_certification_claim_scope
+
+        owned_ids = tuple(
+            int(value)
+            for value in db.scalars(
+                owned_query.with_only_columns(BackgroundJob.id)
+            ).all()
+        )
+        authorized_query = apply_certification_claim_scope(
+            authorized_query,
+            certification_session_id=certification_session_id,
+        )
+    jobs = db.scalars(authorized_query.with_for_update(skip_locked=True)).all()
+    if certification_session_id is None:
+        owned_ids = tuple(int(job.id) for job in jobs)
+    authorized_ids = {int(job.id) for job in jobs}
+    fenced: list[int] = []
+    cancelled: list[int] = []
     for job in jobs:
+        if job.requested_cancel:
+            _finalize_recovery_cancellation(db, job, now=observed_at)
+            cancelled.append(int(job.id))
+            continue
         old_token = job.execution_token
         job.status = JobStatus.STALLED
         job.stall_detected_at = observed_at
@@ -1203,9 +1280,13 @@ def fence_jobs_for_worker(
             worker_id=worker_id,
             execution_token=old_token,
         )
-        fenced.append(job.id)
+        fenced.append(int(job.id))
     db.flush()
-    return fenced
+    return WorkerJobReconciliation(
+        fenced_job_ids=tuple(fenced),
+        cancelled_job_ids=tuple(cancelled),
+        untouched_job_ids=tuple(job_id for job_id in owned_ids if job_id not in authorized_ids),
+    )
 
 
 def _claim_ready_job_id(
@@ -1442,6 +1523,10 @@ def mark_job_failed_or_retry(
 def classify_job_failure(error: str | Exception) -> dict[str, Any]:
     """Classify deterministic provenance failures without disabling retries globally."""
 
+    parameter_limit = _database_parameter_limit_failure(error)
+    if parameter_limit is not None:
+        return parameter_limit
+
     code = getattr(error, "code", None)
     if code is None:
         message = str(error).strip()
@@ -1470,6 +1555,44 @@ def classify_job_failure(error: str | Exception) -> dict[str, Any]:
         "kind": JobFailureKind.TRANSIENT.value if transient else "UNCLASSIFIED_RETRYABLE",
         "retryable": True,
         "code": str(code) if code is not None else error.__class__.__name__,
+    }
+
+
+def _database_parameter_limit_failure(error: str | Exception) -> dict[str, Any] | None:
+    """Recognize only the driver's explicit bind-count protocol violation."""
+
+    if not isinstance(error, Exception) or error.__class__.__name__ != "OperationalError":
+        return None
+    candidates = []
+    # SQLAlchemy's wrapper string includes SQL and parameter representations.
+    # Inspect the original driver exception first so classification never
+    # depends on, or needs to materialize, raw bound values.
+    original = getattr(error, "orig", None)
+    current: BaseException | None = original if isinstance(original, BaseException) else error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        candidates.append(str(current))
+        current = current.__cause__ or current.__context__
+    match = next(
+        (
+            matched
+            for message in candidates
+            if (matched := _DB_PARAMETER_LIMIT_PATTERN.search(message))
+        ),
+        None,
+    )
+    if match is None:
+        return None
+    diagnostics: dict[str, Any] = {"supported_maximum": int(match.group("maximum"))}
+    parameters = getattr(error, "params", None)
+    if isinstance(parameters, Mapping):
+        diagnostics["actual_parameter_count"] = len(parameters)
+    return {
+        "kind": JobFailureKind.DETERMINISTIC.value,
+        "retryable": False,
+        "code": "DB_PARAMETER_LIMIT_EXCEEDED",
+        "diagnostics": diagnostics,
     }
 
 
@@ -1586,6 +1709,9 @@ def request_job_cancel(db: Session, job_id: int) -> BackgroundJob:
         job.worker_instance_id = None
         job.lease_owner = None
         job.execution_token = None
+    elif job.status in {JobStatus.STALLED, JobStatus.RECOVERING}:
+        _finalize_recovery_cancellation(db, job, now=_utcnow())
+        return job
 
     db.flush()
     return job
@@ -1664,6 +1790,9 @@ def recover_abandoned_jobs_for_worker(
 def _recover_jobs(db: Session, jobs: Iterable[BackgroundJob], *, now: datetime) -> int:
     recovered_count = 0
     for job in jobs:
+        if job.requested_cancel:
+            _finalize_recovery_cancellation(db, job, now=now)
+            continue
         old_worker_id = job.worker_id
         old_execution_token = job.execution_token
         job.locked_at = None
@@ -1712,6 +1841,42 @@ def _recover_jobs(db: Session, jobs: Iterable[BackgroundJob], *, now: datetime) 
 
     db.flush()
     return recovered_count
+
+
+def _finalize_recovery_cancellation(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    now: datetime,
+) -> None:
+    """Finish requested cancellation instead of making abandoned work runnable."""
+    if job.status == JobStatus.RUNNING:
+        mark_job_cancelled(db, job, execution_token=job.execution_token)
+        return
+    job.status = JobStatus.CANCELLED
+    job.requested_cancel = True
+    job.error_message = None
+    job.locked_at = None
+    job.heartbeat_at = None
+    job.lease_expires_at = None
+    job.worker_id = None
+    job.worker_instance_id = None
+    job.lease_owner = None
+    job.execution_token = None
+    job.completed_at = now
+    job.operational_metadata_json = _with_attempt_finished(
+        job.operational_metadata_json,
+        finished_at=now,
+        status=JobStatus.CANCELLED,
+    )
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_jobs_finished_total",
+        job_type=job.job_type,
+        status=JobStatus.CANCELLED,
+    )
+    db.flush()
 
 
 def default_retry_delay(retry_count: int) -> timedelta:

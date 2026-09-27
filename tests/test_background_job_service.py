@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import (
@@ -313,6 +314,42 @@ def test_transient_infrastructure_failure_remains_retryable(error: Exception) ->
     assert failure["retryable"] is True
 
 
+def test_database_parameter_limit_failure_is_deterministic_and_nonretryable() -> None:
+    class ParameterSet(dict):
+        def __len__(self) -> int:
+            return 79_662
+
+    error = OperationalError(
+        "SELECT price_bars.id FROM price_bars WHERE price_bars.id IN (...) FOR UPDATE",
+        ParameterSet(),
+        RuntimeError(
+            "sending query and params failed: number of parameters must be between 0 and 65535"
+        ),
+    )
+
+    assert classify_job_failure(error) == {
+        "kind": JobFailureKind.DETERMINISTIC.value,
+        "retryable": False,
+        "code": "DB_PARAMETER_LIMIT_EXCEEDED",
+        "diagnostics": {
+            "supported_maximum": 65_535,
+            "actual_parameter_count": 79_662,
+        },
+    }
+
+
+def test_unrelated_database_operational_error_remains_retryable() -> None:
+    error = OperationalError("SELECT 1", {}, OSError("database connection unavailable"))
+
+    failure = classify_job_failure(error)
+
+    assert failure == {
+        "kind": JobFailureKind.TRANSIENT.value,
+        "retryable": True,
+        "code": "e3q8",
+    }
+
+
 def test_manifest_mismatch_fails_job_without_automatic_pipeline_replay() -> None:
     job = _running_job(max_retries=3)
     db = FakeDb(existing=job)
@@ -486,6 +523,36 @@ def test_recover_stale_jobs_marks_exhausted_jobs_stale() -> None:
     assert stale.completed_at is not None
 
 
+def test_recover_stale_jobs_finalizes_requested_cancellation() -> None:
+    stale = _running_job()
+    stale.requested_cancel = True
+    db = FakeDb(stale_jobs=[stale])
+
+    assert recover_stale_jobs(db, stale_after_seconds=900) == 0
+
+    assert stale.status == JobStatus.CANCELLED
+    assert stale.completed_at is not None
+    assert stale.worker_id is None
+    assert stale.execution_token is None
+
+
+def test_recover_abandoned_job_finalizes_requested_cancellation() -> None:
+    abandoned = _running_job(lease_expires_at=datetime.now(UTC) + timedelta(minutes=10))
+    abandoned.heartbeat_at = datetime.now(UTC) - timedelta(seconds=45)
+    abandoned.requested_cancel = True
+    db = FakeDb(stale_jobs=[abandoned])
+
+    assert (
+        recover_abandoned_jobs_for_worker(
+            db,
+            worker_id="worker-a",
+            heartbeat_timeout_seconds=30,
+        )
+        == 0
+    )
+    assert abandoned.status == JobStatus.CANCELLED
+
+
 def test_live_heartbeat_prevents_stale_recovery() -> None:
     live = _running_job(lease_expires_at=datetime.now(UTC) + timedelta(minutes=5))
     db = FakeDb(stale_jobs=[live])
@@ -594,6 +661,64 @@ def test_live_worker_without_progress_is_fenced_and_recovering() -> None:
     assert requeue_stalled_jobs(db, job_ids=fenced, now=now) == 1
     assert job.status == JobStatus.RECOVERING
     assert job.recovery_count == 1
+
+
+def test_requeue_stalled_job_finalizes_requested_cancellation() -> None:
+    job = _running_job()
+    job.status = JobStatus.STALLED
+    job.requested_cancel = True
+    job.execution_token = None
+    job.recovery_count = 0
+    db = FakeDb(stale_jobs=[job])
+
+    assert requeue_stalled_jobs(db, job_ids=[job.id]) == 0
+    assert job.status == JobStatus.CANCELLED
+    assert job.completed_at is not None
+    assert job.recovery_count == 0
+
+
+def test_watchdog_finalizes_requested_cancellation_instead_of_fencing() -> None:
+    now = datetime.now(UTC)
+    job = _running_job()
+    job.requested_cancel = True
+    job.heartbeat_at = now
+    job.last_progress_at = now - timedelta(minutes=10)
+    job.progress_stage = "CERI_PROVIDER_INGEST"
+    db = FakeDb(stale_jobs=[job])
+
+    assert (
+        fence_stalled_jobs(
+            db,
+            default_timeout_seconds=60,
+            market_data_timeout_seconds=120,
+            long_stage_timeout_seconds=120,
+            now=now,
+            worker_id="worker-a",
+        )
+        == []
+    )
+    assert job.status == JobStatus.CANCELLED
+    assert job.completed_at is not None
+
+
+def test_lost_worker_reconciliation_never_fences_requested_cancellation() -> None:
+    job = _running_job()
+    job.worker_instance_id = "instance-a"
+    job.requested_cancel = True
+    job.recovery_count = 0
+    db = FakeDb(stale_jobs=[job])
+
+    fenced = fence_jobs_for_worker(
+        db,
+        worker_id="worker-a",
+        worker_instance_id="instance-a",
+        reason="worker crashed",
+    )
+
+    assert fenced == []
+    assert job.status == JobStatus.CANCELLED
+    assert job.completed_at is not None
+    assert job.recovery_count == 0
 
 
 def test_structural_progress_advance_prevents_false_stall_after_300_seconds() -> None:

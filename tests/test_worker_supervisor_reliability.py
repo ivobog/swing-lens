@@ -102,7 +102,7 @@ def test_launcher_pid_mismatch_uses_registered_worker_identity(monkeypatch) -> N
     monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: worker)
     monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _row: True)
     monkeypatch.setattr(worker_supervisor, "_safe_memory_status", lambda _row: "OK")
-    monkeypatch.setattr(worker_supervisor, "_fence_no_progress", lambda *_args: [])
+    monkeypatch.setattr(worker_supervisor, "_fence_no_progress", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(
         worker_supervisor, "_associate_launcher", lambda row, pid: associated.append((row, pid))
     )
@@ -125,7 +125,9 @@ def test_frozen_worker_is_fenced_terminated_and_recoverable(monkeypatch) -> None
     monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: worker)
     monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _row: True)
     monkeypatch.setattr(worker_supervisor, "_safe_memory_status", lambda _row: "OK")
-    monkeypatch.setattr(worker_supervisor, "_fence_no_progress", lambda *_args: [71])
+    monkeypatch.setattr(
+        worker_supervisor, "_fence_no_progress", lambda *_args, **_kwargs: [71]
+    )
     monkeypatch.setattr(
         worker_supervisor,
         "_terminate_worker_instance",
@@ -151,7 +153,13 @@ def test_stale_registration_is_retired_and_supervisor_continues(monkeypatch) -> 
     monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
     monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: worker)
     monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _row: False)
-    monkeypatch.setattr(worker_supervisor, "_fence_worker", lambda *_args: [88])
+    monkeypatch.setattr(
+        worker_supervisor,
+        "_fence_worker",
+        lambda *_args, **_kwargs: worker_supervisor.WorkerJobReconciliation(
+            fenced_job_ids=(88,)
+        ),
+    )
     monkeypatch.setattr(
         worker_supervisor, "_retire_worker_registration", lambda _row: events.append("retired")
     )

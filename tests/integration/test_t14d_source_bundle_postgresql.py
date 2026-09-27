@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
-from sqlalchemy import event, select, text, update
+from sqlalchemy import delete, event, select, text, update
 from sqlalchemy.orm import Session
 from test_ceri_batched_workflow_v2 import _execute_handler, _new_job, _seed_fixture
 
@@ -21,7 +21,12 @@ from app.services.ceri.job_handlers import execute_normalize_job, execute_rebuil
 from app.services.market_calculation_context_service import create_pipeline_market_context
 from app.services.price_bar_repository import project_price_bar_rows_as_of
 from app.services.scope_refresh_adoption import admit_frozen_operation, bind_semantic_authority
-from app.services.source_mutation_authority import _source_value, prefetched_source_scope
+from app.services.source_mutation_authority import (
+    SOURCE_REFRESH_QUERY_PARAMETER_BUDGET,
+    PrefetchedSourceBodies,
+    _source_value,
+    prefetched_source_scope,
+)
 from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 
 contextual_engine = contextual.contextual_engine
@@ -380,3 +385,100 @@ def test_pipeline_feature_authority_selects_remain_within_13_after_scope_members
         # T15D adds exactly one set-based retained WorkScopeMember read. The
         # 1/50 bound must remain identical and no per-company query may appear.
         assert len(statements) <= 13, len(statements)
+
+
+def test_price_bar_source_bundle_refresh_chunks_75k_identities_and_detects_mutation(
+    contextual_engine,
+):
+    refresh_parameter_counts = []
+
+    def record(_conn, _cursor, sql, parameters, _context, _many):
+        normalized = sql.upper()
+        if "FROM PRICE_BARS" in normalized and " IN (" in normalized and "FOR UPDATE" in normalized:
+            refresh_parameter_counts.append(len(parameters))
+
+    with Session(contextual_engine, expire_on_commit=False) as db:
+        db.execute(
+            text(
+                """
+                INSERT INTO price_bars (
+                    ticker, bar_date, timeframe, open, high, low, close, volume,
+                    source, what_to_show, created_at, first_seen_at, last_seen_at,
+                    revision_count
+                )
+                SELECT
+                    'T14DS' || lpad(((value - 1) / 1500)::text, 2, '0'),
+                    DATE '2020-01-01' + ((value - 1) % 1500)::int,
+                    '1 day', 100, 101, 99, 100, 1000,
+                    'IB', 'TRADES', now(), now(), now(), 0
+                FROM generate_series(1, 75000) AS value
+                """
+            )
+        )
+        db.commit()
+
+        bundle = PrefetchedSourceBodies(db)
+        rows = bundle.load(
+            PriceBar,
+            select(PriceBar).where(PriceBar.ticker.like("T14DS%")),
+        )
+        assert len(rows) == 75_000
+        bundle.seal()
+        highest_id = max(row.id for row in rows)
+        db.commit()  # Releases the original source locks and forces refresh.
+
+        event.listen(contextual_engine, "before_cursor_execute", record)
+        try:
+            with prefetched_source_scope(db, bundle):
+                assert _source_value(db, bundle)["exact_prefetched_source_count"] == 75_000
+            db.commit()
+
+            with Session(contextual_engine) as changed:
+                changed.execute(
+                    update(PriceBar)
+                    .where(PriceBar.id == highest_id)
+                    .values(data_hash="changed-in-second-refresh-chunk")
+                )
+                changed.commit()
+
+            with pytest.raises(ValueError, match="MUTATION_SOURCE_BUNDLE_CHANGED"):
+                with prefetched_source_scope(db, bundle):
+                    _source_value(db, bundle)
+        finally:
+            event.remove(contextual_engine, "before_cursor_execute", record)
+
+    assert refresh_parameter_counts == [50_000, 25_000, 50_000, 25_000]
+    assert max(refresh_parameter_counts) <= SOURCE_REFRESH_QUERY_PARAMETER_BUDGET
+
+
+def test_source_bundle_refresh_detects_missing_retained_identity(contextual_engine):
+    with Session(contextual_engine, expire_on_commit=False) as db:
+        row = PriceBar(
+            ticker="T14DMISSING",
+            bar_date=date(2026, 9, 10),
+            timeframe="1 day",
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("1000"),
+            source="IB",
+            what_to_show="TRADES",
+        )
+        db.add(row)
+        db.commit()
+
+        bundle = PrefetchedSourceBodies(db)
+        retained = bundle.load(PriceBar, select(PriceBar).where(PriceBar.id == row.id))
+        assert len(retained) == 1
+        bundle.seal()
+        retained_id = row.id
+        db.commit()
+
+        with Session(contextual_engine) as changed:
+            changed.execute(delete(PriceBar).where(PriceBar.id == retained_id))
+            changed.commit()
+
+        with pytest.raises(ValueError, match="MUTATION_SOURCE_RECORD_MISSING"):
+            with prefetched_source_scope(db, bundle):
+                _source_value(db, bundle)

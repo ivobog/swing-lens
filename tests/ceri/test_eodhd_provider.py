@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+import pytest
+
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.dtos import EarningsRequest, EstimateRequest
 from app.services.ceri.enums import CeriMetric, CeriPeriodType
 from app.services.ceri.providers.eodhd_client import EodhdClientConfig, EodhdHttpClient
@@ -11,6 +14,7 @@ from app.services.ceri.providers.eodhd_mapping import (
     eodhd_symbol,
 )
 from app.services.ceri.providers.eodhd_provider import EodhdCeriProvider
+from app.services.ceri.source_record_service import CeriSourceRecordService
 from app.settings import Settings
 
 
@@ -201,6 +205,59 @@ def test_eodhd_official_earnings_schema_maps_reported_result_and_zero_values() -
     assert record.payload["estimate"] == 0
     assert record.payload["surprise_percent"] == 0
     assert record.payload["provider_consensus_semantics"] == "REPORT_TIME_CONSENSUS"
+    assert record.payload["report_at"] == datetime(2026, 7, 30, 21, tzinfo=UTC)
+    assert record.published_at == record.payload["report_at"]
+
+    stored = CeriSourceRecordService().store_source_record(
+        _StoreDb(),
+        ingestion_run_id=None,
+        record=record,
+        raw_payload_allowed=False,
+    ).source_record
+    assert stored.published_at is not None
+    assert stored.published_at.utcoffset() == timedelta(0)
+    canonical = CanonicalEvidenceSerializer.dumps({"published_at": stored.published_at})
+    assert '"published_at":"2026-07-30T21:00:00.000000Z"' in canonical
+
+
+@pytest.mark.parametrize(
+    ("report_time", "expected_hour"),
+    [("BeforeMarket", 13), ("BMO", 13), ("AfterMarket", 21), ("AMC", 21)],
+)
+def test_eodhd_date_only_reported_earnings_uses_aware_market_time_policy(
+    report_time: str,
+    expected_hour: int,
+) -> None:
+    record = _reported_earnings_record(
+        {
+            "report_date": "2026-07-30",
+            "date": "2026-06-30",
+            "before_after_market": report_time,
+            "actual": 1.2,
+            "estimate": 1.0,
+            "percent": 20,
+        }
+    )
+
+    assert record.published_at == datetime(2026, 7, 30, expected_hour, tzinfo=UTC)
+    assert record.payload["report_at"] == record.published_at
+
+
+def test_eodhd_explicit_offset_report_timestamp_preserves_instant_in_utc() -> None:
+    record = _reported_earnings_record(
+        {
+            "report_date": "2026-07-30",
+            "reportDateTime": "2026-07-30T16:15:00-04:00",
+            "date": "2026-06-30",
+            "before_after_market": "BeforeMarket",
+            "actual": 1.2,
+            "estimate": 1.0,
+            "percent": 20,
+        }
+    )
+
+    assert record.published_at == datetime(2026, 7, 30, 20, 15, tzinfo=UTC)
+    assert record.published_at.utcoffset() == timedelta(0)
 
 
 class _ContextResponse:
@@ -221,3 +278,34 @@ class _ContextResponse:
         if self.closed:
             return b""
         return self.body
+
+
+def _reported_earnings_record(row):
+    client = EodhdHttpClient(
+        EodhdClientConfig(api_key="secret"),
+        transport=lambda _url, _timeout: {"earnings": [row]},
+    )
+    records = list(
+        EodhdCeriProvider(
+            client=client,
+            clock=lambda: datetime(2026, 8, 14, 12, tzinfo=UTC),
+        ).fetch_earnings_actuals(EarningsRequest(None, "AAPL"))
+    )
+    assert len(records) == 1
+    return records[0]
+
+
+class _StoreDb:
+    def __init__(self) -> None:
+        self.added = []
+
+    def scalar(self, _statement):
+        return None
+
+    def add(self, row) -> None:
+        self.added.append(row)
+
+    def flush(self) -> None:
+        for index, row in enumerate(self.added, start=1):
+            if getattr(row, "id", None) is None:
+                row.id = index

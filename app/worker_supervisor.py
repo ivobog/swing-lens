@@ -21,8 +21,9 @@ from app.observability.logging import configure_json_logging, log_event
 from app.observability.metrics import operational_metrics, start_metrics_http_server
 from app.observability.resource_sampler import ResourceSampler
 from app.services.background_job_service import (
-    fence_jobs_for_worker,
+    WorkerJobReconciliation,
     fence_stalled_jobs,
+    reconcile_jobs_for_worker_loss,
     requeue_stalled_jobs,
 )
 from app.services.lifecycle_control import (
@@ -94,6 +95,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         raise
     log_event(logger, "runtime.role_validation", stage="role_validation", result="success")
+    certification_session_id: str | None = None
     if settings.runtime_mode.value == "CERTIFICATION":
         from app.services.certification_runtime import (
             CertificationRuntimeViolation,
@@ -301,6 +303,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                                 worker_id=args.worker_id,
                                 queues=args.queues,
                                 child=child,
+                                certification_session_id=certification_session_id,
                             )
                         except Exception:
                             decision = worker_restarts.record_failure(
@@ -360,7 +363,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         operational_metrics.set_gauge("swinglens_supervisor_up", 0)
         if owns_supervision:
             _shutdown_web(web, settings.worker_shutdown_grace_seconds)
-            _shutdown_owned_worker(args.worker_id, child)
+            _shutdown_owned_worker(
+                args.worker_id,
+                child,
+                certification_session_id=certification_session_id,
+            )
             try:
                 with SessionLocal() as db:
                     release_supervisor(db, worker_id=args.worker_id, instance_id=instance_id)
@@ -566,7 +573,11 @@ def _acquire_or_heartbeat_supervisor(
 
 
 def _supervise_once(
-    *, worker_id: str, queues: str, child: LaunchedWorker | None
+    *,
+    worker_id: str,
+    queues: str,
+    child: LaunchedWorker | None,
+    certification_session_id: str | None = None,
 ) -> LaunchedWorker | None:
     settings = get_settings()
     worker = _registered_worker(worker_id)
@@ -582,20 +593,28 @@ def _supervise_once(
                 )
                 child = None
         state = _safe_memory_status(worker)
-        stalled = _fence_no_progress(worker_id, worker.instance_id, worker.heartbeat_at)
+        stalled = _fence_no_progress(
+            worker_id,
+            worker.instance_id,
+            worker.heartbeat_at,
+            certification_session_id=certification_session_id,
+        )
+        reconciliation = WorkerJobReconciliation()
         if state == "CRITICAL":
-            stalled.extend(
-                _fence_worker(
-                    worker_id,
-                    worker.instance_id,
-                    f"Worker exceeded {settings.worker_memory_critical_mb} MB memory budget.",
-                )
+            reconciliation = _fence_worker(
+                worker_id,
+                worker.instance_id,
+                f"Worker exceeded {settings.worker_memory_critical_mb} MB memory budget.",
+                certification_session_id=certification_session_id,
             )
+            stalled.extend(reconciliation.fenced_job_ids)
         if not stalled:
             return child
         context = {
             **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
             "job_ids": sorted(set(stalled)),
+            "cancelled_job_ids": list(reconciliation.cancelled_job_ids),
+            "untouched_job_ids": list(reconciliation.untouched_job_ids),
             "reason": "stalled_or_memory_critical",
         }
         logger.error(
@@ -632,13 +651,23 @@ def _supervise_once(
             f"Registered worker instance {worker.instance_id or '<missing>'} "
             f"pid={worker.process_id} is no longer alive or has a stale heartbeat."
         )
-        fenced = _fence_worker(worker_id, worker.instance_id, reason)
+        reconciliation = _fence_worker(
+            worker_id,
+            worker.instance_id,
+            reason,
+            certification_session_id=certification_session_id,
+        )
         _retire_worker_registration(worker)
-        _requeue(fenced)
+        _requeue(list(reconciliation.fenced_job_ids))
         context = {
             **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
             "reason": reason,
-            "job_ids": fenced,
+            "job_ids": list(reconciliation.fenced_job_ids),
+            "cancelled_job_ids": list(reconciliation.cancelled_job_ids),
+            "untouched_job_ids": list(reconciliation.untouched_job_ids),
+            "recovery_scope": (
+                "CERTIFICATION_SESSION" if certification_session_id is not None else "NORMAL"
+            ),
         }
         logger.warning(
             "worker.supervisor.worker_lost %s",
@@ -820,6 +849,8 @@ def _fence_no_progress(
     worker_id: str,
     worker_instance_id: str | None,
     worker_heartbeat_at: datetime | None = None,
+    *,
+    certification_session_id: str | None = None,
 ) -> list[int]:
     settings = get_settings()
     with SessionLocal() as db:
@@ -831,21 +862,42 @@ def _fence_no_progress(
             default_timeout_seconds=settings.job_progress_timeout_seconds,
             market_data_timeout_seconds=settings.job_market_data_progress_timeout_seconds,
             long_stage_timeout_seconds=settings.job_long_stage_progress_timeout_seconds,
+            certification_session_id=certification_session_id,
         )
         db.commit()
         return fenced
 
 
-def _fence_worker(worker_id: str, instance_id: str | None, reason: str) -> list[int]:
+def _fence_worker(
+    worker_id: str,
+    instance_id: str | None,
+    reason: str,
+    *,
+    certification_session_id: str | None = None,
+) -> WorkerJobReconciliation:
     with SessionLocal() as db:
-        fenced = fence_jobs_for_worker(
+        reconciliation = reconcile_jobs_for_worker_loss(
             db,
             worker_id=worker_id,
             worker_instance_id=instance_id,
             reason=reason,
+            certification_session_id=certification_session_id,
         )
         db.commit()
-        return fenced
+        if reconciliation.untouched_job_ids:
+            context = {
+                "worker_id": worker_id,
+                "worker_instance_id": instance_id,
+                "certification_session_id": certification_session_id,
+                "untouched_job_ids": list(reconciliation.untouched_job_ids),
+                "reason_code": "CERTIFICATION_RECOVERY_AUTHORITY_NOT_PROVEN",
+            }
+            logger.warning(
+                "worker.supervisor.job_recovery_denied %s",
+                context,
+                extra=context,
+            )
+        return reconciliation
 
 
 def _retire_worker_registration(worker: BackgroundWorker) -> None:
@@ -960,19 +1012,25 @@ def _terminate_launcher(child: subprocess.Popen, grace_seconds: float) -> None:
         )
 
 
-def _shutdown_owned_worker(worker_id: str, child: LaunchedWorker | None) -> None:
+def _shutdown_owned_worker(
+    worker_id: str,
+    child: LaunchedWorker | None,
+    *,
+    certification_session_id: str | None = None,
+) -> None:
     settings = get_settings()
     try:
         worker = _registered_worker(worker_id)
         if worker is not None and _registered_worker_process_alive(worker):
             _terminate_worker_instance(worker, child, settings.worker_shutdown_grace_seconds)
-            fenced = _fence_worker(
+            reconciliation = _fence_worker(
                 worker_id,
                 worker.instance_id,
                 f"Worker instance {worker.instance_id} stopped with its supervisor.",
+                certification_session_id=certification_session_id,
             )
             _retire_worker_registration(worker)
-            _requeue(fenced)
+            _requeue(list(reconciliation.fenced_job_ids))
         elif child is not None:
             _terminate_launcher(child.process, settings.worker_shutdown_grace_seconds)
     except Exception:
