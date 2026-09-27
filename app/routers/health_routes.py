@@ -9,6 +9,7 @@ from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_ro
 from app.services.cleanup_service import execute_cleanup, preview_cleanup
 from app.services.operational_metrics import operational_metrics
 from app.services.readiness_service import ReadinessService
+from app.services.runtime_mutation_authority import MutationCapability
 from app.settings import get_settings
 
 router = APIRouter(tags=["health"])
@@ -107,6 +108,8 @@ def cleanup_preview(db: DbSession) -> dict:
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="deletes rebuildable local artifacts and old terminal background jobs",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.cleanup.execute",
     local_admin_required=True,
 )
 def cleanup_execute(request: Request, db: DbSession) -> dict:

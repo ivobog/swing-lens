@@ -6,13 +6,19 @@ from app.models.ceri_tables import CeriCompany, CeriSecProcessorRelease, CeriSec
 from app.services.ceri.sec.processor_lifecycle import (
     SecProcessorReleaseStatus,
     certify_processor,
+    establish_worker_processor_identity,
     fence_worker_against_active_processor,
     lifecycle_state,
     promote_processor,
     register_deployed_processor,
 )
+from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
 from app.services.pipeline_prerequisites import WorkerProcessorDriftError
+from app.services.runtime_mutation_authority import (
+    RuntimeMutationAuthority,
+    RuntimeMutationAuthorityError,
+)
 
 
 class Rows:
@@ -26,6 +32,8 @@ class Rows:
 class LifecycleDb:
     def __init__(self, releases):
         self.releases = list(releases)
+        self.added = []
+        self.flushes = 0
 
     def scalars(self, _statement):
         return Rows(self.releases)
@@ -41,10 +49,11 @@ class LifecycleDb:
         )
 
     def add(self, row):
+        self.added.append(row)
         self.releases.append(row)
 
     def flush(self):
-        pass
+        self.flushes += 1
 
 
 def test_deployed_signature_is_not_implicitly_active() -> None:
@@ -67,11 +76,92 @@ def test_deployed_signature_is_not_implicitly_active() -> None:
 def test_registering_newly_deployed_code_does_not_activate_it() -> None:
     db = LifecycleDb([])
 
-    deployed = register_deployed_processor(db, git_sha="abc123")
+    deployed = register_deployed_processor(
+        db,
+        authority=RuntimeMutationAuthority.normal("test.sec_processor.register"),
+        git_sha="abc123",
+    )
 
     assert deployed.status == SecProcessorReleaseStatus.DEPLOYED
     assert deployed.deployed_git_sha == "abc123"
     assert lifecycle_state(db).active_signature is None
+
+
+def test_normal_worker_startup_retains_processor_registration() -> None:
+    db = LifecycleDb([])
+
+    deployed = establish_worker_processor_identity(
+        db,
+        authority=RuntimeMutationAuthority.normal("worker.startup.sec_identity"),
+        git_sha="abc123",
+    )
+
+    assert deployed in db.added
+    assert deployed.status == SecProcessorReleaseStatus.DEPLOYED
+    assert deployed.deployed_git_sha == "abc123"
+    assert db.flushes == 1
+
+
+def test_processor_registration_rejects_untyped_authority() -> None:
+    with pytest.raises(
+        RuntimeMutationAuthorityError, match="RUNTIME_MUTATION_AUTHORITY_REQUIRED"
+    ):
+        register_deployed_processor(
+            LifecycleDb([]), authority=None  # type: ignore[arg-type]
+        )
+
+
+def test_certification_worker_startup_is_repeatable_and_read_only() -> None:
+    release = CeriSecProcessorRelease(
+        processor_signature=sec_guidance_processor_signature(),
+        status=SecProcessorReleaseStatus.DEPLOYED,
+        deployed_git_sha="abc123",
+    )
+    db = LifecycleDb([release])
+    authority = RuntimeMutationAuthority.certification(
+        "worker.startup.sec_identity", session_id="cert-session"
+    )
+
+    first = establish_worker_processor_identity(
+        db, authority=authority, git_sha="abc123"
+    )
+    second = establish_worker_processor_identity(
+        db, authority=authority, git_sha="abc123"
+    )
+
+    assert first is release and second is release
+    assert db.added == []
+    assert db.flushes == 0
+
+
+def test_certification_worker_startup_fails_closed_for_missing_or_mismatched_identity() -> None:
+    authority = RuntimeMutationAuthority.certification(
+        "worker.startup.sec_identity", session_id="cert-session"
+    )
+
+    with pytest.raises(
+        RuntimeMutationAuthorityError, match="CERTIFICATION_PROCESSOR_NOT_REGISTERED"
+    ):
+        establish_worker_processor_identity(LifecycleDb([]), authority=authority)
+
+    mismatch = LifecycleDb(
+        [
+            CeriSecProcessorRelease(
+                processor_signature=sec_guidance_processor_signature(),
+                status=SecProcessorReleaseStatus.DEPLOYED,
+                deployed_git_sha="different-sha",
+            )
+        ]
+    )
+    with pytest.raises(
+        RuntimeMutationAuthorityError, match="CERTIFICATION_PROCESSOR_IDENTITY_MISMATCH"
+    ):
+        establish_worker_processor_identity(
+            mismatch, authority=authority, git_sha="current-sha"
+        )
+
+    assert mismatch.added == []
+    assert mismatch.flushes == 0
 
 
 def test_promotion_is_explicit_and_retires_previous_active() -> None:

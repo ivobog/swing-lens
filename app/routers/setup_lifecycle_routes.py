@@ -30,6 +30,7 @@ from app.services.resource_limits import (
     enforce_row_limit,
     limit_error_payload,
 )
+from app.services.runtime_mutation_authority import MutationCapability
 from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
 from app.services.setup_lifecycle.caller_authority import (
     evaluate_setup_run_with_authority,
@@ -672,6 +673,8 @@ def setup_lifecycle_alerts(
 @unsafe_route(
     ROUTE_CLASS_PUBLIC_LOCAL,
     reason="mutates setup lifecycle alert acknowledgement state",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.setup_alert.acknowledge",
 )
 def acknowledge_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str, Any]:
     alert = SetupLifecycleAlertService().acknowledge_alert(db, alert_id)
@@ -688,6 +691,8 @@ def acknowledge_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str,
 @unsafe_route(
     ROUTE_CLASS_PUBLIC_LOCAL,
     reason="mutates setup lifecycle alert dismissal state",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.setup_alert.dismiss",
 )
 def dismiss_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str, Any]:
     alert = SetupLifecycleAlertService().dismiss_alert(db, alert_id)
@@ -706,6 +711,8 @@ def dismiss_setup_lifecycle_alert(alert_id: int, db: DbSession) -> dict[str, Any
 @unsafe_route(
     ROUTE_CLASS_PUBLIC_LOCAL,
     reason="queues or runs setup lifecycle evaluation",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.setup_lifecycle.evaluate",
 )
 def evaluate_setup_lifecycle_run(
     db: DbSession,
@@ -756,6 +763,8 @@ def evaluate_setup_lifecycle_run(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues explicitly scoped setup lifecycle evaluation or repair work",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.setup_lifecycle.queue_evaluation",
     local_admin_required=True,
 )
 def queue_setup_lifecycle_evaluation(
@@ -861,6 +870,8 @@ def queue_setup_lifecycle_evaluation(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="can persist setup lifecycle replay output",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.setup_lifecycle.replay",
     local_admin_required=True,
 )
 def replay_setup_lifecycle(

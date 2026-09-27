@@ -22,6 +22,7 @@ from app.services.market_regime_export_service import (
 )
 from app.services.market_regime_repository import MarketRegimeRepository
 from app.services.ranking_profile_service import get_ranking_profiles
+from app.services.runtime_mutation_authority import MutationCapability
 from app.templates import templates
 
 router = APIRouter(tags=["market-regime"])
@@ -149,7 +150,12 @@ def run_market_regime_api(run_id: int, db: DbSession) -> dict:
 
 
 @router.post("/api/market-regime/run/{run_id}/recalculate")
-@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="recalculates persisted market regime snapshot")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="recalculates persisted market regime snapshot",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.market_regime.recalculate",
+)
 def recalculate_run_market_regime_api(run_id: int, db: DbSession) -> dict:
     _require_run(db, run_id)
     try:

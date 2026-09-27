@@ -1042,6 +1042,7 @@ def _native_winner_reclaim(db, prediction, definition, config, at):
     from app.models.tables import PipelineRun
     from app.services.background_job_service import JobLeaseLost, enqueue_job, recover_stale_jobs
     from app.services.domain_write_fence import fence_domain_commits
+    from app.services.runtime_mutation_authority import RecoveryAuthority
     from app.services.winner_probability.cohort_generation_service import EvidenceWatermarkService
 
     pipeline_id = db.scalar(
@@ -1054,7 +1055,11 @@ def _native_winner_reclaim(db, prediction, definition, config, at):
     token_a = first.execution_token
     first.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
     db.commit()
-    assert recover_stale_jobs(db, stale_after_seconds=1) == 1
+    assert recover_stale_jobs(
+        db,
+        stale_after_seconds=1,
+        authority=RecoveryAuthority.normal("test.t14c.winner_recovery"),
+    ) == 1
     db.commit()
     second = _claim_registered_job(db, "t14c-native-winner-B")
     assert second.id == queued.id and second.execution_token != token_a

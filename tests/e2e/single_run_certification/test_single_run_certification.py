@@ -42,6 +42,7 @@ from app.services.ceri.sec.processor_lifecycle import (
     register_deployed_processor,
 )
 from app.services.ib_data_fetcher import HistoricalBar
+from app.services.runtime_mutation_authority import RuntimeMutationAuthority
 from app.services.winner_probability.market_data_obligation_service import (
     MarketDataObligationService,
 )
@@ -2383,7 +2384,11 @@ def _activate_disposable_sec_processor(database_url: str) -> None:
     engine = create_engine(database_url)
     try:
         with Session(engine) as db:
-            release = register_deployed_processor(db, git_sha=_git_commit())
+            release = register_deployed_processor(
+                db,
+                authority=RuntimeMutationAuthority.normal("test.sec_processor.register"),
+                git_sha=_git_commit(),
+            )
             certify_processor(
                 db,
                 processor_signature=release.processor_signature,

@@ -24,6 +24,7 @@ from app.services.resource_limits import (
     enforce_row_limit,
     limit_error_payload,
 )
+from app.services.runtime_mutation_authority import MutationCapability
 from app.services.scope_refresh_adoption import bind_semantic_authority
 from app.services.winner_probability.api_service import (
     WinnerProbabilityApiError,
@@ -544,6 +545,8 @@ def winner_probability_model_drift(id: int, db: DbSession) -> dict:
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues winner-probability snapshot capture",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.winner.capture",
     local_admin_required=True,
 )
 def queue_winner_prediction_capture(
@@ -629,6 +632,8 @@ def queue_winner_prediction_capture(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues winner-probability outcome maturation",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.winner.mature",
     local_admin_required=True,
 )
 def queue_winner_outcome_maturation(
@@ -665,6 +670,8 @@ def queue_winner_outcome_maturation(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues winner-probability cohort rebuild",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.winner.cohort_refresh",
     local_admin_required=True,
 )
 def queue_winner_cohort_refresh(
@@ -712,6 +719,8 @@ def queue_winner_cohort_refresh(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="retires a winner-probability model",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.winner.model_retire",
     local_admin_required=True,
 )
 def retire_winner_probability_model(

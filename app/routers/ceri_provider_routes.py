@@ -14,6 +14,7 @@ from app.services.ceri.validation_service import (
     CeriProviderValidationService,
 )
 from app.services.redaction import redact_text
+from app.services.runtime_mutation_authority import MutationCapability
 
 
 def _require_ceri_provider_ui(request: Request) -> None:
@@ -65,6 +66,8 @@ def ceri_provider_health() -> dict[str, Any]:
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="runs an explicit provider validation sample before live alert activation",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.provider_validate",
     csrf_required=True,
     local_admin_required=True,
 )

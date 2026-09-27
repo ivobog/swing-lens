@@ -2,12 +2,25 @@ from __future__ import annotations
 
 import secrets
 from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass
+from functools import wraps
+from inspect import iscoroutinefunction, signature
 from typing import Any, ParamSpec, TypeVar
 
 from fastapi import HTTPException, Request
 from fastapi import status as http_status
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.routing import Match
+
+from app.services.runtime_mutation_authority import (
+    MutationCapability,
+    RuntimeMutationAuthority,
+    RuntimeMutationAuthorityError,
+)
+from app.settings import RuntimeMode, get_settings
 
 LOCAL_ADMIN_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 LOOPBACK_APP_HOSTS = {"127.0.0.1", "::1", "localhost"}
@@ -27,27 +40,196 @@ R = TypeVar("R")
 class UnsafeRouteClassification:
     category: str
     reason: str
+    mutation_capability: MutationCapability
+    operation: str
     csrf_required: bool = False
     local_admin_required: bool = False
+    certification_root_creation: bool = False
+
+
+@dataclass(frozen=True)
+class HttpMutationRouteRecord:
+    path: str
+    methods: tuple[str, ...]
+    classification: UnsafeRouteClassification | None
+
+    @property
+    def classified(self) -> bool:
+        return self.classification is not None
+
+
+_active_http_request: ContextVar[Request | None] = ContextVar(
+    "swinglens_runtime_mutation_request", default=None
+)
+
+
+class RuntimeMutationContextMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        token = _active_http_request.set(request)
+        try:
+            classification, matched = _matched_mutation_classification(request)
+            if matched:
+                if classification is None:
+                    settings = request.app.state.settings
+                    if settings.runtime_mode is RuntimeMode.CERTIFICATION:
+                        return _runtime_mutation_error_response(
+                            RuntimeMutationAuthorityError(
+                                "UNCLASSIFIED_CERTIFICATION_MUTATION",
+                                "the mutating HTTP route has no runtime authority classification",
+                            )
+                        )
+                else:
+                    try:
+                        _authorize_http_mutation(request, classification)
+                    except HTTPException as exc:
+                        return JSONResponse(
+                            status_code=exc.status_code,
+                            content={"detail": exc.detail},
+                        )
+            return await call_next(request)
+        finally:
+            _active_http_request.reset(token)
+
+
+def http_mutation_route_registry(app: Any) -> tuple[HttpMutationRouteRecord, ...]:
+    records: list[HttpMutationRouteRecord] = []
+    for route in app.routes:
+        methods = tuple(
+            sorted(UNSAFE_HTTP_METHODS.intersection(getattr(route, "methods", set()) or set()))
+        )
+        if not methods:
+            continue
+        classification = getattr(
+            getattr(route, "endpoint", None), "swinglens_unsafe_route", None
+        )
+        records.append(
+            HttpMutationRouteRecord(
+                path=str(getattr(route, "path", "")),
+                methods=methods,
+                classification=classification,
+            )
+        )
+    return tuple(records)
+
+
+def _matched_mutation_classification(
+    request: Request,
+) -> tuple[UnsafeRouteClassification | None, bool]:
+    if request.method not in UNSAFE_HTTP_METHODS:
+        return None, False
+    for route in request.app.routes:
+        match, child_scope = route.matches(request.scope)
+        if match is not Match.FULL:
+            continue
+        endpoint = child_scope.get("endpoint", getattr(route, "endpoint", None))
+        return getattr(endpoint, "swinglens_unsafe_route", None), True
+    return None, False
 
 
 def unsafe_route(
     category: str,
     *,
     reason: str,
+    mutation_capability: MutationCapability,
+    operation: str,
     csrf_required: bool = False,
     local_admin_required: bool = False,
+    certification_root_creation: bool = False,
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
     def decorate(endpoint: Callable[P, R]) -> Callable[P, R]:
-        endpoint.swinglens_unsafe_route = UnsafeRouteClassification(
+        classification = UnsafeRouteClassification(
             category=category,
             reason=reason,
+            mutation_capability=mutation_capability,
+            operation=operation,
             csrf_required=csrf_required,
             local_admin_required=local_admin_required,
+            certification_root_creation=certification_root_creation,
         )
-        return endpoint
+        endpoint_signature = signature(endpoint)
+
+        def authorize(args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+            bound = endpoint_signature.bind_partial(*args, **kwargs)
+            request = bound.arguments.get("request")
+            if not isinstance(request, Request) and not hasattr(request, "app"):
+                request = _active_http_request.get()
+            _authorize_http_mutation(request, classification)
+
+        if iscoroutinefunction(endpoint):
+
+            @wraps(endpoint)
+            async def async_wrapped(*args: P.args, **kwargs: P.kwargs):
+                authorize(args, kwargs)
+                return await endpoint(*args, **kwargs)
+
+            wrapped = async_wrapped
+        else:
+
+            @wraps(endpoint)
+            def sync_wrapped(*args: P.args, **kwargs: P.kwargs):
+                authorize(args, kwargs)
+                return endpoint(*args, **kwargs)
+
+            wrapped = sync_wrapped
+        wrapped.swinglens_unsafe_route = classification
+        return wrapped
 
     return decorate
+
+
+def _authorize_http_mutation(
+    request: Request | Any | None,
+    classification: UnsafeRouteClassification,
+) -> None:
+    settings = (
+        getattr(getattr(request, "app", None), "state", None)
+        if request is not None
+        else None
+    )
+    settings = getattr(settings, "settings", None) or get_settings()
+    mode = getattr(settings, "runtime_mode", RuntimeMode.NORMAL)
+    if classification.mutation_capability is MutationCapability.READ_ONLY:
+        return
+    if mode is RuntimeMode.CERTIFICATION and (
+        classification.mutation_capability is MutationCapability.NORMAL_ONLY
+    ):
+        raise _runtime_mutation_http_error(
+            RuntimeMutationAuthorityError(
+                "CERTIFICATION_MUTATION_FORBIDDEN",
+                f"{classification.operation} is not authorized during certification",
+            )
+        )
+    supplied_session = None
+    if request is not None:
+        supplied_session = getattr(request, "headers", {}).get(
+            "x-swinglens-certification-session"
+        )
+    try:
+        authority = RuntimeMutationAuthority.from_settings(
+            settings,
+            operation=classification.operation,
+            supplied_certification_session_id=supplied_session,
+        )
+        authority.require_capability(
+            classification.mutation_capability,
+            certification_root_creation=classification.certification_root_creation,
+        )
+    except RuntimeMutationAuthorityError as exc:
+        raise _runtime_mutation_http_error(exc) from exc
+
+
+def _runtime_mutation_http_error(exc: RuntimeMutationAuthorityError) -> HTTPException:
+    return HTTPException(
+        status_code=http_status.HTTP_409_CONFLICT,
+        detail={"code": exc.code, "message": exc.message},
+    )
+
+
+def _runtime_mutation_error_response(exc: RuntimeMutationAuthorityError) -> JSONResponse:
+    return JSONResponse(
+        status_code=http_status.HTTP_409_CONFLICT,
+        content={"detail": {"code": exc.code, "message": exc.message}},
+    )
 
 
 def issue_local_admin_csrf_token() -> str:

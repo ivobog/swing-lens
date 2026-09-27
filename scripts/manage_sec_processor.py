@@ -17,6 +17,7 @@ from app.services.ceri.sec.processor_lifecycle import (
 )
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
+from app.services.runtime_mutation_authority import RuntimeMutationAuthority
 
 
 def main() -> int:
@@ -34,7 +35,10 @@ def main() -> int:
     args = parser.parse_args()
 
     with Session(engine) as db:
-        register_deployed_processor(db)
+        register_deployed_processor(
+            db,
+            authority=RuntimeMutationAuthority.normal("cli.sec_processor.register"),
+        )
         if args.command == "status":
             report = {"processor": lifecycle_state(db).as_dict()}
             if args.run_id is not None:

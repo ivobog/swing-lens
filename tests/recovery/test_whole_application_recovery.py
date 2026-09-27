@@ -70,6 +70,7 @@ from app.services.ranking_profile_service import (
     RankingPipelineResult,
     execute_ranking_pipeline_step,
 )
+from app.services.runtime_mutation_authority import RecoveryAuthority
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
 from app.services.technical_score_service import (
     TechnicalScoringError,
@@ -283,6 +284,7 @@ def test_watchdog_reports_locked_candidate(recovery_engine, caplog):
         with caplog.at_level("WARNING"):
             fenced = fence_stalled_jobs(
                 watchdog,
+                authority=RecoveryAuthority.normal("test.recovery.lock_contention"),
                 default_timeout_seconds=60,
                 market_data_timeout_seconds=60,
                 long_stage_timeout_seconds=60,

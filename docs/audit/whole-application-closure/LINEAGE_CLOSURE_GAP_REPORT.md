@@ -11,9 +11,11 @@
 - AUTONOMOUS MUTATION INVENTORY COMPLETE: **YES**
 - TEST-COVERAGE MATRIX COMPLETE: **YES**
 - TOP-DOWN/BOTTOM-UP RECONCILIATION: **PASS**
+- R1 UNIFIED RUNTIME MUTATION AUTHORITY: **CLOSED**
+- SAFE TO PROCEED TO R2: **YES**
 - SAFE TO RESUME LIVE CANARY REMEDIATION: **NO**
 
-“Complete” means the finite current-tree inventory has no unknown caller or writer. It does not mean the mapped paths are safe. Five P1 findings block live canary resumption.
+“Complete” means the finite current-tree inventory has no unknown caller or writer. R1 closes GAP-001, GAP-002, and GAP-003 with a shared typed authority boundary and disposable-PostgreSQL negative proofs. GAP-004 and GAP-005 remain open and continue to block live canary resumption.
 
 ## Exact counts
 
@@ -21,6 +23,7 @@
 | --- | ---: | --- |
 | Repository files enumerated | 1,746 | `rg --files` |
 | FastAPI route registrations | 191 | AST decorator inventory under `app/routers` |
+| Runtime `app.routes` registrations | 196 | 191 application registrations plus five framework/static registrations |
 | Mutating HTTP registrations | 52 | POST/PUT/PATCH/DELETE decorators |
 | Python `__main__` entrypoints | 95 | AST main-guard scan: 5 app, 90 scripts |
 | Mutation-indicator script entrypoints | 49 | persistence/transaction/status keyword + manual review |
@@ -63,62 +66,61 @@ Cross-check 1 reconciled all 34 registered job types to creator, handler, common
 | Pipeline creation/root enqueue | upload, pipeline, calculation/config, transition plan; certification session | `start_pipeline`, pre-enqueue gate, certification runtime | direct service calls must supply same context |
 | Job enqueue | causality/root/parent, idempotency; session in certification | `enqueue_job` -> `require_enqueue_authorized` | safe for queue paths; not used by direct synchronous routes |
 | Job claim/heartbeat/terminalization | worker instance + execution token; exact session claim | `claim_next_job`, `heartbeat_job`, `mark_job_*` | worker ownership alone is operational, not semantic authority |
-| Supervisor recovery | worker ID/instance + session claim in certification | current `_fence_worker`, `fence_stalled_jobs` | lower-level requeue accepts IDs/status only (GAP-003) |
+| Supervisor recovery | typed `RecoveryAuthority`; exact-session live-root scope for fencing and exact-session recoverable-root scope for requeue | `_fence_worker`, `fence_stalled_jobs`, `requeue_stalled_jobs` | primitive rejects missing/untyped authority; unrelated or terminal-root lineage is untouched |
 | Core calculation writers | Calculation Identity, effective config, source/evidence pins, pipeline scope | domain mutation/core authority services | reduced/standalone routes are rejected |
 | Market/IB acquisition | acquisition plan, work scope, refresh cycle, contract/source identity | work-scope identity and repositories | ticker alone insufficient; legacy/manual scripts vary |
 | CERI provider/normalize/features | provider request, run/company, PIT cutoff, source records | CERI services/domain writer fences | some global helpers infer scope after loading all rows |
-| CERI capture/change | run/calculation/evidence/source bundle/session/cutoff | capture/change services, source mutation authority | current dirty tree closes Run-166 exact-bundle refresh; tests uncommitted |
+| CERI capture/change | run/calculation/evidence/source bundle/session/cutoff | capture/change services, source mutation authority | R0 baseline commits the Run-166 exact-bundle refresh and tests |
 | CERI alerts | change/revision evidence IDs, rule config | alert persistence service | `_eligible_changes` may infer authority from run/ticker after global load |
 | CERI purge | provider/license scope, preview manifest hash, confirmation, immutable references | purge service | scope is correct but global materialization creates stale/scale window |
-| CERI review/alert ack | target row, human review/local admin | route/service decorators and row lookup | no certification session capability (GAP-001) |
-| Setup/lifecycle | handoff manifest, calculation/evidence, original-context or maintenance decision | domain policies/repository | direct alert state mutation lacks cert session gate |
+| CERI review/alert ack | target row, human review/local admin + HTTP mutation capability | central route middleware/decorator and row lookup | `NORMAL_ONLY`; certification denial occurs before dependency/handler/database work |
+| Setup/lifecycle | handoff manifest, calculation/evidence, original-context or maintenance decision | domain policies/repository + HTTP mutation capability | direct alert state mutation is `NORMAL_ONLY` |
 | Winner capture/maturation | prediction/model/evidence/generation, outcome definition/session | Winner authority/evidence services | current/latest reads must not substitute for frozen generation |
-| Cohort/publication/model | evidence watermark, generation/publication generation/model lifecycle | row/advisory locks and services | direct model admin route lacks central certification gate |
-| Worker SEC deployment registration | deployed processor signature | `register_deployed_processor` | ambient startup state; no certification session or explicit allowance (GAP-002) |
+| Cohort/publication/model | evidence watermark, generation/publication generation/model lifecycle | row/advisory locks, services, and HTTP mutation capability | direct model admin mutation is `NORMAL_ONLY` |
+| Worker SEC deployment registration | typed runtime authority + deployed processor signature | `establish_worker_processor_identity` / `register_deployed_processor` | NORMAL registers; CERTIFICATION performs read-only exact-signature lookup and fails closed if absent/mismatched |
 | Maintenance/CLI | operation-specific actor/manifest/database safety | individual script/service | no single global runtime capability; production reach must remain explicit |
 
-Authority inferred from status/latest/ticker/worker alone is flagged wherever present. The most material are supervisor requeue status/IDs, direct certification-time APIs, and startup processor registration.
+Authority inferred from status/latest/ticker/worker alone remains flagged in the deferred findings. R1 removes those ambient inputs as sufficient authority for supervisor requeue, direct certification-time APIs, and startup processor registration.
 
 ## Findings
 
 ### P0 correctness/authority
 
-No unresolved P0 was proven in the current uncommitted tree. This is not a canary approval: current Run-166 fixes and supervisor isolation changes are uncommitted/unverified in this audit, and the P1 findings below remain reachable.
+No unresolved P0 was proven. This is not a canary approval: R0/R1 are committed and verified, but GAP-004 and GAP-005 remain reachable and block live work.
 
 ### P1 production safety
 
-#### GAP-001 — Certification web surface has direct synchronous writers outside the session capability
+#### GAP-001 — Certification web surface has direct synchronous writers outside the session capability — **CLOSED**
 
 - Path IDs: EXEC-023, WRITE-044/046/058/068, MODE-003/004/005.
 - Source: mutating routes including `ceri_routes.review_ceri_event`, CERI/setup alert acknowledge/dismiss, cleanup execute, IB journal exclusion, Winner model retirement and other direct service commits.
 - Reachability: the certification supervisor starts the normal web application; all 52 mutating route registrations remain mounted.
 - Affected state: CERI review/alerts, setup alerts, operational cleanup, IB journal, Winner model/publication-related state depending endpoint.
-- Existing guard: local-admin/CSRF and domain-specific mutation contracts; queued operations are blocked by `require_enqueue_authorized`.
-- Missing guard: one actual runtime-mode/session capability on every direct synchronous mutation route/service.
-- Tests: no test iterates all mutating registrations and asserts certification denial/explicit allowance.
-- Recommended phase: R1 central certification mutation gateway and route conformance test.
+- Closure: `RuntimeMutationContextMiddleware` performs a pre-handler, fail-closed lookup of route metadata. `unsafe_route` also wraps direct endpoint invocation so tests/internal direct calls use the same authority check.
+- Classification: all 52 mutating registrations carry one explicit `MutationCapability`; 49 are `NORMAL_ONLY`, one pipeline-root POST is `CERTIFICATION_SESSION_SCOPED`, two connection tests are `READ_ONLY`, and zero production routes are `CERTIFICATION_CONTROL`.
+- Default deny: an unsafe method matched to an unclassified route is rejected in CERTIFICATION with `UNCLASSIFIED_CERTIFICATION_MUTATION` before dependency resolution.
+- Mechanical guard: `app.security.http_mutation_route_registry` plus `tests/test_route_security.py` asserts the complete 52-route registry and zero unclassified mutations.
+- Evidence: unit tests cover normal, unclassified, normal-only, approved/unapproved control, correct/wrong/missing session, and real CERI/setup writers. `test_runtime_mutation_authority_postgresql.py` proves denied cleanup leaves the target row byte-for-byte unchanged and the DB dependency is never entered.
 
-#### GAP-002 — Certification worker startup mutates the global SEC processor registry
+#### GAP-002 — Certification worker startup mutates the global SEC processor registry — **CLOSED**
 
 - Path IDs: EXEC-025, WRITE-051, AUTO-007, TX-03, STATE-044.
-- Source: `background_worker.run_worker -> processor_lifecycle.register_deployed_processor`.
+- Source after closure: `background_worker.run_worker -> processor_lifecycle.establish_worker_processor_identity`.
 - Reachability: every durable worker startup, before the work loop.
 - Affected state: `ceri_sec_processor_releases`; may insert a DEPLOYED row or update missing git SHA.
-- Existing guard: certification session is validated before worker registration; processor signature is deterministic.
-- Missing guard: this mutation is neither in allowed certification control activity nor scoped/authorized by the session, and it is not disabled.
-- Tests: processor lifecycle tests exist; no certification-startup nonmutation test.
-- Recommended phase: R1 classify as explicit deployment-control authority outside certification, or pre-register before certification and make startup read-only.
+- Policy: NORMAL authority retains `register_deployed_processor`; CERTIFICATION authority performs only `db.get` for the deterministic deployed signature and rejects missing or mismatched registered identity.
+- Startup proof: `run_worker` constructs the typed session authority after certification-session validation and before processor identity establishment.
+- Evidence: lifecycle unit tests cover NORMAL registration, repeated certification idempotence/read-only behavior, missing identity, and mismatch. The PostgreSQL test snapshots every `ceri_sec_processor_releases` column before and after two certification startup identity checks and proves exact equality.
 
-#### GAP-003 — Shared recovery primitives do not require authority intrinsically
+#### GAP-003 — Shared recovery primitives do not require authority intrinsically — **CLOSED**
 
 - Path IDs: REC-005..009, WRITE-007/008, STATE-010/011, TX-22/23.
-- Source: `requeue_stalled_jobs` accepts job IDs/status; `fence_jobs_for_worker` compatibility wrapper omits certification session; `reconcile_jobs_for_worker_loss` session parameter is optional.
-- Reachability: current supervisor callers are correctly scoped in the dirty tree; direct service imports/future callers can omit it.
+- Source after closure: all six shared recovery entry calls require keyword-only typed `RecoveryAuthority`; there is no `None`/ambient-mode default.
+- Reachability: all current supervisor/worker callers are typed; direct service imports/future callers fail immediately if authority is omitted or untyped.
 - Affected state: background jobs, pipeline steps/runs, worker ownership/execution tokens.
-- Existing guard: row locks, worker instance, status, current supervisor composition, token invalidation.
-- Missing guard: required typed recovery authority/capability at primitive boundary; fail-closed mode awareness.
-- Tests: unit coverage and untracked PostgreSQL isolation test; no committed negative proof for direct primitive use.
-- Recommended phase: R1 typed recovery authority and removal/privatization of ambient wrappers.
+- Enforcement: `require_recovery_authority` rejects untyped values; stale/abandoned worker recovery additionally rejects certification authority. Supervisor fencing/reconciliation use the exact-session live-root claim predicate; post-fence requeue uses a separate exact-session root-lineage predicate that admits `STALLED` but never terminal roots.
+- Caller closure: six production call sites are structurally enumerated; all supply `authority=`. Worker stale/abandoned recovery supplies NORMAL authority; supervisor watchdog/loss/requeue derives NORMAL or CERTIFICATION authority from the validated supervisor session.
+- Evidence: missing/untyped authority tests, cancellation-precedence tests, structural caller guards, existing supervisor-isolation PostgreSQL tests, and a new PostgreSQL before/after proof for unrelated-session nonmutation plus authorized NORMAL transition.
 
 #### GAP-004 — CERI alert rebuild globally loads changes/snapshots/companies
 
@@ -240,16 +242,16 @@ The old T14A audit was strong within its declared boundary: 187 Python business 
 11. top-down graph and bottom-up table inventory have no orphan;
 12. generated CI checks fail on a new table, job type, mutating route, executable entrypoint, autonomous trigger, or recovery mutator until it is classified.
 
-Criteria 1–11 are satisfied as an audit inventory for the current working tree. Criterion 12 is not implemented, and the P1 safety gaps mean architecture remediation is still required before canaries.
+Criteria 1–11 are satisfied as an audit inventory. R1 implements executable drift guards for mutating HTTP registrations and production recovery/SEC-registration callers. Criterion 12 remains broader than R1 because table/job/writer/transition generation is assigned to R3. GAP-004 and GAP-005 still block canaries.
 
-## Remediation DAG (do not implement in this audit)
+## Remediation DAG status
 
 ```text
 R0 freeze and baseline
   - preserve current dirty worktree and audit artifacts
   - decide/commit or discard prior Run-166 remediation separately
   |
-  +--> R1 unified runtime mutation authority [blocks all later live work]
+  +--> R1 unified runtime mutation authority [COMPLETE]
   |      - typed RuntimeMutationAuthority(session/mode/process/operation)
   |      - central direct-route certification gateway (GAP-001)
   |      - classify/move SEC startup registration (GAP-002)
@@ -282,4 +284,4 @@ R0 freeze and baseline
 
 ## Final conclusion
 
-The application now has a finite current-state map. The repeated canary-discovery pattern was caused by a scope error in the audit model, not merely by a sequence of isolated bugs. Inventory closure is achieved, but safety closure is not. Do not repair job 43415 or start another canary from this task. Complete R1 and R2 with direct PostgreSQL proofs first.
+The application now has a finite current-state map and a fail-closed R1 runtime mutation boundary. GAP-001, GAP-002, and GAP-003 are closed; GAP-004 and GAP-005 remain open. It is safe to begin R2, but not to repair job 43415 or start another canary.

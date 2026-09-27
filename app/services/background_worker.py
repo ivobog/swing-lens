@@ -43,8 +43,8 @@ from app.services.ceri.sec.processor_capability import (
     evaluate_sec_processor_capability,
 )
 from app.services.ceri.sec.processor_lifecycle import (
+    establish_worker_processor_identity,
     lifecycle_state,
-    register_deployed_processor,
 )
 from app.services.cleanup_service import execute_durable_evidence_retention
 from app.services.domain_write_fence import fence_domain_commits
@@ -58,6 +58,7 @@ from app.services.process_memory import (
     runtime_memory_diagnostics,
     start_memory_tracing,
 )
+from app.services.runtime_mutation_authority import RecoveryAuthority, RuntimeMutationAuthority
 from app.services.worker_registry import (
     heartbeat_worker,
     heartbeat_worker_control_loop,
@@ -151,7 +152,15 @@ def run_worker(
 
     startup_db = session_factory()
     try:
-        register_deployed_processor(startup_db)
+        processor_authority = (
+            RuntimeMutationAuthority.certification(
+                "worker.sec_processor_identity",
+                session_id=certification_session_id,
+            )
+            if certification_session_id is not None
+            else RuntimeMutationAuthority.normal("worker.sec_processor_identity")
+        )
+        establish_worker_processor_identity(startup_db, authority=processor_authority)
         log_worker_startup_configuration(
             startup_db,
             settings=settings,
@@ -424,6 +433,7 @@ def run_worker_once(
             if certification_mode
             else recover_abandoned_jobs_for_worker(
                 db,
+                authority=RecoveryAuthority.normal("worker.abandoned_recovery"),
                 worker_id=worker_id,
                 heartbeat_timeout_seconds=heartbeat_timeout_seconds,
             )
@@ -442,7 +452,15 @@ def run_worker_once(
             process_id=process_id,
             instance_id=worker_instance_id,
         )
-        recovered_count = 0 if certification_mode else recover_stale_jobs(db, stale_after_seconds)
+        recovered_count = (
+            0
+            if certification_mode
+            else recover_stale_jobs(
+                db,
+                stale_after_seconds,
+                authority=RecoveryAuthority.normal("worker.stale_recovery"),
+            )
+        )
         if recovered_count:
             logger.info("job.stale_recovered", extra={"count": recovered_count})
         heartbeat_worker_control_loop(db, worker_id, instance_id=worker_instance_id)

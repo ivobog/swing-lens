@@ -35,6 +35,7 @@ from app.services.ib_market_intelligence.query_service import (
     scanner_runs,
     trade_journal,
 )
+from app.services.runtime_mutation_authority import MutationCapability
 from app.settings import Settings
 from app.templates import templates
 
@@ -199,6 +200,8 @@ def operations_api(db: DbSession) -> dict:
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues read-only IB historical intelligence",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ibmi.historical_refresh",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -219,6 +222,8 @@ def queue_historical(request: Request, payload: TickerJobRequest, db: DbSession)
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues bounded read-only IB market snapshots",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ibmi.live_snapshot",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -233,6 +238,8 @@ def queue_live(request: Request, payload: TickerJobRequest, db: DbSession) -> di
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues read-only IB scanner discovery",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ibmi.scanner",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -245,6 +252,8 @@ def queue_scanner(request: Request, payload: ScannerJobRequest, db: DbSession) -
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues read-only IB histogram requests",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ibmi.histogram",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -257,6 +266,8 @@ def queue_histogram(request: Request, payload: HistogramJobRequest, db: DbSessio
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues reporting-only Flex import",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ibmi.flex_import",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -269,6 +280,8 @@ def queue_flex(request: Request, payload: FlexJobRequest, db: DbSession) -> dict
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues deterministic intelligence feature rebuild",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ibmi.rebuild_features",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -281,6 +294,8 @@ def queue_rebuild(request: Request, payload: TickerJobRequest, db: DbSession) ->
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="marks local journal evidence excluded without deleting broker evidence",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ibmi.exclude_fill",
     csrf_required=True,
     local_admin_required=True,
 )

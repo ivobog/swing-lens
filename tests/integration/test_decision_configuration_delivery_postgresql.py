@@ -203,6 +203,7 @@ def test_stage_missing_from_bundle_never_resolves_current(delivery_db):
 
 def test_stale_reclaim_changes_lease_but_preserves_configuration(delivery_db, monkeypatch):
     from app.services.background_job_service import claim_next_job, recover_stale_jobs
+    from app.services.runtime_mutation_authority import RecoveryAuthority
     from app.services.worker_registry import register_worker
 
     db = delivery_db
@@ -217,7 +218,11 @@ def test_stale_reclaim_changes_lease_but_preserves_configuration(delivery_db, mo
     first = execute_job(db, claimed, {claimed.job_type: _handler})
     claimed.lease_expires_at = datetime.now(UTC) - timedelta(minutes=1)
     db.commit()
-    assert recover_stale_jobs(db, 1) == 1
+    assert recover_stale_jobs(
+        db,
+        1,
+        authority=RecoveryAuthority.normal("test.configuration_delivery.recovery"),
+    ) == 1
     db.commit()
     monkeypatch.setattr("pathlib.Path.open", lambda *_a, **_k: pytest.fail("reclaim reads C2"))
     reclaimed = claim_next_job(db, "t13d")

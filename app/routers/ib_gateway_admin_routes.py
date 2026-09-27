@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request
 from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_route
 from app.services.ib_gateway_health_service import check_status
 from app.services.ib_gateway_launcher import launch_gateway
+from app.services.runtime_mutation_authority import MutationCapability
 
 router = APIRouter(prefix="/api/ib-gateway", tags=["interactive-brokers"])
 
@@ -16,6 +17,8 @@ def ib_gateway_status(request: Request) -> dict[str, object]:
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="launches the configured local IB Gateway executable",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ib_gateway.launch",
     csrf_required=True,
     local_admin_required=True,
 )

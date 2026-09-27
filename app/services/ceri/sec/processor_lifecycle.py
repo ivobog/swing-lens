@@ -13,6 +13,13 @@ from app.services.pipeline_prerequisites import (
     SecProcessorPromotionRequiredError,
     WorkerProcessorDriftError,
 )
+from app.services.runtime_mutation_authority import (
+    MutationCapability,
+    RuntimeMutationAuthority,
+    RuntimeMutationAuthorityError,
+    require_runtime_mutation_authority,
+)
+from app.settings import RuntimeMode
 
 
 class SecProcessorReleaseStatus:
@@ -96,8 +103,11 @@ def fence_worker_against_active_processor(db: Session) -> SecProcessorLifecycleS
 def register_deployed_processor(
     db: Session,
     *,
+    authority: RuntimeMutationAuthority,
     git_sha: str | None = None,
 ) -> CeriSecProcessorRelease:
+    authority = require_runtime_mutation_authority(authority)
+    authority.require_capability(MutationCapability.NORMAL_ONLY)
     signature = sec_guidance_processor_signature()
     row = db.get(CeriSecProcessorRelease, signature)
     if row is None:
@@ -111,6 +121,33 @@ def register_deployed_processor(
     elif git_sha and not row.deployed_git_sha:
         row.deployed_git_sha = git_sha
     db.flush()
+    return row
+
+
+def establish_worker_processor_identity(
+    db: Session,
+    *,
+    authority: RuntimeMutationAuthority,
+    git_sha: str | None = None,
+) -> CeriSecProcessorRelease:
+    """Register in NORMAL, but make certification startup strictly read-only."""
+
+    authority = require_runtime_mutation_authority(authority)
+    if authority.mode is RuntimeMode.NORMAL:
+        return register_deployed_processor(db, authority=authority, git_sha=git_sha)
+    authority.require_capability(MutationCapability.READ_ONLY)
+    signature = sec_guidance_processor_signature()
+    row = db.get(CeriSecProcessorRelease, signature)
+    if row is None:
+        raise RuntimeMutationAuthorityError(
+            "CERTIFICATION_PROCESSOR_NOT_REGISTERED",
+            "the deployed SEC processor must be registered before certification starts",
+        )
+    if git_sha and row.deployed_git_sha and row.deployed_git_sha != git_sha:
+        raise RuntimeMutationAuthorityError(
+            "CERTIFICATION_PROCESSOR_IDENTITY_MISMATCH",
+            "the registered SEC processor deployment identity does not match this runtime",
+        )
     return row
 
 

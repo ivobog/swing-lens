@@ -387,6 +387,7 @@ def test_native_lifecycle_concurrent_advance_and_decision_reclaim(contextual_eng
     from app.services.background_job_service import JobLeaseLost, enqueue_job, recover_stale_jobs
     from app.services.decision_mutation_authority import validate_episode_projection
     from app.services.domain_write_fence import fence_domain_commits
+    from app.services.runtime_mutation_authority import RecoveryAuthority
     from app.services.setup_lifecycle.episode_service import SetupLifecycleEpisodeService
 
     setup = resolve_setup_configuration()
@@ -424,7 +425,11 @@ def test_native_lifecycle_concurrent_advance_and_decision_reclaim(contextual_eng
         token_a = first.execution_token
         first.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
         db.commit()
-        assert recover_stale_jobs(db, stale_after_seconds=1) == 1
+        assert recover_stale_jobs(
+            db,
+            stale_after_seconds=1,
+            authority=RecoveryAuthority.normal("test.t14c.decision_recovery"),
+        ) == 1
         db.commit()
         second = _claim_registered_job(db, "t14c-native-decision-B")
         assert second.id == queued.id and second.execution_token != token_a

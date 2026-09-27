@@ -35,6 +35,10 @@ from app.observability.correlation import CausalityContext, enqueue_causality, w
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_queue import QueueClaimGroup, worker_queue_filter
 from app.services.redaction import redact_sensitive, redacted_token_metadata
+from app.services.runtime_mutation_authority import (
+    RecoveryAuthority,
+    require_recovery_authority,
+)
 from app.settings import get_settings
 
 ERROR_MESSAGE_MAX_LENGTH = 500
@@ -947,6 +951,7 @@ def record_job_progress(
 def fence_stalled_jobs(
     db: Session,
     *,
+    authority: RecoveryAuthority,
     default_timeout_seconds: int,
     market_data_timeout_seconds: int,
     now: datetime | None = None,
@@ -954,9 +959,9 @@ def fence_stalled_jobs(
     worker_instance_id: str | None = None,
     worker_heartbeat_at: datetime | None = None,
     long_stage_timeout_seconds: int = 1800,
-    certification_session_id: str | None = None,
 ) -> list[int]:
     """Fence live-but-not-progressing executions without trusting lease freshness."""
+    authority = require_recovery_authority(authority)
     observed_at = now or _utcnow()
     candidate_query = (
         select(BackgroundJob)
@@ -969,12 +974,12 @@ def fence_stalled_jobs(
         candidate_query = candidate_query.where(
             BackgroundJob.worker_instance_id == worker_instance_id
         )
-    if certification_session_id is not None:
+    if authority.is_certification:
         from app.services.certification_runtime import apply_certification_claim_scope
 
         candidate_query = apply_certification_claim_scope(
             candidate_query,
-            certification_session_id=certification_session_id,
+            certification_session_id=str(authority.certification_session_id),
         )
     # A non-locking MVCC read makes SKIP LOCKED observable.  It does not grant
     # the watchdog authority to mutate the row, but prevents an owned/stalled
@@ -1164,13 +1169,22 @@ def _interrupt_fenced_pipeline_steps(
 def requeue_stalled_jobs(
     db: Session,
     *,
+    authority: RecoveryAuthority,
     job_ids: Iterable[int] | None = None,
     now: datetime | None = None,
 ) -> int:
+    authority = require_recovery_authority(authority)
     observed_at = now or _utcnow()
     query = select(BackgroundJob).where(BackgroundJob.status == JobStatus.STALLED)
     if job_ids is not None:
         query = query.where(BackgroundJob.id.in_(tuple(job_ids)))
+    if authority.is_certification:
+        from app.services.certification_runtime import apply_certification_recovery_scope
+
+        query = apply_certification_recovery_scope(
+            query,
+            certification_session_id=str(authority.certification_session_id),
+        )
     recovered = 0
     for job in db.scalars(query.with_for_update(skip_locked=True)).all():
         if job.requested_cancel:
@@ -1194,6 +1208,7 @@ def requeue_stalled_jobs(
 def fence_jobs_for_worker(
     db: Session,
     *,
+    authority: RecoveryAuthority,
     worker_id: str,
     reason: str,
     worker_instance_id: str | None = None,
@@ -1203,6 +1218,7 @@ def fence_jobs_for_worker(
     return list(
         reconcile_jobs_for_worker_loss(
             db,
+            authority=authority,
             worker_id=worker_id,
             worker_instance_id=worker_instance_id,
             reason=reason,
@@ -1214,10 +1230,10 @@ def fence_jobs_for_worker(
 def reconcile_jobs_for_worker_loss(
     db: Session,
     *,
+    authority: RecoveryAuthority,
     worker_id: str,
     reason: str,
     worker_instance_id: str | None = None,
-    certification_session_id: str | None = None,
     now: datetime | None = None,
 ) -> WorkerJobReconciliation:
     """Apply recovery policy independently to each job owned by a lost worker.
@@ -1226,6 +1242,7 @@ def reconcile_jobs_for_worker_loss(
     explicit certification claim predicate. Jobs outside that predicate are
     observed for diagnostics but are not locked or changed.
     """
+    authority = require_recovery_authority(authority)
     observed_at = now or _utcnow()
     owned_query = (
         select(BackgroundJob)
@@ -1238,7 +1255,7 @@ def reconcile_jobs_for_worker_loss(
         )
     )
     authorized_query = owned_query
-    if certification_session_id is not None:
+    if authority.is_certification:
         from app.services.certification_runtime import apply_certification_claim_scope
 
         owned_ids = tuple(
@@ -1249,10 +1266,10 @@ def reconcile_jobs_for_worker_loss(
         )
         authorized_query = apply_certification_claim_scope(
             authorized_query,
-            certification_session_id=certification_session_id,
+            certification_session_id=str(authority.certification_session_id),
         )
     jobs = db.scalars(authorized_query.with_for_update(skip_locked=True)).all()
-    if certification_session_id is None:
+    if not authority.is_certification:
         owned_ids = tuple(int(job.id) for job in jobs)
     authorized_ids = {int(job.id) for job in jobs}
     fenced: list[int] = []
@@ -1741,7 +1758,14 @@ def heartbeat_job(
     return job
 
 
-def recover_stale_jobs(db: Session, stale_after_seconds: int) -> int:
+def recover_stale_jobs(
+    db: Session,
+    stale_after_seconds: int,
+    *,
+    authority: RecoveryAuthority,
+) -> int:
+    authority = require_recovery_authority(authority)
+    authority.require_normal_worker_recovery()
     now = _utcnow()
     stale_jobs = db.scalars(
         select(BackgroundJob)
@@ -1763,10 +1787,13 @@ def recover_stale_jobs(db: Session, stale_after_seconds: int) -> int:
 def recover_abandoned_jobs_for_worker(
     db: Session,
     *,
+    authority: RecoveryAuthority,
     worker_id: str,
     heartbeat_timeout_seconds: int,
 ) -> int:
     """Requeue work abandoned when the same durable worker identity restarts."""
+    authority = require_recovery_authority(authority)
+    authority.require_normal_worker_recovery()
     now = _utcnow()
     heartbeat_cutoff = now - timedelta(seconds=heartbeat_timeout_seconds)
     abandoned_jobs = db.scalars(

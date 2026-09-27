@@ -28,6 +28,7 @@ from app.services.ceri.sec.processor_signature import (
     sec_guidance_processor_identity_inputs,
     sec_guidance_processor_signature,
 )
+from app.services.runtime_mutation_authority import RuntimeMutationAuthority
 from app.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -156,7 +157,11 @@ def _activate(database_url: URL) -> dict[str, Any]:
     signature = sec_guidance_processor_signature()
     try:
         with Session(engine) as session:
-            register_deployed_processor(session, git_sha=_git_head())
+            register_deployed_processor(
+                session,
+                authority=RuntimeMutationAuthority.normal("cli.sec_processor.certify"),
+                git_sha=_git_head(),
+            )
             certify_processor(
                 session,
                 processor_signature=signature,

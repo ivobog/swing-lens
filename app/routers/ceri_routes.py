@@ -63,6 +63,7 @@ from app.services.resource_limits import (
     enforce_row_limit,
     limit_error_payload,
 )
+from app.services.runtime_mutation_authority import MutationCapability
 from app.services.scope_refresh_adoption import (
     SemanticWorkAuthority,
     admit_frozen_operation,
@@ -732,6 +733,8 @@ def export_ceri_json(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues licensed/provider CERI ingestion",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.ingest",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -774,6 +777,8 @@ def create_ceri_ingestion_run(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues CERI recalculation or feature rebuild",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.recalculate",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -795,6 +800,8 @@ def recalculate_ceri(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="persists manual CERI review state",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.review",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -867,6 +874,8 @@ def review_ceri_event(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="requests cancellation of a CERI background job",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.cancel_job",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -890,6 +899,8 @@ def cancel_ceri_job(job_id: int, request: Request, db: DbSession) -> dict[str, A
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues CERI backfill",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.backfill",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -943,6 +954,8 @@ def create_ceri_backfill(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues CERI reprocessing",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.reprocess",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -979,6 +992,8 @@ def reprocess_ceri(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="mutates CERI alert acknowledgement state",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.alert_acknowledge",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -999,6 +1014,8 @@ def acknowledge_ceri_alert(alert_id: int, request: Request, db: DbSession) -> di
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="mutates CERI alert dismissal state",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.alert_dismiss",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -1019,6 +1036,8 @@ def dismiss_ceri_alert(alert_id: int, request: Request, db: DbSession) -> dict[s
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues CERI licensed-data purge preview",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.purge_preview",
     csrf_required=True,
     local_admin_required=True,
 )
@@ -1045,6 +1064,8 @@ def preview_ceri_purge(
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
     reason="queues CERI licensed-data purge execution",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ceri.purge_execute",
     csrf_required=True,
     local_admin_required=True,
 )

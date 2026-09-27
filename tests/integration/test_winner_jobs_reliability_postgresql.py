@@ -78,6 +78,7 @@ from app.services.decision_effective_configuration import (
 from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
 from app.services.ib_data_fetcher import HistoricalBar
 from app.services.ib_market_intelligence.journal import _serving_winner_estimate
+from app.services.runtime_mutation_authority import RecoveryAuthority
 from app.services.winner_probability.api_service import WinnerProbabilityApiService
 from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
@@ -819,7 +820,11 @@ def test_recovered_maturation_job_retains_single_flight_identity(
         root_id = root.id
 
     with Session(engine) as db:
-        assert recover_stale_jobs(db, stale_after_seconds=1) == 1
+        assert recover_stale_jobs(
+            db,
+            stale_after_seconds=1,
+            authority=RecoveryAuthority.normal("test.winner.recovery"),
+        ) == 1
         db.commit()
         recovered = db.get(BackgroundJob, root_id)
         assert recovered is not None
@@ -1520,7 +1525,11 @@ def test_partial_generation_cannot_publish_and_recovery_closes_attempt(
         db.commit()
 
     with Session(engine) as db:
-        assert recover_stale_jobs(db, stale_after_seconds=1) == 1
+        assert recover_stale_jobs(
+            db,
+            stale_after_seconds=1,
+            authority=RecoveryAuthority.normal("test.winner.attempt_recovery"),
+        ) == 1
         db.commit()
         attempt = db.scalar(select(WinnerProcessingRun))
         assert attempt.status == "LOST"
@@ -2017,7 +2026,11 @@ def test_stale_lease_owner_cannot_publish_generation(
     try:
         stale_job = stale.get(BackgroundJob, job_id)
         with Session(engine) as recovery:
-            assert recover_stale_jobs(recovery, stale_after_seconds=1) == 1
+            assert recover_stale_jobs(
+                recovery,
+                stale_after_seconds=1,
+                authority=RecoveryAuthority.normal("test.winner.publish_recovery"),
+            ) == 1
             recovery.commit()
             claimed = _claim_registered_job(recovery, "worker-new")
             assert claimed is not None and claimed.execution_token != "old-token"

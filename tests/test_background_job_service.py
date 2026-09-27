@@ -26,8 +26,22 @@ from app.services.background_job_service import (
     request_job_cancel,
     requeue_stalled_jobs,
 )
+from app.services.runtime_mutation_authority import (
+    RecoveryAuthority,
+    RuntimeMutationAuthorityError,
+)
 from app.services.transition_preflight_plan_service import TransitionPreflightError
 from app.services.winner_probability.job_handlers import enqueue_outcome_maturation_workflow
+
+NORMAL_RECOVERY = RecoveryAuthority.normal("test.background_job_recovery")
+
+
+def test_recovery_primitive_rejects_missing_or_untyped_authority() -> None:
+    with pytest.raises(TypeError, match="authority"):
+        requeue_stalled_jobs(FakeDb(), job_ids=[])
+
+    with pytest.raises(RuntimeMutationAuthorityError, match="RECOVERY_AUTHORITY_REQUIRED"):
+        requeue_stalled_jobs(FakeDb(), authority={}, job_ids=[])  # type: ignore[arg-type]
 
 
 def test_enqueue_job_persists_payload_and_defaults() -> None:
@@ -469,7 +483,9 @@ def test_recover_stale_jobs_requeues_jobs_with_retries_remaining() -> None:
     original_payload = dict(stale.payload_json)
     db = FakeDb(stale_jobs=[stale])
 
-    count = recover_stale_jobs(db, stale_after_seconds=900)
+    count = recover_stale_jobs(
+        db, stale_after_seconds=900, authority=NORMAL_RECOVERY
+    )
 
     assert count == 1
     assert stale.status == JobStatus.QUEUED
@@ -502,6 +518,7 @@ def test_restarted_worker_recovers_abandoned_job_before_long_lease_expires() -> 
 
     count = recover_abandoned_jobs_for_worker(
         db,
+        authority=NORMAL_RECOVERY,
         worker_id="worker-a",
         heartbeat_timeout_seconds=30,
     )
@@ -517,7 +534,7 @@ def test_recover_stale_jobs_marks_exhausted_jobs_stale() -> None:
     stale = _running_job(retry_count=3, max_retries=3)
     db = FakeDb(stale_jobs=[stale])
 
-    recover_stale_jobs(db, stale_after_seconds=900)
+    recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY)
 
     assert stale.status == JobStatus.STALE
     assert stale.completed_at is not None
@@ -528,7 +545,9 @@ def test_recover_stale_jobs_finalizes_requested_cancellation() -> None:
     stale.requested_cancel = True
     db = FakeDb(stale_jobs=[stale])
 
-    assert recover_stale_jobs(db, stale_after_seconds=900) == 0
+    assert (
+        recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 0
+    )
 
     assert stale.status == JobStatus.CANCELLED
     assert stale.completed_at is not None
@@ -545,6 +564,7 @@ def test_recover_abandoned_job_finalizes_requested_cancellation() -> None:
     assert (
         recover_abandoned_jobs_for_worker(
             db,
+            authority=NORMAL_RECOVERY,
             worker_id="worker-a",
             heartbeat_timeout_seconds=30,
         )
@@ -557,7 +577,9 @@ def test_live_heartbeat_prevents_stale_recovery() -> None:
     live = _running_job(lease_expires_at=datetime.now(UTC) + timedelta(minutes=5))
     db = FakeDb(stale_jobs=[live])
 
-    assert recover_stale_jobs(db, stale_after_seconds=900) == 0
+    assert (
+        recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 0
+    )
 
     assert live.status == JobStatus.RUNNING
     assert live.execution_token == "token-1"
@@ -582,8 +604,12 @@ def test_expired_lease_can_be_recovered_exactly_once() -> None:
     stale = _running_job(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
     db = FakeDb(stale_jobs=[stale])
 
-    assert recover_stale_jobs(db, stale_after_seconds=900) == 1
-    assert recover_stale_jobs(db, stale_after_seconds=900) == 0
+    assert (
+        recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 1
+    )
+    assert (
+        recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 0
+    )
 
 
 def test_recovered_job_receives_new_execution_token_when_claimed() -> None:
@@ -591,7 +617,7 @@ def test_recovered_job_receives_new_execution_token_when_claimed() -> None:
     db = FakeDb(existing=stale, stale_jobs=[stale], scalar_result=stale.id)
     old_token = stale.execution_token
 
-    recover_stale_jobs(db, stale_after_seconds=900)
+    recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY)
     claimed = claim_next_job(db, worker_id="worker-b")
 
     assert claimed is stale
@@ -647,6 +673,7 @@ def test_live_worker_without_progress_is_fenced_and_recovering() -> None:
 
     fenced = fence_stalled_jobs(
         db,
+        authority=NORMAL_RECOVERY,
         default_timeout_seconds=60,
         market_data_timeout_seconds=120,
         now=now,
@@ -658,7 +685,12 @@ def test_live_worker_without_progress_is_fenced_and_recovering() -> None:
     assert job.execution_token is None
     assert job.worker_id is None
     db.stale_jobs = [job]
-    assert requeue_stalled_jobs(db, job_ids=fenced, now=now) == 1
+    assert (
+        requeue_stalled_jobs(
+            db, authority=NORMAL_RECOVERY, job_ids=fenced, now=now
+        )
+        == 1
+    )
     assert job.status == JobStatus.RECOVERING
     assert job.recovery_count == 1
 
@@ -671,7 +703,9 @@ def test_requeue_stalled_job_finalizes_requested_cancellation() -> None:
     job.recovery_count = 0
     db = FakeDb(stale_jobs=[job])
 
-    assert requeue_stalled_jobs(db, job_ids=[job.id]) == 0
+    assert (
+        requeue_stalled_jobs(db, authority=NORMAL_RECOVERY, job_ids=[job.id]) == 0
+    )
     assert job.status == JobStatus.CANCELLED
     assert job.completed_at is not None
     assert job.recovery_count == 0
@@ -689,6 +723,7 @@ def test_watchdog_finalizes_requested_cancellation_instead_of_fencing() -> None:
     assert (
         fence_stalled_jobs(
             db,
+            authority=NORMAL_RECOVERY,
             default_timeout_seconds=60,
             market_data_timeout_seconds=120,
             long_stage_timeout_seconds=120,
@@ -710,6 +745,7 @@ def test_lost_worker_reconciliation_never_fences_requested_cancellation() -> Non
 
     fenced = fence_jobs_for_worker(
         db,
+        authority=NORMAL_RECOVERY,
         worker_id="worker-a",
         worker_instance_id="instance-a",
         reason="worker crashed",
@@ -739,6 +775,7 @@ def test_structural_progress_advance_prevents_false_stall_after_300_seconds() ->
     assert (
         fence_stalled_jobs(
             db,
+            authority=NORMAL_RECOVERY,
             default_timeout_seconds=300,
             market_data_timeout_seconds=300,
             long_stage_timeout_seconds=300,
@@ -769,6 +806,7 @@ def test_fresh_worker_and_lease_heartbeats_do_not_mask_frozen_progress_sequence(
 
     assert fence_stalled_jobs(
         db,
+        authority=NORMAL_RECOVERY,
         default_timeout_seconds=300,
         market_data_timeout_seconds=300,
         long_stage_timeout_seconds=300,
@@ -797,6 +835,7 @@ def test_winner_stage_can_run_over_300_seconds_while_useful_progress_advances() 
     job.heartbeat_at = after_six_minutes
     assert fence_stalled_jobs(
         db,
+        authority=NORMAL_RECOVERY,
         default_timeout_seconds=300,
         market_data_timeout_seconds=300,
         long_stage_timeout_seconds=1800,
@@ -811,6 +850,7 @@ def test_winner_stage_can_run_over_300_seconds_while_useful_progress_advances() 
     job.heartbeat_at = after_twelve_minutes
     assert fence_stalled_jobs(
         db,
+        authority=NORMAL_RECOVERY,
         default_timeout_seconds=300,
         market_data_timeout_seconds=300,
         long_stage_timeout_seconds=1800,
@@ -838,6 +878,7 @@ def test_truly_frozen_winner_stage_is_fenced_despite_live_heartbeats() -> None:
 
     assert fence_stalled_jobs(
         db,
+        authority=NORMAL_RECOVERY,
         default_timeout_seconds=300,
         market_data_timeout_seconds=300,
         long_stage_timeout_seconds=1800,
@@ -861,12 +902,13 @@ def test_worker_recycle_preserves_more_than_one_hundred_queued_jobs() -> None:
 
     fenced = fence_jobs_for_worker(
         db,
+        authority=NORMAL_RECOVERY,
         worker_id="worker-a",
         worker_instance_id="instance-a",
         reason="worker crashed",
     )
     assert fenced == [1000]
-    assert requeue_stalled_jobs(db, job_ids=fenced) == 1
+    assert requeue_stalled_jobs(db, authority=NORMAL_RECOVERY, job_ids=fenced) == 1
 
     assert all(job.status == JobStatus.QUEUED for job in queued)
     assert running.status == JobStatus.RECOVERING

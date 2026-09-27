@@ -6,19 +6,78 @@ This registry joins the current 120 SQLAlchemy table mappings to exact persisten
 
 The existing CSV remains the exhaustive per-physical-site annex for the original 115 tables. The IDs below are the normalized current writer families. When a table has multiple writers it appears in multiple rows and in the physical index with multiple IDs.
 
+## HTTP mutation capability registry
+
+The executable source of truth is `app.security.http_mutation_route_registry`; `tests/test_route_security.py` asserts 52 registrations, exact category totals, and zero unclassified mutations. Certification middleware rejects an unsafe matched route with no classification before dependency resolution. Current totals are `NORMAL_ONLY=49`, `CERTIFICATION_SESSION_SCOPED=1`, `CERTIFICATION_CONTROL=0`, and `READ_ONLY=2`.
+
+| Method/path | Operation | Capability |
+| --- | --- | --- |
+| POST `/ops/cleanup/execute` | `http.cleanup.execute` | NORMAL_ONLY |
+| POST `/uploads` | `http.upload.create` | NORMAL_ONLY |
+| POST `/runs/{run_id}/rankings/refresh` | `http.ranking.refresh_all` | NORMAL_ONLY |
+| POST `/runs/{run_id}/rankings/{profile_name}/refresh` | `http.ranking.refresh_one` | NORMAL_ONLY |
+| POST `/runs/{run_id}/combined-results` | `http.combined.refresh` | NORMAL_ONLY |
+| POST `/runs/{run_id}/fundamentals/recalculate` | `http.fundamental.recalculate` | NORMAL_ONLY |
+| POST `/runs/{run_id}/technicals/refresh` | `http.technical.refresh` | NORMAL_ONLY |
+| POST `/runs/{run_id}/pipeline` | `http.pipeline.start` | CERTIFICATION_SESSION_SCOPED (root creation) |
+| POST `/runs/{run_id}/pipeline/{pipeline_id}/cancel` | `http.pipeline.cancel` | NORMAL_ONLY |
+| POST `/runs/{run_id}/pipeline/{pipeline_id}/resume` | `http.pipeline.resume` | NORMAL_ONLY |
+| POST `/runs/{run_id}/ib/test` | `http.ib.test_run_connection` | READ_ONLY |
+| POST `/runs/{run_id}/ib/fetch` | `http.ib.fetch_run` | NORMAL_ONLY |
+| POST `/runs/{run_id}/ib/fetch/{fetch_run_id}/cancel` | `http.ib.cancel_fetch` | NORMAL_ONLY |
+| POST `/runs/{run_id}/ib/fetch/{fetch_run_id}/retry-failed` | `http.ib.retry_failed_fetch` | NORMAL_ONLY |
+| POST `/runs/{run_id}/ib/fetch/{fetch_run_id}/resume` | `http.ib.resume_fetch` | NORMAL_ONLY |
+| POST `/api/market-regime/run/{run_id}/recalculate` | `http.market_regime.recalculate` | NORMAL_ONLY |
+| POST `/api/market-data/prewarm` | `http.market_data.prewarm` | NORMAL_ONLY |
+| POST `/api/market-data/prewarm/{job_id}/cancel` | `http.market_data.cancel_prewarm` | NORMAL_ONLY |
+| POST `/api/runs/{run_id}/sector-rotation/recalculate` | `http.sector_rotation.recalculate` | NORMAL_ONLY |
+| POST `/ib/test` | `http.ib.test_connection` | READ_ONLY |
+| POST `/ib/resolve/{ticker}` | `http.ib.resolve_contract` | NORMAL_ONLY |
+| POST `/ib/fetch` | `http.ib.fetch_bars` | NORMAL_ONLY |
+| POST `/api/ib-gateway/launch` | `http.ib_gateway.launch` | NORMAL_ONLY |
+| POST `/api/ib-intelligence/refresh` | `http.ibmi.historical_refresh` | NORMAL_ONLY |
+| POST `/api/ib-intelligence/live-snapshot` | `http.ibmi.live_snapshot` | NORMAL_ONLY |
+| POST `/api/ib-intelligence/scanner/run` | `http.ibmi.scanner` | NORMAL_ONLY |
+| POST `/api/ib-intelligence/histogram/fetch` | `http.ibmi.histogram` | NORMAL_ONLY |
+| POST `/api/ib-intelligence/flex/import` | `http.ibmi.flex_import` | NORMAL_ONLY |
+| POST `/api/ib-intelligence/rebuild-features` | `http.ibmi.rebuild_features` | NORMAL_ONLY |
+| POST `/api/ib-intelligence/trade-journal/fills/{fill_id}/exclude` | `http.ibmi.exclude_fill` | NORMAL_ONLY |
+| POST `/api/winner-probability/runs/{run_id}/capture` | `http.winner.capture` | NORMAL_ONLY |
+| POST `/api/winner-probability/outcomes/process` | `http.winner.mature` | NORMAL_ONLY |
+| POST `/api/winner-probability/cohorts/refresh` | `http.winner.cohort_refresh` | NORMAL_ONLY |
+| POST `/api/winner-probability/models/{id}/retire` | `http.winner.model_retire` | NORMAL_ONLY |
+| POST `/api/setup-lifecycle/alerts/{alert_id}/acknowledge` | `http.setup_alert.acknowledge` | NORMAL_ONLY |
+| POST `/api/setup-lifecycle/alerts/{alert_id}/dismiss` | `http.setup_alert.dismiss` | NORMAL_ONLY |
+| POST `/api/setup-lifecycle/evaluate-run` | `http.setup_lifecycle.evaluate` | NORMAL_ONLY |
+| POST `/api/setup-lifecycle/evaluate` | `http.setup_lifecycle.evaluate` | NORMAL_ONLY |
+| POST `/api/setup-lifecycle/run/{run_id}/evaluate` | `http.setup_lifecycle.evaluate` | NORMAL_ONLY |
+| POST `/api/setup-lifecycle/evaluations` | `http.setup_lifecycle.queue_evaluation` | NORMAL_ONLY |
+| POST `/api/setup-lifecycle/replay` | `http.setup_lifecycle.replay` | NORMAL_ONLY |
+| POST `/api/ceri/ingestion-runs` | `http.ceri.ingest` | NORMAL_ONLY |
+| POST `/api/ceri/recalculate` | `http.ceri.recalculate` | NORMAL_ONLY |
+| POST `/api/ceri/events/{event_id}/review` | `http.ceri.review` | NORMAL_ONLY |
+| POST `/api/ceri/jobs/{job_id}/cancel` | `http.ceri.cancel_job` | NORMAL_ONLY |
+| POST `/api/ceri/backfills` | `http.ceri.backfill` | NORMAL_ONLY |
+| POST `/api/ceri/reprocess` | `http.ceri.reprocess` | NORMAL_ONLY |
+| POST `/api/ceri/alerts/{alert_id}/acknowledge` | `http.ceri.alert_acknowledge` | NORMAL_ONLY |
+| POST `/api/ceri/alerts/{alert_id}/dismiss` | `http.ceri.alert_dismiss` | NORMAL_ONLY |
+| POST `/api/ceri/purge/preview` | `http.ceri.purge_preview` | NORMAL_ONLY |
+| POST `/api/ceri/purge/execute` | `http.ceri.purge_execute` | NORMAL_ONLY |
+| POST `/api/ceri/providers/validate` | `http.ceri.provider_validate` | NORMAL_ONLY |
+
 ## Exact writer families
 
 | ID | Table(s) | Exact writer function | Production entry chain(s) | Mode / authority / Tx |
 | --- | --- | --- | --- | --- |
-| WRITE-001 | `upload_runs`, `raw_company_rows` | `upload_service.create_upload_run` | upload POST | NORMAL/CERT web; upload content/hash; TX-01 |
-| WRITE-002 | `pipeline_runs`, `pipeline_steps` | `pipeline_service.start_pipeline` | full-pipeline POST | pipeline/run/config/session; TX-02 |
+| WRITE-001 | `upload_runs`, `raw_company_rows` | `upload_service.create_upload_run` | upload POST | `NORMAL_ONLY` HTTP capability; upload content/hash; TX-01 |
+| WRITE-002 | `pipeline_runs`, `pipeline_steps` | `pipeline_service.start_pipeline` | full-pipeline POST | `CERTIFICATION_SESSION_SCOPED` root creation; pipeline/run/config/session; TX-02 |
 | WRITE-003 | `pipeline_runs`, `pipeline_steps` | `pipeline_executor._pipeline_step`, `_mark_pipeline_*`, `_cancel_unfinished_steps` | FULL_PIPELINE handler | root job/pipeline/execution token; TX-05/17 |
 | WRITE-004 | `pipeline_runs`, `pipeline_steps` | `pipeline_service.resume_pipeline`, `enqueue_pipeline_after_sec_repair`, `enqueue_pipeline_after_ceri_completion`, `_roll_up_ceri_pipeline_failure` | manual resume, SEC/CERI finalizers | pipeline/root correlation; TX-13 |
 | WRITE-005 | `background_jobs` | `background_job_service.enqueue_job`, `_record_enqueue_attempt`, `record_coalesced_enqueue_attempt` | all APIs, pipeline, handlers, schedulers | causality/idempotency/session; TX-02/13/18 |
 | WRITE-006 | `background_jobs` | `claim_next_job`, `heartbeat_job`, `record_job_progress`, `mark_job_*`, `mark_job_deferred`, `request_job_cancel` | durable worker and cancel APIs | worker/execution token; TX-04/17/21 |
-| WRITE-007 | `background_jobs`, `pipeline_runs`, `pipeline_steps` | `fence_stalled_jobs`, `_interrupt_fenced_pipeline_steps`, `requeue_stalled_jobs` | supervisor watchdog | worker/status plus caller-composed session; TX-22/23 |
-| WRITE-008 | `background_jobs`, `pipeline_runs`, `pipeline_steps` | `reconcile_jobs_for_worker_loss`, `_interrupt_fenced_pipeline_steps` | supervisor death/memory/shutdown | worker instance + certification claim when supplied; TX-22 |
-| WRITE-009 | `background_jobs` | `recover_stale_jobs`, `recover_abandoned_jobs_for_worker`, `_recover_jobs` | NORMAL worker startup/loop | lease/worker/status; TX-23 |
+| WRITE-007 | `background_jobs`, `pipeline_runs`, `pipeline_steps` | `fence_stalled_jobs`, `_interrupt_fenced_pipeline_steps`, `requeue_stalled_jobs` | supervisor watchdog | mandatory typed NORMAL/CERTIFICATION `RecoveryAuthority`; fencing uses exact-session live roots, requeue uses exact-session recoverable roots; TX-22/23 |
+| WRITE-008 | `background_jobs`, `pipeline_runs`, `pipeline_steps` | `reconcile_jobs_for_worker_loss`, `_interrupt_fenced_pipeline_steps` | supervisor death/memory/shutdown | mandatory typed authority + worker instance; unrelated certification lineage reported untouched; TX-22 |
+| WRITE-009 | `background_jobs` | `recover_stale_jobs`, `recover_abandoned_jobs_for_worker`, `_recover_jobs` | NORMAL worker startup/loop | mandatory typed NORMAL authority; certification rejected at primitive; lease/worker/status; TX-23 |
 | WRITE-010 | `background_jobs` | `ceri.backlog_cleanup_service.apply_legacy_ceri_backlog_cleanup` | maintenance CLI/service | explicit cleanup scope; caller commit |
 | WRITE-011 | `background_job_enqueue_attempts`, `background_job_fanout_roots` | `_record_enqueue_attempt`, `_update_fanout_summary`, `prune_enqueue_attempt_evidence` | enqueue and retention loop/admin cleanup | operational causality/retention; TX-02/24 |
 | WRITE-012 | `background_workers` | `worker_registry.register_worker`, `heartbeat_worker`, `heartbeat_worker_control_loop`, `mark_worker_stopping`, `retire_worker_registration`, `associate_worker_launcher` | worker/supervisor/lifecycle control | worker/process instance; TX-03/21/22 |
@@ -53,21 +112,21 @@ The existing CSV remains the exhaustive per-physical-site annex for the original
 | WRITE-041 | `ceri_change_events` | `change_detection_service.CeriChangeDetectionService` via `CeriChangeRebuildService.rebuild` | change job/direct service | run/company/session/cutoff/exact bundle; TX-12 |
 | WRITE-042 | `ceri_alert_rules` | CERI alert rule seed/config writer | alert initialization/admin | current-rules authority; TX-20 |
 | WRITE-043 | `ceri_alert_events` | `CeriAlertService.persist_alert_for_change` | alert rebuild handler | change/revision evidence; TX-20 |
-| WRITE-044 | `ceri_alert_events` | `CeriAlertService.acknowledge`, `dismiss` | direct local-admin API | row ID + local-admin; no certification-session gate; TX-20 |
+| WRITE-044 | `ceri_alert_events` | `CeriAlertService.acknowledge`, `dismiss` | direct local-admin API | row ID + local-admin + central `NORMAL_ONLY` capability; TX-20 |
 | WRITE-045 | `ceri_alert_events` plus CERI source/derived rows | `CeriPurgeService._apply_purge_lifecycle` | licensed-data purge API/job | provider/license/preview hash/confirmation; TX-25 |
-| WRITE-046 | `ceri_manual_reviews` and catalyst revision review field | `ceri_routes.review_ceri_event` | direct local-admin API | review target/human review context; no certification-session gate |
+| WRITE-046 | `ceri_manual_reviews` and catalyst revision review field | `ceri_routes.review_ceri_event` | direct local-admin API | review target/human review context + central `NORMAL_ONLY` capability |
 | WRITE-047 | `ceri_controlled_replays` | `controlled_replay_service.replay` | replay CLI/service | replay manifest/cutoff/source set; caller transaction |
 | WRITE-048 | `ceri_purge_audits` | `CeriPurgeService.preview/execute` audit persistence | purge API/job | preview/confirmation/actor; TX-25 |
 | WRITE-049 | `ceri_evidence_dispositions` | CERI evidence eligibility/disposition service | capture/purge/review flows | evidence ID/reason |
 | WRITE-050 | `ceri_sec_filing_documents`, `ceri_sec_document_extractions`, `ceri_sec_sync_states` | SEC incremental ingestion/extraction/readiness repair | SEC repair handler/admin scripts | filing/source/processor signature; TX-07 |
-| WRITE-051 | `ceri_sec_processor_releases` | `processor_lifecycle.register_deployed_processor` | every worker startup | deployed signature; global startup write; TX-03 |
+| WRITE-051 | `ceri_sec_processor_releases` | `processor_lifecycle.establish_worker_processor_identity`, `register_deployed_processor` | every worker startup | NORMAL registers under typed authority; CERTIFICATION exact-signature lookup is read-only/fail-closed; TX-03 |
 | WRITE-052 | `ceri_sec_processor_releases` | `certify_processor`, `promote_processor` | explicit processor management CLI | actor/evidence/signature; caller transaction |
 | WRITE-053 | `setup_signal_snapshots`, `setup_signal_snapshot_current_selections`, `setup_signal_snapshot_selection_events`, `signal_change_events` | setup signal capture/canonicalization/repository | pipeline and replay/repair | handoff/calculation/evidence; TX-15 |
 | WRITE-054 | `setup_lifecycle_evaluation_runs`, `setup_lifecycle_episodes`, `setup_lifecycle_events` | setup lifecycle evaluator/episode service/repository | pipeline, evaluate, maintenance, replay/repair | run/signal evidence/original-context decision; TX-15 |
 | WRITE-055 | `setup_lifecycle_evaluation_evidence`, `setup_lifecycle_transition_evidence` | lifecycle evidence repository | same as WRITE-054 | immutable evidence pins; TX-15 |
 | WRITE-056 | `signal_alert_rules`, `signal_alert_rule_evidence` | `setup_lifecycle.alert_service.seed_builtin_rules` and rules writer | startup-on-use/alert service | current-rules config; TX-20 |
 | WRITE-057 | `signal_alert_events`, `signal_alert_decision_evidence` | setup alert decision/persistence service | pipeline/alert rebuild | lifecycle/signal/rule evidence; TX-20 |
-| WRITE-058 | `signal_alert_events` | repository `acknowledge_alert_event`, `dismiss_alert_event` | direct local-admin API | row ID/local-admin; no certification-session gate |
+| WRITE-058 | `signal_alert_events` | repository `acknowledge_alert_event`, `dismiss_alert_event` | direct local-admin API | row ID/local-admin + central `NORMAL_ONLY` capability |
 | WRITE-059 | `setup_lifecycle_administrative_audit_events` | lifecycle admin/replay/repair writers | admin APIs/jobs | actor/operation/target |
 | WRITE-060 | `winner_prediction_snapshots`, `winner_prediction_episodes`, `winner_probability_estimates` | Winner capture/probability estimator | pipeline and Winner capture job | run/model/evidence/generation; TX-16 |
 | WRITE-061 | `winner_estimate_evidence_members`, `winner_evidence_manifests`, `winner_evidence_manifest_members` | Winner evidence services | capture/publication | exact evidence membership/manifest digest; TX-16/19 |
@@ -99,4 +158,4 @@ The comma-separated IDs mean the table has multiple independent writers and ther
 
 ## Bottom-up verdict
 
-All 120 mappings are accounted for: 119 mutable table families have at least one production writer and mapped entry chain; one (`engine_parameters`) is intentionally read-only. There are no unknown callers. This is inventory closure, not safety closure: WRITE-007/009/044/046/051/058/072 retain authority or scalability findings in `LINEAGE_CLOSURE_GAP_REPORT.md`.
+All 120 mappings are accounted for: 119 mutable table families have at least one production writer and mapped entry chain; one (`engine_parameters`) is intentionally read-only. There are no unknown callers. R1 closes the authority findings on WRITE-007/008/009/044/046/051/058. Remaining findings are the explicitly deferred R2/R3 scalability and generated-registry work, including WRITE-072's journal read/lock cardinality.

@@ -12,6 +12,7 @@ from app.services.ib_contract_resolver import resolve_us_stock_contract
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import build_fetch_plan
 from app.services.redaction import redact_text
+from app.services.runtime_mutation_authority import MutationCapability
 from app.settings import get_settings
 from app.templates import templates
 
@@ -76,7 +77,12 @@ def ib_status() -> dict[str, object]:
 
 
 @router.post("/test")
-@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="tests local read-only IB Gateway connectivity")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="tests local read-only IB Gateway connectivity",
+    mutation_capability=MutationCapability.READ_ONLY,
+    operation="http.ib.test_connection",
+)
 def test_ib_connection() -> dict[str, object]:
     status = check_ib_connection()
     return {
@@ -89,7 +95,12 @@ def test_ib_connection() -> dict[str, object]:
 
 
 @router.post("/resolve/{ticker}")
-@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="updates local IB contract cache")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="updates local IB contract cache",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ib.resolve_contract",
+)
 def resolve_ticker(ticker: str, db: DbSession, force_refresh: bool = False) -> dict[str, object]:
     ib = create_ib_client()
     settings = get_settings()
@@ -125,7 +136,12 @@ def resolve_ticker(ticker: str, db: DbSession, force_refresh: bool = False) -> d
 
 
 @router.post("/fetch")
-@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="fetches read-only historical IB bars")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="fetches read-only historical IB bars",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.ib.fetch_bars",
+)
 def fetch_bars(
     db: DbSession,
     tickers: Annotated[str, Query(description="Comma-separated ticker list")],

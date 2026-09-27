@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
 from app.observability.correlation import CausalityContext
+from app.services.runtime_mutation_authority import CERTIFICATION_CONTROL_MUTATIONS
 from app.settings import RuntimeMode, Settings, get_settings
 
 CERTIFICATION_AUTHORIZATION_KEY = "certification_authorized"
@@ -21,17 +22,14 @@ CERTIFICATION_ACTIVE_ROOT_STATUSES = (
     "RETRYING",
     "RUNNING",
 )
+CERTIFICATION_RECOVERABLE_ROOT_STATUSES = (
+    *CERTIFICATION_ACTIVE_ROOT_STATUSES,
+    "STALLED",
+)
 
 # These are control-plane writes rather than business workflows. They remain
 # available so the web process and one durable worker can prove liveness.
-CERTIFICATION_ALLOWED_CONTROL_ACTIVITY = (
-    "web_runtime",
-    "worker_registration",
-    "worker_heartbeat",
-    "worker_control_loop_heartbeat",
-    "supervisor_heartbeat",
-    "transition_preflight_read_and_lock",
-)
+CERTIFICATION_ALLOWED_CONTROL_ACTIVITY = tuple(sorted(CERTIFICATION_CONTROL_MUTATIONS))
 
 CERTIFICATION_DISABLED_AUTOMATIC_WORKFLOWS = (
     "winner_primary_h5_maturation",
@@ -246,6 +244,40 @@ def apply_certification_claim_scope(
     query: Select[Any], *, certification_session_id: str
 ) -> Select[Any]:
     return query.where(certification_claim_filter(session_id=certification_session_id))
+
+
+def certification_recovery_filter(*, session_id: str) -> Any:
+    """Match exact-session jobs whose explicit root lineage remains recoverable.
+
+    Fencing deliberately moves a root out of the live claim states before its
+    process is terminated. Recovery therefore admits STALLED roots, but never a
+    terminal root, and still requires explicit authorization, exact session,
+    and a matching FULL_PIPELINE root correlation.
+    """
+    required_session = require_certification_session_id(session_id=session_id)
+    recoverable_roots = select(BackgroundJob.root_correlation_id).where(
+        BackgroundJob.job_type == CERTIFICATION_ROOT_JOB_TYPE,
+        _payload_authorized_expression(),
+        _payload_session_expression(required_session),
+        BackgroundJob.root_correlation_id.is_not(None),
+        BackgroundJob.status.in_(CERTIFICATION_RECOVERABLE_ROOT_STATUSES),
+    )
+    return func.coalesce(
+        and_(
+            _payload_authorized_expression(),
+            _payload_session_expression(required_session),
+            BackgroundJob.root_correlation_id.in_(recoverable_roots),
+        ),
+        False,
+    )
+
+
+def apply_certification_recovery_scope(
+    query: Select[Any], *, certification_session_id: str
+) -> Select[Any]:
+    return query.where(
+        certification_recovery_filter(session_id=certification_session_id)
+    )
 
 
 def effective_runtime_configuration(settings: Settings) -> dict[str, Any]:

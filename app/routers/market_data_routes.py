@@ -14,6 +14,7 @@ from app.services.market_data_prewarm_service import (
     enqueue_market_data_prewarm,
 )
 from app.services.redaction import redact_text
+from app.services.runtime_mutation_authority import MutationCapability
 
 router = APIRouter(prefix="/api/market-data", tags=["market-data"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -32,7 +33,12 @@ DEFAULT_PREWARM_BODY = MarketDataPrewarmBody()
 
 
 @router.post("/prewarm")
-@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="queues a local read-only market-data prewarm")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="queues a local read-only market-data prewarm",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.market_data.prewarm",
+)
 def queue_market_data_prewarm(
     db: DbSession,
     payload: MarketDataPrewarmBody = DEFAULT_PREWARM_BODY,
@@ -106,7 +112,12 @@ def market_data_prewarm_status(job_id: int, db: DbSession) -> dict[str, object]:
 
 
 @router.post("/prewarm/{job_id}/cancel")
-@unsafe_route(ROUTE_CLASS_PUBLIC_LOCAL, reason="requests cancellation of a market-data prewarm")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="requests cancellation of a market-data prewarm",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.market_data.cancel_prewarm",
+)
 def cancel_market_data_prewarm(job_id: int, db: DbSession) -> dict[str, object]:
     job = db.get(BackgroundJob, job_id)
     if job is None or job.job_type != "MARKET_DATA_PREWARM":

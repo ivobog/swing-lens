@@ -136,7 +136,11 @@ def test_frozen_worker_is_fenced_terminated_and_recoverable(monkeypatch) -> None
     monkeypatch.setattr(
         worker_supervisor, "_retire_worker_registration", lambda _row: events.append("retired")
     )
-    monkeypatch.setattr(worker_supervisor, "_requeue", lambda ids: events.append(("requeued", ids)))
+    monkeypatch.setattr(
+        worker_supervisor,
+        "_requeue",
+        lambda ids, **_kwargs: events.append(("requeued", ids)),
+    )
 
     result = worker_supervisor._supervise_once(
         worker_id="worker-a", queues="interactive,broker,background", child=None
@@ -163,7 +167,11 @@ def test_stale_registration_is_retired_and_supervisor_continues(monkeypatch) -> 
     monkeypatch.setattr(
         worker_supervisor, "_retire_worker_registration", lambda _row: events.append("retired")
     )
-    monkeypatch.setattr(worker_supervisor, "_requeue", lambda ids: events.append(("requeued", ids)))
+    monkeypatch.setattr(
+        worker_supervisor,
+        "_requeue",
+        lambda ids, **_kwargs: events.append(("requeued", ids)),
+    )
     monkeypatch.setattr(worker_supervisor, "_start_worker", lambda *_args: replacement)
 
     result = worker_supervisor._supervise_once(

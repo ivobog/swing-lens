@@ -34,7 +34,11 @@ from app.routers import (
     upload_routes,
     winner_probability_routes,
 )
-from app.security import install_trusted_host_middleware, issue_local_admin_csrf_token
+from app.security import (
+    RuntimeMutationContextMiddleware,
+    install_trusted_host_middleware,
+    issue_local_admin_csrf_token,
+)
 from app.services.entrypoint_authority import EntryPointAuthorityError
 from app.settings import ProcessRole, Settings, get_settings
 
@@ -125,6 +129,7 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
 
     app.add_middleware(DatabaseMonitorMiddleware, enabled=app_settings.db_monitor_enabled)
     app.add_middleware(CorrelationMiddleware)
+    app.add_middleware(RuntimeMutationContextMiddleware)
     install_trusted_host_middleware(app, app_settings.app_host)
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
     app.include_router(health_routes.router)

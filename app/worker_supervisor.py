@@ -37,6 +37,7 @@ from app.services.parent_watchdog import PARENT_PID_ENV, PARENT_STARTED_AT_ENV
 from app.services.process_identity import process_is_alive, process_started_at
 from app.services.process_memory import memory_status, process_memory_snapshot
 from app.services.process_roles import build_process_environment, require_process_role
+from app.services.runtime_mutation_authority import recovery_authority
 from app.services.supervisor_registry import (
     acquire_supervisor,
     heartbeat_supervisor,
@@ -624,7 +625,10 @@ def _supervise_once(
         )
         _terminate_worker_instance(worker, child, settings.worker_shutdown_grace_seconds)
         _retire_worker_registration(worker)
-        _requeue(sorted(set(stalled)))
+        _requeue(
+            sorted(set(stalled)),
+            certification_session_id=certification_session_id,
+        )
         return None
 
     registration_active = worker is not None and worker.stopping_at is None
@@ -658,7 +662,10 @@ def _supervise_once(
             certification_session_id=certification_session_id,
         )
         _retire_worker_registration(worker)
-        _requeue(list(reconciliation.fenced_job_ids))
+        _requeue(
+            list(reconciliation.fenced_job_ids),
+            certification_session_id=certification_session_id,
+        )
         context = {
             **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
             "reason": reason,
@@ -856,13 +863,16 @@ def _fence_no_progress(
     with SessionLocal() as db:
         fenced = fence_stalled_jobs(
             db,
+            authority=recovery_authority(
+                operation="supervisor.watchdog",
+                certification_session_id=certification_session_id,
+            ),
             worker_id=worker_id,
             worker_instance_id=worker_instance_id,
             worker_heartbeat_at=worker_heartbeat_at,
             default_timeout_seconds=settings.job_progress_timeout_seconds,
             market_data_timeout_seconds=settings.job_market_data_progress_timeout_seconds,
             long_stage_timeout_seconds=settings.job_long_stage_progress_timeout_seconds,
-            certification_session_id=certification_session_id,
         )
         db.commit()
         return fenced
@@ -878,10 +888,13 @@ def _fence_worker(
     with SessionLocal() as db:
         reconciliation = reconcile_jobs_for_worker_loss(
             db,
+            authority=recovery_authority(
+                operation="supervisor.worker_loss",
+                certification_session_id=certification_session_id,
+            ),
             worker_id=worker_id,
             worker_instance_id=instance_id,
             reason=reason,
-            certification_session_id=certification_session_id,
         )
         db.commit()
         if reconciliation.untouched_job_ids:
@@ -918,11 +931,22 @@ def _retire_worker_registration(worker: BackgroundWorker) -> None:
         )
 
 
-def _requeue(job_ids: list[int]) -> None:
+def _requeue(
+    job_ids: list[int],
+    *,
+    certification_session_id: str | None,
+) -> None:
     if not job_ids:
         return
     with SessionLocal() as db:
-        requeue_stalled_jobs(db, job_ids=job_ids)
+        requeue_stalled_jobs(
+            db,
+            authority=recovery_authority(
+                operation="supervisor.requeue",
+                certification_session_id=certification_session_id,
+            ),
+            job_ids=job_ids,
+        )
         db.commit()
 
 
@@ -1030,7 +1054,10 @@ def _shutdown_owned_worker(
                 certification_session_id=certification_session_id,
             )
             _retire_worker_registration(worker)
-            _requeue(list(reconciliation.fenced_job_ids))
+            _requeue(
+                list(reconciliation.fenced_job_ids),
+                certification_session_id=certification_session_id,
+            )
         elif child is not None:
             _terminate_launcher(child.process, settings.worker_shutdown_grace_seconds)
     except Exception:

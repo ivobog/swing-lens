@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
@@ -117,6 +118,49 @@ def test_missing_certification_session_fails_before_worker_registration() -> Non
             handlers={},
             stop_after_one=True,
         )
+
+
+def test_certification_worker_startup_supplies_read_only_processor_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = []
+    sessions: list[FakeWorkerDb] = []
+
+    def session_factory() -> FakeWorkerDb:
+        db = FakeWorkerDb()
+        sessions.append(db)
+        return db
+
+    monkeypatch.setattr(
+        "app.services.background_worker.register_worker", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.establish_worker_processor_identity",
+        lambda _db, *, authority: seen.append(authority),
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.log_worker_startup_configuration",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_worker_stopping",
+        lambda *_args, **_kwargs: None,
+    )
+    stop = Event()
+    stop.set()
+
+    run_worker(
+        settings=certification_settings(),
+        session_factory=session_factory,  # type: ignore[arg-type]
+        handlers={},
+        worker_id="certification-worker",
+        stop_event=stop,
+    )
+
+    assert len(seen) == 1
+    assert seen[0].mode is RuntimeMode.CERTIFICATION
+    assert seen[0].certification_session_id == "cert-session-current"
+    assert all(db.closed for db in sessions)
 
 
 def test_previous_session_root_payload_fails_closed() -> None:

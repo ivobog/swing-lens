@@ -28,6 +28,7 @@ from app.services.background_job_service import (
     mark_job_completed,
     recover_stale_jobs,
 )
+from app.services.runtime_mutation_authority import RecoveryAuthority
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_VERSIONS = REPO_ROOT / "alembic" / "versions"
@@ -426,7 +427,11 @@ def test_postgresql_old_worker_cannot_complete_after_stale_recovery() -> None:
                     claimed.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
                     old_worker_session.commit()
 
-                    recovered_count = recover_stale_jobs(recovery_session, stale_after_seconds=1)
+                    recovered_count = recover_stale_jobs(
+                        recovery_session,
+                        stale_after_seconds=1,
+                        authority=RecoveryAuthority.normal("test.migration.recovery"),
+                    )
                     recovery_session.commit()
                     assert recovered_count == 1
 

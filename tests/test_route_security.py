@@ -3,32 +3,133 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-from fastapi.routing import APIRoute
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.main import create_app
 from app.routers import ceri_routes
 from app.routers import setup_lifecycle_routes as setup_routes
-from app.security import UNSAFE_HTTP_METHODS
-from app.settings import Settings
+from app.security import (
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    RuntimeMutationContextMiddleware,
+    http_mutation_route_registry,
+    unsafe_route,
+)
+from app.services.runtime_mutation_authority import MutationCapability
+from app.settings import RuntimeMode, Settings
 
 
 def test_unsafe_route_inventory_requires_classification() -> None:
     app = create_app(Settings(_env_file=None, job_worker_enabled=False))
-    unclassified = []
+    registry = http_mutation_route_registry(app)
 
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
-        if not UNSAFE_HTTP_METHODS.intersection(route.methods):
-            continue
-        classification = getattr(route.endpoint, "swinglens_unsafe_route", None)
-        if classification is None:
-            unclassified.append(f"{','.join(sorted(route.methods))} {route.path}")
+    assert len(app.routes) == 196
+    assert len(registry) == 52
+    assert [row for row in registry if not row.classified] == []
+    assert _capability_counts(registry) == {
+        MutationCapability.NORMAL_ONLY: 49,
+        MutationCapability.CERTIFICATION_CONTROL: 0,
+        MutationCapability.CERTIFICATION_SESSION_SCOPED: 1,
+        MutationCapability.READ_ONLY: 2,
+    }
 
-    assert unclassified == []
+
+def test_normal_runtime_allows_classified_normal_mutation() -> None:
+    app, mutations = _authority_test_app(RuntimeMode.NORMAL)
+
+    response = TestClient(app).post("/normal")
+
+    assert response.status_code == 200
+    assert mutations == ["normal"]
+
+
+def test_certification_denies_unclassified_and_normal_only_before_mutation() -> None:
+    app, mutations = _authority_test_app(RuntimeMode.CERTIFICATION)
+    client = TestClient(app)
+
+    unclassified = client.post("/unclassified")
+    normal_only = client.post("/normal")
+
+    assert unclassified.status_code == 409
+    assert unclassified.json()["detail"]["code"] == "UNCLASSIFIED_CERTIFICATION_MUTATION"
+    assert normal_only.status_code == 409
+    assert normal_only.json()["detail"]["code"] == "CERTIFICATION_MUTATION_FORBIDDEN"
+    assert mutations == []
+
+
+def test_certification_control_requires_current_session_and_approved_operation() -> None:
+    app, mutations = _authority_test_app(RuntimeMode.CERTIFICATION)
+    client = TestClient(app)
+
+    missing = client.post("/control")
+    wrong = client.post(
+        "/control", headers={"x-swinglens-certification-session": "wrong-session"}
+    )
+    allowed = client.post(
+        "/control", headers={"x-swinglens-certification-session": "cert-session"}
+    )
+    forbidden_operation = client.post(
+        "/unapproved-control",
+        headers={"x-swinglens-certification-session": "cert-session"},
+    )
+
+    assert missing.json()["detail"]["code"] == "CERTIFICATION_SESSION_REQUIRED"
+    assert wrong.json()["detail"]["code"] == "CERTIFICATION_SESSION_MISMATCH"
+    assert allowed.status_code == 200
+    assert forbidden_operation.json()["detail"]["code"] == (
+        "CERTIFICATION_CONTROL_OPERATION_FORBIDDEN"
+    )
+    assert mutations == ["control"]
+
+
+def test_certification_session_scoped_root_creation_requires_current_session() -> None:
+    app, mutations = _authority_test_app(RuntimeMode.CERTIFICATION)
+    client = TestClient(app)
+
+    missing = client.post("/session-scoped")
+    wrong = client.post(
+        "/session-scoped",
+        headers={"x-swinglens-certification-session": "wrong-session"},
+    )
+    allowed = client.post(
+        "/session-scoped",
+        headers={"x-swinglens-certification-session": "cert-session"},
+    )
+
+    assert missing.json()["detail"]["code"] == "CERTIFICATION_SESSION_REQUIRED"
+    assert wrong.json()["detail"]["code"] == "CERTIFICATION_SESSION_MISMATCH"
+    assert allowed.status_code == 200
+    assert mutations == ["session-scoped"]
+
+
+def test_certification_blocks_real_setup_writer_before_dependency_or_database_work() -> None:
+    settings = _certification_settings()
+    app = create_app(settings)
+
+    response = TestClient(app).post("/api/setup-lifecycle/alerts/777/acknowledge")
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "CERTIFICATION_MUTATION_FORBIDDEN"
+
+
+def test_certification_blocks_real_ceri_writer_before_database_work() -> None:
+    db = FakeDb()
+    request = _admin_request(csrf_token="secure-test-token")
+    request.app.state.settings = _certification_settings()
+    request.headers["x-swinglens-certification-session"] = "cert-session"
+
+    with pytest.raises(HTTPException) as exc:
+        ceri_routes.create_ceri_ingestion_run(
+            request=request,
+            db=db,  # type: ignore[arg-type]
+            payload={"ticker": "MSFT", "dataset": "estimates"},
+        )
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail["code"] == "CERTIFICATION_MUTATION_FORBIDDEN"
+    assert db.added == []
+    assert db.commits == 0
 
 
 def test_ceri_admin_rejects_static_csrf_token() -> None:
@@ -159,3 +260,91 @@ class FakeScalarResult:
 
     def all(self):
         return self.rows
+
+
+def _certification_settings() -> Settings:
+    return Settings(
+        _env_file=None,
+        runtime_mode=RuntimeMode.CERTIFICATION,
+        use_durable_pipeline=True,
+        durable_worker_process_enabled=True,
+        winner_probability_auto_maturation_enabled=False,
+        winner_probability_auto_cohort_refresh_enabled=False,
+        market_data_prewarm_enabled=False,
+        job_worker_enabled=False,
+        runtime_instance_id="cert-session",
+    )
+
+
+def _authority_test_app(mode: RuntimeMode) -> tuple[FastAPI, list[str]]:
+    app = FastAPI()
+    app.state.settings = (
+        _certification_settings()
+        if mode is RuntimeMode.CERTIFICATION
+        else Settings(_env_file=None, job_worker_enabled=False)
+    )
+    app.add_middleware(RuntimeMutationContextMiddleware)
+    mutations: list[str] = []
+
+    @app.post("/unclassified")
+    def unclassified() -> dict[str, bool]:
+        mutations.append("unclassified")
+        return {"ok": True}
+
+    @app.post("/normal")
+    @unsafe_route(
+        ROUTE_CLASS_PUBLIC_LOCAL,
+        reason="test normal mutation",
+        mutation_capability=MutationCapability.NORMAL_ONLY,
+        operation="test.http.normal",
+    )
+    def normal() -> dict[str, bool]:
+        mutations.append("normal")
+        return {"ok": True}
+
+    @app.post("/control")
+    @unsafe_route(
+        ROUTE_CLASS_PUBLIC_LOCAL,
+        reason="test approved certification control mutation",
+        mutation_capability=MutationCapability.CERTIFICATION_CONTROL,
+        operation="worker_heartbeat",
+    )
+    def control() -> dict[str, bool]:
+        mutations.append("control")
+        return {"ok": True}
+
+    @app.post("/unapproved-control")
+    @unsafe_route(
+        ROUTE_CLASS_PUBLIC_LOCAL,
+        reason="test unapproved certification control mutation",
+        mutation_capability=MutationCapability.CERTIFICATION_CONTROL,
+        operation="test.http.unapproved_control",
+    )
+    def unapproved_control() -> dict[str, bool]:
+        mutations.append("unapproved-control")
+        return {"ok": True}
+
+    @app.post("/session-scoped")
+    @unsafe_route(
+        ROUTE_CLASS_PUBLIC_LOCAL,
+        reason="test certification root creation",
+        mutation_capability=MutationCapability.CERTIFICATION_SESSION_SCOPED,
+        operation="test.http.session_scoped",
+        certification_root_creation=True,
+    )
+    def session_scoped() -> dict[str, bool]:
+        mutations.append("session-scoped")
+        return {"ok": True}
+
+    return app, mutations
+
+
+def _capability_counts(registry) -> dict[MutationCapability, int]:
+    return {
+        capability: sum(
+            row.classification is not None
+            and row.classification.mutation_capability is capability
+            for row in registry
+        )
+        for capability in MutationCapability
+    }

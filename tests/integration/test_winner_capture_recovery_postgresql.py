@@ -39,6 +39,7 @@ from app.services.background_job_service import (
     requeue_stalled_jobs,
 )
 from app.services.market_clock_service import MarketClockService
+from app.services.runtime_mutation_authority import RecoveryAuthority
 from app.services.winner_probability.capture_service import WinnerPredictionCaptureService
 from app.services.winner_probability.cohort_definition import CohortKey
 from app.services.winner_probability.cohort_statistics import CohortStatisticsService
@@ -155,6 +156,7 @@ def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicate
                 with sessions() as watchdog:
                     assert fence_stalled_jobs(
                         watchdog,
+                        authority=RecoveryAuthority.normal("test.winner_capture.watchdog"),
                         default_timeout_seconds=300,
                         market_data_timeout_seconds=300,
                         long_stage_timeout_seconds=1800,
@@ -200,7 +202,12 @@ def test_winner_ticker_transactions_survive_fencing_and_resume_without_duplicate
         interrupted.rollback()
 
     with sessions() as recovery:
-        assert requeue_stalled_jobs(recovery, job_ids=[job_id], now=now) == 1
+        assert requeue_stalled_jobs(
+            recovery,
+            authority=RecoveryAuthority.normal("test.winner_capture.requeue"),
+            job_ids=[job_id],
+            now=now,
+        ) == 1
         recovery.commit()
     with sessions() as replacement:
         replacement_job = claim_next_job(replacement, "worker-b", lease_seconds=900)

@@ -43,6 +43,7 @@ from app.services.ib_fetch_plan_service import (
     fetch_plan_to_dict,
 )
 from app.services.process_memory import process_memory_snapshot
+from app.services.runtime_mutation_authority import RecoveryAuthority
 from app.services.scope_refresh_adoption import admit_frozen_operation, bind_semantic_authority
 from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
@@ -103,6 +104,7 @@ def test_stalled_owner_is_fenced_and_late_checkpoint_rolls_back(
     with sessions() as watchdog:
         assert fence_stalled_jobs(
             watchdog,
+            authority=RecoveryAuthority.normal("test.progress.watchdog"),
             default_timeout_seconds=60,
             market_data_timeout_seconds=120,
             now=now,
@@ -135,7 +137,15 @@ def test_stalled_owner_is_fenced_and_late_checkpoint_rolls_back(
         late_worker.rollback()
     with sessions() as verify:
         assert verify.scalar(select(func.count()).select_from(IBFetchItem)) == 0
-        assert requeue_stalled_jobs(verify, job_ids=[job_id], now=now) == 1
+        assert (
+            requeue_stalled_jobs(
+                verify,
+                authority=RecoveryAuthority.normal("test.progress.requeue"),
+                job_ids=[job_id],
+                now=now,
+            )
+            == 1
+        )
         verify.commit()
     with sessions() as replacement:
         job = claim_next_job(replacement, "worker-b", lease_seconds=900)

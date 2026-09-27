@@ -1,6 +1,6 @@
 # Path test-coverage matrix
 
-Coverage means a test explicitly asserts the path's authority, state, isolation, or idempotency invariant. A nearby happy-path test does not count. No tests were executed for this read-only audit. Untracked working-tree tests are identified as such and are not treated as committed regression protection.
+Coverage means a test explicitly asserts the path's authority, state, isolation, or idempotency invariant. A nearby happy-path test does not count. This matrix now includes the R1 focused unit/structural/PostgreSQL evidence.
 
 ## Execution paths
 
@@ -17,11 +17,11 @@ Coverage means a test explicitly asserts the path's authority, state, isolation,
 | EXEC-019 | pipeline/worker terminalization unit tests | worker progress/certification integration | durable worker e2e | cancellation at every terminal boundary |
 | EXEC-020/021 | Winner handler/cohort/model unit suites | Winner maturation/publication/reliability suites | Winner canaries | certification direct model mutation isolation |
 | EXEC-022 | CERI/setup alert tests | immutable alert evidence tests | UI/e2e partial | unbounded alert rebuild at production cardinality |
-| EXEC-023 | `test_route_security.py`, route-specific tests | selected webapp flows | browser smoke | **no central test that all 52 mutating routes deny/limit certification mode** |
+| EXEC-023 | `test_route_security.py` enumerates all 52 routes and exercises NORMAL/unclassified/NORMAL_ONLY/control/session-scoped policies plus real CERI/setup writers | `test_runtime_mutation_authority_postgresql.py` denied cleanup byte snapshot | browser smoke | R1 authority invariant covered; future route drift fails registry count/classification guard |
 | EXEC-024 | ops/QA script tests and disposable-target guards | selected restore/ops tests | operator evidence varies | 49 mutation-indicator CLIs lack one uniform production reachability contract |
-| EXEC-025 | worker/process-role/startup tests | external worker and certification tests | durable worker e2e | **SEC processor startup write in certification is not denied/scoped** |
-| EXEC-026 | `test_worker_supervisor_reliability.py` | untracked `test_supervisor_recovery_isolation_postgresql.py` | Windows recovery e2e | committed PostgreSQL proof for session-scoped watchdog/death/shutdown |
-| EXEC-027 | background service/worker tests | worker progress/queue/certification tests | recovery e2e | direct lower-level requeue called without session capability |
+| EXEC-025 | startup authority test + SEC lifecycle NORMAL/read-only/missing/mismatch tests | `test_runtime_mutation_authority_postgresql.py` exact release-table nonmutation | durable worker e2e | R1 certification startup nonmutation covered |
+| EXEC-026 | `test_worker_supervisor_reliability.py`, structural production-caller guard | `test_supervisor_recovery_isolation_postgresql.py` + R1 authority PG matrix | Windows recovery e2e | R1 typed authority/session isolation covered |
+| EXEC-027 | background service/worker tests reject missing/untyped authority and preserve cancellation | worker progress/queue/certification + R1 authority PG matrix | recovery e2e | R1 primitive/caller authority covered |
 | EXEC-028 | lifespan/serve/startup preflight tests | none needed for business writes | runtime startup | monitor implementation changes could introduce writes without registry test |
 | EXEC-029 | Alembic heads/migration tests | ephemeral DB migration suites | deployment | restore/bootstrap operator path remains external evidence |
 
@@ -30,9 +30,9 @@ Coverage means a test explicitly asserts the path's authority, state, isolation,
 | Path ID | Unit test | PostgreSQL integration | Runtime/canary | Untested |
 | --- | --- | --- | --- | --- |
 | REC-001/002 | background worker/job tests | queue/worker progress tests | recovery e2e | deterministic classifier coverage is broad; all driver variants not covered |
-| REC-003/004 | background job/worker tests | certification runtime and worker progress partial | recovery e2e | NORMAL cross-worker race matrix |
-| REC-005/006 | supervisor reliability + background service tests | untracked supervisor isolation test | Windows recovery e2e | certification requeue primitive intrinsic-authority assertion |
-| REC-007/008/009 | supervisor reliability tests (pre-existing changes add assertions) | untracked supervisor isolation test | none for current patch | committed concurrent PostgreSQL proof |
+| REC-003/004 | background job/worker typed-authority and cancellation tests | certification runtime, worker progress, R1 NORMAL transition | recovery e2e | NORMAL cross-worker race matrix remains broader than R1 |
+| REC-005/006 | supervisor reliability + missing/untyped primitive + structural caller tests | supervisor isolation + R1 unrelated-session byte snapshot | Windows recovery e2e | intrinsic authority and current-session scope covered |
+| REC-007/008/009 | supervisor reliability and structural caller tests | supervisor isolation + R1 recovery matrix | none for current patch | typed authority/cancellation/cross-session isolation covered |
 | REC-010 | process-role/worker startup tests | external worker | Windows durable recovery | certification worker crash at startup SEC registration |
 | REC-011 | pipeline service tests | T14D caller integration | prior canaries | resume after every stage/terminal state |
 | REC-012/013 | SEC readiness unit tests | `test_sec_readiness_repair_postgresql.py` | prior canaries | supervisor loss during repair continuation |
@@ -48,12 +48,12 @@ Coverage means a test explicitly asserts the path's authority, state, isolation,
 
 | Writer IDs | Direct coverage | Gap |
 | --- | --- | --- |
-| WRITE-001..017 runtime/config | pipeline, worker, certification, preflight, T14D suites | direct-route mode matrix and supervisor committed PG tests |
+| WRITE-001..017 runtime/config | pipeline, worker, certification, preflight, T14D, route registry, typed recovery suites | R1 includes denied-web and recovery before/after PostgreSQL proofs; broader stage concurrency remains |
 | WRITE-018..021 scope identity | T15A/T15B unit + PostgreSQL | no gap in writer identity; restart composition only |
 | WRITE-022..033 core/market/evidence | Phase 2–4, T14B, temporal remediation, artifact cache suites | whole-stage commit-by-commit integration absent |
-| WRITE-034..052 CERI | extensive CERI unit/PIT/source/postgres suites; current untracked Run-166 tests for change scoping/source chunks | purge/alert/normalizer scale and startup release mode |
-| WRITE-053..059 setup/lifecycle/alerts | setup unit + lifecycle/alert evidence PostgreSQL | direct admin routes in certification |
-| WRITE-060..070 Winner | Winner unit + reliability/canary PostgreSQL suites | direct model/publication route mode isolation |
+| WRITE-034..052 CERI | extensive CERI unit/PIT/source/postgres suites; R1 real-writer denial and SEC startup read-only tests | purge/alert/normalizer scale remains GAP-004/005/006 |
+| WRITE-053..059 setup/lifecycle/alerts | setup unit + lifecycle/alert evidence PostgreSQL + real setup-route certification denial | R1 authority closed; restart composition remains |
+| WRITE-060..070 Winner | Winner unit + reliability/canary PostgreSQL suites; all direct mutation routes classified NORMAL_ONLY | R1 mode isolation closed; publication race remains separate |
 | WRITE-071/072 IBMI | IBMI unit/persistence/resilience suites | global journal read/lock cardinality |
 | WRITE-073 read-only | no writer test required | schema should enforce/document read-only intent |
 
@@ -67,9 +67,9 @@ The missing cross-cutting assertion is not handler existence; it is that each cr
 
 | Finding | Existing direct test? |
 | --- | --- |
-| GAP-001 direct synchronous API mutation in certification | No |
-| GAP-002 worker startup SEC release mutation in certification | No |
-| GAP-003 recovery primitive called without session authority | Unit callers partly; no committed PG negative test |
+| GAP-001 direct synchronous API mutation in certification | **Yes — CLOSED**: complete registry/policy tests plus PostgreSQL denied-write byte snapshot |
+| GAP-002 worker startup SEC release mutation in certification | **Yes — CLOSED**: startup/lifecycle tests plus PostgreSQL exact table nonmutation |
+| GAP-003 recovery primitive called without session authority | **Yes — CLOSED**: missing/untyped rejection, structural callers, supervisor isolation, PostgreSQL unrelated-lineage nonmutation/NORMAL transition |
 | GAP-004 CERI alert global read | No scale/bounded-query assertion |
 | GAP-005 purge global corpus read | Functional tests, no cardinality/bounded-query assertion |
 | GAP-006 catalyst revision global read | Functional tests, no SQL-shape/scale assertion |
@@ -80,4 +80,4 @@ The missing cross-cutting assertion is not handler existence; it is that each cr
 
 ## Coverage verdict
 
-The matrix is complete as an inventory and identifies direct evidence versus adjacency. It is not a PASS for canary resumption: three P1 authority paths and four high-risk unbounded-read paths lack direct committed PostgreSQL/scale coverage.
+The matrix is complete as an inventory and identifies direct evidence versus adjacency. R1 authority coverage is a PASS and permits R2. It is not a PASS for canary resumption because GAP-004/GAP-005 and the remaining bounded-read/operability work still lack the required scale proofs.
