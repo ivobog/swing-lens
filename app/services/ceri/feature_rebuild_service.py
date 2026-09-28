@@ -94,6 +94,7 @@ class CeriFeatureRebuildRequest:
     calendar_version: str | None = None
     ownership_mode: str = CeriArtifactOwnership.STANDALONE.value
     semantic_authority: Any | None = None
+    source_manifest_json: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -191,6 +192,7 @@ class CeriFeatureBatchContext:
     ownership_mode: str = CeriArtifactOwnership.STANDALONE.value
     write_count: int = 0
     source_bodies: PrefetchedSourceBodies | None = None
+    source_manifest_id: int | None = None
 
 
 class CeriFeatureRebuildService:
@@ -229,7 +231,11 @@ class CeriFeatureRebuildService:
         )
         select_count = 0
         rows_loaded: dict[str, int] = {}
-        source_bodies = PrefetchedSourceBodies(db) if isinstance(db, Session) else None
+        source_bodies = (
+            PrefetchedSourceBodies(db, expected_manifest=request.source_manifest_json)
+            if isinstance(db, Session)
+            else None
+        )
         if progress_callback is not None:
             progress_callback("starting", select_count)
         companies = self._companies(db, request, source_bodies=source_bodies)
@@ -262,14 +268,14 @@ class CeriFeatureRebuildService:
         except ValueError:
             mode = HistoricalViewMode.AS_KNOWN
 
-        def load(model: Any, statement: Any) -> list[Any]:
+        def load(model: Any, statement: Any, *, immutable_source: bool = True) -> list[Any]:
             nonlocal select_count
             select_count += 1
-            if source_bodies is not None:
+            if source_bodies is not None and immutable_source:
                 source_bodies.refresh()
             rows = (
                 source_bodies.load(model, statement)
-                if source_bodies is not None
+                if source_bodies is not None and immutable_source
                 else _scalars(db, statement)
             )
             rows_loaded[model.__tablename__] = len(rows)
@@ -367,6 +373,7 @@ class CeriFeatureRebuildService:
                     request.calculation_context_id
                 ),
             ),
+            immutable_source=False,
         )
         derived_features = load(
             CeriDerivedFeature,
@@ -380,6 +387,7 @@ class CeriFeatureRebuildService:
                     request.calculation_context_id
                 ),
             ),
+            immutable_source=False,
         )
         price_features = load(
             CeriPriceResponseFeature,
@@ -393,6 +401,7 @@ class CeriFeatureRebuildService:
                     request.calculation_context_id
                 ),
             ),
+            immutable_source=False,
         )
         states = load(
             CeriFeatureBuildState,
@@ -407,6 +416,7 @@ class CeriFeatureRebuildService:
                     request.calculation_context_id
                 ),
             ),
+            immutable_source=False,
         )
         requested_tickers = {company.ticker.upper() for company in companies}
         requested_tickers.add(self.config.price_response.benchmark.upper())
@@ -824,7 +834,6 @@ class CeriFeatureRebuildService:
         earnings_updated = 0
         if capability.earnings_surprise:
             summary = self.surprise.summarize(earnings, estimates)
-            earnings_updated = sum(row.consensus_snapshot_id is not None for row in earnings)
             derived_rows.append(
                 self._derived_row(
                     company_id=company.id,
@@ -835,7 +844,12 @@ class CeriFeatureRebuildService:
                         "features": [
                             {
                                 "earnings_actual_id": item.earnings_actual_id,
+                                "earnings_source_record_id": item.earnings_source_record_id,
                                 "consensus_snapshot_id": item.consensus_snapshot_id,
+                                "consensus_source_record_id": item.consensus_source_record_id,
+                                "consensus_selection_reason": item.consensus_selection_reason,
+                                "metric": item.metric,
+                                "fiscal_period_end": item.fiscal_period_end,
                                 "surprise_absolute": str(item.surprise_absolute)
                                 if item.surprise_absolute is not None
                                 else None,
@@ -849,7 +863,13 @@ class CeriFeatureRebuildService:
                         ]
                     },
                     source_ids=[
-                        row.source_record_id for row in earnings if row.source_record_id is not None
+                        source_id
+                        for item in summary.features
+                        for source_id in (
+                            item.earnings_source_record_id,
+                            item.consensus_source_record_id,
+                        )
+                        if source_id is not None
                     ],
                 )
             )
@@ -984,12 +1004,15 @@ class CeriFeatureRebuildService:
         output_rows = self._prospective_output_rows(
             company.id, revision_rows, derived_rows, price_row, context
         )
+        if context.source_bodies is not None:
+            context.source_bodies.assert_unchanged_in_memory()
         state_row = CeriFeatureBuildState(
             company_id=company.id,
             as_of_session=context.cutoff,
             historical_view_mode=context.mode.value,
             calculation_cutoff_at=context.cutoff_at,
             calculation_context_id=context.calculation_context_id,
+            source_manifest_id=context.source_manifest_id,
             calendar_version=context.calendar_version or CALENDAR_VERSION,
             ownership_mode=context.ownership_mode,
             config_hash=self.config.config_hash,
@@ -1189,6 +1212,7 @@ class CeriFeatureRebuildService:
                     "completed_at",
                     "calculation_cutoff_at",
                     "calculation_context_id",
+                    "source_manifest_id",
                     "calendar_version",
                     "ownership_mode",
                 ),
@@ -1720,6 +1744,7 @@ def _copy_state(target: CeriFeatureBuildState, source: CeriFeatureBuildState) ->
     for name in (
         "calculation_cutoff_at",
         "calculation_context_id",
+        "source_manifest_id",
         "calendar_version",
         "ownership_mode",
         "input_evidence_hash",

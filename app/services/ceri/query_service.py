@@ -18,6 +18,7 @@ from app.models.ceri_tables import (
     CeriCatalystEventRevision,
     CeriChangeEvent,
     CeriCompany,
+    CeriDerivedFeature,
     CeriEarningsActual,
     CeriEstimateSnapshot,
     CeriGuidanceEvent,
@@ -236,6 +237,12 @@ class CeriQueryService:
         company_id = latest.company_id
         company_revision_features = _rows_for_company(db, CeriRevisionFeature, company_id)
         company_earnings = _rows_for_company(db, CeriEarningsActual, company_id)
+        earnings_features = _earnings_surprise_features(db, latest)
+        earnings_features_by_actual_id = {
+            int(item["earnings_actual_id"]): item
+            for item in earnings_features
+            if item.get("earnings_actual_id") is not None
+        }
         payload = CeriTickerDetailDto(
             ticker=ticker,
             latest=_score_snapshot_payload(latest, db=db),
@@ -253,7 +260,10 @@ class CeriQueryService:
                     and feature.calculation_version == latest.calculation_version
                 )
             ],
-            earnings_surprise_history=[_earnings_payload(row) for row in company_earnings],
+            earnings_surprise_history=[
+                _earnings_payload(row, earnings_features_by_actual_id.get(row.id))
+                for row in company_earnings
+            ],
             guidance=_guidance_summary(db, company_id, latest.cutoff_at.date()),
             source_freshness=_snapshot_freshness(db, latest),
             events=_event_timeline_for_company(db, company_id, ticker)[:100],
@@ -266,9 +276,7 @@ class CeriQueryService:
         filters = query.filters
         self._require_historical_view(filters)
         ticker = _ticker(ticker)
-        snapshots = _historical_snapshot_candidates(
-            db, ticker=ticker, run_id=filters.run_id
-        )
+        snapshots = _historical_snapshot_candidates(db, ticker=ticker, run_id=filters.run_id)
         if not snapshots:
             raise CeriQueryError(
                 "TICKER_NOT_FOUND",
@@ -477,8 +485,9 @@ class CeriQueryService:
         if pair == (None, None):
             pair_row = db.execute(
                 joined(
-                    select(prior.run_id, current.run_id, func.count().label("pair_count"))
-                    .select_from(CeriChangeEvent)
+                    select(
+                        prior.run_id, current.run_id, func.count().label("pair_count")
+                    ).select_from(CeriChangeEvent)
                 )
                 .where(*predicates, prior.run_id.is_not(None), current.run_id.is_not(None))
                 .group_by(prior.run_id, current.run_id)
@@ -536,9 +545,7 @@ class CeriQueryService:
         return {
             "snapshots": snapshots,
             "revisions": revisions,
-            "revision_features": _entities_by_ids(
-                db, CeriRevisionFeature, revision_feature_ids
-            ),
+            "revision_features": _entities_by_ids(db, CeriRevisionFeature, revision_feature_ids),
             "events": _entities_by_ids(db, CeriCatalystEvent, event_ids),
             "guidance": _entities_by_ids(db, CeriGuidanceEvent, guidance_ids),
         }
@@ -729,15 +736,11 @@ class CeriQueryService:
                 else alert.validity_classification
             )
             item["invalidated_reason"] = (
-                invalidation_reason(validity, change=change)
-                if invalid_legacy_freshness
-                else None
+                invalidation_reason(validity, change=change) if invalid_legacy_freshness else None
             ) or alert.invalidated_reason
             item["actionable"] = effective_status not in {"INVALIDATED", "DISMISSED"}
             item["technical"]["persisted_status"] = alert.status
-            item["technical"]["effective_validity"] = item[
-                "validity_classification"
-            ]
+            item["technical"]["effective_validity"] = item["validity_classification"]
             if query.filters.importance and item["importance"] != query.filters.importance:
                 continue
             if query.filters.signal_class and item["signal_class"] != query.filters.signal_class:
@@ -772,14 +775,10 @@ class CeriQueryService:
 
         legacy_freshness = and_(
             change.change_type.in_(("DATA_STALE", "DATA_REFRESHED")),
-            func.coalesce(
-                change.delta_json["freshness"]["semantic"].as_string(), ""
-            )
+            func.coalesce(change.delta_json["freshness"]["semantic"].as_string(), "")
             != "PROVIDER_FEED_FRESHNESS",
         )
-        effective_status = case(
-            (legacy_freshness, "INVALIDATED"), else_=CeriAlertEvent.status
-        )
+        effective_status = case((legacy_freshness, "INVALIDATED"), else_=CeriAlertEvent.status)
         is_current = case(
             (
                 or_(
@@ -844,20 +843,14 @@ class CeriQueryService:
         changes = [row[1] for row in rows if row[1] is not None]
         context = self._change_page_context(db, changes)
         latest_snapshot_ids = {
-            int(row.latest_snapshot_id)
-            for row in rows
-            if row.latest_snapshot_id is not None
+            int(row.latest_snapshot_id) for row in rows if row.latest_snapshot_id is not None
         }
         current_revision_ids = {
             int(item.id)
             for item in context["revisions"].values()
             if item.id is not None and item.is_current
         }
-        rule_ids = {
-            int(row[0].alert_rule_id)
-            for row in rows
-            if row[0].alert_rule_id is not None
-        }
+        rule_ids = {int(row[0].alert_rule_id) for row in rows if row[0].alert_rule_id is not None}
         rules = _entities_by_ids(db, CeriAlertRule, rule_ids)
         items = []
         for row in rows:
@@ -879,9 +872,7 @@ class CeriQueryService:
                     revision_features=context["revision_features"],
                     events=context["events"],
                     guidance=context["guidance"],
-                    latest_snapshot_ids={
-                        source_change.company_id: int(row.latest_snapshot_id)
-                    }
+                    latest_snapshot_ids={source_change.company_id: int(row.latest_snapshot_id)}
                     if row.latest_snapshot_id is not None
                     else {},
                     change_thresholds=self.config.change_thresholds,
@@ -889,9 +880,7 @@ class CeriQueryService:
                 if source_change is not None
                 else None
             )
-            item = _alert_payload(
-                alert, change=change_payload, rule=rules.get(alert.alert_rule_id)
-            )
+            item = _alert_payload(alert, change=change_payload, rule=rules.get(alert.alert_rule_id))
             item["status"] = row.effective_status
             item["validity_classification"] = (
                 AlertValidity.INVALID_LEGACY.value
@@ -1571,8 +1560,7 @@ class CeriQueryService:
         if unsupported:
             raise CeriQueryError(
                 "HISTORICAL_RECONSTRUCTION_UNSUPPORTED",
-                "stored CERI evidence does not support filters: "
-                + ", ".join(sorted(unsupported)),
+                "stored CERI evidence does not support filters: " + ", ".join(sorted(unsupported)),
             )
 
     def _validate(self, query: CeriListQuery) -> None:
@@ -1614,9 +1602,7 @@ class CeriQueryService:
                 predicates.append(CeriScoreSnapshot.ticker == _ticker(filters.ticker))
             snapshot_rows = list(
                 db.scalars(
-                    eligible_snapshot_select(name="filtered_ceri_dispositions").where(
-                        *predicates
-                    )
+                    eligible_snapshot_select(name="filtered_ceri_dispositions").where(*predicates)
                 ).all()
             )
         else:
@@ -2030,8 +2016,7 @@ def _historical_ceri_item_matches(item: dict[str, Any], filters: CeriQueryFilter
     ):
         return False
     if filters.risk_max is not None and (
-        item.get("event_risk_score") is None
-        or float(item["event_risk_score"]) > filters.risk_max
+        item.get("event_risk_score") is None or float(item["event_risk_score"]) > filters.risk_max
     ):
         return False
     if filters.confidence and item.get("data_confidence") != filters.confidence:
@@ -2194,7 +2179,13 @@ def _catalyst_revision_payload(revision: CeriCatalystEventRevision) -> dict[str,
     }
 
 
-def _earnings_payload(row: CeriEarningsActual) -> dict[str, Any]:
+def _earnings_payload(
+    row: CeriEarningsActual, calculated: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    # Legacy/unfrozen calculations stored these values on the normalized row.
+    # New calculations own them in CeriDerivedFeature; retain the fallback only
+    # so historical reads remain truthful without rewriting incident evidence.
+    calculated = calculated or {}
     return {
         "id": row.id,
         "metric": row.metric,
@@ -2204,12 +2195,33 @@ def _earnings_payload(row: CeriEarningsActual) -> dict[str, Any]:
         "actual": _value(row.actual_value),
         "provider_consensus_at_report": _value(row.provider_consensus_value),
         "provider_surprise_pct": _value(row.provider_surprise_pct),
-        "consensus_snapshot_id": row.consensus_snapshot_id,
-        "consensus_selection_reason": row.consensus_selection_reason,
-        "surprise_absolute": _value(row.surprise_absolute),
-        "surprise_pct": _value(row.surprise_pct),
-        "warnings": row.quality_warnings_json or [],
+        "consensus_snapshot_id": calculated.get("consensus_snapshot_id", row.consensus_snapshot_id),
+        "consensus_selection_reason": calculated.get(
+            "consensus_selection_reason", row.consensus_selection_reason
+        ),
+        "surprise_absolute": _value(calculated.get("surprise_absolute", row.surprise_absolute)),
+        "surprise_pct": _value(calculated.get("surprise_pct", row.surprise_pct)),
+        "warnings": calculated.get("warnings", row.quality_warnings_json or []),
     }
+
+
+def _earnings_surprise_features(db: Session, snapshot: CeriScoreSnapshot) -> list[dict[str, Any]]:
+    candidates = [
+        row
+        for row in _rows_for_company(db, CeriDerivedFeature, snapshot.company_id)
+        if row.feature_family == "earnings_surprise"
+        and row.feature_key == "latest"
+        and row.as_of_session == snapshot.as_of_session
+        and row.calculation_version == snapshot.calculation_version
+        and row.calculation_context_id == snapshot.calculation_context_id
+    ]
+    if not candidates:
+        return []
+    selected = max(
+        candidates,
+        key=lambda row: (row.created_at or datetime.min.replace(tzinfo=UTC), row.id or 0),
+    )
+    return list((selected.value_json or {}).get("features") or [])
 
 
 def _current_revision_summary(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, Any]:
@@ -2531,6 +2543,8 @@ def _evidence_diagnostics(
     price_rows = [
         row for row in _rows_for_company(db, CeriPriceResponseFeature, snapshot.company_id)
     ]
+    earnings_features = _earnings_surprise_features(db, snapshot)
+    earnings_ids = {row.id for row in earnings}
     components = opportunity_ledger.get("components") or []
 
     def component_ids(*names: str) -> set[int]:
@@ -2561,8 +2575,9 @@ def _evidence_diagnostics(
         ),
         "earnings": sum(
             1
-            for row in earnings
-            if row.event_kind in (None, "REPORTED") and row.surprise_pct is not None
+            for item in earnings_features
+            if item.get("earnings_actual_id") in earnings_ids
+            and item.get("surprise_pct") is not None
         ),
         "guidance": sum(1 for row in guidance if row.accepted_for_scoring is True),
         "catalysts": sum(
@@ -3237,8 +3252,7 @@ def _latest_referenced_snapshot_subquery():
                 ),
             )
             .label("snapshot_rank"),
-        )
-        .join(CeriScoreSnapshot, CeriScoreSnapshot.id == referenced.c.snapshot_id),
+        ).join(CeriScoreSnapshot, CeriScoreSnapshot.id == referenced.c.snapshot_id),
         name="effective_change_dispositions",
     ).subquery("ranked_change_snapshots")
     return (
@@ -3287,9 +3301,7 @@ def _database_change_predicates(
     predicates: list[Any] = []
     delta = CeriChangeEvent.delta_json
     catalyst_types = {
-        kind.value
-        for kind, group in CHANGE_GROUP_BY_TYPE.items()
-        if group == ChangeGroup.CATALYSTS
+        kind.value for kind, group in CHANGE_GROUP_BY_TYPE.items() if group == ChangeGroup.CATALYSTS
     }
     is_current = case(
         (
@@ -3796,10 +3808,14 @@ def _snapshot_read_context(
         ).all()
     )
     collections[CeriGuidanceEvent] = list(
-        db.scalars(select(CeriGuidanceEvent).where(CeriGuidanceEvent.company_id.in_(company_ids))).all()
+        db.scalars(
+            select(CeriGuidanceEvent).where(CeriGuidanceEvent.company_id.in_(company_ids))
+        ).all()
     )
     event_rows = list(
-        db.scalars(select(CeriCatalystEvent).where(CeriCatalystEvent.company_id.in_(company_ids))).all()
+        db.scalars(
+            select(CeriCatalystEvent).where(CeriCatalystEvent.company_id.in_(company_ids))
+        ).all()
     )
     collections[CeriCatalystEvent] = event_rows
     event_ids = {int(row.id) for row in event_rows if row.id is not None}

@@ -49,6 +49,7 @@ from app.services.ceri.orchestration import (
     CeriIngestionRequest,
     CeriIngestionService,
 )
+from app.services.ceri.parent_pipeline_fence import require_parent_pipeline_active
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
@@ -59,6 +60,7 @@ from app.services.ceri.purge_service import (
 )
 from app.services.configuration_delivery import anchored_job_configuration
 from app.services.market_calculation_context_service import resolve_pipeline_market_context
+from app.services.pipeline_prerequisites import CeriParentPipelineTerminalError
 from app.services.redaction import redact_text
 
 CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
@@ -104,6 +106,7 @@ def execute_provider_ingest_job(
     if not ceri_flags().provider_ingest:
         return _skipped_job(CERI_PROVIDER_INGEST, "provider_ingest_disabled")
     payload = job.payload_json or {}
+    require_parent_pipeline_active(db, job)
     dataset = _dataset(payload)
     provider = str(payload.get("provider") or "manual")
     ticker = _required_text(payload, "ticker")
@@ -131,6 +134,8 @@ def execute_provider_ingest_job(
         )
     except CeriIngestionCancelled as exc:
         raise CancelRequested(str(exc)) from exc
+    except CeriParentPipelineTerminalError:
+        raise
     except SQLAlchemyError:
         raise
     except Exception as exc:
@@ -160,6 +165,7 @@ def execute_provider_ingest_job(
         values["normalize_job_id"] = normalize_job_id
     if values.get("status") in {"PARTIAL", "CANCELLED"} or values.get("failed", 0):
         job.status = JobStatus.PARTIAL
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     return {"job_type": CERI_PROVIDER_INGEST, **values}
 
 
@@ -173,6 +179,7 @@ def execute_normalize_job(
     if not ceri_flags().enabled:
         return _skipped_job(CERI_NORMALIZE, "ceri_disabled")
     payload = job.payload_json or {}
+    require_parent_pipeline_active(db, job)
     request_key = str(payload.get("request_key") or f"ceri:normalize:{job.id}")
     existing = _maybe_scalar(
         db,
@@ -201,6 +208,7 @@ def execute_normalize_job(
             dataset=str(payload.get("dataset") or "all"),
             result="coalesced",
         )
+        require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
         return values
 
     started_at = _utcnow()
@@ -240,6 +248,7 @@ def execute_normalize_job(
         dataset=str(payload.get("dataset") or "all"),
         result="partial" if values.get("failed") else "success",
     )
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     return values
 
 
@@ -259,6 +268,8 @@ def execute_rebuild_features_job(
 
         semantic_authority = require_semantic_authority(job)
     pipeline_owned = _is_pipeline_owned_ceri_job(job, payload)
+    if pipeline_owned:
+        require_parent_pipeline_active(db, job)
     if pipeline_owned:
         missing_context = [
             key
@@ -331,6 +342,8 @@ def execute_rebuild_features_job(
     )
     if result.failed:
         job.status = JobStatus.PARTIAL
+    if pipeline_owned:
+        require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     values = {
         "job_type": CERI_REBUILD_FEATURES,
         "processing_run_id": processing.id,
@@ -363,6 +376,8 @@ def execute_capture_run_job(
     if not ceri_flags().run_capture:
         return _skipped_job(CERI_CAPTURE_RUN, "run_capture_disabled")
     payload = job.payload_json or {}
+    if _is_pipeline_owned_ceri_job(job, payload):
+        require_parent_pipeline_active(db, job)
     run_id = _required_int(payload, "run_id")
     market_cutoff = None
     if isinstance(db, Session) and not _is_pipeline_owned_ceri_job(job, payload):
@@ -476,6 +491,7 @@ def execute_capture_run_job(
                 )
             heartbeat = getattr(job, "_heartbeat", None)
             if callable(heartbeat):
+                require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
                 heartbeat()
 
         capture_kwargs: dict[str, Any] = {}
@@ -498,6 +514,8 @@ def execute_capture_run_job(
         },
         checkpoint={"run_id": run_id},
     )
+    if _is_pipeline_owned_ceri_job(job, payload):
+        require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     change_job_id = (
         _enqueue_change_after_capture(db, job=job, run_id=run_id)
         if processing.status == "COMPLETED" or bool(job.workflow_key)
@@ -531,6 +549,8 @@ def execute_change_detection_job(
     if not ceri_flags().enabled:
         return _skipped_job(CERI_CHANGE_DETECTION, "ceri_disabled")
     payload = job.payload_json or {}
+    if _is_pipeline_owned_ceri_job(job, payload):
+        require_parent_pipeline_active(db, job)
     semantic_authority = None
     if isinstance(db, Session):
         from app.services.scope_refresh_adoption import require_semantic_authority
@@ -648,6 +668,8 @@ def execute_change_detection_job(
     )
     if result.failed:
         job.status = JobStatus.PARTIAL
+    if _is_pipeline_owned_ceri_job(job, payload):
+        require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     values = {
         "job_type": CERI_CHANGE_DETECTION,
         "processing_run_id": processing.id,
@@ -714,6 +736,8 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         _release_pipeline_after_ceri(db, job)
         return values
     payload = job.payload_json or {}
+    if _is_pipeline_owned_ceri_job(job, payload):
+        require_parent_pipeline_active(db, job)
     processing, created = _processing_run(
         db,
         CERI_ALERT_REBUILD,
@@ -738,16 +762,20 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
     alert_count = duplicate_count = skipped_count = eligible_change_count = 0
     for changes in _eligible_change_batches(db, payload):
         company_ids = sorted({int(change.company_id) for change in changes})
-        ticker_by_company = {
-            int(company.id): company.ticker
-            for company in db.scalars(
-                select(CeriCompany).where(CeriCompany.id.in_(company_ids))
-            )
-        } if isinstance(db, Session) else {
-            company.id: company.ticker
-            for company in _load_rows(db, CeriCompany)
-            if company.id in set(company_ids)
-        }
+        ticker_by_company = (
+            {
+                int(company.id): company.ticker
+                for company in db.scalars(
+                    select(CeriCompany).where(CeriCompany.id.in_(company_ids))
+                )
+            }
+            if isinstance(db, Session)
+            else {
+                company.id: company.ticker
+                for company in _load_rows(db, CeriCompany)
+                if company.id in set(company_ids)
+            }
+        )
         batch_result = service.rebuild_alerts(
             db,
             changes=changes,
@@ -952,11 +980,7 @@ def _eligible_changes(
     if isinstance(db, Session):
         statement = select(CeriChangeEvent)
         ids = sorted(
-            {
-                int(value)
-                for value in payload.get("change_ids", [])
-                if str(value).isdigit()
-            }
+            {int(value) for value in payload.get("change_ids", []) if str(value).isdigit()}
         )
         has_authoritative_scope = bool(ids)
         if ids:
@@ -1199,6 +1223,7 @@ def _enqueue_capture_after_features(
     run_id = _optional_int(payload.get("run_id") or job.related_run_id)
     if run_id is None:
         return None
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     # A provider run rebuilds features independently for each ticker/dataset.
     # Use the completed feature job as part of the capture identity so later
     # feature arrivals can capture newly eligible tickers. CeriRunCaptureService
@@ -1223,6 +1248,7 @@ def _enqueue_capture_after_features(
 
 
 def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: int) -> int | None:
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     request_key = (
         f"{job.workflow_key}:change" if job.workflow_key else f"ceri:change-rebuild:run:{run_id}"
     )
@@ -1252,6 +1278,7 @@ def _enqueue_alert_after_change(
     payload: dict[str, Any],
     change_ids: tuple[int, ...] = (),
 ) -> int | None:
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     if not ceri_flags().alerts:
         return None
     upstream_id = payload.get("run_id") or job.related_run_id or job.id
@@ -1283,6 +1310,7 @@ def _enqueue_alert_after_change(
 def _release_pipeline_after_ceri(db: Session, job: BackgroundJob) -> None:
     if not _is_pipeline_owned_ceri_job(job, job.payload_json or {}):
         return
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     from app.services.pipeline_service import enqueue_pipeline_after_ceri_completion
 
     enqueue_pipeline_after_ceri_completion(db, job)
@@ -1341,6 +1369,7 @@ def _safe_job_error(exc: Exception) -> str:
 
 
 def _heartbeat_and_check_cancel(db: Session, job: BackgroundJob) -> bool:
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     heartbeat = getattr(job, "_heartbeat", None)
     if callable(heartbeat):
         heartbeat()

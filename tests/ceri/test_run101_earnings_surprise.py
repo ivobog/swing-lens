@@ -25,12 +25,13 @@ def test_earnings_acquisition_separates_reported_history_from_upcoming_calendar(
     assert client.calls[0]["to"] <= now.date().isoformat()
     assert client.calls[1]["from"] >= now.date().isoformat()
     assert {record.payload["event_kind"] for record in records} == {"REPORTED", "UPCOMING"}
-    assert next(r for r in records if r.payload["event_kind"] == "REPORTED").payload[
-        "actual_value"
-    ] == 0
-    assert next(r for r in records if r.payload["event_kind"] == "REPORTED").payload[
-        "estimate"
-    ] == 0
+    assert (
+        next(r for r in records if r.payload["event_kind"] == "REPORTED").payload["actual_value"]
+        == 0
+    )
+    assert (
+        next(r for r in records if r.payload["event_kind"] == "REPORTED").payload["estimate"] == 0
+    )
 
 
 def test_reported_provider_surprise_is_retained_with_semantic_lineage() -> None:
@@ -43,7 +44,10 @@ def test_reported_provider_surprise_is_retained_with_semantic_lineage() -> None:
 
     assert feature.surprise_absolute == Decimal("0.2")
     assert feature.surprise_pct == Decimal("20")
-    assert earnings.consensus_selection_reason == "provider_report_time_consensus_and_surprise"
+    assert feature.consensus_selection_reason == "provider_report_time_consensus_and_surprise"
+    assert earnings.consensus_selection_reason is None
+    assert earnings.surprise_absolute is None
+    assert earnings.surprise_pct is None
 
 
 def test_upcoming_event_is_excluded_from_surprise_trend() -> None:
@@ -79,9 +83,7 @@ def test_post_report_estimate_is_not_selected_as_pre_report_consensus() -> None:
     before = _estimate(1, earnings.report_at - timedelta(hours=1), Decimal("1.0"))
     after = _estimate(2, earnings.report_at + timedelta(hours=1), Decimal("1.1"))
 
-    feature = CeriSurpriseFeatureService().attach_consensus_snapshot(
-        earnings, [before, after]
-    )
+    feature = CeriSurpriseFeatureService().attach_consensus_snapshot(earnings, [before, after])
 
     assert feature.consensus_snapshot_id == before.id
 
@@ -123,9 +125,7 @@ def test_official_reported_row_survives_provider_storage_normalization_and_surpr
         provider="eodhd",
         dataset="earnings",
         provider_record_id=record.provider_record_id,
-        restricted_normalized_json=provider_storage_projection(
-            "eodhd", "earnings", record.payload
-        ),
+        restricted_normalized_json=provider_storage_projection("eodhd", "earnings", record.payload),
         observed_at=record.observed_at,
         retrieved_at=now,
         content_hash="reported-hash",

@@ -7,14 +7,15 @@ from decimal import Decimal
 from app.models.ceri_tables import CeriEarningsActual, CeriEstimateSnapshot
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.pit_eligibility import estimate_snapshot_historical_eligibility_at
-from app.services.domain_mutation import MutationDomain, MutationSemanticMode
-from app.services.source_mutation_authority import source_mutation_writer
 
 
 @dataclass(frozen=True)
 class SurpriseFeature:
     earnings_actual_id: int | None
+    earnings_source_record_id: int | None
     consensus_snapshot_id: int | None
+    consensus_source_record_id: int | None
+    consensus_selection_reason: str
     metric: str
     fiscal_period_end: str
     surprise_absolute: Decimal | None
@@ -37,72 +38,97 @@ class CeriSurpriseFeatureService:
     def __init__(self, config: CeriConfig | None = None) -> None:
         self.config = config or load_ceri_config()
 
-    @source_mutation_writer(
-        MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE
-    )
     def attach_consensus_snapshot(
         self,
         earnings: CeriEarningsActual,
         estimates: list[CeriEstimateSnapshot],
     ) -> SurpriseFeature:
+        """Calculate context-owned evidence without mutating normalized source rows."""
+
         if (
             earnings.provider_consensus_value is not None
             and earnings.provider_consensus_semantics == "REPORT_TIME_CONSENSUS"
         ):
-            earnings.consensus_snapshot_id = None
-            earnings.consensus_selection_reason = (
+            selection_reason = (
                 "provider_report_time_consensus_and_surprise"
                 if earnings.provider_surprise_pct is not None
                 else "provider_consensus_at_report"
             )
             if earnings.actual_value is None:
-                earnings.surprise_absolute = None
-                earnings.surprise_pct = None
-                return _feature(earnings, None, ["surprise_actual_unavailable"])
-            earnings.surprise_absolute = earnings.actual_value - earnings.provider_consensus_value
+                return _feature(
+                    earnings,
+                    None,
+                    selection_reason=selection_reason,
+                    surprise_absolute=None,
+                    surprise_pct=None,
+                    warnings=["surprise_actual_unavailable"],
+                )
+            surprise_absolute = earnings.actual_value - earnings.provider_consensus_value
             if earnings.provider_surprise_pct is not None:
-                earnings.surprise_pct = earnings.provider_surprise_pct
-                return _feature(earnings, None, [])
+                return _feature(
+                    earnings,
+                    None,
+                    selection_reason=selection_reason,
+                    surprise_absolute=surprise_absolute,
+                    surprise_pct=earnings.provider_surprise_pct,
+                    warnings=[],
+                )
             threshold = Decimal(str(self.config.revision.near_zero_threshold))
             if abs(earnings.provider_consensus_value) <= threshold:
-                earnings.surprise_pct = None
+                surprise_pct = None
                 warnings = ["surprise_pct_unavailable_near_zero_consensus"]
             else:
-                earnings.surprise_pct = (
-                    earnings.surprise_absolute
-                    / abs(earnings.provider_consensus_value)
-                    * Decimal("100")
+                surprise_pct = (
+                    surprise_absolute / abs(earnings.provider_consensus_value) * Decimal("100")
                 )
                 warnings = []
-            return _feature(earnings, None, warnings)
+            return _feature(
+                earnings,
+                None,
+                selection_reason=selection_reason,
+                surprise_absolute=surprise_absolute,
+                surprise_pct=surprise_pct,
+                warnings=warnings,
+            )
         consensus = self._consensus_before_report(earnings, estimates)
         warnings: list[str] = []
         if consensus is None:
-            earnings.consensus_snapshot_id = None
-            earnings.consensus_selection_reason = "pre_report_consensus_unavailable"
-            earnings.surprise_absolute = None
-            earnings.surprise_pct = None
             warnings.append("pre_report_consensus_unavailable")
-            return _feature(earnings, None, warnings)
+            return _feature(
+                earnings,
+                None,
+                selection_reason="pre_report_consensus_unavailable",
+                surprise_absolute=None,
+                surprise_pct=None,
+                warnings=warnings,
+            )
 
-        earnings.consensus_snapshot_id = consensus.id
-        earnings.consensus_selection_reason = "latest_consensus_before_report_at"
         if earnings.actual_value is None or consensus.consensus is None:
-            earnings.surprise_absolute = None
-            earnings.surprise_pct = None
             warnings.append("surprise_value_unavailable")
-            return _feature(earnings, consensus, warnings)
+            return _feature(
+                earnings,
+                consensus,
+                selection_reason="latest_consensus_before_report_at",
+                surprise_absolute=None,
+                surprise_pct=None,
+                warnings=warnings,
+            )
 
-        earnings.surprise_absolute = earnings.actual_value - consensus.consensus
+        surprise_absolute = earnings.actual_value - consensus.consensus
         threshold = Decimal(str(self.config.revision.near_zero_threshold))
         if abs(consensus.consensus) <= threshold:
-            earnings.surprise_pct = None
+            surprise_pct = None
             warnings.append("surprise_pct_unavailable_near_zero_consensus")
         else:
-            earnings.surprise_pct = (
-                earnings.surprise_absolute / abs(consensus.consensus) * Decimal("100")
-            )
-        return _feature(earnings, consensus, warnings)
+            surprise_pct = surprise_absolute / abs(consensus.consensus) * Decimal("100")
+        return _feature(
+            earnings,
+            consensus,
+            selection_reason="latest_consensus_before_report_at",
+            surprise_absolute=surprise_absolute,
+            surprise_pct=surprise_pct,
+            warnings=warnings,
+        )
 
     def summarize(
         self,
@@ -167,20 +193,27 @@ class CeriSurpriseFeatureService:
 def _feature(
     earnings: CeriEarningsActual,
     consensus: CeriEstimateSnapshot | None,
+    *,
+    selection_reason: str,
+    surprise_absolute: Decimal | None,
+    surprise_pct: Decimal | None,
     warnings: list[str],
 ) -> SurpriseFeature:
     direction = "neutral"
-    if earnings.surprise_absolute is not None and earnings.surprise_absolute > 0:
+    if surprise_absolute is not None and surprise_absolute > 0:
         direction = "positive"
-    elif earnings.surprise_absolute is not None and earnings.surprise_absolute < 0:
+    elif surprise_absolute is not None and surprise_absolute < 0:
         direction = "negative"
     return SurpriseFeature(
         earnings_actual_id=earnings.id,
+        earnings_source_record_id=earnings.source_record_id,
         consensus_snapshot_id=consensus.id if consensus is not None else None,
+        consensus_source_record_id=(consensus.source_record_id if consensus is not None else None),
+        consensus_selection_reason=selection_reason,
         metric=earnings.metric,
         fiscal_period_end=earnings.fiscal_period_end.isoformat(),
-        surprise_absolute=earnings.surprise_absolute,
-        surprise_pct=earnings.surprise_pct,
+        surprise_absolute=surprise_absolute,
+        surprise_pct=surprise_pct,
         direction=direction,
         warnings=tuple(warnings),
     )

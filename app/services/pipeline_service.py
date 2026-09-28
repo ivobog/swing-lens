@@ -1104,7 +1104,65 @@ def _roll_up_ceri_pipeline_failure(
         step.completed_at = pipeline.completed_at
         step.message = pipeline.message
         step.error_message = pipeline.error_message
+    _block_queued_ceri_siblings(
+        db,
+        workflow_key=workflow_key,
+        failed_job_ids={int(row.id) for row in failed_jobs if row.id is not None},
+        completed_at=pipeline.completed_at,
+        pipeline_id=pipeline.id,
+    )
     db.flush()
+
+
+def _block_queued_ceri_siblings(
+    db: Session,
+    *,
+    workflow_key: str,
+    failed_job_ids: set[int],
+    completed_at: datetime,
+    pipeline_id: int,
+) -> None:
+    """Block unclaimed siblings in the same terminal-transition transaction.
+
+    ``skip_locked`` avoids lock inversion with a concurrently claimed/running
+    sibling. Such a sibling is fenced by the authoritative pipeline row before
+    its next domain checkpoint.
+    """
+
+    siblings = list(
+        db.scalars(
+            select(BackgroundJob)
+            .where(
+                BackgroundJob.workflow_key == workflow_key,
+                BackgroundJob.status.in_(
+                    (JobStatus.QUEUED, JobStatus.STALLED, JobStatus.RECOVERING)
+                ),
+            )
+            .with_for_update(skip_locked=True)
+        )
+    )
+    for sibling in siblings:
+        if sibling.id in failed_job_ids:
+            continue
+        sibling.status = JobStatus.BLOCKED
+        sibling.completed_at = completed_at
+        sibling.error_message = "Authoritative parent pipeline is terminal."
+        sibling.locked_at = None
+        sibling.heartbeat_at = None
+        sibling.lease_expires_at = None
+        sibling.worker_id = None
+        sibling.worker_instance_id = None
+        sibling.lease_owner = None
+        sibling.execution_token = None
+        sibling.result_json = {
+            **(sibling.result_json or {}),
+            "status": JobStatus.BLOCKED,
+            "reason_code": "CERI_PARENT_PIPELINE_TERMINAL",
+            "diagnostics": {
+                "pipeline_run_id": pipeline_id,
+                "failed_job_ids": sorted(failed_job_ids),
+            },
+        }
 
 
 def _load_pipeline_steps(db: Session, pipeline_run_id: int) -> list[PipelineStep]:

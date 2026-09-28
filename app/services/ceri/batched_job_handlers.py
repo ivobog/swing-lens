@@ -45,8 +45,13 @@ from app.services.ceri.orchestration import (
     CeriIngestionRequest,
     CeriIngestionService,
 )
+from app.services.ceri.parent_pipeline_fence import require_parent_pipeline_active
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.ceri.source_manifest_service import (
+    freeze_or_verify_feature_source_manifest,
+    load_feature_source_manifest,
+)
 from app.services.configuration_delivery import anchored_job_configuration
 from app.services.pipeline_prerequisites import CeriUpstreamStageBlockedError
 from app.settings import get_settings
@@ -151,6 +156,7 @@ def execute_provider_ingest_batch_job(
                 raise CancelRequested("CERI provider batch cancelled.")
     if failed:
         job.status = JobStatus.PARTIAL
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     return {
         "job_type": CERI_PROVIDER_INGEST_BATCH,
         "status": "PARTIAL" if failed else "COMPLETED",
@@ -259,6 +265,7 @@ def execute_normalize_batch_job(
                 raise CancelRequested("CERI normalization batch cancelled.")
     if failed or any(value.get("status") == "PARTIAL" for value in results.values()):
         job.status = JobStatus.PARTIAL
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     return {
         "job_type": CERI_NORMALIZE_BATCH,
         "status": "PARTIAL" if job.status == JobStatus.PARTIAL else "COMPLETED",
@@ -281,6 +288,7 @@ def execute_feature_batch_job(
     if not ceri_flags().enabled:
         return _skipped(CERI_FEATURE_BATCH, "ceri_disabled")
     payload = job.payload_json or {}
+    require_parent_pipeline_active(db, job)
     semantic_authority = None
     if isinstance(db, Session):
         from app.services.scope_refresh_adoption import require_semantic_authority
@@ -315,11 +323,19 @@ def execute_feature_batch_job(
     # expiring it and silently re-querying one row at a time.
     if hasattr(db, "expire_on_commit"):
         db.expire_on_commit = False
+    retained_manifest = (
+        load_feature_source_manifest(db, job.id)
+        if isinstance(db, Session) and job.id is not None
+        else None
+    )
     if remaining_tickers and hasattr(service, "prepare_batch"):
         batch_context = service.prepare_batch(
             db,
             CeriFeatureRebuildRequest(
-                tickers=remaining_tickers,
+                # Always rebuild the full batch authority. Completed tickers are
+                # skipped below, but their exact source membership remains part
+                # of the retry manifest and cannot silently drift.
+                tickers=tickers,
                 run_id=int(payload.get("run_id") or job.related_run_id),
                 mode="AS_KNOWN",
                 as_of_session=_optional_date(payload.get("as_of_session")),
@@ -328,13 +344,33 @@ def execute_feature_batch_job(
                 calendar_version=str(payload["calendar_version"]),
                 ownership_mode=CeriArtifactOwnership.PIPELINE.value,
                 semantic_authority=semantic_authority,
+                source_manifest_json=(
+                    retained_manifest.manifest_json if retained_manifest is not None else None
+                ),
             ),
             progress_callback=partial(_feature_prepare_checkpoint, db, job),
         )
+        if isinstance(db, Session):
+            if batch_context.source_bodies is None:
+                raise ValueError("CERI_SOURCE_MANIFEST_BUNDLE_REQUIRED")
+            manifest, _created = freeze_or_verify_feature_source_manifest(
+                db,
+                job=job,
+                source_bodies=batch_context.source_bodies,
+            )
+            if retained_manifest is not None and retained_manifest.id != manifest.id:
+                raise ValueError("CERI_SOURCE_MANIFEST_IDENTITY_MISMATCH")
+            batch_context.source_manifest_id = manifest.id
+            # Publish the immutable authority in its own pre-output transaction.
+            # The pipeline row lock orders this commit against terminal roll-up.
+            require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
+            if _heartbeat_and_cancel(db, job):
+                raise CancelRequested("CERI feature batch cancelled after source freeze.")
     failed = 0
     for ticker in tickers:
         if ticker in completed:
             continue
+        require_parent_pipeline_active(db, job)
         if _heartbeat_and_cancel(db, job, heartbeat=False):
             raise CancelRequested("CERI feature batch cancelled.")
         processing_key = f"{workflow_key}:feature-ticker:{ticker}"
@@ -410,6 +446,7 @@ def execute_feature_batch_job(
         # Make feature rows, processing-run completion, and the ticker
         # checkpoint durable in that order. This also bounds retry work to one
         # ticker without discarding the shared read-only batch context.
+        require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
         if _heartbeat_and_cancel(db, job):
             raise CancelRequested("CERI feature batch cancelled.")
     if failed or any(value.get("status") == "PARTIAL" for value in results.values()):
@@ -472,6 +509,7 @@ def execute_run_finalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     if not ceri_flags().enabled:
         return _skipped(CERI_RUN_FINALIZE, "ceri_disabled")
     payload = job.payload_json or {}
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     workflow_key = _workflow_key(job, payload)
     _require_terminal_stage(
         db,
@@ -611,9 +649,7 @@ def _save_checkpoint(
     max_checkpoint_gap_seconds = max(
         float(previous.get("max_checkpoint_gap_seconds") or 0.0),
         float(
-            dict(metadata.get("ceri_feature_prepare") or {}).get(
-                "max_checkpoint_gap_seconds"
-            )
+            dict(metadata.get("ceri_feature_prepare") or {}).get("max_checkpoint_gap_seconds")
             or 0.0
         ),
         checkpoint_gap_seconds,
@@ -694,9 +730,7 @@ def _normalization_checkpoint(
     if previous_at is not None and previous_at.tzinfo is None:
         previous_at = previous_at.replace(tzinfo=UTC)
     gap_seconds = (
-        max(0.0, (checkpoint_at - previous_at).total_seconds())
-        if previous_at is not None
-        else 0.0
+        max(0.0, (checkpoint_at - previous_at).total_seconds()) if previous_at is not None else 0.0
     )
     processed = int(checkpoint.get("last_record_index") or 0)
     source_record_id = checkpoint.get("last_source_record_id")
@@ -746,9 +780,7 @@ def _feature_prepare_checkpoint(
     if previous_at is not None and previous_at.tzinfo is None:
         previous_at = previous_at.replace(tzinfo=UTC)
     gap_seconds = (
-        max(0.0, (checkpoint_at - previous_at).total_seconds())
-        if previous_at is not None
-        else 0.0
+        max(0.0, (checkpoint_at - previous_at).total_seconds()) if previous_at is not None else 0.0
     )
     checkpoint_id = f"ceri-feature-prepare:{processed_queries}:{phase}"
     metadata["ceri_feature_prepare"] = {
@@ -780,11 +812,13 @@ def _feature_prepare_checkpoint(
         job.progress_last_completed_item = phase
         job.progress_processed = max(int(job.progress_processed or 0), processed_queries)
         job.checkpoint_version = checkpoint_id
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     if _heartbeat_and_cancel(db, job):
         raise CancelRequested("CERI feature batch cancelled during context preparation.")
 
 
 def _heartbeat_and_cancel(db: Session, job: BackgroundJob, *, heartbeat: bool = True) -> bool:
+    require_parent_pipeline_active(db, job, lock_for_checkpoint=heartbeat)
     callback = getattr(job, "_heartbeat", None)
     if heartbeat and callable(callback):
         callback()
@@ -823,9 +857,7 @@ def _latest_checkpoint_at(
     for candidate in candidates:
         if candidate is None:
             continue
-        normalized.append(
-            candidate.replace(tzinfo=UTC) if candidate.tzinfo is None else candidate
-        )
+        normalized.append(candidate.replace(tzinfo=UTC) if candidate.tzinfo is None else candidate)
     return max(normalized, default=None)
 
 

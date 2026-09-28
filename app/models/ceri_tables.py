@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     func,
     text,
 )
@@ -994,6 +995,76 @@ class CeriDerivedFeature(Base):
     )
 
 
+class CeriFeatureSourceManifest(Base):
+    """Durable immutable source authority for one CERI feature batch job."""
+
+    __tablename__ = "ceri_feature_source_manifests"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    background_job_id: Mapped[int] = mapped_column(
+        ForeignKey("background_jobs.id", ondelete="RESTRICT"), nullable=False
+    )
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    pipeline_run_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    calculation_context_id: Mapped[int] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="RESTRICT"), nullable=False
+    )
+    batch_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
+    calendar_version: Mapped[str] = mapped_column(Text, nullable=False)
+    configuration_anchor_id: Mapped[str] = mapped_column(
+        ForeignKey("execution_configuration_anchors.anchor_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    configuration_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    scope_id: Mapped[str | None] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT")
+    )
+    refresh_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str | None] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT")
+    )
+    bundle_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    source_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    manifest_version: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="ceri-feature-source-manifest-v1"
+    )
+    manifest_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("background_job_id", name="uq_ceri_feature_source_manifest_job"),
+        CheckConstraint("source_count >= 0", name="ck_ceri_feature_source_manifest_count"),
+        Index("ix_ceri_feature_source_manifest_context", "calculation_context_id"),
+        Index("ix_ceri_feature_source_manifest_run", "run_id", "pipeline_run_id"),
+    )
+
+
+def _reject_feature_source_manifest_mutation(_mapper, _connection, _target) -> None:
+    raise ValueError("CERI_FEATURE_SOURCE_MANIFEST_IMMUTABLE")
+
+
+event.listen(
+    CeriFeatureSourceManifest,
+    "before_update",
+    _reject_feature_source_manifest_mutation,
+)
+event.listen(
+    CeriFeatureSourceManifest,
+    "before_delete",
+    _reject_feature_source_manifest_mutation,
+)
+
+
 class CeriFeatureBuildState(Base):
     """Successful, conservatively fingerprinted feature-build boundary."""
 
@@ -1007,6 +1078,9 @@ class CeriFeatureBuildState(Base):
     calculation_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     calculation_context_id: Mapped[int | None] = mapped_column(
         ForeignKey("market_calculation_contexts.id", ondelete="SET NULL")
+    )
+    source_manifest_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ceri_feature_source_manifests.id", ondelete="RESTRICT")
     )
     calendar_version: Mapped[str | None] = mapped_column(Text)
     ownership_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="STANDALONE")
@@ -1047,6 +1121,7 @@ class CeriFeatureBuildState(Base):
             "as_of_session",
         ),
         Index("ix_ceri_feature_build_states_context", "calculation_context_id"),
+        Index("ix_ceri_feature_build_states_manifest", "source_manifest_id"),
     )
 
 

@@ -21,11 +21,15 @@ def test_earnings_surprise_uses_consensus_immediately_before_report() -> None:
         [stale, latest_before, after_report],
     )
 
-    assert earnings.consensus_snapshot_id == 2
-    assert earnings.consensus_selection_reason == "latest_consensus_before_report_at"
+    assert earnings.consensus_snapshot_id is None
+    assert earnings.consensus_selection_reason is None
     assert feature.consensus_snapshot_id == 2
-    assert earnings.surprise_absolute == Decimal("1.00")
-    assert earnings.surprise_pct == Decimal("10.0")
+    assert feature.consensus_source_record_id == latest_before.source_record_id
+    assert feature.consensus_selection_reason == "latest_consensus_before_report_at"
+    assert feature.surprise_absolute == Decimal("1.00")
+    assert feature.surprise_pct == Decimal("10.0")
+    assert earnings.surprise_absolute is None
+    assert earnings.surprise_pct is None
     assert feature.direction == "positive"
 
 
@@ -41,6 +45,7 @@ def test_surprise_summary_uses_last_four_reported_periods() -> None:
     assert len(summary.features) == 4
     assert summary.positive_count == 4
     assert summary.consistency == "consistently_positive"
+    assert all(row.surprise_pct is None for row in earnings)
 
 
 def _estimate(

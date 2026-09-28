@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+import pytest
 from alembic.config import Config
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from alembic import command
@@ -14,16 +15,21 @@ from app.models.tables import (
     CoreCalculationEvidence,
     PipelineStep,
     RawCompanyRow,
+    SetupSignalSnapshot,
     UploadRun,
+    WinnerPredictionSnapshot,
 )
 from app.services.background_job_service import JobStatus, enqueue_job
+from app.services.ceri.parent_pipeline_fence import require_parent_pipeline_active
 from app.services.market_calculation_context_service import market_context_for_pipeline
+from app.services.pipeline_prerequisites import CeriParentPipelineTerminalError
 from app.services.pipeline_service import (
     DECISION_HANDOFF_PIPELINE_STEP,
     FULL_PIPELINE_JOB_TYPE,
     PipelineStatus,
     PipelineStepStatus,
     enqueue_pipeline_after_ceri_completion,
+    roll_up_ceri_pipeline_job_failure,
     start_pipeline,
 )
 from app.services.scope_refresh_adoption import bind_semantic_authority, require_semantic_authority
@@ -151,6 +157,85 @@ def test_ceri_completion_barrier_rejects_missing_certified_capture(
             "CERI_CERTIFIED_CAPTURE_INCOMPLETE"
         )
         assert pipeline.result_json.get("ceri_continuation_job_id") is None
+
+    engine.dispose()
+
+
+def test_parent_failure_blocks_queued_siblings_and_fences_running_child(
+    disposable_postgres_database: str,
+) -> None:
+    """Incident regression D/E: terminal parent stops the complete CERI tail."""
+
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        pipeline, workflow_key, running_alert_id = _seed_waiting_pipeline(
+            db,
+            certified=False,
+            provider_status=JobStatus.FAILED,
+        )
+        provider = db.scalar(
+            select(BackgroundJob).where(
+                BackgroundJob.workflow_key == workflow_key,
+                BackgroundJob.job_type == "CERI_PROVIDER_INGEST_BATCH",
+            )
+        )
+        payload = {
+            "pipeline_run_id": pipeline.id,
+            "run_id": pipeline.upload_run_id,
+            "workflow_key": workflow_key,
+            "calculation_context_id": market_context_for_pipeline(db, pipeline).context_id,
+        }
+        queued_feature = BackgroundJob(
+            job_type="CERI_FEATURE_BATCH",
+            status=JobStatus.QUEUED,
+            request_key=f"{workflow_key}:feature:fenced",
+            workflow_key=workflow_key,
+            related_run_id=pipeline.upload_run_id,
+            payload_json=payload,
+        )
+        queued_finalizer = BackgroundJob(
+            job_type="CERI_RUN_FINALIZE",
+            status=JobStatus.QUEUED,
+            request_key=f"{workflow_key}:finalize:fenced",
+            workflow_key=workflow_key,
+            related_run_id=pipeline.upload_run_id,
+            payload_json=payload,
+        )
+        db.add_all([queued_feature, queued_finalizer])
+        db.flush()
+        feature_id = queued_feature.id
+        finalizer_id = queued_finalizer.id
+        pipeline_id = pipeline.id
+
+        roll_up_ceri_pipeline_job_failure(db, provider)
+        db.commit()
+
+    with Session(engine) as db:
+        pipeline = db.get(type(pipeline), pipeline_id)
+        running_alert = db.get(BackgroundJob, running_alert_id)
+        queued_feature = db.get(BackgroundJob, feature_id)
+        queued_finalizer = db.get(BackgroundJob, finalizer_id)
+
+        assert pipeline.status == PipelineStatus.FAILED
+        assert queued_feature.status == JobStatus.BLOCKED
+        assert queued_finalizer.status == JobStatus.BLOCKED
+        assert queued_feature.result_json["reason_code"] == "CERI_PARENT_PIPELINE_TERMINAL"
+        assert queued_finalizer.result_json["reason_code"] == "CERI_PARENT_PIPELINE_TERMINAL"
+        with pytest.raises(CeriParentPipelineTerminalError):
+            require_parent_pipeline_active(db, running_alert, lock_for_checkpoint=True)
+        assert db.scalar(select(func.count()).select_from(CeriScoreSnapshot)) == 0
+        assert db.scalar(select(func.count()).select_from(SetupSignalSnapshot)) == 0
+        assert db.scalar(select(func.count()).select_from(WinnerPredictionSnapshot)) == 0
+        assert not list(
+            db.scalars(
+                select(BackgroundJob).where(
+                    BackgroundJob.job_type == FULL_PIPELINE_JOB_TYPE,
+                    BackgroundJob.payload_json["resume_from_step"].astext
+                    == DECISION_HANDOFF_PIPELINE_STEP,
+                )
+            )
+        )
 
     engine.dispose()
 

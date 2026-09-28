@@ -38,6 +38,12 @@ class CeriUpstreamStageBlockedError(PipelineBlockedError):
     reason_code = "CERI_UPSTREAM_STAGE_UNSUCCESSFUL"
 
 
+class CeriParentPipelineTerminalError(PipelineBlockedError):
+    """A CERI descendant may not write after its authoritative pipeline is terminal."""
+
+    reason_code = "CERI_PARENT_PIPELINE_TERMINAL"
+
+
 class SecProcessorPromotionRequiredError(PipelineBlockedError):
     """The deployed SEC processor is not the explicitly promoted ACTIVE release."""
 

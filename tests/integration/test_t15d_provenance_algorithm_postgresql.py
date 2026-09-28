@@ -25,7 +25,7 @@ def test_t15d_ceri_population_rebuild_uses_retained_postgresql_scope(
 ) -> None:
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
-    assert ScriptDirectory.from_config(config).get_heads() == ["0084_technical_recovery"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0086_ceri_feature_source_manifest"]
     command.upgrade(config, "head")
     command.check(config)
     engine = create_engine(disposable_postgres_database)

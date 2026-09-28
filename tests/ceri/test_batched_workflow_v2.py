@@ -452,7 +452,9 @@ def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch
 
     result = execute_feature_batch_job(FakeDb(), job, feature_service=service)
 
-    assert service.prepared == [("T1", "T2")]
+    # Retry preparation re-establishes the complete batch membership so the
+    # persisted source manifest can reject drift in already-completed tickers.
+    assert service.prepared == [("T0", "T1", "T2")]
     assert service.rebuilt == ["T1", "T2"]
     assert result["processed_tickers"] == 3
     assert result["telemetry"]["sql_select_count"] == 9

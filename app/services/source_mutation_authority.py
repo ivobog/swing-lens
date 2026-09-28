@@ -96,7 +96,7 @@ def source_refresh_identity_chunk_size(
 @event.listens_for(Engine, "after_cursor_execute")
 def _invalidate_changed_source_bundles(conn, cursor, statement, parameters, context, executemany):
     bundles = _locked_source_bundles.get(conn)
-    if not bundles or _active_source_writers.get():
+    if not bundles:
         return
     expression = getattr(getattr(context, "compiled", None), "statement", None)
     if isinstance(expression, (SavepointClause, RollbackToSavepointClause, ReleaseSavepointClause)):
@@ -189,7 +189,7 @@ class PrefetchedSourceBodies:
     argument comparison still occurs in _source_value before admitting writes.
     """
 
-    def __init__(self, db):
+    def __init__(self, db, *, expected_manifest=None):
         self._db = db
         self._transaction = None
         self._bodies = {}
@@ -200,6 +200,12 @@ class PrefetchedSourceBodies:
         self._sql_transaction = None
         self._requires_revalidation = False
         self._body_fingerprint = None
+        self._expected_manifest = expected_manifest
+        self._expected_tables = set((expected_manifest or {}).get("tables") or [])
+        self._expected_addresses = {}
+        for entry in (expected_manifest or {}).get("entries") or []:
+            table = str(entry["table"])
+            self._expected_addresses.setdefault(table, set()).add(tuple(entry["address"]))
 
     @property
     def db(self):
@@ -217,6 +223,42 @@ class PrefetchedSourceBodies:
     def models(self):
         return MappingProxyType(self._models)
 
+    @property
+    def body_fingerprint(self):
+        if not self._sealed:
+            raise ValueError("MUTATION_SOURCE_BUNDLE_NOT_SEALED")
+        return self._body_fingerprint
+
+    def durable_manifest(self):
+        """Return the canonical, persistence-safe authority for this sealed bundle."""
+
+        if not self._sealed:
+            raise ValueError("MUTATION_SOURCE_BUNDLE_NOT_SEALED")
+        entries = [
+            {
+                "table": table,
+                "address": list(address),
+                "row_fingerprint": Canonical.fingerprint(body),
+            }
+            for (table, address), body in sorted(
+                self._bodies.items(), key=lambda item: str(item[0])
+            )
+        ]
+        return {
+            "manifest_version": "ceri-feature-source-manifest-v1",
+            "tables": sorted(self._models),
+            "entries": entries,
+            "source_count": len(entries),
+            "bundle_fingerprint": self._body_fingerprint,
+        }
+
+    def verify_durable_manifest(self, manifest):
+        """Verify retry inputs before any calculation output can be produced."""
+
+        current = self.durable_manifest()
+        if Canonical.fingerprint(current) != Canonical.fingerprint(manifest):
+            raise ValueError("CERI_SOURCE_AUTHORITY_CHANGED_BEFORE_RETRY")
+
     def seal(self):
         self._body_fingerprint = Canonical.fingerprint(
             [
@@ -226,12 +268,43 @@ class PrefetchedSourceBodies:
         )
         self._sealed = True
 
+    def assert_unchanged_in_memory(self):
+        """Reject calculation code that dirties any sealed source ORM entity."""
+
+        if not self._sealed:
+            raise ValueError("MUTATION_SOURCE_BUNDLE_NOT_SEALED")
+        for key, row in self._rows.items():
+            columns = list(inspect(type(row)).columns)
+            current = {column.key: getattr(row, column.key) for column in columns}
+            if Canonical.fingerprint(current) != Canonical.fingerprint(self._bodies[key]):
+                raise ValueError("MUTATION_SOURCE_BUNDLE_CHANGED_IN_MEMORY: " + key[0])
+
     def load(self, model, statement):
         if self._sealed:
             raise ValueError("MUTATION_SOURCE_BUNDLE_FROZEN")
         columns = list(inspect(model).columns)
-        with self.db.no_autoflush:
-            result = self.db.execute(statement.add_columns(*columns).with_for_update()).all()
+        primary = list(inspect(model).primary_key)
+        table = inspect(model).local_table.name
+        self._models[table] = model
+        if self._expected_manifest is not None:
+            if table not in self._expected_tables:
+                raise ValueError("CERI_SOURCE_AUTHORITY_CHANGED_BEFORE_RETRY")
+            expected_addresses = self._expected_addresses.get(table, set())
+            with self.db.no_autoflush:
+                membership = self.db.execute(
+                    statement.with_only_columns(*primary, maintain_column_froms=True)
+                ).all()
+            observed_addresses = {tuple(row) for row in membership}
+            if observed_addresses != expected_addresses:
+                raise ValueError("CERI_SOURCE_AUTHORITY_CHANGED_BEFORE_RETRY")
+            from sqlalchemy import tuple_
+
+            statement = statement.where(tuple_(*primary).in_(tuple(expected_addresses)))
+            with self.db.no_autoflush:
+                result = self.db.execute(statement.add_columns(*columns).with_for_update()).all()
+        else:
+            with self.db.no_autoflush:
+                result = self.db.execute(statement.add_columns(*columns).with_for_update()).all()
         connection = self.db.connection(bind_arguments={"mapper": model})
         if self._connection is not None and self._connection is not connection:
             raise ValueError("MUTATION_SOURCE_BUNDLE_CONNECTION_MISMATCH")
@@ -239,9 +312,6 @@ class PrefetchedSourceBodies:
         _locked_source_bundles.setdefault(connection, WeakSet()).add(self)
         self._sql_transaction = connection.get_transaction()
         self._transaction = self.db.get_transaction()
-        primary = list(inspect(model).primary_key)
-        table = inspect(model).local_table.name
-        self._models[table] = model
         rows = []
         for row in result:
             body = dict(zip((c.key for c in columns), row[1:], strict=True))
@@ -345,6 +415,11 @@ def prefetched_source_scope(db, bundle, *, retain_execution_ownership: bool = Tr
             )
             with ownership_scope:
                 yield
+                bundle.assert_unchanged_in_memory()
+                # A direct SQL write can leave ORM instances looking clean.
+                # Revalidate the exact sealed addresses before the caller is
+                # allowed to cross its durable commit boundary.
+                bundle.refresh()
         finally:
             _prefetched_source_bodies.reset(token)
     except Exception:
@@ -510,9 +585,7 @@ def _source_value(db, value):
                     or stored["first_seen_at"] > as_of
                 ):
                     raise ValueError("MUTATION_SOURCE_PIT_PROJECTION_REQUIRED")
-                replay = project_price_bar_rows_as_of(
-                    db, [PriceBar(**dict(stored))], as_of=as_of
-                )
+                replay = project_price_bar_rows_as_of(db, [PriceBar(**dict(stored))], as_of=as_of)
                 if (
                     len(replay) != 1
                     or getattr(replay[0], "_pit_projection_revision_id", None) != revision_id

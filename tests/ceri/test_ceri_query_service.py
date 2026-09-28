@@ -14,6 +14,8 @@ from app.models.ceri_tables import (
     CeriCatalystEventRevision,
     CeriChangeEvent,
     CeriCompany,
+    CeriDerivedFeature,
+    CeriEarningsActual,
     CeriEstimateSnapshot,
     CeriRevisionFeature,
     CeriScoreSnapshot,
@@ -553,6 +555,63 @@ def test_revision_detail_exposes_lineage_and_raw_breadth_counts() -> None:
     assert payload["lineage"]["baseline_snapshot_id"] == 10
     assert payload["lineage"]["source_observation_ids"] == [101, 102]
     assert payload["lineage"]["stored_values"]["net_breadth"] == pytest.approx(0.714286)
+
+
+def test_ticker_reads_context_owned_surprise_instead_of_normalized_source_fields() -> None:
+    snapshot = _snapshot(1, "MSFT")
+    snapshot.calculation_context_id = 22
+    earnings = CeriEarningsActual(
+        id=7,
+        source_record_id=70,
+        company_id=1,
+        metric="EPS_DILUTED",
+        period_type="QUARTERLY",
+        fiscal_period_end=date(2026, 6, 30),
+        actual_value=Decimal("1.20"),
+        consensus_selection_reason="legacy-source-value",
+        surprise_absolute=Decimal("9.99"),
+        surprise_pct=Decimal("999"),
+    )
+    derived = CeriDerivedFeature(
+        id=8,
+        company_id=1,
+        feature_family="earnings_surprise",
+        feature_key="latest",
+        as_of_session=snapshot.as_of_session,
+        calculation_context_id=snapshot.calculation_context_id,
+        value_json={
+            "features": [
+                {
+                    "earnings_actual_id": earnings.id,
+                    "consensus_snapshot_id": 55,
+                    "consensus_selection_reason": "latest_consensus_before_report_at",
+                    "surprise_absolute": "0.20",
+                    "surprise_pct": "20",
+                    "warnings": [],
+                }
+            ]
+        },
+        evidence_hash="derived-surprise",
+        config_version="2026-07-31",
+        config_hash="config-hash",
+        calculation_version=snapshot.calculation_version,
+    )
+    db = FakeDb(
+        {
+            CeriCompany: [_company()],
+            CeriScoreSnapshot: [snapshot],
+            CeriEarningsActual: [earnings],
+            CeriDerivedFeature: [derived],
+        }
+    )
+
+    payload = CeriQueryService().ticker(db, "MSFT")
+
+    item = payload["earnings_surprise_history"][0]
+    assert item["consensus_snapshot_id"] == 55
+    assert item["consensus_selection_reason"] == "latest_consensus_before_report_at"
+    assert item["surprise_absolute"] == "0.20"
+    assert item["surprise_pct"] == "20"
 
 
 def test_events_changes_alerts_and_operations_payloads_are_queryable() -> None:
