@@ -33,8 +33,16 @@ critical configuration, ports, and worker modes. An active runtime is reused onl
 process tree, database/schema checks, and fingerprint match. A same-Git mismatch returns
 `RESTART_REQUIRED`; migrations never run underneath an active runtime.
 
-Start waits on `GET /ready/core`. Prometheus and Grafana are optional: their failure leaves a
-core-ready runtime running and produces `DEGRADED`.
+Start waits on `GET /ready/core` under the single configured parent deadline. Transport failures
+and database-not-ready samples may consume bounded retries; deterministic HTTP application errors,
+malformed payloads, and semantic NOT READY results fail immediately. Prometheus and Grafana are
+optional: their failure leaves a core-ready runtime running and produces `DEGRADED`.
+
+Once a new canonical supervisor generation has been launched and recorded, a later certification
+failure deliberately retains that strongly identified generation for diagnosis. The failure journal
+records `partial_start_runtime_retained` before diagnostics and the command reports
+`runtime_retained=true`, runtime instance ID, web PID, and supervisor PID. Use the normal `stop`
+command for controlled teardown; do not kill recorded PIDs manually.
 
 ## Persisted runtime-state classification
 
@@ -66,6 +74,10 @@ active-generation mismatch handling.
 A historical recovery, unavailable optional provider, telemetry loss, queue pressure, or Docker
 failure does not turn a valid runtime tree into a startup failure. `status` reports CORE,
 APPLICATION, and OBSERVABILITY separately; non-core trouble is `DEGRADED`.
+
+Machine status exposes `webReachable` (the HTTP listener answered) and `coreReady` (the complete
+core contract passed). The legacy `webReady` field is a compatibility alias for `coreReady`; it is
+never true merely because an endpoint returned HTTP 500.
 
 ## Stop, restart, and active leases
 

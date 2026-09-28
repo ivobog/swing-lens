@@ -107,6 +107,7 @@ def _config_report() -> dict[str, object]:
         ),
         "migrationTimeoutSeconds": settings.swinglens_migration_timeout_seconds,
         "lockTimeoutSeconds": settings.swinglens_lifecycle_lock_timeout_seconds,
+        "coreReadinessTimeoutSeconds": settings.swinglens_core_readiness_timeout_seconds,
         "observabilityTimeoutSeconds": settings.swinglens_observability_timeout_seconds,
         "workerId": settings.job_worker_id,
         "useDurablePipeline": settings.use_durable_pipeline,
@@ -1459,17 +1460,71 @@ def _jobs_report() -> dict[str, object]:
         engine.dispose()
 
 
+def _http_response_report(status_code: int, raw_body: bytes) -> dict[str, object]:
+    body = raw_body.decode("utf-8", errors="replace")
+    safe_body = redact_text(body)[:2000]
+    try:
+        payload: object | None = json.loads(body)
+        parse_state = "json"
+    except json.JSONDecodeError:
+        payload = None
+        parse_state = "malformed"
+    readiness_status = payload.get("status") if isinstance(payload, dict) else None
+    if status_code not in {200, 503}:
+        response_state = "HTTP_APPLICATION_FAILURE"
+    elif parse_state == "malformed":
+        response_state = "MALFORMED_RESPONSE"
+    elif readiness_status == "failed":
+        response_state = "NOT_READY"
+    elif status_code == 200 and readiness_status in {
+        "ok",
+        "degraded",
+        "optional_unavailable",
+    }:
+        response_state = "READY"
+    else:
+        response_state = "REACHABLE"
+    return {
+        "reachable": True,
+        "statusCode": status_code,
+        "responseState": response_state,
+        "parseState": parse_state,
+        "payload": payload,
+        "bodySnippet": safe_body,
+    }
+
+
 def _http_json(url: str) -> dict[str, object]:
     try:
         with urllib.request.urlopen(url, timeout=3) as response:  # noqa: S310 - loopback only
-            body = response.read().decode("utf-8", errors="replace")
-            try:
-                payload: object = json.loads(body)
-            except json.JSONDecodeError:
-                payload = body[:2000]
-            return {"reachable": True, "statusCode": response.status, "payload": payload}
+            return _http_response_report(response.status, response.read())
+    except urllib.error.HTTPError as exc:
+        # HTTPError still proves that the listener accepted and answered the
+        # request. Preserve that distinction and bounded, redacted evidence.
+        return _http_response_report(exc.code, exc.read())
     except (OSError, urllib.error.URLError) as exc:
-        return {"reachable": False, "error": redact_text(str(exc))}
+        return {
+            "reachable": False,
+            "statusCode": 0,
+            "responseState": "UNREACHABLE",
+            "parseState": "none",
+            "payload": None,
+            "bodySnippet": "",
+            "error": redact_text(str(exc)),
+        }
+
+
+def _core_diagnostic_boundary(core: object) -> str:
+    if not isinstance(core, dict):
+        return "CORE_ENDPOINT_UNREACHABLE"
+    return {
+        "HTTP_APPLICATION_FAILURE": "CORE_HTTP_APPLICATION_FAILURE",
+        "MALFORMED_RESPONSE": "CORE_READINESS_MALFORMED",
+        "NOT_READY": "CORE_READINESS_FAILED",
+        "READY": "CORE_READY",
+        "REACHABLE": "CORE_READINESS_MALFORMED",
+        "UNREACHABLE": "CORE_ENDPOINT_UNREACHABLE",
+    }.get(str(core.get("responseState")), "CORE_ENDPOINT_UNREACHABLE")
 
 
 def _prometheus_targets_report() -> dict[str, object]:
@@ -1526,7 +1581,9 @@ def _read_json_file(path: Path) -> object:
         return {"error": type(exc).__name__}
 
 
-def _diagnose(operation_id: str) -> dict[str, object]:
+def _diagnose(
+    operation_id: str, failure_context: dict[str, object] | None = None
+) -> dict[str, object]:
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     safe_operation = "".join(ch for ch in operation_id if ch.isalnum() or ch in "-_")[:64]
     bundle = ROOT / "artifacts" / "diagnostics" / f"lifecycle-{timestamp}-{safe_operation}"
@@ -1550,6 +1607,8 @@ def _diagnose(operation_id: str) -> dict[str, object]:
         "grafana-health.json": _http_json("http://127.0.0.1:3000/api/health"),
         "docker.json": _observability_report("status"),
     }
+    if failure_context is not None:
+        reports["lifecycle-failure.json"] = failure_context
     runtime_state = reports["runtime-state.json"]
     runtime_instance_id = (
         runtime_state.get("runtimeInstanceId") if isinstance(runtime_state, dict) else None
@@ -1599,14 +1658,7 @@ def _diagnose(operation_id: str) -> dict[str, object]:
     for name, path in log_paths.items():
         (bundle / name).write_text(redacted_tail(path), encoding="utf-8")
     core = reports["ready-core.json"]
-    likely = "CORE_RUNTIME_STOPPED_OR_UNREACHABLE"
-    if isinstance(core, dict) and core.get("reachable"):
-        payload = core.get("payload")
-        likely = (
-            "CORE_READY"
-            if isinstance(payload, dict) and payload.get("status") == "ok"
-            else "CORE_READINESS_FAILED"
-        )
+    likely = _core_diagnostic_boundary(core)
     summary = (
         "# SwingLens lifecycle diagnostic summary\n\n"
         f"- Operation ID: `{operation_id}`\n"
@@ -1726,6 +1778,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     journal.add_argument("--json", required=True)
     diagnose = subparsers.add_parser("diagnose")
     diagnose.add_argument("--operation-id", required=True)
+    diagnose.add_argument("--failure-json")
     launch = subparsers.add_parser("launch-runtime")
     launch.add_argument("--stdout", type=Path, required=True)
     launch.add_argument("--stderr", type=Path, required=True)
@@ -1772,7 +1825,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     elif args.command == "journal":
         report = _journal_report(args.json)
     elif args.command == "diagnose":
-        report = _diagnose(args.operation_id)
+        failure_context = json.loads(args.failure_json) if args.failure_json else None
+        report = _diagnose(args.operation_id, failure_context)
     elif args.command == "runtime-state":
         report = _runtime_state_report(args.listener_pid, for_shutdown=args.for_shutdown)
     elif args.command == "recover-runtime-state":

@@ -101,7 +101,7 @@ def test_readiness_probe_retries_transient_database_failure_and_logs_recovery() 
     result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
     assert result.returncode == 0, result.stderr
     output = result.stdout + result.stderr
-    assert "Transient readiness probe failure on attempt 1/3; retrying." in output
+    assert "Transient readiness probe failure (transient_not_ready) on attempt 1/3" in output
     assert "Readiness probe recovered on attempt 2/3." in output
     assert result.stdout.strip().endswith("degraded:2")
 
@@ -134,6 +134,67 @@ def test_readiness_probe_persistent_database_failure_exhausts_budget_and_fails_c
     output = result.stdout + result.stderr
     assert "exhausted the 3-attempt budget" in output
     assert result.stdout.strip().endswith("failed:3")
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_readiness_probe_treats_http_500_as_deterministic_application_failure() -> None:
+    command = _module_command(
+        "$script:calls=0; function Invoke-HttpProbe { $script:calls++; "
+        "[pscustomobject]@{Reachable=$true;StatusCode=500;Payload=$null;ParseState='json';"
+        "BodySnippet='internal failure';Error=''} }; "
+        "$probe=Get-ReadinessProbe -WebPort 8000; "
+        "$probe.Classification + ':' + $probe.Retryable + ':' + $script:calls"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "http_application_failure:False:1"
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_connection_refused_is_retryable_and_can_recover() -> None:
+    command = _module_command(
+        "$script:calls=0; function Invoke-HttpProbe { $script:calls++; "
+        "if ($script:calls -eq 1) { [pscustomobject]@{Reachable=$false;StatusCode=0;"
+        "Payload=$null;ParseState='none';BodySnippet='';Error='connection refused'} } else { "
+        "[pscustomobject]@{Reachable=$true;StatusCode=200;Payload=[pscustomobject]@{status='ok'};"
+        "ParseState='json';BodySnippet='';Error=''} } }; "
+        "$probe=Get-ReadinessProbe -WebPort 8000; "
+        "$probe.Classification + ':' + $script:calls"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().endswith("ready:2")
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_expired_parent_deadline_prevents_nested_probe_attempt() -> None:
+    command = _module_command(
+        "$script:calls=0; function Invoke-HttpProbe { $script:calls++; throw 'must not run' }; "
+        "$probe=Get-ReadinessProbe -WebPort 8000 -DeadlineUtc ([DateTime]::UtcNow.AddSeconds(-1)); "
+        "$probe.Classification + ':' + $script:calls"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "deadline_exhausted:0"
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_start_timeout_is_structured_and_records_retained_generation() -> None:
+    command = _module_command(
+        "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000};coreReadinessTimeoutSeconds=0}; "
+        "function Get-ValidatedRuntime { $null }; function Save-WebRuntimeState {}; "
+        "function Invoke-LifecycleProbe { [pscustomobject]@{runtimeInstanceId='generation-1';"
+        "pid=4101;supervisorPid=4102;processGroupPid=4103;launcherPid=4104;"
+        "createdAt=[DateTime]::UtcNow;launcherCreatedAt=[DateTime]::UtcNow} }; "
+        "try { $null=Start-SwingLensWeb -Config $cfg } catch { "
+        "(Get-LifecycleExceptionReasonCode -Exception $_.Exception) + ':' + "
+        "$_.Exception.Data['runtime_retained'] + ':' + "
+        "$_.Exception.Data['runtime_instance_id'] + ':' + "
+        "$_.Exception.Data['web_pid'] }"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "CORE_READINESS_TIMEOUT:True:generation-1:4101"
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
@@ -419,6 +480,62 @@ def test_status_reports_dead_stale_generation_as_stopped_without_mutation(tmp_pa
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "STOPPED:True:True"
     assert state_path.is_file()
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_status_separates_web_reachability_from_core_readiness(tmp_path) -> None:
+    missing_state = str(tmp_path / "missing-state.json").replace("'", "''")
+    command = _module_command(
+        f"$script:RuntimeStatePath='{missing_state}'; "
+        "$cfg=[pscustomobject]@{web=[pscustomobject]@{port=8000}}; "
+        "function Get-WebOwner { [pscustomobject]@{ProcessId=444} }; "
+        "function Test-DockerEngine { $false }; "
+        "function Get-ReadinessProbe { [pscustomobject]@{Reachable=$true;StatusCode=500;"
+        "Classification='http_application_failure';Payload=$null} }; "
+        "function Get-ApplicationReadinessProbe { "
+        "[pscustomobject]@{Reachable=$false;Payload=$null} }; "
+        "function Invoke-LifecycleProbe { param($Command,$Arguments); switch ($Command) { "
+        "'database' { [pscustomobject]@{reachable=$true;schemaAtHead=$true} } "
+        "'runtime-state' { [pscustomobject]@{valid=$true;conflict=$false;runtimeActive=$true;"
+        "stale=$false;classification='VALID';state=[pscustomobject]@{runtimeInstanceId='g1'}} } "
+        "'prometheus-targets' { [pscustomobject]@{allUp=$false} } "
+        "'processes' { [pscustomobject]@{processes=@()} } "
+        "'jobs' { [pscustomobject]@{activeCount=0;active=@()} } } }; "
+        "$status=Get-SwingLensStatusReport -Config $cfg; "
+        "$status.WebReachable.ToString() + ':' + $status.CoreReady.ToString() + ':' + "
+        "$status.WebReady.ToString() + ':' + $status.Overall"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "True:False:False:FAILED"
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+def test_terminal_failure_is_journaled_before_diagnostic_bundle() -> None:
+    command = _module_command(
+        "$script:events=@(); function Get-GitCommit { 'sha' }; "
+        "function Get-LifecycleConfig { [pscustomobject]@{lockTimeoutSeconds=1} }; "
+        "function Set-CanonicalLifecycleEnvironment {}; function Set-RuntimeGeneration {}; "
+        "function Invoke-WithLifecycleLock { param($Action,$TimeoutSeconds,$Body); & $Body }; "
+        "function Start-SwingLensStack { throw (New-LifecycleFailureException "
+        "-ReasonCode 'CORE_READINESS_TIMEOUT' -Message 'timeout' -Details @{runtime_retained=$true;"
+        "runtime_instance_id='g1';web_pid=4101;supervisor_pid=4102;process_group_pid=4103}) }; "
+        "function Write-LifecycleJournal { param($Action,$Stage,$Event,$Result,$ReasonCode,"
+        "$DurationMs,$Message,$Details); $script:events += $Event }; "
+        "function New-LifecycleDiagnosticBundle { param($FailureContext); "
+        "$script:events += 'bundle'; 'diagnostics/path' }; "
+        "try { $null=Invoke-SwingLensLifecycle -Action start } catch { "
+        "$script:detail=$_.Exception.Message }; $script:events -join ','; $script:detail"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.strip().splitlines()
+    assert lines[0] == "operation_begin,partial_start_runtime_retained,operation_complete,bundle"
+    assert "reason_code=CORE_READINESS_TIMEOUT" in lines[1]
+    assert (
+        "runtime_retained=true runtime_instance_id=g1 web_pid=4101 supervisor_pid=4102"
+        in lines[1]
+    )
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")

@@ -31,8 +31,8 @@ from app.services.redaction import redact_text
 from app.services.supervisor_registry import live_supervisors
 from app.services.worker_registry import (
     has_live_worker_for_job,
+    live_worker_readiness_snapshots,
     live_workers,
-    worker_infrastructure_degraded,
 )
 from app.settings import ProcessRole, RuntimeMode, Settings
 
@@ -233,15 +233,12 @@ class ReadinessService:
             return ReadinessCheck(True, "not required")
         try:
             with Session(self.engine) as session:
-                rows = [
-                    row
-                    for row in live_workers(
-                        session,
-                        heartbeat_timeout_seconds=self.settings.job_worker_heartbeat_timeout_seconds,
-                        now=self.now,
-                    )
-                    if row.worker_id == self.settings.job_worker_id
-                ]
+                rows = live_worker_readiness_snapshots(
+                    session,
+                    heartbeat_timeout_seconds=self.settings.job_worker_heartbeat_timeout_seconds,
+                    now=self.now,
+                    worker_id=self.settings.job_worker_id,
+                )
         except SQLAlchemyError as exc:
             return ReadinessCheck(False, _safe_message(exc))
         if len(rows) != 1:
@@ -249,7 +246,7 @@ class ReadinessService:
         row = rows[0]
         if not process_is_alive(row.process_id, row.process_started_at):
             return ReadinessCheck(False, "WORKER_PROCESS_IDENTITY_INVALID")
-        if worker_infrastructure_degraded(row):
+        if row.infrastructure_degraded:
             return ReadinessCheck(
                 False,
                 f"WORKER_INFRASTRUCTURE_DEGRADED:{row.telemetry_status}",

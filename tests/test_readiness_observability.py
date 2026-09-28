@@ -6,11 +6,22 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import Response
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, select
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import DetachedInstanceError
 
+from app.models.tables import BackgroundWorker
 from app.routers import health_routes
 from app.services.readiness_service import ReadinessCheck, ReadinessReport, ReadinessService
+from app.services.worker_registry import WorkerReadinessSnapshot
 from app.settings import RuntimeMode, Settings
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_for_sqlite(_type, _compiler, **_kwargs):
+    return "JSON"
 
 
 @pytest.fixture(autouse=True)
@@ -254,10 +265,10 @@ def test_core_readiness_tracks_missing_degraded_and_recovered_durable_worker(
 
     service = _service(tmp_path)
     service.settings.use_durable_pipeline = True
-    rows: list[SimpleNamespace] = []
+    rows: list[WorkerReadinessSnapshot] = []
     monkeypatch.setattr("app.services.readiness_service.Session", lambda _engine: FakeSession())
     monkeypatch.setattr(
-        "app.services.readiness_service.live_workers",
+        "app.services.readiness_service.live_worker_readiness_snapshots",
         lambda *_args, **_kwargs: rows,
     )
     monkeypatch.setattr(
@@ -270,7 +281,7 @@ def test_core_readiness_tracks_missing_degraded_and_recovered_durable_worker(
     assert missing.message == "EXPECTED_ONE_DURABLE_WORKER:found=0"
 
     rows.append(
-        SimpleNamespace(
+        WorkerReadinessSnapshot(
             worker_id=service.settings.job_worker_id,
             process_id=8820,
             process_started_at=service.now,
@@ -281,10 +292,72 @@ def test_core_readiness_tracks_missing_degraded_and_recovered_durable_worker(
     assert degraded.ok is False
     assert degraded.message.startswith("WORKER_INFRASTRUCTURE_DEGRADED:")
 
-    rows[0].telemetry_status = "OK"
+    rows[0] = WorkerReadinessSnapshot(
+        worker_id=service.settings.job_worker_id,
+        process_id=8820,
+        process_started_at=service.now,
+        telemetry_status="OK",
+    )
     healthy = service._core_worker_check()
     assert healthy.ok is True
     assert healthy.message == "live:8820"
+
+
+def test_core_worker_readiness_projects_deferred_state_before_session_close(
+    tmp_path, monkeypatch
+) -> None:
+    """Reproduce the production deferred-field boundary using the real ORM mapping."""
+
+    now = datetime.now(UTC)
+    database_path = tmp_path / "readiness.sqlite3"
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    BackgroundWorker.__table__.create(engine)
+    worker_id = "forensic-worker"
+    with Session(engine) as session:
+        session.add(
+            BackgroundWorker(
+                worker_id=worker_id,
+                queues_json=["default"],
+                hostname="localhost",
+                process_id=8820,
+                instance_id="instance-forensic",
+                process_started_at=now,
+                started_at=now,
+                heartbeat_at=now,
+                telemetry_status="OK",
+            )
+        )
+        session.commit()
+
+    # Prove the exact former failure mode: an ordinary entity query leaves the
+    # deferred column unloaded and it cannot be accessed after session close.
+    with Session(engine) as session:
+        detached = session.scalars(
+            select(BackgroundWorker).where(BackgroundWorker.worker_id == worker_id)
+        ).one()
+        assert "telemetry_status" in inspect(detached).unloaded
+    with pytest.raises(DetachedInstanceError):
+        _ = detached.telemetry_status
+
+    settings = Settings(
+        _env_file=None,
+        database_url=f"sqlite+pysqlite:///{database_path}",
+        upload_dir=tmp_path / "uploads",
+        export_dir=tmp_path / "exports",
+        cache_dir=tmp_path / "cache",
+        db_monitor_log_dir=tmp_path / "logs",
+        use_durable_pipeline=True,
+        job_worker_id=worker_id,
+    )
+    service = ReadinessService(engine=engine, settings=settings, now=now)
+    monkeypatch.setattr(
+        "app.services.readiness_service.process_is_alive", lambda *_args, **_kwargs: True
+    )
+
+    check = service._core_worker_check()
+
+    assert check.ok is True
+    assert check.message == "live:8820"
 
 
 def test_resource_collector_dead_and_supervisor_missing(tmp_path, monkeypatch) -> None:
@@ -349,6 +422,38 @@ def test_ready_http_status_is_200_for_degraded_and_503_for_failed(tmp_path, monk
         payload = health_routes.ready(response)
         assert response.status_code == expected_http
         assert payload.status == state
+
+
+def test_ready_core_success_path_returns_http_200(tmp_path, monkeypatch) -> None:
+    settings = _service(tmp_path).settings
+    checks = {
+        name: ReadinessCheck(True, "ok")
+        for name in (
+            "database",
+            "database_provenance",
+            "migrations",
+            "storage",
+            "supervisor",
+            "web",
+            "worker",
+            "topology",
+            "metrics_listeners",
+        )
+    }
+    report = ReadinessReport(status="ok", checks=checks)
+    monkeypatch.setattr(health_routes, "get_settings", lambda: settings)
+    monkeypatch.setattr(
+        health_routes,
+        "ReadinessService",
+        lambda **_kwargs: SimpleNamespace(core_report=lambda: report),
+    )
+
+    response = Response()
+    payload = health_routes.ready_core(response)
+
+    assert response.status_code == 200
+    assert payload.status == "ok"
+    assert payload.worker_ok is True
 
 
 def test_worker_critical_memory_is_not_ready(tmp_path, monkeypatch) -> None:

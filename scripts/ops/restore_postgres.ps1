@@ -53,7 +53,9 @@ if ($LASTEXITCODE -ne 0) {
 
 if ([string]::IsNullOrWhiteSpace($ExpectedEvidenceManifest)) {
     $backupBaseName = [System.IO.Path]::GetFileNameWithoutExtension($BackupPath)
-    $candidateManifest = Join-Path (Split-Path $BackupPath -Parent) "$backupBaseName.evidence.json"
+    $backupParent = Split-Path $BackupPath -Parent
+    if ([string]::IsNullOrWhiteSpace($backupParent)) { $backupParent = "." }
+    $candidateManifest = Join-Path $backupParent "$backupBaseName.evidence.json"
     if (Test-Path $candidateManifest) {
         $ExpectedEvidenceManifest = $candidateManifest
     }

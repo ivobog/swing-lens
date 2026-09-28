@@ -374,9 +374,17 @@ def test_diagnostic_bundle_manifest_and_secret_scan(monkeypatch, tmp_path) -> No
     lifecycle_log.parent.mkdir(parents=True)
     lifecycle_log.write_text("token=api-secret\n", encoding="utf-8")
 
-    report = lifecycle_probe._diagnose("unit-operation")
+    report = lifecycle_probe._diagnose(
+        "unit-operation",
+        {
+            "reason_code": "CORE_READINESS_HTTP_ERROR",
+            "message": 'password="failure-secret"',
+        },
+    )
     bundle = Path(report["bundle"])
     assert (bundle / "SUMMARY.md").is_file()
+    failure = json.loads((bundle / "lifecycle-failure.json").read_text(encoding="utf-8"))
+    assert failure["reason_code"] == "CORE_READINESS_HTTP_ERROR"
     manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
     assert "SUMMARY.md" in manifest["files"]
     assert "shutdown-request.json" in manifest["files"]

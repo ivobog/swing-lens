@@ -52,6 +52,8 @@ catch {
     if ($message -notmatch 'operation_id=') {
         $message += (' operation_id={0}' -f $env:SWINGLENS_LIFECYCLE_OPERATION_ID)
     }
-    Write-Error $message
+    # Emit only the lifecycle error. Write-Error would prepend this wrapper's
+    # source line and obscure the authoritative reason code and operation ID.
+    [Console]::Error.WriteLine($message)
     exit 1
 }

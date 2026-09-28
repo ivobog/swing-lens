@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import socket
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -18,6 +19,22 @@ from app.services.background_queue import job_queue_class, normalize_worker_queu
 from app.services.process_identity import process_started_at
 
 WORKER_INFRASTRUCTURE_DEGRADED_PREFIX = "INFRASTRUCTURE_DEGRADED:"
+
+
+@dataclass(frozen=True)
+class WorkerReadinessSnapshot:
+    """Session-independent projection of the fields required by core readiness."""
+
+    worker_id: str
+    process_id: int | None
+    process_started_at: datetime | None
+    telemetry_status: str | None
+
+    @property
+    def infrastructure_degraded(self) -> bool:
+        return str(self.telemetry_status or "").startswith(
+            WORKER_INFRASTRUCTURE_DEGRADED_PREFIX
+        )
 
 
 def worker_infrastructure_degraded(worker: BackgroundWorker) -> bool:
@@ -346,6 +363,37 @@ def live_workers(
             .order_by(BackgroundWorker.worker_id)
         ).all()
     )
+
+
+def live_worker_readiness_snapshots(
+    db: Session,
+    *,
+    heartbeat_timeout_seconds: int,
+    now: datetime | None = None,
+    worker_id: str | None = None,
+) -> list[WorkerReadinessSnapshot]:
+    """Return immutable readiness data without leaking ORM entities past the session."""
+
+    observed_at = now or datetime.now(UTC)
+    threshold = observed_at - timedelta(seconds=heartbeat_timeout_seconds)
+    statement = (
+        select(
+            BackgroundWorker.worker_id,
+            BackgroundWorker.process_id,
+            BackgroundWorker.process_started_at,
+            # Explicit scalar projection loads this column even though the ORM
+            # mapping deliberately marks it deferred for ordinary entity reads.
+            BackgroundWorker.telemetry_status,
+        )
+        .where(BackgroundWorker.stopping_at.is_(None))
+        .where(BackgroundWorker.heartbeat_at >= threshold)
+        .where(BackgroundWorker.instance_id.is_not(None))
+        .where(BackgroundWorker.process_started_at.is_not(None))
+        .order_by(BackgroundWorker.worker_id)
+    )
+    if worker_id is not None:
+        statement = statement.where(BackgroundWorker.worker_id == worker_id)
+    return [WorkerReadinessSnapshot(*row) for row in db.execute(statement).all()]
 
 
 def has_live_worker_for_job(

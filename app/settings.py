@@ -115,6 +115,7 @@ class Settings(BaseSettings):
     swinglens_manage_postgres: bool = False
     swinglens_migration_timeout_seconds: int = Field(default=120, ge=10, le=1800)
     swinglens_lifecycle_lock_timeout_seconds: int = Field(default=10, ge=1, le=300)
+    swinglens_core_readiness_timeout_seconds: int = Field(default=90, ge=5, le=600)
     swinglens_observability_timeout_seconds: int = Field(default=90, ge=5, le=600)
     db_monitor_enabled: bool = True
     db_monitor_slow_query_ms: float = Field(default=100.0, ge=0)

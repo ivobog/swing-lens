@@ -20,7 +20,9 @@ with `pwsh .\swinglens.ps1 status` before taking a backup.
 
 Requirements:
 
-- PostgreSQL client tools on `PATH` (`pg_dump`, `pg_restore`, and `psql`).
+- A compatible `pg_dump`; the backup script discovers it from `-PostgresBin`, `PATH`, or the
+  installed PostgreSQL major-version directory. The restore script does not yet reuse that
+  discovery and still requires `pg_restore` or `psql` on `PATH`.
 - `DATABASE_URL` points at the source SwingLens database.
 - A secure destination for backup artifacts.
 
@@ -62,7 +64,10 @@ $env:RESTORE_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5432
 ```
 
 The restore target must be clean or disposable. Do not point `RESTORE_DATABASE_URL` at the active
-production/research database.
+production/research database. **Current safety limitation:** the restore script passes `--clean`
+to `pg_restore` but does not independently prove disposable-target authority. Until that guard is
+implemented, treat the command as privileged/destructive: inspect the exact redacted target,
+confirm it is a separately created restore database, and never run it against `swinglens`.
 
 ## Validation Gate
 
