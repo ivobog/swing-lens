@@ -991,6 +991,10 @@ def execute_job(
 
 
 def default_job_handlers() -> dict[str, JobHandler]:
+    from app.services.ceri.feature_certification_workflow import (
+        CERI_FEATURE_CERTIFICATION_ROOT_JOB_TYPE,
+        execute_ceri_feature_certification_job,
+    )
     from app.services.ceri.job_handlers import implemented_ceri_job_handlers
     from app.services.ceri.sec.readiness_repair import SEC_READINESS_REPAIR_JOB_TYPE
     from app.services.ib_fetch_job_service import IB_FETCH_JOB_TYPE, execute_durable_fetch_job
@@ -1006,6 +1010,7 @@ def default_job_handlers() -> dict[str, JobHandler]:
 
     return {
         "FULL_PIPELINE": _execute_full_pipeline_job,
+        CERI_FEATURE_CERTIFICATION_ROOT_JOB_TYPE: execute_ceri_feature_certification_job,
         "WORKER_RECOVERY_PROBE": _execute_worker_recovery_probe,
         IB_FETCH_JOB_TYPE: execute_durable_fetch_job,
         SEC_READINESS_REPAIR_JOB_TYPE: _execute_sec_readiness_repair_job,

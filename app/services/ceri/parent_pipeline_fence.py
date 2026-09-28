@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 from app.models.tables import BackgroundJob, PipelineRun
 from app.services.pipeline_prerequisites import CeriParentPipelineTerminalError
 
-TERMINAL_PIPELINE_STATUSES = frozenset({"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"})
+TERMINAL_PIPELINE_STATUSES = frozenset(
+    {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED", "FEATURE_CERTIFIED"}
+)
+PIPELINE_OWNED_CERI_WORKFLOW_PREFIXES = (
+    "ceri:pipeline:",
+    "ceri:feature-certification:",
+)
 
 
 def require_parent_pipeline_active(
@@ -26,7 +32,10 @@ def require_parent_pipeline_active(
     payload = dict(job.payload_json or {})
     workflow_key = str(payload.get("workflow_key") or job.workflow_key or "")
     pipeline_id = payload.get("pipeline_run_id")
-    if not workflow_key.startswith("ceri:pipeline:") or pipeline_id in (None, ""):
+    if not workflow_key.startswith(PIPELINE_OWNED_CERI_WORKFLOW_PREFIXES) or pipeline_id in (
+        None,
+        "",
+    ):
         return None
     statement = select(PipelineRun).where(PipelineRun.id == int(pipeline_id))
     if lock_for_checkpoint:

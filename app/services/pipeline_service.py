@@ -50,7 +50,14 @@ PIPELINE_STEP_NAMES = (
     "CAPTURING_WINNER_PREDICTIONS",
 )
 
-PIPELINE_TERMINAL_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"}
+PIPELINE_TERMINAL_STATUSES = {
+    "COMPLETED",
+    "PARTIAL",
+    "FAILED",
+    "BLOCKED",
+    "CANCELLED",
+    "FEATURE_CERTIFIED",
+}
 
 
 class MarketDataPolicy(StrEnum):
@@ -73,6 +80,8 @@ class PipelineStatus:
     FREEZING_DECISION_HANDOFF_MANIFEST = DECISION_HANDOFF_PIPELINE_STEP
     CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
     WAITING_FOR_CERI_COMPLETION = "WAITING_FOR_CERI_COMPLETION"
+    CERI_FEATURE_CERTIFYING = "CERI_FEATURE_CERTIFYING"
+    FEATURE_CERTIFIED = "FEATURE_CERTIFIED"
     CERI_CAPTURE_SNAPSHOT = "CERI_CAPTURE_SNAPSHOT"
     CAPTURING_SETUP_SIGNALS = "CAPTURING_SETUP_SIGNALS"
     EVALUATING_SETUP_LIFECYCLES = "EVALUATING_SETUP_LIFECYCLES"
@@ -1051,14 +1060,22 @@ def roll_up_ceri_pipeline_job_failure(db: Session, job: BackgroundJob) -> None:
     payload = job.payload_json or {}
     pipeline_id = payload.get("pipeline_run_id")
     workflow_key = str(job.workflow_key or payload.get("workflow_key") or "")
-    if pipeline_id is None or not workflow_key.startswith("ceri:pipeline:"):
+    if pipeline_id is None or not workflow_key.startswith(
+        ("ceri:pipeline:", "ceri:feature-certification:")
+    ):
         return
     pipeline = db.scalar(
         select(PipelineRun).where(PipelineRun.id == int(pipeline_id)).with_for_update()
     )
     if pipeline is None or pipeline.status in PIPELINE_TERMINAL_STATUSES:
         return
-    if (pipeline.result_json or {}).get("ceri_provider_workflow_key") != workflow_key:
+    retained = pipeline.result_json or {}
+    expected_workflow_key = (
+        retained.get("feature_certification_workflow_key")
+        if workflow_key.startswith("ceri:feature-certification:")
+        else retained.get("ceri_provider_workflow_key")
+    )
+    if expected_workflow_key != workflow_key:
         return
     _roll_up_ceri_pipeline_failure(
         db,
@@ -1082,20 +1099,46 @@ def _roll_up_ceri_pipeline_failure(
     partial_only = bool(details) and all(row["status"] == JobStatus.PARTIAL for row in details)
     pipeline.status = PipelineStatus.PARTIAL if partial_only else PipelineStatus.FAILED
     pipeline.completed_at = _utcnow()
-    pipeline.message = "Required CERI provider workflow did not complete successfully."
-    pipeline.error_message = reason or "CERI_PROVIDER_WORKFLOW_FAILED"
+    feature_certification = workflow_key.startswith("ceri:feature-certification:")
+    pipeline.message = (
+        "CERI feature-only certification did not complete successfully."
+        if feature_certification
+        else "Required CERI provider workflow did not complete successfully."
+    )
+    pipeline.error_message = reason or (
+        "CERI_FEATURE_CERTIFICATION_FAILED"
+        if feature_certification
+        else "CERI_PROVIDER_WORKFLOW_FAILED"
+    )
     pipeline.result_json = {
         **(pipeline.result_json or {}),
         "ceri_completion_state": "FAILED",
-        "ceri_provider_workflow_key": workflow_key,
+        **(
+            {
+                "feature_certification_state": "FAILED",
+                "feature_certification_workflow_key": workflow_key,
+            }
+            if feature_certification
+            else {"ceri_provider_workflow_key": workflow_key}
+        ),
         "ceri_failure_jobs": details,
-        "ceri_failure_reason": reason or "CERI_PROVIDER_WORKFLOW_FAILED",
+        "ceri_failure_reason": reason
+        or (
+            "CERI_FEATURE_CERTIFICATION_FAILED"
+            if feature_certification
+            else "CERI_PROVIDER_WORKFLOW_FAILED"
+        ),
     }
     step = next(
         (
             row
             for row in _load_pipeline_steps(db, pipeline.id)
-            if row.step_name == CERI_PIPELINE_PROVIDER_INGEST_STEP
+            if row.step_name
+            == (
+                "CERI_FEATURE_CERTIFICATION"
+                if feature_certification
+                else CERI_PIPELINE_PROVIDER_INGEST_STEP
+            )
         ),
         None,
     )
@@ -1104,6 +1147,12 @@ def _roll_up_ceri_pipeline_failure(
         step.completed_at = pipeline.completed_at
         step.message = pipeline.message
         step.error_message = pipeline.error_message
+    if feature_certification:
+        upload_run = db.get(UploadRun, pipeline.upload_run_id)
+        if upload_run is not None:
+            upload_run.status = PipelineStatus.FAILED
+            upload_run.processed_at = pipeline.completed_at
+            upload_run.error_message = pipeline.error_message
     _block_queued_ceri_siblings(
         db,
         workflow_key=workflow_key,
@@ -1144,9 +1193,17 @@ def _block_queued_ceri_siblings(
     for sibling in siblings:
         if sibling.id in failed_job_ids:
             continue
-        sibling.status = JobStatus.BLOCKED
+        certification_root_failed = (
+            workflow_key.startswith("ceri:feature-certification:")
+            and sibling.job_type == "CERI_FEATURE_CERTIFICATION"
+        )
+        sibling.status = JobStatus.FAILED if certification_root_failed else JobStatus.BLOCKED
         sibling.completed_at = completed_at
-        sibling.error_message = "Authoritative parent pipeline is terminal."
+        sibling.error_message = (
+            "Required feature-certification child failed."
+            if certification_root_failed
+            else "Authoritative parent pipeline is terminal."
+        )
         sibling.locked_at = None
         sibling.heartbeat_at = None
         sibling.lease_expires_at = None
@@ -1156,8 +1213,12 @@ def _block_queued_ceri_siblings(
         sibling.execution_token = None
         sibling.result_json = {
             **(sibling.result_json or {}),
-            "status": JobStatus.BLOCKED,
-            "reason_code": "CERI_PARENT_PIPELINE_TERMINAL",
+            "status": sibling.status,
+            "reason_code": (
+                "CERI_FEATURE_CERTIFICATION_CHILD_FAILED"
+                if certification_root_failed
+                else "CERI_PARENT_PIPELINE_TERMINAL"
+            ),
             "diagnostics": {
                 "pipeline_run_id": pipeline_id,
                 "failed_job_ids": sorted(failed_job_ids),

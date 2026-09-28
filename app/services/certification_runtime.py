@@ -16,6 +16,17 @@ CERTIFICATION_AUTHORIZATION_KEY = "certification_authorized"
 CERTIFICATION_PLAN_KEY = "transition_preflight_plan_id"
 CERTIFICATION_SESSION_KEY = "certification_session_id"
 CERTIFICATION_ROOT_JOB_TYPE = "FULL_PIPELINE"
+CERI_FEATURE_CERTIFICATION_ROOT_JOB_TYPE = "CERI_FEATURE_CERTIFICATION"
+CERTIFICATION_ROOT_JOB_TYPES = (
+    CERTIFICATION_ROOT_JOB_TYPE,
+    CERI_FEATURE_CERTIFICATION_ROOT_JOB_TYPE,
+)
+CERI_FEATURE_CERTIFICATION_CONTRACT_VERSION = "ceri-feature-certification-v1"
+CERI_FEATURE_CERTIFICATION_STOP_BOUNDARY = "FEATURE_ONLY"
+CERI_FEATURE_CERTIFICATION_MAX_TICKERS = 2
+CERI_FEATURE_CERTIFICATION_ALLOWED_PROVIDER_DATASETS = {
+    "eodhd": ("earnings", "estimates"),
+}
 CERTIFICATION_ACTIVE_ROOT_STATUSES = (
     "QUEUED",
     "RECOVERING",
@@ -103,6 +114,21 @@ def certification_root_payload(
     }
 
 
+def ceri_feature_certification_root_payload(
+    *, settings: Settings | None = None, session_id: str | None = None
+) -> dict[str, Any]:
+    """Return the explicit capability marker for the bounded feature-only root."""
+
+    return {
+        CERTIFICATION_AUTHORIZATION_KEY: True,
+        CERTIFICATION_SESSION_KEY: require_certification_session_id(
+            settings, session_id=session_id
+        ),
+        "certification_contract_version": CERI_FEATURE_CERTIFICATION_CONTRACT_VERSION,
+        "stop_boundary": CERI_FEATURE_CERTIFICATION_STOP_BOUNDARY,
+    }
+
+
 def require_enqueue_authorized(
     db: Session,
     *,
@@ -152,7 +178,7 @@ def certification_claim_filter(*, session_id: str) -> Any:
         _payload_session_expression(required_session),
     )
     active_roots = select(BackgroundJob.root_correlation_id).where(
-        BackgroundJob.job_type == CERTIFICATION_ROOT_JOB_TYPE,
+        BackgroundJob.job_type.in_(CERTIFICATION_ROOT_JOB_TYPES),
         _payload_authorized_expression(),
         _payload_session_expression(required_session),
         BackgroundJob.root_correlation_id.is_not(None),
@@ -163,7 +189,7 @@ def certification_claim_filter(*, session_id: str) -> Any:
             exact_session,
             or_(
                 and_(
-                    BackgroundJob.job_type == CERTIFICATION_ROOT_JOB_TYPE,
+                    BackgroundJob.job_type.in_(CERTIFICATION_ROOT_JOB_TYPES),
                     BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
                 ),
                 BackgroundJob.root_correlation_id.in_(active_roots),
@@ -256,7 +282,7 @@ def certification_recovery_filter(*, session_id: str) -> Any:
     """
     required_session = require_certification_session_id(session_id=session_id)
     recoverable_roots = select(BackgroundJob.root_correlation_id).where(
-        BackgroundJob.job_type == CERTIFICATION_ROOT_JOB_TYPE,
+        BackgroundJob.job_type.in_(CERTIFICATION_ROOT_JOB_TYPES),
         _payload_authorized_expression(),
         _payload_session_expression(required_session),
         BackgroundJob.root_correlation_id.is_not(None),
@@ -295,6 +321,9 @@ def effective_runtime_configuration(settings: Settings) -> dict[str, Any]:
             list(CERTIFICATION_ALLOWED_CONTROL_ACTIVITY) if certification else []
         ),
         "authorized_root_job_type": (CERTIFICATION_ROOT_JOB_TYPE if certification else None),
+        "authorized_root_job_types": (
+            list(CERTIFICATION_ROOT_JOB_TYPES) if certification else []
+        ),
         "certification_session_id": (
             getattr(settings, "runtime_instance_id", None) if certification else None
         ),
@@ -304,12 +333,73 @@ def effective_runtime_configuration(settings: Settings) -> dict[str, Any]:
 def _is_authorized_root(
     job_type: str, payload: dict[str, Any], *, session_id: str
 ) -> bool:
-    return (
-        job_type == CERTIFICATION_ROOT_JOB_TYPE
-        and payload.get(CERTIFICATION_AUTHORIZATION_KEY) is True
-        and isinstance(payload.get(CERTIFICATION_PLAN_KEY), int)
-        and int(payload[CERTIFICATION_PLAN_KEY]) > 0
+    common = (
+        payload.get(CERTIFICATION_AUTHORIZATION_KEY) is True
         and payload.get(CERTIFICATION_SESSION_KEY) == session_id
+    )
+    if job_type == CERTIFICATION_ROOT_JOB_TYPE:
+        return bool(
+            common
+            and isinstance(payload.get(CERTIFICATION_PLAN_KEY), int)
+            and int(payload[CERTIFICATION_PLAN_KEY]) > 0
+        )
+    if job_type == CERI_FEATURE_CERTIFICATION_ROOT_JOB_TYPE:
+        return bool(common and _valid_ceri_feature_certification_contract(payload))
+    return False
+
+
+def _valid_ceri_feature_certification_contract(payload: dict[str, Any]) -> bool:
+    tickers = payload.get("tickers")
+    provider_datasets = payload.get("provider_datasets")
+    prohibited_permissions = (
+        "allow_score_capture",
+        "allow_change_detection",
+        "allow_alerts",
+        "allow_setup_publication",
+        "allow_winner_publication",
+        "allow_lifecycle_publication",
+        "allow_downstream_continuation",
+    )
+    required_text = (
+        "request_key",
+        "configuration_identity",
+        "cutoff_at",
+        "as_of_session",
+        "calendar_version",
+        "scope_id",
+        "refresh_cycle_id",
+        "acquisition_plan_id",
+    )
+    return (
+        payload.get("certification_contract_version")
+        == CERI_FEATURE_CERTIFICATION_CONTRACT_VERSION
+        and payload.get("stop_boundary") == CERI_FEATURE_CERTIFICATION_STOP_BOUNDARY
+        and isinstance(tickers, list)
+        and len(tickers) == CERI_FEATURE_CERTIFICATION_MAX_TICKERS
+        and len(set(tickers)) == len(tickers)
+        and tickers == sorted(tickers)
+        and all(
+            isinstance(ticker, str)
+            and ticker == ticker.upper()
+            and ticker.replace(".", "").replace("-", "").isalnum()
+            for ticker in tickers
+        )
+        and provider_datasets
+        == {
+            provider: list(datasets)
+            for provider, datasets in CERI_FEATURE_CERTIFICATION_ALLOWED_PROVIDER_DATASETS.items()
+        }
+        and payload.get("checkpoint_interval") == 1
+        and payload.get("feature_batch_count") == 1
+        and all(
+            isinstance(payload.get(key), int) and int(payload[key]) > 0
+            for key in ("run_id", "pipeline_run_id", "calculation_context_id")
+        )
+        and all(isinstance(payload.get(key), str) and payload[key] for key in required_text)
+        and str(payload.get("workflow_key") or "").startswith(
+            "ceri:feature-certification:"
+        )
+        and all(payload.get(permission) is False for permission in prohibited_permissions)
     )
 
 
@@ -345,14 +435,14 @@ def _payload_session_expression(session_id: str) -> Any:
 
 def _inactive_authorized_descendant_expression() -> Any:
     inactive_roots = select(BackgroundJob.root_correlation_id).where(
-        BackgroundJob.job_type == CERTIFICATION_ROOT_JOB_TYPE,
+        BackgroundJob.job_type.in_(CERTIFICATION_ROOT_JOB_TYPES),
         _payload_authorized_expression(),
         BackgroundJob.root_correlation_id.is_not(None),
         ~BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
     )
     return func.coalesce(
         and_(
-            BackgroundJob.job_type != CERTIFICATION_ROOT_JOB_TYPE,
+            ~BackgroundJob.job_type.in_(CERTIFICATION_ROOT_JOB_TYPES),
             BackgroundJob.root_correlation_id.in_(inactive_roots),
         ),
         False,

@@ -782,6 +782,24 @@
       ]
     },
     {
+      "job_type": "CERI_FEATURE_CERTIFICATION",
+      "creators": [
+        "app/services/ceri/feature_certification_workflow.py:admit_ceri_feature_certification"
+      ],
+      "handler": "app.services.ceri.feature_certification_workflow.execute_ceri_feature_certification_job",
+      "subsystem": "ceri",
+      "retry": "NO_ROOT_RETRY_CHILDREN_BOUNDED",
+      "cancellation": "COOPERATIVE",
+      "recovery": "SAME_ROW_OR_IDEMPOTENT_REPLAY",
+      "modes": {
+        "NORMAL": "DISABLED",
+        "CERTIFICATION": "SESSION_SCOPED"
+      },
+      "tests": [
+        "tests/test_ceri_feature_certification.py"
+      ]
+    },
+    {
       "job_type": "CERI_NORMALIZE",
       "creators": [
         "app/services/ceri/job_handlers.py:_enqueue_normalize_job"
@@ -1600,6 +1618,20 @@
       ]
     },
     {
+      "table": "ceri_feature_source_manifests",
+      "model": "app.models.ceri_tables.CeriFeatureSourceManifest",
+      "domain": "CERI immutable calculation authority",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-074"
+      ],
+      "authority": "FEATURE_BATCH_CALCULATION_CONTEXT_RETRY_AUTHORITY",
+      "transaction_family": "TX-27_MANIFEST_BEFORE_FEATURE_OUTPUT",
+      "tests": [
+        "tests/test_ceri_architecture_registry.py"
+      ]
+    },
+    {
       "table": "ceri_guidance_events",
       "model": "app.models.ceri_tables.CeriGuidanceEvent",
       "domain": "CERI",
@@ -2216,7 +2248,8 @@
         "WRITE-003",
         "WRITE-004",
         "WRITE-007",
-        "WRITE-008"
+        "WRITE-008",
+        "WRITE-075"
       ],
       "authority": "REGISTERED_WRITER_AUTHORITY",
       "transaction_family": "REGISTERED_WRITER_BOUNDARY",
@@ -2234,7 +2267,8 @@
         "WRITE-003",
         "WRITE-004",
         "WRITE-007",
-        "WRITE-008"
+        "WRITE-008",
+        "WRITE-075"
       ],
       "authority": "REGISTERED_WRITER_AUTHORITY",
       "transaction_family": "REGISTERED_WRITER_BOUNDARY",
@@ -2304,7 +2338,8 @@
       "domain": "Runtime/pipeline",
       "classification": "MUTABLE",
       "writer_ids": [
-        "WRITE-001"
+        "WRITE-001",
+        "WRITE-075"
       ],
       "authority": "REGISTERED_WRITER_AUTHORITY",
       "transaction_family": "REGISTERED_WRITER_BOUNDARY",
@@ -3730,9 +3765,81 @@
       "functions": "none",
       "entrypoints": "none",
       "authority_transaction": "intentionally read-only legacy table"
+    },
+    {
+      "id": "WRITE-074",
+      "tables": [
+        "ceri_feature_source_manifests"
+      ],
+      "functions": "source_manifest_service.freeze_or_verify_feature_source_manifest",
+      "entrypoints": "authorized CERI_FEATURE_BATCH handler only",
+      "authority_transaction": "immutable job/context/config/source-bundle identity; create once before output, retry verifies and reuses; TX-27"
+    },
+    {
+      "id": "WRITE-075",
+      "tables": [
+        "upload_runs",
+        "pipeline_runs",
+        "pipeline_steps"
+      ],
+      "functions": "feature_certification_workflow.admit_ceri_feature_certification, execute_ceri_feature_certification_job",
+      "entrypoints": "explicit certification CLI and session-scoped coordinator root",
+      "authority_transaction": "exact two-ticker/provider scope, feature-only boundary, semantic/config/context authority; TX-28"
     }
   ],
   "writer_candidates": [
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "admit_ceri_feature_certification",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-075"
+      ],
+      "reason": "Creates only the certification UploadRun/PipelineRun/PipelineStep authority; child and configuration writes remain owned by their registered services."
+    },
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "admit_ceri_feature_certification",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-075"
+      ],
+      "reason": "Advances only the newly admitted certification step from PENDING to RUNNING after its immutable market context is frozen."
+    },
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "execute_ceri_feature_certification_job",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-075"
+      ],
+      "reason": "Transitions only certification run/pipeline/step control state to the explicit feature-only terminal boundary."
+    },
+    {
+      "path": "app/services/ceri/source_manifest_service.py",
+      "function": "freeze_or_verify_feature_source_manifest",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-074"
+      ],
+      "reason": "Authorized feature-batch-only immutable manifest creation; retries verify and reuse rather than update."
+    },
+    {
+      "path": "app/services/pipeline_service.py",
+      "function": "_block_queued_ceri_siblings",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-006"
+      ],
+      "reason": "Job-control-only sibling status writer; it has no CERI domain-data authority."
+    },
+    {
+      "path": "app/services/source_mutation_authority.py",
+      "function": "__init__",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "AST false positive: set.add records expected source addresses in a private in-memory revalidation set; no SQLAlchemy row or domain mutation is created."
+    },
     {
       "path": "app/observability/db_monitor.py",
       "function": "install",
@@ -12162,9 +12269,44 @@
       "retained": "exact worker ID/instance and classified infrastructure reason only; no job row or claim authority",
       "revalidation": "worker registration must still be owned by the same process instance; a successful later pre-claim interaction clears the marker",
       "continuation": "bounded exponential backoff, then another claim attempt"
+    },
+    {
+      "id": "TX-27",
+      "boundary": "feature batch prepares source authority -> creates or verifies immutable source manifest -> locks parent fence -> durable heartbeat commit -> feature output may begin",
+      "retained": "exact job/context/config/source-address manifest identity and parent pipeline lock ordering",
+      "revalidation": "retry re-resolves the same source addresses and must match the durable manifest; changed source fails closed",
+      "continuation": "normal production feature rebuild for the same bounded batch only"
+    },
+    {
+      "id": "TX-28",
+      "boundary": "feature-certification CLI admission and coordinator checkpoints commit through the normal caller/worker transactions",
+      "retained": "exact two-ticker/provider semantic scope, configuration anchor, market context, pipeline/root IDs and child graph",
+      "revalidation": "certification session, schema head, isolated queue, exact payload permissions and retained scope membership",
+      "continuation": "provider -> normalize -> one feature batch -> FEATURE_CERTIFIED; no finalizer"
     }
   ],
   "transaction_sites": [
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "admit_ceri_feature_certification",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-28 durable authority admission; caller commit publishes the complete bounded root atomically."
+    },
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "execute_ceri_feature_certification_job",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-28 coordinator graph/terminal-state flush inside the normal fenced worker transaction."
+    },
+    {
+      "path": "app/services/ceri/source_manifest_service.py",
+      "function": "freeze_or_verify_feature_source_manifest",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-27 publishes immutable manifest authority before the handler's parent-fenced durable commit and before feature output."
+    },
     {
       "path": "app/db.py",
       "function": "get_db",
@@ -14709,6 +14851,11 @@
       "reason": "Potentially large domain/evidence payload."
     },
     {
+      "table": "ceri_feature_source_manifests",
+      "model": "CeriFeatureSourceManifest",
+      "reason": "Immutable feature source-address and hash authority; potentially large evidence payload."
+    },
+    {
       "table": "ceri_guidance_events",
       "model": "CeriGuidanceEvent",
       "reason": "Potentially large domain/evidence payload."
@@ -16879,9 +17026,33 @@
       "transition": "certification root/descendant -> normal job terminal states",
       "writers": "common worker terminalizers",
       "authority": "session marker is payload authority; supervisor recovery now scopes when supplied"
+    },
+    {
+      "id": "STATE-071",
+      "transition": "CERI sibling QUEUED/STALLED/RECOVERING -> BLOCKED",
+      "writers": "pipeline_service._block_queued_ceri_siblings",
+      "authority": "same workflow key plus locked terminal parent pipeline; reason CERI_PARENT_PIPELINE_TERMINAL; job-control state only"
+    },
+    {
+      "id": "STATE-072",
+      "transition": "CERI feature certification absent -> CERI_FEATURE_CERTIFYING -> FEATURE_CERTIFIED or FAILED; queued certification coordinator -> FAILED on required child failure",
+      "writers": "feature_certification_workflow.admit_ceri_feature_certification, execute_ceri_feature_certification_job and pipeline_service._roll_up_ceri_pipeline_failure",
+      "authority": "exact certification root/session/scope/config/context; all five allowed children terminal; no downstream permission"
     }
   ],
   "state_writer_sites": [
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "admit_ceri_feature_certification"
+    },
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "execute_ceri_feature_certification_job"
+    },
+    {
+      "path": "app/services/pipeline_service.py",
+      "function": "_block_queued_ceri_siblings"
+    },
     {
       "path": "app/services/background_job_service.py",
       "function": "_finalize_recovery_cancellation"
@@ -17690,6 +17861,12 @@
     "STATE-070": [
       "tests/test_background_job_service.py"
     ],
+    "STATE-071": [
+      "tests/test_ceri_architecture_registry.py"
+    ],
+    "STATE-072": [
+      "tests/test_ceri_feature_certification.py"
+    ],
     "AUTO-018": [
       "tests/test_background_worker.py",
       "tests/test_pre_enqueue_operational_gate.py",
@@ -17699,6 +17876,12 @@
     "TX-26": [
       "tests/test_background_worker.py",
       "tests/integration/test_worker_preclaim_resilience_postgresql.py"
+    ],
+    "TX-27": [
+      "tests/test_ceri_architecture_registry.py"
+    ],
+    "TX-28": [
+      "tests/test_ceri_feature_certification.py"
     ],
     "GAP-009": [
       "tests/test_architecture_registry.py"

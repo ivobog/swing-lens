@@ -51,6 +51,7 @@ def create_pipeline_market_context(
     *,
     cutoff_at: datetime | None = None,
     clock: MarketClockService | None = None,
+    reason: str = "FULL_PIPELINE_FROZEN_AT_ENQUEUE",
 ) -> MarketCalculationCutoff:
     existing = pipeline.market_calculation_context
     if existing is not None:
@@ -86,7 +87,7 @@ def create_pipeline_market_context(
                 "with a new current cutoff."
             )
     cutoff = (clock or MarketClockService()).cutoff_for(
-        cutoff_at or datetime.now(UTC), reason="FULL_PIPELINE_FROZEN_AT_ENQUEUE"
+        cutoff_at or datetime.now(UTC), reason=reason
     )
     row = MarketCalculationContext(
         pipeline_run_id=pipeline.id,

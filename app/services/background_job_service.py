@@ -1433,7 +1433,9 @@ def mark_job_blocked(
     )
     _observe_job_duration(job, now, JobStatus.BLOCKED, db)
     _observe_fanout_size(db, job)
-    if str(job.workflow_key or "").startswith("ceri:pipeline:"):
+    if str(job.workflow_key or "").startswith(
+        ("ceri:pipeline:", "ceri:feature-certification:")
+    ):
         from app.services.pipeline_service import roll_up_ceri_pipeline_job_failure
 
         roll_up_ceri_pipeline_job_failure(db, job)
@@ -1531,7 +1533,9 @@ def mark_job_failed_or_retry(
     if values["status"] == JobStatus.FAILED:
         _observe_job_duration(job, now, JobStatus.FAILED, db)
         _observe_fanout_size(db, job)
-        if str(job.workflow_key or "").startswith("ceri:pipeline:"):
+        if str(job.workflow_key or "").startswith(
+            ("ceri:pipeline:", "ceri:feature-certification:")
+        ):
             from app.services.pipeline_service import roll_up_ceri_pipeline_job_failure
 
             roll_up_ceri_pipeline_job_failure(db, job)
