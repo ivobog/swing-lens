@@ -284,7 +284,14 @@ def detached_control_plane_scope() -> Iterator[None]:
 @event.listens_for(Session, "before_commit")
 def _fence_active_domain_commit(db: Session) -> None:
     ownership = _current_ownership.get()
-    if ownership is None:
+    if ownership is None or db.in_nested_transaction():
+        # ``before_commit`` also fires when SQLAlchemy releases a nested
+        # SAVEPOINT.  A savepoint is not a durable publication boundary, and
+        # taking the background-job row lock there retains it in the outer
+        # transaction.  Long-running handlers then deadlock their detached
+        # heartbeat/progress Session against themselves.  The outer commit
+        # fires this hook again after the savepoint has ended and remains the
+        # mandatory serialization point for publishing domain state.
         return
     token = _force_execution_lock.set(True)
     try:
