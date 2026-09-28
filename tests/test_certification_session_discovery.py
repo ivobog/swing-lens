@@ -13,6 +13,7 @@ from app.services.certification_session_discovery import (
     bind_certification_session_environment,
     discover_active_certification_session,
 )
+from app.services.process_roles import certification_profile_environment
 from app.settings import Settings
 from scripts import ceri_feature_certification as launcher
 
@@ -274,10 +275,36 @@ def test_binding_populates_canonical_session_environment():
     bind_certification_session_environment(binding, environment=environment)
 
     assert environment == {
-        "RUNTIME_MODE": "CERTIFICATION",
+        **certification_profile_environment({}),
         "SWINGLENS_GIT_SHA": GIT_SHA,
         "SWINGLENS_RUNTIME_INSTANCE_ID": RUNTIME_ID,
     }
+
+
+def test_bound_environment_constructs_isolated_certification_settings(monkeypatch):
+    binding = CertificationSessionBinding(
+        runtime_instance_id=RUNTIME_ID,
+        git_sha=GIT_SHA,
+        runtime_config_fingerprint=FINGERPRINT,
+        worker_id="local-worker-1",
+        worker_instance_id="worker-instance",
+        worker_generation=8,
+        runtime_state_path="runtime-state.json",
+    )
+    for key, value in certification_profile_environment({}).items():
+        monkeypatch.setenv(key, "true" if value == "false" else "false")
+
+    bind_certification_session_environment(binding)
+    settings = Settings()
+
+    assert settings.runtime_mode.value == "CERTIFICATION"
+    assert settings.use_durable_pipeline is True
+    assert settings.durable_worker_process_enabled is True
+    assert settings.embedded_job_worker_enabled is False
+    assert settings.job_worker_enabled is False
+    assert settings.winner_probability_auto_maturation_enabled is False
+    assert settings.winner_probability_auto_cohort_refresh_enabled is False
+    assert settings.market_data_prewarm_enabled is False
 
 
 def test_launcher_discovers_session_before_importing_durable_admission():

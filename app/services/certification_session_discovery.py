@@ -29,6 +29,7 @@ from app.services.lifecycle_safety import (
     read_runtime_state,
     validate_runtime_process,
 )
+from app.services.process_roles import certification_profile_environment
 from app.settings import Settings
 
 RUNTIME_STATE_FILENAME = "swinglens-lifecycle.json"
@@ -193,7 +194,7 @@ def bind_certification_session_environment(
     environment: dict[str, str] | None = None,
 ) -> None:
     env = environment if environment is not None else os.environ
-    env["RUNTIME_MODE"] = "CERTIFICATION"
+    env.update(certification_profile_environment(env))
     env[RUNTIME_INSTANCE_ID_ENV] = binding.runtime_instance_id
     env[GIT_SHA_ENV] = binding.git_sha
 
