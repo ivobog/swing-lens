@@ -8,19 +8,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.db import SessionLocal  # noqa: E402
-from app.services.ceri.feature_certification_workflow import (  # noqa: E402
-    CeriFeatureCertificationRequest,
-    admit_ceri_feature_certification,
+from app.services.certification_session_discovery import (  # noqa: E402
+    bind_certification_session_environment,
+    discover_active_certification_session,
 )
+from app.settings import Settings, get_settings  # noqa: E402
 
 
 def main() -> int:
@@ -43,6 +47,27 @@ def main() -> int:
     if cutoff_at is not None and cutoff_at.utcoffset() is None:
         parser.error("--cutoff-at must include a timezone offset")
 
+    discovery_settings = Settings()
+    discovery_engine = create_engine(discovery_settings.database_url, pool_pre_ping=True)
+    try:
+        with Session(discovery_engine) as discovery_db:
+            binding = discover_active_certification_session(
+                discovery_db,
+                repo_root=ROOT,
+                settings=discovery_settings,
+                environment=os.environ,
+            )
+    finally:
+        discovery_engine.dispose()
+    bind_certification_session_environment(binding, environment=os.environ)
+    get_settings.cache_clear()
+
+    from app.db import SessionLocal
+    from app.services.ceri.feature_certification_workflow import (
+        CeriFeatureCertificationRequest,
+        admit_ceri_feature_certification,
+    )
+
     with SessionLocal() as db:
         try:
             admitted = admit_ceri_feature_certification(
@@ -56,6 +81,7 @@ def main() -> int:
                     request_key=args.request_key,
                     requested_by=args.requested_by,
                 ),
+                settings=get_settings(),
             )
             db.commit()
         except Exception:
@@ -70,6 +96,8 @@ def main() -> int:
                 "root_job_id": admitted.root_job_id,
                 "workflow_key": admitted.workflow_key,
                 "stop_boundary": "FEATURE_ONLY",
+                "runtime_instance_id": binding.runtime_instance_id,
+                "runtime_git_sha": binding.git_sha,
             },
             indent=2,
             sort_keys=True,

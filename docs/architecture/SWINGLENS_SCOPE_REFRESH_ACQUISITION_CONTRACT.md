@@ -170,6 +170,12 @@ is one batched statement; validation is set-based, so persistence uses a constan
   requested canonical company and provider identity before persisting the run, pipeline, context, or
   job graph. Missing or conflicting identity fails admission with zero durable workflow work; the
   feature-stage identity invariant remains an independent drift guard.
+- `INV-CERI-CERTIFICATION-CANONICAL-SESSION`: an operational feature-certification launcher
+  discovers its session only from the canonical lifecycle state, then verifies the live
+  certification mode, active process identities, exact deployed Git SHA, repository schema head,
+  readiness isolation, and the matching registered supervisor/worker generation before importing
+  or invoking durable admission. An explicit runtime-instance override is accepted only when it
+  matches that canonical session; ambiguity or drift fails before durable workflow creation.
 
 T15A implements the shared types, validation, immutable persistence, and adversarial tests. These
 invariants are only partially enforced until T15B/T15C/T15D adopt them at domain entrypoints.

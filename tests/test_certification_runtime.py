@@ -209,6 +209,10 @@ def test_ten_certification_worker_cycles_never_schedule_or_claim_unrelated_work(
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
+        "app.services.background_worker.mark_worker_infrastructure_healthy",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
         "app.services.background_worker.claim_next_job",
         lambda *_args, **kwargs: claims.append(kwargs["certification_only"]),
     )
@@ -250,6 +254,10 @@ def test_blocked_sec_capability_excludes_sec_jobs_without_stopping_worker(
     )
     monkeypatch.setattr(
         "app.services.background_worker.heartbeat_worker_control_loop",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_worker_infrastructure_healthy",
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
