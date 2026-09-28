@@ -49,7 +49,7 @@ def regime_recovery_engine(disposable_postgres_database):
         engine.dispose()
 
 
-def test_pipeline_owned_benchmark_fetch_uses_frozen_regime_authority_and_rejects_future(
+def test_pipeline_owned_regime_accepts_older_effective_source_and_rejects_future(
     regime_recovery_engine,
 ):
     configuration = resolve_regime_configuration()
@@ -86,7 +86,10 @@ def test_pipeline_owned_benchmark_fetch_uses_frozen_regime_authority_and_rejects
         frame = _market_frame(PRIOR_SESSION)
         for ticker in ("SPY", "QQQ"):
             seed_price_frame(db, ticker, frame, cutoff.cutoff_at)
-        _seed_pipeline_owned_session(db, cutoff.context_id)
+        # A normal calculation session may legitimately consume the most
+        # recent prior-session close for one benchmark.  SPY is current while
+        # QQQ remains on the prior completed session.
+        _seed_pipeline_owned_session(db, cutoff.context_id, tickers=("SPY",))
         db.commit()
 
     with Session(regime_recovery_engine) as db:
@@ -100,13 +103,13 @@ def test_pipeline_owned_benchmark_fetch_uses_frozen_regime_authority_and_rejects
             select(MarketRegimeSnapshot).where(MarketRegimeSnapshot.run_id == RUN_ID)
         )
         assert snapshot is not None
-        assert snapshot_dto.as_of_date == SESSION
-        assert snapshot.as_of_date == SESSION
+        assert snapshot_dto.as_of_date == PRIOR_SESSION
+        assert snapshot.as_of_date == PRIOR_SESSION
         assert snapshot.input_as_of_session == SESSION
         assert snapshot.calculation_context_id == cutoff.context_id
         assert snapshot.calculation_cutoff_at == cutoff.cutoff_at
         assert snapshot.debug_json["temporal_lineage"]["source_latest_sessions"] == {
-            "QQQ": SESSION.isoformat(),
+            "QQQ": PRIOR_SESSION.isoformat(),
             "SPY": SESSION.isoformat(),
         }
         assert snapshot.evidence_id is not None
@@ -149,7 +152,12 @@ def _market_frame(end: date) -> pd.DataFrame:
     )
 
 
-def _seed_pipeline_owned_session(db: Session, context_id: int) -> None:
+def _seed_pipeline_owned_session(
+    db: Session,
+    context_id: int,
+    *,
+    tickers: tuple[str, ...] = ("SPY", "QQQ"),
+) -> None:
     fetch_run = IBFetchRun(
         acquisition_plan_id=PLAN_ID,
         run_id=RUN_ID,
@@ -160,7 +168,7 @@ def _seed_pipeline_owned_session(db: Session, context_id: int) -> None:
     )
     db.add(fetch_run)
     db.flush()
-    for ticker in ("SPY", "QQQ"):
+    for ticker in tickers:
         for feed in ("ADJUSTED_LAST", "TRADES"):
             item = IBFetchItem(
                 fetch_run_id=fetch_run.id,

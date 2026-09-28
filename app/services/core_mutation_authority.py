@@ -689,6 +689,42 @@ def core_writer_transaction(writer):
     return transactional
 
 
+def _validate_artifact_temporal_identity(current_row, identity) -> None:
+    """Validate calculation-session identity separately from source freshness."""
+
+    # ``input_as_of_session`` is the calculation boundary.  ``as_of_date`` /
+    # ``data_as_of_date`` can legitimately be an older effective source date
+    # (for example, a Monday regime calculation backed by Friday's last
+    # completed benchmark bars).  Do not conflate source freshness with the
+    # session identity, but never allow the effective source date to be in the
+    # future relative to that identity.
+    native_session = (
+        getattr(current_row, "input_as_of_session", None)
+        or getattr(current_row, "as_of_session", None)
+        or getattr(current_row, "as_of_date", None)
+        or getattr(current_row, "data_as_of_date", None)
+    )
+    native_effective_session = getattr(current_row, "as_of_date", None) or getattr(
+        current_row, "data_as_of_date", None
+    )
+    native_cutoff = getattr(current_row, "cutoff_at", None) or getattr(
+        current_row, "calculation_cutoff_at", None
+    )
+    from datetime import UTC
+
+    if native_cutoff is not None and native_cutoff.tzinfo is None:
+        native_cutoff = native_cutoff.replace(tzinfo=UTC)
+    if (
+        native_session is not None
+        and native_session != identity.temporal.as_of_session.value
+        or native_effective_session is not None
+        and native_effective_session > identity.temporal.as_of_session.value
+        or native_cutoff is not None
+        and native_cutoff != identity.temporal.calculation_cutoff.value
+    ):
+        raise ValueError("MUTATION_ARTIFACT_TEMPORAL_MISMATCH")
+
+
 def artifact_mutation_context(
     db, *, kind, current_row, identity, configuration, sources, payload, declaration_only=False
 ):
@@ -720,25 +756,7 @@ def artifact_mutation_context(
         and identity.subject.company_id.value != getattr(current_row, "company_id", None)
     ):
         raise ValueError("MUTATION_ARTIFACT_COMPANY_MISMATCH")
-    native_session = (
-        getattr(current_row, "as_of_session", None)
-        or getattr(current_row, "as_of_date", None)
-        or getattr(current_row, "data_as_of_date", None)
-    )
-    native_cutoff = getattr(current_row, "cutoff_at", None) or getattr(
-        current_row, "calculation_cutoff_at", None
-    )
-    from datetime import UTC
-
-    if native_cutoff is not None and native_cutoff.tzinfo is None:
-        native_cutoff = native_cutoff.replace(tzinfo=UTC)
-    if (
-        native_session is not None
-        and native_session != identity.temporal.as_of_session.value
-        or native_cutoff is not None
-        and native_cutoff != identity.temporal.calculation_cutoff.value
-    ):
-        raise ValueError("MUTATION_ARTIFACT_TEMPORAL_MISMATCH")
+    _validate_artifact_temporal_identity(current_row, identity)
     if domain is MutationDomain.SETUP:
         debug = getattr(current_row, "source_lineage_json", None) or {}
     manifest = {}
