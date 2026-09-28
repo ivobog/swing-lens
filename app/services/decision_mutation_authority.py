@@ -68,7 +68,9 @@ def operational_decision_authority(db, *, writer, manifest, run_id=None, job_typ
     fence_mutation_transaction(db, context)
     if ownership is not None:
         job = db.get(BackgroundJob, ownership.job_id)
-        if job.job_type not in job_types or job.related_run_id != run_id:
+        if job.job_type not in job_types or (
+            run_id is not None and job.related_run_id != run_id
+        ):
             raise ValueError("MUTATION_OPERATIONAL_EXECUTION_SCOPE_MISMATCH")
 
 

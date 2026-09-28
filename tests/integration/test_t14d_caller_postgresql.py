@@ -25,6 +25,7 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canon
 from app.services.ceri.manual_review_service import CeriManualReviewService
 from app.services.ceri.sec.identity_repair import resolve_and_persist_sec_identity
 from app.services.configuration_delivery import ANCHOR_KEY, anchored_job_configuration
+from app.services.decision_mutation_authority import operational_decision_authority
 from app.services.domain_write_fence import detached_control_plane_scope
 from app.services.entrypoint_authority import EntryPointAuthorityError
 from app.services.ib_market_intelligence.flex import import_flex_report
@@ -321,6 +322,40 @@ def test_detached_control_plane_can_update_job_during_anchored_calculation(conte
         for sql in statements
         if "background_jobs" in sql.lower() and "FOR UPDATE" in sql.upper()
     ]
+
+
+def test_run_independent_operational_writer_accepts_pipeline_owned_job(contextual_engine):
+    @anchored_job_configuration
+    def handler(db, job):
+        operational_decision_authority(
+            db,
+            writer="persist_run_independent_change",
+            manifest={"source_record_id": 17, "derivation": "normalized-change"},
+            job_types=("CERI_CHANGE_DETECTION",),
+        )
+        return True
+
+    with Session(contextual_engine) as db:
+        run = UploadRun(filename="t14d-operational-pipeline.csv", status="COMPLETED")
+        db.add(run)
+        db.flush()
+        job = enqueue_job(
+            db,
+            "CERI_CHANGE_DETECTION",
+            {"run_id": run.id},
+            related_run_id=run.id,
+        )
+        job.status = "RUNNING"
+        job.execution_token = "t14d-operational-pipeline-attempt"
+        db.commit()
+
+        assert execute_job(
+            db,
+            job,
+            {"CERI_CHANGE_DETECTION": handler},
+            execution_token=job.execution_token,
+        )
+        db.rollback()
 
 
 def test_trade_episode_native_population_and_altered_source_rejection(contextual_engine):
