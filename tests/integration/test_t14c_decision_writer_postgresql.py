@@ -846,6 +846,8 @@ def test_native_ceri_score_change_recomputes_sources_and_retry(contextual_engine
         )
         db.commit()
         current = db.scalar(select(CeriScoreSnapshot).where(CeriScoreSnapshot.run_id == 777))
+        assert current.comparison_state == ComparisonState.COMPARABLE.value
+        assert current.comparison_snapshot_id == baseline.id
         event = db.scalar(
             select(CeriChangeEvent).where(CeriChangeEvent.to_snapshot_id == current.id)
         )

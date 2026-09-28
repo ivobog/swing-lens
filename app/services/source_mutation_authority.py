@@ -74,6 +74,9 @@ _locked_source_bundles = WeakKeyDictionary()
 # Keep substantial headroom for future non-identity predicates instead of
 # treating the protocol ceiling as an available identity budget.
 SOURCE_REFRESH_QUERY_PARAMETER_BUDGET = 50_000
+_MUTABLE_SUPPORTING_SOURCE_COLUMNS = {
+    "ceri_score_snapshots": frozenset({"comparison_state", "comparison_snapshot_id"}),
+}
 
 
 def source_refresh_identity_chunk_size(
@@ -157,7 +160,9 @@ def _invalidate_changed_source_bundles(conn, cursor, statement, parameters, cont
                     *getattr(context.compiled, "postfetch", ()),
                 )
             ]
-            if columns and set(columns) <= {"comparison_state", "comparison_snapshot_id"}:
+            if columns and set(columns) <= _MUTABLE_SUPPORTING_SOURCE_COLUMNS[
+                "ceri_score_snapshots"
+            ]:
                 # Native CERI change detection advances only these supporting
                 # pointers. It cannot change the locked financial score/evidence
                 # bodies; raw SQL, aliases and every other column invalidate.
@@ -274,9 +279,15 @@ class PrefetchedSourceBodies:
         if not self._sealed:
             raise ValueError("MUTATION_SOURCE_BUNDLE_NOT_SEALED")
         for key, row in self._rows.items():
-            columns = list(inspect(type(row)).columns)
+            excluded = _MUTABLE_SUPPORTING_SOURCE_COLUMNS.get(key[0], frozenset())
+            columns = [
+                column for column in inspect(type(row)).columns if column.key not in excluded
+            ]
             current = {column.key: getattr(row, column.key) for column in columns}
-            if Canonical.fingerprint(current) != Canonical.fingerprint(self._bodies[key]):
+            retained = {
+                field: value for field, value in self._bodies[key].items() if field not in excluded
+            }
+            if Canonical.fingerprint(current) != Canonical.fingerprint(retained):
                 raise ValueError("MUTATION_SOURCE_BUNDLE_CHANGED_IN_MEMORY: " + key[0])
 
     def load(self, model, statement):
