@@ -166,6 +166,10 @@ is one batched statement; validation is set-based, so persistence uses a constan
   membership only from its immutable admitted certification ticker scope; a normal full-pipeline
   batch derives membership only from its upload/run rows. The two authorities never fall back to or
   broaden one another.
+- `INV-CERI-CERTIFICATION-PROVIDER-IDENTITY-ADMISSION`: feature certification validates every
+  requested canonical company and provider identity before persisting the run, pipeline, context, or
+  job graph. Missing or conflicting identity fails admission with zero durable workflow work; the
+  feature-stage identity invariant remains an independent drift guard.
 
 T15A implements the shared types, validation, immutable persistence, and adversarial tests. These
 invariants are only partially enforced until T15B/T15C/T15D adopt them at domain entrypoints.
@@ -227,6 +231,17 @@ Feature execution resolves its membership mode from the retained `work_scope_rec
 unambiguous canonical CERI companies, and matching provider identities; it does not consult
 `raw_company_rows`. `full-pipeline-run` keeps the upload/run-row intersection. Any other scope kind
 for a pipeline-owned feature batch fails closed before source-manifest construction.
+
+Certification admission applies the same canonical-company and provider-identity prerequisites
+before it calls the durable scope-admission boundary. Provider identities missing from legacy
+company rows may be reconciled only from multiple normalized source records already linked to that
+company. Every qualifying record must agree on provider ID and ticker, the provider record key must
+agree with that ID, and no other company or provider alias may own it. Reconciliation writes the
+canonical provider map plus a high-confidence `provider_company_id` alias whose source contains the
+exact source IDs, ingestion IDs, datasets, time range, and evidence fingerprint. Existing conflicting
+identities are never overwritten. A transaction advisory lock on the candidate provider identity
+serializes cross-company ownership checks. Admission validation does not replace the feature-stage
+guard.
 
 ### Acquisition-plan adoption and replanning
 

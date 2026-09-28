@@ -76,6 +76,7 @@ def test_architecture_admission_checker_has_no_findings() -> None:
 def test_ceri_certification_scope_authority_invariant_is_documented() -> None:
     contract = SCOPE_CONTRACT.read_text(encoding="utf-8")
     assert "INV-CERI-CERTIFICATION-SCOPE-AUTHORITY" in contract
+    assert "INV-CERI-CERTIFICATION-PROVIDER-IDENTITY-ADMISSION" in contract
     assert "ceri-feature-certification" in contract
     assert "full-pipeline-run" in contract
     assert "does not consult\n`raw_company_rows`" in contract

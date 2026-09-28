@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.database_safety import run_guarded_alembic_upgrade
 from app.models.ceri_tables import (
     CeriCompany,
+    CeriCompanyAlias,
     CeriDerivedFeature,
     CeriEarningsActual,
     CeriEstimateSnapshot,
@@ -20,7 +22,13 @@ from app.models.ceri_tables import (
     CeriScoreSnapshot,
     CeriSourceRecord,
 )
-from app.models.tables import BackgroundJob, PipelineRun, RawCompanyRow, UploadRun
+from app.models.tables import (
+    BackgroundJob,
+    MarketCalculationContext,
+    PipelineRun,
+    RawCompanyRow,
+    UploadRun,
+)
 from app.observability.correlation import worker_job_scope
 from app.services.background_job_service import JobStatus, claim_next_job, mark_job_completed
 from app.services.background_worker import JobDeferred
@@ -43,6 +51,7 @@ from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
 )
+from app.services.ceri.identity_resolver import reconcile_missing_provider_identity
 from app.services.ceri.job_handlers import (
     CERI_ALERT_REBUILD,
     CERI_CAPTURE_RUN,
@@ -65,6 +74,217 @@ def _upgrade(database_url: str) -> None:
     run_guarded_alembic_upgrade(config, database_url, "head")
 
 
+def _durable_admission_counts(db: Session) -> tuple[int, int, int, int]:
+    return (
+        int(db.scalar(select(func.count()).select_from(UploadRun)) or 0),
+        int(db.scalar(select(func.count()).select_from(PipelineRun)) or 0),
+        int(db.scalar(select(func.count()).select_from(MarketCalculationContext)) or 0),
+        int(db.scalar(select(func.count()).select_from(BackgroundJob)) or 0),
+    )
+
+
+def _seed_provider_identity_evidence(
+    db: Session,
+    *,
+    company: CeriCompany,
+    identities: tuple[str, str],
+) -> None:
+    known_at = datetime(2026, 9, 24, 18, tzinfo=UTC)
+    estimate_identity, earnings_identity = identities
+    estimate_source = CeriSourceRecord(
+        provider="eodhd",
+        provider_terms_version="disposable-v1",
+        dataset="estimates",
+        provider_record_id=f"{estimate_identity}:estimate",
+        company_hint_json={
+            "ticker": company.ticker,
+            "provider_company_id": estimate_identity,
+        },
+        observed_at=known_at,
+        source_timestamp=known_at,
+        retrieved_at=known_at,
+        ingested_at=known_at,
+        restricted_normalized_json={"ticker": company.ticker, "consensus": "10"},
+        content_hash=f"hash-{company.ticker}-{estimate_identity}-estimate",
+        normalized_hash=f"normalized-{company.ticker}-{estimate_identity}-estimate",
+        idempotency_key=f"idempotency-{company.id}-{estimate_identity}-estimate",
+        export_policy="exportable",
+    )
+    earnings_source = CeriSourceRecord(
+        provider="eodhd",
+        provider_terms_version="disposable-v1",
+        dataset="earnings",
+        provider_record_id=f"{earnings_identity}:earnings",
+        company_hint_json={
+            "ticker": company.ticker,
+            "provider_company_id": earnings_identity,
+        },
+        observed_at=known_at,
+        source_timestamp=known_at,
+        retrieved_at=known_at,
+        ingested_at=known_at,
+        restricted_normalized_json={"ticker": company.ticker, "actual": "11"},
+        content_hash=f"hash-{company.ticker}-{earnings_identity}-earnings",
+        normalized_hash=f"normalized-{company.ticker}-{earnings_identity}-earnings",
+        idempotency_key=f"idempotency-{company.id}-{earnings_identity}-earnings",
+        export_policy="exportable",
+    )
+    db.add_all([estimate_source, earnings_source])
+    db.flush()
+    db.add_all(
+        [
+            CeriEstimateSnapshot(
+                source_record_id=estimate_source.id,
+                company_id=company.id,
+                metric="EPS_DILUTED",
+                fiscal_period_end=datetime(2026, 9, 30).date(),
+                period_type="CURRENT_QUARTER",
+                canonical_period_slot="CURRENT_QUARTER",
+                consensus=Decimal("10"),
+                effective_at=known_at,
+                reference_at=known_at,
+                known_at=known_at,
+                retrieved_at=known_at,
+                effective_session=known_at.date(),
+                provider_observed_at=known_at,
+                source_timestamp=known_at,
+                source_provider="eodhd",
+                canonical_observation_key=f"{company.ticker}:EPS_DILUTED:CURRENT_QUARTER",
+            ),
+            CeriEarningsActual(
+                source_record_id=earnings_source.id,
+                company_id=company.id,
+                metric="EPS_DILUTED",
+                period_type="CURRENT_QUARTER",
+                fiscal_period_end=datetime(2026, 9, 30).date(),
+                report_at=known_at,
+                report_session=known_at.date(),
+                actual_value=Decimal("11"),
+                provider_consensus_value=Decimal("10"),
+                provider_surprise_pct=Decimal("10"),
+                event_kind="REPORTED",
+                provider_consensus_semantics="REPORT_TIME_CONSENSUS",
+            ),
+        ]
+    )
+    db.flush()
+
+
+def test_provider_identity_reconciliation_and_admission_fail_closed(
+    disposable_postgres_database: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    monkeypatch.setenv("RUNTIME_MODE", "CERTIFICATION")
+    monkeypatch.setenv("RUNTIME_INSTANCE_ID", "provider-identity-admission-test")
+    monkeypatch.setenv("MARKET_DATA_PREWARM_ENABLED", "false")
+    monkeypatch.setenv("WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED", "false")
+    monkeypatch.setenv("WINNER_PROBABILITY_AUTO_MATURATION_ENABLED", "false")
+    get_settings.cache_clear()
+    engine = create_engine(disposable_postgres_database)
+    try:
+        with Session(engine, expire_on_commit=False) as db:
+            missing = CeriCompany(ticker="MISS1", exchange="US")
+            valid = CeriCompany(
+                ticker="OK1",
+                exchange="US",
+                current_provider_ids_json={"eodhd": "OK1.US"},
+            )
+            db.add_all([missing, valid])
+            db.flush()
+            baseline = _durable_admission_counts(db)
+            with pytest.raises(
+                ValueError, match="CERI_CERTIFICATION_PROVIDER_IDENTITY_MISSING:MISS1"
+            ):
+                admit_ceri_feature_certification(
+                    db,
+                    CeriFeatureCertificationRequest(
+                        tickers=("MISS1", "OK1"),
+                        request_key="missing-provider-identity-must-not-admit",
+                    ),
+                )
+            assert _durable_admission_counts(db) == baseline
+
+            _seed_provider_identity_evidence(
+                db,
+                company=missing,
+                identities=("MISS1.US", "OTHER.US"),
+            )
+            conflict = reconcile_missing_provider_identity(
+                db,
+                company_id=int(missing.id),
+                provider="eodhd",
+            )
+            assert conflict.status == "CONFLICT"
+            assert missing.current_provider_ids_json is None
+            baseline = _durable_admission_counts(db)
+            with pytest.raises(
+                ValueError, match="CERI_CERTIFICATION_PROVIDER_IDENTITY_CONFLICT:MISS1"
+            ):
+                admit_ceri_feature_certification(
+                    db,
+                    CeriFeatureCertificationRequest(
+                        tickers=("MISS1", "OK1"),
+                        request_key="conflicting-provider-identity-must-not-admit",
+                    ),
+                )
+            assert _durable_admission_counts(db) == baseline
+
+            legacy = CeriCompany(ticker="LEG", exchange="US")
+            overwrite_guard = CeriCompany(
+                ticker="GUARD",
+                exchange="US",
+                current_provider_ids_json={"eodhd": "EXISTING.US"},
+            )
+            db.add_all([legacy, overwrite_guard])
+            db.flush()
+            _seed_provider_identity_evidence(
+                db,
+                company=legacy,
+                identities=("LEG.US", "LEG.US"),
+            )
+            _seed_provider_identity_evidence(
+                db,
+                company=overwrite_guard,
+                identities=("GUARD.US", "GUARD.US"),
+            )
+            repaired = reconcile_missing_provider_identity(
+                db,
+                company_id=int(legacy.id),
+                provider="eodhd",
+            )
+            assert repaired.status == "RECONCILED"
+            assert repaired.provider_identity == "LEG.US"
+            assert legacy.current_provider_ids_json == {"eodhd": "LEG.US"}
+            assert repaired.evidence is not None
+            alias = db.get(CeriCompanyAlias, repaired.alias_id)
+            assert alias is not None
+            provenance = json.loads(str(alias.source))
+            assert provenance["provider_identity"] == "LEG.US"
+            assert provenance["source_record_ids"] == list(repaired.evidence.source_record_ids)
+            repaired_at = legacy.updated_at
+            rerun = reconcile_missing_provider_identity(
+                db,
+                company_id=int(legacy.id),
+                provider="eodhd",
+            )
+            assert rerun.status == "ALREADY_RESOLVED"
+            assert rerun.alias_id == repaired.alias_id
+            assert legacy.updated_at == repaired_at
+
+            refused = reconcile_missing_provider_identity(
+                db,
+                company_id=int(overwrite_guard.id),
+                provider="eodhd",
+            )
+            assert refused.status == "CONFLICT"
+            assert overwrite_guard.current_provider_ids_json == {"eodhd": "EXISTING.US"}
+            db.rollback()
+    finally:
+        engine.dispose()
+        get_settings.cache_clear()
+
+
 def test_feature_certification_admission_graph_and_terminal_boundary_are_durable(
     disposable_postgres_database: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -79,6 +299,17 @@ def test_feature_certification_admission_graph_and_terminal_boundary_are_durable
     engine = create_engine(disposable_postgres_database)
     try:
         with Session(engine, expire_on_commit=False) as db:
+            db.add_all(
+                [
+                    CeriCompany(
+                        ticker=ticker,
+                        exchange="US",
+                        current_provider_ids_json={"eodhd": f"{ticker}.US"},
+                    )
+                    for ticker in ("SYN1", "SYN2", "FAIL1", "FAIL2")
+                ]
+            )
+            db.flush()
             admitted = admit_ceri_feature_certification(
                 db,
                 CeriFeatureCertificationRequest(
@@ -215,6 +446,22 @@ def test_two_ticker_feature_certification_uses_scope_without_raw_rows_and_stops(
     engine = create_engine(disposable_postgres_database)
     try:
         with Session(engine, expire_on_commit=False) as db:
+            crm = CeriCompany(ticker="CRM", exchange="US")
+            nvda = CeriCompany(
+                ticker="NVDA",
+                exchange="US",
+                current_provider_ids_json={"eodhd": "NVDA.US"},
+            )
+            db.add_all([crm, nvda])
+            db.flush()
+            original_hashes = _seed_two_ticker_feature_sources(db)
+            repaired = reconcile_missing_provider_identity(
+                db,
+                company_id=int(crm.id),
+                provider="eodhd",
+            )
+            assert repaired.status == "RECONCILED"
+            assert repaired.provider_identity == "CRM.US"
             admitted = admit_ceri_feature_certification(
                 db,
                 CeriFeatureCertificationRequest(
@@ -267,12 +514,8 @@ def test_two_ticker_feature_certification_uses_scope_without_raw_rows_and_stops(
                 membership_authority=membership_authority,
             )
             assert [company.ticker for company in selected] == ["CRM", "NVDA"]
-            with pytest.raises(
-                ValueError, match="CERI_CERTIFICATION_SOURCE_EVIDENCE_INSUFFICIENT:CRM,NVDA"
-            ):
-                service.prepare_batch(db, certification_request)
-
-            original_hashes = _seed_two_ticker_feature_sources(db)
+            prepared = service.prepare_batch(db, certification_request)
+            assert len(prepared.companies) == 2
             children = list(
                 db.scalars(
                     select(BackgroundJob)
@@ -438,8 +681,8 @@ def _seed_two_ticker_feature_sources(db: Session) -> dict[str, str]:
     known_at = datetime(2026, 9, 24, 18, tzinfo=UTC)
     hashes: dict[str, str] = {}
     for ticker, company in sorted(companies.items()):
-        estimate_key = f"{ticker}-estimate"
-        earnings_key = f"{ticker}-earnings"
+        estimate_key = f"{ticker}.US:estimate"
+        earnings_key = f"{ticker}.US:earnings"
         estimate_hash = f"hash-{estimate_key}"
         earnings_hash = f"hash-{earnings_key}"
         hashes[estimate_key] = estimate_hash

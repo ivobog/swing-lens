@@ -3,7 +3,10 @@ from __future__ import annotations
 from datetime import date
 
 from app.models.ceri_tables import CeriCompany, CeriCompanyAlias, CeriSourceRecord
-from app.services.ceri.identity_resolver import CeriIdentityResolver
+from app.services.ceri.identity_resolver import (
+    CeriIdentityResolver,
+    _provider_record_matches_identity,
+)
 
 
 def test_identity_ambiguity_quarantines_record() -> None:
@@ -72,6 +75,29 @@ def test_prepare_prefetches_companies_and_aliases_only_once() -> None:
 
     assert result.company_id == 1
     assert db.select_count == 2
+
+
+def test_eodhd_provider_record_identity_respects_dataset_key_contract() -> None:
+    opaque_catalyst_key = "2ba58714ec70cac498ab7d38ab88f4c1b55b8a12e4fa9db1d90fd70c0a4198df"
+
+    assert _provider_record_matches_identity(
+        provider="eodhd",
+        dataset="catalysts",
+        provider_identity="CRM.US",
+        provider_record_id=opaque_catalyst_key,
+    )
+    assert not _provider_record_matches_identity(
+        provider="eodhd",
+        dataset="earnings",
+        provider_identity="CRM.US",
+        provider_record_id=opaque_catalyst_key,
+    )
+    assert _provider_record_matches_identity(
+        provider="eodhd",
+        dataset="estimates",
+        provider_identity="CRM.US",
+        provider_record_id="CRM.US:NEXT_FISCAL_YEAR:2028-01-31:EPS_DILUTED",
+    )
 
 
 def _source(payload: dict, source_date: date | None = None) -> CeriSourceRecord:

@@ -5117,6 +5117,15 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
+      "path": "app/services/ceri/identity_resolver.py",
+      "function": "reconcile_missing_provider_identity",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-034"
+      ],
+      "reason": "Evidence-backed provider identity reconciliation writes only the locked canonical company provider map and its exact-provenance provider alias."
+    },
+    {
       "path": "app/services/ceri/job_handlers.py",
       "function": "execute_backfill_job",
       "kind": "state_assignment",
@@ -12066,6 +12075,7 @@
     "app/services/background_job_service.py:requeue_stalled_jobs",
     "app/services/background_worker.py:_execute_worker_recovery_probe",
     "app/services/background_worker.py:fenced_control_session",
+    "app/services/ceri/identity_resolver.py:reconcile_missing_provider_identity",
     "app/services/ceri/sec/processor_lifecycle.py:fence_worker_against_active_processor",
     "app/services/certification_runtime.py:apply_certification_recovery_scope",
     "app/services/certification_runtime.py:certification_recovery_filter",
@@ -13062,6 +13072,13 @@
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/identity_resolver.py",
+      "function": "reconcile_missing_provider_identity",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Evidence-backed provider identity promotion and provenance alias are flushed atomically in the caller transaction."
     },
     {
       "path": "app/services/ceri/revision_feature_service.py",

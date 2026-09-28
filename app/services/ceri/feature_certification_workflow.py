@@ -22,6 +22,7 @@ from app.services.ceri.batched_workflow import (
     _ensure_ceri_companies,
 )
 from app.services.ceri.config import load_ceri_config
+from app.services.ceri.identity_resolver import validate_certification_provider_identities
 from app.services.certification_runtime import (
     CERI_FEATURE_CERTIFICATION_ALLOWED_PROVIDER_DATASETS,
     CERI_FEATURE_CERTIFICATION_CONTRACT_VERSION,
@@ -212,6 +213,11 @@ def admit_ceri_feature_certification(
     request_key = str(request.request_key).strip()
     if not request_key or len(request_key) > 200:
         raise ValueError("CERI_FEATURE_CERTIFICATION_REQUEST_KEY_REQUIRED")
+    validate_certification_provider_identities(
+        db,
+        tickers=tickers,
+        providers=tuple(sorted(provider_datasets)),
+    )
 
     config = load_ceri_config()
     workflow_key = f"ceri:feature-certification:{request_key}:{config.config_hash}"
