@@ -165,6 +165,7 @@ def assert_current_execution_ownership(
     *,
     job_id: int,
     execution_token: str,
+    lock_row: bool | None = None,
 ) -> dict:
     """Validate the job attempt and normally retain its row lock.
 
@@ -206,7 +207,12 @@ def assert_current_execution_ownership(
         BackgroundJob.related_run_id,
         BackgroundJob.payload_json,
     ).where(BackgroundJob.id == job_id)
-    if not _defer_execution_lock.get() or _force_execution_lock.get():
+    should_lock = (
+        lock_row
+        if lock_row is not None
+        else not _defer_execution_lock.get() or _force_execution_lock.get()
+    )
+    if should_lock:
         statement = statement.with_for_update()
     with db.no_autoflush:
         current = db.execute(statement).one_or_none()

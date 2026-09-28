@@ -278,6 +278,8 @@ def test_detached_control_plane_can_update_job_during_anchored_calculation(conte
 
     @anchored_job_configuration
     def handler(db, job):
+        db.add(UploadRun(filename="t14d-detached-control-flush.csv", status="COMPLETED"))
+        db.flush()
         return job._control_plane_progress()
 
     def detached_control_progress():

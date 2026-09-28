@@ -75,7 +75,17 @@ def anchored_job_configuration(calculation):
                 token = getattr(job, "execution_token", None)
                 if not getattr(job, "id", None) or not token:
                     raise ValueError("MUTATION_DURABLE_EXECUTION_AUTHORITY_REQUIRED")
-                assert_current_execution_ownership(db, job_id=job.id, execution_token=token)
+                assert_current_execution_ownership(
+                    db,
+                    job_id=job.id,
+                    execution_token=token,
+                    # A detached progress Session must be able to update the
+                    # operational lease while this long calculation is active.
+                    # The before-commit hook still takes the mandatory lock.
+                    lock_row=(
+                        False if callable(getattr(job, "_control_plane_progress", None)) else None
+                    ),
+                )
                 with db.no_autoflush:
                     retained = db.execute(
                         select(
