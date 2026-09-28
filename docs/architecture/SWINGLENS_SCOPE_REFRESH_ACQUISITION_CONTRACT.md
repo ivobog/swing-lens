@@ -162,6 +162,10 @@ is one batched statement; validation is set-based, so persistence uses a constan
 - `INV-PLAN-001`: acquisition retries preserve plan identity.
 - `INV-PLAN-002`: replanning creates explicit predecessor lineage.
 - `INV-REVISION-001`: historical truth identifies exact revision or declares it unavailable/legacy.
+- `INV-CERI-CERTIFICATION-SCOPE-AUTHORITY`: a feature-certification batch derives company
+  membership only from its immutable admitted certification ticker scope; a normal full-pipeline
+  batch derives membership only from its upload/run rows. The two authorities never fall back to or
+  broaden one another.
 
 T15A implements the shared types, validation, immutable persistence, and adversarial tests. These
 invariants are only partially enforced until T15B/T15C/T15D adopt them at domain entrypoints.
@@ -217,6 +221,12 @@ and revision remain idempotent. Across refreshes, the stable provider key is all
 observation or a superseding source revision. No timestamp randomness is used to bypass deduplication.
 CERI processing children inherit the same authority unless an explicitly admitted child scope is
 needed.
+
+Feature execution resolves its membership mode from the retained `work_scope_records.scope_kind`.
+`ceri-feature-certification` requires exactly two retained ticker members, exact batch containment,
+unambiguous canonical CERI companies, and matching provider identities; it does not consult
+`raw_company_rows`. `full-pipeline-run` keeps the upload/run-row intersection. Any other scope kind
+for a pipeline-owned feature batch fails closed before source-manifest construction.
 
 ### Acquisition-plan adoption and replanning
 

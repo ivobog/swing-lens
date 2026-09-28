@@ -24,7 +24,7 @@ from app.models.ceri_tables import (
     CeriRevisionFeature,
     CeriSourceRecord,
 )
-from app.models.tables import PriceBar, RawCompanyRow
+from app.models.tables import PriceBar, RawCompanyRow, WorkScopeRecord
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.artifact_lineage import (
     CeriArtifactOwnership,
@@ -60,6 +60,14 @@ from app.services.source_mutation_authority import (
 from app.services.us_market_calendar import us_market_session
 
 FEATURE_REBUILD_IMPL_VERSION = "batch-prefetch-pit-v2"
+CERI_CERTIFICATION_SCOPE_KIND = "ceri-feature-certification"
+CERI_FULL_PIPELINE_SCOPE_KIND = "full-pipeline-run"
+CERI_CERTIFICATION_SCOPE_MEMBERSHIP_INVALID = (
+    "CERI_CERTIFICATION_SCOPE_MEMBERSHIP_INVALID"
+)
+CERI_CERTIFICATION_SOURCE_EVIDENCE_INSUFFICIENT = (
+    "CERI_CERTIFICATION_SOURCE_EVIDENCE_INSUFFICIENT"
+)
 _LARGE_CERI_TABLES = frozenset(
     {
         "ceri_source_records",
@@ -238,7 +246,13 @@ class CeriFeatureRebuildService:
         )
         if progress_callback is not None:
             progress_callback("starting", select_count)
-        companies = self._companies(db, request, source_bodies=source_bodies)
+        membership_authority = self._pipeline_membership_authority(db, request)
+        companies = self._companies(
+            db,
+            request,
+            source_bodies=source_bodies,
+            membership_authority=membership_authority,
+        )
         select_count += 1 + int(request.run_id is not None and not isinstance(db, Session))
         rows_loaded["companies"] = len(companies)
         if progress_callback is not None:
@@ -533,6 +547,23 @@ class CeriFeatureRebuildService:
                 row for row in price_features if row.calculation_cutoff_at == cutoff_at
             ]
             sources = [row for row in sources if row.id in eligible_source_ids]
+
+        if membership_authority == CERI_CERTIFICATION_SCOPE_KIND:
+            evidence_company_ids = {
+                int(row.company_id)
+                for row in [*estimates, *earnings, *guidance, *events]
+                if row.company_id is not None
+            }
+            missing_evidence = tuple(
+                company.ticker.upper()
+                for company in companies
+                if int(company.id) not in evidence_company_ids
+            )
+            if missing_evidence:
+                raise ValueError(
+                    f"{CERI_CERTIFICATION_SOURCE_EVIDENCE_INSUFFICIENT}:"
+                    + ",".join(missing_evidence)
+                )
 
         estimates_by_company = _group_by(estimates, "company_id")
         earnings_by_company = _group_by(earnings, "company_id")
@@ -1376,13 +1407,46 @@ class CeriFeatureRebuildService:
         ]
 
     def _companies(
-        self, db: Session, request: CeriFeatureRebuildRequest, *, source_bodies=None
+        self,
+        db: Session,
+        request: CeriFeatureRebuildRequest,
+        *,
+        source_bodies=None,
+        membership_authority: str | None = None,
     ) -> list[CeriCompany]:
         ids = set(request.company_ids or ())
-        tickers = {ticker.upper() for ticker in (request.tickers or ())}
+        requested_ticker_values = tuple(
+            str(ticker).strip().upper()
+            for ticker in (request.tickers or ())
+            if str(ticker).strip()
+        )
+        tickers = set(requested_ticker_values)
         if request.ticker:
             tickers.add(request.ticker.upper())
-        if isinstance(db, Session) and request.semantic_authority is not None:
+        certification_tickers: tuple[str, ...] | None = None
+        if membership_authority == CERI_CERTIFICATION_SCOPE_KIND:
+            from app.services.scope_refresh_adoption import retained_scope_members
+
+            retained_members = retained_scope_members(db, request.semantic_authority.scope_id)
+            if any(member.subject_type != "TICKER" for member in retained_members):
+                self._invalid_certification_membership("NON_TICKER_SCOPE_MEMBER")
+            certification_tickers = tuple(
+                str(member.subject_id).strip().upper() for member in retained_members
+            )
+            if (
+                len(certification_tickers) != 2
+                or len(set(certification_tickers)) != 2
+                or any(not ticker for ticker in certification_tickers)
+            ):
+                self._invalid_certification_membership("EXACT_TWO_TICKERS_REQUIRED")
+            requested = tuple(sorted(tickers))
+            retained = tuple(sorted(certification_tickers))
+            if requested != retained:
+                self._invalid_certification_membership("BATCH_SCOPE_MISMATCH")
+            if ids:
+                self._invalid_certification_membership("COMPANY_ID_SELECTOR_FORBIDDEN")
+            tickers = set(certification_tickers)
+        elif isinstance(db, Session) and request.semantic_authority is not None:
             from app.services.scope_refresh_adoption import retained_scope_members
 
             retained_tickers = {
@@ -1402,7 +1466,11 @@ class CeriFeatureRebuildService:
             }
             tickers = tickers & run_tickers if tickers else run_tickers
         statement = select(CeriCompany)
-        if request.run_id is not None and isinstance(db, Session):
+        if (
+            request.run_id is not None
+            and isinstance(db, Session)
+            and membership_authority != CERI_CERTIFICATION_SCOPE_KIND
+        ):
             statement = statement.where(
                 func.upper(CeriCompany.ticker).in_(
                     select(func.upper(RawCompanyRow.ticker))
@@ -1424,7 +1492,51 @@ class CeriFeatureRebuildService:
             for company in companies
             if (not ids or company.id in ids) and (not tickers or company.ticker.upper() in tickers)
         ]
+        if certification_tickers is not None:
+            by_ticker: dict[str, list[CeriCompany]] = {}
+            for company in companies:
+                by_ticker.setdefault(company.ticker.upper(), []).append(company)
+            if set(by_ticker) != set(certification_tickers):
+                self._invalid_certification_membership("UNRESOLVED_OR_OUTSIDE_SCOPE")
+            if any(len(matches) != 1 for matches in by_ticker.values()):
+                self._invalid_certification_membership("AMBIGUOUS_CANONICAL_COMPANY")
+            resolved = [by_ticker[ticker][0] for ticker in certification_tickers]
+            if len({int(company.id) for company in resolved}) != len(resolved):
+                self._invalid_certification_membership("DUPLICATE_CANONICAL_COMPANY")
+            for company in resolved:
+                ticker = company.ticker.upper()
+                provider_ids = company.current_provider_ids_json or {}
+                eodhd_id = str(provider_ids.get("eodhd") or "").strip().upper()
+                if not eodhd_id or eodhd_id.split(".", 1)[0] != ticker:
+                    self._invalid_certification_membership(
+                        f"PROVIDER_IDENTITY_CONFLICT:{ticker}"
+                    )
         return sorted(companies, key=lambda row: (row.ticker.upper(), row.id or 0))
+
+    def _pipeline_membership_authority(
+        self, db: Session, request: CeriFeatureRebuildRequest
+    ) -> str | None:
+        if request.ownership_mode != CeriArtifactOwnership.PIPELINE.value:
+            return None
+        if not isinstance(db, Session) or request.semantic_authority is None:
+            raise ValueError("CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:MISSING")
+        scope = db.get(WorkScopeRecord, request.semantic_authority.scope_id)
+        if scope is None:
+            raise ValueError("CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:UNKNOWN_SCOPE")
+        if scope.acquisition_plan_id != request.semantic_authority.acquisition_plan_id:
+            raise ValueError("CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:PLAN_MISMATCH")
+        if scope.scope_kind not in {
+            CERI_CERTIFICATION_SCOPE_KIND,
+            CERI_FULL_PIPELINE_SCOPE_KIND,
+        }:
+            raise ValueError(
+                f"CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:{scope.scope_kind}"
+            )
+        return scope.scope_kind
+
+    @staticmethod
+    def _invalid_certification_membership(reason: str) -> None:
+        raise ValueError(f"{CERI_CERTIFICATION_SCOPE_MEMBERSHIP_INVALID}:{reason}")
 
     @source_writer_member(
         "app.services.ceri.feature_rebuild_service:CeriFeatureRebuildService._persist_company"

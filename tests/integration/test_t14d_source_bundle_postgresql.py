@@ -305,7 +305,7 @@ def test_physical_connection_commit_invalidates_source_locks(contextual_engine):
 
 
 @pytest.mark.parametrize("company_count", [1, 50])
-def test_pipeline_feature_authority_selects_remain_within_13_after_scope_membership(
+def test_pipeline_feature_authority_selects_remain_within_14_after_explicit_scope_mode(
     contextual_engine, company_count
 ):
     statements = []
@@ -333,7 +333,7 @@ def test_pipeline_feature_authority_selects_remain_within_13_after_scope_members
         db.flush()
         authority = admit_frozen_operation(
             db,
-            operation_kind="t14d-pipeline-feature-budget",
+            operation_kind="full-pipeline-run",
             subject_kind="ticker",
             members=tuple(
                 ScopeMember("TICKER", ticker)
@@ -382,9 +382,10 @@ def test_pipeline_feature_authority_selects_remain_within_13_after_scope_members
         finally:
             event.remove(contextual_engine, "before_cursor_execute", record)
         assert result["companies_rebuilt"] == company_count, result
-        # T15D adds exactly one set-based retained WorkScopeMember read. The
-        # 1/50 bound must remain identical and no per-company query may appear.
-        assert len(statements) <= 13, len(statements)
+        # The explicit membership-mode gate adds one set-based WorkScopeRecord
+        # authority read. The 1/50 bound remains identical and no per-company
+        # query may appear.
+        assert len(statements) <= 14, len(statements)
 
 
 def test_price_bar_source_bundle_refresh_chunks_75k_identities_and_detects_mutation(

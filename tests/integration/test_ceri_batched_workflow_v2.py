@@ -595,7 +595,7 @@ def _execute_batched_fixture(database_url: str) -> dict:
 def _fixture_authority(db: Session, *, run_id: int, cycle_key: str):
     return admit_frozen_operation(
         db,
-        operation_kind="ceri-parity-fixture",
+        operation_kind="full-pipeline-run",
         subject_kind="ticker",
         members=(ScopeMember("TICKER", "MSFT"),),
         cycle_key=f"ceri-parity:{cycle_key}:{run_id}",

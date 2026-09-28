@@ -7,6 +7,7 @@ from scripts.check_architecture_registry import validate_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "config" / "architecture_registry.json"
+SCOPE_CONTRACT = ROOT / "docs" / "architecture" / "SWINGLENS_SCOPE_REFRESH_ACQUISITION_CONTRACT.md"
 
 
 def _registry() -> dict:
@@ -70,3 +71,11 @@ def test_ceri_remediation_architecture_entries_are_precisely_registered() -> Non
 def test_architecture_admission_checker_has_no_findings() -> None:
     findings, _counts = validate_registry(_registry(), root=ROOT)
     assert findings == []
+
+
+def test_ceri_certification_scope_authority_invariant_is_documented() -> None:
+    contract = SCOPE_CONTRACT.read_text(encoding="utf-8")
+    assert "INV-CERI-CERTIFICATION-SCOPE-AUTHORITY" in contract
+    assert "ceri-feature-certification" in contract
+    assert "full-pipeline-run" in contract
+    assert "does not consult\n`raw_company_rows`" in contract
