@@ -50,7 +50,7 @@ from app.services.ceri.sec.processor_lifecycle import (
     lifecycle_state,
 )
 from app.services.cleanup_service import execute_durable_evidence_retention
-from app.services.domain_write_fence import fence_domain_commits
+from app.services.domain_write_fence import detached_control_plane_scope, fence_domain_commits
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_prerequisites import PipelineBlockedError
 from app.services.process_identity import process_started_at
@@ -833,21 +833,22 @@ def run_worker_once(
                 """Commit only lease/progress state on an independent connection."""
                 control_db = session_factory()
                 try:
-                    heartbeat_job(
-                        control_db,
-                        control_job,
-                        lease_seconds=stale_after_seconds,
-                        execution_token=execution_token,
-                    )
-                    if progress:
-                        record_job_progress(
+                    with detached_control_plane_scope():
+                        heartbeat_job(
                             control_db,
-                            job_id=int(job_id),
-                            execution_token=str(execution_token),
-                            **progress,
+                            control_job,
+                            lease_seconds=stale_after_seconds,
+                            execution_token=execution_token,
                         )
-                    requested = is_cancel_requested(control_db, int(job_id))
-                    control_db.commit()
+                        if progress:
+                            record_job_progress(
+                                control_db,
+                                job_id=int(job_id),
+                                execution_token=str(execution_token),
+                                **progress,
+                            )
+                        requested = is_cancel_requested(control_db, int(job_id))
+                        control_db.commit()
                     return requested
                 except Exception:
                     control_db.rollback()

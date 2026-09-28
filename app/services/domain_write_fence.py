@@ -257,6 +257,24 @@ def fence_domain_commits(
         _current_ownership.reset(reset_token)
 
 
+@contextmanager
+def detached_control_plane_scope() -> Iterator[None]:
+    """Keep operational progress commits outside the domain-write fence.
+
+    A detached heartbeat/progress Session runs synchronously inside the durable
+    handler's context, so ContextVars would otherwise make its own commit hook
+    acquire the calculation job's domain ``FOR UPDATE`` fence.  That control
+    Session is restricted by its caller to lease/progress/cancellation fields;
+    the calculation Session remains fenced independently at its domain commit.
+    """
+
+    reset_token = _current_ownership.set(None)
+    try:
+        yield
+    finally:
+        _current_ownership.reset(reset_token)
+
+
 @event.listens_for(Session, "before_commit")
 def _fence_active_domain_commit(db: Session) -> None:
     ownership = _current_ownership.get()

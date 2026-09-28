@@ -20,10 +20,12 @@ from app.models.tables import (
 )
 from app.routers import ceri_routes, market_regime_routes, run_routes, sector_rotation_routes
 from app.services.background_job_service import enqueue_job
+from app.services.background_worker import execute_job
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.ceri.manual_review_service import CeriManualReviewService
 from app.services.ceri.sec.identity_repair import resolve_and_persist_sec_identity
 from app.services.configuration_delivery import ANCHOR_KEY, anchored_job_configuration
+from app.services.domain_write_fence import detached_control_plane_scope
 from app.services.entrypoint_authority import EntryPointAuthorityError
 from app.services.ib_market_intelligence.flex import import_flex_report
 from app.services.ib_market_intelligence.journal import rebuild_trade_episodes
@@ -269,16 +271,25 @@ def test_direct_delivery_cannot_replace_retained_job_scope(contextual_engine):
 
 
 def test_detached_control_plane_can_update_job_during_anchored_calculation(contextual_engine):
+    statements: list[str] = []
+
+    def record(_connection, _cursor, sql, _parameters, _context, _many):
+        statements.append(sql)
+
     @anchored_job_configuration
     def handler(db, job):
+        return job._control_plane_progress()
+
+    def detached_control_progress():
         with Session(contextual_engine) as control_db:
-            control_db.execute(text("SET LOCAL lock_timeout = '500ms'"))
-            changed = control_db.execute(
-                update(BackgroundJob)
-                .where(BackgroundJob.id == job.id)
-                .values(heartbeat_at=datetime.now(UTC))
-            ).rowcount
-            control_db.commit()
+            with detached_control_plane_scope():
+                control_db.execute(text("SET LOCAL lock_timeout = '500ms'"))
+                changed = control_db.execute(
+                    update(BackgroundJob)
+                    .where(BackgroundJob.id == job.id)
+                    .values(heartbeat_at=datetime.now(UTC))
+                ).rowcount
+                control_db.commit()
         return changed
 
     with Session(contextual_engine) as db:
@@ -286,9 +297,27 @@ def test_detached_control_plane_can_update_job_during_anchored_calculation(conte
         job.status = "RUNNING"
         job.execution_token = "t14d-detached-control-attempt"
         db.commit()
-        job._control_plane_progress = lambda **_progress: False
+        job._control_plane_progress = detached_control_progress
 
-        assert handler(db, job) == 1
+        event.listen(contextual_engine, "before_cursor_execute", record)
+        try:
+            assert (
+                execute_job(
+                    db,
+                    job,
+                    {"CERI_CHANGE_DETECTION": handler},
+                    execution_token=job.execution_token,
+                )
+                == 1
+            )
+        finally:
+            event.remove(contextual_engine, "before_cursor_execute", record)
+
+    assert not [
+        sql
+        for sql in statements
+        if "background_jobs" in sql.lower() and "FOR UPDATE" in sql.upper()
+    ]
 
 
 def test_trade_episode_native_population_and_altered_source_rejection(contextual_engine):
