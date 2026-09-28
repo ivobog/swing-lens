@@ -1618,8 +1618,39 @@ def _validate_projection_source_pins(db, *, kind, projection, evidence):
                 "technical_score_id",
             }
             for role, model in (("fundamental", FundamentalScore), ("technical", TechnicalScore)):
-                source = db.get(model, observed.get(role + "_score_id"))
-                valid = valid and source is not None and source.evidence_id == pins.get(role)
+                source_id = observed.get(role + "_score_id")
+                if source_id is not None:
+                    source = db.get(model, source_id)
+                    valid = valid and source is not None and source.evidence_id == pins.get(role)
+                    continue
+
+                # A producer can be source-certified while deliberately excluded
+                # from the business calculation by consumer-readiness policy. In
+                # that case the compatibility projection has no score-row address;
+                # its immutable eligibility decision is the source address.
+                if role == "fundamental":
+                    permission = (
+                        debug.get("contextual_consumer_eligibility") or {}
+                    ).get(role) or {}
+                    decision = permission.get("decision") or {}
+                    excluded = (
+                        permission.get("included") is False
+                        and decision.get("status")
+                        in {"INELIGIBLE", "POLICY_UNDECIDED"}
+                    )
+                else:
+                    decision = (debug.get("technical_consumer_eligibility") or {}).get(
+                        "decision"
+                    ) or {}
+                    excluded = decision.get("status") in {
+                        "INELIGIBLE",
+                        "POLICY_UNDECIDED",
+                    }
+                valid = (
+                    valid
+                    and excluded
+                    and decision.get("producer_evidence_id") == pins.get(role)
+                )
         if not valid:
             raise ValueError("HISTORICAL_EVIDENCE_UNAVAILABLE: resume source evidence changed")
     permissions = debug.get("contextual_consumer_eligibility") or {}

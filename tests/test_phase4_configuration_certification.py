@@ -257,3 +257,77 @@ def test_projection_normalization_cannot_conceal_changed_combined_source(tampere
         _validate_projection_source_pins(
             db, kind=CoreEvidenceKind.COMBINED, projection=projection, evidence=evidence
         )
+
+
+@pytest.mark.parametrize(
+    ("role", "status", "producer_evidence_id", "valid"),
+    [
+        ("fundamental", "POLICY_UNDECIDED", 41, True),
+        ("fundamental", "INELIGIBLE", 999, False),
+        ("fundamental", "ELIGIBLE", 41, False),
+        ("technical", "POLICY_UNDECIDED", 42, True),
+        ("technical", "INELIGIBLE", 999, False),
+        ("technical", "ELIGIBLE", 42, False),
+    ],
+)
+def test_projection_normalization_accepts_only_source_pinned_policy_exclusions(
+    role, status, producer_evidence_id, valid
+):
+    from types import SimpleNamespace as Row
+
+    from app.services.core_calculation_evidence import CoreEvidenceKind
+    from app.services.pipeline_executor import _validate_projection_source_pins
+
+    pins = {"fundamental": 41, "technical": 42}
+    retained = {
+        "raw_row_id": 9,
+        "fundamental_evidence_id": pins["fundamental"],
+        "technical_evidence_id": pins["technical"],
+    }
+    observed = {
+        "raw_row_id": 9,
+        "fundamental_score_id": 100,
+        "technical_score_id": 200,
+    }
+    observed[f"{role}_score_id"] = None
+    decision = {"status": status, "producer_evidence_id": producer_evidence_id}
+    projection = {
+        "debug_json": {
+            "source_ids": observed,
+            "contextual_consumer_eligibility": {
+                "fundamental": {
+                    "included": False if role == "fundamental" else True,
+                    "decision": decision if role == "fundamental" else {
+                        "status": "ELIGIBLE",
+                        "producer_evidence_id": pins["fundamental"],
+                    },
+                    "source_feature_id": 100,
+                }
+            },
+            "technical_consumer_eligibility": {
+                "decision": decision if role == "technical" else {
+                    "status": "ELIGIBLE",
+                    "producer_evidence_id": pins["technical"],
+                }
+            },
+        }
+    }
+    evidence = Row(
+        source_evidence_ids_json=pins,
+        payload_json={"debug_json": {"source_ids": retained}},
+    )
+
+    def get_source(model, address):
+        source_role = "fundamental" if address == 100 else "technical"
+        return Row(evidence_id=pins[source_role])
+
+    db = Row(get=get_source)
+    if valid:
+        _validate_projection_source_pins(
+            db, kind=CoreEvidenceKind.COMBINED, projection=projection, evidence=evidence
+        )
+    else:
+        with pytest.raises(ValueError, match="source evidence changed"):
+            _validate_projection_source_pins(
+                db, kind=CoreEvidenceKind.COMBINED, projection=projection, evidence=evidence
+            )
