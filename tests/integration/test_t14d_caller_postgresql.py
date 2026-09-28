@@ -6,7 +6,7 @@ import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
 from fastapi import HTTPException, Request
 from native_mutation_support import seed_native_core
-from sqlalchemy import event, func, select
+from sqlalchemy import event, func, select, text, update
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCatalystEvent, CeriCatalystEventRevision, CeriCompany
@@ -266,6 +266,29 @@ def test_direct_delivery_cannot_replace_retained_job_scope(contextual_engine):
         with pytest.raises(ValueError, match="MUTATION_DURABLE_RETAINED_SCOPE_MISMATCH"):
             handler(db, job)
         assert job.payload_json == original
+
+
+def test_detached_control_plane_can_update_job_during_anchored_calculation(contextual_engine):
+    @anchored_job_configuration
+    def handler(db, job):
+        with Session(contextual_engine) as control_db:
+            control_db.execute(text("SET LOCAL lock_timeout = '500ms'"))
+            changed = control_db.execute(
+                update(BackgroundJob)
+                .where(BackgroundJob.id == job.id)
+                .values(heartbeat_at=datetime.now(UTC))
+            ).rowcount
+            control_db.commit()
+        return changed
+
+    with Session(contextual_engine) as db:
+        job = enqueue_job(db, "CERI_CHANGE_DETECTION", {"batch_size": 1})
+        job.status = "RUNNING"
+        job.execution_token = "t14d-detached-control-attempt"
+        db.commit()
+        job._control_plane_progress = lambda **_progress: False
+
+        assert handler(db, job) == 1
 
 
 def test_trade_episode_native_population_and_altered_source_rejection(contextual_engine):

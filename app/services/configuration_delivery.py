@@ -6,7 +6,7 @@ does not change when a job is retried or reclaimed.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import wraps
@@ -59,45 +59,52 @@ def anchored_job_configuration(calculation):
         from app.observability.correlation import worker_job_scope
         from app.services.domain_write_fence import (
             assert_current_execution_ownership,
+            deferred_execution_ownership_lock,
             fence_domain_commits,
         )
 
         try:
-            if reference is None:
-                raise ValueError("MISSING_CONFIGURATION_ANCHOR")
-            token = getattr(job, "execution_token", None)
-            if not getattr(job, "id", None) or not token:
-                raise ValueError("MUTATION_DURABLE_EXECUTION_AUTHORITY_REQUIRED")
-            assert_current_execution_ownership(db, job_id=job.id, execution_token=token)
-            with db.no_autoflush:
-                retained = db.execute(
-                    select(
-                        BackgroundJob.job_type,
-                        BackgroundJob.payload_json,
-                        BackgroundJob.related_run_id,
-                    ).where(BackgroundJob.id == job.id)
-                ).one()
-            if (
-                retained.job_type != job.job_type
-                or retained.payload_json != job.payload_json
-                or retained.related_run_id != job.related_run_id
-            ):
-                raise ValueError("MUTATION_DURABLE_RETAINED_SCOPE_MISMATCH")
-            with (
-                fence_domain_commits(job_id=job.id, execution_token=token),
-                worker_job_scope(job),
-            ):
-                expected = binding_reference(db, job_id=job.id)
-                if reference != expected:
-                    raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
-                current = current_delivery()
-                if current is not None:
-                    if current.anchor != expected:
+            ownership_scope = (
+                deferred_execution_ownership_lock()
+                if callable(getattr(job, "_control_plane_progress", None))
+                else nullcontext()
+            )
+            with ownership_scope:
+                if reference is None:
+                    raise ValueError("MISSING_CONFIGURATION_ANCHOR")
+                token = getattr(job, "execution_token", None)
+                if not getattr(job, "id", None) or not token:
+                    raise ValueError("MUTATION_DURABLE_EXECUTION_AUTHORITY_REQUIRED")
+                assert_current_execution_ownership(db, job_id=job.id, execution_token=token)
+                with db.no_autoflush:
+                    retained = db.execute(
+                        select(
+                            BackgroundJob.job_type,
+                            BackgroundJob.payload_json,
+                            BackgroundJob.related_run_id,
+                        ).where(BackgroundJob.id == job.id)
+                    ).one()
+                if (
+                    retained.job_type != job.job_type
+                    or retained.payload_json != job.payload_json
+                    or retained.related_run_id != job.related_run_id
+                ):
+                    raise ValueError("MUTATION_DURABLE_RETAINED_SCOPE_MISMATCH")
+                with (
+                    fence_domain_commits(job_id=job.id, execution_token=token),
+                    worker_job_scope(job),
+                ):
+                    expected = binding_reference(db, job_id=job.id)
+                    if reference != expected:
                         raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
-                    return calculation(db, job, *args, **kwargs)
-                delivery = load_configuration_delivery(db, reference, expected_anchor=expected)
-                with configuration_delivery_scope(delivery):
-                    return calculation(db, job, *args, **kwargs)
+                    current = current_delivery()
+                    if current is not None:
+                        if current.anchor != expected:
+                            raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+                        return calculation(db, job, *args, **kwargs)
+                    delivery = load_configuration_delivery(db, reference, expected_anchor=expected)
+                    with configuration_delivery_scope(delivery):
+                        return calculation(db, job, *args, **kwargs)
         except Exception as exc:
             from app.services.background_worker import JobDeferred
 
