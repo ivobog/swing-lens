@@ -397,9 +397,9 @@ class CeriChangeDetectionService:
             )
         if existing is not None:
             if isinstance(db, Session):
-                from app.services.ceri.change_authority import change_body
+                from app.services.ceri.change_authority import change_retry_body
 
-                if change_body(existing) != change_body(event):
+                if change_retry_body(existing) != change_retry_body(event):
                     raise ValueError("MUTATION_CERI_CHANGE_ALTERED_RETRY")
             return existing, False
         db.add(event)

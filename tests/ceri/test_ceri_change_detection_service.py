@@ -104,6 +104,53 @@ def test_change_business_identity_does_not_depend_on_orchestration_scope() -> No
     )
 
 
+def test_change_retry_business_body_accepts_legacy_metadata_gap_only() -> None:
+    from copy import deepcopy
+
+    from app.services.ceri.change_authority import change_retry_body
+
+    retained = CeriChangeEvent(
+        company_id=42,
+        change_type="CATALYST_UPDATED",
+        severity="NOTABLE",
+        importance="NOTABLE",
+        signal_class="INFORMATIONAL",
+        comparison_state="COMPARABLE",
+        catalyst_revision_id=11,
+        delta_json={"event_revision_id": 11, "status": "ANNOUNCED"},
+        dedup_key="same-key",
+    )
+    retried = CeriChangeEvent(
+        company_id=42,
+        change_type="CATALYST_UPDATED",
+        severity="NOTABLE",
+        importance="NOTABLE",
+        signal_class="INFORMATIONAL",
+        comparison_state="COMPARABLE",
+        catalyst_revision_id=11,
+        delta_json={
+            "event_revision_id": 11,
+            "status": "ANNOUNCED",
+            "effective_configuration_at_creation": {"semantic_hash": "same-config"},
+            "native_change_proof": {
+                "source_kind": "NORMALIZED_EVENT_DERIVATION",
+                "operation_time": {"cutoff_at": "2026-09-28T23:37:32Z"},
+            },
+        },
+        dedup_key="same-key",
+    )
+
+    assert change_retry_body(retained) == change_retry_body(retried)
+    certified_at_another_cutoff = deepcopy(retried)
+    certified_at_another_cutoff.delta_json["native_change_proof"]["operation_time"] = {
+        "cutoff_at": "2026-09-28T23:14:33Z"
+    }
+    assert change_retry_body(certified_at_another_cutoff) == change_retry_body(retried)
+    altered = deepcopy(retried)
+    altered.delta_json["status"] = "CANCELLED"
+    assert change_retry_body(retained) != change_retry_body(altered)
+
+
 def test_catalyst_revision_change_emits_stable_binary_event() -> None:
     revision = CeriCatalystEventRevision(
         id=11,

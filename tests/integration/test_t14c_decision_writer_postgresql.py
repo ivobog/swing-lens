@@ -1058,6 +1058,20 @@ def test_native_ceri_normalized_changes_require_exact_sources_and_time(
         )
         assert catalyst.changes == 1
         db.commit()
+        later_cutoff = clock.cutoff_for(
+            cutoff.cutoff_at + timedelta(seconds=1),
+            reason="T14C_NORMALIZED_CHANGE_RETRY_OPERATION",
+        )
+        assert (
+            service.detect_catalyst_revision(
+                db,
+                revision=revision,
+                company_id=company_id,
+                market_cutoff=later_cutoff,
+            ).duplicates
+            == 1
+        )
+        db.commit()
         event = db.get(CeriChangeEvent, result.change_ids[0])
         assert (
             event.delta_json["native_change_proof"]["source_kind"] == "NORMALIZED_EVENT_DERIVATION"

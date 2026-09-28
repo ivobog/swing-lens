@@ -74,6 +74,24 @@ def change_body(event):
     )
 
 
+def change_retry_body(event):
+    """Return the durable business body used to prove an idempotent retry.
+
+    Configuration provenance and native source proof were added to the ledger
+    after older change rows already existed. They certify the current write but
+    do not redefine the event identity (whose key already includes semantic
+    configuration). The candidate proof is validated before this comparison;
+    an exact legacy event may therefore converge without rewriting history.
+    """
+
+    body = change_body(event)
+    delta = dict(body.get("delta_json") or {})
+    delta.pop("effective_configuration_at_creation", None)
+    delta.pop("native_change_proof", None)
+    body["delta_json"] = delta
+    return body
+
+
 def _normalized_source(db, model, source_id):
     if source_id is None:
         raise ValueError("MUTATION_CERI_CHANGE_EXACT_NORMALIZED_SOURCE_REQUIRED")
