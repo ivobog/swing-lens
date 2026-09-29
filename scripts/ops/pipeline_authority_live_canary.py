@@ -123,7 +123,8 @@ def _lock_snapshot(db: Session) -> list[dict[str, Any]]:
                    EXTRACT(EPOCH FROM (clock_timestamp() - xact_start)) AS xact_age_seconds,
                    LEFT(query, 240) AS query
             FROM pg_stat_activity
-            WHERE cardinality(pg_blocking_pids(pid)) > 0
+            WHERE datname = current_database()
+              AND cardinality(pg_blocking_pids(pid)) > 0
             ORDER BY pid
             """
         )
