@@ -1,5 +1,5 @@
 engine:
-  enabled: false
+  enabled: true
   feature_schema_version: owpe-features-1.0.0
   calculation_version: owpe-calc-1.1.0
 

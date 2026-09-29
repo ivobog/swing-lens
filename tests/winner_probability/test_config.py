@@ -24,7 +24,7 @@ from app.services.winner_probability.dtos import (
 def test_valid_default_winner_probability_yaml_loads() -> None:
     config = load_winner_probability_config()
 
-    assert config.engine.enabled is False
+    assert config.engine.enabled is True
     assert config.engine.feature_schema_version == "owpe-features-1.0.0"
     assert config.entry_models.production == ENTRY_MODEL_NEXT_OPEN
     assert config.horizon.counting_convention == "ENTRY_SESSION_IS_SESSION_1"
