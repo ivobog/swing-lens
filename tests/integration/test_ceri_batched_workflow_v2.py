@@ -218,6 +218,171 @@ def test_batched_workflow_outputs_match_legacy_workflow_in_postgresql(
     assert len(batched["alerts"]) == 0
 
 
+def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
+    disposable_postgres_database: str,
+    monkeypatch,
+) -> None:
+    """Fresh-run provider evidence is frozen after normalization, before scoring."""
+
+    _upgrade(disposable_postgres_database)
+    enabled_settings = Settings(
+        _env_file=None,
+        ceri_enabled=True,
+        ceri_provider_ingest_enabled=True,
+        ceri_run_capture_enabled=True,
+        ceri_alerts_enabled=True,
+        ceri_legacy_pipeline_scheduling_enabled=False,
+        ceri_batched_workflow_enabled=True,
+    )
+    monkeypatch.setattr(
+        "app.services.ceri.feature_flags.get_settings",
+        lambda: enabled_settings,
+    )
+    monkeypatch.setattr("app.settings.get_settings", lambda: enabled_settings)
+    engine = create_engine(disposable_postgres_database)
+
+    with Session(engine) as db:
+        run_id = _seed_zero_history_run(db)
+        authority = _fixture_authority(db, run_id=run_id, cycle_key="zero-history")
+        pipeline = PipelineRun(upload_run_id=run_id, status="RUNNING", result_json={})
+        bind_semantic_authority(pipeline, authority)
+        db.add(pipeline)
+        db.flush()
+        main_context = create_pipeline_market_context(
+            db,
+            pipeline,
+            cutoff_at=datetime(2026, 8, 12, 11, tzinfo=UTC),
+        )
+        main_context_id = main_context.context_id
+        main_cutoff_at = main_context.cutoff_at
+        pipeline.result_json = {
+            "market_calculation_context_id": main_context.context_id,
+            "market_cutoff_at": main_context.cutoff_at.isoformat(),
+            "input_as_of_session": main_context.latest_completed_session.isoformat(),
+            "market_calendar_version": main_context.calendar_version,
+            "bar_readiness_version": main_context.bar_readiness_version,
+        }
+        workflow_key = f"ceri:pipeline:{pipeline.id}:zero-history"
+        _seed_current_run_estimates(
+            db,
+            run_id=run_id,
+            request_key=(
+                f"{workflow_key}:ingest:eodhd:estimates:MSFT:"
+                f"refresh:{authority.refresh_cycle_id}"
+            ),
+        )
+        assert db.scalar(select(func.count()).select_from(CeriEstimateSnapshot)) == 0
+
+        provider = _new_job(
+            db,
+            job_type=CERI_PROVIDER_INGEST_BATCH,
+            workflow_key=workflow_key,
+            request_key=f"{workflow_key}:provider:eodhd:estimates:0001",
+            related_run_id=run_id,
+            status=JobStatus.COMPLETED,
+            priority=80,
+            payload_json={},
+            max_retries=3,
+        )
+        normalize = _new_job(
+            db,
+            job_type=CERI_NORMALIZE_BATCH,
+            workflow_key=workflow_key,
+            request_key=f"{workflow_key}:normalize:eodhd:estimates:0001",
+            related_run_id=run_id,
+            status=JobStatus.RUNNING,
+            priority=81,
+            payload_json={
+                "workflow_key": workflow_key,
+                "provider": "eodhd",
+                "dataset": "estimates",
+                "tickers": ["MSFT"],
+                "run_id": run_id,
+                "pipeline_run_id": pipeline.id,
+                "checkpoint_interval": 1,
+            },
+            max_retries=3,
+        )
+        bind_semantic_authority(provider, authority)
+        bind_semantic_authority(normalize, authority)
+        db.add_all([provider, normalize])
+        db.commit()
+        normalized = _execute_handler(db, normalize, execute_normalize_batch_job)
+        assert normalized["normalized"] == 4
+        known_at = max(db.scalars(select(CeriEstimateSnapshot.known_at)))
+        assert known_at > main_cutoff_at
+
+        feature = _new_job(
+            db,
+            job_type=CERI_FEATURE_BATCH,
+            workflow_key=workflow_key,
+            request_key=f"{workflow_key}:feature:0001",
+            related_run_id=run_id,
+            status=JobStatus.RUNNING,
+            priority=130,
+            payload_json={
+                "workflow_key": workflow_key,
+                "pipeline_run_id": pipeline.id,
+                "tickers": ["MSFT"],
+                "run_id": run_id,
+                "expected_normalization_batches": 1,
+                "checkpoint_interval": 1,
+            },
+            max_retries=3,
+        )
+        bind_semantic_authority(feature, authority)
+        db.add(feature)
+        db.commit()
+        rebuilt = _execute_handler(db, feature, execute_feature_batch_job)
+        assert rebuilt["features"] > 0
+        db.refresh(feature)
+        ceri_context_id = int(feature.payload_json["calculation_context_id"])
+        ceri_cutoff_at = datetime.fromisoformat(feature.payload_json["cutoff_at"])
+        assert ceri_context_id != main_context_id
+        assert ceri_cutoff_at >= known_at
+
+        finalizer = _new_job(
+            db,
+            job_type=CERI_RUN_FINALIZE,
+            workflow_key=workflow_key,
+            request_key=f"{workflow_key}:finalize",
+            related_run_id=run_id,
+            status=JobStatus.RUNNING,
+            priority=140,
+            payload_json={
+                "workflow_key": workflow_key,
+                "pipeline_run_id": pipeline.id,
+                "run_id": run_id,
+                "expected_feature_batches": 1,
+            },
+            max_retries=3,
+        )
+        bind_semantic_authority(finalizer, authority)
+        db.add(finalizer)
+        db.commit()
+        _execute_handler(db, finalizer, execute_run_finalize_job)
+        capture = db.scalar(
+            select(BackgroundJob).where(
+                BackgroundJob.job_type == CERI_CAPTURE_RUN,
+                BackgroundJob.workflow_key == workflow_key,
+            )
+        )
+        captured = _execute_handler(db, capture, execute_capture_run_job)
+        assert captured["score_snapshots"] == 1
+
+        snapshot = db.scalar(
+            select(CeriScoreSnapshot).where(CeriScoreSnapshot.run_id == run_id)
+        )
+        db.refresh(pipeline)
+        assert snapshot is not None
+        assert snapshot.calculation_context_id == ceri_context_id
+        assert pipeline.result_json["market_calculation_context_id"] == main_context_id
+        assert pipeline.result_json["market_cutoff_at"] == main_cutoff_at.isoformat()
+        assert pipeline.result_json["ceri_calculation_context_id"] == ceri_context_id
+
+    engine.dispose()
+
+
 def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
     disposable_postgres_database: str,
 ) -> None:
@@ -606,6 +771,92 @@ def _fixture_authority(db: Session, *, run_id: int, cycle_key: str):
         policy_identity="ceri-parity-fixture-v1",
         scope_definition={"run_id": run_id, "tickers": ["MSFT"]},
     )
+
+
+def _seed_zero_history_run(db: Session) -> int:
+    run = UploadRun(filename="ceri-zero-history.csv", row_count=1, status="COMPLETED")
+    company = CeriCompany(
+        ticker="MSFT",
+        exchange="US",
+        current_provider_ids_json={"eodhd": "MSFT.US"},
+    )
+    db.add_all([run, company])
+    db.flush()
+    db.add(
+        RawCompanyRow(
+            run_id=run.id,
+            row_number=1,
+            ticker="MSFT",
+            company_name="Microsoft",
+            sector="Technology",
+            raw_json={
+                "ticker": "MSFT",
+                "fundamental_score": 8,
+                "technical_score": 7,
+                "market_regime": "Bull trend",
+            },
+        )
+    )
+    db.commit()
+    return run.id
+
+
+def _seed_current_run_estimates(db: Session, *, run_id: int, request_key: str) -> int:
+    ingestion = CeriIngestionRun(
+        provider="eodhd",
+        provider_terms_version="fixture-1",
+        dataset="estimates",
+        status="COMPLETED",
+        request_key=request_key,
+        scope_json={"ticker": "MSFT", "run_id": run_id},
+        requested_count=4,
+        fetched_count=4,
+        inserted_count=4,
+        completed_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
+    )
+    db.add(ingestion)
+    db.flush()
+    observations = (
+        ("2026-04-30T20:00:00+00:00", "10.0"),
+        ("2026-07-01T20:00:00+00:00", "11.0"),
+        ("2026-08-01T20:00:00+00:00", "12.0"),
+        ("2026-08-11T20:00:00+00:00", "13.0"),
+    )
+    for index, (effective_at, consensus) in enumerate(observations, start=1):
+        db.add(
+            CeriSourceRecord(
+                ingestion_run_id=ingestion.id,
+                provider="eodhd",
+                provider_terms_version="fixture-1",
+                dataset="estimates",
+                provider_record_id=f"MSFT-current-run-estimate-{index}",
+                company_hint_json={"ticker": "MSFT", "exchange": "US"},
+                restricted_normalized_json={
+                    "ticker": "MSFT",
+                    "metric": "EPS_DILUTED",
+                    "period_type": "NEXT_FISCAL_YEAR",
+                    "fiscal_period_end": "2027-06-30",
+                    "consensus": consensus,
+                    "high": str(float(consensus) + 1),
+                    "low": str(float(consensus) - 1),
+                    "analyst_count": 12,
+                    "upward_count": 8,
+                    "downward_count": 2,
+                    "currency": "USD",
+                    "effective_at": effective_at,
+                },
+                observed_at=datetime.fromisoformat(effective_at),
+                content_hash=f"zero-history-content-{index}",
+                idempotency_key=f"zero-history-estimate-{index}",
+                export_policy="exportable",
+                redistribution_allowed=False,
+                purge_eligible=False,
+                retrieved_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
+                ingested_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
+            )
+        )
+    db.commit()
+    return ingestion.id
 
 
 def _seed_fixture(db: Session, *, request_key: str) -> tuple[int, int]:

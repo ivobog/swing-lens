@@ -43,6 +43,11 @@ from app.services.pipeline_dependency_service import (
     reconcile_pipeline_job,
     reconcile_safe_pipeline_invariants,
 )
+from app.services.pipeline_executor import (
+    PipelineContinuationSuppressed,
+    _claim_pipeline_continuation_resume,
+    _mark_pipeline_running,
+)
 from app.services.pipeline_invariant_service import inspect_pipeline_invariants
 from app.services.pipeline_service import (
     PipelineCancellationContended,
@@ -652,6 +657,208 @@ def test_24_generic_durable_handler_does_not_self_block_detached_heartbeat(
                 RawCompanyRow.run_id == run_id,
                 RawCompanyRow.ticker == "GENERIC-DEFERRED",
             )
+        )
+    engine.dispose()
+
+
+def test_25_cancel_during_pending_enqueue_converges_without_child(
+    authority_database_url: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, _root_id = _seed_pipeline(engine)
+    dependency_id, child_id = _seed_dependency(engine, pipeline_id, enqueue=False)
+    assert child_id is None
+
+    with Session(engine) as db:
+        cancelled = cancel_pipeline(db, pipeline_id)
+        db.commit()
+        repeated = cancel_pipeline(db, pipeline_id)
+        db.commit()
+        created = reconcile_pending_dependency_enqueues(db)
+        db.commit()
+
+        dependency = db.get(PipelineDependency, dependency_id)
+        assert cancelled.status == PipelineStatus.CANCELLED
+        assert repeated.status == PipelineStatus.CANCELLED
+        assert dependency.state == "CANCELLED"
+        assert dependency.child_job_id is None
+        assert created == ()
+        assert not any(
+            finding.pipeline_id == pipeline_id
+            for finding in inspect_pipeline_invariants(db)
+        )
+    engine.dispose()
+
+
+def test_26_cancel_observes_terminal_winner_idempotently(
+    authority_database_url: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, _root_id = _seed_pipeline(engine)
+    terminal_locked = threading.Event()
+    release_terminal = threading.Event()
+    outcomes: list[str] = []
+    errors: list[Exception] = []
+
+    def terminal_winner() -> None:
+        try:
+            with Session(engine) as db:
+                pipeline = db.scalar(
+                    select(PipelineRun)
+                    .where(PipelineRun.id == pipeline_id)
+                    .with_for_update()
+                )
+                terminal_locked.set()
+                release_terminal.wait(timeout=10)
+                pipeline.status = PipelineStatus.FAILED
+                pipeline.completed_at = datetime.now(UTC)
+                pipeline.error_message = "authoritative terminal winner"
+                db.commit()
+        except Exception as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    def cancellation_observer() -> None:
+        try:
+            assert terminal_locked.wait(timeout=5)
+            with Session(engine) as db:
+                observed = cancel_pipeline(db, pipeline_id)
+                db.commit()
+                outcomes.append(observed.status)
+        except Exception as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    terminal_thread = threading.Thread(target=terminal_winner)
+    cancel_thread = threading.Thread(target=cancellation_observer)
+    terminal_thread.start()
+    cancel_thread.start()
+    assert terminal_locked.wait(timeout=5)
+    time.sleep(0.1)
+    release_terminal.set()
+    terminal_thread.join(timeout=10)
+    cancel_thread.join(timeout=10)
+
+    with Session(engine) as db:
+        pipeline = db.get(PipelineRun, pipeline_id)
+        assert errors == []
+        assert outcomes == [PipelineStatus.FAILED]
+        assert pipeline.status == PipelineStatus.FAILED
+        assert pipeline.error_message == "authoritative terminal winner"
+    engine.dispose()
+
+
+def test_27_completed_root_does_not_override_cancel_requested(
+    authority_database_url: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, root_id = _seed_pipeline(engine)
+    with Session(engine) as db:
+        pipeline = db.get(PipelineRun, pipeline_id)
+        pipeline.status = PipelineStatus.CANCEL_REQUESTED
+        db.commit()
+
+        reconcile_pipeline_job(db, root_id)
+        db.commit()
+        assert db.get(PipelineRun, pipeline_id).status == PipelineStatus.CANCEL_REQUESTED
+
+        result = reconcile_safe_pipeline_invariants(db)
+        db.commit()
+        assert pipeline_id in result["cancellations"]
+        assert db.get(PipelineRun, pipeline_id).status == PipelineStatus.CANCELLED
+    engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "winner",
+    (
+        PipelineStatus.CANCEL_REQUESTED,
+        PipelineStatus.CANCELLED,
+        PipelineStatus.FAILED,
+        PipelineStatus.COMPLETED,
+    ),
+)
+def test_28_continuation_claim_suppresses_cancel_or_terminal_winner(
+    authority_database_url: str,
+    winner: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, _root_id = _seed_pipeline(engine)
+    _dependency_id, child_id = _seed_dependency(engine, pipeline_id)
+    assert child_id is not None
+    _complete_and_reconcile(engine, child_id)
+
+    with Session(engine) as db:
+        pipeline = db.get(PipelineRun, pipeline_id)
+        pipeline.status = winner
+        if winner != PipelineStatus.CANCEL_REQUESTED:
+            pipeline.completed_at = datetime.now(UTC)
+        db.commit()
+
+    with Session(engine) as restarted, pytest.raises(PipelineContinuationSuppressed):
+        pipeline = restarted.get(PipelineRun, pipeline_id)
+        _claim_pipeline_continuation_resume(restarted, pipeline)
+
+    with Session(engine) as db:
+        expected = (
+            PipelineStatus.CANCELLED
+            if winner == PipelineStatus.CANCEL_REQUESTED
+            else winner
+        )
+        assert db.get(PipelineRun, pipeline_id).status == expected
+    engine.dispose()
+
+
+def test_29_continuation_claim_and_running_transition_hold_one_authority_lock(
+    authority_database_url: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, _root_id = _seed_pipeline(engine)
+    _dependency_id, child_id = _seed_dependency(engine, pipeline_id)
+    assert child_id is not None
+    _complete_and_reconcile(engine, child_id)
+    claim_held = threading.Event()
+    release_claim = threading.Event()
+    cancelled: list[str] = []
+    errors: list[Exception] = []
+
+    def resume() -> None:
+        try:
+            with Session(engine) as db:
+                pipeline = db.get(PipelineRun, pipeline_id)
+                pipeline = _claim_pipeline_continuation_resume(db, pipeline)
+                claim_held.set()
+                release_claim.wait(timeout=10)
+                _mark_pipeline_running(db, pipeline)
+        except Exception as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    def cancel() -> None:
+        try:
+            assert claim_held.wait(timeout=5)
+            with Session(engine) as db:
+                result = cancel_pipeline(db, pipeline_id)
+                db.commit()
+                cancelled.append(result.status)
+        except Exception as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    resume_thread = threading.Thread(target=resume)
+    cancel_thread = threading.Thread(target=cancel)
+    resume_thread.start()
+    cancel_thread.start()
+    assert claim_held.wait(timeout=5)
+    time.sleep(0.1)
+    release_claim.set()
+    resume_thread.join(timeout=10)
+    cancel_thread.join(timeout=10)
+
+    with Session(engine) as db:
+        assert errors == []
+        assert cancelled == [PipelineStatus.CANCELLED]
+        assert db.get(PipelineRun, pipeline_id).status == PipelineStatus.CANCELLED
+        assert not any(
+            finding.code == "TERMINAL_PIPELINE_WITH_LIVE_CONTINUATION"
+            and finding.pipeline_id == pipeline_id
+            for finding in inspect_pipeline_invariants(db)
         )
     engine.dispose()
 
