@@ -29,11 +29,11 @@ from app.models.tables import (
 from app.services.background_job_service import JobStatus, enqueue_job, heartbeat_job
 from app.services.domain_write_fence import (
     assert_current_execution_ownership,
+    bounded_domain_session,
     control_plane_transaction,
     deferred_execution_ownership_lock,
     fence_domain_commits,
 )
-from app.services.ib_fetch_executor import _bounded_item_session
 from app.services.pipeline_dependency_service import (
     enqueue_sec_readiness_dependency,
     prepare_ceri_workflow_dependency,
@@ -330,6 +330,11 @@ def test_14_child_failure_fails_dependency_and_pipeline(authority_database_url: 
         db.commit()
         assert db.get(PipelineDependency, dependency_id).state == "FAILED"
         assert db.get(PipelineRun, pipeline_id).status == PipelineStatus.FAILED
+        step = db.scalar(
+            select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_id)
+        )
+        assert step.status == "FAILED"
+        assert step.error_message == "bounded failure"
     engine.dispose()
 
 
@@ -479,9 +484,9 @@ def test_21_pipeline_item_session_has_explicit_attempt_authority(
             job_id=root_id,
             execution_token=token,
         ):
-            with _bounded_item_session(
+            with bounded_domain_session(
                 pipeline_db,
-                execution_job_id=root_id,
+                job_id=root_id,
                 execution_token=token,
             ) as item_db:
                 item_db.add(

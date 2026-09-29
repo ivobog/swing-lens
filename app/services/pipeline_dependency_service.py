@@ -550,6 +550,16 @@ def _reconcile_dependency_job(db: Session, job: BackgroundJob) -> None:
             dependency.error_message = job.error_message
             _publish_dependency_latency(db, dependency, now, outcome="failed")
             if pipeline.status not in TERMINAL_PIPELINE_STATES:
+                step = _pipeline_step(db, pipeline.id, dependency.continuation_step)
+                if step is not None:
+                    transition_pipeline_step(
+                        db,
+                        step,
+                        "FAILED" if job.status == JobStatus.FAILED else "BLOCKED",
+                        message="Automatic SEC preparation failed.",
+                        error_message=job.error_message,
+                        completed_at=now,
+                    )
                 transition_pipeline(
                     db,
                     pipeline,

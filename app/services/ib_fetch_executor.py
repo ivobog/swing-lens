@@ -1,20 +1,20 @@
 import logging
 from collections import defaultdict
 from collections.abc import Callable
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from time import perf_counter
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from app.models.tables import IBFetchItem, IBFetchRun
 from app.observability.logging import log_event
 from app.services.background_job_service import JobLeaseLost
 from app.services.bar_cache_service import cache_bars
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
-from app.services.domain_write_fence import fence_domain_commits
+from app.services.domain_write_fence import bounded_domain_session
 from app.services.ib_api import IB, Contract
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
@@ -394,18 +394,12 @@ def _bounded_item_session(
     execution_job_id: int | None,
     execution_token: str | None,
 ):
-    if not isinstance(db, Session):
-        with nullcontext(db) as item_db:
-            yield item_db
-        return
-    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
-    with factory() as item_db:
-        with fence_domain_commits(
-            item_db,
-            job_id=execution_job_id,
-            execution_token=execution_token,
-        ):
-            yield item_db
+    with bounded_domain_session(
+        db,
+        job_id=execution_job_id,
+        execution_token=execution_token,
+    ) as item_db:
+        yield item_db
 
 
 def _load_fetch_run(db: Session, fetch_run_id: int) -> IBFetchRun:

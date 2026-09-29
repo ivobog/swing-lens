@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import event, select
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.sql.dml import Delete, Insert, Update
 from sqlalchemy.sql.elements import (
     ReleaseSavepointClause,
@@ -256,6 +256,41 @@ def fence_domain_commits(
     finally:
         _domain_session.reset(session_token)
         _current_ownership.reset(ownership_token)
+
+
+@contextmanager
+def bounded_domain_session(
+    db: Session,
+    *,
+    job_id: int | None = None,
+    execution_token: str | None = None,
+) -> Iterator[Session]:
+    """Create one short domain Session explicitly bound to the current attempt.
+
+    Services that checkpoint per item must not create a Session that merely
+    inherits the ambient ownership ContextVar. This boundary copies the
+    immutable attempt identity deliberately and gives the child Session its
+    own commit-time fence.
+    """
+
+    if not isinstance(db, Session):
+        yield db
+        return
+    ownership = current_domain_write_ownership()
+    effective_job_id = job_id if job_id is not None else getattr(ownership, "job_id", None)
+    effective_token = (
+        execution_token
+        if execution_token is not None
+        else getattr(ownership, "execution_token", None)
+    )
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+    with factory() as child_db:
+        with fence_domain_commits(
+            child_db,
+            job_id=effective_job_id,
+            execution_token=effective_token,
+        ):
+            yield child_db
 
 
 @contextmanager

@@ -9,7 +9,7 @@ from inspect import Parameter, signature
 from time import perf_counter
 from typing import Any
 
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from app.models.tables import (
     PredictionEligibility,
@@ -20,6 +20,7 @@ from app.services.background_job_service import JobLeaseLost
 from app.services.combined_ranking_identity import calculation_identity_from_debug
 from app.services.contextual_calculation_identity import embed_identity
 from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
+from app.services.domain_write_fence import bounded_domain_session
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.process_memory import WorkerMemoryCritical
 from app.services.redaction import redact_sensitive
@@ -224,11 +225,7 @@ class WinnerPredictionCaptureService:
             None,
         )
         clear_run = getattr(self.decision_time_estimate_service, "clear_capture_run", None)
-        item_session_factory = (
-            sessionmaker(bind=db.get_bind(), expire_on_commit=False)
-            if isinstance(db, Session)
-            else None
-        )
+        use_item_sessions = isinstance(db, Session)
         capture_started = perf_counter()
 
         if progress_callback is not None:
@@ -270,7 +267,7 @@ class WinnerPredictionCaptureService:
                         if identity_enforced
                         else None
                     )
-                    if item_session_factory is None:
+                    if not use_item_sessions:
                         self._capture_ticker(
                             db,
                             run_id=run_id,
@@ -297,7 +294,7 @@ class WinnerPredictionCaptureService:
                             ticker=ticker,
                         )
                     else:
-                        with item_session_factory() as item_db:
+                        with bounded_domain_session(db) as item_db:
                             self._capture_ticker(
                                 item_db,
                                 run_id=run_id,
@@ -349,8 +346,8 @@ class WinnerPredictionCaptureService:
                         "winner_prediction.capture_failed",
                         extra={"run_id": run_id, "ticker": ticker, "item_index": item_index},
                     )
-                    if item_session_factory is not None:
-                        with item_session_factory() as progress_db:
+                    if use_item_sessions:
+                        with bounded_domain_session(db) as progress_db:
                             _record_ticker_progress(
                                 progress_callback,
                                 progress_db,
