@@ -436,12 +436,12 @@ def test_native_lifecycle_concurrent_advance_and_decision_reclaim(contextual_eng
         token_b = second.execution_token
         db.commit()
         db.add(UploadRun(id=958, filename="stale-decision-token.csv", status="COMPLETED"))
-        with fence_domain_commits(job_id=queued.id, execution_token=token_a):
+        with fence_domain_commits(db, job_id=queued.id, execution_token=token_a):
             with pytest.raises(JobLeaseLost):
                 SetupLifecycleRepository(setup.setup_config()).upsert_snapshot(db, dto)
         db.commit()
         assert db.get(UploadRun, 958) is None
-        with fence_domain_commits(job_id=queued.id, execution_token=token_b):
+        with fence_domain_commits(db, job_id=queued.id, execution_token=token_b):
             retry = SetupLifecycleRepository(setup.setup_config()).upsert_snapshot(db, dto)
             db.commit()
         assert retry.id == snapshot_id

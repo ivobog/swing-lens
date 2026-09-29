@@ -407,7 +407,7 @@ def test_t09b_execution_token_fence_still_rejects_background_publication(
         db.execute(text("UPDATE background_jobs SET execution_token='token-b' WHERE id=1"))
 
     with publication_sessions() as db:
-        with fence_domain_commits(job_id=1, execution_token="token-a"):
+        with fence_domain_commits(db, job_id=1, execution_token="token-a"):
             with pytest.raises(JobLeaseLost):
                 _publish(db, 1)
                 db.commit()

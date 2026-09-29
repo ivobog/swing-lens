@@ -479,7 +479,7 @@ def test_cancel_pipeline_requests_background_job_cancel_and_marks_pending_steps(
     assert returned is pipeline
     assert pipeline.status == PipelineStatus.CANCELLED
     assert pipeline.completed_at is not None
-    assert pipeline.message == "Pipeline cancellation requested."
+    assert pipeline.message == "Pipeline cancellation completed."
     assert job.requested_cancel is True
     assert job.status == JobStatus.CANCELLED
     assert {step.status for step in steps} == {PipelineStepStatus.CANCELLED}
@@ -500,7 +500,7 @@ def test_cancel_pipeline_does_not_rewrite_terminal_pipeline_status() -> None:
     assert pipeline.completed_at is None
 
 
-def test_cancel_pipeline_running_pipeline_preserves_active_status() -> None:
+def test_cancel_pipeline_without_live_job_converges_to_cancelled() -> None:
     pipeline = PipelineRun(
         id=3,
         upload_run_id=7,
@@ -511,9 +511,9 @@ def test_cancel_pipeline_running_pipeline_preserves_active_status() -> None:
 
     cancel_pipeline(db, pipeline_run_id=3)
 
-    assert pipeline.status == PipelineStatus.RUNNING
-    assert pipeline.completed_at is None
-    assert pipeline.message == "Pipeline cancellation requested."
+    assert pipeline.status == PipelineStatus.CANCELLED
+    assert pipeline.completed_at is not None
+    assert pipeline.message == "Pipeline cancellation completed."
 
 
 def test_resume_pipeline_queues_checkpoint_job_without_rewriting_completed_steps() -> None:
@@ -546,7 +546,7 @@ def test_resume_pipeline_queues_checkpoint_job_without_rewriting_completed_steps
 
     returned = resume_pipeline(db, 3)
 
-    assert returned.status == PipelineStatus.PENDING
+    assert returned.status == PipelineStatus.QUEUED
     assert returned.current_step == "CERI_PROVIDER_INGEST"
     assert steps[0].status == PipelineStepStatus.COMPLETED
     assert steps[0].retry_count == 0

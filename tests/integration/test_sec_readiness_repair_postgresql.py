@@ -13,8 +13,21 @@ from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.ceri_tables import CeriCompany, CeriSecSyncState
-from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, RawCompanyRow, UploadRun
-from app.services.background_job_service import JobStatus, claim_next_job, enqueue_job
+from app.models.tables import (
+    BackgroundJob,
+    PipelineDependency,
+    PipelineRun,
+    PipelineStep,
+    RawCompanyRow,
+    UploadRun,
+)
+from app.services.background_job_service import (
+    JobStatus,
+    claim_next_job,
+    enqueue_job,
+    mark_job_blocked,
+    mark_job_completed,
+)
 from app.services.ceri.sec.processor_lifecycle import certify_processor, promote_processor
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider
@@ -117,7 +130,8 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
             )
         )
         db.flush()
-        _freeze_pipeline(db, pipeline)
+        root = _freeze_pipeline(db, pipeline)
+        pipeline.result_json = {"pipeline_root_job_id": root.id, "background_job_id": root.id}
         repair = schedule_sec_readiness_repair(
             db,
             pipeline=pipeline,
@@ -143,10 +157,16 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
             settings=settings,
             provider=provider,
         )
+        mark_job_completed(db, repair, result, execution_token=repair.execution_token)
+        db.commit()
+
+        from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+        reconcile_pipeline_job(db, repair.id)
         db.commit()
 
         assert result["status"] == "COMPLETED"
-        assert db.get(PipelineRun, pipeline.id).status == PipelineStatus.PENDING
+        assert db.get(PipelineRun, pipeline.id).status == PipelineStatus.QUEUED
         assert db.scalar(select(CeriCompany).where(CeriCompany.ticker == "TEST")).cik == (
             "0000123456"
         )
@@ -176,15 +196,11 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
         assert resume_payload["bar_readiness_version"]
         assert provider.client.download_calls == 1
 
-        repeated = execute_sec_readiness_repair(
-            db,
-            repair,
-            settings=settings,
-            provider=provider,
-        )
+        reconcile_pipeline_job(db, repair.id)
         db.commit()
-        assert repeated["resume_job_id"] == full_jobs[0].id
-        assert repeated["telemetry"]["documents_downloaded"] == 1
+        assert db.get(PipelineDependency, repair.pipeline_dependency_id).continuation_job_id == (
+            full_jobs[0].id
+        )
         assert (
             db.scalar(
                 select(BackgroundJob).where(BackgroundJob.job_type == SEC_READINESS_REPAIR_JOB_TYPE)
@@ -396,6 +412,13 @@ def test_full_pipeline_sec_repair_handoff_does_not_self_block(
                     )
                 )
             )
+            dependencies = list(
+                verify.scalars(
+                    select(PipelineDependency).where(
+                        PipelineDependency.pipeline_run_id == pipeline_id
+                    )
+                )
+            )
             report = {
                 "elapsed_seconds": round(elapsed, 3),
                 "handler_entry_backend_pid": main_backend_pid.get("value"),
@@ -405,6 +428,7 @@ def test_full_pipeline_sec_repair_handoff_does_not_self_block(
                 "pipeline_id": pipeline_id,
                 "pipeline_status": str(retained_pipeline.status),
                 "repair_job_ids": [job.id for job in repair_jobs],
+                "dependency_ids": [dependency.id for dependency in dependencies],
                 "blocked_edges": blocked_edges,
                 "fence_sql": observed_sql,
             }
@@ -425,8 +449,12 @@ def test_full_pipeline_sec_repair_handoff_does_not_self_block(
                 )
 
             assert elapsed < 5
-            assert retained_pipeline.status == PipelineStatus.PREPARING
+            assert retained_pipeline.status == PipelineStatus.WAITING_DEPENDENCY
             assert len(repair_jobs) == 1
+            assert len(dependencies) == 1
+            assert dependencies[0].state == "QUEUED"
+            assert dependencies[0].child_job_id == repair_jobs[0].id
+            assert repair_jobs[0].pipeline_dependency_id == dependencies[0].id
             assert not blocked_edges
     finally:
         stop_observer.set()
@@ -488,7 +516,8 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
                 retry_count=0,
             )
         )
-        _freeze_pipeline(db, pipeline)
+        root = _freeze_pipeline(db, pipeline)
+        pipeline.result_json = {"pipeline_root_job_id": root.id, "background_job_id": root.id}
         repair = schedule_sec_readiness_repair(
             db,
             pipeline=pipeline,
@@ -503,17 +532,28 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
             },
         )
         db.commit()
-        repair.status = JobStatus.RUNNING
-        repair.worker_id = "pytest-worker"
-        db.commit()
+        _claim_target(db, repair)
 
-        with pytest.raises(SecReadinessRepairUnresolved, match="BAD"):
+        with pytest.raises(SecReadinessRepairUnresolved, match="BAD") as blocked_error:
             execute_sec_readiness_repair(
                 db,
                 repair,
                 settings=settings,
                 provider=provider,
             )
+        mark_job_blocked(
+            db,
+            repair,
+            blocked_error.value,
+            reason_code=blocked_error.value.reason_code,
+            diagnostics=blocked_error.value.diagnostics,
+            execution_token=repair.execution_token,
+        )
+        db.commit()
+        from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+        reconcile_pipeline_job(db, repair.id)
+        db.commit()
 
         good = db.scalar(select(CeriCompany).where(CeriCompany.ticker == "GOOD"))
         assert good is not None and good.cik == "0000123456"
@@ -526,8 +566,9 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
         )
         blocked = db.get(PipelineRun, pipeline.id)
         assert blocked.status == PipelineStatus.BLOCKED
-        assert blocked.result_json["blocked_reason"] == "SEC_IDENTITY_UNRESOLVED"
-        unresolved = blocked.result_json["blocked_diagnostics"]["unresolved_tickers"]
+        dependency = db.get(PipelineDependency, repair.pipeline_dependency_id)
+        assert dependency.state == "FAILED"
+        unresolved = (repair.result_json or {})["diagnostics"]["unresolved_tickers"]
         assert set(unresolved) == {"BAD"}
         assert provider.client.download_calls == 1
         assert not list(
@@ -591,6 +632,11 @@ def _freeze_pipeline(db, pipeline):
     root = enqueue_job(db, "FULL_PIPELINE", payload, related_run_id=pipeline.upload_run_id)
     bind_semantic_authority(root, authority)
     root.status = JobStatus.COMPLETED
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "pipeline_root_job_id": root.id,
+        "background_job_id": root.id,
+    }
     db.flush()
     return root
 
@@ -689,7 +735,7 @@ def _schedule_incident(db, pipeline, signature):
         )
 
     result = execute_job(db, root, {"FULL_PIPELINE": validate})
-    assert result.status == PipelineStatus.PREPARING
+    assert result.status == PipelineStatus.WAITING_DEPENDENCY
     repair = db.get(BackgroundJob, pipeline.result_json["repair_job_id"])
     db.commit()
     return root, repair
@@ -744,8 +790,14 @@ def test_worker_repair_continuation_restart_and_c2_drift_keep_c1(
 
     _claim_target(db, repair)
     result = execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: repair_handler})
-    continuation_id = result["resume_job_id"]
+    mark_job_completed(db, repair, result, execution_token=repair.execution_token)
     db.commit()
+    from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+    reconcile_pipeline_job(db, repair.id)
+    db.commit()
+    dependency = db.get(PipelineDependency, repair.pipeline_dependency_id)
+    continuation_id = dependency.continuation_job_id
     assert client.download_calls == 1
     assert get_settings().technical_v5_enabled != c1[3]
     # A fresh Python worker has neither the parent's delivery nor its settings cache.
@@ -841,14 +893,17 @@ with SessionLocal() as db:
     db.expire_all()
     pipeline_status_before = db.get(PipelineRun, pipeline.id).status
     # Recovery of already-ready SEC evidence must not download or process it again.
-    repeated = execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: repair_handler})
-    assert repeated["resume_job_id"] == continuation_id
+    reconcile_pipeline_job(db, repair.id)
+    db.commit()
+    assert db.get(PipelineDependency, repair.pipeline_dependency_id).continuation_job_id == (
+        continuation_id
+    )
     assert client.download_calls == 1
     assert db.get(PipelineRun, pipeline.id).status == pipeline_status_before
     continuations = list(
         db.scalars(
             select(BackgroundJob).where(
-                BackgroundJob.workflow_key == f"pipeline:{pipeline.id}:sec-continuation"
+                BackgroundJob.workflow_key == f"pipeline:{pipeline.id}:dependency-continuation"
             )
         )
     )
@@ -931,7 +986,11 @@ def test_wrong_execution_identity_rejected_before_sec_work(incident_db, wrong):
     db.flush()
     mark_job_failed_or_retry(db, repair, caught.value)
     db.commit()
-    assert get_pipeline_status(db, pipeline.id).status == "BLOCKED"
+    from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+    reconcile_pipeline_job(db, repair.id)
+    db.commit()
+    assert get_pipeline_status(db, pipeline.id).status == "FAILED"
     assert not list(
         db.scalars(
             select(BackgroundJob).where(
@@ -1023,13 +1082,17 @@ def test_preupgrade_terminal_helper_visible_and_normal_resume_keeps_c1(incident_
         },
     }
     db.commit()
+    from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+    reconcile_pipeline_job(db, repair.id)
+    db.commit()
     status = get_pipeline_status(db, pipeline.id)
-    assert status.status == PipelineStatus.BLOCKED
+    assert status.status == PipelineStatus.FAILED
     assert "MISSING_CONFIGURATION_ANCHOR_BINDING" in status.steps[0].error_message
-    assert pipeline.status == PipelineStatus.PREPARING  # Status reads do not mutate runtime data.
+    assert pipeline.status == PipelineStatus.FAILED
     resume_pipeline(db, pipeline.id)
     db.commit()
-    assert pipeline.status == PipelineStatus.PENDING
+    assert pipeline.status == PipelineStatus.QUEUED
     resumed = db.get(BackgroundJob, pipeline.result_json["background_job_id"])
     assert resumed.payload_json["resume_from_step"] == "VALIDATING_RUN"
     assert binding_reference(db, job_id=resumed.id) == c1

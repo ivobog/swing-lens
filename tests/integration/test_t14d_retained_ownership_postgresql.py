@@ -45,7 +45,7 @@ def test_batch_reuses_one_actual_outer_lock_across_savepoints(contextual_engine)
         job_id, execution_token = job.id, job.execution_token
         event.listen(contextual_engine, "before_cursor_execute", record)
         try:
-            with fence_domain_commits(job_id=job_id, execution_token=execution_token):
+            with fence_domain_commits(db, job_id=job_id, execution_token=execution_token):
                 with retained_execution_ownership_scope(db):
                     for _ in range(50):
                         savepoint = db.begin_nested()
@@ -80,7 +80,7 @@ def test_changed_attempt_cannot_reuse_a_prior_lock(contextual_engine, change):
     with Session(contextual_engine, expire_on_commit=False) as db:
         job = _attempt(db)
         job_id, execution_token = job.id, job.execution_token
-        with fence_domain_commits(job_id=job_id, execution_token=execution_token):
+        with fence_domain_commits(db, job_id=job_id, execution_token=execution_token):
             with retained_execution_ownership_scope(db):
                 if change == "physical_commit":
                     db.connection().commit()
@@ -135,7 +135,7 @@ def test_changed_attempt_cannot_reuse_a_prior_lock(contextual_engine, change):
 def test_retained_lock_is_not_authority_for_another_session(contextual_engine):
     with Session(contextual_engine, expire_on_commit=False) as db:
         job = _attempt(db)
-        with fence_domain_commits(job_id=job.id, execution_token=job.execution_token):
+        with fence_domain_commits(db, job_id=job.id, execution_token=job.execution_token):
             with retained_execution_ownership_scope(db):
                 with Session(contextual_engine) as other:
                     with pytest.raises(JobLeaseLost):
@@ -148,7 +148,7 @@ def test_returned_execution_scope_cannot_mutate_the_locked_witness(contextual_en
     with Session(contextual_engine, expire_on_commit=False) as db:
         job = _attempt(db)
         job_id, token = job.id, job.execution_token
-        with fence_domain_commits(job_id=job_id, execution_token=token):
+        with fence_domain_commits(db, job_id=job_id, execution_token=token):
             with retained_execution_ownership_scope(db):
                 body = retained_execution_job_scope(db, job_id=job_id, execution_token=token)
                 original_payload = dict(body["payload_json"])

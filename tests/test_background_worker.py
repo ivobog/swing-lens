@@ -64,7 +64,7 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     class Db:
         def scalar(self, _statement):
-            return "0085_ceri_change_scope"
+            return "0087_pipeline_dependencies"
 
     settings = Settings(
         _env_file=None,
