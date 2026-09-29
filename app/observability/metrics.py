@@ -311,6 +311,21 @@ DEFINITIONS: dict[str, MetricDefinition] = {
     "swinglens_pipelines_cancel_requested_total": _counter(
         "Committed pipeline cancellation requests.", ("status",)
     ),
+    "swinglens_pipeline_transitions_total": _counter(
+        "Authoritative pipeline state transitions.", ("source", "target", "actor")
+    ),
+    "swinglens_pipeline_dependency_wait_seconds": _histogram(
+        "Pipeline dependency wait duration.", ("dependency_type", "outcome")
+    ),
+    "swinglens_pipeline_continuations_created_total": _counter(
+        "Pipeline dependency continuations created.", ("dependency_type",)
+    ),
+    "swinglens_pipeline_cancellation_wait_seconds": _histogram(
+        "Pipeline cancellation convergence duration.", ("status",)
+    ),
+    "swinglens_pipeline_cancellation_lock_contention_total": _counter(
+        "Pipeline cancellations that encountered a bounded control-row lock timeout."
+    ),
     "swinglens_pipelines_finished_total": _counter("Committed pipeline finishes.", ("status",)),
     "swinglens_pipeline_runs_total": _counter("Committed pipeline results.", ("status",)),
     "swinglens_pipeline_duration_seconds": _histogram(

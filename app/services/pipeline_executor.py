@@ -120,6 +120,17 @@ class PipelineCancelled(Exception):
     pass
 
 
+class PipelineContinuationSuppressed(Exception):
+    """A durable continuation lost authority before its resume transition."""
+
+    def __init__(self, pipeline_id: int, status: str) -> None:
+        self.pipeline_id = int(pipeline_id)
+        self.status = str(status)
+        super().__init__(
+            f"PIPELINE_CONTINUATION_SUPPRESSED:pipeline={pipeline_id}:status={status}"
+        )
+
+
 class IBGatewayUnavailable(Exception):
     code = "IB_GATEWAY_UNAVAILABLE"
 
@@ -311,6 +322,7 @@ def execute_full_pipeline(
     progress_callback: Callable[..., None] | None = None,
     memory_probe: Callable[..., None] | None = None,
     execution_token: str | None = None,
+    execution_job_id: int | None = None,
 ) -> PipelineExecutionResult:
     dependencies = dependencies or PipelineExecutionDependencies()
     from app.services.configuration_delivery import current_delivery, delivered_configuration
@@ -597,6 +609,8 @@ def execute_full_pipeline(
                     "memory_probe": memory_probe,
                     "execution_token": execution_token,
                 }
+                if _accepts_keyword(dependencies.execute_fetch_plan, "execution_job_id"):
+                    fetch_kwargs["execution_job_id"] = execution_job_id
                 if fetch_authority is not None and _accepts_keyword(
                     dependencies.execute_fetch_plan, "semantic_authority"
                 ):
@@ -848,6 +862,17 @@ def execute_full_pipeline(
                 result["ceri_provider_workflow_key"] = _ceri_provider_workflow_key(
                     upload_run.id, scheduled
                 )
+                if isinstance(db, Session):
+                    from app.services.pipeline_dependency_service import (
+                        prepare_ceri_workflow_dependency,
+                    )
+
+                    prepare_ceri_workflow_dependency(
+                        db,
+                        pipeline=pipeline,
+                        workflow_key=result["ceri_provider_workflow_key"],
+                        resume_from_step=DECISION_HANDOFF_PIPELINE_STEP,
+                    )
             result["performance"] = performance.snapshot()
             _mark_pipeline_waiting_for_ceri(
                 db,
@@ -1076,6 +1101,7 @@ def _execute_resumed_pipeline(
             "The durable resume path supports CERI_PROVIDER_INGEST and the post-CERI "
             "decision-handoff boundary only."
         )
+    pipeline = _claim_pipeline_continuation_resume(db, pipeline)
     performance = PipelinePerformanceTracker()
     result = _empty_result(pipeline, upload_run)
     result.update(_public_result(pipeline.result_json or {}))
@@ -1372,8 +1398,20 @@ def _validate_ceri_completion_barrier(
     if not isinstance(db, Session):
         return
     from app.models.ceri_tables import CeriScoreSnapshot
+    from app.services.market_calculation_context_service import resolve_pipeline_ceri_context
 
-    context = market_context_for_pipeline(db, pipeline)
+    if retained.get("ceri_calculation_context_id") is not None:
+        context = resolve_pipeline_ceri_context(
+            db,
+            calculation_context_id=retained.get("ceri_calculation_context_id"),
+            upload_run_id=pipeline.upload_run_id,
+            pipeline_run_id=pipeline.id,
+        )
+    else:
+        # Existing non-fresh runs may have valid pre-cutoff retained history
+        # under the original market context. New provider workflows always
+        # retain a post-acquisition CERI context before feature calculation.
+        context = market_context_for_pipeline(db, pipeline)
     captured = set(
         db.scalars(
             select(CeriScoreSnapshot.ticker).where(
@@ -1734,8 +1772,15 @@ def _pipeline_step(
         step.message = f"Replaying step attempt {step.retry_count + 1}."
     else:
         step.message = None
-    pipeline.current_step = step_name
-    pipeline.status = _pipeline_status_for_step(step_name)
+    from app.services.pipeline_state_machine import transition_pipeline
+
+    transition_pipeline(
+        db,
+        pipeline,
+        _pipeline_status_for_step(step_name),
+        actor="pipeline_orchestrator",
+        current_step=step_name,
+    )
     step.status = PipelineStepStatus.RUNNING
     step.started_at = attempt_started_at
     step.completed_at = None
@@ -1750,8 +1795,8 @@ def _pipeline_step(
         stage=step_name,
         status=PipelineStepStatus.RUNNING,
     )
-    _report_job_stage_progress(db, pipeline, step_name)
     _save_progress(db, lease_guard=lease_guard)
+    _report_job_stage_progress(db, pipeline, step_name)
     try:
         yield step
     except JobLeaseLost:
@@ -1801,8 +1846,8 @@ def _pipeline_step(
         step.completed_at = _utcnow()
         if performance is not None:
             performance.finish_step(step_name, step.status)
-        _report_job_stage_progress(db, pipeline, step_name)
         _save_progress(db, lease_guard=lease_guard)
+        _report_job_stage_progress(db, pipeline, step_name)
         observe_step(step.status)
 
 
@@ -1954,13 +1999,76 @@ def _mark_pipeline_running(
     *,
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
-    pipeline.status = PipelineStatus.RUNNING
+    from app.services.pipeline_state_machine import transition_pipeline
+
     pipeline.started_at = pipeline.started_at or _utcnow()
-    pipeline.completed_at = None
-    pipeline.error_message = None
-    pipeline.message = "Full pipeline is running."
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.RUNNING,
+        actor="pipeline_orchestrator",
+        message="Full pipeline is running.",
+    )
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 1)
     _save_progress(db, lease_guard=lease_guard)
+
+
+def _claim_pipeline_continuation_resume(
+    db: Session,
+    pipeline: PipelineRun,
+) -> PipelineRun:
+    """Atomically prove that a continuation still has resume authority.
+
+    The short row lock is held only for the state check and transition.  It is
+    deliberately acquired before any replay side effect so cancellation or a
+    terminal winner cannot be discovered after work has already resumed.
+    """
+
+    if not isinstance(db, Session):
+        if pipeline.status in {
+            PipelineStatus.CANCEL_REQUESTED,
+            PipelineStatus.CANCELLED,
+            PipelineStatus.FAILED,
+            PipelineStatus.COMPLETED,
+            PipelineStatus.PARTIAL,
+            PipelineStatus.BLOCKED,
+        }:
+            raise PipelineContinuationSuppressed(int(pipeline.id or 0), str(pipeline.status))
+        return pipeline
+
+    authoritative = db.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.id == pipeline.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if authoritative is None:
+        raise ValueError(f"Pipeline run {pipeline.id} was not found.")
+
+    if authoritative.status == PipelineStatus.CANCEL_REQUESTED:
+        from app.services.pipeline_state_machine import transition_pipeline
+
+        transition_pipeline(
+            db,
+            authoritative,
+            PipelineStatus.CANCELLED,
+            actor="pipeline_orchestrator",
+            message="Pipeline cancellation completed before continuation resume.",
+        )
+        _cancel_unfinished_steps(db, authoritative.id)
+        db.commit()
+        raise PipelineContinuationSuppressed(authoritative.id, PipelineStatus.CANCELLED)
+
+    if authoritative.status in {
+        PipelineStatus.CANCELLED,
+        PipelineStatus.FAILED,
+        PipelineStatus.COMPLETED,
+        PipelineStatus.PARTIAL,
+        PipelineStatus.BLOCKED,
+    }:
+        raise PipelineContinuationSuppressed(authoritative.id, str(authoritative.status))
+
+    return authoritative
 
 
 def _mark_pipeline_waiting_for_ceri(
@@ -1970,14 +2078,19 @@ def _mark_pipeline_waiting_for_ceri(
     *,
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
+    from app.services.pipeline_state_machine import transition_pipeline
+
     workflow_key = str(result.get("ceri_provider_workflow_key") or "")
     if not workflow_key.startswith("ceri:pipeline:"):
         raise RuntimeError("CERI provider scheduling produced no durable workflow identity.")
-    pipeline.status = PipelineStatus.WAITING_FOR_CERI_COMPLETION
-    pipeline.current_step = CERI_PIPELINE_PROVIDER_INGEST_STEP
-    pipeline.completed_at = None
-    pipeline.message = "Waiting for certified CERI provider workflow completion."
-    pipeline.error_message = None
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.WAITING_FOR_CERI_COMPLETION,
+        actor="pipeline_orchestrator",
+        current_step=CERI_PIPELINE_PROVIDER_INGEST_STEP,
+        message="Waiting for certified CERI provider workflow completion.",
+    )
     pipeline.result_json = {
         **(pipeline.result_json or {}),
         **_public_result(result),
@@ -1995,6 +2108,8 @@ def _mark_pipeline_finished(
     *,
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
+    from app.services.pipeline_state_machine import transition_pipeline
+
     if isinstance(db, Session):
         from app.services.scope_refresh_adoption import (
             require_children_terminal,
@@ -2003,16 +2118,19 @@ def _mark_pipeline_finished(
 
         authority = require_semantic_authority(pipeline)
         result["semantic_child_accounting"] = require_children_terminal(db, authority.scope_id)
-    pipeline.status = status
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 0)
-    pipeline.current_step = None
-    pipeline.completed_at = _utcnow()
+    transition_pipeline(
+        db,
+        pipeline,
+        status,
+        actor="pipeline_orchestrator",
+        clear_current_step=True,
+        message=_completion_message(status, result),
+    )
     pipeline.result_json = {
         **(pipeline.result_json or {}),
         **_public_result(result),
     }
-    pipeline.message = _completion_message(status, result)
-    pipeline.error_message = None
     _save_progress(db, lease_guard=lease_guard)
 
 
@@ -2023,10 +2141,15 @@ def _mark_pipeline_cancelled(
     result: dict[str, Any] | None = None,
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
-    pipeline.status = PipelineStatus.CANCELLED
-    pipeline.completed_at = _utcnow()
-    pipeline.message = "Pipeline was cancelled."
-    pipeline.error_message = None
+    from app.services.pipeline_state_machine import transition_pipeline
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.CANCELLED,
+        actor="pipeline_orchestrator",
+        message="Pipeline was cancelled.",
+    )
     if result is not None:
         pipeline.result_json = {
             **(pipeline.result_json or {}),
@@ -2044,10 +2167,16 @@ def _mark_pipeline_failed(
     result: dict[str, Any] | None = None,
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
-    pipeline.status = PipelineStatus.FAILED
-    pipeline.completed_at = _utcnow()
-    pipeline.message = "Pipeline failed."
-    pipeline.error_message = _safe_message(str(exc))
+    from app.services.pipeline_state_machine import transition_pipeline
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.FAILED,
+        actor="pipeline_orchestrator",
+        message="Pipeline failed.",
+        error_message=_safe_message(str(exc)),
+    )
     if result is not None:
         pipeline.result_json = {
             **(pipeline.result_json or {}),
@@ -2064,10 +2193,16 @@ def _mark_pipeline_blocked(
     result: dict[str, Any] | None = None,
     lease_guard: Callable[[], None] | None = None,
 ) -> None:
-    pipeline.status = PipelineStatus.BLOCKED
-    pipeline.completed_at = _utcnow()
-    pipeline.message = "Pipeline blocked before execution."
-    pipeline.error_message = _safe_message(str(exc))
+    from app.services.pipeline_state_machine import transition_pipeline
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.BLOCKED,
+        actor="pipeline_orchestrator",
+        message="Pipeline blocked before execution.",
+        error_message=_safe_message(str(exc)),
+    )
     pipeline.result_json = {
         **(pipeline.result_json or {}),
         **(_public_result(result) if result is not None else {}),
@@ -2101,7 +2236,6 @@ def _schedule_sec_prerequisite_repair(
         diagnostics=exc.diagnostics,
         resume_from_step=resume_from_step,
     )
-    _save_progress(db, lease_guard=lease_guard)
 
 
 def _cancel_unfinished_steps(db: Session, pipeline_run_id: int) -> None:
@@ -2114,12 +2248,12 @@ def _cancel_unfinished_steps(db: Session, pipeline_run_id: int) -> None:
 
 
 def _save_progress(db: Session, *, lease_guard: Callable[[], None] | None = None) -> None:
-    if lease_guard is not None:
-        lease_guard()
     db.flush()
     commit = getattr(db, "commit", None)
     if callable(commit):
         commit()
+    if lease_guard is not None:
+        lease_guard()
 
 
 def _raise_if_cancelled(should_cancel: Callable[[], bool]) -> None:

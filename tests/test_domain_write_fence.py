@@ -19,6 +19,7 @@ from app.models.tables import (
 )
 from app.services.background_job_service import JobLeaseLost, JobStatus
 from app.services.background_worker import execute_job, run_worker_once
+from app.services.domain_write_fence import bounded_domain_session
 from app.services.ib_market_intelligence import orchestration
 from app.services.ib_market_intelligence.enums import IntelligenceModule
 
@@ -175,6 +176,24 @@ def test_child_session_commit_is_fenced_by_parent_job_ownership(fenced_sessions)
     assert _stored_mutations(fenced_sessions) == []
 
 
+def test_bounded_domain_session_explicitly_inherits_current_attempt(fenced_sessions) -> None:
+    with fenced_sessions() as db:
+
+        def handler(session: Session, _job: BackgroundJob):
+            with bounded_domain_session(session) as child_db:
+                child_db.add(_DomainMutation(name="bounded-child", kind="domain"))
+                child_db.commit()
+
+        execute_job(
+            db,
+            _job(),
+            {"TEST_DOMAIN_JOB": handler},
+            execution_token="token-a",
+        )
+
+    assert _stored_mutations(fenced_sessions) == [("bounded-child", "domain")]
+
+
 def test_ibmi_reclaim_between_tickers_fences_old_owner_and_new_owner_continues(
     fenced_sessions, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -313,9 +332,17 @@ def test_worker_does_not_finalize_success_after_fenced_handler_commit(
     )
     monkeypatch.setattr("app.services.background_worker.heartbeat_worker", lambda *_a, **_k: None)
     monkeypatch.setattr(
+        "app.services.background_worker.mark_worker_infrastructure_healthy",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
         "app.services.background_worker.recover_abandoned_jobs_for_worker", lambda *_a, **_k: 0
     )
     monkeypatch.setattr("app.services.background_worker.recover_stale_jobs", lambda *_a, **_k: 0)
+    monkeypatch.setattr(
+        "app.services.pipeline_dependency_service.reconcile_safe_pipeline_invariants",
+        lambda *_a, **_k: [],
+    )
     monkeypatch.setattr("app.services.background_worker.claim_next_job", lambda *_a, **_k: job)
     monkeypatch.setattr("app.services.background_worker.heartbeat_job", lambda *_a, **_k: job)
     monkeypatch.setattr(

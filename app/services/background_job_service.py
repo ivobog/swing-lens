@@ -140,6 +140,7 @@ def enqueue_job(
     trigger_name: str | None = None,
     triggered_by_request_id: str | None = None,
     fanout_group_id: str | None = None,
+    pipeline_dependency_id: int | None = None,
 ) -> BackgroundJob:
     causal = enqueue_causality(
         job_type=job_type,
@@ -235,6 +236,8 @@ def enqueue_job(
     }
     if workflow_key is not None:
         job_values["workflow_key"] = workflow_key
+    if pipeline_dependency_id is not None and _database_has_pipeline_dependency_column(db):
+        job_values["pipeline_dependency_id"] = pipeline_dependency_id
     lineage_requested = any(
         value is not None
         for value in (root_job_id, parent_job_id, continuation_depth, trigger_source)
@@ -353,6 +356,13 @@ def _database_has_workflow_column(db: Session) -> bool:
     if capabilities is None:
         return True
     return "workflow_key" in capabilities[0]
+
+
+def _database_has_pipeline_dependency_column(db: Session) -> bool:
+    capabilities = _schema_capabilities(db)
+    if capabilities is None:
+        return True
+    return "pipeline_dependency_id" in capabilities[0]
 
 
 def _database_has_job_progress_columns(db: Session) -> bool:
@@ -1160,10 +1170,16 @@ def _interrupt_fenced_pipeline_steps(
         step.message = (
             f"Attempt {int(step.retry_count or 0) + 1} was interrupted; automatic replay pending."
         )
-    pipeline.status = "PENDING"
-    pipeline.current_step = job.progress_stage or pipeline.current_step
-    pipeline.completed_at = None
-    pipeline.message = "Pipeline execution was interrupted; automatic replay is pending."
+    from app.services.pipeline_state_machine import transition_pipeline
+
+    transition_pipeline(
+        db,
+        pipeline,
+        "QUEUED",
+        actor="recovery",
+        current_step=job.progress_stage or pipeline.current_step,
+        message="Pipeline execution was interrupted; automatic replay is pending.",
+    )
 
 
 def requeue_stalled_jobs(
@@ -1510,11 +1526,19 @@ def mark_job_failed_or_retry(
         }
 
     _apply_running_job_update(db, job, expected_token, values)
-    if values["status"] == JobStatus.FAILED and job.job_type == "SEC_READINESS_REPAIR":
+    if (
+        values["status"] == JobStatus.FAILED
+        and job.job_type == "SEC_READINESS_REPAIR"
+        and getattr(job, "pipeline_dependency_id", None) is None
+    ):
         from app.services.ceri.sec.readiness_repair import mark_sec_repair_failure
 
         mark_sec_repair_failure(db, job, error, failure)
-    if values["status"] == JobStatus.FAILED and job.job_type == "FULL_PIPELINE":
+    if (
+        values["status"] == JobStatus.FAILED
+        and job.job_type == "FULL_PIPELINE"
+        and getattr(job, "pipeline_dependency_id", None) is None
+    ):
         from app.services.pipeline_service import mark_pipeline_job_failure
 
         mark_pipeline_job_failure(db, job, failure)

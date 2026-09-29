@@ -5,10 +5,18 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, RawCompanyRow, UploadRun
+from app.models.tables import (
+    BackgroundJob,
+    PipelineDependency,
+    PipelineRun,
+    PipelineStep,
+    RawCompanyRow,
+    UploadRun,
+)
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import (
     JobStatus,
@@ -20,6 +28,7 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI_PIPELINE_STEPS
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.market_data_prewarm_service import request_active_prewarm_preemption
+from app.services.operational_metrics import operational_metrics
 from app.services.scope_refresh_adoption import (
     SemanticWorkAuthority,
     admit_frozen_operation,
@@ -33,6 +42,7 @@ from app.settings import RuntimeMode, get_settings
 FULL_PIPELINE_JOB_TYPE = "FULL_PIPELINE"
 PIPELINE_JOB_PRIORITY = 100
 PIPELINE_JOB_MAX_RETRIES = 3
+PIPELINE_CANCELLATION_LOCK_TIMEOUT_MS = 750
 DECISION_HANDOFF_PIPELINE_STEP = "FREEZING_DECISION_HANDOFF_MANIFEST"
 
 PIPELINE_STEP_NAMES_BEFORE_OPTIONAL_RESEARCH = (
@@ -66,9 +76,12 @@ class MarketDataPolicy(StrEnum):
 
 
 class PipelineStatus:
+    QUEUED = "QUEUED"
     PENDING = "PENDING"
     PREPARING = "PREPARING"
     RUNNING = "RUNNING"
+    WAITING_DEPENDENCY = "WAITING_DEPENDENCY"
+    CANCEL_REQUESTED = "CANCEL_REQUESTED"
     WAITING_FOR_MARKET_DATA = "WAITING_FOR_MARKET_DATA"
     SCORING_FUNDAMENTALS = "SCORING_FUNDAMENTALS"
     FETCHING_MARKET_DATA = "FETCHING_MARKET_DATA"
@@ -102,6 +115,12 @@ class PipelineStepStatus:
     CANCELLED = "CANCELLED"
     INTERRUPTED = "INTERRUPTED"
     SKIPPED = "SKIPPED"
+
+
+class PipelineCancellationContended(RuntimeError):
+    def __init__(self, diagnostics: dict[str, Any]):
+        super().__init__("PIPELINE_CANCELLATION_LOCK_CONTENDED")
+        self.diagnostics = diagnostics
 
 
 @dataclass(frozen=True)
@@ -359,9 +378,15 @@ def start_pipeline(
     if getattr(job, "_coalesced", False):
         existing_pipeline = _pipeline_for_job(db, job)
         if existing_pipeline is not None:
-            pipeline.status = PipelineStatus.CANCELLED
-            pipeline.completed_at = _utcnow()
-            pipeline.message = "Duplicate pipeline request coalesced into an active run."
+            from app.services.pipeline_state_machine import transition_pipeline
+
+            transition_pipeline(
+                db,
+                pipeline,
+                PipelineStatus.CANCELLED,
+                actor="pipeline_orchestrator",
+                message="Duplicate pipeline request coalesced into an active run.",
+            )
             _cancel_pending_steps(db, pipeline.id)
             existing_pipeline._coalesced = True
             db.flush()
@@ -627,11 +652,17 @@ def mark_pipeline_job_failure(db, job, failure):
     # classifier runs. Preserve that terminal state while adding the typed,
     # ticker-level failure reason; never erase earlier stage evidence.
     already_failed = pipeline.status == PipelineStatus.FAILED
-    if not already_failed:
-        pipeline.status = view["status"]
-    pipeline.completed_at = job.completed_at or _utcnow()
-    pipeline.message = view["message"]
-    pipeline.error_message = view["detail"]
+    from app.services.pipeline_state_machine import transition_pipeline, transition_pipeline_step
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.FAILED if already_failed else view["status"],
+        actor="pipeline_orchestrator",
+        message=view["message"],
+        error_message=view["detail"],
+        completed_at=job.completed_at or _utcnow(),
+    )
     pipeline.result_json = {
         **(pipeline.result_json or {}),
         "blocked_reason": failure["code"],
@@ -644,11 +675,14 @@ def mark_pipeline_job_failure(db, job, failure):
         )
     )
     if step is not None:
-        if not already_failed:
-            step.status = view["status"]
-        step.completed_at = pipeline.completed_at
-        step.message = view["message"]
-        step.error_message = view["detail"]
+        transition_pipeline_step(
+            db,
+            step,
+            PipelineStepStatus.FAILED if already_failed else view["status"],
+            completed_at=pipeline.completed_at,
+            message=view["message"],
+            error_message=view["detail"],
+        )
     db.flush()
 
 
@@ -667,22 +701,111 @@ def _failed_sec_repair(db, pipeline):
 
 
 def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
-    pipeline = db.get(PipelineRun, pipeline_run_id)
+    cancellation_started_at = datetime.now(UTC)
+    if isinstance(db, Session):
+        db.execute(
+            text(f"SET LOCAL lock_timeout = '{PIPELINE_CANCELLATION_LOCK_TIMEOUT_MS}ms'")
+        )
+        try:
+            pipeline = db.scalar(
+                select(PipelineRun)
+                .where(PipelineRun.id == pipeline_run_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        except OperationalError as exc:
+            db.rollback()
+            if getattr(getattr(exc, "orig", None), "sqlstate", None) != "55P03":
+                raise
+            diagnostics = _pipeline_cancellation_lock_diagnostics(
+                db, pipeline_id=pipeline_run_id, job_id=0
+            )
+            operational_metrics.increment(
+                "swinglens_pipeline_cancellation_lock_contention_total"
+            )
+            raise PipelineCancellationContended(diagnostics) from exc
+    else:
+        pipeline = db.get(PipelineRun, pipeline_run_id)
     if pipeline is None:
         raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
 
-    background_job_id = _background_job_id(pipeline)
-    if background_job_id is not None:
-        request_job_cancel(db, background_job_id)
+    if pipeline.status in PIPELINE_TERMINAL_STATUSES:
+        return pipeline
+    from app.services.pipeline_state_machine import transition_pipeline
 
-    if pipeline.status == PipelineStatus.PENDING:
-        pipeline.status = PipelineStatus.CANCELLED
-        pipeline.completed_at = _utcnow()
-        pipeline.message = "Pipeline cancellation requested."
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.CANCEL_REQUESTED,
+        actor="user_control",
+        message="Pipeline cancellation requested.",
+    )
+    # Publish cancellation intent without waiting for a control-row lock. This
+    # transaction is the durable convergence point even if a job row is busy.
+    if isinstance(db, Session):
+        db.commit()
+
+    target_ids = _active_pipeline_control_job_ids(db, pipeline_run_id)
+    for job_id in target_ids:
+        try:
+            if isinstance(db, Session):
+                db.execute(
+                    text(f"SET LOCAL lock_timeout = '{PIPELINE_CANCELLATION_LOCK_TIMEOUT_MS}ms'")
+                )
+            request_job_cancel(db, job_id)
+            if isinstance(db, Session):
+                db.commit()
+        except OperationalError as exc:
+            if isinstance(db, Session):
+                db.rollback()
+            if getattr(getattr(exc, "orig", None), "sqlstate", None) != "55P03":
+                raise
+            diagnostics = _pipeline_cancellation_lock_diagnostics(
+                db, pipeline_id=pipeline_run_id, job_id=job_id
+            )
+            operational_metrics.increment(
+                "swinglens_pipeline_cancellation_lock_contention_total"
+            )
+            raise PipelineCancellationContended(diagnostics) from exc
+
+    pipeline = (
+        db.scalar(
+            select(PipelineRun)
+            .where(PipelineRun.id == pipeline_run_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if isinstance(db, Session)
+        else db.get(PipelineRun, pipeline_run_id)
+    )
+    if pipeline is None:
+        raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
+    # Another authoritative transaction may have won while cancellation was
+    # being published to child jobs.  Terminal observation is idempotent and
+    # must never be rewritten as FAILED -> CANCELLED.
+    if pipeline.status in PIPELINE_TERMINAL_STATUSES:
+        db.flush()
+        return pipeline
+    remaining = _active_pipeline_control_job_ids(db, pipeline_run_id)
+    if not remaining:
+        transition_pipeline(
+            db,
+            pipeline,
+            PipelineStatus.CANCELLED,
+            actor="pipeline_orchestrator",
+            message="Pipeline cancellation completed.",
+        )
         _cancel_pending_steps(db, pipeline_run_id)
-    elif pipeline.status not in PIPELINE_TERMINAL_STATUSES:
-        pipeline.message = "Pipeline cancellation requested."
-
+        if isinstance(db, Session):
+            for dependency in db.scalars(
+                select(PipelineDependency).where(
+                    PipelineDependency.pipeline_run_id == pipeline_run_id,
+                    PipelineDependency.state.in_(("PENDING_ENQUEUE", "QUEUED", "RUNNING")),
+                )
+            ):
+                dependency.state = "CANCELLED"
+                dependency.completed_at = _utcnow()
+                dependency.updated_at = dependency.completed_at
     db.flush()
     publish_after_commit(
         db,
@@ -690,7 +813,90 @@ def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
         "swinglens_pipelines_cancel_requested_total",
         status=pipeline.status,
     )
+    publish_after_commit(
+        db,
+        "observe",
+        "swinglens_pipeline_cancellation_wait_seconds",
+        value=max(0.0, (datetime.now(UTC) - cancellation_started_at).total_seconds()),
+        status=pipeline.status,
+    )
     return pipeline
+
+
+def _active_pipeline_control_job_ids(db: Session, pipeline_id: int) -> tuple[int, ...]:
+    pipeline = db.get(PipelineRun, pipeline_id)
+    if pipeline is None:
+        return ()
+    candidates = {
+        int(value)
+        for value in (
+            (pipeline.result_json or {}).get("background_job_id"),
+            (pipeline.result_json or {}).get("repair_job_id"),
+            (pipeline.result_json or {}).get("continuation_job_id"),
+        )
+        if value is not None
+    }
+    if isinstance(db, Session):
+        candidates.update(
+            int(value)
+            for value in db.scalars(
+                select(BackgroundJob.id)
+                .join(
+                    PipelineDependency,
+                    BackgroundJob.pipeline_dependency_id == PipelineDependency.id,
+                )
+                .where(PipelineDependency.pipeline_run_id == pipeline_id)
+            )
+        )
+    if not candidates:
+        return ()
+    return tuple(
+        job_id
+        for job_id in sorted(candidates)
+        if (job := db.get(BackgroundJob, job_id)) is not None
+        and job.status in (JobStatus.QUEUED, JobStatus.RUNNING)
+    )
+
+
+def _pipeline_cancellation_lock_diagnostics(
+    db: Session,
+    *,
+    pipeline_id: int,
+    job_id: int,
+) -> dict[str, Any]:
+    rows = db.execute(
+        text(
+            """
+            SELECT pid, state, wait_event_type, wait_event,
+                   EXTRACT(EPOCH FROM (clock_timestamp() - xact_start)) AS transaction_age_seconds,
+                   pg_blocking_pids(pid) AS blocking_pids,
+                   left(query, 500) AS query
+            FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND xact_start IS NOT NULL
+            ORDER BY xact_start
+            LIMIT 20
+            """
+        )
+    ).mappings()
+    return {
+        "code": "PIPELINE_CANCELLATION_LOCK_CONTENDED",
+        "pipeline_id": pipeline_id,
+        "job_id": job_id,
+        "lock_timeout_ms": PIPELINE_CANCELLATION_LOCK_TIMEOUT_MS,
+        "sessions": [
+            {
+                "pid": row["pid"],
+                "state": row["state"],
+                "wait_event_type": row["wait_event_type"],
+                "wait_event": row["wait_event"],
+                "transaction_age_seconds": float(row["transaction_age_seconds"] or 0),
+                "blocking_pids": list(row["blocking_pids"] or []),
+                "query": row["query"],
+            }
+            for row in rows
+        ],
+    }
 
 
 def resume_pipeline(
@@ -776,11 +982,17 @@ def resume_pipeline(
     )
     if authority is not None:
         bind_semantic_authority(job, authority)
-    pipeline.status = PipelineStatus.PENDING
-    pipeline.current_step = target
-    pipeline.completed_at = None
-    pipeline.message = f"Pipeline resume queued from {target}."
-    pipeline.error_message = None
+    from app.services.pipeline_state_machine import transition_pipeline
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.QUEUED,
+        actor="operator",
+        operator_resume=True,
+        current_step=target,
+        message=f"Pipeline resume queued from {target}.",
+    )
     pipeline.result_json = {
         **(pipeline.result_json or {}),
         "background_job_id": job.id,
@@ -867,15 +1079,22 @@ def enqueue_pipeline_after_sec_repair(
         bind_semantic_authority(job, authority)
     if getattr(job, "_coalesced", False):
         return job
-    pipeline.status = PipelineStatus.PENDING
-    pipeline.current_step = resume_from_step
-    pipeline.completed_at = None
-    pipeline.message = "SEC preparation completed; pipeline continuation queued."
-    pipeline.error_message = None
-    step.status = PipelineStepStatus.PENDING
-    step.completed_at = None
-    step.message = "SEC preparation completed; continuing pipeline."
-    step.error_message = None
+    from app.services.pipeline_state_machine import transition_pipeline, transition_pipeline_step
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.QUEUED,
+        actor="dependency",
+        current_step=resume_from_step,
+        message="SEC preparation completed; pipeline continuation queued.",
+    )
+    transition_pipeline_step(
+        db,
+        step,
+        PipelineStepStatus.PENDING,
+        message="SEC preparation completed; continuing pipeline.",
+    )
     pipeline.result_json = {
         **(pipeline.result_json or {}),
         "background_job_id": job.id,
@@ -1012,6 +1231,18 @@ def enqueue_pipeline_after_ceri_completion(
         expected_anchor = binding_reference(db, pipeline_run_id=pipeline.id)
         if execution_configuration_reference(db, existing) != expected_anchor:
             raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+        from app.services.pipeline_dependency_service import (
+            complete_ceri_workflow_dependency,
+        )
+
+        complete_ceri_workflow_dependency(
+            db,
+            pipeline=pipeline,
+            workflow_key=workflow_key,
+            trigger_job=trigger_job,
+            continuation=existing,
+            certified_count=certified,
+        )
         return existing
 
     authority = require_semantic_authority(pipeline)
@@ -1033,14 +1264,29 @@ def enqueue_pipeline_after_ceri_completion(
         trigger_source="CERI_COMPLETION_BARRIER",
     )
     bind_semantic_authority(continuation, authority)
+    from app.services.pipeline_dependency_service import complete_ceri_workflow_dependency
+
+    complete_ceri_workflow_dependency(
+        db,
+        pipeline=pipeline,
+        workflow_key=workflow_key,
+        trigger_job=trigger_job,
+        continuation=continuation,
+        certified_count=certified,
+    )
     if getattr(continuation, "_coalesced", False):
         return continuation
 
-    pipeline.status = PipelineStatus.PENDING
-    pipeline.current_step = resume_from_step
-    pipeline.completed_at = None
-    pipeline.message = "Certified CERI workflow completed; downstream continuation queued."
-    pipeline.error_message = None
+    from app.services.pipeline_state_machine import transition_pipeline
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.PENDING,
+        actor="dependency",
+        current_step=resume_from_step,
+        message="Certified CERI workflow completed; downstream continuation queued.",
+    )
     pipeline.result_json = {
         **retained,
         "background_job_id": continuation.id,
@@ -1097,18 +1343,37 @@ def _roll_up_ceri_pipeline_failure(
         {"job_id": row.id, "job_type": row.job_type, "status": row.status} for row in failed_jobs
     ]
     partial_only = bool(details) and all(row["status"] == JobStatus.PARTIAL for row in details)
-    pipeline.status = PipelineStatus.PARTIAL if partial_only else PipelineStatus.FAILED
-    pipeline.completed_at = _utcnow()
     feature_certification = workflow_key.startswith("ceri:feature-certification:")
-    pipeline.message = (
+    message = (
         "CERI feature-only certification did not complete successfully."
         if feature_certification
         else "Required CERI provider workflow did not complete successfully."
     )
-    pipeline.error_message = reason or (
+    error_message = reason or (
         "CERI_FEATURE_CERTIFICATION_FAILED"
         if feature_certification
         else "CERI_PROVIDER_WORKFLOW_FAILED"
+    )
+    if not feature_certification:
+        from app.services.pipeline_dependency_service import (
+            fail_ceri_workflow_dependency,
+        )
+
+        fail_ceri_workflow_dependency(
+            db,
+            pipeline=pipeline,
+            workflow_key=workflow_key,
+            error_message=error_message,
+        )
+    from app.services.pipeline_state_machine import transition_pipeline
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.PARTIAL if partial_only else PipelineStatus.FAILED,
+        actor="dependency",
+        message=message,
+        error_message=error_message,
     )
     pipeline.result_json = {
         **(pipeline.result_json or {}),

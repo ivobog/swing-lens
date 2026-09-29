@@ -211,7 +211,7 @@ def test_sec_preflight_schedules_automatic_repair_before_expensive_pipeline_stag
 def test_repaired_initial_preflight_restarts_same_pipeline_from_validation() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"], ceri_provider_ingest_enabled=True)
     db.steps[0].status = PipelineStepStatus.BLOCKED
-    db.pipeline.status = PipelineStatus.BLOCKED
+    db.pipeline.status = PipelineStatus.QUEUED
     calls: list[str] = []
     dependencies = replace(
         _dependencies(
@@ -252,7 +252,7 @@ def test_resume_from_ceri_does_not_reexecute_completed_expensive_stages() -> Non
     for step in db.steps[:ceri_index]:
         step.status = PipelineStepStatus.COMPLETED
     db.steps[ceri_index].status = PipelineStepStatus.BLOCKED
-    db.pipeline.status = PipelineStatus.BLOCKED
+    db.pipeline.status = PipelineStatus.QUEUED
     db.pipeline.result_json.update(
         {
             "fundamental_scores": 1,
@@ -306,7 +306,7 @@ def test_resume_from_ceri_propagates_frozen_context_to_setup_evaluation() -> Non
     for step in db.steps[:ceri_index]:
         step.status = PipelineStepStatus.COMPLETED
     db.steps[ceri_index].status = PipelineStepStatus.BLOCKED
-    db.pipeline.status = PipelineStatus.BLOCKED
+    db.pipeline.status = PipelineStatus.QUEUED
     db.pipeline.result_json.update(
         {
             "fundamental_scores": 1,
@@ -429,7 +429,7 @@ def test_resume_preflight_schedules_repair_without_ceri_enqueue() -> None:
     for step in db.steps[:ceri_index]:
         step.status = PipelineStepStatus.COMPLETED
     db.steps[ceri_index].status = PipelineStepStatus.FAILED
-    db.pipeline.status = PipelineStatus.FAILED
+    db.pipeline.status = PipelineStatus.QUEUED
     calls: list[str] = []
     dependencies = replace(
         _dependencies(calls),
@@ -1255,7 +1255,7 @@ def test_allow_cache_fallback_persists_degraded_metadata_and_skips_winner_captur
     assert audit["winner_prediction_capture_skip_reason"] == "CACHE_FALLBACK_MARKET_DATA"
 
 
-def test_execute_full_pipeline_does_not_commit_step_completion_after_lease_loss() -> None:
+def test_execute_full_pipeline_commits_stage_before_detached_lease_checkpoint() -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"])
     calls = []
     dependencies = _dependencies(
@@ -1281,11 +1281,10 @@ def test_execute_full_pipeline_does_not_commit_step_completion_after_lease_loss(
         )
 
     assert calls == ["fundamentals"]
-    assert db.commits == 4
-    assert db.commit_snapshots[-1]["steps"]["SCORING_FUNDAMENTALS"] == PipelineStepStatus.RUNNING
-    assert not any(
-        snapshot["steps"]["SCORING_FUNDAMENTALS"] == PipelineStepStatus.COMPLETED
-        for snapshot in db.commit_snapshots
+    assert db.commits == 5
+    assert (
+        db.commit_snapshots[-1]["steps"]["SCORING_FUNDAMENTALS"]
+        == PipelineStepStatus.COMPLETED
     )
 
 

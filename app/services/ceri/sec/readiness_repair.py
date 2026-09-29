@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob, PipelineRun, PipelineStep
-from app.services.background_job_service import enqueue_job, fence_job_execution
+from app.services.background_job_service import fence_job_execution
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
@@ -124,77 +124,29 @@ def schedule_sec_readiness_repair(
     diagnostics: dict[str, Any],
     resume_from_step: str | None = None,
 ) -> BackgroundJob:
-    from app.services.scope_refresh_adoption import (
-        bind_semantic_authority,
-        require_semantic_authority,
+    from app.services.pipeline_dependency_service import (
+        enqueue_sec_readiness_dependency,
+        prepare_sec_readiness_dependency,
     )
 
-    authority = require_semantic_authority(pipeline)
-    readiness = dict(diagnostics.get("readiness") or {})
-    processor = dict(diagnostics.get("processor") or {})
-    signature = str(
-        readiness.get("processor_signature")
-        or processor.get("active_signature")
-        or processor.get("deployed_signature")
-        or "unknown"
-    )
     target_step = resume_from_step or pipeline.current_step or "VALIDATING_RUN"
-    request_key = f"sec-readiness-repair:pipeline:{pipeline.id}:signature:{signature}"
-    job = enqueue_job(
+    dependency = prepare_sec_readiness_dependency(
         db,
-        job_type=SEC_READINESS_REPAIR_JOB_TYPE,
-        payload={
-            "pipeline_run_id": pipeline.id,
-            "processor_signature": signature,
-            "resume_from_step": target_step,
-        },
-        related_run_id=pipeline.upload_run_id,
-        priority=SEC_READINESS_REPAIR_PRIORITY,
-        max_retries=SEC_READINESS_REPAIR_MAX_RETRIES,
-        request_key=request_key,
-        workflow_key=f"pipeline:{pipeline.id}:sec-readiness",
+        pipeline=pipeline,
+        diagnostics=diagnostics,
+        resume_from_step=target_step,
     )
-    bind_semantic_authority(job, authority, required_for_parent_completion=True)
-    now = _utcnow().isoformat()
-    initial_ready = int(readiness.get("ready_tickers") or 0)
-    total = int(readiness.get("requested_tickers") or 0)
-    pipeline.status = PipelineStatus.PREPARING
-    pipeline.current_step = target_step
-    pipeline.completed_at = None
-    pipeline.message = "Preparing SEC evidence automatically."
-    pipeline.error_message = None
-    pipeline.result_json = {
-        **(pipeline.result_json or {}),
-        "background_job_id": job.id,
-        "repair_job_id": job.id,
-        "blocked_reason": None,
-        "blocked_diagnostics": None,
-        "sec_repair": {
-            "pipeline_id": pipeline.id,
-            "run_id": pipeline.upload_run_id,
-            "repair_job_id": job.id,
-            "repair_stage": "QUEUED",
-            "total_tickers": total,
-            "ready_tickers": initial_ready,
-            "repairable_tickers": max(0, total - initial_ready),
-            "repaired_tickers": 0,
-            "unresolved_tickers": [],
-            "current_processor_signature": signature,
-            "started_at": None,
-            "updated_at": now,
-            "last_error_code": None,
-            "last_error_detail": None,
-            "counts": readiness.get("counts") or {},
-            "telemetry": {},
-        },
-    }
-    _reset_pipeline_step(
-        db,
-        pipeline.id,
-        target_step,
-        message="Waiting for automatic SEC preparation.",
-    )
-    db.flush()
+    # Transaction A publishes the wait contract before any asynchronous child
+    # exists. A crash after this commit is safely repairable from dependency
+    # identity; no parent transaction remains open while the child is queued.
+    db.commit()
+    job = enqueue_sec_readiness_dependency(db, dependency_id=dependency.id)
+    # Transaction B publishes child lineage and returns control to the worker.
+    db.commit()
+    if job is None:
+        from app.services.pipeline_executor import PipelineCancelled
+
+        raise PipelineCancelled("Pipeline cancellation won before SEC child enqueue.")
     return job
 
 
@@ -373,18 +325,8 @@ def execute_sec_readiness_repair(
     )
 
     if final.complete:
-        from app.services.pipeline_service import enqueue_pipeline_after_sec_repair
-
         _guard_cancel(db, pipeline, job, should_cancel)
         fence_job_execution(db, job)
-        resumed_job = enqueue_pipeline_after_sec_repair(
-            db,
-            pipeline,
-            processor_signature=signature,
-            resume_from_step=str(
-                (job.payload_json or {}).get("resume_from_step") or "VALIDATING_RUN"
-            ),
-        )
         _update_progress(
             db,
             pipeline,
@@ -393,13 +335,12 @@ def execute_sec_readiness_repair(
             readiness=final.as_dict(),
             telemetry=telemetry,
             unresolved={},
-            extra={"resume_job_id": resumed_job.id},
         )
         return {
             "status": "COMPLETED",
             "pipeline_id": pipeline.id,
             "run_id": pipeline.upload_run_id,
-            "resume_job_id": resumed_job.id,
+            "pipeline_dependency_id": job.pipeline_dependency_id,
             "readiness": final.as_dict(include_tickers=False),
             "telemetry": telemetry.as_dict(),
         }
@@ -487,7 +428,7 @@ def _update_progress(
 ) -> None:
     now = _utcnow().isoformat()
     fence_job_execution(db, job)
-    existing = dict((pipeline.result_json or {}).get("sec_repair") or {})
+    existing = dict((job.operational_metadata_json or {}).get("sec_repair") or {})
     initial_ready = int(existing.get("initial_ready_tickers", existing.get("ready_tickers", 0)))
     ready = int(readiness.get("ready_tickers") or 0)
     progress = {
@@ -513,10 +454,6 @@ def _update_progress(
         "telemetry": telemetry.as_dict(),
         **(extra or {}),
     }
-    pipeline.result_json = {**(pipeline.result_json or {}), "sec_repair": progress}
-    if stage != "COMPLETED":
-        pipeline.status = PipelineStatus.PREPARING
-        pipeline.message = _stage_message(stage, ready, progress["total_tickers"])
     job.operational_metadata_json = {
         **(job.operational_metadata_json or {}),
         "sec_repair": progress,
@@ -550,6 +487,10 @@ def sec_repair_failure_view(pipeline, job, failure):
 
 def mark_sec_repair_failure(db, job, error, failure):
     """Publish terminal helper failures only for the pipeline awaiting this job."""
+    if getattr(job, "pipeline_dependency_id", None) is not None:
+        # New dependency jobs are reconciled by the pipeline orchestrator only
+        # after the worker has committed the child's terminal control state.
+        return
     pipeline = db.scalar(
         select(PipelineRun)
         .where(
@@ -564,10 +505,16 @@ def mark_sec_repair_failure(db, job, error, failure):
         return
     ready = (pipeline.result_json or {}).get("sec_repair") or {}
     view = sec_repair_failure_view(pipeline, job, failure)
-    pipeline.status = view["status"]
-    pipeline.completed_at = _utcnow()
-    pipeline.message = view["message"]
-    pipeline.error_message = view["detail"]
+    from app.services.pipeline_state_machine import transition_pipeline, transition_pipeline_step
+
+    transition_pipeline(
+        db,
+        pipeline,
+        view["status"],
+        actor="dependency",
+        message=view["message"],
+        error_message=view["detail"],
+    )
     pipeline.result_json = {
         **(pipeline.result_json or {}),
         "blocked_reason": view["code"],
@@ -586,10 +533,14 @@ def mark_sec_repair_failure(db, job, error, failure):
         )
     )
     if step is not None:
-        step.status = pipeline.status
-        step.completed_at = pipeline.completed_at
-        step.message = view["message"]
-        step.error_message = view["detail"]
+        transition_pipeline_step(
+            db,
+            step,
+            pipeline.status,
+            completed_at=pipeline.completed_at,
+            message=view["message"],
+            error_message=view["detail"],
+        )
     db.flush()
 
 
@@ -603,29 +554,22 @@ def _mark_pipeline_unresolved(
     reason_code: str = "SEC_IDENTITY_UNRESOLVED",
 ) -> None:
     fence_job_execution(db, job)
-    pipeline.status = PipelineStatus.BLOCKED
-    pipeline.completed_at = _utcnow()
-    pipeline.message = "Run cannot continue after automatic SEC preparation."
-    pipeline.error_message = message
-    repair = dict((pipeline.result_json or {}).get("sec_repair") or {})
+    repair = dict((job.operational_metadata_json or {}).get("sec_repair") or {})
     repair.update(
         repair_stage="BLOCKED",
         updated_at=_utcnow().isoformat(),
         last_error_code=reason_code,
         last_error_detail=message,
     )
-    pipeline.result_json = {
-        **(pipeline.result_json or {}),
-        "blocked_reason": reason_code,
-        "blocked_diagnostics": diagnostics,
+    job.operational_metadata_json = {
+        **(job.operational_metadata_json or {}),
         "sec_repair": repair,
+        "dependency_failure": {
+            "reason_code": reason_code,
+            "message": message,
+            "diagnostics": diagnostics,
+        },
     }
-    step = _validation_step(db, pipeline.id)
-    if step is not None:
-        step.status = PipelineStepStatus.BLOCKED
-        step.completed_at = _utcnow()
-        step.message = "Automatic SEC preparation could not resolve every issuer."
-        step.error_message = message
     db.flush()
     db.commit()
 
@@ -640,10 +584,6 @@ def _guard_cancel(
     if callable(heartbeat):
         heartbeat()
     if callable(should_cancel) and should_cancel():
-        pipeline.status = PipelineStatus.CANCELLED
-        pipeline.completed_at = _utcnow()
-        pipeline.message = "Pipeline was cancelled during SEC preparation."
-        db.commit()
         raise SecReadinessRepairCancelled("SEC readiness repair cancelled")
 
 

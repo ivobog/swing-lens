@@ -446,11 +446,17 @@ def execute_ceri_feature_certification_job(
     if len(feature_jobs) != 1 or feature_jobs[0].status != "COMPLETED":
         raise ValueError("CERI_FEATURE_CERTIFICATION_FEATURE_BATCH_NOT_CERTIFIED")
     completed_at = datetime.now(UTC)
-    pipeline.status = PipelineStatus.FEATURE_CERTIFIED
-    pipeline.current_step = CERI_FEATURE_CERTIFICATION_STEP
-    pipeline.completed_at = completed_at
-    pipeline.message = "CERI feature-only certification completed at the declared boundary."
-    pipeline.error_message = None
+    from app.services.pipeline_state_machine import transition_pipeline, transition_pipeline_step
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.FEATURE_CERTIFIED,
+        actor="pipeline_orchestrator",
+        current_step=CERI_FEATURE_CERTIFICATION_STEP,
+        message="CERI feature-only certification completed at the declared boundary.",
+        completed_at=completed_at,
+    )
     pipeline.result_json = {
         **(pipeline.result_json or {}),
         "feature_certification_state": PipelineStatus.FEATURE_CERTIFIED,
@@ -466,9 +472,13 @@ def execute_ceri_feature_certification_job(
     )
     if step is None:
         raise ValueError("CERI_FEATURE_CERTIFICATION_STEP_REQUIRED")
-    step.status = PipelineStepStatus.COMPLETED
-    step.completed_at = completed_at
-    step.message = pipeline.message
+    transition_pipeline_step(
+        db,
+        step,
+        PipelineStepStatus.COMPLETED,
+        completed_at=completed_at,
+        message=pipeline.message,
+    )
     upload_run = db.get(UploadRun, pipeline.upload_run_id)
     if upload_run is None:
         raise ValueError("CERI_FEATURE_CERTIFICATION_UPLOAD_RUN_REQUIRED")

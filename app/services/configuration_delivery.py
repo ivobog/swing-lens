@@ -101,7 +101,7 @@ def anchored_job_configuration(calculation):
                 ):
                     raise ValueError("MUTATION_DURABLE_RETAINED_SCOPE_MISMATCH")
                 with (
-                    fence_domain_commits(job_id=job.id, execution_token=token),
+                    fence_domain_commits(db, job_id=job.id, execution_token=token),
                     worker_job_scope(job),
                 ):
                     expected = binding_reference(db, job_id=job.id)

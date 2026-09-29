@@ -3,15 +3,31 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import threading
+import time
 from types import SimpleNamespace
 
+import psycopg
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, event, select, text
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.ceri_tables import CeriCompany, CeriSecSyncState
-from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, RawCompanyRow, UploadRun
-from app.services.background_job_service import JobStatus, claim_next_job, enqueue_job
+from app.models.tables import (
+    BackgroundJob,
+    PipelineDependency,
+    PipelineRun,
+    PipelineStep,
+    RawCompanyRow,
+    UploadRun,
+)
+from app.services.background_job_service import (
+    JobStatus,
+    claim_next_job,
+    enqueue_job,
+    mark_job_blocked,
+    mark_job_completed,
+)
 from app.services.ceri.sec.processor_lifecycle import certify_processor, promote_processor
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider
@@ -114,7 +130,8 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
             )
         )
         db.flush()
-        _freeze_pipeline(db, pipeline)
+        root = _freeze_pipeline(db, pipeline)
+        pipeline.result_json = {"pipeline_root_job_id": root.id, "background_job_id": root.id}
         repair = schedule_sec_readiness_repair(
             db,
             pipeline=pipeline,
@@ -140,10 +157,16 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
             settings=settings,
             provider=provider,
         )
+        mark_job_completed(db, repair, result, execution_token=repair.execution_token)
+        db.commit()
+
+        from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+        reconcile_pipeline_job(db, repair.id)
         db.commit()
 
         assert result["status"] == "COMPLETED"
-        assert db.get(PipelineRun, pipeline.id).status == PipelineStatus.PENDING
+        assert db.get(PipelineRun, pipeline.id).status == PipelineStatus.QUEUED
         assert db.scalar(select(CeriCompany).where(CeriCompany.ticker == "TEST")).cik == (
             "0000123456"
         )
@@ -173,15 +196,11 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
         assert resume_payload["bar_readiness_version"]
         assert provider.client.download_calls == 1
 
-        repeated = execute_sec_readiness_repair(
-            db,
-            repair,
-            settings=settings,
-            provider=provider,
-        )
+        reconcile_pipeline_job(db, repair.id)
         db.commit()
-        assert repeated["resume_job_id"] == full_jobs[0].id
-        assert repeated["telemetry"]["documents_downloaded"] == 1
+        assert db.get(PipelineDependency, repair.pipeline_dependency_id).continuation_job_id == (
+            full_jobs[0].id
+        )
         assert (
             db.scalar(
                 select(BackgroundJob).where(BackgroundJob.job_type == SEC_READINESS_REPAIR_JOB_TYPE)
@@ -212,6 +231,236 @@ class _PartiallyAmbiguousSecClient(_RepairSecClient):
             "1": {"ticker": "BAD", "cik_str": 111111},
             "2": {"ticker": "BAD", "cik_str": 222222},
         }
+
+
+def test_full_pipeline_sec_repair_handoff_does_not_self_block(
+    disposable_postgres_database: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reproduce the run-188/189 transaction topology on real PostgreSQL.
+
+    The pipeline validation transaction inserts the automatic SEC repair child,
+    retaining a key-share lock on the running root through the lineage foreign
+    key.  Its next lease heartbeat uses the worker's real control-session path.
+    A leaked domain-fence context must not make that control commit request a
+    conflicting ``FOR UPDATE`` lock on the root job.
+    """
+
+    import app.services.background_worker as background_worker_service
+    import app.services.pipeline_executor as pipeline_executor_service
+    import app.settings as app_settings
+    from app.services.background_worker import _execute_full_pipeline_job, run_worker_once
+    from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
+    from app.services.domain_write_fence import current_domain_write_ownership
+
+    incident_settings = Settings(_env_file=None).model_copy(
+        update={
+            "ceri_enabled": True,
+            "ceri_provider_ingest_enabled": True,
+            "ceri_run_capture_enabled": True,
+        }
+    )
+    monkeypatch.setattr(app_settings, "get_settings", lambda: incident_settings)
+    monkeypatch.setattr(background_worker_service, "get_settings", lambda: incident_settings)
+    monkeypatch.setattr(pipeline_executor_service, "get_settings", lambda: incident_settings)
+
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(
+        disposable_postgres_database,
+        connect_args={
+            "options": (
+                "-c lock_timeout=1000ms -c statement_timeout=5000ms "
+                "-c application_name=swinglens-pipeline-authority-reproducer"
+            )
+        },
+    )
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    observed_sql: list[dict[str, object]] = []
+    blocked_edges: list[dict[str, object]] = []
+    stop_observer = threading.Event()
+    main_backend_pid: dict[str, int] = {}
+    child_insert_backend_pid: dict[str, int] = {}
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def record_fence_sql(conn, _cursor, statement, _parameters, _context, _executemany):
+        normalized = " ".join(str(statement).split())
+        targets_jobs = "background_jobs" in normalized.lower()
+        is_fence = targets_jobs and "FOR UPDATE" in normalized.upper()
+        is_child_insert = targets_jobs and normalized.upper().startswith(
+            "INSERT INTO BACKGROUND_JOBS"
+        )
+        if not is_fence and not is_child_insert:
+            return
+        ownership = current_domain_write_ownership()
+        backend_pid = conn.connection.driver_connection.info.backend_pid
+        if is_child_insert and ownership is not None:
+            child_insert_backend_pid["value"] = backend_pid
+        observed_sql.append(
+            {
+                "backend_pid": backend_pid,
+                "kind": "child_insert" if is_child_insert else "ownership_fence",
+                "statement": normalized,
+                "ownership_job_id": ownership.job_id if ownership else None,
+                "ownership_token_present": bool(ownership and ownership.execution_token),
+            }
+        )
+
+    def observe_blocking() -> None:
+        observer_url = disposable_postgres_database.replace(
+            "postgresql+psycopg://", "postgresql://", 1
+        )
+        with psycopg.connect(observer_url, autocommit=True) as observer:
+            while not stop_observer.wait(0.01):
+                rows = observer.execute(
+                    """
+                    SELECT pid, state, wait_event_type, wait_event,
+                           pg_blocking_pids(pid) AS blockers,
+                           xact_start, query_start, query
+                    FROM pg_stat_activity
+                    WHERE datname = current_database()
+                      AND wait_event_type = 'Lock'
+                      AND cardinality(pg_blocking_pids(pid)) > 0
+                    """
+                ).fetchall()
+                for row in rows:
+                    edge = {
+                        "waiter_pid": row[0],
+                        "state": row[1],
+                        "wait_event_type": row[2],
+                        "wait_event": row[3],
+                        "blocker_pids": list(row[4]),
+                        "xact_start": row[5].isoformat() if row[5] else None,
+                        "query_start": row[6].isoformat() if row[6] else None,
+                        "query": " ".join(row[7].split()),
+                    }
+                    if edge not in blocked_edges:
+                        blocked_edges.append(edge)
+
+    observer = threading.Thread(target=observe_blocking, daemon=True)
+    observer.start()
+    try:
+        with sessions() as db:
+            signature = sec_guidance_processor_signature()
+            certify_processor(
+                db, processor_signature=signature, evidence={"test": True}, actor="pytest"
+            )
+            promote_processor(db, processor_signature=signature, actor="pytest")
+            run = UploadRun(
+                filename="pipeline-authority-reproducer.csv", row_count=1, status="COMPLETED"
+            )
+            db.add(run)
+            db.flush()
+            db.add(
+                RawCompanyRow(
+                    run_id=run.id,
+                    row_number=1,
+                    ticker="TEST",
+                    raw_json={"ticker": "TEST"},
+                )
+            )
+            pipeline = PipelineRun(
+                upload_run_id=run.id,
+                status=PipelineStatus.RUNNING,
+                current_step="VALIDATING_RUN",
+                result_json={},
+            )
+            db.add(pipeline)
+            db.flush()
+            db.add(
+                PipelineStep(
+                    pipeline_run_id=pipeline.id,
+                    step_name="VALIDATING_RUN",
+                    step_order=1,
+                    status=PipelineStepStatus.PENDING,
+                    retry_count=0,
+                )
+            )
+            db.flush()
+            root = _freeze_pipeline(db, pipeline)
+            root.status = JobStatus.QUEUED
+            db.commit()
+            root_id, pipeline_id = root.id, pipeline.id
+            diagnostics = diagnose_sec_readiness(
+                db, tickers=["TEST"], processor_signature=signature
+            )
+            assert not diagnostics.complete
+
+        def validate(db, job):
+            main_backend_pid["value"] = db.scalar(text("SELECT pg_backend_pid()"))
+            return _execute_full_pipeline_job(db, job)
+
+        started = time.monotonic()
+        assert run_worker_once(
+            worker_id="pytest-pipeline-authority-worker",
+            worker_instance_id="pytest-pipeline-authority-instance",
+            queues=("interactive", "broker", "background"),
+            stale_after_seconds=900,
+            heartbeat_timeout_seconds=30,
+            session_factory=sessions,
+            handlers={"FULL_PIPELINE": validate},
+        )
+        elapsed = time.monotonic() - started
+
+        with sessions() as verify:
+            retained_root = verify.get(BackgroundJob, root_id)
+            retained_pipeline = verify.get(PipelineRun, pipeline_id)
+            repair_jobs = list(
+                verify.scalars(
+                    select(BackgroundJob).where(
+                        BackgroundJob.job_type == SEC_READINESS_REPAIR_JOB_TYPE,
+                        BackgroundJob.parent_job_id == root_id,
+                    )
+                )
+            )
+            dependencies = list(
+                verify.scalars(
+                    select(PipelineDependency).where(
+                        PipelineDependency.pipeline_run_id == pipeline_id
+                    )
+                )
+            )
+            report = {
+                "elapsed_seconds": round(elapsed, 3),
+                "handler_entry_backend_pid": main_backend_pid.get("value"),
+                "child_insert_backend_pid": child_insert_backend_pid.get("value"),
+                "root_job_id": root_id,
+                "root_status": str(retained_root.status),
+                "pipeline_id": pipeline_id,
+                "pipeline_status": str(retained_pipeline.status),
+                "repair_job_ids": [job.id for job in repair_jobs],
+                "dependency_ids": [dependency.id for dependency in dependencies],
+                "blocked_edges": blocked_edges,
+                "fence_sql": observed_sql,
+            }
+            print("PIPELINE_AUTHORITY_REPRODUCER=" + repr(report))
+
+            if retained_root.status != JobStatus.COMPLETED:
+                assert blocked_edges, report
+                blocked = next(
+                    edge
+                    for edge in blocked_edges
+                    if "FOR UPDATE" in str(edge["query"]).upper()
+                    and "background_jobs" in str(edge["query"]).lower()
+                )
+                assert child_insert_backend_pid["value"] in blocked["blocker_pids"], report
+                pytest.fail(
+                    "full-pipeline SEC repair handoff self-blocked its control commit: "
+                    + repr(report)
+                )
+
+            assert elapsed < 5
+            assert retained_pipeline.status == PipelineStatus.WAITING_DEPENDENCY
+            assert len(repair_jobs) == 1
+            assert len(dependencies) == 1
+            assert dependencies[0].state == "QUEUED"
+            assert dependencies[0].child_job_id == repair_jobs[0].id
+            assert repair_jobs[0].pipeline_dependency_id == dependencies[0].id
+            assert not blocked_edges
+    finally:
+        stop_observer.set()
+        observer.join(timeout=2)
+        event.remove(engine, "before_cursor_execute", record_fence_sql)
+        engine.dispose()
 
 
 def test_ambiguous_identity_does_not_stop_other_safe_repairs(
@@ -267,7 +516,8 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
                 retry_count=0,
             )
         )
-        _freeze_pipeline(db, pipeline)
+        root = _freeze_pipeline(db, pipeline)
+        pipeline.result_json = {"pipeline_root_job_id": root.id, "background_job_id": root.id}
         repair = schedule_sec_readiness_repair(
             db,
             pipeline=pipeline,
@@ -282,17 +532,28 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
             },
         )
         db.commit()
-        repair.status = JobStatus.RUNNING
-        repair.worker_id = "pytest-worker"
-        db.commit()
+        _claim_target(db, repair)
 
-        with pytest.raises(SecReadinessRepairUnresolved, match="BAD"):
+        with pytest.raises(SecReadinessRepairUnresolved, match="BAD") as blocked_error:
             execute_sec_readiness_repair(
                 db,
                 repair,
                 settings=settings,
                 provider=provider,
             )
+        mark_job_blocked(
+            db,
+            repair,
+            blocked_error.value,
+            reason_code=blocked_error.value.reason_code,
+            diagnostics=blocked_error.value.diagnostics,
+            execution_token=repair.execution_token,
+        )
+        db.commit()
+        from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+        reconcile_pipeline_job(db, repair.id)
+        db.commit()
 
         good = db.scalar(select(CeriCompany).where(CeriCompany.ticker == "GOOD"))
         assert good is not None and good.cik == "0000123456"
@@ -305,8 +566,9 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
         )
         blocked = db.get(PipelineRun, pipeline.id)
         assert blocked.status == PipelineStatus.BLOCKED
-        assert blocked.result_json["blocked_reason"] == "SEC_IDENTITY_UNRESOLVED"
-        unresolved = blocked.result_json["blocked_diagnostics"]["unresolved_tickers"]
+        dependency = db.get(PipelineDependency, repair.pipeline_dependency_id)
+        assert dependency.state == "FAILED"
+        unresolved = (repair.result_json or {})["diagnostics"]["unresolved_tickers"]
         assert set(unresolved) == {"BAD"}
         assert provider.client.download_calls == 1
         assert not list(
@@ -370,6 +632,11 @@ def _freeze_pipeline(db, pipeline):
     root = enqueue_job(db, "FULL_PIPELINE", payload, related_run_id=pipeline.upload_run_id)
     bind_semantic_authority(root, authority)
     root.status = JobStatus.COMPLETED
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "pipeline_root_job_id": root.id,
+        "background_job_id": root.id,
+    }
     db.flush()
     return root
 
@@ -468,7 +735,7 @@ def _schedule_incident(db, pipeline, signature):
         )
 
     result = execute_job(db, root, {"FULL_PIPELINE": validate})
-    assert result.status == PipelineStatus.PREPARING
+    assert result.status == PipelineStatus.WAITING_DEPENDENCY
     repair = db.get(BackgroundJob, pipeline.result_json["repair_job_id"])
     db.commit()
     return root, repair
@@ -523,8 +790,14 @@ def test_worker_repair_continuation_restart_and_c2_drift_keep_c1(
 
     _claim_target(db, repair)
     result = execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: repair_handler})
-    continuation_id = result["resume_job_id"]
+    mark_job_completed(db, repair, result, execution_token=repair.execution_token)
     db.commit()
+    from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+    reconcile_pipeline_job(db, repair.id)
+    db.commit()
+    dependency = db.get(PipelineDependency, repair.pipeline_dependency_id)
+    continuation_id = dependency.continuation_job_id
     assert client.download_calls == 1
     assert get_settings().technical_v5_enabled != c1[3]
     # A fresh Python worker has neither the parent's delivery nor its settings cache.
@@ -620,14 +893,17 @@ with SessionLocal() as db:
     db.expire_all()
     pipeline_status_before = db.get(PipelineRun, pipeline.id).status
     # Recovery of already-ready SEC evidence must not download or process it again.
-    repeated = execute_job(db, repair, {SEC_READINESS_REPAIR_JOB_TYPE: repair_handler})
-    assert repeated["resume_job_id"] == continuation_id
+    reconcile_pipeline_job(db, repair.id)
+    db.commit()
+    assert db.get(PipelineDependency, repair.pipeline_dependency_id).continuation_job_id == (
+        continuation_id
+    )
     assert client.download_calls == 1
     assert db.get(PipelineRun, pipeline.id).status == pipeline_status_before
     continuations = list(
         db.scalars(
             select(BackgroundJob).where(
-                BackgroundJob.workflow_key == f"pipeline:{pipeline.id}:sec-continuation"
+                BackgroundJob.workflow_key == f"pipeline:{pipeline.id}:dependency-continuation"
             )
         )
     )
@@ -710,7 +986,11 @@ def test_wrong_execution_identity_rejected_before_sec_work(incident_db, wrong):
     db.flush()
     mark_job_failed_or_retry(db, repair, caught.value)
     db.commit()
-    assert get_pipeline_status(db, pipeline.id).status == "BLOCKED"
+    from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+    reconcile_pipeline_job(db, repair.id)
+    db.commit()
+    assert get_pipeline_status(db, pipeline.id).status == "FAILED"
     assert not list(
         db.scalars(
             select(BackgroundJob).where(
@@ -802,13 +1082,17 @@ def test_preupgrade_terminal_helper_visible_and_normal_resume_keeps_c1(incident_
         },
     }
     db.commit()
+    from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+    reconcile_pipeline_job(db, repair.id)
+    db.commit()
     status = get_pipeline_status(db, pipeline.id)
-    assert status.status == PipelineStatus.BLOCKED
+    assert status.status == PipelineStatus.FAILED
     assert "MISSING_CONFIGURATION_ANCHOR_BINDING" in status.steps[0].error_message
-    assert pipeline.status == PipelineStatus.PREPARING  # Status reads do not mutate runtime data.
+    assert pipeline.status == PipelineStatus.FAILED
     resume_pipeline(db, pipeline.id)
     db.commit()
-    assert pipeline.status == PipelineStatus.PENDING
+    assert pipeline.status == PipelineStatus.QUEUED
     resumed = db.get(BackgroundJob, pipeline.result_json["background_job_id"])
     assert resumed.payload_json["resume_from_step"] == "VALIDATING_RUN"
     assert binding_reference(db, job_id=resumed.id) == c1

@@ -1068,14 +1068,14 @@ def _native_winner_reclaim(db, prediction, definition, config, at):
     definition_id = definition.id
     args = dict(config=config, observed_at=at)
     db.add(UploadRun(id=959, filename="stale-winner-token.csv", status="COMPLETED"))
-    with fence_domain_commits(job_id=queued.id, execution_token=token_a):
+    with fence_domain_commits(db, job_id=queued.id, execution_token=token_a):
         with pytest.raises(JobLeaseLost):
             EvidenceWatermarkService().advance_to_current_material_evidence(
                 db, outcome_definition=db.get(WinnerOutcomeDefinition, definition_id), **args
             )
     db.commit()
     assert db.get(UploadRun, 959) is None
-    with fence_domain_commits(job_id=queued.id, execution_token=token_b):
+    with fence_domain_commits(db, job_id=queued.id, execution_token=token_b):
         EvidenceWatermarkService().advance_to_current_material_evidence(
             db, outcome_definition=db.get(WinnerOutcomeDefinition, definition_id), **args
         )

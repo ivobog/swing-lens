@@ -64,7 +64,7 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     class Db:
         def scalar(self, _statement):
-            return "0085_ceri_change_scope"
+            return "0087_pipeline_dependencies"
 
     settings = Settings(
         _env_file=None,
@@ -189,13 +189,11 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
         db.close()
         engine.dispose()
 
-    assert len(heartbeats) == 3
-    assert sum(control_db is db for control_db, _control_job in heartbeats) == 1
-    assert sum(control_db is not db for control_db, _control_job in heartbeats) == 2
+    assert len(heartbeats) == 4
+    assert all(control_db is not db for control_db, _control_job in heartbeats)
     assert all(control_job is not job for _control_db, control_job in heartbeats)
     assert {control_job.id for _control_db, control_job in heartbeats} == {job.id}
-    assert progress_updates[0][0] is db
-    assert progress_updates[1][0] is not db
+    assert all(control_db is not db for control_db, _progress in progress_updates)
     assert progress_updates[1][1]["processed"] == 10
 
 

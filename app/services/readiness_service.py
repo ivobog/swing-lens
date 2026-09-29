@@ -102,6 +102,7 @@ class ReadinessService:
             sec = self._sec_provider_check()
             queue_pressure = self._queue_pressure_check()
             db_pool = self._db_pool_check()
+            pipeline_invariants = self._pipeline_invariant_check()
         else:
             dependency_message = "skipped: database unavailable"
             migrations = ReadinessCheck(False, dependency_message)
@@ -115,6 +116,7 @@ class ReadinessService:
             sec = ReadinessCheck(False, dependency_message)
             queue_pressure = ReadinessCheck(False, dependency_message)
             db_pool = ReadinessCheck(False, dependency_message)
+            pipeline_invariants = ReadinessCheck(False, dependency_message)
         checks = {
             "database": database,
             "migrations": migrations,
@@ -129,6 +131,7 @@ class ReadinessService:
             "jobs": jobs,
             "queue_pressure": queue_pressure,
             "db_pool": db_pool,
+            "pipeline_invariants": pipeline_invariants,
             "telemetry": self._telemetry_check(),
             "metrics": self._metrics_configuration_check(),
             "resource_sampler": self._resource_collector_check(),
@@ -366,6 +369,29 @@ class ReadinessService:
                 f"expected={','.join(expected_heads) or '<missing>'}",
             )
         return ReadinessCheck(True, f"ok:{','.join(current_heads)}")
+
+    def _pipeline_invariant_check(self) -> ReadinessCheck:
+        from app.services.pipeline_invariant_service import (
+            InvariantDisposition,
+            inspect_pipeline_invariants,
+            invariant_counts,
+        )
+
+        try:
+            with Session(self.engine) as session:
+                findings = inspect_pipeline_invariants(session, now=self.now)
+        except SQLAlchemyError as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        counts = invariant_counts(findings)
+        fatal = counts[InvariantDisposition.FATAL_STARTUP_INVARIANT.value]
+        review = counts[InvariantDisposition.REQUIRES_OPERATOR_REVIEW.value]
+        safe = counts[InvariantDisposition.SAFE_AUTO_RECONCILE.value]
+        message = f"fatal={fatal};review={review};safe={safe}"
+        if fatal:
+            return ReadinessCheck(False, message)
+        if review or safe:
+            return ReadinessCheck(False, message, "degraded")
+        return ReadinessCheck(True, message)
 
     def _storage_check(self) -> ReadinessCheck:
         try:

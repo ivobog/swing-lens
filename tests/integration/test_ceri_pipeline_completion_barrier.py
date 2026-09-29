@@ -13,6 +13,7 @@ from app.models.ceri_tables import CeriCompany, CeriScoreSnapshot
 from app.models.tables import (
     BackgroundJob,
     CoreCalculationEvidence,
+    PipelineDependency,
     PipelineStep,
     RawCompanyRow,
     SetupSignalSnapshot,
@@ -22,6 +23,7 @@ from app.models.tables import (
 from app.services.background_job_service import JobStatus, enqueue_job
 from app.services.ceri.parent_pipeline_fence import require_parent_pipeline_active
 from app.services.market_calculation_context_service import market_context_for_pipeline
+from app.services.pipeline_dependency_service import prepare_ceri_workflow_dependency
 from app.services.pipeline_prerequisites import CeriParentPipelineTerminalError
 from app.services.pipeline_service import (
     DECISION_HANDOFF_PIPELINE_STEP,
@@ -83,6 +85,16 @@ def test_ceri_completion_barrier_is_restart_safe_and_exactly_once(
         assert pipeline.result_json["ceri_certified_capture_count"] == 1
         assert continuations[0].payload_json["pipeline_run_id"] == pipeline_id
         assert continuations[0].payload_json["ceri_provider_workflow_key"] == workflow_key
+        dependency = db.scalar(
+            select(PipelineDependency).where(
+                PipelineDependency.pipeline_run_id == pipeline_id,
+                PipelineDependency.dependency_type == "CERI_WORKFLOW",
+            )
+        )
+        assert dependency.state == "COMPLETED"
+        assert dependency.child_job_id == alert.id
+        assert dependency.continuation_job_id == first_id
+        assert continuations[0].pipeline_dependency_id == dependency.id
         assert require_semantic_authority(continuations[0]) == require_semantic_authority(pipeline)
 
     engine.dispose()
@@ -275,6 +287,12 @@ def _seed_waiting_pipeline(
         "ceri_completion_state": "WAITING",
         "ceri_provider_workflow_key": workflow_key,
     }
+    prepare_ceri_workflow_dependency(
+        db,
+        pipeline=pipeline,
+        workflow_key=workflow_key,
+        resume_from_step=DECISION_HANDOFF_PIPELINE_STEP,
+    )
     for step in pipeline.steps:
         if step.step_order <= next(
             row.step_order for row in pipeline.steps if row.step_name == "CERI_PROVIDER_INGEST"

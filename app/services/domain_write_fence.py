@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import event, select
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.sql.dml import Delete, Insert, Update
 from sqlalchemy.sql.elements import (
     ReleaseSavepointClause,
@@ -34,8 +34,8 @@ _current_ownership: ContextVar[DomainWriteOwnership | None] = ContextVar(
     "swinglens_domain_write_ownership",
     default=None,
 )
-_fenced_session: ContextVar[tuple[Session, DomainWriteOwnership] | None] = ContextVar(
-    "swinglens_fenced_domain_session", default=None
+_domain_session: ContextVar[Session | None] = ContextVar(
+    "swinglens_domain_write_session", default=None
 )
 _retained_batch_ownership: ContextVar[tuple | None] = ContextVar(
     "swinglens_retained_batch_ownership", default=None
@@ -138,21 +138,14 @@ def _invalidate_retained_batch_ownership(conn, cursor, statement, parameters, co
 
 
 def current_fenced_domain_session(job_id: int, execution_token: str) -> Session | None:
-    """Find this attempt's synchronous transaction retaining the job row lock."""
-    retained = _fenced_session.get()
-    if retained is None:
+    """Return the only Session explicitly authorized for this domain attempt."""
+    db = _domain_session.get()
+    ownership = _current_ownership.get()
+    if db is None or ownership != DomainWriteOwnership(job_id, execution_token):
         return None
-    db, ownership = retained
-    if ownership != DomainWriteOwnership(job_id, execution_token) or not db.in_transaction():
+    if not db.in_transaction():
         return None
     return db
-
-
-@event.listens_for(Session, "after_transaction_end")
-def _release_fenced_session(db: Session, transaction) -> None:
-    retained = _fenced_session.get()
-    if transaction.parent is None and retained is not None and retained[0] is db:
-        _fenced_session.set(None)
 
 
 def current_domain_write_ownership() -> DomainWriteOwnership | None:
@@ -222,7 +215,6 @@ def assert_current_execution_ownership(
         or current.execution_token != execution_token
     ):
         raise JobLeaseLost(f"Background job {job_id} lease is no longer held.")
-    _fenced_session.set((db, DomainWriteOwnership(job_id, execution_token)))
     return deepcopy(dict(current._mapping))
 
 
@@ -245,6 +237,7 @@ def deferred_execution_ownership_lock() -> Iterator[None]:
 
 @contextmanager
 def fence_domain_commits(
+    db: Session,
     *,
     job_id: int | None,
     execution_token: str | None,
@@ -254,13 +247,50 @@ def fence_domain_commits(
     if job_id is None or not execution_token:
         yield
         return
-    reset_token: Token[DomainWriteOwnership | None] = _current_ownership.set(
+    ownership_token: Token[DomainWriteOwnership | None] = _current_ownership.set(
         DomainWriteOwnership(job_id=job_id, execution_token=execution_token)
     )
+    session_token: Token[Session | None] = _domain_session.set(db)
     try:
         yield
     finally:
-        _current_ownership.reset(reset_token)
+        _domain_session.reset(session_token)
+        _current_ownership.reset(ownership_token)
+
+
+@contextmanager
+def bounded_domain_session(
+    db: Session,
+    *,
+    job_id: int | None = None,
+    execution_token: str | None = None,
+) -> Iterator[Session]:
+    """Create one short domain Session explicitly bound to the current attempt.
+
+    Services that checkpoint per item must not create a Session that merely
+    inherits the ambient ownership ContextVar. This boundary copies the
+    immutable attempt identity deliberately and gives the child Session its
+    own commit-time fence.
+    """
+
+    if not isinstance(db, Session):
+        yield db
+        return
+    ownership = current_domain_write_ownership()
+    effective_job_id = job_id if job_id is not None else getattr(ownership, "job_id", None)
+    effective_token = (
+        execution_token
+        if execution_token is not None
+        else getattr(ownership, "execution_token", None)
+    )
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+    with factory() as child_db:
+        with fence_domain_commits(
+            child_db,
+            job_id=effective_job_id,
+            execution_token=effective_token,
+        ):
+            yield child_db
 
 
 @contextmanager
@@ -274,24 +304,51 @@ def detached_control_plane_scope() -> Iterator[None]:
     the calculation Session remains fenced independently at its domain commit.
     """
 
-    reset_token = _current_ownership.set(None)
+    ownership_token = _current_ownership.set(None)
+    session_token = _domain_session.set(None)
     try:
         yield
     finally:
-        _current_ownership.reset(reset_token)
+        _domain_session.reset(session_token)
+        _current_ownership.reset(ownership_token)
+
+
+@contextmanager
+def control_plane_transaction(db: Session) -> Iterator[Session]:
+    """Run and commit one short control transaction with no domain authority.
+
+    This is the sole boundary for synchronous lease, heartbeat, progress, and
+    cancellation commits made from inside a domain execution context.
+    """
+
+    with detached_control_plane_scope():
+        try:
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
 
 @event.listens_for(Session, "before_commit")
 def _fence_active_domain_commit(db: Session) -> None:
     ownership = _current_ownership.get()
-    if ownership is None or db.in_nested_transaction():
+    domain_session = _domain_session.get()
+    if ownership is None:
+        return
+    if domain_session is not db:
+        raise JobLeaseLost(
+            "Domain transaction Session was not explicitly bound to the current job attempt."
+        )
+    if db.in_nested_transaction():
         # ``before_commit`` also fires when SQLAlchemy releases a nested
         # SAVEPOINT.  A savepoint is not a durable publication boundary, and
         # taking the background-job row lock there retains it in the outer
         # transaction.  Long-running handlers then deadlock their detached
         # heartbeat/progress Session against themselves.  The outer commit
         # fires this hook again after the savepoint has ended and remains the
-        # mandatory serialization point for publishing domain state.
+        # mandatory serialization point for publishing domain state. A
+        # different Session can never inherit this lock implicitly.
         return
     token = _force_execution_lock.set(True)
     try:

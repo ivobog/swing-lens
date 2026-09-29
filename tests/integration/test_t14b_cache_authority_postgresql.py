@@ -89,7 +89,7 @@ def test_cache_rejects_forged_keys_pit_drift_corruption_and_false_shadow(context
         db.add(job)
         db.commit()
         job_id = job.id
-        with fence_domain_commits(job_id=job_id, execution_token="T1"):
+        with fence_domain_commits(db, job_id=job_id, execution_token="T1"):
             with pytest.raises(JobLeaseLost):
                 upsert_local_artifact(db, key, artifact_json={"feature_result": {"close": 99}})
         db.commit()
@@ -97,7 +97,7 @@ def test_cache_rejects_forged_keys_pit_drift_corruption_and_false_shadow(context
             TechnicalFeatureArtifact.input_signature == key.input_signature
         )
         assert db.scalar(cache_row).artifact_json["feature_result"]["close"] == 10
-        with fence_domain_commits(job_id=job_id, execution_token="T2"):
+        with fence_domain_commits(db, job_id=job_id, execution_token="T2"):
             upsert_local_artifact(db, key, artifact_json={"feature_result": {"close": 11}})
         with Session(contextual_engine) as contender:
             contender.execute(text("SET LOCAL lock_timeout = '100ms'"))
