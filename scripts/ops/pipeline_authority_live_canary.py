@@ -241,6 +241,38 @@ def _is_continued(pipeline: dict[str, Any]) -> bool:
     )
 
 
+def _state_fingerprint(snapshot: dict[str, Any]) -> str:
+    material = {
+        "pipelines": [
+            {
+                "id": pipeline["id"],
+                "status": pipeline.get("status"),
+                "current_step": pipeline.get("current_step"),
+                "dependencies": [
+                    (
+                        item.get("id"),
+                        item.get("state"),
+                        item.get("child_job_id"),
+                        item.get("continuation_job_id"),
+                    )
+                    for item in pipeline.get("dependencies") or []
+                ],
+                "jobs": [
+                    (job.get("id"), job.get("status"), job.get("requested_cancel"))
+                    for job in pipeline.get("jobs") or []
+                ],
+                "steps": [
+                    (step.get("name"), step.get("status"), step.get("retry_count"))
+                    for step in pipeline.get("steps") or []
+                ],
+            }
+            for pipeline in snapshot["pipelines"]
+        ],
+        "blocking": snapshot["blocking"],
+    }
+    return json.dumps(material, sort_keys=True, default=str)
+
+
 def _cancel(pipeline_id: int, reason: str) -> None:
     started = time.monotonic()
     with SessionLocal() as db:
@@ -279,7 +311,7 @@ def observe(
     while time.monotonic() < deadline:
         with SessionLocal() as db:
             snapshot = _snapshot(db, pipeline_ids)
-        encoded = json.dumps(snapshot, sort_keys=True, default=str)
+        encoded = _state_fingerprint(snapshot)
         if encoded != prior:
             _emit("snapshot", **snapshot)
             prior = encoded
