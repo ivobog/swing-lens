@@ -851,6 +851,17 @@ def execute_full_pipeline(
                 result["ceri_provider_workflow_key"] = _ceri_provider_workflow_key(
                     upload_run.id, scheduled
                 )
+                if isinstance(db, Session):
+                    from app.services.pipeline_dependency_service import (
+                        prepare_ceri_workflow_dependency,
+                    )
+
+                    prepare_ceri_workflow_dependency(
+                        db,
+                        pipeline=pipeline,
+                        workflow_key=result["ceri_provider_workflow_key"],
+                        resume_from_step=DECISION_HANDOFF_PIPELINE_STEP,
+                    )
             result["performance"] = performance.snapshot()
             _mark_pipeline_waiting_for_ceri(
                 db,

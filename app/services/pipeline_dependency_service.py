@@ -19,9 +19,153 @@ from app.services.pipeline_state_machine import (
 )
 
 SEC_READINESS_DEPENDENCY = "SEC_READINESS"
+CERI_WORKFLOW_DEPENDENCY = "CERI_WORKFLOW"
 DEPENDENCY_ACTIVE_STATES = frozenset({"PENDING_ENQUEUE", "QUEUED", "RUNNING"})
 DEPENDENCY_TERMINAL_STATES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
 logger = logging.getLogger(__name__)
+
+
+def prepare_ceri_workflow_dependency(
+    db: Session,
+    *,
+    pipeline: PipelineRun,
+    workflow_key: str,
+    resume_from_step: str,
+) -> PipelineDependency:
+    """Persist authority for the asynchronous CERI workflow handoff."""
+
+    from app.services.domain_write_fence import current_domain_write_ownership
+    from app.services.scope_refresh_adoption import require_semantic_authority
+
+    require_semantic_authority(pipeline)
+    ownership = current_domain_write_ownership()
+    root_job_id = (
+        ownership.job_id
+        if ownership is not None
+        else int((pipeline.result_json or {}).get("pipeline_root_job_id") or 0)
+        or int((pipeline.result_json or {}).get("background_job_id") or 0)
+    )
+    root_job = db.get(BackgroundJob, root_job_id) if root_job_id else None
+    if root_job is None or root_job.job_type != "FULL_PIPELINE":
+        raise ValueError("PIPELINE_DEPENDENCY_ROOT_JOB_REQUIRED")
+    identity_payload = {
+        "pipeline_run_id": pipeline.id,
+        "dependency_type": CERI_WORKFLOW_DEPENDENCY,
+        "workflow_key": workflow_key,
+        "continuation_step": resume_from_step,
+    }
+    continuation_identity = hashlib.sha256(
+        json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    dependency_key = f"pipeline:{pipeline.id}:ceri-workflow:{continuation_identity}"
+    existing = db.scalar(
+        select(PipelineDependency).where(PipelineDependency.dependency_key == dependency_key)
+    )
+    if existing is not None:
+        return existing
+    dependency = PipelineDependency(
+        pipeline_run_id=pipeline.id,
+        dependency_type=CERI_WORKFLOW_DEPENDENCY,
+        dependency_key=dependency_key,
+        state="RUNNING",
+        required_subjects_json=[],
+        continuation_step=resume_from_step,
+        continuation_identity=continuation_identity,
+        root_job_id=root_job.id,
+        root_worker_instance_id=root_job.worker_instance_id,
+        result_json={"workflow_key": workflow_key},
+    )
+    db.add(dependency)
+    db.flush()
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "pipeline_root_job_id": root_job.id,
+        "pipeline_dependency_id": dependency.id,
+        "dependency_type": CERI_WORKFLOW_DEPENDENCY,
+        "dependency_state": dependency.state,
+        "continuation_identity": continuation_identity,
+    }
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_pipeline_dependencies_created_total",
+        dependency_type=dependency.dependency_type,
+    )
+    return dependency
+
+
+def complete_ceri_workflow_dependency(
+    db: Session,
+    *,
+    pipeline: PipelineRun,
+    workflow_key: str,
+    trigger_job: BackgroundJob,
+    continuation: BackgroundJob,
+    certified_count: int,
+) -> PipelineDependency | None:
+    """Atomically bind the certified barrier and its continuation."""
+
+    dependency = db.scalar(
+        select(PipelineDependency)
+        .where(
+            PipelineDependency.pipeline_run_id == pipeline.id,
+            PipelineDependency.dependency_type == CERI_WORKFLOW_DEPENDENCY,
+        )
+        .order_by(PipelineDependency.id.desc())
+        .with_for_update()
+        .limit(1)
+    )
+    if dependency is None:
+        return None
+    if (dependency.result_json or {}).get("workflow_key") != workflow_key:
+        raise ValueError("CERI_PIPELINE_DEPENDENCY_IDENTITY_MISMATCH")
+    now = _utcnow()
+    dependency.state = "COMPLETED"
+    dependency.child_job_id = trigger_job.id
+    dependency.continuation_job_id = continuation.id
+    dependency.completed_at = now
+    dependency.updated_at = now
+    dependency.result_json = {
+        **(dependency.result_json or {}),
+        "certified_count": certified_count,
+        "trigger_job_id": trigger_job.id,
+    }
+    trigger_job.pipeline_dependency_id = dependency.id
+    continuation.pipeline_dependency_id = dependency.id
+    continuation.root_job_id = dependency.root_job_id
+    _publish_dependency_latency(db, dependency, now, outcome="completed")
+    return dependency
+
+
+def fail_ceri_workflow_dependency(
+    db: Session,
+    *,
+    pipeline: PipelineRun,
+    workflow_key: str,
+    error_message: str,
+) -> PipelineDependency | None:
+    dependency = db.scalar(
+        select(PipelineDependency)
+        .where(
+            PipelineDependency.pipeline_run_id == pipeline.id,
+            PipelineDependency.dependency_type == CERI_WORKFLOW_DEPENDENCY,
+            PipelineDependency.state.in_(DEPENDENCY_ACTIVE_STATES),
+        )
+        .order_by(PipelineDependency.id.desc())
+        .with_for_update()
+        .limit(1)
+    )
+    if dependency is None:
+        return None
+    if (dependency.result_json or {}).get("workflow_key") != workflow_key:
+        raise ValueError("CERI_PIPELINE_DEPENDENCY_IDENTITY_MISMATCH")
+    now = _utcnow()
+    dependency.state = "FAILED"
+    dependency.completed_at = now
+    dependency.updated_at = now
+    dependency.error_message = error_message
+    _publish_dependency_latency(db, dependency, now, outcome="failed")
+    return dependency
 
 
 def prepare_sec_readiness_dependency(
@@ -546,7 +690,9 @@ def _reconcile_pipeline_root_job(db: Session, job: BackgroundJob) -> None:
             message="Pipeline execution failed.",
             error_message=job.error_message,
         )
-    elif job.status == JobStatus.COMPLETED and pipeline.status != "WAITING_DEPENDENCY":
+    elif job.status == JobStatus.COMPLETED and not _root_has_active_dependency_handoff(
+        db, pipeline, job
+    ):
         transition_pipeline(
             db,
             pipeline,
@@ -555,6 +701,33 @@ def _reconcile_pipeline_root_job(db: Session, job: BackgroundJob) -> None:
             message="Pipeline root completed without a terminal pipeline transition.",
             error_message="PIPELINE_ROOT_TERMINAL_WITH_ACTIVE_PIPELINE",
         )
+
+
+def _root_has_active_dependency_handoff(
+    db: Session,
+    pipeline: PipelineRun,
+    root_job: BackgroundJob,
+) -> bool:
+    expected_type = (
+        SEC_READINESS_DEPENDENCY
+        if pipeline.status == "WAITING_DEPENDENCY"
+        else CERI_WORKFLOW_DEPENDENCY
+        if pipeline.status == "WAITING_FOR_CERI_COMPLETION"
+        else None
+    )
+    if expected_type is None:
+        return False
+    active = list(
+        db.scalars(
+            select(PipelineDependency).where(
+                PipelineDependency.pipeline_run_id == pipeline.id,
+                PipelineDependency.root_job_id == root_job.id,
+                PipelineDependency.dependency_type == expected_type,
+                PipelineDependency.state.in_(DEPENDENCY_ACTIVE_STATES),
+            )
+        )
+    )
+    return len(active) == 1
 
 
 def _required_subjects(readiness: dict[str, Any]) -> list[str]:

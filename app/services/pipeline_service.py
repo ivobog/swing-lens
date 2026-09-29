@@ -1191,6 +1191,18 @@ def enqueue_pipeline_after_ceri_completion(
         expected_anchor = binding_reference(db, pipeline_run_id=pipeline.id)
         if execution_configuration_reference(db, existing) != expected_anchor:
             raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
+        from app.services.pipeline_dependency_service import (
+            complete_ceri_workflow_dependency,
+        )
+
+        complete_ceri_workflow_dependency(
+            db,
+            pipeline=pipeline,
+            workflow_key=workflow_key,
+            trigger_job=trigger_job,
+            continuation=existing,
+            certified_count=certified,
+        )
         return existing
 
     authority = require_semantic_authority(pipeline)
@@ -1212,6 +1224,16 @@ def enqueue_pipeline_after_ceri_completion(
         trigger_source="CERI_COMPLETION_BARRIER",
     )
     bind_semantic_authority(continuation, authority)
+    from app.services.pipeline_dependency_service import complete_ceri_workflow_dependency
+
+    complete_ceri_workflow_dependency(
+        db,
+        pipeline=pipeline,
+        workflow_key=workflow_key,
+        trigger_job=trigger_job,
+        continuation=continuation,
+        certified_count=certified,
+    )
     if getattr(continuation, "_coalesced", False):
         return continuation
 
@@ -1220,7 +1242,7 @@ def enqueue_pipeline_after_ceri_completion(
     transition_pipeline(
         db,
         pipeline,
-        PipelineStatus.QUEUED,
+        PipelineStatus.PENDING,
         actor="dependency",
         current_step=resume_from_step,
         message="Certified CERI workflow completed; downstream continuation queued.",
@@ -1292,6 +1314,17 @@ def _roll_up_ceri_pipeline_failure(
         if feature_certification
         else "CERI_PROVIDER_WORKFLOW_FAILED"
     )
+    if not feature_certification:
+        from app.services.pipeline_dependency_service import (
+            fail_ceri_workflow_dependency,
+        )
+
+        fail_ceri_workflow_dependency(
+            db,
+            pipeline=pipeline,
+            workflow_key=workflow_key,
+            error_message=error_message,
+        )
     from app.services.pipeline_state_machine import transition_pipeline
 
     transition_pipeline(

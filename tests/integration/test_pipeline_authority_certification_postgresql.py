@@ -36,6 +36,7 @@ from app.services.domain_write_fence import (
 from app.services.ib_fetch_executor import _bounded_item_session
 from app.services.pipeline_dependency_service import (
     enqueue_sec_readiness_dependency,
+    prepare_ceri_workflow_dependency,
     prepare_sec_readiness_dependency,
     reconcile_pending_dependency_enqueues,
     reconcile_pipeline_job,
@@ -555,6 +556,39 @@ def test_22_pipeline_domain_build_does_not_hold_control_row_lock(
                 RawCompanyRow.run_id == run_id,
                 RawCompanyRow.ticker == "DEFERRED",
             )
+        )
+    engine.dispose()
+
+
+def test_23_completed_root_can_handoff_to_durable_ceri_dependency(
+    authority_database_url: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, root_id = _seed_pipeline(engine, root_status=JobStatus.RUNNING)
+    with Session(engine) as db:
+        pipeline = db.get(PipelineRun, pipeline_id)
+        dependency = prepare_ceri_workflow_dependency(
+            db,
+            pipeline=pipeline,
+            workflow_key=f"ceri:pipeline:{pipeline.upload_run_id}:authority-test",
+            resume_from_step="FREEZING_DECISION_HANDOFF_MANIFEST",
+        )
+        pipeline.status = PipelineStatus.WAITING_FOR_CERI_COMPLETION
+        pipeline.current_step = "CERI_PROVIDER_INGEST"
+        root = db.get(BackgroundJob, root_id)
+        root.status = JobStatus.COMPLETED
+        root.completed_at = datetime.now(UTC)
+        db.commit()
+        reconcile_pipeline_job(db, root_id)
+        db.commit()
+
+        assert db.get(PipelineRun, pipeline_id).status == PipelineStatus.WAITING_FOR_CERI_COMPLETION
+        assert db.get(PipelineDependency, dependency.id).state == "RUNNING"
+        findings = inspect_pipeline_invariants(db)
+        assert not any(
+            finding.code == "ACTIVE_PIPELINE_WITH_TERMINAL_ROOT_JOB"
+            and finding.pipeline_id == pipeline_id
+            for finding in findings
         )
     engine.dispose()
 

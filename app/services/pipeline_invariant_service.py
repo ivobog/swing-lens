@@ -180,12 +180,31 @@ def inspect_pipeline_invariants(
         retained = pipeline.result_json or {}
         root_id = retained.get("pipeline_root_job_id") or retained.get("background_job_id")
         root = jobs_by_id.get(int(root_id)) if root_id is not None else None
+        active_dependencies = [
+            dependency
+            for dependency in deps_by_pipeline.get(pipeline.id, [])
+            if dependency.state in {"PENDING_ENQUEUE", "QUEUED", "RUNNING"}
+        ]
+        expected_dependency_type = (
+            "SEC_READINESS"
+            if pipeline.status == "WAITING_DEPENDENCY"
+            else "CERI_WORKFLOW"
+            if pipeline.status == "WAITING_FOR_CERI_COMPLETION"
+            else None
+        )
+        valid_terminal_root_handoff = (
+            expected_dependency_type is not None
+            and len(active_dependencies) == 1
+            and active_dependencies[0].dependency_type == expected_dependency_type
+            and root is not None
+            and active_dependencies[0].root_job_id == root.id
+        )
         if (
             pipeline.status not in TERMINAL_PIPELINE_STATES
             and pipeline.status != "CANCEL_REQUESTED"
             and root is not None
             and root.status in TERMINAL_JOB_STATUSES
-            and pipeline.status != "WAITING_DEPENDENCY"
+            and not valid_terminal_root_handoff
         ):
             findings.append(
                 PipelineInvariantFinding(
@@ -196,12 +215,10 @@ def inspect_pipeline_invariants(
                     detail=f"pipeline={pipeline.status};root={root.status}",
                 )
             )
-        active_dependencies = [
-            dependency
-            for dependency in deps_by_pipeline.get(pipeline.id, [])
-            if dependency.state in {"PENDING_ENQUEUE", "QUEUED", "RUNNING"}
-        ]
-        if pipeline.status == "WAITING_DEPENDENCY" and len(active_dependencies) != 1:
+        if pipeline.status in {
+            "WAITING_DEPENDENCY",
+            "WAITING_FOR_CERI_COMPLETION",
+        } and not valid_terminal_root_handoff:
             findings.append(
                 PipelineInvariantFinding(
                     "WAITING_PIPELINE_DEPENDENCY_CARDINALITY_INVALID",

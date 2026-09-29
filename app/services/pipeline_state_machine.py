@@ -136,7 +136,7 @@ def _transition_allowed(
         return target in {"CANCELLED", "FAILED"}
     if source in WAITING_PIPELINE_STATES:
         if actor == "dependency":
-            return target in QUEUED_PIPELINE_STATES | {"RUNNING", "FAILED", "BLOCKED", "CANCELLED"}
+            return target in QUEUED_PIPELINE_STATES | {"RUNNING"} | TERMINAL_PIPELINE_STATES
         return target in CANCELLING_PIPELINE_STATES | TERMINAL_PIPELINE_STATES
     if source in QUEUED_PIPELINE_STATES:
         return target in (
