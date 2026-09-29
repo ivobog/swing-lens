@@ -5,7 +5,7 @@ import csv
 import io
 import json
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -69,7 +69,12 @@ def _derived_csv(source: Path, tickers: list[str], template_ticker: str) -> byte
     return output.getvalue().encode("utf-8-sig")
 
 
-def launch(label: str, tickers: list[str], template_run_id: int, template_ticker: str) -> None:
+def launch(
+    label: str,
+    tickers: list[str],
+    template_run_id: int,
+    template_ticker: str,
+) -> tuple[int, int, int]:
     with SessionLocal() as db:
         template_run = db.get(UploadRun, template_run_id)
         if template_run is None or not template_run.file_path:
@@ -103,6 +108,7 @@ def launch(label: str, tickers: list[str], template_run_id: int, template_ticker
             root_job_id=(pipeline.result_json or {}).get("background_job_id"),
             pipeline_status=pipeline.status,
         )
+        return run.id, pipeline.id, int((pipeline.result_json or {})["background_job_id"])
 
 
 def _lock_snapshot(db: Session) -> list[dict[str, Any]]:
@@ -198,7 +204,13 @@ def _snapshot(db: Session, pipeline_ids: list[int]) -> dict[str, Any]:
                 ],
             }
         )
-    workers = list(db.scalars(select(BackgroundWorker).order_by(BackgroundWorker.worker_id)))
+    workers = list(
+        db.scalars(
+            select(BackgroundWorker)
+            .where(BackgroundWorker.heartbeat_at >= datetime.now(UTC) - timedelta(minutes=2))
+            .order_by(BackgroundWorker.worker_id)
+        )
+    )
     return {
         "pipelines": pipelines,
         "workers": [
@@ -322,6 +334,21 @@ def main() -> None:
     launch_parser.add_argument("--tickers", nargs="+", required=True)
     launch_parser.add_argument("--template-run-id", type=int, default=189)
     launch_parser.add_argument("--template-ticker", default="AAPL")
+    run_parser = subparsers.add_parser("run")
+    run_parser.add_argument("--label", required=True)
+    run_parser.add_argument("--tickers", nargs="+", required=True)
+    run_parser.add_argument("--template-run-id", type=int, default=189)
+    run_parser.add_argument("--template-ticker", default="AAPL")
+    run_parser.add_argument("--timeout-seconds", type=float, default=900)
+    run_parser.add_argument("--cancel-on-waiting", action="store_true")
+    run_parser.add_argument("--cancel-after-continued", action="store_true")
+    pair_parser = subparsers.add_parser("run-pair")
+    pair_parser.add_argument("--label", required=True)
+    pair_parser.add_argument("--tickers", nargs=2, required=True)
+    pair_parser.add_argument("--template-run-id", type=int, default=189)
+    pair_parser.add_argument("--template-ticker", default="AAPL")
+    pair_parser.add_argument("--timeout-seconds", type=float, default=900)
+    pair_parser.add_argument("--cancel-after-continued", action="store_true")
     observe_parser = subparsers.add_parser("observe")
     observe_parser.add_argument("--pipeline-ids", nargs="+", type=int, required=True)
     observe_parser.add_argument("--timeout-seconds", type=float, default=900)
@@ -330,11 +357,40 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "launch":
         launch(args.label, args.tickers, args.template_run_id, args.template_ticker)
-    else:
+    elif args.command == "observe":
         observe(
             args.pipeline_ids,
             args.timeout_seconds,
             args.cancel_on_waiting,
+            args.cancel_after_continued,
+        )
+    elif args.command == "run":
+        _run_id, pipeline_id, _root_id = launch(
+            args.label,
+            args.tickers,
+            args.template_run_id,
+            args.template_ticker,
+        )
+        observe(
+            [pipeline_id],
+            args.timeout_seconds,
+            args.cancel_on_waiting,
+            args.cancel_after_continued,
+        )
+    else:
+        pipeline_ids = []
+        for index, ticker in enumerate(args.tickers, start=1):
+            _run_id, pipeline_id, _root_id = launch(
+                f"{args.label}-{index}",
+                [ticker],
+                args.template_run_id,
+                args.template_ticker,
+            )
+            pipeline_ids.append(pipeline_id)
+        observe(
+            pipeline_ids,
+            args.timeout_seconds,
+            False,
             args.cancel_after_continued,
         )
 
