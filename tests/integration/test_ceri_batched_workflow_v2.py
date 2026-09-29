@@ -54,13 +54,17 @@ from app.services.ceri.job_handlers import (
     execute_normalize_job,
     execute_rebuild_features_job,
 )
-from app.services.market_calculation_context_service import create_pipeline_market_context
+from app.services.market_calculation_context_service import (
+    create_pipeline_market_context,
+    resolve_pipeline_ceri_context,
+)
 from app.services.scope_refresh_adoption import (
     LegacySemanticAuthorityError,
     admit_frozen_operation,
     bind_semantic_authority,
     require_semantic_authority,
 )
+from app.services.transition_preflight_plan_service import _validate_handoff_temporal_lineage
 from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 from app.services.worker_registry import register_worker
 from app.settings import Settings
@@ -379,6 +383,19 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
         assert pipeline.result_json["market_calculation_context_id"] == main_context_id
         assert pipeline.result_json["market_cutoff_at"] == main_cutoff_at.isoformat()
         assert pipeline.result_json["ceri_calculation_context_id"] == ceri_context_id
+        retained_ceri_context = resolve_pipeline_ceri_context(
+            db,
+            calculation_context_id=ceri_context_id,
+            upload_run_id=run_id,
+            pipeline_run_id=pipeline.id,
+        )
+        _validate_handoff_temporal_lineage(
+            db,
+            upload_run_id=run_id,
+            market_cutoff=main_context,
+            ceri_market_cutoff=retained_ceri_context,
+            built_rows=(),
+        )
 
     engine.dispose()
 

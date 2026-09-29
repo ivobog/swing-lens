@@ -352,10 +352,12 @@ def verify_transition_decision_manifests_before_mutation(
             category="decision_handoff",
             message="post-upstream decision handoff manifest was not persisted",
         )
+    ceri_market_cutoff = _decision_ceri_context(db, plan, market_cutoff)
     _validate_handoff_temporal_lineage(
         db,
         upload_run_id=upload_run_id,
         market_cutoff=market_cutoff,
+        ceri_market_cutoff=ceri_market_cutoff,
         built_rows=built_rows,
     )
     observed_anchor = build_run_start_anchor_manifest(
@@ -383,6 +385,7 @@ def verify_transition_decision_manifests_before_mutation(
         db,
         plan=plan,
         market_cutoff=market_cutoff,
+        ceri_market_cutoff=ceri_market_cutoff,
         built_rows=built_rows,
         decision_manifests=actual,
     )
@@ -477,10 +480,12 @@ def freeze_transition_decision_handoff_manifest(
             category="ticker_population",
             message="handoff ticker population differs from the run-start anchor",
         )
+    ceri_market_cutoff = _decision_ceri_context(db, plan, market_cutoff)
     _validate_handoff_temporal_lineage(
         db,
         upload_run_id=upload_run_id,
         market_cutoff=market_cutoff,
+        ceri_market_cutoff=ceri_market_cutoff,
         built_rows=built_rows,
     )
     observed_anchor = build_run_start_anchor_manifest(
@@ -507,6 +512,7 @@ def freeze_transition_decision_handoff_manifest(
         db,
         plan=plan,
         market_cutoff=market_cutoff,
+        ceri_market_cutoff=ceri_market_cutoff,
         built_rows=built_rows,
         decision_manifests=actual,
     )
@@ -883,6 +889,7 @@ def _build_decision_handoff_payload(
     *,
     plan: TransitionPreflightPlan,
     market_cutoff: MarketCalculationCutoff,
+    ceri_market_cutoff: MarketCalculationCutoff,
     built_rows,
     decision_manifests: dict[str, dict[str, object]],
 ) -> dict[str, Any]:
@@ -937,6 +944,11 @@ def _build_decision_handoff_payload(
             "pipeline_run_id": plan.pipeline_run_id,
         },
         "market_context": _market_context_payload(market_cutoff),
+        **(
+            {"ceri_context": _market_context_payload(ceri_market_cutoff)}
+            if ceri_market_cutoff.context_id != market_cutoff.context_id
+            else {}
+        ),
         "decision_manifests": decision_manifests,
         "artifact_lineage": artifacts,
         "ceri_score_snapshots": [_artifact_identity(row) for row in ceri_rows],
@@ -944,13 +956,48 @@ def _build_decision_handoff_payload(
     return CanonicalEvidenceSerializer.canonicalize(payload)
 
 
+def _decision_ceri_context(
+    db: Session,
+    plan: TransitionPreflightPlan,
+    market_cutoff: MarketCalculationCutoff,
+) -> MarketCalculationCutoff:
+    """Resolve the explicitly retained CERI context for a mixed-context handoff."""
+
+    if plan.pipeline_run_id is None:
+        return market_cutoff
+    pipeline = db.get(PipelineRun, int(plan.pipeline_run_id))
+    retained_id = (
+        (pipeline.result_json or {}).get("ceri_calculation_context_id")
+        if pipeline is not None
+        else None
+    )
+    if retained_id is None:
+        return market_cutoff
+    from app.services.market_calculation_context_service import resolve_pipeline_ceri_context
+
+    ceri_cutoff = resolve_pipeline_ceri_context(
+        db,
+        calculation_context_id=int(retained_id),
+        upload_run_id=int(plan.upload_run_id),
+        pipeline_run_id=int(plan.pipeline_run_id),
+    )
+    if _aware(ceri_cutoff.cutoff_at) < _aware(market_cutoff.cutoff_at):
+        raise TransitionPreflightError(
+            "DECISION_LINEAGE_MISMATCH",
+            "the retained CERI context predates the pipeline market context",
+        )
+    return ceri_cutoff
+
+
 def _validate_handoff_temporal_lineage(
     db: Session,
     *,
     upload_run_id: int,
     market_cutoff: MarketCalculationCutoff,
+    ceri_market_cutoff: MarketCalculationCutoff | None = None,
     built_rows,
 ) -> None:
+    ceri_cutoff = ceri_market_cutoff or market_cutoff
     failures: list[str] = []
     for context, _built in built_rows:
         ticker = context.ticker
@@ -1060,10 +1107,10 @@ def _validate_handoff_temporal_lineage(
     ceri_source_ids: set[int] = set()
     for row in ceri_rows:
         if (
-            row.calculation_context_id != market_cutoff.context_id
-            or _canonical_time(row.cutoff_at) != _canonical_time(market_cutoff.cutoff_at)
-            or row.as_of_session > market_cutoff.latest_completed_session
-            or row.calendar_version != market_cutoff.calendar_version
+            row.calculation_context_id != ceri_cutoff.context_id
+            or _canonical_time(row.cutoff_at) != _canonical_time(ceri_cutoff.cutoff_at)
+            or row.as_of_session > ceri_cutoff.latest_completed_session
+            or row.calendar_version != ceri_cutoff.calendar_version
         ):
             failures.append(f"{row.ticker}:ceri_cutoff")
         _collect_source_ids(row.evidence_lineage_json or {}, ceri_source_ids)
@@ -1076,7 +1123,7 @@ def _validate_handoff_temporal_lineage(
             failures.append("ceri:source_record_missing")
         for row in source_rows:
             known_at = row.retrieved_at or row.ingested_at
-            if known_at is None or _aware(known_at) > _aware(market_cutoff.cutoff_at):
+            if known_at is None or _aware(known_at) > _aware(ceri_cutoff.cutoff_at):
                 failures.append(f"ceri:post_cutoff_source:{row.id}")
     if failures:
         raise TransitionPreflightError(
