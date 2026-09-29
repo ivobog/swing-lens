@@ -722,6 +722,7 @@ def source_mutation_writer(domain, role, *, mode=MutationSemanticMode.CANONICAL_
             token = _active_source_writers.set(_active_source_writers.get() + (owner,))
             try:
                 with fence_domain_commits(
+                    db,
                     job_id=execution.job_id if execution else None,
                     execution_token=execution.execution_token if execution else None,
                 ):

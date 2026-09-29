@@ -50,7 +50,7 @@ from app.services.ceri.sec.processor_lifecycle import (
     lifecycle_state,
 )
 from app.services.cleanup_service import execute_durable_evidence_retention
-from app.services.domain_write_fence import detached_control_plane_scope, fence_domain_commits
+from app.services.domain_write_fence import control_plane_transaction, fence_domain_commits
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_prerequisites import PipelineBlockedError
 from app.services.process_identity import process_started_at
@@ -679,6 +679,11 @@ def run_worker_once(
         if recovered_count:
             logger.info("job.stale_recovered", extra={"count": recovered_count})
         heartbeat_worker_control_loop(db, worker_id, instance_id=worker_instance_id)
+        from app.services.pipeline_dependency_service import (
+            reconcile_pending_dependency_enqueues,
+        )
+
+        reconcile_pending_dependency_enqueues(db)
         db.commit()
 
         if schedule_winner_probability and not certification_mode:
@@ -759,14 +764,11 @@ def run_worker_once(
                 from app.services.domain_write_fence import current_fenced_domain_session
 
                 source_db = current_fenced_domain_session(job.id, execution_token)
-                if source_db is not None and (
-                    job.job_type == "FULL_PIPELINE"
-                    or source_db is not db
-                    or source_db.in_nested_transaction()
+                if job.job_type != "FULL_PIPELINE" and source_db is not None and (
+                    source_db is not db or source_db.in_nested_transaction()
                 ):
-                    # A synchronous fenced transaction owns the same row lock.
-                    # Renew there whether it is the main Session or a child;
-                    # an independent update would wait on this process itself.
+                    # A bounded non-pipeline handler may own the control row in
+                    # a child Session. Renew there instead of self-blocking.
                     source_job = (
                         job if source_db is db else source_db.get(BackgroundJob, job.id)
                     )
@@ -811,20 +813,20 @@ def run_worker_once(
                 # Session. Long read/calculation work cannot defer lease renewal.
                 control_db = session_factory() if isinstance(db, Session) else db
                 try:
-                    heartbeat_job(
-                        control_db,
-                        control_job,
-                        lease_seconds=stale_after_seconds,
-                        execution_token=execution_token,
-                    )
-                    heartbeat_worker(
-                        control_db,
-                        worker_id,
-                        hostname=hostname,
-                        process_id=process_id,
-                        instance_id=worker_instance_id,
-                    )
-                    control_db.commit()
+                    with control_plane_transaction(control_db):
+                        heartbeat_job(
+                            control_db,
+                            control_job,
+                            lease_seconds=stale_after_seconds,
+                            execution_token=execution_token,
+                        )
+                        heartbeat_worker(
+                            control_db,
+                            worker_id,
+                            hostname=hostname,
+                            process_id=process_id,
+                            instance_id=worker_instance_id,
+                        )
                 finally:
                     if control_db is not db:
                         control_db.close()
@@ -833,7 +835,7 @@ def run_worker_once(
                 """Commit only lease/progress state on an independent connection."""
                 control_db = session_factory()
                 try:
-                    with detached_control_plane_scope():
+                    with control_plane_transaction(control_db):
                         heartbeat_job(
                             control_db,
                             control_job,
@@ -848,15 +850,18 @@ def run_worker_once(
                                 **progress,
                             )
                         requested = is_cancel_requested(control_db, int(job_id))
-                        control_db.commit()
                     return requested
-                except Exception:
-                    control_db.rollback()
-                    raise
                 finally:
                     control_db.close()
 
             heartbeat()
+            if getattr(job, "pipeline_dependency_id", None) is not None:
+                from app.services.pipeline_dependency_service import (
+                    mark_dependency_job_running,
+                )
+
+                mark_dependency_job_running(db, job.id)
+                db.commit()
             if job.job_type == "CERI_CHANGE_DETECTION":
                 job._control_plane_progress = detached_control_progress
             result = execute_job(
@@ -913,6 +918,18 @@ def run_worker_once(
             mark_job_failed_or_retry(db, job, exc, execution_token=execution_token)
             logger.exception("job.failed", extra={"job_id": job.id, "job_type": job.job_type})
         db.commit()
+        if job.job_type == "FULL_PIPELINE" or getattr(job, "pipeline_dependency_id", None):
+            from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+            orchestration_db = session_factory()
+            try:
+                reconcile_pipeline_job(orchestration_db, job_id)
+                orchestration_db.commit()
+            except Exception:
+                orchestration_db.rollback()
+                raise
+            finally:
+                orchestration_db.close()
         return True
     except Exception as exc:
         reason_code = (
@@ -979,6 +996,7 @@ def execute_job(
             with (
                 job_phase("job_handler"),
                 fence_domain_commits(
+                    db,
                     job_id=job.id,
                     execution_token=execution_token,
                 ),

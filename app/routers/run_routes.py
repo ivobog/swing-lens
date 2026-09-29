@@ -734,6 +734,13 @@ def cancel_run_pipeline_action(
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=404, detail=redact_text(str(exc))) from exc
+    except Exception as exc:
+        from app.services.pipeline_service import PipelineCancellationContended
+
+        db.rollback()
+        if isinstance(exc, PipelineCancellationContended):
+            raise HTTPException(status_code=409, detail=exc.diagnostics) from exc
+        raise
 
 
 @router.post("/runs/{run_id}/pipeline/{pipeline_id}/resume")

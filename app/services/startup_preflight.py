@@ -8,6 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from app.services.alembic_heads import database_alembic_heads, repository_alembic_heads
@@ -24,6 +25,7 @@ class StartupPreflightReport:
     database_endpoint: str
     alembic_heads: tuple[str, ...]
     storage_paths: tuple[Path, ...]
+    pipeline_invariant_counts: dict[str, int]
 
 
 EngineFactory = Callable[..., Engine]
@@ -75,6 +77,28 @@ def run_startup_preflight(
             "run the lifecycle start command to apply migrations"
         )
 
+    from app.services.pipeline_invariant_service import (
+        InvariantDisposition,
+        inspect_pipeline_invariants,
+        invariant_counts,
+    )
+
+    if isinstance(engine, Engine):
+        with Session(engine) as session:
+            findings = inspect_pipeline_invariants(session)
+        pipeline_invariant_counts = invariant_counts(findings)
+    else:
+        pipeline_invariant_counts = {
+            disposition.value: 0 for disposition in InvariantDisposition
+        }
+    fatal_count = pipeline_invariant_counts[
+        InvariantDisposition.FATAL_STARTUP_INVARIANT.value
+    ]
+    if fatal_count:
+        raise StartupPreflightError(
+            f"fatal pipeline runtime invariants detected: count={fatal_count}"
+        )
+
     storage_paths = tuple(
         _resolve_storage_path(root, path)
         for path in (settings.upload_dir, settings.export_dir, settings.cache_dir)
@@ -86,6 +110,7 @@ def run_startup_preflight(
         database_endpoint=endpoint,
         alembic_heads=expected_heads,
         storage_paths=storage_paths,
+        pipeline_invariant_counts=pipeline_invariant_counts,
     )
 
 

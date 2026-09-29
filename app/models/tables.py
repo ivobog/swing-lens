@@ -1697,6 +1697,76 @@ class PipelineStep(Base):
     )
 
 
+class PipelineDependency(Base):
+    """Durable asynchronous prerequisite owned by the pipeline orchestrator."""
+
+    __tablename__ = "pipeline_dependencies"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    dependency_type: Mapped[str] = mapped_column(Text, nullable=False)
+    dependency_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    state: Mapped[str] = mapped_column(Text, nullable=False)
+    required_subjects_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    continuation_step: Mapped[str] = mapped_column(Text, nullable=False)
+    continuation_identity: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    root_job_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "background_jobs.id",
+            name="fk_pipeline_dependencies_root_job",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+        nullable=False,
+    )
+    child_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "background_jobs.id",
+            name="fk_pipeline_dependencies_child_job",
+            ondelete="SET NULL",
+            use_alter=True,
+        ),
+        unique=True,
+    )
+    continuation_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "background_jobs.id",
+            name="fk_pipeline_dependencies_continuation_job",
+            ondelete="SET NULL",
+            use_alter=True,
+        ),
+        unique=True,
+    )
+    root_worker_instance_id: Mapped[str | None] = mapped_column(Text)
+    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("idx_pipeline_dependencies_pipeline", "pipeline_run_id", "state"),
+        Index("idx_pipeline_dependencies_root_job", "root_job_id"),
+        Index(
+            "uq_pipeline_dependencies_active_type",
+            "pipeline_run_id",
+            "dependency_type",
+            unique=True,
+            postgresql_where=text(
+                "state IN ('PENDING_ENQUEUE', 'QUEUED', 'RUNNING')"
+            ),
+        ),
+    )
+
+
 class BackgroundJob(Base):
     __tablename__ = "background_jobs"
 
@@ -1712,6 +1782,14 @@ class BackgroundJob(Base):
     )
     required_for_parent_completion: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
+    )
+    pipeline_dependency_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "pipeline_dependencies.id",
+            name="fk_background_jobs_pipeline_dependency",
+            ondelete="SET NULL",
+            use_alter=True,
+        )
     )
     job_type: Mapped[str] = mapped_column(Text, nullable=False)
     related_run_id: Mapped[int | None] = mapped_column(BigInteger)
@@ -1850,6 +1928,7 @@ class BackgroundJob(Base):
 
     __table_args__ = (
         Index("idx_background_jobs_scope_refresh", "scope_id", "refresh_cycle_id"),
+        Index("idx_background_jobs_pipeline_dependency", "pipeline_dependency_id"),
         Index(
             "idx_background_jobs_status_priority",
             "status",
