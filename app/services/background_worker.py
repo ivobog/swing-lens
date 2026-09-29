@@ -1016,6 +1016,11 @@ def execute_job(
         ):
             with (
                 job_phase("job_handler"),
+                # Every durable handler may perform long calculation work and
+                # may publish progress from a separate control transaction.
+                # Validate its token during the work, but reserve the job-row
+                # lock for the actual outer domain commit.
+                deferred_execution_ownership_lock(),
                 fence_domain_commits(
                     db,
                     job_id=job.id,
@@ -1221,11 +1226,10 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
             )
 
     try:
-        # Pipeline domain services perform explicit ownership checks while
-        # building a stage transaction.  Those checks must validate the token
-        # without retaining the job-row lock across long work; the mandatory
-        # FOR UPDATE fence is taken by before_commit at publication time.
-        with deferred_execution_ownership_lock(), job_phase("pipeline_execution"):
+        # The generic job-handler boundary defers the ownership lock until the
+        # outer domain commit. Pipeline services still perform explicit token
+        # checks while building each stage transaction.
+        with job_phase("pipeline_execution"):
             result = execute_full_pipeline(
                 db=db,
                 pipeline_run_id=int(pipeline_run_id),

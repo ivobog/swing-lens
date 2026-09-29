@@ -542,13 +542,21 @@ def decision_authority(
         raise ValueError("MUTATION_DECISION_NATIVE_AUTHORITY_MISMATCH")
     fence_mutation_transaction(db, context)
     if context.execution is not None:
-        from app.models.tables import BackgroundJob
+        from types import SimpleNamespace
 
-        job = db.execute(
-            select(BackgroundJob.related_run_id, BackgroundJob.payload_json, BackgroundJob.job_type)
-            .where(BackgroundJob.id == context.execution.job_id)
-            .with_for_update()
-        ).one()
+        from app.services.domain_write_fence import assert_current_execution_ownership
+
+        # Use the shared execution fence rather than taking an unconditional
+        # job-row lock here. During long durable work this validates the token
+        # without retaining a lock; the outer domain commit takes the mandatory
+        # FOR UPDATE fence immediately before publication.
+        job = SimpleNamespace(
+            **assert_current_execution_ownership(
+                db,
+                job_id=context.execution.job_id,
+                execution_token=context.execution.execution_token,
+            )
+        )
         # Daily maintenance explicitly targets all active episodes, across
         # their source upload runs. Its own job has no related upload. Prove
         # this native scope and exact retained Setup origin rather than copying

@@ -27,6 +27,7 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services.background_job_service import JobStatus, enqueue_job, heartbeat_job
+from app.services.background_worker import execute_job
 from app.services.domain_write_fence import (
     assert_current_execution_ownership,
     bounded_domain_session,
@@ -594,6 +595,63 @@ def test_23_completed_root_can_handoff_to_durable_ceri_dependency(
             finding.code == "ACTIVE_PIPELINE_WITH_TERMINAL_ROOT_JOB"
             and finding.pipeline_id == pipeline_id
             for finding in findings
+        )
+    engine.dispose()
+
+
+def test_24_generic_durable_handler_does_not_self_block_detached_heartbeat(
+    authority_database_url: str,
+) -> None:
+    """D6 regression: any durable handler defers its ownership lock to commit."""
+
+    engine = create_engine(authority_database_url)
+    pipeline_id, root_id = _seed_pipeline(engine, root_status=JobStatus.RUNNING)
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        pipeline = db.get(PipelineRun, pipeline_id)
+        root.job_type = "AUTHORITY_DEFERRED_PROBE"
+        db.commit()
+        token = root.execution_token
+        run_id = pipeline.upload_run_id
+
+    def handler(handler_db: Session, handled_job: BackgroundJob) -> dict:
+        assert_current_execution_ownership(
+            handler_db,
+            job_id=handled_job.id,
+            execution_token=token,
+        )
+        with Session(engine) as control_db:
+            with control_plane_transaction(control_db):
+                control_db.execute(text("SET LOCAL lock_timeout = '500ms'"))
+                control_job = control_db.get(BackgroundJob, handled_job.id)
+                heartbeat_job(control_db, control_job, execution_token=token)
+        handler_db.add(
+            RawCompanyRow(
+                run_id=run_id,
+                row_number=2,
+                ticker="GENERIC-DEFERRED",
+                raw_json={"ticker": "GENERIC-DEFERRED"},
+            )
+        )
+        handler_db.commit()
+        return {"status": "ok"}
+
+    with Session(engine) as db:
+        job = db.get(BackgroundJob, root_id)
+        result = execute_job(
+            db,
+            job,
+            handlers={"AUTHORITY_DEFERRED_PROBE": handler},
+            execution_token=token,
+        )
+        assert result == {"status": "ok"}
+
+    with Session(engine) as db:
+        assert db.scalar(
+            select(RawCompanyRow).where(
+                RawCompanyRow.run_id == run_id,
+                RawCompanyRow.ticker == "GENERIC-DEFERRED",
+            )
         )
     engine.dispose()
 
