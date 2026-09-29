@@ -376,5 +376,26 @@ background-job blockers remain empty.
 - `alembic current`: `0087_pipeline_dependencies (head)`
 - Unit cancellation convergence: 2 passed
 - Disposable PostgreSQL terminal-pipeline/root reconciliation: 2 passed
+- Disposable PostgreSQL runtime-invariant inspection: 3 passed
 - No production source was changed for this disposition; the existing
   orchestrator/state-machine mechanism behaved as designed.
+
+### Closure readiness gate
+
+Canonical status on the completed closure branch reported an active, valid
+runtime whose recorded and desired SHA matched; database reachable; schema at
+`0087_pipeline_dependencies`; core, web, worker, Prometheus, and Grafana ready;
+and zero active jobs. The application aggregate and overall status were,
+however, `failed` and `DEGRADED`, respectively.
+
+The exact cause was the read-only readiness check
+`pipeline_invariants=fatal=0;review=16;safe=0`. Those 16 findings are the same
+unrelated historical findings present before Pipeline 177 was reconciled. No
+Pipeline 177 finding remains. PostgreSQL lock blockers were zero, and the
+background-job catalog was still 43,134 rows with maximum ID 43,703 after
+startup, proving startup created no job or provider execution.
+
+The task requires clean invariants and fully healthy readiness before merge.
+Suppressing the findings is prohibited, and mutating the unrelated pipelines
+would exceed the authorized scope. Therefore the merge and push gates were not
+satisfied and no merge or push was performed.
