@@ -1760,8 +1760,8 @@ def _pipeline_step(
         stage=step_name,
         status=PipelineStepStatus.RUNNING,
     )
-    _report_job_stage_progress(db, pipeline, step_name)
     _save_progress(db, lease_guard=lease_guard)
+    _report_job_stage_progress(db, pipeline, step_name)
     try:
         yield step
     except JobLeaseLost:
@@ -1811,8 +1811,8 @@ def _pipeline_step(
         step.completed_at = _utcnow()
         if performance is not None:
             performance.finish_step(step_name, step.status)
-        _report_job_stage_progress(db, pipeline, step_name)
         _save_progress(db, lease_guard=lease_guard)
+        _report_job_stage_progress(db, pipeline, step_name)
         observe_step(step.status)
 
 
@@ -2155,12 +2155,12 @@ def _cancel_unfinished_steps(db: Session, pipeline_run_id: int) -> None:
 
 
 def _save_progress(db: Session, *, lease_guard: Callable[[], None] | None = None) -> None:
-    if lease_guard is not None:
-        lease_guard()
     db.flush()
     commit = getattr(db, "commit", None)
     if callable(commit):
         commit()
+    if lease_guard is not None:
+        lease_guard()
 
 
 def _raise_if_cancelled(should_cancel: Callable[[], bool]) -> None:

@@ -27,7 +27,12 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services.background_job_service import JobStatus, enqueue_job, heartbeat_job
-from app.services.domain_write_fence import fence_domain_commits
+from app.services.domain_write_fence import (
+    assert_current_execution_ownership,
+    control_plane_transaction,
+    deferred_execution_ownership_lock,
+    fence_domain_commits,
+)
 from app.services.ib_fetch_executor import _bounded_item_session
 from app.services.pipeline_dependency_service import (
     enqueue_sec_readiness_dependency,
@@ -496,6 +501,61 @@ def test_21_pipeline_item_session_has_explicit_attempt_authority(
             )
         )
         assert persisted is not None
+    engine.dispose()
+
+
+def test_22_pipeline_domain_build_does_not_hold_control_row_lock(
+    authority_database_url: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, root_id = _seed_pipeline(engine, root_status=JobStatus.RUNNING)
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        pipeline = db.get(PipelineRun, pipeline_id)
+        assert root.execution_token
+        token = root.execution_token
+        run_id = pipeline.upload_run_id
+
+    with Session(engine) as pipeline_db:
+        with (
+            fence_domain_commits(
+                pipeline_db,
+                job_id=root_id,
+                execution_token=token,
+            ),
+            deferred_execution_ownership_lock(),
+        ):
+            assert_current_execution_ownership(
+                pipeline_db,
+                job_id=root_id,
+                execution_token=token,
+            )
+            with Session(engine) as control_db:
+                with control_plane_transaction(control_db):
+                    control_db.execute(text("SET LOCAL lock_timeout = '500ms'"))
+                    control_job = control_db.get(BackgroundJob, root_id)
+                    heartbeat_job(
+                        control_db,
+                        control_job,
+                        execution_token=token,
+                    )
+            pipeline_db.add(
+                RawCompanyRow(
+                    run_id=run_id,
+                    row_number=2,
+                    ticker="DEFERRED",
+                    raw_json={"ticker": "DEFERRED"},
+                )
+            )
+            pipeline_db.commit()
+
+    with Session(engine) as db:
+        assert db.scalar(
+            select(RawCompanyRow).where(
+                RawCompanyRow.run_id == run_id,
+                RawCompanyRow.ticker == "DEFERRED",
+            )
+        )
     engine.dispose()
 
 

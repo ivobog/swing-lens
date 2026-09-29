@@ -50,7 +50,11 @@ from app.services.ceri.sec.processor_lifecycle import (
     lifecycle_state,
 )
 from app.services.cleanup_service import execute_durable_evidence_retention
-from app.services.domain_write_fence import control_plane_transaction, fence_domain_commits
+from app.services.domain_write_fence import (
+    control_plane_transaction,
+    deferred_execution_ownership_lock,
+    fence_domain_commits,
+)
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_prerequisites import PipelineBlockedError
 from app.services.process_identity import process_started_at
@@ -1217,7 +1221,11 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
             )
 
     try:
-        with job_phase("pipeline_execution"):
+        # Pipeline domain services perform explicit ownership checks while
+        # building a stage transaction.  Those checks must validate the token
+        # without retaining the job-row lock across long work; the mandatory
+        # FOR UPDATE fence is taken by before_commit at publication time.
+        with deferred_execution_ownership_lock(), job_phase("pipeline_execution"):
             result = execute_full_pipeline(
                 db=db,
                 pipeline_run_id=int(pipeline_run_id),
