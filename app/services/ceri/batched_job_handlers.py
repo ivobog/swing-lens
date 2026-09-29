@@ -294,6 +294,14 @@ def execute_feature_batch_job(
         from app.services.scope_refresh_adoption import require_semantic_authority
 
         semantic_authority = require_semantic_authority(job)
+    workflow_key = _workflow_key(job, payload)
+    _require_terminal_stage(
+        db,
+        workflow_key,
+        CERI_NORMALIZE_BATCH,
+        expected=int(payload.get("expected_normalization_batches") or 0),
+    )
+    payload = _freeze_pipeline_ceri_payload(db, job, payload)
     missing_context = [
         key
         for key in ("calculation_context_id", "cutoff_at", "as_of_session", "calendar_version")
@@ -304,13 +312,6 @@ def execute_feature_batch_job(
             "Pipeline-owned CERI feature job is missing frozen context fields: "
             + ", ".join(missing_context)
         )
-    workflow_key = _workflow_key(job, payload)
-    _require_terminal_stage(
-        db,
-        workflow_key,
-        CERI_NORMALIZE_BATCH,
-        expected=int(payload.get("expected_normalization_batches") or 0),
-    )
     tickers = _tickers(payload)
     config = load_ceri_config()
     service = feature_service or CeriFeatureRebuildService(config=config)
@@ -517,6 +518,7 @@ def execute_run_finalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         CERI_FEATURE_BATCH,
         expected=int(payload.get("expected_feature_batches") or 0),
     )
+    payload = _freeze_pipeline_ceri_payload(db, job, payload)
     run_id = int(payload.get("run_id") or job.related_run_id)
     request_key = f"{workflow_key}:capture"
     capture_job = enqueue_job(
@@ -568,6 +570,47 @@ def execute_run_finalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         "capture_job_id": capture_job.id,
         "capture_coalesced": bool(getattr(capture_job, "_coalesced", False)),
     }
+
+
+def _freeze_pipeline_ceri_payload(
+    db: Session,
+    job: BackgroundJob,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Attach the post-acquisition CERI cutoff before calculation side effects."""
+
+    workflow_key = _workflow_key(job, payload)
+    pipeline_id = int(payload.get("pipeline_run_id") or 0)
+    if not workflow_key.startswith("ceri:pipeline:") or not pipeline_id:
+        return payload
+    # Preserve the immutable envelope of already-scheduled deliveries. New
+    # workflows intentionally omit it from calculation jobs so they freeze
+    # only after provider acquisition and normalization have completed.
+    if all(
+        payload.get(key) not in (None, "")
+        for key in (
+            "calculation_context_id",
+            "cutoff_at",
+            "as_of_session",
+            "calendar_version",
+        )
+    ):
+        return payload
+    from app.services.market_calculation_context_service import (
+        create_or_get_pipeline_ceri_context,
+    )
+
+    cutoff = create_or_get_pipeline_ceri_context(db, pipeline_run_id=pipeline_id)
+    frozen = {
+        **payload,
+        "calculation_context_id": cutoff.context_id,
+        "cutoff_at": cutoff.cutoff_at.isoformat(),
+        "as_of_session": cutoff.latest_completed_session.isoformat(),
+        "calendar_version": cutoff.calendar_version,
+    }
+    job.payload_json = frozen
+    db.flush()
+    return frozen
 
 
 def _require_terminal_stage(

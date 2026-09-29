@@ -143,6 +143,10 @@ def schedule_sec_readiness_repair(
     job = enqueue_sec_readiness_dependency(db, dependency_id=dependency.id)
     # Transaction B publishes child lineage and returns control to the worker.
     db.commit()
+    if job is None:
+        from app.services.pipeline_executor import PipelineCancelled
+
+        raise PipelineCancelled("Pipeline cancellation won before SEC child enqueue.")
     return job
 
 

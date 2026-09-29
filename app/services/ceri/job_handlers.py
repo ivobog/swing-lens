@@ -15,7 +15,7 @@ from app.models.ceri_tables import (
     CeriProcessingRun,
     CeriScoreSnapshot,
 )
-from app.models.tables import BackgroundJob
+from app.models.tables import BackgroundJob, PipelineRun
 from app.observability.correlation import durable_causality_fields
 from app.observability.db_monitor import job_phase
 from app.observability.transaction_metrics import publish_after_commit
@@ -59,7 +59,10 @@ from app.services.ceri.purge_service import (
     CeriPurgeService,
 )
 from app.services.configuration_delivery import anchored_job_configuration
-from app.services.market_calculation_context_service import resolve_pipeline_market_context
+from app.services.market_calculation_context_service import (
+    resolve_pipeline_ceri_context,
+    resolve_pipeline_market_context,
+)
 from app.services.pipeline_prerequisites import CeriParentPipelineTerminalError
 from app.services.redaction import redact_text
 
@@ -405,14 +408,32 @@ def execute_capture_run_job(
                 "Pipeline-owned CERI capture job is missing frozen context fields: "
                 + ", ".join(missing)
             )
-        market_cutoff = resolve_pipeline_market_context(
-            db,
-            calculation_context_id=_optional_int(payload.get("calculation_context_id")),
-            upload_run_id=run_id,
-            expected_cutoff_at=_optional_datetime(payload.get("cutoff_at")),
-            expected_latest_completed_session=_optional_date(payload.get("as_of_session")),
-            expected_calendar_version=str(payload["calendar_version"]),
+        pipeline_id = _optional_int(payload.get("pipeline_run_id"))
+        workflow_key = str(job.workflow_key or payload.get("workflow_key") or "")
+        pipeline = db.get(PipelineRun, pipeline_id) if pipeline_id is not None else None
+        retained_ceri_context_id = (
+            (pipeline.result_json or {}).get("ceri_calculation_context_id")
+            if pipeline is not None
+            else None
         )
+        resolver = (
+            resolve_pipeline_ceri_context
+            if workflow_key.startswith("ceri:pipeline:")
+            and pipeline_id is not None
+            and int(retained_ceri_context_id or 0)
+            == int(_optional_int(payload.get("calculation_context_id")) or 0)
+            else resolve_pipeline_market_context
+        )
+        resolver_kwargs = {
+            "calculation_context_id": _optional_int(payload.get("calculation_context_id")),
+            "upload_run_id": run_id,
+            "expected_cutoff_at": _optional_datetime(payload.get("cutoff_at")),
+            "expected_latest_completed_session": _optional_date(payload.get("as_of_session")),
+            "expected_calendar_version": str(payload["calendar_version"]),
+        }
+        if resolver is resolve_pipeline_ceri_context:
+            resolver_kwargs["pipeline_run_id"] = pipeline_id
+        market_cutoff = resolver(db, **resolver_kwargs)
     processing, created = _processing_run(
         db,
         CERI_CAPTURE_RUN,

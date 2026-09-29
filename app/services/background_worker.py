@@ -1115,6 +1115,7 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
     )
     from app.services.pipeline_executor import (
         PipelineCancelled,
+        PipelineContinuationSuppressed,
         PipelineExecutionDependencies,
         execute_full_pipeline,
     )
@@ -1242,7 +1243,7 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
                 execution_job_id=job.id,
                 dependencies=PipelineExecutionDependencies(market_cutoff=market_cutoff),
             )
-    except PipelineCancelled as exc:
+    except (PipelineCancelled, PipelineContinuationSuppressed) as exc:
         raise CancelRequested(str(exc)) from exc
     return result.__dict__
 

@@ -353,6 +353,9 @@ def schedule_ceri_batched_workflow(
         provider_tickers=provider_ticker_scopes,
     )
     for spec in plan.jobs:
+        # Provider acquisition and normalization intentionally precede the
+        # CERI calculation freeze. Feature/capture work receives a separate
+        # explicitly-authorized context only after normalization is terminal.
         temporal_payload = (
             {
                 "cutoff_at": CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at),
@@ -361,6 +364,7 @@ def schedule_ceri_batched_workflow(
                 "calculation_context_id": market_cutoff.context_id,
             }
             if market_cutoff is not None
+            and spec.job_type in {CERI_PROVIDER_INGEST_BATCH, CERI_NORMALIZE_BATCH}
             else {}
         )
         job = enqueue_job(

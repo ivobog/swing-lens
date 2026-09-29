@@ -120,6 +120,17 @@ class PipelineCancelled(Exception):
     pass
 
 
+class PipelineContinuationSuppressed(Exception):
+    """A durable continuation lost authority before its resume transition."""
+
+    def __init__(self, pipeline_id: int, status: str) -> None:
+        self.pipeline_id = int(pipeline_id)
+        self.status = str(status)
+        super().__init__(
+            f"PIPELINE_CONTINUATION_SUPPRESSED:pipeline={pipeline_id}:status={status}"
+        )
+
+
 class IBGatewayUnavailable(Exception):
     code = "IB_GATEWAY_UNAVAILABLE"
 
@@ -1090,6 +1101,7 @@ def _execute_resumed_pipeline(
             "The durable resume path supports CERI_PROVIDER_INGEST and the post-CERI "
             "decision-handoff boundary only."
         )
+    pipeline = _claim_pipeline_continuation_resume(db, pipeline)
     performance = PipelinePerformanceTracker()
     result = _empty_result(pipeline, upload_run)
     result.update(_public_result(pipeline.result_json or {}))
@@ -1386,8 +1398,20 @@ def _validate_ceri_completion_barrier(
     if not isinstance(db, Session):
         return
     from app.models.ceri_tables import CeriScoreSnapshot
+    from app.services.market_calculation_context_service import resolve_pipeline_ceri_context
 
-    context = market_context_for_pipeline(db, pipeline)
+    if retained.get("ceri_calculation_context_id") is not None:
+        context = resolve_pipeline_ceri_context(
+            db,
+            calculation_context_id=retained.get("ceri_calculation_context_id"),
+            upload_run_id=pipeline.upload_run_id,
+            pipeline_run_id=pipeline.id,
+        )
+    else:
+        # Existing non-fresh runs may have valid pre-cutoff retained history
+        # under the original market context. New provider workflows always
+        # retain a post-acquisition CERI context before feature calculation.
+        context = market_context_for_pipeline(db, pipeline)
     captured = set(
         db.scalars(
             select(CeriScoreSnapshot.ticker).where(
@@ -1987,6 +2011,64 @@ def _mark_pipeline_running(
     )
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 1)
     _save_progress(db, lease_guard=lease_guard)
+
+
+def _claim_pipeline_continuation_resume(
+    db: Session,
+    pipeline: PipelineRun,
+) -> PipelineRun:
+    """Atomically prove that a continuation still has resume authority.
+
+    The short row lock is held only for the state check and transition.  It is
+    deliberately acquired before any replay side effect so cancellation or a
+    terminal winner cannot be discovered after work has already resumed.
+    """
+
+    if not isinstance(db, Session):
+        if pipeline.status in {
+            PipelineStatus.CANCEL_REQUESTED,
+            PipelineStatus.CANCELLED,
+            PipelineStatus.FAILED,
+            PipelineStatus.COMPLETED,
+            PipelineStatus.PARTIAL,
+            PipelineStatus.BLOCKED,
+        }:
+            raise PipelineContinuationSuppressed(int(pipeline.id or 0), str(pipeline.status))
+        return pipeline
+
+    authoritative = db.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.id == pipeline.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if authoritative is None:
+        raise ValueError(f"Pipeline run {pipeline.id} was not found.")
+
+    if authoritative.status == PipelineStatus.CANCEL_REQUESTED:
+        from app.services.pipeline_state_machine import transition_pipeline
+
+        transition_pipeline(
+            db,
+            authoritative,
+            PipelineStatus.CANCELLED,
+            actor="pipeline_orchestrator",
+            message="Pipeline cancellation completed before continuation resume.",
+        )
+        _cancel_unfinished_steps(db, authoritative.id)
+        db.commit()
+        raise PipelineContinuationSuppressed(authoritative.id, PipelineStatus.CANCELLED)
+
+    if authoritative.status in {
+        PipelineStatus.CANCELLED,
+        PipelineStatus.FAILED,
+        PipelineStatus.COMPLETED,
+        PipelineStatus.PARTIAL,
+        PipelineStatus.BLOCKED,
+    }:
+        raise PipelineContinuationSuppressed(authoritative.id, str(authoritative.status))
+
+    return authoritative
 
 
 def _mark_pipeline_waiting_for_ceri(

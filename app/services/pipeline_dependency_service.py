@@ -286,7 +286,7 @@ def enqueue_sec_readiness_dependency(
     db: Session,
     *,
     dependency_id: int,
-) -> BackgroundJob:
+) -> BackgroundJob | None:
     """Transaction B: enqueue the child only after Transaction A committed."""
 
     from app.services.scope_refresh_adoption import (
@@ -312,8 +312,17 @@ def enqueue_sec_readiness_dependency(
         dependency.state = "CANCELLED"
         dependency.completed_at = _utcnow()
         dependency.updated_at = dependency.completed_at
+        if pipeline.status == "CANCEL_REQUESTED":
+            transition_pipeline(
+                db,
+                pipeline,
+                "CANCELLED",
+                actor="dependency",
+                message="Pipeline cancellation completed before SEC child enqueue.",
+            )
+            _cancel_incomplete_steps(db, pipeline.id)
         db.flush()
-        raise ValueError("PIPELINE_DEPENDENCY_PARENT_TERMINAL")
+        return None
     if dependency.child_job_id is not None:
         child = db.get(BackgroundJob, dependency.child_job_id)
         if child is None:
@@ -426,7 +435,8 @@ def reconcile_pending_dependency_enqueues(db: Session) -> tuple[int, ...]:
     created: list[int] = []
     for dependency_id in ids:
         child = enqueue_sec_readiness_dependency(db, dependency_id=int(dependency_id))
-        created.append(child.id)
+        if child is not None:
+            created.append(child.id)
     return tuple(created)
 
 
@@ -681,6 +691,11 @@ def _reconcile_pipeline_root_job(db: Session, job: BackgroundJob) -> None:
         select(PipelineRun).where(PipelineRun.id == pipeline_id).with_for_update()
     )
     if pipeline is None or pipeline.status in TERMINAL_PIPELINE_STATES:
+        return
+    if pipeline.status == "CANCEL_REQUESTED":
+        # Cancellation is a control outcome, not an execution failure.  The
+        # cancelling request or deterministic reconciliation will finalize it
+        # after any remaining child has observed its cancellation request.
         return
     if job.status == JobStatus.CANCELLED:
         transition_pipeline(

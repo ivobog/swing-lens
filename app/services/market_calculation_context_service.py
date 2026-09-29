@@ -196,6 +196,122 @@ def market_context_for_pipeline(db: Session, pipeline: PipelineRun) -> MarketCal
     return cutoff_from_row(row)
 
 
+def create_or_get_pipeline_ceri_context(
+    db: Session,
+    *,
+    pipeline_run_id: int,
+    clock: MarketClockService | None = None,
+) -> MarketCalculationCutoff:
+    """Freeze the CERI context after provider acquisition and normalization.
+
+    A pipeline's market context remains immutable.  CERI provider observations
+    acquired later receive a separate explicitly-authorized context, retained
+    on the pipeline before any feature or capture side effect.  This preserves
+    both identities instead of moving the original cutoff forward.
+    """
+
+    pipeline = db.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.id == int(pipeline_run_id))
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if pipeline is None:
+        raise PipelineCalculationContextError(
+            f"Pipeline {pipeline_run_id} was not found for CERI context freeze."
+        )
+    retained = dict(pipeline.result_json or {})
+    existing_id = retained.get("ceri_calculation_context_id")
+    if existing_id is not None:
+        return resolve_pipeline_ceri_context(
+            db,
+            calculation_context_id=int(existing_id),
+            upload_run_id=int(pipeline.upload_run_id),
+            pipeline_run_id=int(pipeline.id),
+        )
+
+    from app.services.pipeline_state_machine import TERMINAL_PIPELINE_STATES
+
+    if pipeline.status in TERMINAL_PIPELINE_STATES or pipeline.status == "CANCEL_REQUESTED":
+        raise PipelineCalculationContextError(
+            f"CERI_CONTEXT_PARENT_NOT_ACTIVE:pipeline={pipeline.id}:status={pipeline.status}"
+        )
+    cutoff = (clock or MarketClockService()).cutoff_for(
+        datetime.now(UTC), reason="CERI_POST_ACQUISITION_FROZEN"
+    )
+    row = MarketCalculationContext(
+        pipeline_run_id=None,
+        upload_run_id=pipeline.upload_run_id,
+        cutoff_at=cutoff.cutoff_at,
+        exchange_timezone=cutoff.exchange_timezone,
+        latest_completed_session=cutoff.latest_completed_session,
+        daily_bar_ready_at=cutoff.daily_bar_ready_at,
+        calendar_version=cutoff.calendar_version,
+        bar_readiness_version=cutoff.bar_readiness_version,
+        cutoff_reason=cutoff.cutoff_reason,
+    )
+    db.add(row)
+    db.flush()
+    pipeline.result_json = {
+        **retained,
+        "ceri_calculation_context_id": row.id,
+        "ceri_calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(cutoff.cutoff_at),
+        "ceri_calculation_as_of_session": cutoff.latest_completed_session.isoformat(),
+        "ceri_calculation_calendar_version": cutoff.calendar_version,
+        "ceri_calculation_bar_readiness_version": cutoff.bar_readiness_version,
+        "ceri_calculation_context_reason": cutoff.cutoff_reason,
+    }
+    db.flush()
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_market_calculation_cutoffs_total",
+        scope="pipeline_ceri_post_acquisition",
+    )
+    return cutoff.with_context_id(row.id)
+
+
+def resolve_pipeline_ceri_context(
+    db: Session,
+    *,
+    calculation_context_id: int | None,
+    upload_run_id: int,
+    pipeline_run_id: int,
+    expected_cutoff_at: datetime | None = None,
+    expected_latest_completed_session: date | None = None,
+    expected_calendar_version: str | None = None,
+) -> MarketCalculationCutoff:
+    """Resolve the separate post-acquisition CERI context retained by a pipeline."""
+
+    if calculation_context_id is None:
+        raise PipelineCalculationContextError("Pipeline CERI context ID is required.")
+    pipeline = db.get(PipelineRun, int(pipeline_run_id))
+    if pipeline is None or int(pipeline.upload_run_id) != int(upload_run_id):
+        raise PipelineCalculationContextError("Pipeline CERI context owner mismatch.")
+    retained_id = (pipeline.result_json or {}).get("ceri_calculation_context_id")
+    if int(retained_id or 0) != int(calculation_context_id):
+        raise PipelineCalculationContextError(
+            "Supplied CERI calculation context is not retained by the pipeline."
+        )
+    row = db.get(MarketCalculationContext, int(calculation_context_id))
+    if row is None or row.pipeline_run_id is not None or row.upload_run_id != upload_run_id:
+        raise PipelineCalculationContextError("Retained CERI calculation context is invalid.")
+    cutoff = cutoff_from_row(row)
+    if expected_cutoff_at is not None and cutoff.cutoff_at != expected_cutoff_at:
+        raise PipelineCalculationContextError("CERI payload cutoff does not match its context.")
+    if (
+        expected_latest_completed_session is not None
+        and cutoff.latest_completed_session != expected_latest_completed_session
+    ):
+        raise PipelineCalculationContextError("CERI payload session does not match its context.")
+    if (
+        expected_calendar_version is not None
+        and cutoff.calendar_version != expected_calendar_version
+    ):
+        raise PipelineCalculationContextError("CERI payload calendar does not match its context.")
+    return cutoff
+
+
 def market_context_for_upload_run(
     db: Session, upload_run_id: int
 ) -> MarketCalculationCutoff | None:
@@ -206,7 +322,10 @@ def market_context_for_upload_run(
         return None
     row = db.scalar(
         select(MarketCalculationContext)
-        .where(MarketCalculationContext.upload_run_id == upload_run_id)
+        .where(
+            MarketCalculationContext.upload_run_id == upload_run_id,
+            MarketCalculationContext.pipeline_run_id.is_not(None),
+        )
         .order_by(MarketCalculationContext.id.desc())
         .limit(1)
     )

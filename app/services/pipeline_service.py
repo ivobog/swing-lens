@@ -702,7 +702,30 @@ def _failed_sec_repair(db, pipeline):
 
 def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
     cancellation_started_at = datetime.now(UTC)
-    pipeline = db.get(PipelineRun, pipeline_run_id)
+    if isinstance(db, Session):
+        db.execute(
+            text(f"SET LOCAL lock_timeout = '{PIPELINE_CANCELLATION_LOCK_TIMEOUT_MS}ms'")
+        )
+        try:
+            pipeline = db.scalar(
+                select(PipelineRun)
+                .where(PipelineRun.id == pipeline_run_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        except OperationalError as exc:
+            db.rollback()
+            if getattr(getattr(exc, "orig", None), "sqlstate", None) != "55P03":
+                raise
+            diagnostics = _pipeline_cancellation_lock_diagnostics(
+                db, pipeline_id=pipeline_run_id, job_id=0
+            )
+            operational_metrics.increment(
+                "swinglens_pipeline_cancellation_lock_contention_total"
+            )
+            raise PipelineCancellationContended(diagnostics) from exc
+    else:
+        pipeline = db.get(PipelineRun, pipeline_run_id)
     if pipeline is None:
         raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
 
@@ -745,7 +768,24 @@ def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
             )
             raise PipelineCancellationContended(diagnostics) from exc
 
-    pipeline = db.get(PipelineRun, pipeline_run_id)
+    pipeline = (
+        db.scalar(
+            select(PipelineRun)
+            .where(PipelineRun.id == pipeline_run_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if isinstance(db, Session)
+        else db.get(PipelineRun, pipeline_run_id)
+    )
+    if pipeline is None:
+        raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
+    # Another authoritative transaction may have won while cancellation was
+    # being published to child jobs.  Terminal observation is idempotent and
+    # must never be rewritten as FAILED -> CANCELLED.
+    if pipeline.status in PIPELINE_TERMINAL_STATUSES:
+        db.flush()
+        return pipeline
     remaining = _active_pipeline_control_job_ids(db, pipeline_run_id)
     if not remaining:
         transition_pipeline(
