@@ -64,7 +64,10 @@ from app.services.scope_refresh_adoption import (
     bind_semantic_authority,
     require_semantic_authority,
 )
-from app.services.transition_preflight_plan_service import _validate_handoff_temporal_lineage
+from app.services.transition_preflight_plan_service import (
+    _resolve_decision_ceri_context,
+    _validate_handoff_temporal_lineage,
+)
 from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 from app.services.worker_registry import register_worker
 from app.settings import Settings
@@ -389,6 +392,13 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
             upload_run_id=run_id,
             pipeline_run_id=pipeline.id,
         )
+        decision_ceri_context = _resolve_decision_ceri_context(
+            db,
+            pipeline_run_id=pipeline.id,
+            upload_run_id=run_id,
+            market_cutoff=main_context,
+        )
+        assert decision_ceri_context.context_id == retained_ceri_context.context_id
         _validate_handoff_temporal_lineage(
             db,
             upload_run_id=run_id,

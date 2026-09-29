@@ -603,10 +603,17 @@ def _create_pipeline_decision_handoff_plan(
             "DECISION_LINEAGE_MISMATCH",
             "pipeline decision handoff has no source-backed ticker manifests",
         )
+    ceri_market_cutoff = _resolve_decision_ceri_context(
+        db,
+        pipeline_run_id=context.pipeline_run_id,
+        upload_run_id=upload_run_id,
+        market_cutoff=market_cutoff,
+    )
     _validate_handoff_temporal_lineage(
         db,
         upload_run_id=upload_run_id,
         market_cutoff=market_cutoff,
+        ceri_market_cutoff=ceri_market_cutoff,
         built_rows=built_rows,
     )
     anchor = build_run_start_anchor_manifest(
@@ -963,9 +970,24 @@ def _decision_ceri_context(
 ) -> MarketCalculationCutoff:
     """Resolve the explicitly retained CERI context for a mixed-context handoff."""
 
-    if plan.pipeline_run_id is None:
+    return _resolve_decision_ceri_context(
+        db,
+        pipeline_run_id=plan.pipeline_run_id,
+        upload_run_id=int(plan.upload_run_id),
+        market_cutoff=market_cutoff,
+    )
+
+
+def _resolve_decision_ceri_context(
+    db: Session,
+    *,
+    pipeline_run_id: int | None,
+    upload_run_id: int,
+    market_cutoff: MarketCalculationCutoff,
+) -> MarketCalculationCutoff:
+    if pipeline_run_id is None:
         return market_cutoff
-    pipeline = db.get(PipelineRun, int(plan.pipeline_run_id))
+    pipeline = db.get(PipelineRun, int(pipeline_run_id))
     retained_id = (
         (pipeline.result_json or {}).get("ceri_calculation_context_id")
         if pipeline is not None
@@ -978,8 +1000,8 @@ def _decision_ceri_context(
     ceri_cutoff = resolve_pipeline_ceri_context(
         db,
         calculation_context_id=int(retained_id),
-        upload_run_id=int(plan.upload_run_id),
-        pipeline_run_id=int(plan.pipeline_run_id),
+        upload_run_id=upload_run_id,
+        pipeline_run_id=int(pipeline_run_id),
     )
     if _aware(ceri_cutoff.cutoff_at) < _aware(market_cutoff.cutoff_at):
         raise TransitionPreflightError(
