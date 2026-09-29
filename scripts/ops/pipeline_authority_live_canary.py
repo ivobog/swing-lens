@@ -58,12 +58,16 @@ def _derived_csv(source: Path, tickers: list[str], template_ticker: str) -> byte
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     for ticker in tickers:
-        row = dict(template)
+        source_row = next(
+            (row for row in rows if (row.get("Symbol") or row.get("Ticker")) == ticker),
+            template,
+        )
+        row = dict(source_row)
         if "Symbol" in row:
             row["Symbol"] = ticker
         if "Ticker" in row:
             row["Ticker"] = ticker
-        if "Description" in row:
+        if source_row is template and "Description" in row:
             row["Description"] = f"SwingLens authority canary {ticker}"
         writer.writerow(row)
     return output.getvalue().encode("utf-8-sig")
