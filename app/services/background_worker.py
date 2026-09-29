@@ -889,9 +889,16 @@ def run_worker_once(
         except CancelRequested:
             mark_job_cancelled(db, job, execution_token=execution_token)
             logger.info("job.cancelled", extra={"job_id": job.id, "job_type": job.job_type})
-        except JobLeaseLost:
+        except JobLeaseLost as exc:
             db.rollback()
-            logger.warning("job.lease_lost", extra={"job_id": job.id, "job_type": job.job_type})
+            logger.warning(
+                "job.lease_lost",
+                extra={
+                    "job_id": job.id,
+                    "job_type": job.job_type,
+                    "reason": str(exc),
+                },
+            )
             if job.job_type == "FULL_PIPELINE" or getattr(job, "pipeline_dependency_id", None):
                 from app.services.pipeline_dependency_service import reconcile_pipeline_job
 
@@ -1131,117 +1138,49 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
         if isinstance(db, Session)
         else None
     )
-    stage_boundary_pending = False
-
     def lease_guard() -> None:
-        nonlocal stage_boundary_pending
-        if stage_boundary_pending:
-            heartbeat_job(
-                db,
-                control_job,
-                lease_seconds=settings.job_stale_after_seconds,
-                execution_token=execution_token,
-            )
-            stage_boundary_pending = False
-            return
         heartbeat = getattr(job, "_heartbeat", None)
         if callable(heartbeat):
             heartbeat()
 
-    def fenced_control_session() -> Session | None:
-        from app.services.domain_write_fence import current_fenced_domain_session
-
-        source_db = current_fenced_domain_session(job.id, execution_token)
-        # Unlike the outer heartbeat, the fallback here is an independent
-        # Session. Even when the fenced Session is the pipeline's main Session,
-        # it must be preferred or the fallback would wait on that same row lock.
-        return source_db
-
     def should_cancel() -> bool:
-        if (
-            getattr(pipeline, "current_step", None) != "SCORING_TECHNICALS"
-            or control_factory is None
-        ):
+        if control_factory is None:
             lease_guard()
             return is_cancel_requested(db, job.id)
-        source_db = fenced_control_session()
-        if source_db is not None:
-            # The active domain fence already prevents reclaim. A read-only
-            # cancellation poll must not acquire a new job-row write lock that
-            # could outlive this callback and block the next child writer.
-            return is_cancel_requested(source_db, job.id)
         with control_factory() as control_db:
-            heartbeat_job(
-                control_db,
-                control_job,
-                lease_seconds=settings.job_stale_after_seconds,
-                execution_token=execution_token,
-            )
-            requested = is_cancel_requested(control_db, job.id)
-            control_db.commit()
+            with control_plane_transaction(control_db):
+                heartbeat_job(
+                    control_db,
+                    control_job,
+                    lease_seconds=settings.job_stale_after_seconds,
+                    execution_token=execution_token,
+                )
+                requested = is_cancel_requested(control_db, job.id)
             return requested
 
     def progress_callback(progress_db: Session, **progress: Any) -> None:
-        nonlocal stage_boundary_pending
-        stage = progress.get("stage")
-        if (
-            progress_db is db
-            and progress.get("checkpoint_version") is None
-            and progress.get("processed") is None
-            and progress.get("total") is None
-        ):
-            # _pipeline_step calls lease_guard and commits immediately after
-            # this stage-boundary update. Keep both writes in that transaction
-            # so the guard cannot wait on the row just updated here.
+        if control_factory is None:
             record_job_progress(
                 progress_db,
-                job_id=job.id,
-                execution_token=execution_token,
-                **progress,
-            )
-            stage_boundary_pending = True
-            return
-        if stage != "SCORING_TECHNICALS" or control_factory is None:
-            # Preserve the established same-session contract for bounded
-            # pipeline/downstream stages. _pipeline_step commits these updates
-            # immediately. Only long Technical work needs detached control.
-            record_job_progress(
-                progress_db,
-                job_id=job.id,
-                execution_token=execution_token,
-                **progress,
-            )
-            return
-        source_db = fenced_control_session()
-        if source_db is not None:
-            source_job = source_db.get(BackgroundJob, job.id)
-            heartbeat_job(
-                source_db,
-                source_job,
-                lease_seconds=settings.job_stale_after_seconds,
-                execution_token=execution_token,
-            )
-            record_job_progress(
-                source_db,
                 job_id=job.id,
                 execution_token=execution_token,
                 **progress,
             )
             return
         with control_factory() as control_db:
-            heartbeat_job(
-                control_db,
-                control_job,
-                lease_seconds=settings.job_stale_after_seconds,
-                execution_token=execution_token,
-            )
-            record_job_progress(
-                control_db,
-                job_id=job.id,
-                execution_token=execution_token,
-                **progress,
-            )
-            control_db.commit()
+            with control_plane_transaction(control_db):
+                heartbeat_job(
+                    control_db,
+                    control_job,
+                    lease_seconds=settings.job_stale_after_seconds,
+                    execution_token=execution_token,
+                )
+                record_job_progress(
+                    control_db,
+                    job_id=job.id,
+                    execution_token=execution_token,
+                    **progress,
+                )
 
     def memory_probe(
         item_db: Session,
@@ -1288,6 +1227,7 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
                 progress_callback=progress_callback,
                 memory_probe=memory_probe,
                 execution_token=execution_token,
+                execution_job_id=job.id,
                 dependencies=PipelineExecutionDependencies(market_cutoff=market_cutoff),
             )
     except PipelineCancelled as exc:

@@ -320,6 +320,10 @@ def test_worker_does_not_finalize_success_after_fenced_handler_commit(
         "app.services.background_worker.recover_abandoned_jobs_for_worker", lambda *_a, **_k: 0
     )
     monkeypatch.setattr("app.services.background_worker.recover_stale_jobs", lambda *_a, **_k: 0)
+    monkeypatch.setattr(
+        "app.services.pipeline_dependency_service.reconcile_safe_pipeline_invariants",
+        lambda *_a, **_k: [],
+    )
     monkeypatch.setattr("app.services.background_worker.claim_next_job", lambda *_a, **_k: job)
     monkeypatch.setattr("app.services.background_worker.heartbeat_job", lambda *_a, **_k: job)
     monkeypatch.setattr(

@@ -27,6 +27,8 @@ from app.models.tables import (
     UploadRun,
 )
 from app.services.background_job_service import JobStatus, enqueue_job, heartbeat_job
+from app.services.domain_write_fence import fence_domain_commits
+from app.services.ib_fetch_executor import _bounded_item_session
 from app.services.pipeline_dependency_service import (
     enqueue_sec_readiness_dependency,
     prepare_sec_readiness_dependency,
@@ -450,6 +452,50 @@ def test_20_terminal_root_cannot_leave_pipeline_running(
         pipeline = db.get(PipelineRun, pipeline_id)
         assert pipeline.status == PipelineStatus.FAILED
         assert pipeline.error_message == "PIPELINE_ROOT_TERMINAL_WITH_ACTIVE_PIPELINE"
+    engine.dispose()
+
+
+def test_21_pipeline_item_session_has_explicit_attempt_authority(
+    authority_database_url: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, root_id = _seed_pipeline(engine, root_status=JobStatus.RUNNING)
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        pipeline = db.get(PipelineRun, pipeline_id)
+        assert root.execution_token
+        token = root.execution_token
+        run_id = pipeline.upload_run_id
+
+    with Session(engine) as pipeline_db:
+        with fence_domain_commits(
+            pipeline_db,
+            job_id=root_id,
+            execution_token=token,
+        ):
+            with _bounded_item_session(
+                pipeline_db,
+                execution_job_id=root_id,
+                execution_token=token,
+            ) as item_db:
+                item_db.add(
+                    RawCompanyRow(
+                        run_id=run_id,
+                        row_number=2,
+                        ticker="BOUNDARY",
+                        raw_json={"ticker": "BOUNDARY"},
+                    )
+                )
+                item_db.commit()
+
+    with Session(engine) as db:
+        persisted = db.scalar(
+            select(RawCompanyRow).where(
+                RawCompanyRow.run_id == run_id,
+                RawCompanyRow.ticker == "BOUNDARY",
+            )
+        )
+        assert persisted is not None
     engine.dispose()
 
 

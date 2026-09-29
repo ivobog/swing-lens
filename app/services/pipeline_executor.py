@@ -311,6 +311,7 @@ def execute_full_pipeline(
     progress_callback: Callable[..., None] | None = None,
     memory_probe: Callable[..., None] | None = None,
     execution_token: str | None = None,
+    execution_job_id: int | None = None,
 ) -> PipelineExecutionResult:
     dependencies = dependencies or PipelineExecutionDependencies()
     from app.services.configuration_delivery import current_delivery, delivered_configuration
@@ -597,6 +598,8 @@ def execute_full_pipeline(
                     "memory_probe": memory_probe,
                     "execution_token": execution_token,
                 }
+                if _accepts_keyword(dependencies.execute_fetch_plan, "execution_job_id"):
+                    fetch_kwargs["execution_job_id"] = execution_job_id
                 if fetch_authority is not None and _accepts_keyword(
                     dependencies.execute_fetch_plan, "semantic_authority"
                 ):

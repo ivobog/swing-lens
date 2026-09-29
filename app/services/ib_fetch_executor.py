@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from collections.abc import Callable
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from time import perf_counter
@@ -14,6 +14,7 @@ from app.observability.logging import log_event
 from app.services.background_job_service import JobLeaseLost
 from app.services.bar_cache_service import cache_bars
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.domain_write_fence import fence_domain_commits
 from app.services.ib_api import IB, Contract
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import resolve_us_stock_contract
@@ -84,6 +85,7 @@ def execute_fetch_plan(
     on_ticker_ready: Callable[[TickerReadyEvent], None] | None = None,
     progress_callback: Callable[..., None] | None = None,
     execution_token: str | None = None,
+    execution_job_id: int | None = None,
     memory_probe: Callable[[Session, int, int, str], None] | None = None,
     stop_on_hard_failure: bool = False,
     semantic_authority: SemanticWorkAuthority | None = None,
@@ -139,7 +141,11 @@ def execute_fetch_plan(
                 db.flush()
                 db.commit()
                 break
-            with _bounded_item_session(db) as item_db:
+            with _bounded_item_session(
+                db,
+                execution_job_id=execution_job_id,
+                execution_token=execution_token,
+            ) as item_db:
                 item_run = _load_fetch_run(item_db, fetch_run.id)
                 fetch_item = _existing_fetch_item(item_db, fetch_run.id, plan_item)
                 if fetch_item is not None and (
@@ -381,11 +387,25 @@ def _create_fetch_item(fetch_run: IBFetchRun, plan_item: FetchPlanItem) -> IBFet
     )
 
 
-def _bounded_item_session(db: Session):
+@contextmanager
+def _bounded_item_session(
+    db: Session,
+    *,
+    execution_job_id: int | None,
+    execution_token: str | None,
+):
     if not isinstance(db, Session):
-        return nullcontext(db)
+        with nullcontext(db) as item_db:
+            yield item_db
+        return
     factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
-    return factory()
+    with factory() as item_db:
+        with fence_domain_commits(
+            item_db,
+            job_id=execution_job_id,
+            execution_token=execution_token,
+        ):
+            yield item_db
 
 
 def _load_fetch_run(db: Session, fetch_run_id: int) -> IBFetchRun:
