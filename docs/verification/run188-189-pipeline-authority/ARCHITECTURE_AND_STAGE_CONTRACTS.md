@@ -20,8 +20,8 @@ part of the transition protocol.
 
 ```text
 Transaction A: pipeline orchestrator
-  lock PipelineRun -> create PipelineDependency(PENDING_ENQUEUE)
-  -> PipelineRun(WAITING_DEPENDENCY) -> COMMIT
+  lock PipelineRun -> create PipelineDependency(PENDING_ENQUEUE or RUNNING)
+  -> PipelineRun(WAITING_DEPENDENCY or WAITING_FOR_CERI_COMPLETION) -> COMMIT
 
 Transaction B: dependency enqueue
   lock PipelineDependency + PipelineRun
@@ -41,7 +41,19 @@ Pipeline orchestrator reconciliation transaction
 Only `pipeline_state_machine.transition_pipeline` assigns `PipelineRun.status`. Domain authority is
 bound to exactly one SQLAlchemy Session by `fence_domain_commits(db, ...)`. A different Session in
 the same call context is rejected unless it enters `control_plane_transaction`, which removes
-domain authority and commits or rolls back a bounded control transaction.
+domain authority and commits or rolls back a bounded control transaction. Every durable handler
+enters `deferred_execution_ownership_lock`: it validates the execution token immediately but defers
+the job-row `FOR UPDATE` until the authoritative domain commit. Decision mutation authority uses
+that same fence instead of taking a second unconditional ownership lock. Per-item work uses an
+explicitly bound bounded Session, so its commit cannot borrow ambient authority from the parent
+Session.
+
+The same durable handoff rule now covers both asynchronous pipeline boundaries:
+
+- `SEC_READINESS` records the missing subjects before the repair child is enqueued.
+- `CERI_WORKFLOW` records the certified-workflow identity before the CERI DAG is scheduled; the
+  root may finish only while that exact dependency is active. The barrier atomically completes the
+  dependency and binds its one continuation.
 
 ## Ownership matrix
 
@@ -76,7 +88,7 @@ while an active dependency exists.
 | `COMBINING_RESULTS` | Fundamental and technical results | Root domain Session | Deterministic recomputation | `RANKING_PROFILES` | Stage failure visible on pipeline/step |
 | `RANKING_PROFILES` | Combined results and profile configuration | Root domain Session | Deterministic recomputation | `SECTOR_ROTATION_SNAPSHOT` | Stage failure visible on pipeline/step |
 | `SECTOR_ROTATION_SNAPSHOT` | Ranked universe and point-in-time sector data | Root domain Session | Immutable snapshot identity | Optional research boundary or winner capture | Stage failure visible on pipeline/step |
-| `CERI_PROVIDER_INGEST` | Frozen scope, provider workflow key, CERI configuration | CERI child DAG; pipeline waits at barrier | Durable workflow jobs and completion barrier | `FREEZING_DECISION_HANDOFF_MANIFEST` continuation | DAG roll-up through state machine |
+| `CERI_PROVIDER_INGEST` | Frozen scope, provider workflow key, CERI configuration | CERI child DAG; orchestrator owns `CERI_WORKFLOW` dependency and pipeline wait | Durable dependency, workflow jobs, and completion barrier | Exactly one `FREEZING_DECISION_HANDOFF_MANIFEST` continuation bound to the dependency | DAG roll-up through state machine; root terminal is valid only while the dependency is active |
 | `CERI_FEATURE_CERTIFYING` | Exact certification graph and stop boundary | Feature-certification root and bounded children | Durable graph cardinality and terminal-child check | `FEATURE_CERTIFIED` | Typed graph failure through state machine |
 | `CERI_CAPTURE_SNAPSHOT` | Certified provider outputs and calculation context | CERI capture child | Evidence-key idempotency | Setup-signal stage | Child terminal roll-up |
 | `FREEZING_DECISION_HANDOFF_MANIFEST` | Certified upstream evidence set | Root continuation domain Session | Immutable manifest identity | Setup/winner stages | Manifest failure blocks downstream work |
@@ -103,4 +115,3 @@ the unambiguous enqueue gap. It never invents missing lineage or rewrites histor
 
 Startup fails only for fatal findings. Readiness degrades for safe/review findings and fails for
 fatal findings. Run 188 is therefore reported for operator review; it is not silently rewritten.
-

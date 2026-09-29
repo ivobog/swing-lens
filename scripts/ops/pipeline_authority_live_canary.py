@@ -30,7 +30,7 @@ from app.services.pipeline_service import (
 )
 from app.services.upload_service import create_upload_run
 
-TERMINAL_PIPELINES = {"CANCELLED", "COMPLETED", "FAILED", "BLOCKED"}
+TERMINAL_PIPELINES = {"CANCELLED", "COMPLETED", "PARTIAL", "FAILED", "BLOCKED"}
 TERMINAL_JOBS = {"CANCELLED", "COMPLETED", "FAILED", "BLOCKED"}
 
 

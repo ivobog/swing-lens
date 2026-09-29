@@ -5,6 +5,8 @@
 1. Use a read-only Session and run `inspect_pipeline_invariants`.
 2. For a waiting pipeline, verify exactly one active `pipeline_dependencies` row and inspect its
    root, child, and continuation IDs.
+   `WAITING_DEPENDENCY` requires `SEC_READINESS`; `WAITING_FOR_CERI_COMPLETION` requires
+   `CERI_WORKFLOW`. A terminal root is safe only when that exact active handoff exists.
 3. For a suspected lock, query `pg_stat_activity`, `pg_locks`, and `pg_blocking_pids(pid)` with a
    statement timeout. Never infer a blocker from application status alone.
 
@@ -36,3 +38,13 @@ Watch `swinglens_pipeline_transitions_total`, `swinglens_pipeline_dependency_wai
 `swinglens_pipeline_continuations_created_total`. Alert on fatal invariant findings, duplicate active
 roots/continuations, cancellation contention, or a growing `PENDING_ENQUEUE` age.
 
+## Run a live authority canary
+
+Use `scripts/ops/pipeline_authority_live_canary.py` to launch or observe a deliberately small
+pipeline. The observer records transient dependency states, root/child/continuation lineage,
+per-stage retries, worker heartbeats, and `pg_blocking_pids()` edges. An observation timeout is not
+a pipeline terminal result: inspect the durable pipeline and jobs, then continue with `observe`.
+The blocker query is scoped to `current_database()` so disposable certification databases cannot
+pollute live evidence. `PARTIAL` is a valid terminal pipeline state. Certification requires a
+terminal pipeline (or an intentional bounded cancellation) and
+`maximum_blocked_sessions: 0`; do not infer success merely from the root job completing.
