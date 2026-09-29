@@ -286,6 +286,71 @@ def reconcile_pending_dependency_enqueues(db: Session) -> tuple[int, ...]:
     return tuple(created)
 
 
+def reconcile_safe_pipeline_invariants(db: Session) -> dict[str, tuple[int, ...]]:
+    """Repair only deterministic crash gaps; never rewrite ambiguous history."""
+
+    if not isinstance(db, Session):
+        return {"children_enqueued": (), "continuations_enqueued": (), "cancellations": ()}
+    children = reconcile_pending_dependency_enqueues(db)
+    continuations: list[int] = []
+    completed_dependencies = list(
+        db.scalars(
+            select(PipelineDependency)
+            .where(
+                PipelineDependency.state == "COMPLETED",
+                PipelineDependency.child_job_id.is_not(None),
+                PipelineDependency.continuation_job_id.is_(None),
+            )
+            .order_by(PipelineDependency.id)
+            .with_for_update(skip_locked=True)
+        )
+    )
+    for dependency in completed_dependencies:
+        child = db.get(BackgroundJob, dependency.child_job_id)
+        if child is not None and child.status == JobStatus.COMPLETED:
+            _reconcile_dependency_job(db, child)
+            if dependency.continuation_job_id is not None:
+                continuations.append(dependency.continuation_job_id)
+
+    from app.services.pipeline_service import _active_pipeline_control_job_ids
+
+    cancelled: list[int] = []
+    pipelines = list(
+        db.scalars(
+            select(PipelineRun)
+            .where(PipelineRun.status == "CANCEL_REQUESTED")
+            .order_by(PipelineRun.id)
+            .with_for_update(skip_locked=True)
+        )
+    )
+    for pipeline in pipelines:
+        if _active_pipeline_control_job_ids(db, pipeline.id):
+            continue
+        transition_pipeline(
+            db,
+            pipeline,
+            "CANCELLED",
+            actor="pipeline_orchestrator",
+            message="Pipeline cancellation completed by deterministic reconciliation.",
+        )
+        _cancel_incomplete_steps(db, pipeline.id)
+        for dependency in db.scalars(
+            select(PipelineDependency).where(
+                PipelineDependency.pipeline_run_id == pipeline.id,
+                PipelineDependency.state.in_(DEPENDENCY_ACTIVE_STATES),
+            )
+        ):
+            dependency.state = "CANCELLED"
+            dependency.completed_at = _utcnow()
+            dependency.updated_at = dependency.completed_at
+        cancelled.append(pipeline.id)
+    return {
+        "children_enqueued": tuple(children),
+        "continuations_enqueued": tuple(continuations),
+        "cancellations": tuple(cancelled),
+    }
+
+
 def _reconcile_dependency_job(db: Session, job: BackgroundJob) -> None:
     dependency = db.scalar(
         select(PipelineDependency)

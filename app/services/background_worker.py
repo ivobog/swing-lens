@@ -679,11 +679,9 @@ def run_worker_once(
         if recovered_count:
             logger.info("job.stale_recovered", extra={"count": recovered_count})
         heartbeat_worker_control_loop(db, worker_id, instance_id=worker_instance_id)
-        from app.services.pipeline_dependency_service import (
-            reconcile_pending_dependency_enqueues,
-        )
+        from app.services.pipeline_dependency_service import reconcile_safe_pipeline_invariants
 
-        reconcile_pending_dependency_enqueues(db)
+        reconcile_safe_pipeline_invariants(db)
         db.commit()
 
         if schedule_winner_probability and not certification_mode:
@@ -894,6 +892,18 @@ def run_worker_once(
         except JobLeaseLost:
             db.rollback()
             logger.warning("job.lease_lost", extra={"job_id": job.id, "job_type": job.job_type})
+            if job.job_type == "FULL_PIPELINE" or getattr(job, "pipeline_dependency_id", None):
+                from app.services.pipeline_dependency_service import reconcile_pipeline_job
+
+                orchestration_db = session_factory()
+                try:
+                    reconcile_pipeline_job(orchestration_db, job_id)
+                    orchestration_db.commit()
+                except Exception:
+                    orchestration_db.rollback()
+                    raise
+                finally:
+                    orchestration_db.close()
             return True
         except PipelineBlockedError as exc:
             db.rollback()

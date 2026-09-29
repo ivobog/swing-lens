@@ -32,6 +32,7 @@ from app.services.pipeline_dependency_service import (
     prepare_sec_readiness_dependency,
     reconcile_pending_dependency_enqueues,
     reconcile_pipeline_job,
+    reconcile_safe_pipeline_invariants,
 )
 from app.services.pipeline_invariant_service import inspect_pipeline_invariants
 from app.services.pipeline_service import (
@@ -356,8 +357,9 @@ def test_16_parent_cancel_before_child_completion_wins(authority_database_url: s
         child.worker_id = None
         child.worker_instance_id = None
         db.commit()
-        reconcile_pipeline_job(db, child_id)
+        result = reconcile_safe_pipeline_invariants(db)
         db.commit()
+        assert pipeline_id in result["cancellations"]
         assert db.get(PipelineRun, pipeline_id).status == PipelineStatus.CANCELLED
         assert db.get(PipelineDependency, dependency_id).continuation_job_id is None
     engine.dispose()
