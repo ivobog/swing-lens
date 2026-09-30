@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app.models.tables import BackgroundJob, FundamentalScore, RawCompanyRow
+from app.models.tables import BackgroundJob, FundamentalScore, PipelineDependency, RawCompanyRow
 from app.routers import run_routes
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.pipeline_service import (
@@ -287,6 +287,76 @@ def test_waiting_pipeline_status_exposes_active_ceri_child_progress(monkeypatch)
     assert payload["total_item_count"] == 50
 
 
+def test_waiting_sec_dependency_projects_authoritative_child_progress(monkeypatch) -> None:
+    status = PipelineStatusDto(
+        pipeline_run_id=99,
+        upload_run_id=7,
+        status="WAITING_DEPENDENCY",
+        current_step="VALIDATING_RUN",
+        requested_by=None,
+        started_at=None,
+        completed_at=None,
+        created_at=None,
+        message="Waiting for automatic SEC preparation.",
+        error_message=None,
+        background_job_id=42,
+        steps=[],
+        result_json={
+            "pipeline_dependency_id": 9,
+            "dependency_type": "SEC_READINESS",
+            "sec_repair": {"repair_stage": "QUEUED"},
+        },
+    )
+    monkeypatch.setattr(run_routes, "get_pipeline_status", lambda _db, _pipeline_id: status)
+    root = BackgroundJob(id=42, job_type="FULL_PIPELINE", status="COMPLETED")
+    child = BackgroundJob(
+        id=84,
+        job_type="SEC_READINESS_REPAIR",
+        status="RUNNING",
+        progress_sequence=11,
+        progress_stage="PREPARING_SEC_EVIDENCE",
+        progress_current_item="BBB",
+        progress_last_completed_item="AAA",
+        progress_processed=31,
+        progress_total=107,
+        operational_metadata_json={
+            "sec_repair": {
+                "repair_stage": "PREPARING_SEC_EVIDENCE",
+                "total_tickers": 107,
+                "ready_tickers": 31,
+                "initial_ready_tickers": 28,
+                "repairable_tickers": 79,
+                "repaired_tickers": 3,
+            }
+        },
+    )
+    dependency = PipelineDependency(
+        id=9,
+        pipeline_run_id=99,
+        dependency_type="SEC_READINESS",
+        dependency_key="pipeline:99:sec-readiness:test",
+        state="RUNNING",
+        required_subjects_json=[],
+        continuation_step="VALIDATING_RUN",
+        continuation_identity="test",
+        root_job_id=42,
+        child_job_id=84,
+    )
+    db = RouteFakeDb(job=root, jobs={42: root, 84: child}, dependency=dependency)
+
+    payload = run_routes.run_pipeline_status(run_id=7, pipeline_id=99, db=db)
+
+    assert payload["observed_background_job_id"] == 84
+    assert payload["job_status"] == "RUNNING"
+    assert payload["current_step_label"] == "Preparing SEC evidence"
+    assert payload["progress_sequence"] == 11
+    assert payload["current_item"] == "BBB"
+    assert payload["last_completed_item"] == "AAA"
+    assert payload["processed_item_count"] == 31
+    assert payload["result"]["sec_repair"]["initial_ready_tickers"] == 28
+    assert payload["result"]["sec_repair"]["repaired_tickers"] == 3
+
+
 def test_cancel_pipeline_route_requests_cancel_and_redirects(monkeypatch) -> None:
     status = PipelineStatusDto(
         pipeline_run_id=99,
@@ -377,11 +447,15 @@ class RouteFakeDb:
         self,
         job: BackgroundJob | None = None,
         workflow_job: BackgroundJob | None = None,
+        jobs: dict[int, BackgroundJob] | None = None,
+        dependency: PipelineDependency | None = None,
     ) -> None:
         self.commits = 0
         self.rollbacks = 0
         self.job = job
         self.workflow_job = workflow_job
+        self.jobs = jobs or {}
+        self.dependency = dependency
 
     def scalar(self, statement):
         if "background_jobs" in str(statement):
@@ -392,7 +466,9 @@ class RouteFakeDb:
 
     def get(self, model, row_id):
         if model is BackgroundJob:
-            return self.job
+            return self.jobs.get(row_id, self.job)
+        if model is PipelineDependency:
+            return self.dependency if self.dependency and self.dependency.id == row_id else None
         return None
 
     def commit(self) -> None:

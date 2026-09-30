@@ -27,6 +27,7 @@ from app.services.background_job_service import (
     enqueue_job,
     mark_job_blocked,
     mark_job_completed,
+    record_job_progress,
 )
 from app.services.ceri.sec.processor_lifecycle import certify_processor, promote_processor
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
@@ -34,6 +35,8 @@ from app.services.ceri.sec.provider import SecCeriProvider
 from app.services.ceri.sec.readiness_repair import (
     SEC_READINESS_REPAIR_JOB_TYPE,
     SecReadinessRepairUnresolved,
+    SecRepairTelemetry,
+    _update_progress,
     execute_sec_readiness_repair,
     schedule_sec_readiness_repair,
 )
@@ -77,6 +80,60 @@ class _RepairSecClient:
             filing_document_requests=self.download_calls,
             bytes_downloaded=100 * self.download_calls,
         )
+
+
+def test_progress_accounting_preserves_nonzero_initial_ready_snapshot() -> None:
+    class Db:
+        def flush(self):
+            return None
+
+        def commit(self):
+            return None
+
+    pipeline = SimpleNamespace(id=6, upload_run_id=6)
+    job = BackgroundJob(
+        id=59,
+        job_type=SEC_READINESS_REPAIR_JOB_TYPE,
+        operational_metadata_json={},
+    )
+    canonical: list[dict[str, object]] = []
+    job._control_plane_progress = lambda **progress: canonical.append(progress) or False
+    readiness = {
+        "processor_signature": "sec-guidance:test",
+        "requested_tickers": 107,
+        "ready_tickers": 28,
+        "counts": {"READY": 28, "SYNC_STATE_MISSING": 79},
+    }
+
+    _update_progress(
+        Db(),
+        pipeline,
+        job,
+        stage="RESOLVING_IDENTIFIERS",
+        readiness=readiness,
+        telemetry=SecRepairTelemetry(),
+        unresolved={},
+        started=True,
+    )
+    initial = job.operational_metadata_json["sec_repair"]
+    assert initial["initial_ready_tickers"] == 28
+    assert initial["repairable_tickers"] == 79
+    assert initial["repaired_tickers"] == 0
+
+    _update_progress(
+        Db(),
+        pipeline,
+        job,
+        stage="COMPLETED",
+        readiness={**readiness, "ready_tickers": 107, "counts": {"READY": 107}},
+        telemetry=SecRepairTelemetry(),
+        unresolved={},
+    )
+    completed = job.operational_metadata_json["sec_repair"]
+    assert completed["initial_ready_tickers"] == 28
+    assert completed["repaired_tickers"] == 79
+    assert canonical[-1]["processed"] == 107
+    assert canonical[-1]["total"] == 107
 
 
 def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
@@ -149,7 +206,31 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
             },
         )
         db.commit()
+        db.refresh(pipeline)
+        assert pipeline.status == PipelineStatus.WAITING_DEPENDENCY
+        assert pipeline.result_json["pipeline_dependency_id"] == repair.pipeline_dependency_id
+        assert pipeline.result_json["repair_job_id"] == repair.id
         _claim_target(db, repair)
+        initial_progress = (repair.operational_metadata_json or {})["sec_repair"]
+        assert initial_progress["total_tickers"] == 1
+        assert initial_progress["initial_ready_tickers"] == 0
+        assert initial_progress["repairable_tickers"] == 1
+        initial_sequence = int(repair.progress_sequence or 0)
+        observed_progress: list[dict[str, object]] = []
+
+        def detached_progress(**progress):
+            observed_progress.append(progress)
+            with Session(engine) as control_db:
+                record_job_progress(
+                    control_db,
+                    job_id=repair.id,
+                    execution_token=repair.execution_token,
+                    **progress,
+                )
+                control_db.commit()
+            return False
+
+        repair._control_plane_progress = detached_progress
 
         result = execute_sec_readiness_repair(
             db,
@@ -157,6 +238,15 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
             settings=settings,
             provider=provider,
         )
+        db.refresh(repair)
+        assert repair.progress_sequence == initial_sequence + len(observed_progress)
+        assert repair.progress_sequence >= initial_sequence + 4
+        assert repair.progress_stage == "COMPLETED"
+        assert repair.progress_processed == 1
+        assert repair.progress_total == 1
+        repair_progress = (repair.operational_metadata_json or {})["sec_repair"]
+        assert repair_progress["initial_ready_tickers"] == 0
+        assert repair_progress["repaired_tickers"] == 1
         mark_job_completed(db, repair, result, execution_token=repair.execution_token)
         db.commit()
 

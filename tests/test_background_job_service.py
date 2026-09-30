@@ -789,6 +789,36 @@ def test_structural_progress_advance_prevents_false_stall_after_300_seconds() ->
     assert observation["unchanged_since"] == now.isoformat()
 
 
+def test_sec_repair_progress_advance_prevents_false_default_timeout_fence() -> None:
+    now = datetime.now(UTC)
+    job = _running_job()
+    job.heartbeat_at = now
+    job.last_progress_at = now - timedelta(minutes=10)
+    job.progress_stage = "PREPARING_SEC_EVIDENCE"
+    job.progress_sequence = 12
+    job.operational_metadata_json = {
+        "progress_watchdog": {
+            "progress_sequence": 11,
+            "unchanged_since": (now - timedelta(minutes=10)).isoformat(),
+        }
+    }
+    db = FakeDb(stale_jobs=[job])
+
+    assert fence_stalled_jobs(
+        db,
+        authority=NORMAL_RECOVERY,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=300,
+        long_stage_timeout_seconds=1800,
+        now=now,
+        worker_id="worker-a",
+    ) == []
+    assert job.status == JobStatus.RUNNING
+    observation = job.operational_metadata_json["progress_watchdog"]
+    assert observation["progress_sequence"] == 12
+    assert observation["unchanged_since"] == now.isoformat()
+
+
 def test_fresh_worker_and_lease_heartbeats_do_not_mask_frozen_progress_sequence() -> None:
     now = datetime.now(UTC)
     job = _running_job()

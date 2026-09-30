@@ -1032,6 +1032,10 @@ def fence_stalled_jobs(
             "CAPTURING_SETUP_LIFECYCLE",
             "EVALUATING_SETUP_LIFECYCLE",
             "CAPTURING_WINNER_PREDICTIONS",
+            "RESOLVING_IDENTIFIERS",
+            "PREPARING_SEC_EVIDENCE",
+            "RECHECKING_READINESS",
+            "RETRYING_TRANSIENT_FAILURES",
         }:
             timeout = long_stage_timeout_seconds
         else:

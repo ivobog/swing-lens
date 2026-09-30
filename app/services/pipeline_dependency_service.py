@@ -350,6 +350,32 @@ def enqueue_sec_readiness_dependency(
         trigger_source="PIPELINE_DEPENDENCY",
         pipeline_dependency_id=dependency.id,
     )
+    readiness = dict(retained.get("readiness") or {})
+    initial_ready = int(readiness.get("ready_tickers") or 0)
+    total = int(readiness.get("requested_tickers") or 0)
+    initial_progress = {
+        "pipeline_id": pipeline.id,
+        "run_id": pipeline.upload_run_id,
+        "repair_job_id": child.id,
+        "repair_stage": "QUEUED",
+        "total_tickers": total,
+        "ready_tickers": initial_ready,
+        "initial_ready_tickers": initial_ready,
+        "repairable_tickers": max(0, total - initial_ready),
+        "repaired_tickers": 0,
+        "unresolved_tickers": [],
+        "current_processor_signature": signature,
+        "started_at": None,
+        "updated_at": _utcnow().isoformat(),
+        "last_error_code": None,
+        "last_error_detail": None,
+        "counts": readiness.get("counts") or {},
+        "telemetry": {},
+    }
+    child.operational_metadata_json = {
+        **(child.operational_metadata_json or {}),
+        "sec_repair": initial_progress,
+    }
     bind_semantic_authority(
         child, require_semantic_authority(pipeline), required_for_parent_completion=True
     )
@@ -361,14 +387,7 @@ def enqueue_sec_readiness_dependency(
         "pipeline_dependency_id": dependency.id,
         "dependency_state": dependency.state,
         "repair_job_id": child.id,
-        "sec_repair": {
-            "pipeline_id": pipeline.id,
-            "run_id": pipeline.upload_run_id,
-            "repair_job_id": child.id,
-            "repair_stage": "QUEUED",
-            "current_processor_signature": signature,
-            "updated_at": dependency.updated_at.isoformat(),
-        },
+        "sec_repair": initial_progress,
     }
     db.flush()
     logger.info(

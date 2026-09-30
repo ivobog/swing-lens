@@ -65,6 +65,7 @@
   </div>
   {% set blocked = pipeline_result.get('blocked_diagnostics') or {} %}
   {% set sec_repair = pipeline_result.get('sec_repair') or {} %}
+  {% set show_sec_repair = pipeline.status == 'PREPARING' or (pipeline.status == 'WAITING_DEPENDENCY' and pipeline_result.get('dependency_type') == 'SEC_READINESS') %}
   {% set readiness = blocked.get('readiness') or {} %}
   {% set processor = blocked.get('processor') or {} %}
     <div class="alert section-gap" role="alert" data-pipeline-blocked {% if pipeline.status != 'BLOCKED' %}hidden{% endif %}>
@@ -76,7 +77,7 @@
       Not ready: <span data-pipeline-blocked-missing>{{ (readiness.get('blocking_tickers') or [])|length }}</span><br>
       Automatic preparation finished, but SwingLens could not safely resolve every prerequisite.
     </div>
-    <div class="alert section-gap" role="status" data-pipeline-repair {% if pipeline.status != 'PREPARING' %}hidden{% endif %}>
+    <div class="alert section-gap" role="status" data-pipeline-repair {% if not show_sec_repair %}hidden{% endif %}>
       <strong data-pipeline-repair-stage>{{ (sec_repair.get('repair_stage') or 'Preparing run')|replace('_', ' ')|title }}</strong><br>
       SEC preparation: <span data-pipeline-repair-ready>{{ sec_repair.get('ready_tickers') or 0 }}</span> /
       <span data-pipeline-repair-total>{{ sec_repair.get('total_tickers') or 0 }}</span> ready<br>

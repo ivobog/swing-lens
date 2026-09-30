@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 from app.templates import templates
@@ -85,6 +86,51 @@ def test_pipeline_progress_template_has_live_progress_and_duplicate_state(monkey
     assert 'aria-valuenow="25"' in html
     assert "Already running: this request was coalesced into Pipeline 11." in html
     assert "<caption>Pipeline steps and durable job status.</caption>" in html
+
+
+def test_sec_repair_panel_is_visible_for_durable_wait_dependency(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    html = templates.get_template("pipeline_progress.html").render(
+        active_nav="runs",
+        run=SimpleNamespace(id=7, filename="run.csv"),
+        pipeline={
+            "pipeline_run_id": 6,
+            "status": "WAITING_DEPENDENCY",
+            "current_step": "VALIDATING_RUN",
+            "current_step_label": "Preparing SEC evidence",
+            "created_at": "",
+            "started_at": "",
+            "completed_at": None,
+            "job_status": "RUNNING",
+            "job_cancel_requested": False,
+            "message": "Waiting for automatic SEC preparation.",
+            "error_message": None,
+            "percentage": 0.0,
+            "completed_steps": 0,
+            "total_steps": 1,
+            "steps": [],
+            "result": {
+                "dependency_type": "SEC_READINESS",
+                "sec_repair": {
+                    "repair_stage": "PREPARING_SEC_EVIDENCE",
+                    "ready_tickers": 31,
+                    "total_tickers": 107,
+                    "repaired_tickers": 3,
+                    "unresolved_tickers": [],
+                },
+            },
+        },
+        duplicate_action=False,
+        terminal_statuses=["COMPLETED", "FAILED", "CANCELLED"],
+        status_url="/runs/7/pipeline/6/status",
+    )
+
+    repair_tag = html.split("data-pipeline-repair", 1)[1].split(">", 1)[0]
+    assert "hidden" not in repair_tag
+    assert "31" in html and "107" in html
+    script = Path("app/static/app.js").read_text(encoding="utf-8")
+    assert 'data.status === "WAITING_DEPENDENCY"' in script
+    assert 'result.dependency_type === "SEC_READINESS"' in script
 
 
 def test_pipeline_progress_template_tolerates_nullable_result_diagnostics(monkeypatch) -> None:

@@ -275,6 +275,48 @@ def test_worker_rolls_back_failed_transaction_before_marking_job_failed(
     assert db.closed is True
 
 
+def test_worker_attaches_detached_progress_callback_to_sec_repair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = BackgroundJob(
+        id=59,
+        job_type="SEC_READINESS_REPAIR",
+        status=JobStatus.RUNNING,
+        execution_token="token-59",
+    )
+    db = FakeWorkerDb()
+    callback_seen: list[bool] = []
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.claim_next_job",
+        lambda *_args, **_kwargs: job,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_job",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_job_completed",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def handler(_db, handled_job):
+        callback_seen.append(callable(getattr(handled_job, "_control_plane_progress", None)))
+        return {"status": "COMPLETED"}
+
+    assert run_worker_once(
+        worker_id="worker-a",
+        stale_after_seconds=60,
+        session_factory=lambda: db,
+        handlers={"SEC_READINESS_REPAIR": handler},
+    ) is True
+    assert callback_seen == [True]
+    assert not hasattr(job, "_control_plane_progress")
+
+
 def test_worker_defers_barrier_without_consuming_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     job = BackgroundJob(
         id=1,

@@ -211,6 +211,7 @@ def execute_sec_readiness_repair(
     client_stats_at_start = provider.client.stats()
     unresolved: dict[str, str] = {}
     transient_failures: list[str] = []
+    last_completed_ticker: str | None = None
 
     _update_progress(
         db,
@@ -226,16 +227,29 @@ def execute_sec_readiness_repair(
     )
 
     initial = diagnose_sec_readiness(db, tickers=tickers, processor_signature=signature)
+    current_readiness = initial
     identity_targets = [
         item for item in initial.tickers if item.category in IDENTITY_REPAIR_CATEGORIES
     ]
     for item in identity_targets:
         _guard_cancel(db, pipeline, job, should_cancel)
+        _update_progress(
+            db,
+            pipeline,
+            job,
+            stage="RESOLVING_IDENTIFIERS",
+            readiness=current_readiness.as_dict(),
+            telemetry=telemetry,
+            unresolved=unresolved,
+            current_ticker=item.ticker,
+            last_completed_ticker=last_completed_ticker,
+        )
         result = resolve_and_persist_sec_identity(db, provider=provider, ticker=item.ticker)
         if not result.resolved:
             unresolved[item.ticker] = result.reason or "SEC identity could not be resolved."
         db.commit()
         current = diagnose_sec_readiness(db, tickers=tickers, processor_signature=signature)
+        current_readiness = current
         _update_progress(
             db,
             pipeline,
@@ -244,7 +258,9 @@ def execute_sec_readiness_repair(
             readiness=current.as_dict(),
             telemetry=telemetry,
             unresolved=unresolved,
+            last_completed_ticker=item.ticker,
         )
+        last_completed_ticker = item.ticker
 
     after_identity = diagnose_sec_readiness(db, tickers=tickers, processor_signature=signature)
     for item in after_identity.tickers:
@@ -270,8 +286,20 @@ def execute_sec_readiness_repair(
         for item in after_identity.tickers
         if item.category in BOOTSTRAP_REPAIR_CATEGORIES
     ]
+    current_readiness = after_identity
     for ticker in bootstrap_targets:
         _guard_cancel(db, pipeline, job, should_cancel)
+        _update_progress(
+            db,
+            pipeline,
+            job,
+            stage="PREPARING_SEC_EVIDENCE",
+            readiness=current_readiness.as_dict(),
+            telemetry=telemetry,
+            unresolved=unresolved,
+            current_ticker=ticker,
+            last_completed_ticker=last_completed_ticker,
+        )
         result = ingestion.ingest(
             db,
             CeriIngestionRequest(
@@ -301,6 +329,7 @@ def execute_sec_readiness_repair(
             transient_failures.append(ticker)
         db.commit()
         current = diagnose_sec_readiness(db, tickers=tickers, processor_signature=signature)
+        current_readiness = current
         _update_progress(
             db,
             pipeline,
@@ -309,7 +338,9 @@ def execute_sec_readiness_repair(
             readiness=current.as_dict(),
             telemetry=telemetry,
             unresolved=unresolved,
+            last_completed_ticker=ticker,
         )
+        last_completed_ticker = ticker
 
     client_stats = provider.client.stats()
     telemetry.update_client(client_stats, baseline=client_stats_at_start)
@@ -322,6 +353,7 @@ def execute_sec_readiness_repair(
         readiness=final.as_dict(),
         telemetry=telemetry,
         unresolved=unresolved,
+        last_completed_ticker=last_completed_ticker,
     )
 
     if final.complete:
@@ -335,6 +367,7 @@ def execute_sec_readiness_repair(
             readiness=final.as_dict(),
             telemetry=telemetry,
             unresolved={},
+            last_completed_ticker=last_completed_ticker,
         )
         return {
             "status": "COMPLETED",
@@ -388,6 +421,7 @@ def execute_sec_readiness_repair(
         readiness=final.as_dict(),
         telemetry=telemetry,
         unresolved=unresolved,
+        last_completed_ticker=last_completed_ticker,
         extra={
             "last_error_code": "SEC_REPAIR_INCOMPLETE_TRANSIENT",
             "last_error_detail": root_message,
@@ -424,23 +458,31 @@ def _update_progress(
     telemetry: SecRepairTelemetry,
     unresolved: dict[str, str],
     started: bool = False,
+    current_ticker: str | None = None,
+    last_completed_ticker: str | None = None,
     extra: dict[str, Any] | None = None,
 ) -> None:
     now = _utcnow().isoformat()
     fence_job_execution(db, job)
     existing = dict((job.operational_metadata_json or {}).get("sec_repair") or {})
-    initial_ready = int(existing.get("initial_ready_tickers", existing.get("ready_tickers", 0)))
     ready = int(readiness.get("ready_tickers") or 0)
+    initial_ready = int(
+        existing.get(
+            "initial_ready_tickers",
+            ready if started else existing.get("ready_tickers", ready),
+        )
+    )
+    total = int(readiness.get("requested_tickers") or 0)
     progress = {
         **existing,
         "pipeline_id": pipeline.id,
         "run_id": pipeline.upload_run_id,
         "repair_job_id": job.id,
         "repair_stage": stage,
-        "total_tickers": int(readiness.get("requested_tickers") or 0),
+        "total_tickers": total,
         "ready_tickers": ready,
         "initial_ready_tickers": initial_ready,
-        "repairable_tickers": max(0, int(readiness.get("requested_tickers") or 0) - initial_ready),
+        "repairable_tickers": max(0, total - initial_ready),
         "repaired_tickers": max(0, ready - initial_ready),
         "unresolved_tickers": [
             {"ticker": ticker, "reason": reason} for ticker, reason in sorted(unresolved.items())
@@ -460,9 +502,21 @@ def _update_progress(
     }
     db.flush()
     db.commit()
-    heartbeat = getattr(job, "_heartbeat", None)
-    if callable(heartbeat):
-        heartbeat()
+    control_progress = getattr(job, "_control_plane_progress", None)
+    if callable(control_progress):
+        if control_progress(
+            stage=stage,
+            current_item=current_ticker,
+            last_completed_item=last_completed_ticker,
+            processed=ready,
+            total=total,
+            checkpoint_version=f"sec-readiness-repair:{stage.lower()}",
+        ):
+            raise SecReadinessRepairCancelled("SEC readiness repair cancellation requested.")
+    else:
+        heartbeat = getattr(job, "_heartbeat", None)
+        if callable(heartbeat):
+            heartbeat()
 
 
 def sec_repair_failure_view(pipeline, job, failure):

@@ -864,7 +864,7 @@ def run_worker_once(
 
                 mark_dependency_job_running(db, job.id)
                 db.commit()
-            if job.job_type == "CERI_CHANGE_DETECTION":
+            if job.job_type in {"CERI_CHANGE_DETECTION", "SEC_READINESS_REPAIR"}:
                 job._control_plane_progress = detached_control_progress
             result = execute_job(
                 db,

@@ -754,7 +754,10 @@ function updatePipelineProgress(root, data) {
   const repair = result.sec_repair || {};
   const repairPanel = root.querySelector("[data-pipeline-repair]");
   if (repairPanel) {
-    repairPanel.hidden = data.status !== "PREPARING";
+    repairPanel.hidden = !(
+      data.status === "PREPARING" ||
+      (data.status === "WAITING_DEPENDENCY" && result.dependency_type === "SEC_READINESS")
+    );
     setText(root, "[data-pipeline-repair-stage]", (repair.repair_stage || "Preparing run").replaceAll("_", " "));
     setText(root, "[data-pipeline-repair-ready]", repair.ready_tickers || 0);
     setText(root, "[data-pipeline-repair-total]", repair.total_tickers || 0);

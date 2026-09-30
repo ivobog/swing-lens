@@ -15,6 +15,7 @@ from app.models.tables import (
     BackgroundWorker,
     CombinedResult,
     MarketRegimeSnapshot,
+    PipelineDependency,
     RankingResult,
     RawCompanyRow,
     SetupLifecycleEpisode,
@@ -1777,6 +1778,18 @@ def _pipeline_status_payload(
     root_job = db.get(BackgroundJob, status.background_job_id) if status.background_job_id else None
     job = _pipeline_observability_job(db, status, root_job)
     worker = db.get(BackgroundWorker, job.worker_id) if job is not None and job.worker_id else None
+    projected_result = dict(status.result_json or {})
+    if job is not None and job.job_type == "SEC_READINESS_REPAIR":
+        child_repair = dict((job.operational_metadata_json or {}).get("sec_repair") or {})
+        if child_repair:
+            projected_result["sec_repair"] = {
+                **dict(projected_result.get("sec_repair") or {}),
+                **child_repair,
+            }
+    is_sec_dependency = (
+        status.status == "WAITING_DEPENDENCY"
+        and projected_result.get("dependency_type") == "SEC_READINESS"
+    )
     return {
         "pipeline_run_id": status.pipeline_run_id,
         "upload_run_id": status.upload_run_id,
@@ -1784,7 +1797,7 @@ def _pipeline_status_payload(
         "current_step": status.current_step,
         "current_step_label": (
             "Preparing SEC evidence"
-            if status.status == "PREPARING"
+            if status.status == "PREPARING" or is_sec_dependency
             else status.current_step.replace("_", " ").title()
             if status.current_step
             else ""
@@ -1817,7 +1830,7 @@ def _pipeline_status_payload(
         "stall_detected_at": job.stall_detected_at if job else None,
         "recovery_count": job.recovery_count if job else 0,
         "job_error": job.error_message if job else None,
-        "result": status.result_json or {},
+        "result": projected_result,
         "completed_steps": completed_steps,
         "total_steps": total_steps,
         "percentage": round((completed_steps / total_steps) * 100, 1) if total_steps else 0.0,
@@ -1830,9 +1843,20 @@ def _pipeline_observability_job(
     status: PipelineStatusDto,
     root_job: BackgroundJob | None,
 ) -> BackgroundJob | None:
-    """Expose active CERI child progress while the root pipeline waits."""
+    """Expose the authoritative child while a pipeline waits on durable work."""
 
     result = status.result_json or {}
+    if status.status == "WAITING_DEPENDENCY":
+        dependency_id = int(result.get("pipeline_dependency_id") or 0)
+        dependency = db.get(PipelineDependency, dependency_id) if dependency_id else None
+        if (
+            dependency is not None
+            and dependency.pipeline_run_id == status.pipeline_run_id
+            and dependency.dependency_type == "SEC_READINESS"
+            and dependency.child_job_id is not None
+        ):
+            return db.get(BackgroundJob, dependency.child_job_id) or root_job
+        return root_job
     workflow_key = result.get("ceri_provider_workflow_key")
     if status.status != "WAITING_FOR_CERI_COMPLETION" or not workflow_key:
         return root_job
