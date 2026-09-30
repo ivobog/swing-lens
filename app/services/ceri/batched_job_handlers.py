@@ -48,6 +48,10 @@ from app.services.ceri.orchestration import (
 from app.services.ceri.parent_pipeline_fence import require_parent_pipeline_active
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.ceri.run_local_contract import (
+    has_revision_feature_output,
+    provider_no_data_is_explicit,
+)
 from app.services.ceri.source_manifest_service import (
     freeze_or_verify_feature_source_manifest,
     load_feature_source_manifest,
@@ -226,6 +230,7 @@ def execute_normalize_batch_job(
                 config_version=config.engine.config_version,
                 config_hash=config.config_hash,
                 actor=None,
+                background_job_id=job.id,
             )
             if processing.status in {"COMPLETED", "PARTIAL"}:
                 results[ticker] = {
@@ -390,6 +395,7 @@ def execute_feature_batch_job(
             config_hash=config.config_hash,
             actor=None,
             cutoff_at=_optional_datetime(payload.get("cutoff_at")),
+            background_job_id=job.id,
             semantic_authority=semantic_authority,
         )
         if processing.status in {"COMPLETED", "PARTIAL"}:
@@ -416,6 +422,30 @@ def execute_feature_batch_job(
                 processing_run=processing,
                 **({"batch_context": batch_context} if batch_context is not None else {}),
             )
+            if (
+                not result.failed
+                and not has_revision_feature_output(
+                    db,
+                    ticker=ticker,
+                    calculation_context_id=int(payload["calculation_context_id"]),
+                )
+                and not provider_no_data_is_explicit(
+                    db,
+                    run_id=int(payload.get("run_id") or job.related_run_id),
+                    ticker=ticker,
+                )
+            ):
+                processing.status = "FAILED"
+                processing.failed_count = 1
+                processing.errors_json = {
+                    "invariant": "CERI_FEATURE_OUTPUT_MISSING_FOR_REFERENCED_INPUT",
+                    "ticker": ticker,
+                }
+                db.flush()
+                raise ValueError(
+                    "CERI_FEATURE_OUTPUT_MISSING_FOR_REFERENCED_INPUT:"
+                    f"ticker={ticker}"
+                )
             CeriProcessingRunService().finish(
                 db,
                 processing,

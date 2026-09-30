@@ -327,6 +327,67 @@ class CeriSourceRecord(Base):
     )
 
 
+class CeriIngestionRunSourceRecord(Base):
+    """Immutable run-local membership for a deduplicated provider fact.
+
+    ``CeriSourceRecord.ingestion_run_id`` records the run that first persisted
+    the immutable fact.  This association records every later ingestion run
+    that selected the fact, so downstream work never infers membership from
+    original ownership.
+    """
+
+    __tablename__ = "ceri_ingestion_run_source_records"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ingestion_run_id: Mapped[int] = mapped_column(
+        ForeignKey("ceri_ingestion_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    source_record_id: Mapped[int] = mapped_column(
+        ForeignKey("ceri_source_records.id", ondelete="RESTRICT"), nullable=False
+    )
+    ticker: Mapped[str | None] = mapped_column(String(32))
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    dataset: Mapped[str] = mapped_column(String(64), nullable=False)
+    ingestion_outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    normalization_state: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="PENDING", server_default="PENDING"
+    )
+    normalization_reason: Mapped[str | None] = mapped_column(Text)
+    normalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "ingestion_run_id",
+            "source_record_id",
+            name="uq_ceri_ingestion_source_membership",
+        ),
+        CheckConstraint(
+            "ingestion_outcome IN "
+            "('INSERTED', 'DEDUPLICATED', 'CORRECTED', 'REPLACED', 'QUARANTINED')",
+            name="ck_ceri_ingestion_source_outcome",
+        ),
+        CheckConstraint(
+            "normalization_state IN "
+            "('PENDING', 'NORMALIZED', 'REUSED', 'QUARANTINED', 'REJECTED')",
+            name="ck_ceri_ingestion_source_normalization_state",
+        ),
+        Index(
+            "ix_ceri_ingestion_source_membership_run",
+            "ingestion_run_id",
+            "source_record_id",
+        ),
+        Index(
+            "ix_ceri_ingestion_source_membership_ticker",
+            "ticker",
+            "dataset",
+            "ingestion_run_id",
+        ),
+    )
+
+
 class CeriEstimateSnapshot(Base):
     __tablename__ = "ceri_estimate_snapshots"
 

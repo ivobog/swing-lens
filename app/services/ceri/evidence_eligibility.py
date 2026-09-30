@@ -6,16 +6,20 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.models.ceri_tables import CeriEvidenceDisposition, CeriScoreSnapshot
+from app.models.tables import MarketCalculationContext, PipelineRun
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.supporting_mutation_authority import supporting_mutation_operation
 
 ELIGIBLE = "ELIGIBLE"
 EXCLUDED = "EXCLUDED"
+UNSUCCESSFUL_PIPELINE_STATES = frozenset(
+    {"FAILED", "CANCELLED", "BLOCKED", "PARTIAL"}
+)
 
 
 @dataclass(frozen=True)
@@ -51,7 +55,7 @@ def eligible_snapshot_predicate(snapshot: Any = CeriScoreSnapshot) -> Any:
     """Return the canonical SQL predicate for decision-use eligibility.
 
     The most recent disposition is ordered deterministically by (created_at, id).
-    Absence of any disposition preserves legacy eligibility.
+    Absence of a disposition never overrides a terminally unsuccessful owner.
     """
 
     effective = (
@@ -65,7 +69,8 @@ def eligible_snapshot_predicate(snapshot: Any = CeriScoreSnapshot) -> Any:
         .correlate(snapshot)
         .scalar_subquery()
     )
-    return func.coalesce(effective, ELIGIBLE) == ELIGIBLE
+    owner_is_eligible = _owner_eligibility_predicate(snapshot)
+    return (func.coalesce(effective, ELIGIBLE) == ELIGIBLE) & owner_is_eligible
 
 
 def effective_disposition_subquery(name: str | None = None) -> Any:
@@ -93,10 +98,44 @@ def apply_snapshot_eligibility(
     """Apply the canonical set-based eligibility join to a snapshot statement."""
 
     effective = effective_disposition_subquery(name)
-    return statement.outerjoin(
+    statement = statement.outerjoin(
         effective,
         effective.c.ceri_snapshot_id == snapshot.id,
     ).where(func.coalesce(effective.c.disposition, ELIGIBLE) == ELIGIBLE)
+    owner_is_eligible = _owner_eligibility_predicate(snapshot)
+    return statement.where(owner_is_eligible)
+
+
+def _owner_eligibility_predicate(snapshot: Any) -> Any:
+    # Older incident contexts were accidentally persisted without their
+    # pipeline FK.  Fall back to the upload/run scope, but fail closed if that
+    # scope has any terminally unsuccessful pipeline owner.
+    failed_owner = aliased(PipelineRun)
+    no_unsuccessful_upload_owner = ~exists(
+        select(1).where(
+            failed_owner.upload_run_id == snapshot.run_id,
+            failed_owner.status.in_(UNSUCCESSFUL_PIPELINE_STATES),
+        )
+    )
+    context_owner_is_eligible = exists(
+        select(1)
+        .select_from(MarketCalculationContext)
+        .outerjoin(PipelineRun, PipelineRun.id == MarketCalculationContext.pipeline_run_id)
+        .where(
+            MarketCalculationContext.id == snapshot.calculation_context_id,
+            or_(
+                and_(
+                    MarketCalculationContext.pipeline_run_id.is_(None),
+                    no_unsuccessful_upload_owner,
+                ),
+                PipelineRun.status.not_in(UNSUCCESSFUL_PIPELINE_STATES),
+            ),
+        )
+    )
+    return or_(
+        and_(snapshot.calculation_context_id.is_(None), no_unsuccessful_upload_owner),
+        context_owner_is_eligible,
+    )
 
 
 def eligible_snapshot_select(
@@ -164,6 +203,17 @@ def filter_eligible_snapshots(
     snapshots: Iterable[CeriScoreSnapshot],
 ) -> list[CeriScoreSnapshot]:
     rows = list(snapshots)
+    if isinstance(db, Session) and rows:
+        eligible_ids = set(
+            db.scalars(
+                eligible_snapshot_select(CeriScoreSnapshot.id).where(
+                    CeriScoreSnapshot.id.in_(
+                        [int(row.id) for row in rows if row.id is not None]
+                    )
+                )
+            )
+        )
+        return [row for row in rows if row.id in eligible_ids]
     dispositions = effective_disposition_by_snapshot(
         db, (row.id for row in rows if row.id is not None)
     )

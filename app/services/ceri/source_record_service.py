@@ -9,7 +9,11 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriIngestionRun, CeriSourceRecord
+from app.models.ceri_tables import (
+    CeriIngestionRun,
+    CeriIngestionRunSourceRecord,
+    CeriSourceRecord,
+)
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.deployment_identity import (
     current_deployment_identity,
@@ -118,6 +122,12 @@ class CeriSourceRecordService:
             select(CeriSourceRecord).where(CeriSourceRecord.idempotency_key == idempotency_key),
         )
         if existing is not None:
+            _associate_source_record(
+                db,
+                ingestion_run_id=ingestion_run_id,
+                source=existing,
+                outcome="DEDUPLICATED",
+            )
             ceri_metrics.increment(
                 "ceri_ingestion_deduplicated_total",
                 session=db,
@@ -149,6 +159,12 @@ class CeriSourceRecordService:
             .limit(1),
         )
         if prior_provider_record is not None and prior_provider_record.content_hash == content_hash:
+            _associate_source_record(
+                db,
+                ingestion_run_id=ingestion_run_id,
+                source=prior_provider_record,
+                outcome="DEDUPLICATED",
+            )
             ceri_metrics.increment(
                 "ceri_ingestion_deduplicated_total",
                 session=db,
@@ -227,6 +243,18 @@ class CeriSourceRecordService:
         )
         db.add(source)
         db.flush()
+        _associate_source_record(
+            db,
+            ingestion_run_id=ingestion_run_id,
+            source=source,
+            outcome=(
+                "QUARANTINED"
+                if quarantine_reason
+                else "CORRECTED"
+                if prior_provider_record is not None
+                else "INSERTED"
+            ),
+        )
         if quarantine_reason:
             ceri_metrics.increment(
                 "ceri_ingestion_quarantined_total",
@@ -343,6 +371,50 @@ class CeriSourceRecordService:
             },
         )
         return run
+
+
+def _associate_source_record(
+    db: Session,
+    *,
+    ingestion_run_id: int | None,
+    source: CeriSourceRecord,
+    outcome: str,
+) -> None:
+    """Attach an immutable source fact to this exact ingestion workflow."""
+
+    if ingestion_run_id is None or source.id is None:
+        return
+    values = {
+        "ingestion_run_id": int(ingestion_run_id),
+        "source_record_id": int(source.id),
+        "ticker": str((source.company_hint_json or {}).get("ticker") or "").strip().upper()
+        or None,
+        "provider": source.provider,
+        "dataset": source.dataset,
+        "ingestion_outcome": outcome,
+        "normalization_state": "QUARANTINED" if source.quarantine_reason else "PENDING",
+        "normalization_reason": source.quarantine_reason,
+        "normalized_at": _utcnow() if source.quarantine_reason else None,
+    }
+    bind = db.get_bind() if isinstance(db, Session) else None
+    if bind is not None and bind.dialect.name == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        db.execute(
+            pg_insert(CeriIngestionRunSourceRecord)
+            .values(**values)
+            .on_conflict_do_nothing(constraint="uq_ceri_ingestion_source_membership")
+        )
+        return
+    existing = _maybe_scalar(
+        db,
+        select(CeriIngestionRunSourceRecord).where(
+            CeriIngestionRunSourceRecord.ingestion_run_id == int(ingestion_run_id),
+            CeriIngestionRunSourceRecord.source_record_id == int(source.id),
+        ),
+    )
+    if existing is None:
+        db.add(CeriIngestionRunSourceRecord(**values))
 
 
 def source_record_content_hash(payload: dict[str, Any]) -> str:

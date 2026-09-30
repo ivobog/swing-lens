@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -46,6 +46,10 @@ from app.services.ceri.pit_eligibility import (
     referenced_sources_are_eligible,
 )
 from app.services.ceri.price_response_service import CeriPriceResponseService
+from app.services.ceri.run_local_contract import (
+    NO_ELIGIBLE_ESTIMATE_INPUT,
+    provider_no_data_is_explicit,
+)
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
 from app.services.ceri.upcoming_earnings_authority import (
@@ -362,7 +366,32 @@ class CeriRunCaptureService:
                         continue
                     features = features_by_company.get(company.id, [])
                     if not features:
+                        if not provider_no_data_is_explicit(
+                            db, run_id=run_id, ticker=str(row.ticker)
+                        ):
+                            raise ValueError(
+                                "CERI_TERMINAL_RESULT_MISSING:"
+                                f"ticker={str(row.ticker).upper()}:"
+                                "no features and no explicit provider no-data result"
+                            )
+                        snapshot = _certified_no_data_snapshot(
+                            self,
+                            db=db,
+                            row=row,
+                            company=company,
+                            run_id=run_id,
+                            market_cutoff=market_cutoff,
+                            pipeline_id=pipeline_id,
+                            as_of_session=as_of_session,
+                            cutoff_at=cutoff_at,
+                            upcoming_earnings=upcoming_earnings_by_company[company.id],
+                        )
+                        counts["score_snapshots"] += 1
                         counts["unrated"] += 1
+                        if isinstance(db, Session):
+                            captured_snapshots.append(snapshot)
+                        else:
+                            self.snapshot_service.persist_snapshot(db, snapshot)
                         continue
                     catalyst_features = _catalyst_features_for_company(
                         db,
@@ -741,6 +770,112 @@ class CeriRunCaptureService:
                 db.rollback()
                 raise
         return CeriRunCaptureResult(**counts)
+
+
+def _certified_no_data_snapshot(
+    service: CeriRunCaptureService,
+    *,
+    db: Session,
+    row: RawCompanyRow,
+    company: CeriCompany,
+    run_id: int,
+    market_cutoff: MarketCalculationCutoff,
+    pipeline_id: int | None,
+    as_of_session,
+    cutoff_at: datetime,
+    upcoming_earnings: UpcomingEarningsSelection,
+) -> CeriScoreSnapshot:
+    """Create a certified terminal member for a genuine provider-empty ticker."""
+
+    opportunity = replace(
+        service.opportunity.calculate(
+            revision_features=[],
+            surprise_summary=None,
+            guidance_events=[],
+            catalyst_features=[],
+            as_of_session=as_of_session,
+        ),
+        score=None,
+        rated=False,
+        coverage_pct=0.0,
+        available_weight=0.0,
+        unrated_reason=NO_ELIGIBLE_ESTIMATE_INPUT,
+        warnings=(NO_ELIGIBLE_ESTIMATE_INPUT,),
+    )
+    confidence = service.confidence.calculate(
+        as_of_session=as_of_session,
+        revision_features=[],
+        dataset_freshness_days={CeriDataset.ESTIMATES.value: None},
+    )
+    risk = service.risk.calculate(
+        as_of_session=as_of_session,
+        next_earnings_session=(
+            upcoming_earnings.selected.earnings_session
+            if upcoming_earnings.selected is not None
+            else None
+        ),
+        catalyst_features=[],
+    )
+    lineage = {
+        "terminal_result": "UNRATED_CERTIFIED",
+        "unrated_reason": NO_ELIGIBLE_ESTIMATE_INPUT,
+        "revision_feature_ids": [],
+        "revision_source_ids": [],
+        "revision_coverage": 0,
+        "provider_no_data_verified": True,
+        "historical_view_mode": "AS_KNOWN",
+        "temporal_lineage": {
+            "calculation_context_id": market_cutoff.context_id,
+            "calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(cutoff_at),
+            "input_as_of_session": as_of_session.isoformat(),
+            "calendar_version": market_cutoff.calendar_version,
+        },
+        "upcoming_earnings_authority": upcoming_earnings.evidence(),
+    }
+    identity = build_contextual_result_identity(
+        base=consumer_context_identity(
+            market_cutoff=market_cutoff,
+            run_id=run_id,
+            pipeline_id=pipeline_id,
+            ticker=row.ticker,
+            company_id=company.id,
+        ),
+        namespace="ceri-context",
+        config_hash=service.snapshot_service.config.config_hash,
+        calculation_version=service.snapshot_service.config.engine.calculation_version,
+        engine_version=service.snapshot_service.config.engine.calculation_version,
+        source_artifacts=[],
+        source_payload=lineage,
+        company_id=company.id,
+    )
+    identity = service.snapshot_service.effective_configuration.bind(identity)
+    lineage.update(identity_metadata(identity, policy=CERI_CONTEXT_COMPATIBILITY.name))
+    snapshot = service.snapshot_service.build_snapshot(
+        run_id=run_id,
+        source_run_id_text=str(run_id),
+        company_id=company.id,
+        ticker=row.ticker,
+        as_of_session=as_of_session,
+        cutoff_at=cutoff_at,
+        opportunity=opportunity,
+        event_risk=risk,
+        confidence=confidence,
+        source_ids=[],
+        alignment_inputs={
+            "fundamentals": bool(row.raw_json.get("fundamental_score")),
+            "technicals": bool(row.raw_json.get("technical_score")),
+            "sector": bool(row.sector),
+            "regime": bool(row.raw_json.get("market_regime")),
+            "lifecycle": bool(row.raw_json.get("lifecycle_state")),
+        },
+        alignment_context=_alignment_context(
+            db, row, run_id, upcoming_earnings=upcoming_earnings
+        ),
+        evidence_lineage=lineage,
+    )
+    snapshot.calculation_context_id = market_cutoff.context_id
+    snapshot.calendar_version = market_cutoff.calendar_version
+    return snapshot
 
 
 def _capture_earnings_rows(db, company_ids) -> list[CeriEarningsActual]:

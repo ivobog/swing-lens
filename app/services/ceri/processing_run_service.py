@@ -27,6 +27,7 @@ class CeriProcessingRunService:
         config_hash: str | None = None,
         actor: str | None = None,
         cutoff_at: datetime | None = None,
+        background_job_id: int | None = None,
         semantic_authority=None,
     ) -> tuple[CeriProcessingRun, bool]:
         existing = _maybe_scalar(
@@ -41,8 +42,11 @@ class CeriProcessingRunService:
 
                 bind_semantic_authority(existing, semantic_authority)
             return existing, False
+        causality = durable_causality_fields()
+        if background_job_id is not None:
+            causality["background_job_id"] = background_job_id
         run = CeriProcessingRun(
-            **durable_causality_fields(),
+            **causality,
             job_type=job_type,
             status="RUNNING",
             deterministic_request_key=request_key,

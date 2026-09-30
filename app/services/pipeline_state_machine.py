@@ -80,6 +80,12 @@ def transition_pipeline(
     elif target not in TERMINAL_PIPELINE_STATES:
         pipeline.completed_at = None
     db.flush()
+    if isinstance(db, Session) and target in {"FAILED", "CANCELLED", "BLOCKED", "PARTIAL"}:
+        from app.services.ceri.pipeline_containment_service import (
+            reconcile_unsuccessful_pipeline_ceri,
+        )
+
+        reconcile_unsuccessful_pipeline_ceri(db, pipeline)
     publish_after_commit(
         db,
         "increment",

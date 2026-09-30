@@ -17,6 +17,8 @@ from app.models.ceri_tables import (
     CeriEarningsActual,
     CeriEstimateSnapshot,
     CeriGuidanceEvent,
+    CeriIngestionRun,
+    CeriIngestionRunSourceRecord,
     CeriProcessingRun,
     CeriSourceRecord,
 )
@@ -61,6 +63,10 @@ class CeriNormalizationCancelled(RuntimeError):
     pass
 
 
+class CeriNormalizationClosureError(RuntimeError):
+    """Run-local source membership could not be closed deterministically."""
+
+
 class CeriNormalizationService:
     def __init__(
         self,
@@ -88,9 +94,22 @@ class CeriNormalizationService:
         checkpoint_interval: int = 5,
         checkpoint_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> CeriNormalizationResult:
-        records = (
+        all_records = (
             source_records if source_records is not None else _source_records(db, ingestion_run_id)
         )
+        memberships = _memberships_by_source(db, ingestion_run_id)
+        if ingestion_run_id is not None:
+            ingestion = db.get(CeriIngestionRun, int(ingestion_run_id))
+            if ingestion is None:
+                raise CeriNormalizationClosureError(
+                    f"CERI_NORMALIZATION_INGESTION_RUN_MISSING:{ingestion_run_id}"
+                )
+            if int(ingestion.fetched_count or 0) > 0 and not memberships:
+                raise CeriNormalizationClosureError(
+                    "CERI_NORMALIZATION_SOURCE_MEMBERSHIP_MISSING:"
+                    f"ingestion_run={ingestion_run_id}:fetched={ingestion.fetched_count}"
+                )
+        records = list(all_records)
         prepare_identity = getattr(self.identity_resolver, "prepare", None)
         if callable(prepare_identity):
             prepare_identity(db)
@@ -112,23 +131,37 @@ class CeriNormalizationService:
             if callable(should_cancel) and should_cancel():
                 raise CeriNormalizationCancelled("CERI normalization cancelled.")
             read += 1
+            membership = memberships.get(int(source_record.id)) if source_record.id else None
             if source_record.quarantine_reason:
                 quarantined += 1
+                _mark_membership(membership, "QUARANTINED", source_record.quarantine_reason)
             else:
                 try:
                     resolution = self.identity_resolver.resolve_source_record(db, source_record)
                     if not resolution.resolved:
                         quarantined += 1
+                        _mark_membership(
+                            membership, "REJECTED", "IDENTITY_RESOLUTION_REJECTED"
+                        )
                     else:
+                        reused = _has_normalized_representation(db, source_record)
                         created = self._normalize_record(
                             db,
                             source_record,
                             company_id=resolution.company_id,
                         )
                         normalized += created
+                        _mark_membership(
+                            membership, "REUSED" if reused else "NORMALIZED", None
+                        )
                         warning_count += _warning_count_for_last(db)
                 except Exception as exc:
                     failed += 1
+                    _mark_membership(
+                        membership,
+                        "REJECTED",
+                        redact_text(str(exc)).replace("\n", " ")[:500],
+                    )
                     errors.append(
                         {
                             "source_record_id": source_record.id,
@@ -150,6 +183,20 @@ class CeriNormalizationService:
             if callable(checkpoint_callback) and index % max(1, checkpoint_interval) == 0:
                 checkpoint_callback(dict(processing_run.checkpoint_json))
 
+        closure = _normalization_closure(db, ingestion_run_id)
+        if closure["referenced"] != closure["terminal"]:
+            processing_run.status = "FAILED"
+            processing_run.failed_count = max(1, failed)
+            processing_run.errors_json = {
+                "invariant": "CERI_NORMALIZATION_CLOSURE_INCOMPLETE",
+                "closure": closure,
+                "records": errors,
+            }
+            db.flush()
+            raise CeriNormalizationClosureError(
+                "CERI_NORMALIZATION_CLOSURE_INCOMPLETE:"
+                f"referenced={closure['referenced']}:terminal={closure['terminal']}"
+            )
         status = "COMPLETED" if failed == 0 and quarantined == 0 else "PARTIAL"
         processing_run.status = status
         processing_run.read_count = read
@@ -157,7 +204,7 @@ class CeriNormalizationService:
         processing_run.failed_count = failed
         processing_run.warning_count = warning_count
         processing_run.errors_json = {"records": errors} if errors else None
-        processing_run.counts_json = {"quarantined": quarantined}
+        processing_run.counts_json = {"quarantined": quarantined, "closure": closure}
         if records:
             processing_run.checkpoint_json = {
                 "last_source_record_id": records[-1].id,
@@ -353,10 +400,77 @@ def _source_records(db: Session, ingestion_run_id: int | None) -> list[CeriSourc
         return []
     statement = select(CeriSourceRecord)
     if ingestion_run_id is not None:
-        statement = statement.where(CeriSourceRecord.ingestion_run_id == ingestion_run_id)
+        statement = statement.join(
+            CeriIngestionRunSourceRecord,
+            CeriIngestionRunSourceRecord.source_record_id == CeriSourceRecord.id,
+        ).where(CeriIngestionRunSourceRecord.ingestion_run_id == ingestion_run_id)
     statement = statement.order_by(CeriSourceRecord.id.asc())
     result = scalars(statement)
     return list(result.all() if hasattr(result, "all") else result)
+
+
+def _memberships_by_source(
+    db: Session, ingestion_run_id: int | None
+) -> dict[int, CeriIngestionRunSourceRecord]:
+    if ingestion_run_id is None or not isinstance(db, Session):
+        return {}
+    return {
+        int(row.source_record_id): row
+        for row in db.scalars(
+            select(CeriIngestionRunSourceRecord).where(
+                CeriIngestionRunSourceRecord.ingestion_run_id == int(ingestion_run_id)
+            )
+        )
+    }
+
+
+def _mark_membership(
+    membership: CeriIngestionRunSourceRecord | None,
+    state: str,
+    reason: str | None,
+) -> None:
+    if membership is None:
+        return
+    membership.normalization_state = state
+    membership.normalization_reason = reason
+    membership.normalized_at = _utcnow()
+
+
+def _has_normalized_representation(db: Session, source: CeriSourceRecord) -> bool:
+    model = {
+        CeriDataset.ESTIMATES: CeriEstimateSnapshot,
+        CeriDataset.EARNINGS: CeriEarningsActual,
+        CeriDataset.GUIDANCE: CeriGuidanceEvent,
+        CeriDataset.CATALYSTS: CeriCatalystSource,
+    }.get(CeriDataset(source.dataset))
+    return bool(model is not None and _exists_by_source(db, model, source.id))
+
+
+def _normalization_closure(db: Session, ingestion_run_id: int | None) -> dict[str, int]:
+    if ingestion_run_id is None or not isinstance(db, Session):
+        return {"referenced": 0, "terminal": 0}
+    rows = list(
+        db.scalars(
+            select(CeriIngestionRunSourceRecord).where(
+                CeriIngestionRunSourceRecord.ingestion_run_id == int(ingestion_run_id)
+            )
+        )
+    )
+    states = {
+        state: 0
+        for state in ("NORMALIZED", "REUSED", "QUARANTINED", "REJECTED", "PENDING")
+    }
+    for row in rows:
+        states[row.normalization_state] = states.get(row.normalization_state, 0) + 1
+    terminal = sum(
+        states.get(value, 0)
+        for value in ("NORMALIZED", "REUSED", "QUARANTINED", "REJECTED")
+    )
+    return {
+        "referenced": len(rows),
+        "terminal": terminal,
+        **{key.lower(): value for key, value in states.items()},
+    }
 
 
 @source_writer_member(
