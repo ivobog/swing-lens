@@ -13,7 +13,12 @@ from sqlalchemy.orm import Session
 
 from alembic import command
 from app.database_safety import configure_guarded_alembic
-from app.models.tables import BackgroundJob, BackgroundWorker
+from app.models.tables import (
+    BackgroundJob,
+    BackgroundWorker,
+    PipelineRun,
+    UploadRun,
+)
 from app.services.background_job_service import JobStatus, claim_next_job
 from app.services.lifecycle_quiesce import (
     WorkerQuiesceIdentityConflict,
@@ -221,5 +226,32 @@ def test_postgresql_claim_fence_total_order_cases_a_through_e(
     assert active_report["activeCount"] == 2
     assert active_report["safeToStop"] is False
     assert active_report["reasonCode"] == "ACTIVE_LEASE_BLOCKS_STOP"
+
+    # Case F: preserved non-authoritative RUNNING evidence is neither a stop
+    # blocker nor an actionable job in canonical lifecycle status.
+    _reset(engine)
+    with Session(engine) as db:
+        upload = UploadRun(filename="historical.csv", row_count=1, status="COMPLETED")
+        db.add(upload)
+        db.flush()
+        pipeline = PipelineRun(
+            upload_run_id=upload.id,
+            status="WAITING_FOR_CERI_COMPLETION",
+            execution_authority_state="ACTIVE",
+        )
+        db.add(pipeline)
+        db.flush()
+        pipeline.execution_authority_state = None
+        historical = _add_job(db, JobStatus.RUNNING)
+        historical.payload_json = {"pipeline_run_id": pipeline.id}
+        db.commit()
+        historical_id = historical.id
+    _commit_fence(engine)
+    with Session(engine) as db:
+        assert db.get(BackgroundJob, historical_id).status == JobStatus.RUNNING
+        assert blocking_jobs(db) == []
+    historical_report = lifecycle_probe._jobs_report()
+    assert historical_report["activeCount"] == 0
+    assert historical_report["historicalNonAuthoritativeCount"] == 1
 
     engine.dispose()

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob, BackgroundWorker
 from app.services.background_job_service import JobStatus
+from app.services.pipeline_execution_authority import apply_job_execution_authority_scope
 
 SHUTDOWN_BLOCKING_JOB_STATES = (JobStatus.RUNNING, JobStatus.RECOVERING)
 
@@ -76,10 +77,11 @@ def resume_worker_claims(db: Session, worker_id: str) -> bool:
 
 
 def blocking_jobs(db: Session) -> list[BackgroundJob]:
+    query = (
+        select(BackgroundJob)
+        .where(BackgroundJob.status.in_(SHUTDOWN_BLOCKING_JOB_STATES))
+        .order_by(BackgroundJob.id)
+    )
     return list(
-        db.scalars(
-            select(BackgroundJob)
-            .where(BackgroundJob.status.in_(SHUTDOWN_BLOCKING_JOB_STATES))
-            .order_by(BackgroundJob.id)
-        ).all()
+        db.scalars(apply_job_execution_authority_scope(query)).all()
     )

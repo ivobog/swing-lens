@@ -1414,13 +1414,15 @@ def _jobs_report() -> dict[str, object]:
     try:
         with Session(engine) as db:
             now = datetime.now(UTC)
+            active_query = select(BackgroundJob).where(
+                BackgroundJob.status.in_(("RUNNING", "RECOVERING"))
+            )
             active_query = (
-                db.query(BackgroundJob)
-                .filter(BackgroundJob.status.in_(("RUNNING", "RECOVERING")))
+                apply_job_execution_authority_scope(active_query)
                 .order_by(BackgroundJob.id)
                 .limit(100)
             )
-            rows = apply_job_execution_authority_scope(active_query).all()
+            rows = list(db.scalars(active_query).all())
             historical_count = int(
                 db.scalar(
                     select(func.count(BackgroundJob.id))
