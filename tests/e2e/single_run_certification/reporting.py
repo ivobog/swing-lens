@@ -144,6 +144,16 @@ Final verdict: **{recorder.verdict}**
 - Run ID: `{recorder.run_id}`
 - Run status: `{environment.get("run_status")}`
 - Ticker count: `{environment.get("ticker_count")}`
+- Provider mode: `{environment.get("provider_mode")}`
+- Pipeline ID: `{environment.get("runtime_identity", {}).get("pipeline_id")}`
+- Root job ID: `{environment.get("runtime_identity", {}).get("root_job_id")}`
+- Root correlation ID: `{environment.get("runtime_identity", {}).get("root_correlation_id")}`
+- Worker ID: `{environment.get("runtime_identity", {}).get("worker_id")}`
+- Worker generation: `{environment.get("runtime_identity", {}).get("worker_instance_id")}`
+- Worker generation counter: `{environment.get("runtime_identity", {}).get("worker_generation")}`
+- Runtime instance: `{environment.get("runtime_identity", {}).get("runtime_instance_id")}`
+- Pipeline started: `{environment.get("runtime_identity", {}).get("pipeline_started_at")}`
+- Pipeline finished: `{environment.get("runtime_identity", {}).get("pipeline_finished_at")}`
 - PostgreSQL database: `{environment["database_name"]}` (disposable)
 
 ## Result matrix
@@ -186,8 +196,9 @@ alert was available.
 
 Prediction snapshots, pending/mature outcomes, decision-time estimates, evidence
 members/manifests, run page, and prediction detail are included where produced.
-Later deterministic bars are matured through the browser-queued worker path, and
-the original point-in-time prediction hash is checked before and after maturation.
+The pipeline-owned prediction capture is exercised through the durable worker. The
+browser maturation endpoint is then challenged and must be rejected by certification
+isolation without changing the point-in-time prediction or pending outcomes.
 
 ## CERI
 

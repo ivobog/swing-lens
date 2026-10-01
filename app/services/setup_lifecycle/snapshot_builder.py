@@ -50,6 +50,7 @@ from app.services.technical_consumer_eligibility import (
     TECHNICAL_TO_SETUP,
     setup_technical_blocked,
     technical_decision_input,
+    technical_preview_decision_input,
 )
 from app.services.us_market_calendar import previous_us_trading_day, us_trading_sessions_between
 
@@ -159,15 +160,16 @@ class SetupLifecycleSnapshotBuilder:
         context: TickerSourceContext,
         *,
         history: tuple[SetupSignalSnapshot, ...] = (),
+        technical_preview: bool = False,
     ) -> BuiltSnapshot:
         ticker = context.ticker
         if not ticker:
             raise ValueError("ticker is required")
 
-        technical, eligibility = technical_decision_input(
-            context.technical_score,
-            TECHNICAL_TO_SETUP,
+        decision_input = (
+            technical_preview_decision_input if technical_preview else technical_decision_input
         )
+        technical, eligibility = decision_input(context.technical_score, TECHNICAL_TO_SETUP)
         market, regime_permission = contextual_decision_input(
             context.market_regime_snapshot,
             REGIME_TO_SETUP,
@@ -859,6 +861,7 @@ def build_run_context_snapshots(
     builder: SetupLifecycleSnapshotBuilder,
     repository: SetupLifecycleRepository,
     errors_by_ticker: dict[str, str] | None = None,
+    technical_preview: bool = False,
 ) -> tuple[tuple[TickerSourceContext, BuiltSnapshot], ...]:
     """Build lifecycle inputs through the one production history/query contract."""
 
@@ -883,18 +886,20 @@ def build_run_context_snapshots(
     built_rows: list[tuple[TickerSourceContext, BuiltSnapshot]] = []
     for ticker_context in run_context.tickers:
         try:
+            build_kwargs = {
+                "history": tuple(
+                    histories.get(
+                        (ticker_context.ticker, builder.config.engine.timeframe),
+                        (),
+                    )
+                )
+            }
+            if technical_preview:
+                build_kwargs["technical_preview"] = True
             built_rows.append(
                 (
                     ticker_context,
-                    builder.build(
-                        ticker_context,
-                        history=tuple(
-                            histories.get(
-                                (ticker_context.ticker, builder.config.engine.timeframe),
-                                (),
-                            )
-                        ),
-                    ),
+                    builder.build(ticker_context, **build_kwargs),
                 )
             )
         except Exception as exc:

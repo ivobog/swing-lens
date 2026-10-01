@@ -53,6 +53,7 @@ markers = [
   "slow: tests intentionally excluded from the fastest developer lane",
   "destructive: tests that create, migrate, restore, purge, or remove disposable data",
   "external: manual or opt-in checks against an external dependency",
+  "live_provider: isolated production-runtime tests that call configured external providers",
   "security: input hardening, redaction, authorization, or safety-boundary checks",
   "performance: repeatable local performance and resource measurements",
 ]

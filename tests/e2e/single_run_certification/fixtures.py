@@ -18,6 +18,8 @@ from app.models.tables import (
     IBContract,
     PriceBar,
     RawCompanyRow,
+    SetupSignalSnapshot,
+    SetupSignalSnapshotCurrentSelection,
     UploadRun,
     WinnerForwardOutcome,
     WinnerOutcomeDefinition,
@@ -38,6 +40,7 @@ from app.services.ceri.providers.manual_provider import ManualCeriProvider
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.contextual_effective_configuration import resolve_ceri_configuration
 from app.services.market_clock_service import MarketClockService
+from app.services.technical_indicators import load_pine_defaults
 from app.services.us_market_calendar import previous_us_trading_day
 from app.services.winner_probability.config import load_winner_probability_config
 
@@ -375,7 +378,10 @@ def certification_as_of_session(reference_timestamp: datetime | None = None) -> 
 
 
 def seed_prerequisites(
-    database_url: str, *, winner_configuration_path: Path | None = None
+    database_url: str,
+    *,
+    winner_configuration_path: Path | None = None,
+    live_transition_tickers: tuple[str, ...] = (),
 ) -> SeedResult:
     engine = create_engine(database_url)
     ceri_ingestion_ids: list[int] = []
@@ -392,6 +398,18 @@ def seed_prerequisites(
         db.add(decoy)
         db.flush()
         _seed_market_cache(db, as_of_session=as_of_session)
+        _seed_setup_lifecycle_baseline(
+            db,
+            run_id=decoy.id,
+            as_of_session=as_of_session,
+        )
+        if live_transition_tickers:
+            _seed_live_transition_admission(
+                db,
+                run_id=decoy.id,
+                as_of_session=as_of_session,
+                tickers=live_transition_tickers,
+            )
         _seed_winner_history(db, decoy.id, configuration_path=winner_configuration_path)
         db.commit()
         ceri_ingestion_ids, ceri_processing_ids, ceri_baseline_snapshot_id = (
@@ -417,6 +435,82 @@ def seed_prerequisites(
     return result
 
 
+def _seed_setup_lifecycle_baseline(
+    db: Session,
+    *,
+    run_id: int,
+    as_of_session: date,
+    tickers: tuple[str, ...] = ("ALFA",),
+) -> None:
+    """Seed prior-session pointers so preflight certifies real advances.
+
+    A pristine database has no current-selection pointer, and production
+    admission deliberately classifies first-ever key initialization as LOW.
+    The certification environment therefore carries a small historical ALFA
+    baseline, just as it carries historical Winner and CERI evidence.  The
+    pipeline must still reconstruct the current session from its own upload
+    and advance these pointers through the normal lifecycle writer.
+    """
+
+    baseline_session = previous_us_trading_day(as_of_session)
+    calculated_at = datetime.combine(
+        baseline_session,
+        datetime.min.time().replace(hour=21),
+        tzinfo=UTC,
+    )
+    for ticker in tickers:
+        snapshot = SetupSignalSnapshot(
+            run_id=run_id,
+            source_run_id_text=str(run_id),
+            ticker=ticker,
+            company_name=f"{ticker} certification baseline",
+            sector="Technology Services",
+            timeframe="1d",
+            data_as_of_date=baseline_session,
+            calculated_at=calculated_at,
+            captured_at=calculated_at,
+            origin_type="CERTIFICATION_BASELINE",
+            engine_version="certification-baseline-v1",
+            config_version="certification-baseline-v1",
+            config_hash=hashlib.sha256(b"certification-setup-baseline").hexdigest(),
+            source_data_hash=hashlib.sha256(
+                f"{ticker}:{baseline_session.isoformat()}:baseline".encode()
+            ).hexdigest(),
+            schema_version="certification-baseline-v1",
+            is_canonical=True,
+            canonical_reason="CERTIFICATION_PRIOR_SESSION_BASELINE",
+            canonicalized_at=calculated_at,
+            primary_setup_family="BREAKOUT",
+            primary_phase="PIVOT_READY",
+            lifecycle_state_candidate="READY",
+            actionability_candidate="ACTIONABLE",
+            data_quality_label="HIGH",
+            confidence_score=80,
+            confidence_label="HIGH",
+            dual_score=Decimal("8.0"),
+            setup_score=Decimal("7.5"),
+            close_price=Decimal("100"),
+            required_feature_coverage=Decimal("1.0"),
+            freshness_status="FRESH",
+            warning_flags_json=[],
+            source_lineage_json={"fixture": FIXTURE_VERSION, "kind": "prior-session"},
+        )
+        db.add(snapshot)
+        db.flush()
+        db.add(
+            SetupSignalSnapshotCurrentSelection(
+                ticker=ticker,
+                timeframe="1d",
+                data_as_of_date=baseline_session,
+                selected_snapshot_id=snapshot.id,
+                selected_run_id=run_id,
+                revision=1,
+                selection_reason="CERTIFICATION_PRIOR_SESSION_BASELINE",
+                selection_decision_json={"fixture": FIXTURE_VERSION},
+            )
+        )
+
+
 def _seed_market_cache(db: Session, *, as_of_session: date) -> None:
     for index, ticker in enumerate((*CANONICAL_TICKERS, *BENCHMARKS), start=1):
         db.add(
@@ -434,10 +528,70 @@ def _seed_market_cache(db: Session, *, as_of_session: date) -> None:
                 last_resolved_at=datetime(2026, 8, 7, 20, 0, tzinfo=UTC),
             )
         )
+    _seed_price_bars(
+        db,
+        tickers=(*CANONICAL_TICKERS, *BENCHMARKS),
+        as_of_session=as_of_session,
+    )
+
+
+def _seed_live_transition_admission(
+    db: Session,
+    *,
+    run_id: int,
+    as_of_session: date,
+    tickers: tuple[str, ...],
+) -> None:
+    """Seed admission history without satisfying the live IB acquisition plan.
+
+    Production transition admission runs before the pipeline can fetch market
+    data.  A fresh isolated database therefore needs enough prior evidence to
+    reconstruct at least one HIGH transition candidate for the real-symbol
+    cohort.  Seed only the TRADES basis and no IB contracts: the live pipeline
+    must still qualify each real contract and retrieve ADJUSTED_LAST through
+    the production IB path.
+    """
+
+    params = load_pine_defaults()
+    required_rows = max(
+        int(params["trend"]["smaSlowLen"]),
+        int(params["trend"]["highLow52Len"]),
+        int(params["market_rs"]["rocLongLen"]),
+    )
+    _seed_price_bars(
+        db,
+        tickers=tickers,
+        as_of_session=as_of_session,
+        what_to_show_values=("TRADES",),
+        bar_count=required_rows,
+    )
+    _seed_setup_lifecycle_baseline(
+        db,
+        run_id=run_id,
+        as_of_session=as_of_session,
+        tickers=(tickers[0],),
+    )
+
+
+def _seed_price_bars(
+    db: Session,
+    *,
+    tickers: tuple[str, ...],
+    as_of_session: date,
+    what_to_show_values: tuple[str, ...] = ("ADJUSTED_LAST", "TRADES"),
+    bar_count: int | None = None,
+) -> None:
+    """Seed PIT-complete market history for a certification universe."""
+
+    for ticker in tickers:
         # FOXT deliberately needs deterministic IB completion; GOLF deliberately
         # remains technically insufficient after its small cache.
-        count = 180 if ticker == "FOXT" else 90 if ticker == "GOLF" else 320
-        for what_to_show in ("ADJUSTED_LAST", "TRADES"):
+        count = (
+            bar_count
+            if bar_count is not None
+            else 180 if ticker == "FOXT" else 90 if ticker == "GOLF" else 320
+        )
+        for what_to_show in what_to_show_values:
             for bar in _ohlcv(ticker, count, as_of_session=as_of_session):
                 db.add(
                     PriceBar(

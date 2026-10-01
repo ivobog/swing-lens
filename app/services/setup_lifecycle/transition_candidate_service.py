@@ -151,6 +151,7 @@ class TransitionCandidateDiscoveryService:
             preview_run_context,
             builder=self.snapshot_builder,
             repository=self.repository,
+            technical_preview=True,
         ):
             latest_pointer, exact_pointer, latest_revision, exact_revision = self._pointers(
                 db,

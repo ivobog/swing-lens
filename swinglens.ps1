@@ -1,13 +1,15 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('start', 'stop', 'restart', 'status', 'diagnose', 'recover-identity')]
+    [ValidateSet('start', 'stop', 'restart', 'status', 'diagnose', 'recover-identity', 'certify-runtime')]
     [string]$Action,
 
     [ValidateSet('NORMAL', 'CERTIFICATION')]
     [string]$RuntimeMode,
 
-    [switch]$Json
+    [switch]$Json,
+
+    [switch]$LiveProviderCanary
 )
 
 if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion -lt [Version]'7.4') {
@@ -20,6 +22,12 @@ if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion -lt [Vers
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($Action -eq 'certify-runtime') {
+    $mode = if ($LiveProviderCanary) { 'live' } else { 'deterministic' }
+    & uv run python (Join-Path $PSScriptRoot 'scripts\production_runtime_certification.py') --provider-mode $mode
+    exit [int]$LASTEXITCODE
+}
 
 # This mutation is confined to the short-lived pwsh launcher process. Each
 # Python child receives a fresh role-specific environment derived from Settings.

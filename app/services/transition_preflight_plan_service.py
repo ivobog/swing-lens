@@ -304,8 +304,31 @@ def verify_transition_preflight_for_enqueue(
             actual_fingerprint=observed_anchor_fingerprint,
         )
     if not results or not any(row.confidence == "HIGH" for row in results):
+        candidate_diagnostics = [
+            {
+                "ticker": row.ticker,
+                "confidence": row.confidence,
+                "reason": row.reason,
+                "latest_reconstructable_session": str(row.latest_reconstructable_session),
+                "current_pointer_target_session": (
+                    str(row.current_pointer_target_session)
+                    if row.current_pointer_target_session is not None
+                    else None
+                ),
+                "technical": dict((row.decision_manifest or {}).get("technical") or {}),
+                "required_feature_coverage": dict(
+                    (row.decision_manifest or {}).get("lifecycle_semantics") or {}
+                ).get("required_feature_coverage"),
+                "warning_flags": dict(
+                    (row.decision_manifest or {}).get("lifecycle_semantics") or {}
+                ).get("warning_flags"),
+            }
+            for row in results
+        ]
         raise TransitionPreflightError(
-            "STALE_PREFLIGHT", "candidate set no longer contains a HIGH result"
+            "STALE_PREFLIGHT",
+            "candidate set no longer contains a HIGH result; "
+            f"candidates={candidate_diagnostics}",
         )
     return VerifiedTransitionPreflight(plan, market_cutoff, tuple(results))
 

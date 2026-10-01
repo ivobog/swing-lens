@@ -10,8 +10,13 @@ from sqlalchemy.orm import object_session
 from sqlalchemy.orm.attributes import NO_VALUE
 
 from app.models.tables import TechnicalScore
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.combined_ranking_identity import calculation_identity_from_debug
-from app.services.core_calculation_evidence import CoreEvidenceKind, get_certified_evidence_for_row
+from app.services.core_calculation_evidence import (
+    CoreEvidenceKind,
+    calculation_evidence_payload,
+    get_certified_evidence_for_row,
+)
 from app.services.producer_readiness import (
     ConsumerEligibilityDecision,
     ConsumerEligibilityStatus,
@@ -20,6 +25,7 @@ from app.services.producer_readiness import (
     ProducerReadinessEnvelope,
     ReadinessStatus,
     legacy_readiness,
+    normalize_producer_readiness,
     readiness_from_evidence,
 )
 
@@ -145,6 +151,58 @@ def technical_decision_input(
         elif isinstance(column.type, Date) and isinstance(values.get(column.key), str):
             values[column.key] = date.fromisoformat(values[column.key])
     return TechnicalScore(**{**values, "id": row.id, "evidence_id": evidence.id}), frozen
+
+
+def technical_preview_decision_input(
+    row: TechnicalScore | None,
+    policy: TechnicalConsumerPolicy,
+) -> tuple[TechnicalScore | None, dict[str, Any]]:
+    """Evaluate a pure preflight reconstruction without durable evidence writes."""
+
+    if row is None:
+        return technical_decision_input(row, policy)
+    if (
+        row.id is not None
+        or row.evidence_id is not None
+        or row.source_manifest_id is not None
+        or object_session(row) is not None
+    ):
+        raise ValueError("TECHNICAL_PREFLIGHT_PREVIEW_MUST_BE_TRANSIENT")
+    if (
+        row.calculation_context_id is None
+        or row.calculation_cutoff_at is None
+        or row.input_as_of_session is None
+    ):
+        raise ValueError("TECHNICAL_PREFLIGHT_PREVIEW_TEMPORAL_IDENTITY_MISSING")
+    payload = calculation_evidence_payload(row)
+    preview_identity = CanonicalEvidenceSerializer.fingerprint(
+        {
+            "contract": "technical-preflight-preview-v1",
+            "calculation_context_id": row.calculation_context_id,
+            "calculation_cutoff_at": row.calculation_cutoff_at,
+            "input_as_of_session": row.input_as_of_session,
+            "calendar_version": row.calendar_version,
+            "payload": payload,
+        }
+    )
+    readiness = normalize_producer_readiness(
+        "TECHNICAL",
+        payload,
+        identity_fingerprint=preview_identity,
+        calculation_versions={"technical_engine_version": row.technical_engine_version},
+        evaluated_at=row.calculation_cutoff_at,
+        business_anchor=row.input_as_of_session,
+    )
+    decision = policy.evaluate(readiness)
+    frozen = {
+        "decision": decision.to_dto(),
+        "producer_readiness": readiness.to_dto(),
+        "calculation_identity_fingerprint": readiness.calculation_identity_fingerprint,
+        "preflight_preview": True,
+    }
+    if decision.status is not ConsumerEligibilityStatus.ELIGIBLE:
+        return None, frozen
+    return row, frozen
 
 
 def setup_technical_blocked(snapshot: Any) -> bool:

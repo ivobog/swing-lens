@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import Select, and_, delete, func, or_, select, text, tuple_, update
@@ -2218,7 +2218,11 @@ class SetupLifecycleRepository:
                 setattr(snapshot, field_name, value)
         for field_name, value in dto.promoted_fields.items():
             if hasattr(snapshot, field_name):
-                setattr(snapshot, field_name, self._coerce_promoted_value(value))
+                setattr(
+                    snapshot,
+                    field_name,
+                    self._coerce_promoted_value(field_name, value),
+                )
         snapshot.signals_json = dict(dto.signals)
         snapshot.feature_flags_json = dict(dto.feature_flags)
         snapshot.warning_flags_json = list(dto.warning_flags)
@@ -2242,9 +2246,19 @@ class SetupLifecycleRepository:
         snapshot.debug_json = dict(dto.debug)
 
     @staticmethod
-    def _coerce_promoted_value(value: Any) -> Any:
+    def _coerce_promoted_value(field_name: str, value: Any) -> Any:
         if isinstance(value, float):
-            return Decimal(str(value))
+            value = Decimal(str(value))
+        if isinstance(value, Decimal):
+            column = SetupSignalSnapshot.__table__.columns.get(field_name)
+            scale = getattr(getattr(column, "type", None), "scale", None)
+            if scale is not None:
+                # Freeze exactly the value PostgreSQL retains for NUMERIC(p, s)
+                # before immutable evidence is derived from this projection.
+                return value.quantize(
+                    Decimal(1).scaleb(-int(scale)),
+                    rounding=ROUND_HALF_UP,
+                )
         return value
 
     def _scoped_snapshots(self, scope: PurgeScope):

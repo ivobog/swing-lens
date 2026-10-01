@@ -888,6 +888,10 @@ def test_worker_repair_continuation_restart_and_c2_drift_keep_c1(
     db.commit()
     dependency = db.get(PipelineDependency, repair.pipeline_dependency_id)
     continuation_id = dependency.continuation_job_id
+    projected_repair = db.get(PipelineRun, pipeline.id).result_json["sec_repair"]
+    assert projected_repair["repair_stage"] == "COMPLETED"
+    assert projected_repair["ready_tickers"] == projected_repair["total_tickers"]
+    assert projected_repair["last_error_code"] is None
     assert client.download_calls == 1
     assert get_settings().technical_v5_enabled != c1[3]
     # A fresh Python worker has neither the parent's delivery nor its settings cache.

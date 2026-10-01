@@ -876,6 +876,8 @@ def record_job_progress(
     total: int | None = None,
     checkpoint_version: str = "job-progress-v1",
     only_if_advanced: bool = False,
+    operational_metadata_patch: dict[str, Any] | None = None,
+    payload_json: dict[str, Any] | None = None,
 ) -> None:
     """Persist useful progress and fence the caller in the same transaction."""
     now = _utcnow()
@@ -886,6 +888,25 @@ def record_job_progress(
         "progress_current_item": current_item,
         "checkpoint_version": checkpoint_version,
     }
+    if operational_metadata_patch:
+        current_metadata = db.scalar(
+            select(BackgroundJob.operational_metadata_json).where(
+                BackgroundJob.id == job_id,
+                BackgroundJob.status == JobStatus.RUNNING,
+                BackgroundJob.execution_token == execution_token,
+            )
+        )
+        if current_metadata is None:
+            raise JobLeaseLost(f"Background job {job_id} lease is no longer held.")
+        values["operational_metadata_json"] = {
+            **dict(current_metadata or {}),
+            **operational_metadata_patch,
+        }
+    if payload_json is not None:
+        # Payload freezing is control-plane state.  Persist it under the same
+        # execution-token fence as the checkpoint so the business Session
+        # never owns the background_jobs row while calling a detached writer.
+        values["payload_json"] = dict(payload_json)
     stage_changed = or_(
         BackgroundJob.progress_stage != stage,
         BackgroundJob.progress_stage.is_(None),
@@ -1214,6 +1235,11 @@ def requeue_stalled_jobs(
         else get_settings().job_max_identical_progress_recoveries
     )
     query = select(BackgroundJob).where(BackgroundJob.status == JobStatus.STALLED)
+    from app.services.pipeline_execution_authority import (
+        apply_job_execution_authority_scope,
+    )
+
+    query = apply_job_execution_authority_scope(query)
     if job_ids is not None:
         query = query.where(BackgroundJob.id.in_(tuple(job_ids)))
     if authority.is_certification:
@@ -1325,20 +1351,23 @@ def reconcile_jobs_for_worker_loss(
         )
     )
     authorized_query = owned_query
+    from app.services.pipeline_execution_authority import (
+        apply_job_execution_authority_scope,
+    )
+
+    authorized_query = apply_job_execution_authority_scope(authorized_query)
+    owned_ids = tuple(
+        int(value.id if isinstance(value, BackgroundJob) else value)
+        for value in db.scalars(owned_query.with_only_columns(BackgroundJob.id)).all()
+    )
     if authority.is_certification:
         from app.services.certification_runtime import apply_certification_claim_scope
 
-        owned_ids = tuple(
-            int(value)
-            for value in db.scalars(owned_query.with_only_columns(BackgroundJob.id)).all()
-        )
         authorized_query = apply_certification_claim_scope(
             authorized_query,
             certification_session_id=str(authority.certification_session_id),
         )
     jobs = db.scalars(authorized_query.with_for_update(skip_locked=True)).all()
-    if not authority.is_certification:
-        owned_ids = tuple(int(job.id) for job in jobs)
     authorized_ids = {int(job.id) for job in jobs}
     fenced: list[int] = []
     cancelled: list[int] = []
@@ -1386,6 +1415,11 @@ def _claim_ready_job_id(
         BackgroundJob.status.in_((JobStatus.QUEUED, JobStatus.RECOVERING))
     )
     query = query.where(BackgroundJob.run_after <= _utcnow())
+    from app.services.pipeline_execution_authority import (
+        apply_job_execution_authority_scope,
+    )
+
+    query = apply_job_execution_authority_scope(query)
     if certification_only:
         from app.services.certification_runtime import (
             apply_certification_claim_scope,
@@ -1850,6 +1884,7 @@ def recover_stale_jobs(
         .where(BackgroundJob.status == JobStatus.RUNNING)
         .where(BackgroundJob.lease_expires_at.is_not(None))
         .where(BackgroundJob.lease_expires_at < now)
+        .where(_job_execution_authority_predicate())
     ).all()
 
     eligible = [
@@ -1880,6 +1915,7 @@ def recover_abandoned_jobs_for_worker(
         .where(BackgroundJob.worker_id == worker_id)
         .where(BackgroundJob.heartbeat_at.is_not(None))
         .where(BackgroundJob.heartbeat_at < heartbeat_cutoff)
+        .where(_job_execution_authority_predicate())
     ).all()
     eligible = [
         job
@@ -1946,6 +1982,14 @@ def _recover_jobs(db: Session, jobs: Iterable[BackgroundJob], *, now: datetime) 
 
     db.flush()
     return recovered_count
+
+
+def _job_execution_authority_predicate() -> Any:
+    from app.services.pipeline_execution_authority import (
+        job_execution_authority_predicate,
+    )
+
+    return job_execution_authority_predicate()
 
 
 def _finalize_recovery_cancellation(

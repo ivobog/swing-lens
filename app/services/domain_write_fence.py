@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from copy import deepcopy
 from dataclasses import dataclass
 
-from sqlalchemy import event, select
+from sqlalchemy import event, select, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.sql.dml import Delete, Insert, Update
 from sqlalchemy.sql.elements import (
@@ -20,6 +22,13 @@ from sqlalchemy.sql.selectable import Select
 
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobLeaseLost, JobStatus
+from app.settings import get_settings
+
+logger = logging.getLogger(__name__)
+
+
+class ControlPlaneLockTimeout(RuntimeError):
+    """A bounded control-plane write could not acquire its PostgreSQL lock."""
 
 
 @dataclass(frozen=True)
@@ -314,17 +323,47 @@ def detached_control_plane_scope() -> Iterator[None]:
 
 
 @contextmanager
-def control_plane_transaction(db: Session) -> Iterator[Session]:
+def control_plane_transaction(
+    db: Session, *, lock_timeout_seconds: float | None = None
+) -> Iterator[Session]:
     """Run and commit one short control transaction with no domain authority.
 
     This is the sole boundary for synchronous lease, heartbeat, progress, and
     cancellation commits made from inside a domain execution context.
     """
 
+    timeout = float(
+        lock_timeout_seconds
+        if lock_timeout_seconds is not None
+        else get_settings().job_control_lock_timeout_seconds
+    )
     with detached_control_plane_scope():
         try:
+            bind = db.get_bind()
+            if bind is not None and bind.dialect.name == "postgresql":
+                # set_config(..., true) is transaction-scoped and supports a
+                # bound value. It cannot leak into the pooled connection.
+                db.execute(
+                    text("SELECT set_config('lock_timeout', :timeout, true)"),
+                    {"timeout": f"{max(1, int(timeout * 1000))}ms"},
+                )
             yield db
             db.commit()
+        except OperationalError as exc:
+            db.rollback()
+            sqlstate = getattr(getattr(exc, "orig", None), "sqlstate", None)
+            if sqlstate == "55P03":
+                logger.error(
+                    "job.control_plane.lock_timeout",
+                    extra={
+                        "reason_code": "CONTROL_PLANE_LOCK_TIMEOUT",
+                        "lock_timeout_seconds": timeout,
+                    },
+                )
+                raise ControlPlaneLockTimeout(
+                    f"Control-plane transaction exceeded {timeout:g}s lock timeout."
+                ) from exc
+            raise
         except Exception:
             db.rollback()
             raise

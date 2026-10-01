@@ -51,6 +51,7 @@ from app.services.ceri.sec.processor_lifecycle import (
 )
 from app.services.cleanup_service import execute_durable_evidence_retention
 from app.services.domain_write_fence import (
+    ControlPlaneLockTimeout,
     control_plane_transaction,
     deferred_execution_ownership_lock,
     fence_domain_commits,
@@ -291,6 +292,9 @@ def _run_worker_control_loop(
                 queues=queue_names,
                 stale_after_seconds=settings.job_stale_after_seconds,
                 heartbeat_timeout_seconds=settings.job_worker_heartbeat_timeout_seconds,
+                heartbeat_interval_seconds=getattr(
+                    settings, "job_worker_heartbeat_interval_seconds", 5.0
+                ),
                 fairness_enabled=settings.queue_fairness_enabled,
                 max_consecutive_interactive=settings.job_max_consecutive_interactive_claims,
                 age_promotion_seconds=settings.job_age_promotion_seconds,
@@ -623,6 +627,7 @@ def run_worker_once(
     queues: Iterable[str] | None = None,
     stale_after_seconds: int,
     heartbeat_timeout_seconds: int = 30,
+    heartbeat_interval_seconds: float = 5.0,
     fairness_enabled: bool = False,
     max_consecutive_interactive: int = 4,
     age_promotion_seconds: int = 300,
@@ -787,6 +792,11 @@ def run_worker_once(
                         process_id=process_id,
                         instance_id=worker_instance_id,
                     )
+                    heartbeat_worker_control_loop(
+                        source_db,
+                        worker_id,
+                        instance_id=worker_instance_id,
+                    )
                     return
                 if job.job_type != "FULL_PIPELINE":
                     # Existing bounded handlers coordinate progress and domain
@@ -804,6 +814,11 @@ def run_worker_once(
                         worker_id,
                         hostname=hostname,
                         process_id=process_id,
+                        instance_id=worker_instance_id,
+                    )
+                    heartbeat_worker_control_loop(
+                        db,
+                        worker_id,
                         instance_id=worker_instance_id,
                     )
                     # Bounded handlers may open a child Session for their
@@ -829,32 +844,26 @@ def run_worker_once(
                             process_id=process_id,
                             instance_id=worker_instance_id,
                         )
+                        heartbeat_worker_control_loop(
+                            control_db,
+                            worker_id,
+                            instance_id=worker_instance_id,
+                        )
                 finally:
                     if control_db is not db:
                         control_db.close()
 
             def detached_control_progress(**progress: Any) -> bool:
                 """Commit only lease/progress state on an independent connection."""
-                control_db = session_factory()
-                try:
-                    with control_plane_transaction(control_db):
-                        heartbeat_job(
-                            control_db,
-                            control_job,
-                            lease_seconds=stale_after_seconds,
-                            execution_token=execution_token,
-                        )
-                        if progress:
-                            record_job_progress(
-                                control_db,
-                                job_id=int(job_id),
-                                execution_token=str(execution_token),
-                                **progress,
-                            )
-                        requested = is_cancel_requested(control_db, int(job_id))
-                    return requested
-                finally:
-                    control_db.close()
+                return persist_detached_job_control(
+                    session_factory=session_factory,
+                    job_id=int(job_id),
+                    execution_token=str(execution_token),
+                    worker_id=worker_id,
+                    worker_instance_id=str(worker_instance_id),
+                    lease_seconds=stale_after_seconds,
+                    progress=progress,
+                )
 
             heartbeat()
             if getattr(job, "pipeline_dependency_id", None) is not None:
@@ -869,13 +878,39 @@ def run_worker_once(
                 # one financial transaction. Progress and cancellation belong
                 # to the control plane and must never commit that transaction.
                 job._control_plane_progress = detached_control_progress
-            result = execute_job(
-                db,
-                job,
-                handlers,
-                heartbeat=heartbeat,
-                execution_token=execution_token,
-            )
+            control_heartbeat_stop: Event | None = None
+            control_heartbeat_thread: Thread | None = None
+            if job.job_type == "FULL_PIPELINE":
+                control_heartbeat_stop = Event()
+                control_heartbeat_thread = Thread(
+                    target=_active_pipeline_control_heartbeat_loop,
+                    kwargs={
+                        "session_factory": session_factory,
+                        "job_id": int(job_id),
+                        "execution_token": str(execution_token),
+                        "worker_id": worker_id,
+                        "worker_instance_id": str(worker_instance_id),
+                        "lease_seconds": stale_after_seconds,
+                        "interval_seconds": heartbeat_interval_seconds,
+                        "stop_event": control_heartbeat_stop,
+                    },
+                    name=f"{worker_id}-pipeline-control-heartbeat",
+                    daemon=True,
+                )
+                control_heartbeat_thread.start()
+            try:
+                result = execute_job(
+                    db,
+                    job,
+                    handlers,
+                    heartbeat=heartbeat,
+                    execution_token=execution_token,
+                )
+            finally:
+                if control_heartbeat_stop is not None:
+                    control_heartbeat_stop.set()
+                if control_heartbeat_thread is not None:
+                    control_heartbeat_thread.join(timeout=max(1.0, heartbeat_interval_seconds * 2))
             if job.status == JobStatus.PARTIAL:
                 mark_job_partial(db, job, result, execution_token=execution_token)
             else:
@@ -937,6 +972,57 @@ def run_worker_once(
                     "reason_code": exc.reason_code,
                 },
             )
+        except ControlPlaneLockTimeout as exc:
+            # A bounded control write failure is execution-infrastructure
+            # failure, not an ordinary provider error. Persist retry state and
+            # end this worker generation so ownership cannot remain ambiguous.
+            db.rollback()
+            try:
+                with control_plane_transaction(db):
+                    mark_job_failed_or_retry(db, job, exc, execution_token=execution_token)
+            except ControlPlaneLockTimeout:
+                # An external locker may still own the row. Never turn the
+                # recovery bookkeeping write into a second unbounded wait;
+                # the degraded worker signal and supervisor generation fence
+                # remain the recovery authority.
+                logger.error(
+                    "job.control_plane.retry_state_lock_timeout",
+                    extra={
+                        "job_id": job_id,
+                        "worker_id": worker_id,
+                        "reason_code": "CONTROL_PLANE_LOCK_TIMEOUT",
+                    },
+                )
+            degraded_db = session_factory()
+            try:
+                mark_worker_infrastructure_degraded(
+                    degraded_db,
+                    worker_id,
+                    hostname=hostname,
+                    process_id=process_id,
+                    instance_id=worker_instance_id,
+                    reason_code="CONTROL_PLANE_LOCK_TIMEOUT",
+                )
+                degraded_db.commit()
+            except Exception:
+                degraded_db.rollback()
+                logger.exception(
+                    "job.control_plane.degraded_signal_failed",
+                    extra={"job_id": job_id, "worker_id": worker_id},
+                )
+            finally:
+                degraded_db.close()
+            logger.error(
+                "job.control_plane.attempt_fenced",
+                extra={
+                    "job_id": job_id,
+                    "job_type": job.job_type,
+                    "worker_id": worker_id,
+                    "worker_instance_id": worker_instance_id,
+                    "reason_code": "CONTROL_PLANE_LOCK_TIMEOUT",
+                },
+            )
+            raise
         except Exception as exc:
             db.rollback()
             mark_job_failed_or_retry(db, job, exc, execution_token=execution_token)
@@ -964,6 +1050,93 @@ def run_worker_once(
         raise
     finally:
         db.close()
+
+
+def persist_detached_job_control(
+    *,
+    session_factory: sessionmaker[Session],
+    job_id: int,
+    execution_token: str,
+    worker_id: str,
+    worker_instance_id: str,
+    lease_seconds: int,
+    progress: dict[str, Any] | None = None,
+) -> bool:
+    """Atomically persist one detached job-control checkpoint.
+
+    This function is deliberately public to the PostgreSQL transaction
+    certification suite: production worker execution and the regression test
+    must use exactly the same detached transaction boundary.
+    """
+
+    control_job = BackgroundJob(
+        id=job_id,
+        status=JobStatus.RUNNING,
+        execution_token=execution_token,
+        worker_id=worker_id,
+    )
+    control_db = session_factory()
+    try:
+        with control_plane_transaction(control_db):
+            heartbeat_job(
+                control_db,
+                control_job,
+                lease_seconds=lease_seconds,
+                execution_token=execution_token,
+            )
+            heartbeat_worker_control_loop(
+                control_db,
+                worker_id,
+                instance_id=worker_instance_id,
+            )
+            if progress:
+                record_job_progress(
+                    control_db,
+                    job_id=job_id,
+                    execution_token=execution_token,
+                    **progress,
+                )
+            requested = is_cancel_requested(control_db, job_id)
+        return requested
+    finally:
+        control_db.close()
+
+
+def _active_pipeline_control_heartbeat_loop(
+    *,
+    session_factory: sessionmaker[Session],
+    job_id: int,
+    execution_token: str,
+    worker_id: str,
+    worker_instance_id: str,
+    lease_seconds: int,
+    interval_seconds: float,
+    stop_event: Event,
+) -> None:
+    """Renew full-pipeline control authority independently of stage checkpoints."""
+
+    interval = max(0.1, float(interval_seconds))
+    while not stop_event.wait(interval):
+        try:
+            persist_detached_job_control(
+                session_factory=session_factory,
+                job_id=job_id,
+                execution_token=execution_token,
+                worker_id=worker_id,
+                worker_instance_id=worker_instance_id,
+                lease_seconds=lease_seconds,
+            )
+        except JobLeaseLost:
+            return
+        except Exception:
+            logger.exception(
+                "job.pipeline_control_heartbeat_failed",
+                extra={
+                    "job_id": job_id,
+                    "worker_id": worker_id,
+                    "worker_instance_id": worker_instance_id,
+                },
+            )
 
 
 def execute_job(
@@ -1178,6 +1351,7 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
                 execution_token=execution_token,
                 **progress,
             )
+            lease_guard()
             return
         with control_factory() as control_db:
             with control_plane_transaction(control_db):
@@ -1186,6 +1360,18 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
                     control_job,
                     lease_seconds=settings.job_stale_after_seconds,
                     execution_token=execution_token,
+                )
+                heartbeat_worker(
+                    control_db,
+                    str(job.worker_id),
+                    hostname=socket.gethostname(),
+                    process_id=os.getpid(),
+                    instance_id=job.worker_instance_id,
+                )
+                heartbeat_worker_control_loop(
+                    control_db,
+                    str(job.worker_id),
+                    instance_id=job.worker_instance_id,
                 )
                 record_job_progress(
                     control_db,

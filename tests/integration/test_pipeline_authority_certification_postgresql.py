@@ -56,6 +56,8 @@ from app.services.pipeline_service import (
     cancel_pipeline,
 )
 from app.services.pipeline_state_machine import PipelineTransitionError, transition_pipeline
+from app.services.runtime_certification_observer import observe_certification_runtime
+from app.settings import ProcessRole, RuntimeMode, Settings
 
 
 @pytest.fixture(scope="module")
@@ -154,6 +156,69 @@ def test_07_worker_restart_preserves_waiting_child(authority_database_url: str) 
         assert pipeline.status == PipelineStatus.WAITING_DEPENDENCY
         assert dependency.state == "QUEUED"
         assert child.status == JobStatus.QUEUED
+    engine.dispose()
+
+
+def test_07b_restart_reconciles_completed_child_handoff_gap(
+    authority_database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, root_id = _seed_pipeline(engine)
+    dependency_id, child_id = _seed_dependency(engine, pipeline_id)
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        child = db.get(BackgroundJob, child_id)
+        root.payload_json = {
+            **(root.payload_json or {}),
+            "certification_authorized": True,
+            "transition_preflight_plan_id": 1,
+            "certification_session_id": "cert-session-current",
+        }
+        child.payload_json = {
+            **(child.payload_json or {}),
+            "certification_authorized": True,
+            "certification_session_id": "cert-session-current",
+        }
+        child.root_correlation_id = root.root_correlation_id
+        child.status = JobStatus.COMPLETED
+        child.completed_at = datetime.now(UTC)
+        child.execution_token = None
+        child.worker_id = None
+        child.worker_instance_id = None
+        db.commit()
+
+        observation = observe_certification_runtime(
+            db,
+            pipeline_id=pipeline_id,
+            control_heartbeat_seconds=30,
+        )
+        assert "PARENT_WAITING_WITHOUT_RECOVERABLE_CHILD" not in {
+            failure.code for failure in observation.failures
+        }
+
+        monkeypatch.setattr(
+            "app.services.background_job_service.get_settings",
+            lambda: Settings(
+                _env_file=None,
+                runtime_mode=RuntimeMode.CERTIFICATION,
+                process_role=ProcessRole.DURABLE_WORKER,
+                use_durable_pipeline=True,
+                durable_worker_process_enabled=True,
+                runtime_instance_id="cert-session-current",
+            ),
+        )
+        result = reconcile_safe_pipeline_invariants(db)
+        db.commit()
+        dependency = db.get(PipelineDependency, dependency_id)
+        assert dependency.state == "COMPLETED"
+        assert dependency.continuation_job_id in result["continuations_enqueued"]
+        assert _continuations(db, dependency_id) == [dependency.continuation_job_id]
+        continuation = db.get(BackgroundJob, dependency.continuation_job_id)
+        assert continuation.root_correlation_id == root.root_correlation_id
+        assert continuation.parent_job_id == child.id
+        assert continuation.payload_json["certification_authorized"] is True
+        assert continuation.payload_json["certification_session_id"] == "cert-session-current"
     engine.dispose()
 
 
@@ -295,9 +360,7 @@ def test_13_lock_timeout_cancellation_is_bounded_and_diagnostic(
     def hold_root_lock() -> None:
         with Session(engine) as db:
             db.execute(
-                select(BackgroundJob.id)
-                .where(BackgroundJob.id == root_id)
-                .with_for_update()
+                select(BackgroundJob.id).where(BackgroundJob.id == root_id).with_for_update()
             )
             locked.set()
             release.wait(timeout=10)
@@ -336,9 +399,7 @@ def test_14_child_failure_fails_dependency_and_pipeline(authority_database_url: 
         db.commit()
         assert db.get(PipelineDependency, dependency_id).state == "FAILED"
         assert db.get(PipelineRun, pipeline_id).status == PipelineStatus.FAILED
-        step = db.scalar(
-            select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_id)
-        )
+        step = db.scalar(select(PipelineStep).where(PipelineStep.pipeline_run_id == pipeline_id))
         assert step.status == "FAILED"
         assert step.error_message == "bounded failure"
     engine.dispose()
@@ -440,9 +501,7 @@ def test_19_terminal_pipeline_is_not_resumed_by_delayed_child_completion(
     dependency_id, child_id = _seed_dependency(engine, pipeline_id)
     with Session(engine) as db:
         pipeline = db.get(PipelineRun, pipeline_id)
-        transition_pipeline(
-            db, pipeline, PipelineStatus.CANCELLED, actor="pipeline_orchestrator"
-        )
+        transition_pipeline(db, pipeline, PipelineStatus.CANCELLED, actor="pipeline_orchestrator")
         child = db.get(BackgroundJob, child_id)
         child.status = JobStatus.COMPLETED
         child.completed_at = datetime.now(UTC)
@@ -684,8 +743,7 @@ def test_25_cancel_during_pending_enqueue_converges_without_child(
         assert dependency.child_job_id is None
         assert created == ()
         assert not any(
-            finding.pipeline_id == pipeline_id
-            for finding in inspect_pipeline_invariants(db)
+            finding.pipeline_id == pipeline_id for finding in inspect_pipeline_invariants(db)
         )
     engine.dispose()
 
@@ -704,9 +762,7 @@ def test_26_cancel_observes_terminal_winner_idempotently(
         try:
             with Session(engine) as db:
                 pipeline = db.scalar(
-                    select(PipelineRun)
-                    .where(PipelineRun.id == pipeline_id)
-                    .with_for_update()
+                    select(PipelineRun).where(PipelineRun.id == pipeline_id).with_for_update()
                 )
                 terminal_locked.set()
                 release_terminal.wait(timeout=10)
@@ -798,11 +854,7 @@ def test_28_continuation_claim_suppresses_cancel_or_terminal_winner(
         _claim_pipeline_continuation_resume(restarted, pipeline)
 
     with Session(engine) as db:
-        expected = (
-            PipelineStatus.CANCELLED
-            if winner == PipelineStatus.CANCEL_REQUESTED
-            else winner
-        )
+        expected = PipelineStatus.CANCELLED if winner == PipelineStatus.CANCEL_REQUESTED else winner
         assert db.get(PipelineRun, pipeline_id).status == expected
     engine.dispose()
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import Select
@@ -83,6 +84,17 @@ def test_repository_snapshot_identity_key_distinguishes_revised_source_data() ->
     )
 
     assert original != revised
+
+
+def test_promoted_numeric_values_match_postgresql_storage_scale_before_evidence() -> None:
+    repository = SetupLifecycleRepository()
+
+    assert repository._coerce_promoted_value(
+        "close_price", Decimal("123.4567896")
+    ) == Decimal("123.456790")
+    assert repository._coerce_promoted_value(
+        "high_price", 123.4567896
+    ) == Decimal("123.456790")
 
 
 def test_repository_event_keys_are_stable_and_distinct_by_payload() -> None:

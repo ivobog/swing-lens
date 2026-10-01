@@ -45,6 +45,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     settings = get_settings()
     try:
         require_process_role(settings, ProcessRole.DURABLE_WORKER)
+        from app.services.certification_adapter import install_certification_adapter
+
+        install_certification_adapter(settings)
     except Exception as exc:
         log_event(
             logger,

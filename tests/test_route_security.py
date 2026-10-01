@@ -28,9 +28,9 @@ def test_unsafe_route_inventory_requires_classification() -> None:
     assert len(registry) == 52
     assert [row for row in registry if not row.classified] == []
     assert _capability_counts(registry) == {
-        MutationCapability.NORMAL_ONLY: 49,
+        MutationCapability.NORMAL_ONLY: 48,
         MutationCapability.CERTIFICATION_CONTROL: 0,
-        MutationCapability.CERTIFICATION_SESSION_SCOPED: 1,
+        MutationCapability.CERTIFICATION_SESSION_SCOPED: 2,
         MutationCapability.READ_ONLY: 2,
     }
 

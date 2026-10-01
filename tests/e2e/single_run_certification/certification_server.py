@@ -337,6 +337,7 @@ _install_pipeline_profiler()
 
 from app.main import app  # noqa: E402  (environment and dependency must be installed first)
 from app.routers import ib_gateway_admin_routes, run_routes  # noqa: E402
+from app.services import pre_enqueue_operational_gate  # noqa: E402
 from app.services.ib_gateway_health_service import check_status as real_check_status  # noqa: E402
 
 
@@ -346,6 +347,7 @@ def _deterministic_route_check_status(*, settings=None):
 
 run_routes.check_status = _deterministic_route_check_status
 ib_gateway_admin_routes.check_status = _deterministic_route_check_status
+pre_enqueue_operational_gate.check_status = _deterministic_route_check_status
 
 __all__ = ["app"]
 

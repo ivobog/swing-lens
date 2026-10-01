@@ -402,12 +402,15 @@ def validate_setup_projection(db, snapshot):
         ):
             raise ValueError("MUTATION_SETUP_PROJECTION_SCOPE_MISMATCH")
         current = calculation_evidence_payload(snapshot, excluded_columns=_SETUP_PROJECTION_FIELDS)
-        if any(
-            current.get(key) != value
+        changed = sorted(
+            key
             for key, value in evidence.payload_json.items()
-            if key in current
-        ):
-            raise ValueError("MUTATION_SETUP_PROJECTION_PAYLOAD_MISMATCH")
+            if key in current and current.get(key) != value
+        )
+        if changed:
+            raise ValueError(
+                "MUTATION_SETUP_PROJECTION_PAYLOAD_MISMATCH: " + ",".join(changed)
+            )
 
 
 def validate_retained_decision(db, row, *, contract, payload_key="payload"):

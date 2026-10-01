@@ -6,9 +6,6 @@ from sqlalchemy.orm import Session
 from app.models.tables import BackgroundJob, PipelineRun
 from app.services.pipeline_prerequisites import CeriParentPipelineTerminalError
 
-TERMINAL_PIPELINE_STATUSES = frozenset(
-    {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED", "FEATURE_CERTIFIED"}
-)
 PIPELINE_OWNED_CERI_WORKFLOW_PREFIXES = (
     "ceri:pipeline:",
     "ceri:feature-certification:",
@@ -46,12 +43,18 @@ def require_parent_pipeline_active(
             "Authoritative parent pipeline does not exist.",
             diagnostics={"pipeline_run_id": int(pipeline_id), "job_id": job.id},
         )
-    if pipeline.status in TERMINAL_PIPELINE_STATUSES:
+    from app.services.pipeline_execution_authority import (
+        pipeline_execution_is_authorized,
+    )
+
+    if not pipeline_execution_is_authorized(pipeline):
         raise CeriParentPipelineTerminalError(
-            f"Authoritative parent pipeline is terminal: {pipeline.status}.",
+            "Authoritative parent pipeline no longer has execution authority: "
+            f"status={pipeline.status}; authority={pipeline.execution_authority_state}.",
             diagnostics={
                 "pipeline_run_id": pipeline.id,
                 "pipeline_status": pipeline.status,
+                "execution_authority_state": pipeline.execution_authority_state,
                 "job_id": job.id,
                 "job_type": job.job_type,
             },

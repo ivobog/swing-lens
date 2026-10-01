@@ -297,6 +297,7 @@ class Settings(BaseSettings):
     job_stale_after_seconds: int = 900
     job_worker_heartbeat_interval_seconds: float = 5.0
     job_worker_heartbeat_timeout_seconds: int = 30
+    job_control_lock_timeout_seconds: float = Field(default=3.0, ge=0.1, le=30.0)
     job_worker_id: str = "local-worker-1"
     job_progress_timeout_seconds: int = Field(default=300, ge=30, le=86_400)
     job_market_data_progress_timeout_seconds: int = Field(default=360, ge=30, le=86_400)

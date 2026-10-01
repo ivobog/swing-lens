@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import inspect
 
 from app.models.ceri_tables import CeriCompany, CeriIngestionRun, CeriSecSyncState
 from app.models.tables import BackgroundJob
@@ -12,6 +13,7 @@ from app.services.background_job_service import JobStatus, enqueue_job
 from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.ceri import batched_job_handlers
 from app.services.ceri.batched_job_handlers import (
+    _feature_prepare_checkpoint,
     _heartbeat_and_cancel,
     _normalization_checkpoint,
     _require_terminal_stage,
@@ -51,6 +53,59 @@ def test_detached_heartbeat_does_not_commit_through_domain_callback(monkeypatch)
     assert _heartbeat_and_cancel(FakeDb(), job) is False
     assert control_heartbeats == ["control"]
     assert domain_heartbeats == []
+
+
+@pytest.mark.parametrize(
+    ("job_type", "checkpoint"),
+    (
+        (
+            CERI_PROVIDER_INGEST_BATCH,
+            lambda db, job: _save_checkpoint(
+                db,
+                job,
+                completed={"AAPL"},
+                results={"AAPL": {"status": "COMPLETED"}},
+                total=2,
+                last_completed="AAPL",
+            ),
+        ),
+        (
+            CERI_NORMALIZE_BATCH,
+            lambda db, job: _normalization_checkpoint(
+                db,
+                job,
+                {"last_record_index": 1, "last_source_record_id": 7},
+                ticker="AAPL",
+            ),
+        ),
+        (
+            CERI_FEATURE_BATCH,
+            lambda db, job: _feature_prepare_checkpoint(db, job, "source-prefetch", 1),
+        ),
+    ),
+)
+def test_detached_ceri_checkpoint_never_dirties_business_job_row(
+    monkeypatch, job_type, checkpoint
+) -> None:
+    monkeypatch.setattr(
+        batched_job_handlers,
+        "require_parent_pipeline_active",
+        lambda *_args, **_kwargs: None,
+    )
+    writes = []
+    job = BackgroundJob(
+        id=41,
+        job_type=job_type,
+        status=JobStatus.RUNNING,
+        payload_json={},
+        operational_metadata_json={},
+    )
+    job._control_plane_progress = lambda **values: writes.append(values) or False
+
+    checkpoint(FakeDb(), job)
+
+    assert writes and writes[0]["operational_metadata_patch"]
+    assert inspect(job).attrs.operational_metadata_json.history.has_changes() is False
 
 
 def test_402_ticker_plan_is_deterministic_bounded_and_under_sanity_target() -> None:
@@ -752,6 +807,10 @@ class FakeDb:
         self.stage_jobs = list(stage_jobs or [])
         self.scalar_calls = 0
         self.flushes = 0
+
+    @property
+    def no_autoflush(self):
+        return nullcontext()
 
     def add(self, row) -> None:
         self.jobs.append(row)

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import socket
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
@@ -9,9 +11,10 @@ from pathlib import Path
 from threading import Barrier
 from time import perf_counter
 
+import pytest
 from alembic.config import Config
-from sqlalchemy import create_engine, event, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, event, func, select, text
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.database_safety import run_guarded_alembic_upgrade
 from app.models.ceri_tables import (
@@ -27,10 +30,18 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.models.tables import BackgroundJob, PipelineRun, RawCompanyRow, UploadRun
-from app.services.background_job_service import JobStatus, claim_next_job, enqueue_job
+from app.services.background_job_service import (
+    JobStatus,
+    claim_next_job,
+    enqueue_job,
+    mark_job_completed,
+    record_job_progress,
+)
+from app.services.background_worker import persist_detached_job_control
 from app.services.ceri.batched_job_handlers import (
     execute_feature_batch_job,
     execute_normalize_batch_job,
+    execute_provider_ingest_batch_job,
     execute_run_finalize_job,
 )
 from app.services.ceri.batched_workflow import (
@@ -54,6 +65,7 @@ from app.services.ceri.job_handlers import (
     execute_normalize_job,
     execute_rebuild_features_job,
 )
+from app.services.domain_write_fence import ControlPlaneLockTimeout, control_plane_transaction
 from app.services.market_calculation_context_service import (
     create_pipeline_market_context,
     resolve_pipeline_ceri_context,
@@ -157,6 +169,210 @@ def test_concurrent_finalizers_create_one_capture_in_postgresql(
     assert capture_count == 1
     assert len(set(capture_ids)) == 1
     assert capture.request_key == f"{workflow_key}:capture"
+
+
+def test_run9_two_ticker_detached_checkpoint_does_not_self_lock_postgresql(
+    disposable_postgres_database: str,
+    monkeypatch,
+) -> None:
+    """Reproduce Run 9's exact second-ticker transaction relationship."""
+
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    monkeypatch.setattr(
+        "app.services.ceri.batched_job_handlers.ceri_flags",
+        lambda: type("Flags", (), {"provider_ingest": True})(),
+    )
+
+    with Session(engine) as db:
+        run = UploadRun(filename="run9-two-ticker-regression.csv", row_count=2, status="COMPLETED")
+        db.add(run)
+        db.flush()
+        authority = admit_frozen_operation(
+            db,
+            operation_kind="full-pipeline-run",
+            subject_kind="ticker",
+            members=(ScopeMember("TICKER", "AAPL"), ScopeMember("TICKER", "ACLS")),
+            cycle_key=f"run9-regression:{run.id}",
+            business_cutoff=date(2026, 9, 30),
+            provider_source_class="CERI",
+            request_type="PROVIDER_INGEST",
+            requirements=(AcquisitionRequirement("CERI_SOURCE_RECORDS"),),
+            policy_identity="run9-control-plane-regression-v1",
+            scope_definition={"run_id": run.id, "tickers": ["AAPL", "ACLS"]},
+        )
+        pipeline = PipelineRun(upload_run_id=run.id, status="RUNNING", result_json={})
+        bind_semantic_authority(pipeline, authority)
+        db.add(pipeline)
+        db.flush()
+        workflow_key = f"ceri:pipeline:{pipeline.id}:run9-regression"
+        job = enqueue_job(
+            db,
+            CERI_PROVIDER_INGEST_BATCH,
+            {
+                "workflow_key": workflow_key,
+                "pipeline_run_id": pipeline.id,
+                "run_id": run.id,
+                "provider": "eodhd",
+                "dataset": "estimates",
+                "tickers": ["AAPL", "ACLS"],
+                "checkpoint_interval": 1,
+            },
+            request_key=f"{workflow_key}:provider:eodhd:estimates:0001",
+            workflow_key=workflow_key,
+            related_run_id=run.id,
+            priority=80,
+            max_retries=3,
+        )
+        bind_semantic_authority(job, authority)
+        worker = register_worker(
+            db,
+            worker_id="run9-regression-worker",
+            queues=("background",),
+            heartbeat_timeout_seconds=30,
+            hostname=socket.gethostname(),
+            process_id=os.getpid(),
+        )
+        db.commit()
+        run_id = int(run.id)
+        claimed = claim_next_job(
+            db,
+            worker_id=worker.worker_id,
+            worker_instance_id=worker.instance_id,
+            queues=("background",),
+            lease_seconds=30,
+        )
+        assert claimed is not None and claimed.id == job.id
+        db.commit()
+        job_id = int(claimed.id)
+        execution_token = str(claimed.execution_token)
+        control_before = worker.control_loop_heartbeat_at
+
+    class PersistingProviderService:
+        def ingest(self, db, request, *, should_cancel):
+            row_number = 1 if request.ticker == "AAPL" else 2
+            db.add(
+                RawCompanyRow(
+                    run_id=run_id,
+                    row_number=row_number,
+                    ticker=request.ticker,
+                    company_name=request.ticker,
+                    sector="Technology",
+                    raw_json={"ticker": request.ticker, "certification": "run9-regression"},
+                )
+            )
+            # On ticker two this flush reproduced Run 9 by autoflushing the
+            # dirty BackgroundJob checkpoint before the detached callback.
+            db.flush()
+            assert should_cancel() is False
+            return type(
+                "Result",
+                (),
+                {"as_dict": lambda self: {"status": "COMPLETED", "failed": 0}},
+            )()
+
+    with Session(engine) as db:
+        claimed = db.get(BackgroundJob, job_id)
+
+        def detached(**progress):
+            return persist_detached_job_control(
+                session_factory=factory,
+                job_id=job_id,
+                execution_token=execution_token,
+                worker_id="run9-regression-worker",
+                worker_instance_id=str(claimed.worker_instance_id),
+                lease_seconds=30,
+                progress=progress,
+            )
+
+        claimed._control_plane_progress = detached
+        result = execute_provider_ingest_batch_job(
+            db,
+            claimed,
+            ingestion_service=PersistingProviderService(),
+        )
+        mark_job_completed(db, claimed, result, execution_token=execution_token)
+        db.commit()
+
+    with Session(engine) as db:
+        completed = db.get(BackgroundJob, job_id)
+        worker = db.get(type(worker), "run9-regression-worker")
+        blocked = db.scalar(
+            text(
+                """
+                select count(*) from pg_stat_activity
+                where datname = current_database()
+                  and pid <> pg_backend_pid()
+                  and cardinality(pg_blocking_pids(pid)) > 0
+                  and query ilike '%background_jobs%'
+                """
+            )
+        )
+        persisted_tickers = set(
+            db.scalars(select(RawCompanyRow.ticker).where(RawCompanyRow.run_id == run_id))
+        )
+        assert completed.status == JobStatus.COMPLETED
+        assert completed.progress_processed == 2
+        assert completed.progress_total == 2
+        assert completed.progress_sequence >= 2
+        assert completed.heartbeat_at is None
+        assert completed.lease_expires_at is None
+        assert completed.operational_metadata_json["ceri_batch"]["completed_tickers"] == [
+            "AAPL",
+            "ACLS",
+        ]
+        assert worker.control_loop_heartbeat_at >= control_before
+        assert blocked == 0
+        assert persisted_tickers == {"AAPL", "ACLS"}
+    engine.dispose()
+
+
+def test_detached_control_write_has_bounded_postgresql_lock_timeout(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as setup:
+        job = enqueue_job(
+            setup,
+            "CERI_PROVIDER_INGEST_BATCH",
+            {"tickers": ["AAPL", "ACLS"]},
+            request_key="control-lock-timeout-regression",
+        )
+        setup.flush()
+        job.status = JobStatus.RUNNING
+        job.execution_token = "control-lock-timeout-token"
+        setup.commit()
+        job_id = int(job.id)
+
+    with Session(engine) as locker:
+        locker.execute(
+            select(BackgroundJob.id).where(BackgroundJob.id == job_id).with_for_update()
+        )
+        started = perf_counter()
+        with Session(engine) as control:
+            with pytest.raises(ControlPlaneLockTimeout, match="exceeded"):
+                with control_plane_transaction(control, lock_timeout_seconds=0.2):
+                    record_job_progress(
+                        control,
+                        job_id=job_id,
+                        execution_token="control-lock-timeout-token",
+                        stage="CERI_PROVIDER_INGEST",
+                        processed=1,
+                        total=2,
+                        checkpoint_version="locked-checkpoint",
+                        operational_metadata_patch={"ceri_batch": {"processed": 1}},
+                    )
+        elapsed = perf_counter() - started
+        locker.rollback()
+
+    with Session(engine) as verify:
+        unchanged = verify.get(BackgroundJob, job_id)
+        assert unchanged.progress_sequence == 0
+        assert unchanged.operational_metadata_json == {}
+    engine.dispose()
+    assert elapsed < 2.0
 
 
 def test_legacy_enqueue_remains_available_while_live_migration_waits(

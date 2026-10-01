@@ -105,9 +105,17 @@ def root_action_scope(
 
 @contextmanager
 def worker_job_scope(job: object) -> Iterator[CausalityContext]:
+    context = durable_job_causality(job)
+    with causality_scope(context):
+        yield context
+
+
+def durable_job_causality(job: object) -> CausalityContext:
+    """Rehydrate enqueue lineage from a durable job outside worker scope."""
+
     job_id = getattr(job, "id", None)
     root = getattr(job, "root_correlation_id", None) or new_id("root-recovery")
-    context = CausalityContext(
+    return CausalityContext(
         root_correlation_id=str(root),
         causation_id=str(getattr(job, "causation_id", None) or new_id("cause")),
         request_id=getattr(job, "triggered_by_request_id", None),
@@ -118,8 +126,6 @@ def worker_job_scope(job: object) -> Iterator[CausalityContext]:
         trigger_name=str(getattr(job, "job_type", "unknown")),
         fanout_group_id=getattr(job, "fanout_group_id", None),
     )
-    with causality_scope(context):
-        yield context
 
 
 def enqueue_causality(

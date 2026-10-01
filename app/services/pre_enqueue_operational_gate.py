@@ -106,7 +106,7 @@ def validate_pre_enqueue_operational_gate(
     plan_id: int,
     settings: Settings | None = None,
     discovery: Any | None = None,
-    health_probe: HealthProbe = check_status,
+    health_probe: HealthProbe | None = None,
     now: datetime | None = None,
     repo_root: Path | None = None,
 ) -> PreEnqueueOperationalGateResult:
@@ -195,7 +195,7 @@ def validate_pre_enqueue_operational_gate(
             details={"expected_heads": list(expected_heads), "actual_head": actual_head},
         )
 
-    ib_status = health_probe(settings=settings)
+    ib_status = (health_probe or check_status)(settings=settings)
     ib_decision_at = now if now is not None else datetime.now(UTC)
     if (
         ib_status.status != IBGatewayHealthState.IB_API_READY.value
@@ -301,5 +301,14 @@ def _reject(
         context_id=context_id,
         details=details,
     )
-    logger.warning("pre_enqueue_operational_gate_rejected %s", error.to_dict())
+    diagnostic = error.to_dict()
+    logger.warning(
+        "pre_enqueue_operational_gate_rejected %s",
+        diagnostic,
+        extra={
+            "reason_code": code,
+            "gate_message": diagnostic.pop("message"),
+            **diagnostic,
+        },
+    )
     raise error

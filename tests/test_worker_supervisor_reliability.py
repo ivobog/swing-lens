@@ -44,6 +44,8 @@ def _worker(*, pid: int = 200, instance_id: str | None = "instance-a") -> Backgr
         generation=3,
         started_at=now - timedelta(minutes=1),
         heartbeat_at=now,
+        resource_collector_heartbeat_at=now,
+        control_loop_heartbeat_at=now,
     )
 
 
@@ -148,6 +150,48 @@ def test_frozen_worker_is_fenced_terminated_and_recoverable(monkeypatch) -> None
 
     assert result is None
     assert events == ["terminated", "retired", ("requeued", [71])]
+
+
+def test_stale_control_loop_terminates_generation_before_fencing_locked_jobs(monkeypatch) -> None:
+    worker = _worker()
+    worker.control_loop_heartbeat_at = datetime.now(UTC) - timedelta(minutes=5)
+    events = []
+    os_alive = {"value": True}
+    monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
+    monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: worker)
+    monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _row: True)
+    monkeypatch.setattr(
+        worker_supervisor, "_worker_os_process_alive", lambda _row: os_alive["value"]
+    )
+
+    def terminate(*_args):
+        events.append("terminated")
+        os_alive["value"] = False
+
+    monkeypatch.setattr(worker_supervisor, "_terminate_worker_instance", terminate)
+    monkeypatch.setattr(
+        worker_supervisor,
+        "_fence_worker",
+        lambda *_args, **_kwargs: (
+            events.append("fenced")
+            or worker_supervisor.WorkerJobReconciliation(fenced_job_ids=(91,))
+        ),
+    )
+    monkeypatch.setattr(
+        worker_supervisor, "_retire_worker_registration", lambda _row: events.append("retired")
+    )
+    monkeypatch.setattr(
+        worker_supervisor,
+        "_requeue",
+        lambda ids, **_kwargs: events.append(("requeued", ids)),
+    )
+
+    result = worker_supervisor._supervise_once(
+        worker_id="worker-a", queues="interactive,broker,background", child=None
+    )
+
+    assert result is None
+    assert events == ["terminated", "fenced", "retired", ("requeued", [91])]
 
 
 def test_stale_registration_is_retired_and_supervisor_continues(monkeypatch) -> None:

@@ -1631,6 +1631,21 @@ class PipelineRun(Base):
         nullable=False,
     )
     status: Mapped[str] = mapped_column(Text, nullable=False)
+    # Explicit execution authority is separate from descriptive pipeline
+    # status. Historical rows created before the authority contract remain
+    # NULL and are therefore fail-closed without rewriting their evidence.
+    execution_authority_state: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+        default="ACTIVE",
+        server_default="ACTIVE",
+    )
+    execution_authority_reason: Mapped[str | None] = mapped_column(Text)
+    execution_authority_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        default=func.now(),
+        server_default=func.now(),
+    )
     current_step: Mapped[str | None] = mapped_column(Text)
     requested_by: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -1657,8 +1672,18 @@ class PipelineRun(Base):
     __table_args__ = (
         Index("idx_pipeline_runs_upload_run_id", "upload_run_id"),
         Index("idx_pipeline_runs_status", "status"),
+        Index(
+            "idx_pipeline_runs_execution_authority",
+            "execution_authority_state",
+            "status",
+        ),
         Index("idx_pipeline_runs_created_at", "created_at"),
         Index("idx_pipeline_runs_scope_refresh", "scope_id", "refresh_cycle_id"),
+        CheckConstraint(
+            "execution_authority_state IS NULL OR execution_authority_state IN "
+            "('ACTIVE', 'REVOKED', 'QUARANTINED', 'RETIRED')",
+            name="ck_pipeline_execution_authority_state",
+        ),
     )
 
 

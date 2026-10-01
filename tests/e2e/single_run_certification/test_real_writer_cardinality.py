@@ -50,6 +50,11 @@ from app.services.winner_probability.market_data_obligation_service import (
 )
 from app.services.winner_probability.outcome_service import OutcomeMaturationService
 from app.settings import SecDocumentIncrementalMode, Settings
+from single_run_certification.fixtures import (
+    _seed_price_bars,
+    _seed_setup_lifecycle_baseline,
+    certification_as_of_session,
+)
 from single_run_certification.frozen_ceri import frozen_ceri_registry
 from single_run_certification.reporting import CertificationRecorder
 from single_run_certification.test_single_run_certification import (
@@ -57,6 +62,7 @@ from single_run_certification.test_single_run_certification import (
     _run_pipeline_through_gui,
     certification_environment,  # noqa: F401
     certification_page,  # noqa: F401
+    certification_provider_mode,  # noqa: F401
 )
 
 EXACT_TEN = ("BHE", "BLLN", "KLIC", "LSCC", "PDFS", "ACMR", "RDVT", "AVT", "DVN", "JNJ")
@@ -105,7 +111,17 @@ def test_frozen_real_writer_cardinality(
                 )
                 for index, ticker in enumerate(tickers)
             )
-            db.commit()
+            _seed_setup_lifecycle_baseline(
+                db,
+                run_id=env.seed.decoy_run_id,
+                as_of_session=certification_as_of_session(),
+                tickers=tickers,
+            )
+            _seed_price_bars(
+                db,
+                tickers=tickers,
+                as_of_session=certification_as_of_session(),
+            )
             db.commit()
 
         recorder = CertificationRecorder(execution_id=env.execution_id)

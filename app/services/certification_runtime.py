@@ -4,10 +4,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Select, and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import BigInteger, Select, and_, cast, exists, func, or_, select
+from sqlalchemy.orm import Session, aliased
 
-from app.models.tables import BackgroundJob
+from app.models.tables import BackgroundJob, PipelineRun
 from app.observability.correlation import CausalityContext
 from app.services.runtime_mutation_authority import CERTIFICATION_CONTROL_MUTATIONS
 from app.settings import RuntimeMode, Settings, get_settings
@@ -32,6 +32,14 @@ CERTIFICATION_ACTIVE_ROOT_STATUSES = (
     "RECOVERING",
     "RETRYING",
     "RUNNING",
+)
+# FULL_PIPELINE completion can mean durable child dispatch completed while the
+# pipeline remains at WAITING_DEPENDENCY.  Explicitly session-authorized
+# descendants must remain claimable until that asynchronous lineage drains.
+# Failed/cancelled roots are intentionally excluded.
+CERTIFICATION_LINEAGE_ROOT_STATUSES = (
+    *CERTIFICATION_ACTIVE_ROOT_STATUSES,
+    "COMPLETED",
 )
 CERTIFICATION_RECOVERABLE_ROOT_STATUSES = (
     *CERTIFICATION_ACTIVE_ROOT_STATUSES,
@@ -90,9 +98,7 @@ def require_certification_session_id(
     session_id: str | None = None,
 ) -> str:
     value = str(
-        session_id
-        or getattr(settings or get_settings(), "runtime_instance_id", None)
-        or ""
+        session_id or getattr(settings or get_settings(), "runtime_instance_id", None) or ""
     ).strip()
     if not value:
         raise CertificationRuntimeViolation(
@@ -182,7 +188,7 @@ def certification_claim_filter(*, session_id: str) -> Any:
         _payload_authorized_expression(),
         _payload_session_expression(required_session),
         BackgroundJob.root_correlation_id.is_not(None),
-        BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
+        _certification_root_has_live_authority(),
     )
     return func.coalesce(
         and_(
@@ -190,12 +196,29 @@ def certification_claim_filter(*, session_id: str) -> Any:
             or_(
                 and_(
                     BackgroundJob.job_type.in_(CERTIFICATION_ROOT_JOB_TYPES),
-                    BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
+                    _certification_root_has_live_authority(),
                 ),
                 BackgroundJob.root_correlation_id.in_(active_roots),
             ),
         ),
         False,
+    )
+
+
+def _certification_root_has_live_authority(job: Any = BackgroundJob) -> Any:
+    """Allow completed dispatch roots only while their pipeline remains live."""
+
+    pipeline_id = cast(job.payload_json["pipeline_run_id"].as_string(), BigInteger)
+    live_pipeline = exists(
+        select(PipelineRun.id).where(
+            PipelineRun.id == pipeline_id,
+            PipelineRun.execution_authority_state == "ACTIVE",
+            PipelineRun.status.not_in({"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"}),
+        )
+    )
+    return or_(
+        job.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
+        and_(job.status == "COMPLETED", live_pipeline),
     )
 
 
@@ -225,9 +248,7 @@ def queue_isolation_status(
     if allow_authorized_lineage:
         query = query.where(
             ~certification_claim_filter(
-                session_id=require_certification_session_id(
-                    session_id=certification_session_id
-                )
+                session_id=require_certification_session_id(session_id=certification_session_id)
             )
         )
     if ignore_inactive_authorized_lineage:
@@ -256,9 +277,7 @@ def certification_claimable_job_ids(
             .where(BackgroundJob.run_after <= observed_at)
             .where(
                 certification_claim_filter(
-                    session_id=require_certification_session_id(
-                        session_id=certification_session_id
-                    )
+                    session_id=require_certification_session_id(session_id=certification_session_id)
                 )
             )
             .order_by(BackgroundJob.priority, BackgroundJob.created_at, BackgroundJob.id)
@@ -301,9 +320,7 @@ def certification_recovery_filter(*, session_id: str) -> Any:
 def apply_certification_recovery_scope(
     query: Select[Any], *, certification_session_id: str
 ) -> Select[Any]:
-    return query.where(
-        certification_recovery_filter(session_id=certification_session_id)
-    )
+    return query.where(certification_recovery_filter(session_id=certification_session_id))
 
 
 def effective_runtime_configuration(settings: Settings) -> dict[str, Any]:
@@ -321,18 +338,14 @@ def effective_runtime_configuration(settings: Settings) -> dict[str, Any]:
             list(CERTIFICATION_ALLOWED_CONTROL_ACTIVITY) if certification else []
         ),
         "authorized_root_job_type": (CERTIFICATION_ROOT_JOB_TYPE if certification else None),
-        "authorized_root_job_types": (
-            list(CERTIFICATION_ROOT_JOB_TYPES) if certification else []
-        ),
+        "authorized_root_job_types": (list(CERTIFICATION_ROOT_JOB_TYPES) if certification else []),
         "certification_session_id": (
             getattr(settings, "runtime_instance_id", None) if certification else None
         ),
     }
 
 
-def _is_authorized_root(
-    job_type: str, payload: dict[str, Any], *, session_id: str
-) -> bool:
+def _is_authorized_root(job_type: str, payload: dict[str, Any], *, session_id: str) -> bool:
     common = (
         payload.get(CERTIFICATION_AUTHORIZATION_KEY) is True
         and payload.get(CERTIFICATION_SESSION_KEY) == session_id
@@ -371,8 +384,7 @@ def _valid_ceri_feature_certification_contract(payload: dict[str, Any]) -> bool:
         "acquisition_plan_id",
     )
     return (
-        payload.get("certification_contract_version")
-        == CERI_FEATURE_CERTIFICATION_CONTRACT_VERSION
+        payload.get("certification_contract_version") == CERI_FEATURE_CERTIFICATION_CONTRACT_VERSION
         and payload.get("stop_boundary") == CERI_FEATURE_CERTIFICATION_STOP_BOUNDARY
         and isinstance(tickers, list)
         and len(tickers) == CERI_FEATURE_CERTIFICATION_MAX_TICKERS
@@ -396,9 +408,7 @@ def _valid_ceri_feature_certification_contract(payload: dict[str, Any]) -> bool:
             for key in ("run_id", "pipeline_run_id", "calculation_context_id")
         )
         and all(isinstance(payload.get(key), str) and payload[key] for key in required_text)
-        and str(payload.get("workflow_key") or "").startswith(
-            "ceri:feature-certification:"
-        )
+        and str(payload.get("workflow_key") or "").startswith("ceri:feature-certification:")
         and all(payload.get(permission) is False for permission in prohibited_permissions)
     )
 
@@ -410,6 +420,16 @@ def _authorized_parent_exists(
     root_correlation_id: str,
     session_id: str,
 ) -> bool:
+    root = aliased(BackgroundJob)
+    live_root = exists(
+        select(root.id).where(
+            root.job_type.in_(CERTIFICATION_ROOT_JOB_TYPES),
+            root.root_correlation_id == BackgroundJob.root_correlation_id,
+            _payload_authorized_expression(root),
+            _payload_session_expression(session_id, root),
+            _certification_root_has_live_authority(root),
+        )
+    )
     return bool(
         db.scalar(
             select(BackgroundJob.id)
@@ -418,19 +438,22 @@ def _authorized_parent_exists(
                 BackgroundJob.root_correlation_id == root_correlation_id,
                 _payload_authorized_expression(),
                 _payload_session_expression(session_id),
-                BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
+                or_(
+                    BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
+                    and_(BackgroundJob.status == "COMPLETED", live_root),
+                ),
             )
             .limit(1)
         )
     )
 
 
-def _payload_authorized_expression() -> Any:
-    return BackgroundJob.payload_json[CERTIFICATION_AUTHORIZATION_KEY].as_boolean().is_(True)
+def _payload_authorized_expression(job: Any = BackgroundJob) -> Any:
+    return job.payload_json[CERTIFICATION_AUTHORIZATION_KEY].as_boolean().is_(True)
 
 
-def _payload_session_expression(session_id: str) -> Any:
-    return BackgroundJob.payload_json[CERTIFICATION_SESSION_KEY].as_string() == session_id
+def _payload_session_expression(session_id: str, job: Any = BackgroundJob) -> Any:
+    return job.payload_json[CERTIFICATION_SESSION_KEY].as_string() == session_id
 
 
 def _inactive_authorized_descendant_expression() -> Any:
@@ -438,7 +461,7 @@ def _inactive_authorized_descendant_expression() -> Any:
         BackgroundJob.job_type.in_(CERTIFICATION_ROOT_JOB_TYPES),
         _payload_authorized_expression(),
         BackgroundJob.root_correlation_id.is_not(None),
-        ~BackgroundJob.status.in_(CERTIFICATION_ACTIVE_ROOT_STATUSES),
+        ~BackgroundJob.status.in_(CERTIFICATION_LINEAGE_ROOT_STATUSES),
     )
     return func.coalesce(
         and_(

@@ -55,9 +55,10 @@ def upload_page(request: Request, db: DbSession) -> HTMLResponse:
 @router.post("/uploads", response_class=HTMLResponse)
 @unsafe_route(
     ROUTE_CLASS_PUBLIC_LOCAL,
-    reason="creates an upload run from a local CSV file",
-    mutation_capability=MutationCapability.NORMAL_ONLY,
+    reason="creates an upload run from a local CSV file or isolated certification fixture",
+    mutation_capability=MutationCapability.CERTIFICATION_SESSION_SCOPED,
     operation="http.upload.create",
+    certification_root_creation=True,
 )
 def upload_csv(
     request: Request,

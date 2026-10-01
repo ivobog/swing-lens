@@ -13,6 +13,7 @@ from app.services.background_worker import (
     CancelRequested,
     JobDeferred,
     PreClaimInfrastructureError,
+    _active_pipeline_control_heartbeat_loop,
     _execute_full_pipeline_job,
     _run_worker_control_loop,
     execute_job,
@@ -64,7 +65,7 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     class Db:
         def scalar(self, _statement):
-            return "0087_pipeline_dependencies"
+            return "0089_pipeline_execution_authority"
 
     settings = Settings(
         _env_file=None,
@@ -124,10 +125,13 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
         status=JobStatus.RUNNING,
         execution_token="token-23",
         worker_id="worker-1",
+        worker_instance_id="instance-1",
         payload_json={"pipeline_run_id": 17},
     )
     db.get = lambda *_args, **_kwargs: pipeline  # type: ignore[method-assign]
     heartbeats: list[tuple[Session, BackgroundJob]] = []
+    worker_heartbeats: list[tuple[Session, str]] = []
+    control_heartbeats: list[tuple[Session, str]] = []
     progress_updates: list[tuple[Session, dict]] = []
 
     monkeypatch.setattr(
@@ -149,6 +153,14 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
     monkeypatch.setattr(
         "app.services.background_worker.record_job_progress",
         lambda control_db, **progress: progress_updates.append((control_db, progress)),
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_worker",
+        lambda control_db, worker_id, **_kwargs: worker_heartbeats.append((control_db, worker_id)),
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_worker_control_loop",
+        lambda control_db, worker_id, **_kwargs: control_heartbeats.append((control_db, worker_id)),
     )
     monkeypatch.setattr(
         "app.services.background_job_service.is_cancel_requested",
@@ -187,6 +199,43 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
     assert {control_job.id for _control_db, control_job in heartbeats} == {job.id}
     assert all(control_db is not db for control_db, _progress in progress_updates)
     assert progress_updates[1][1]["processed"] == 10
+    assert len(worker_heartbeats) == 2
+    assert len(control_heartbeats) == 2
+    assert all(control_db is not db for control_db, _worker_id in worker_heartbeats)
+    assert all(control_db is not db for control_db, _worker_id in control_heartbeats)
+
+
+def test_active_pipeline_control_heartbeat_renews_without_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class StopAfterOne:
+        count = 0
+
+        def wait(self, _interval: float) -> bool:
+            self.count += 1
+            return self.count > 1
+
+    monkeypatch.setattr(
+        "app.services.background_worker.persist_detached_job_control",
+        lambda **kwargs: calls.append(kwargs) or False,
+    )
+
+    _active_pipeline_control_heartbeat_loop(
+        session_factory=object(),
+        job_id=23,
+        execution_token="token-23",
+        worker_id="worker-1",
+        worker_instance_id="instance-1",
+        lease_seconds=900,
+        interval_seconds=5,
+        stop_event=StopAfterOne(),
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["job_id"] == 23
+    assert "progress" not in calls[0]
 
 
 def test_cancellation_can_stop_handler_before_next_bounded_batch() -> None:

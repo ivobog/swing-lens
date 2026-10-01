@@ -33,15 +33,18 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.database_safety import assert_disposable_database
+from app.models.ceri_tables import CeriScoreSnapshot
 from app.models.tables import PriceBar
 from app.services.bar_cache_service import cache_bars
 from app.services.ceri.config import load_ceri_config
+from app.services.ceri.evidence_eligibility import eligible_snapshot_select
 from app.services.ceri.sec.processor_lifecycle import (
     certify_processor,
     promote_processor,
     register_deployed_processor,
 )
 from app.services.ib_data_fetcher import HistoricalBar
+from app.services.runtime_certification_observer import observe_certification_runtime
 from app.services.runtime_mutation_authority import RuntimeMutationAuthority
 from app.services.winner_probability.market_data_obligation_service import (
     MarketDataObligationService,
@@ -72,6 +75,7 @@ ALEMBIC_HEAD = ScriptDirectory.from_config(
     Config(str(REPO_ROOT / "alembic.ini"))
 ).get_current_head()
 TERMINAL_PIPELINE_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"}
+LIVE_CANARY_TICKERS = ("AAPL", "MSFT", "NVDA", "AMZN", "META")
 
 
 @dataclass(frozen=True)
@@ -85,18 +89,33 @@ class CertificationEnvironment:
     execution_id: str
     server_log: Path
     ib_log: Path
+    provider_mode: str
+    tickers: tuple[str, ...]
 
 
 @pytest.fixture
 def certification_provider_ingest_enabled() -> bool:
-    return False
+    # Production runtime certification must exercise the durable asynchronous
+    # provider -> normalization -> feature -> finalizer graph.  External
+    # payloads are frozen by the allowlisted adapter; orchestration is not.
+    return True
+
+
+@pytest.fixture
+def certification_provider_mode() -> str:
+    mode = os.environ.get("SWINGLENS_CERTIFICATION_PROVIDER_MODE", "deterministic")
+    if mode not in {"deterministic", "live"}:
+        pytest.fail(f"Unsupported certification provider mode: {mode}")
+    return mode
 
 
 @pytest.fixture
 def certification_environment(
     tmp_path_factory: pytest.TempPathFactory,
     certification_provider_ingest_enabled: bool,
+    certification_provider_mode: str,
 ) -> Iterator[CertificationEnvironment]:
+    live_mode = certification_provider_mode == "live"
     execution_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     database_name = f"swinglens_pytest_cert_{uuid.uuid4().hex[:12]}"
     if not database_name.startswith("swinglens_pytest_cert_"):
@@ -135,7 +154,12 @@ def certification_environment(
     server_log = artifact_dir / "logs" / "uvicorn.log"
     ib_log = artifact_dir / "logs" / "deterministic-ib.jsonl"
     csv_path = runtime_root / "single-run-certification.csv"
-    csv_hash = write_canonical_csv(csv_path)
+    if live_mode:
+        csv_hash = _write_live_canary_csv(csv_path)
+        certification_tickers = LIVE_CANARY_TICKERS
+    else:
+        csv_hash = write_canonical_csv(csv_path)
+        certification_tickers = CANONICAL_TICKERS
     # This positive path freezes an enabled native profile, alongside the flags.
     winner_profile = yaml.safe_load((REPO_ROOT / "config/winner_probability.yaml").read_text())
     winner_profile["engine"]["enabled"] = True
@@ -150,7 +174,14 @@ def certification_environment(
         "DEBUG": "false",
         "ALLOW_PUBLIC_BIND": "false",
         "USE_DURABLE_PIPELINE": "true",
+        "RUNTIME_MODE": "CERTIFICATION",
+        "SWINGLENS_RUNTIME_INSTANCE_ID": execution_id,
+        "DURABLE_WORKER_PROCESS_ENABLED": "true",
+        "EMBEDDED_JOB_WORKER_ENABLED": "false",
         "JOB_WORKER_ENABLED": "false",
+        "MARKET_DATA_PREWARM_ENABLED": "false",
+        "WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED": "false",
+        "WINNER_PROBABILITY_AUTO_MATURATION_ENABLED": "false",
         "JOB_POLL_INTERVAL_SECONDS": "0.05",
         "JOB_STALE_AFTER_SECONDS": "120",
         "JOB_WORKER_ID": f"certification-{execution_id}",
@@ -181,9 +212,9 @@ def certification_environment(
             "true" if certification_provider_ingest_enabled else "false"
         ),
         "SEC_DOCUMENT_INCREMENTAL_MODE": (
-            "OFF" if certification_provider_ingest_enabled else os.environ.get(
-                "SEC_DOCUMENT_INCREMENTAL_MODE", "OFF"
-            )
+            "OFF"
+            if certification_provider_ingest_enabled
+            else os.environ.get("SEC_DOCUMENT_INCREMENTAL_MODE", "OFF")
         ),
         "CERI_RUN_CAPTURE_ENABLED": "true",
         "CERI_ALERTS_ENABLED": "true",
@@ -193,8 +224,29 @@ def certification_environment(
         "CERTIFICATION_WINNER_CONFIGURATION": str(winner_configuration_path),
         "CERTIFICATION_OUTCOME_NOW": "2027-01-15T22:00:00+00:00",
         "CERTIFICATION_FROZEN_CERI_PROVIDERS": str(certification_provider_ingest_enabled).lower(),
-        "PYTHONPATH": str(REPO_ROOT),
+        "SWINGLENS_CERTIFICATION_ADAPTER_MODULE": "certification_server",
+        "SWINGLENS_CERTIFICATION_PROVIDER_MODE": certification_provider_mode,
+        "SWINGLENS_RUNTIME_CHILD_LOG_DIR": str(artifact_dir / "logs"),
+        "PYTHONPATH": os.pathsep.join(
+            [str(REPO_ROOT), str(REPO_ROOT / "tests" / "e2e" / "single_run_certification")]
+        ),
     }
+    if live_mode:
+        # Only the provider boundary changes. The same supervisor, web
+        # process, durable worker, queue, leases and observer remain active.
+        env.pop("SWINGLENS_CERTIFICATION_ADAPTER_MODULE", None)
+        env["CERTIFICATION_FROZEN_CERI_PROVIDERS"] = "false"
+        for key in (
+            "IB_REQUEST_DELAY_SECONDS",
+            "IB_MIN_SECONDS_BETWEEN_REQUESTS",
+            "IB_REQUESTS_PER_MINUTE",
+            "IB_BACKOFF_SECONDS",
+            "IB_MAX_RETRIES",
+        ):
+            if key in os.environ:
+                env[key] = os.environ[key]
+            else:
+                env.pop(key, None)
 
     migration_log = artifact_dir / "logs" / "alembic-upgrade.log"
     migration = subprocess.run(
@@ -212,53 +264,49 @@ def certification_environment(
         admin.close()
         pytest.fail(f"BLOCKED: Alembic migration failed; see {migration_log}")
 
-    seed = seed_prerequisites(database_url, winner_configuration_path=winner_configuration_path)
+    seed = seed_prerequisites(
+        database_url,
+        winner_configuration_path=winner_configuration_path,
+        live_transition_tickers=certification_tickers if live_mode else (),
+    )
     _activate_disposable_sec_processor(database_url)
-    if certification_provider_ingest_enabled:
+    if certification_provider_ingest_enabled and not live_mode:
         _seed_disposable_sec_readiness(database_url)
     port = _available_port()
     base_url = f"http://127.0.0.1:{port}"
     log_handle = server_log.open("w", encoding="utf-8")
+    supervisor_env = {**env, "PROCESS_ROLE": "SUPERVISOR"}
+    supervisor_creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
     process = subprocess.Popen(
         [
             sys.executable,
             "-m",
-            "uvicorn",
-            "certification_server:app",
-            "--app-dir",
-            str(REPO_ROOT / "tests" / "e2e" / "single_run_certification"),
+            "app.worker_supervisor",
+            "--worker-id",
+            env["JOB_WORKER_ID"],
+            "--queues",
+            "interactive,broker,background",
             "--host",
             "127.0.0.1",
             "--port",
             str(port),
+            "--runtime-instance-id",
+            execution_id,
+            "--repo-root",
+            str(REPO_ROOT),
         ],
         cwd=REPO_ROOT,
-        env=env,
+        env=supervisor_env,
         stdout=log_handle,
         stderr=subprocess.STDOUT,
         text=True,
+        creationflags=supervisor_creationflags,
     )
-    worker_log = artifact_dir / "logs" / "worker.log"
-    worker_log_handle = worker_log.open("w", encoding="utf-8")
-    worker_creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-    worker_process = subprocess.Popen(
-        [
-            sys.executable,
-            str(
-                REPO_ROOT / "tests" / "e2e" / "single_run_certification" / "certification_server.py"
-            ),
-        ],
-        cwd=REPO_ROOT,
-        env=env,
-        stdout=worker_log_handle,
-        stderr=subprocess.STDOUT,
-        text=True,
-        creationflags=worker_creationflags,
-    )
+    worker_log = artifact_dir / "logs" / "lifecycle-worker.log"
     try:
         _wait_healthy(process, base_url, server_log)
         _wait_worker_ready(
-            worker_process,
+            process,
             database_url,
             env["JOB_WORKER_ID"],
             worker_log,
@@ -266,6 +314,7 @@ def certification_environment(
         environment_payload = {
             "execution_id": execution_id,
             "git_commit": _git_commit(),
+            "working_tree_fingerprint": env.get("SWINGLENS_CERTIFICATION_CODE_FINGERPRINT"),
             "alembic_revision": ALEMBIC_HEAD,
             "fixture_version": FIXTURE_VERSION,
             "fixture_hash": seed.fixture_hash,
@@ -274,7 +323,8 @@ def certification_environment(
             "database_engine": "PostgreSQL",
             "python": sys.version,
             "feature_flags": {key: value for key, value in env.items() if _is_feature_flag(key)},
-            "canonical_tickers": list(CANONICAL_TICKERS),
+            "canonical_tickers": list(certification_tickers),
+            "provider_mode": certification_provider_mode,
             "decoy_run_id": seed.decoy_run_id,
             "decoy_ticker": DECOY_TICKER,
         }
@@ -292,34 +342,37 @@ def certification_environment(
             execution_id=execution_id,
             server_log=server_log,
             ib_log=ib_log,
+            provider_mode=certification_provider_mode,
+            tickers=certification_tickers,
         )
     finally:
-        process.terminate()
+        if process.poll() is None and sys.platform == "win32":
+            process.send_signal(signal.CTRL_BREAK_EVENT)
+        elif process.poll() is None:
+            process.terminate()
         try:
-            process.wait(timeout=10)
+            process.wait(timeout=30)
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
-        if worker_process.poll() is None:
-            if sys.platform == "win32":
-                worker_process.send_signal(signal.CTRL_BREAK_EVENT)
-            else:
-                worker_process.terminate()
-            try:
-                worker_process.wait(timeout=15)
-            except subprocess.TimeoutExpired:
-                worker_process.kill()
-                worker_process.wait(timeout=5)
         log_handle.close()
-        worker_log_handle.close()
         _drop_database(admin, database_name)
         admin.close()
 
 
 @pytest.fixture
-def certification_page(browser: Browser) -> Iterator[Page]:
+def certification_page(
+    browser: Browser,
+    certification_environment: CertificationEnvironment,
+) -> Iterator[Page]:
     """Use the shared browser runtime with an isolated certification context."""
-    context = browser.new_context(accept_downloads=True, viewport={"width": 1600, "height": 1000})
+    context = browser.new_context(
+        accept_downloads=True,
+        viewport={"width": 1600, "height": 1000},
+        extra_http_headers={
+            "x-swinglens-certification-session": certification_environment.execution_id
+        },
+    )
     page = context.new_page()
     try:
         yield page
@@ -342,6 +395,7 @@ def test_single_run_comprehensive_e2e_certification(
     pipeline_steps: list[dict] = []
     idempotency: dict = {}
     exports: list[dict] = []
+    runtime_identity: dict = {}
     page.context.tracing.start(screenshots=True, snapshots=True, sources=True)
 
     try:
@@ -355,11 +409,66 @@ def test_single_run_comprehensive_e2e_certification(
             expected="COMPLETED or PARTIAL",
             actual=terminal_status,
         )
+        pipeline_identity = query_rows(
+            engine,
+            """
+            select id as pipeline_id, created_at as pipeline_started_at,
+                   completed_at as pipeline_finished_at
+            from pipeline_runs where id=:pipeline_id
+            """,
+            {"pipeline_id": pipeline_id},
+        )
+        root_identity = query_rows(
+            engine,
+            """
+            select id as root_job_id, root_correlation_id
+            from background_jobs
+            where related_run_id=:run_id and job_type='FULL_PIPELINE'
+              and parent_job_id is null
+              and (payload_json->>'pipeline_run_id')::bigint=:pipeline_id
+            order by id limit 1
+            """,
+            {"run_id": run_id, "pipeline_id": pipeline_id},
+        )
+        worker_identity = query_rows(
+            engine,
+            """
+            select worker_id, instance_id as worker_instance_id,
+                   generation as worker_generation,
+                   process_id as worker_process_id, started_at as worker_started_at
+            from background_workers where worker_id=:worker_id
+            """,
+            {"worker_id": f"certification-{env.execution_id}"},
+        )
+        runtime_identity = {
+            **(pipeline_identity[0] if pipeline_identity else {}),
+            **(root_identity[0] if root_identity else {}),
+            **(worker_identity[0] if worker_identity else {}),
+            "runtime_instance_id": env.execution_id,
+        }
+        required_identity = {
+            "pipeline_id",
+            "root_job_id",
+            "root_correlation_id",
+            "worker_id",
+            "worker_instance_id",
+            "worker_generation",
+            "pipeline_started_at",
+            "pipeline_finished_at",
+        }
+        recorder.check(
+            required_identity.issubset(runtime_identity)
+            and all(runtime_identity.get(key) is not None for key in required_identity),
+            "runtime identity records pipeline, root job, and worker generation",
+            area="Pipeline/Jobs",
+            expected=sorted(required_identity),
+            actual=runtime_identity,
+        )
         pipeline_steps = query_rows(
             engine,
             """
             select step_order, step_name, status, started_at, completed_at,
-                   message, error_message, retry_count
+                   message, error_message, retry_count, result_json
             from pipeline_steps where pipeline_run_id = :pipeline_id order by step_order
             """,
             {"pipeline_id": pipeline_id},
@@ -449,30 +558,18 @@ def test_single_run_comprehensive_e2e_certification(
             actual=graph_result.relationship_count,
         )
         recorder.check(
-            any(
-                entry["table"] == "winner_processing_runs"
-                and "maturation" in entry["relationship_to_run"]
-                for entry in graph["tables"]
-            ),
-            "run evidence graph includes Winner Evidence maturation processing lineage",
+            any(entry["table"] == "winner_prediction_snapshots" for entry in graph["tables"]),
+            "run evidence graph includes pipeline-owned Winner prediction lineage",
             area="Winner Evidence",
             expected=True,
             actual=[entry["table"] for entry in graph["tables"] if "winner" in entry["table"]],
         )
         recorder.check(
-            any(
-                entry["table"] == "background_jobs"
-                and "matured outcome" in entry["relationship_to_run"]
-                for entry in graph["tables"]
-            ),
-            "run evidence graph includes the browser-queued maturation background job",
-            area="Pipeline/Jobs",
-            expected=True,
-            actual=[
-                entry["relationship_to_run"]
-                for entry in graph["tables"]
-                if entry["table"] == "background_jobs"
-            ],
+            idempotency.get("winner_maturation", {}).get("mutation_status") == "REJECTED",
+            "certification evidence records the fenced unrelated Winner mutation",
+            area="Isolation/Integrity",
+            expected="REJECTED",
+            actual=idempotency.get("winner_maturation", {}).get("mutation_status"),
         )
         recorder.integrity_checks = database_integrity_checks(engine, run_id)
         for check in recorder.integrity_checks:
@@ -502,6 +599,8 @@ def test_single_run_comprehensive_e2e_certification(
             if run_rows:
                 environment["run_status"] = run_rows[0]["status"]
                 environment["ticker_count"] = run_rows[0]["row_count"]
+        environment["provider_mode"] = "deterministic"
+        environment["runtime_identity"] = runtime_identity
         write_report(
             env.artifact_dir,
             recorder=recorder,
@@ -518,6 +617,246 @@ def test_single_run_comprehensive_e2e_certification(
         engine.dispose()
 
     assert not recorder.failures, f"Certification FAIL; evidence: {env.artifact_dir}\n" + "\n".join(
+        recorder.failures
+    )
+
+
+@pytest.mark.e2e
+@pytest.mark.slow
+@pytest.mark.destructive
+@pytest.mark.live_provider
+def test_live_provider_canary_uses_production_runtime(
+    certification_page: Page,
+    certification_environment: CertificationEnvironment,
+) -> None:
+    """Exercise real providers through the same isolated production topology."""
+
+    page = certification_page
+    env = certification_environment
+    recorder = CertificationRecorder(execution_id=env.execution_id)
+    engine = create_engine(env.database_url)
+    pipeline_steps: list[dict] = []
+    metrics: dict[str, object] = {}
+    runtime_identity: dict[str, object] = {}
+    page.context.tracing.start(screenshots=True, snapshots=True, sources=True)
+    try:
+        recorder.check(
+            env.provider_mode == "live",
+            "live certification provider boundary is active",
+            area="Provider Boundary",
+            expected="live",
+            actual=env.provider_mode,
+        )
+        run_id = _launch_run_through_gui(page, env, recorder)
+        recorder.run_id = run_id
+        pipeline_id, terminal_status = _run_pipeline_through_gui(
+            page,
+            env,
+            recorder,
+            run_id,
+            absolute_deadline_seconds=1800,
+            progress_deadline_seconds=180,
+        )
+        pipeline_steps = query_rows(
+            engine,
+            "select step_order,step_name,status,started_at,completed_at,message,"
+            "error_message,retry_count,result_json from pipeline_steps "
+            "where pipeline_run_id=:pipeline_id order by step_order",
+            {"pipeline_id": pipeline_id},
+        )
+        root_rows = query_rows(
+            engine,
+            "select id as root_job_id,root_correlation_id,worker_instance_id,"
+            "started_at,completed_at from background_jobs where related_run_id=:run_id "
+            "and job_type='FULL_PIPELINE' and parent_job_id is null "
+            "and (payload_json->>'pipeline_run_id')::bigint=:pipeline_id order by id limit 1",
+            {"run_id": run_id, "pipeline_id": pipeline_id},
+        )
+        worker_rows = query_rows(
+            engine,
+            "select worker_id,instance_id as worker_instance_id,generation as worker_generation "
+            "from background_workers where worker_id=:worker_id",
+            {"worker_id": f"certification-{env.execution_id}"},
+        )
+        runtime_identity = {
+            "pipeline_id": pipeline_id,
+            "runtime_instance_id": env.execution_id,
+            **(root_rows[0] if root_rows else {}),
+            **(worker_rows[0] if worker_rows else {}),
+        }
+        jobs = query_rows(
+            engine,
+            "select id,job_type,status,parent_job_id,pipeline_dependency_id,created_at,"
+            "started_at,completed_at,"
+            "heartbeat_at,lease_expires_at,progress_sequence,progress_processed,progress_total,"
+            "retry_count,recovery_count,payload_json,operational_metadata_json "
+            "from background_jobs where related_run_id=:run_id "
+            "and (payload_json->>'pipeline_run_id')::bigint=:pipeline_id order by id",
+            {"run_id": run_id, "pipeline_id": pipeline_id},
+        )
+        provider_jobs = [row for row in jobs if row["job_type"] == "CERI_PROVIDER_INGEST_BATCH"]
+        multi_symbol = [
+            row
+            for row in provider_jobs
+            if len((row.get("payload_json") or {}).get("tickers") or []) >= 2
+        ]
+        checkpointed = [
+            row
+            for row in multi_symbol
+            if int(row.get("progress_sequence") or 0) >= 2
+            and len(
+                ((row.get("operational_metadata_json") or {}).get("ceri_batch") or {}).get(
+                    "completed_tickers", []
+                )
+            )
+            >= 2
+        ]
+        continuations = [
+            row
+            for row in jobs
+            if row["job_type"] == "FULL_PIPELINE" and row.get("parent_job_id") is not None
+        ]
+        dependencies = query_rows(
+            engine,
+            "select id,dependency_type from pipeline_dependencies "
+            "where pipeline_run_id=:pipeline_id order by id",
+            {"pipeline_id": pipeline_id},
+        )
+        dependency_types = {row["id"]: row["dependency_type"] for row in dependencies}
+        ceri_continuations = [
+            row
+            for row in continuations
+            if dependency_types.get(row.get("pipeline_dependency_id")) == "CERI_WORKFLOW"
+        ]
+        sec_continuations = [
+            row
+            for row in continuations
+            if dependency_types.get(row.get("pipeline_dependency_id")) == "SEC_READINESS"
+        ]
+        telemetry = query_rows(
+            engine,
+            "select provider,count(*) as calls,coalesce(sum(retry_count),0) as retries,"
+            "max(latency_ms) as max_latency_ms,count(*) filter (where error_code is not null) "
+            "as errors from ceri_provider_request_telemetry where root_correlation_id=:root "
+            "group by provider order by provider",
+            {"root": runtime_identity.get("root_correlation_id")},
+        )
+        telemetry_by_provider = {row["provider"]: row for row in telemetry}
+        price_counts = query_rows(
+            engine,
+            "select ticker,count(*) as bars from price_bars where ticker=any(:tickers) "
+            "group by ticker order by ticker",
+            {"tickers": list(env.tickers)},
+        )
+        step_by_name = {row["step_name"]: row for row in pipeline_steps}
+        recorder.check(
+            terminal_status in {"COMPLETED", "PARTIAL"},
+            "live pipeline reached successful terminal state",
+            area="Pipeline/Jobs",
+            expected="COMPLETED or PARTIAL",
+            actual=terminal_status,
+        )
+        recorder.check(
+            all(row["status"] in {"COMPLETED", "PARTIAL"} for row in pipeline_steps),
+            "every live pipeline stage is terminal-successful",
+            area="Pipeline/Jobs",
+            expected="all COMPLETED/PARTIAL",
+            actual={row["step_name"]: row["status"] for row in pipeline_steps},
+        )
+        recorder.check(
+            bool(checkpointed),
+            "multi-symbol live EODHD batch persisted per-symbol checkpoints",
+            area="Live CERI",
+            expected=">=2 completed symbols and progress_sequence >=2",
+            actual=checkpointed,
+        )
+        recorder.check(
+            len(ceri_continuations) == 1 and ceri_continuations[0]["status"] == "COMPLETED",
+            "CERI continuation was claimed exactly once",
+            area="Live Continuation",
+            expected="one completed continuation",
+            actual=ceri_continuations,
+        )
+        recorder.check(
+            len(sec_continuations) == 1 and sec_continuations[0]["status"] == "COMPLETED",
+            "SEC readiness continuation was claimed exactly once",
+            area="Live Continuation",
+            expected="one completed SEC continuation",
+            actual=sec_continuations,
+        )
+        for provider in ("eodhd", "sec"):
+            provider_row = telemetry_by_provider.get(provider)
+            recorder.check(
+                provider_row is not None
+                and int(provider_row.get("calls") or 0) > 0
+                and int(provider_row.get("errors") or 0) == 0,
+                f"live {provider.upper()} provider requests completed without errors",
+                area=f"Live {provider.upper()}",
+                expected="calls > 0 and errors = 0",
+                actual=provider_row,
+            )
+        recorder.check(
+            {row["ticker"] for row in price_counts} == set(env.tickers),
+            "IB market-data path persisted bars for the complete live cohort",
+            area="Live IB",
+            expected=sorted(env.tickers),
+            actual=price_counts,
+        )
+        for stage in (
+            "CAPTURING_SETUP_SIGNALS",
+            "EVALUATING_SETUP_LIFECYCLES",
+            "CAPTURING_WINNER_PREDICTIONS",
+        ):
+            recorder.check(
+                stage in step_by_name and step_by_name[stage]["status"] in {"COMPLETED", "PARTIAL"},
+                f"{stage} completed through live pipeline",
+                area=stage,
+                expected="COMPLETED/PARTIAL",
+                actual=step_by_name.get(stage),
+            )
+        metrics = {
+            "ticker_cohort": list(env.tickers),
+            "job_graph": jobs,
+            "provider_telemetry": telemetry,
+            "ib_price_bar_counts": price_counts,
+            "retry_count": sum(int(row.get("retry_count") or 0) for row in jobs),
+            "recovery_count": sum(int(row.get("recovery_count") or 0) for row in jobs),
+            "provider_child_count": len(provider_jobs),
+            "continuation_count": len(continuations),
+        }
+        (env.artifact_dir / "live-provider-metrics.json").write_text(
+            json.dumps(metrics, indent=2, sort_keys=True, default=str), encoding="utf-8"
+        )
+    except Exception as exc:
+        recorder.failures.append(f"Live harness execution: {type(exc).__name__}: {exc}")
+        (env.artifact_dir / "logs" / "live-harness-traceback.log").write_text(
+            traceback.format_exc(), encoding="utf-8"
+        )
+    finally:
+        environment = json.loads(
+            (env.artifact_dir / "environment.json").read_text(encoding="utf-8")
+        )
+        environment["provider_mode"] = "live"
+        environment["runtime_identity"] = runtime_identity
+        environment["run_status"] = next(
+            (row["status"] for row in pipeline_steps if row["step_order"] == 1), None
+        )
+        environment["ticker_count"] = len(env.tickers)
+        write_report(
+            env.artifact_dir,
+            recorder=recorder,
+            environment=environment,
+            graph={},
+            pipeline_steps=pipeline_steps,
+            idempotency={"live_provider_metrics": metrics},
+            exports=[],
+        )
+        if recorder.failures:
+            page.context.tracing.stop(path=env.artifact_dir / "logs" / "playwright-trace.zip")
+        else:
+            page.context.tracing.stop()
+        engine.dispose()
+    assert not recorder.failures, f"Live canary FAIL; evidence: {env.artifact_dir}\n" + "\n".join(
         recorder.failures
     )
 
@@ -572,28 +911,57 @@ def _run_pipeline_through_gui(
     ib_preflight.locator("[data-ib-run-ready]").click()
     confirm = page.locator("[data-confirm-panel]")
     confirm.wait_for(state="visible", timeout=30_000)
-    confirm.locator("[data-confirm-continue]").click()
-    page.wait_for_url(re.compile(rf"/runs/{run_id}/pipeline/\d+$"), timeout=30_000)
+    # Admission reconstructs and fingerprints the complete transition candidate
+    # set.  On a cold certification database that can legitimately outlive
+    # Playwright's 30-second action-navigation timeout even though the request
+    # is still making bounded progress.
+    confirm.locator("[data-confirm-continue]").click(no_wait_after=True)
+    page.wait_for_url(re.compile(rf"/runs/{run_id}/pipeline(?:/\d+)?$"), timeout=120_000)
+    if not re.search(rf"/runs/{run_id}/pipeline/\d+$", page.url):
+        raise RuntimeError(
+            "PIPELINE_ADMISSION_REJECTED: "
+            + (page.locator("body").text_content() or "empty response body")
+        )
     pipeline_id = int(page.url.rsplit("/", 1)[-1])
     absolute_deadline = time.monotonic() + absolute_deadline_seconds
     progress_deadline = time.monotonic() + progress_deadline_seconds
     previous_progress = None
     status = ""
-    while time.monotonic() < absolute_deadline and time.monotonic() < progress_deadline:
-        status = (page.locator("[data-pipeline-status]").text_content() or "").strip()
-        if status in TERMINAL_PIPELINE_STATUSES:
-            break
-        progress = (
-            status,
-            (page.locator("[data-pipeline-last-progress]").text_content() or "").strip(),
-            (page.locator("[data-pipeline-progress-stage]").text_content() or "").strip(),
-            (page.locator("[data-pipeline-items-processed]").text_content() or "").strip(),
-            (page.locator("[data-pipeline-current-item]").text_content() or "").strip(),
-        )
-        if progress != previous_progress:
-            previous_progress = progress
-            progress_deadline = time.monotonic() + progress_deadline_seconds
-        page.wait_for_timeout(500)
+    observer_engine = create_engine(env.database_url)
+    observer_log = env.artifact_dir / "runtime-invariants.jsonl"
+    try:
+        while time.monotonic() < absolute_deadline and time.monotonic() < progress_deadline:
+            status = (page.locator("[data-pipeline-status]").text_content() or "").strip()
+            with Session(observer_engine) as observer_db:
+                observation = observe_certification_runtime(
+                    observer_db,
+                    pipeline_id=pipeline_id,
+                    lock_wait_seconds=5,
+                    transaction_age_seconds=120,
+                    no_progress_seconds=progress_deadline_seconds,
+                )
+            with observer_log.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(observation.as_dict(), default=str, sort_keys=True) + "\n")
+            if observation.failures:
+                raise RuntimeError(
+                    "PRODUCTION_RUNTIME_INVARIANT_FAILED: "
+                    + json.dumps(observation.as_dict(), default=str, sort_keys=True)
+                )
+            if status in TERMINAL_PIPELINE_STATUSES:
+                break
+            progress = (
+                status,
+                (page.locator("[data-pipeline-last-progress]").text_content() or "").strip(),
+                (page.locator("[data-pipeline-progress-stage]").text_content() or "").strip(),
+                (page.locator("[data-pipeline-items-processed]").text_content() or "").strip(),
+                (page.locator("[data-pipeline-current-item]").text_content() or "").strip(),
+            )
+            if progress != previous_progress:
+                previous_progress = progress
+                progress_deadline = time.monotonic() + progress_deadline_seconds
+            page.wait_for_timeout(500)
+    finally:
+        observer_engine.dispose()
     recorder.check(
         status in TERMINAL_PIPELINE_STATUSES,
         "pipeline progress page reached terminal state",
@@ -919,7 +1287,7 @@ def _compare_current_surface(
 
 def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
     gui_rows = _table_rows(page, {"Ticker", "Opportunity", "Risk", "Confidence", "Posture"})
-    db_rows = query_rows(
+    produced_rows = query_rows(
         engine,
         """
         select ticker, opportunity_score, event_risk_score, data_confidence, posture
@@ -927,6 +1295,20 @@ def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: i
         """,
         {"run_id": run_id},
     )
+    with Session(engine) as db:
+        eligible_rows = list(
+            db.scalars(eligible_snapshot_select().where(CeriScoreSnapshot.run_id == run_id))
+        )
+    db_rows = [
+        {
+            "ticker": row.ticker,
+            "opportunity_score": row.opportunity_score,
+            "event_risk_score": row.event_risk_score,
+            "data_confidence": row.data_confidence,
+            "posture": row.posture,
+        }
+        for row in eligible_rows
+    ]
     recorder.check(
         len(gui_rows) == len(db_rows),
         "CERI visible row count matches DB",
@@ -935,11 +1317,11 @@ def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: i
         actual=len(gui_rows),
     )
     recorder.check(
-        len(db_rows) == len(CANONICAL_TICKERS),
+        len(produced_rows) == len(CANONICAL_TICKERS),
         "CERI produced one run-owned score snapshot per canonical ticker",
         area="CERI",
         expected=len(CANONICAL_TICKERS),
-        actual=len(db_rows),
+        actual=len(produced_rows),
     )
     db_by = {row["ticker"]: row for row in db_rows}
     for gui in gui_rows:
@@ -1221,6 +1603,102 @@ def _mature_winner_evidence(
         expected=">0",
         actual=pending_before,
     )
+
+    # Certification executes the production capture path but may not create a
+    # second, unrelated mutation root.  Exercise the real browser endpoint and
+    # prove that the certification mutation fence leaves durable state intact.
+    before_job_id = query_rows(
+        engine,
+        "select coalesce(max(id), 0) as value from background_jobs",
+    )[0]["value"]
+    response = page.goto(f"{env.base_url}/winner-probability/operations")
+    recorder.check(
+        response is not None and response.status == 200,
+        "Winner Evidence operations rendered before fenced maturation request",
+        area="Winner Evidence",
+        expected=200,
+        actual=response.status if response else None,
+    )
+    page.locator(
+        'form[action="/api/winner-probability/outcomes/process"] button[type="submit"]'
+    ).click()
+    output = page.locator('form[action="/api/winner-probability/outcomes/process"] output')
+    output.wait_for(state="visible", timeout=10_000)
+    expect(output).to_contain_text(
+        re.compile(r"CERTIFICATION_MUTATION_FORBIDDEN|not authorized during certification"),
+        timeout=10_000,
+    )
+    rejection = (output.text_content() or "").strip()
+    after_job_id = query_rows(
+        engine,
+        "select coalesce(max(id), 0) as value from background_jobs",
+    )[0]["value"]
+    prediction_after = query_rows(
+        engine,
+        """
+        select id, run_id, ticker, prediction_as_of_date, source_data_cutoff_at,
+               captured_at, planned_entry_session, eligibility_status, setup_family,
+               setup_classification, ranking_profile, fundamental_score, technical_score,
+               combined_score, market_regime, market_risk_state, sector_state, sector_rank,
+               feature_schema_version, feature_vector_hash, config_hash,
+               calculation_version, revision, feature_json, source_ids_json,
+               warning_flags_json, lineage_json
+        from winner_prediction_snapshots where id=:prediction_id
+        """,
+        {"prediction_id": prediction_id},
+    )[0]
+    pending_after = query_rows(
+        engine,
+        """
+        select count(*) as value from winner_forward_outcomes
+        where prediction_id=:prediction_id and status='PENDING' and is_current_revision
+        """,
+        {"prediction_id": prediction_id},
+    )[0]["value"]
+    immutable_hash_after = _payload_hash(prediction_after)
+    recorder.check(
+        (
+            "CERTIFICATION_MUTATION_FORBIDDEN" in rejection
+            or "not authorized during certification" in rejection
+        ),
+        "certification rejects unrelated Winner maturation through the production endpoint",
+        area="Isolation/Integrity",
+        expected="certification mutation rejection",
+        actual=rejection,
+    )
+    recorder.check(
+        after_job_id == before_job_id,
+        "rejected Winner maturation creates no durable job",
+        area="Isolation/Integrity",
+        expected=before_job_id,
+        actual=after_job_id,
+    )
+    recorder.check(
+        immutable_hash_after == immutable_hash_before and pending_after == pending_before,
+        "rejected Winner maturation leaves prediction and outcomes unchanged",
+        area="Winner Evidence",
+        expected={"hash": immutable_hash_before, "pending": pending_before},
+        actual={"hash": immutable_hash_after, "pending": pending_after},
+    )
+    _capture_surface(
+        page,
+        env,
+        recorder,
+        name="winner-operations",
+        path="/winner-probability/operations",
+        ordinal=180,
+        heading="Winner Probability Operations",
+    )
+    return {
+        "prediction_id": prediction_id,
+        "ticker": prediction["ticker"],
+        "mutation_status": "REJECTED",
+        "reason": rejection,
+        "immutable_hash_before": immutable_hash_before,
+        "immutable_hash_after": immutable_hash_after,
+        "pending_before": pending_before,
+        "pending_after": pending_after,
+    }
 
     seeded = _seed_later_market_bars(engine, prediction_id)
     recorder.check(
@@ -1856,24 +2334,17 @@ def _acknowledge_one_alert(page: Page, engine, env, recorder, run_id: int) -> No
     row = button.locator("xpath=ancestor::tr")
     alert_id = int(str(row.get_attribute("id")).split("-")[-1])
     button.click()
-    page.wait_for_function(
-        """
-        id => document.querySelector(
-          `#alert-${id} [data-slse-alert-status]`
-        )?.textContent.includes('ACKNOWLEDGED')
-        """,
-        arg=alert_id,
-    )
+    row.locator("[data-slse-alert-status]").filter(has_text="Update failed").wait_for()
     db_status = query_rows(
         engine,
         "select status, acknowledged_at from signal_alert_events where id=:id",
         {"id": alert_id},
     )[0]
     recorder.check(
-        db_status["status"] == "ACKNOWLEDGED" and db_status["acknowledged_at"] is not None,
-        "GUI lifecycle alert acknowledgement persisted",
-        area="Alerts",
-        expected="ACKNOWLEDGED with timestamp",
+        db_status["status"] == "UNREAD" and db_status["acknowledged_at"] is None,
+        "certification fences lifecycle alert acknowledgement",
+        area="Isolation/Integrity",
+        expected="UNREAD without timestamp",
         actual=db_status,
     )
     page.screenshot(
@@ -1898,17 +2369,17 @@ def _acknowledge_one_ceri_alert(page: Page, engine, env, recorder) -> None:
     alert_id = int(action.split("/")[-2])
     row = button.locator("xpath=ancestor::tr")
     button.click()
-    row.locator("[data-ceri-alert-status]").filter(has_text="ACKNOWLEDGED").wait_for()
+    row.locator("[data-ceri-alert-status]").filter(has_text="Update failed").wait_for()
     db_status = query_rows(
         engine,
         "select status, acknowledged_at from ceri_alert_events where id=:id",
         {"id": alert_id},
     )[0]
     recorder.check(
-        db_status["status"] == "ACKNOWLEDGED" and db_status["acknowledged_at"] is not None,
-        "GUI CERI alert acknowledgement persisted",
-        area="CERI",
-        expected="ACKNOWLEDGED with timestamp",
+        db_status["status"] == "UNREAD" and db_status["acknowledged_at"] is None,
+        "certification fences CERI alert acknowledgement",
+        area="Isolation/Integrity",
+        expected="UNREAD without timestamp",
         actual=db_status,
     )
     page.screenshot(
@@ -1985,9 +2456,21 @@ def _capture_exports(page: Page, engine, env, recorder, run_id: int) -> list[dic
             download_info.value.save_as(destination)
             content = destination.read_text(encoding="utf-8-sig")
             row_count = max(0, len(list(csv.reader(content.splitlines()))) - 1)
-            expected_count = int(
-                query_rows(engine, expected_count_sql[name], {"run_id": run_id})[0]["value"]
-            )
+            if name == "ceri.csv":
+                with Session(engine) as db:
+                    expected_count = len(
+                        list(
+                            db.scalars(
+                                eligible_snapshot_select(CeriScoreSnapshot.id).where(
+                                    CeriScoreSnapshot.run_id == run_id
+                                )
+                            )
+                        )
+                    )
+            else:
+                expected_count = int(
+                    query_rows(engine, expected_count_sql[name], {"run_id": run_id})[0]["value"]
+                )
             recorder.check(
                 row_count == expected_count,
                 f"{name} row count reconciles to DB",
@@ -2099,7 +2582,10 @@ def _assert_standalone_rankings_retired(page: Page, env, run_id: int) -> None:
     expect(page.get_by_role("button", name="Refresh rankings").first).to_be_disabled()
     response = page.request.post(f"{env.base_url}/runs/{run_id}/rankings/refresh")
     assert response.status == 409
-    assert response.json()["detail"]["code"] == "STANDALONE_MUTATION_RETIRED"
+    assert response.json()["detail"]["code"] in {
+        "STANDALONE_MUTATION_RETIRED",
+        "CERTIFICATION_MUTATION_FORBIDDEN",
+    }
 
 
 def _idempotency_counts(engine, run_id: int) -> dict:
@@ -2310,6 +2796,31 @@ def _surface_area(name: str) -> str:
         "pipeline-progress": "Pipeline/Jobs",
     }
     return mapping.get(name, "Upload")
+
+
+def _write_live_canary_csv(path: Path) -> str:
+    """Reuse the certified input shape with a small real-provider cohort."""
+
+    write_canonical_csv(path)
+    with path.open("r", encoding="utf-8-sig", newline="") as source:
+        reader = csv.DictReader(source)
+        fieldnames = tuple(reader.fieldnames or ())
+        rows = list(reader)[: len(LIVE_CANARY_TICKERS)]
+    descriptions = {
+        "AAPL": "Apple Inc.",
+        "MSFT": "Microsoft Corporation",
+        "NVDA": "NVIDIA Corporation",
+        "AMZN": "Amazon.com, Inc.",
+        "META": "Meta Platforms, Inc.",
+    }
+    for row, ticker in zip(rows, LIVE_CANARY_TICKERS, strict=True):
+        row["Symbol"] = ticker
+        row["Description"] = descriptions[ticker]
+    with path.open("w", encoding="utf-8", newline="") as target:
+        writer = csv.DictWriter(target, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _available_port() -> int:

@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.ceri_tables import CeriIngestionRun
 from app.models.tables import BackgroundJob
@@ -57,6 +58,7 @@ from app.services.ceri.source_manifest_service import (
     load_feature_source_manifest,
 )
 from app.services.configuration_delivery import anchored_job_configuration
+from app.services.domain_write_fence import ControlPlaneLockTimeout
 from app.services.pipeline_prerequisites import CeriUpstreamStageBlockedError
 from app.services.pipeline_stage_registry import (
     CERI_FEATURE_PREPARE_PROGRESS_STAGE,
@@ -143,6 +145,8 @@ def execute_provider_ingest_batch_job(
             results[ticker] = result_values
         except CeriIngestionCancelled as exc:
             raise CancelRequested(str(exc)) from exc
+        except ControlPlaneLockTimeout:
+            raise
         except SQLAlchemyError:
             raise
         except Exception as exc:
@@ -165,7 +169,7 @@ def execute_provider_ingest_batch_job(
             if _heartbeat_and_cancel(db, job):
                 raise CancelRequested("CERI provider batch cancelled.")
     if failed:
-        job.status = JobStatus.PARTIAL
+        _set_job_outcome_status(job, JobStatus.PARTIAL)
     require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     return {
         "job_type": CERI_PROVIDER_INGEST_BATCH,
@@ -275,7 +279,7 @@ def execute_normalize_batch_job(
             if _heartbeat_and_cancel(db, job):
                 raise CancelRequested("CERI normalization batch cancelled.")
     if failed or any(value.get("status") == "PARTIAL" for value in results.values()):
-        job.status = JobStatus.PARTIAL
+        _set_job_outcome_status(job, JobStatus.PARTIAL)
     require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     return {
         "job_type": CERI_NORMALIZE_BATCH,
@@ -482,7 +486,7 @@ def execute_feature_batch_job(
         if _heartbeat_and_cancel(db, job):
             raise CancelRequested("CERI feature batch cancelled.")
     if failed or any(value.get("status") == "PARTIAL" for value in results.values()):
-        job.status = JobStatus.PARTIAL
+        _set_job_outcome_status(job, JobStatus.PARTIAL)
     family_timings: dict[str, int] = {}
     for value in results.values():
         for family, duration in (value.get("family_runtime_ms") or {}).items():
@@ -524,7 +528,25 @@ def execute_feature_batch_job(
     telemetry["sql_monitor"] = current_sql_summary_snapshot()
     metadata = dict(job.operational_metadata_json or {})
     metadata["ceri_feature_rebuild"] = telemetry
-    job.operational_metadata_json = metadata
+    control_plane = getattr(job, "_control_plane_progress", None)
+    if callable(control_plane):
+        cancelled = control_plane(
+            stage=CERI_PROGRESS_STAGES[CERI_FEATURE_BATCH],
+            current_item="feature-rebuild-complete",
+            last_completed_item=(sorted(completed)[-1] if completed else None),
+            processed=len(completed),
+            total=len(tickers),
+            checkpoint_version=f"ceri-feature-complete:{len(completed)}",
+            only_if_advanced=False,
+            operational_metadata_patch={
+                "ceri_feature_rebuild": metadata["ceri_feature_rebuild"]
+            },
+        )
+        if cancelled:
+            raise CancelRequested("CERI feature batch cancelled after rebuild.")
+        set_committed_value(job, "operational_metadata_json", metadata)
+    else:
+        job.operational_metadata_json = metadata
     return {
         "job_type": CERI_FEATURE_BATCH,
         "status": "PARTIAL" if job.status == JobStatus.PARTIAL else "COMPLETED",
@@ -639,8 +661,22 @@ def _freeze_pipeline_ceri_payload(
         "as_of_session": cutoff.latest_completed_session.isoformat(),
         "calendar_version": cutoff.calendar_version,
     }
-    job.payload_json = frozen
-    db.flush()
+    control_plane = getattr(job, "_control_plane_progress", None)
+    if callable(control_plane):
+        control_plane(
+            stage="CERI_CONTEXT_FREEZE",
+            current_item="calculation_context",
+            last_completed_item="calculation_context",
+            processed=1,
+            total=1,
+            checkpoint_version=f"ceri-context:{cutoff.context_id}",
+            only_if_advanced=False,
+            payload_json=frozen,
+        )
+        set_committed_value(job, "payload_json", frozen)
+    else:
+        job.payload_json = frozen
+        db.flush()
     return frozen
 
 
@@ -688,6 +724,13 @@ def _checkpoint_state(job: BackgroundJob) -> tuple[set[str], dict[str, dict[str,
     completed = {str(ticker).upper() for ticker in state.get("completed_tickers") or []}
     results = {str(key).upper(): dict(value) for key, value in (state.get("results") or {}).items()}
     return completed, results
+
+
+def _set_job_outcome_status(job: BackgroundJob, status: str) -> None:
+    if callable(getattr(job, "_control_plane_progress", None)):
+        set_committed_value(job, "status", status)
+    else:
+        job.status = status
 
 
 def _save_checkpoint(
@@ -738,7 +781,6 @@ def _save_checkpoint(
         "updated_at": checkpoint_at.isoformat(),
         "max_checkpoint_gap_seconds": max_checkpoint_gap_seconds,
     }
-    job.operational_metadata_json = metadata
     stage = CERI_PROGRESS_STAGES.get(job.job_type, "CERI_BATCH")
     control_plane = getattr(job, "_control_plane_progress", None)
     if callable(control_plane):
@@ -750,9 +792,12 @@ def _save_checkpoint(
             total=total,
             checkpoint_version=checkpoint_id,
             only_if_advanced=True,
+            operational_metadata_patch={"ceri_batch": metadata["ceri_batch"]},
         ):
             raise CancelRequested(f"{job.job_type} cancelled at {last_completed}.")
+        set_committed_value(job, "operational_metadata_json", metadata)
     elif isinstance(db, Session) and job.id is not None and job.execution_token:
+        job.operational_metadata_json = metadata
         record_job_progress(
             db,
             job_id=job.id,
@@ -766,6 +811,7 @@ def _save_checkpoint(
             only_if_advanced=True,
         )
     else:
+        job.operational_metadata_json = metadata
         job.last_progress_at = checkpoint_at
         job.progress_sequence = int(job.progress_sequence or 0) + 1
         job.progress_stage = stage
@@ -830,7 +876,6 @@ def _normalization_checkpoint(
             gap_seconds,
         ),
     }
-    job.operational_metadata_json = metadata
     control_plane = getattr(job, "_control_plane_progress", None)
     if callable(control_plane):
         with db.no_autoflush:
@@ -842,9 +887,14 @@ def _normalization_checkpoint(
                 last_completed_item=ticker,
                 processed=processed,
                 checkpoint_version=f"ceri-normalize:{ticker}:{source_record_id}",
+                operational_metadata_patch={
+                    "ceri_normalization": metadata["ceri_normalization"]
+                },
             )
         )
+        set_committed_value(job, "operational_metadata_json", metadata)
     elif job.id is not None and job.execution_token:
+        job.operational_metadata_json = metadata
         record_job_progress(
             db,
             job_id=job.id,
@@ -857,6 +907,7 @@ def _normalization_checkpoint(
         )
         cancelled = _heartbeat_and_cancel(db, job)
     else:
+        job.operational_metadata_json = metadata
         cancelled = _heartbeat_and_cancel(db, job)
     if cancelled:
         raise CeriNormalizationCancelled("CERI normalization batch cancelled.")
@@ -894,7 +945,6 @@ def _feature_prepare_checkpoint(
             gap_seconds,
         ),
     }
-    job.operational_metadata_json = metadata
     control_plane = getattr(job, "_control_plane_progress", None)
     if callable(control_plane):
         with db.no_autoflush:
@@ -907,9 +957,14 @@ def _feature_prepare_checkpoint(
                 processed=processed_queries,
                 checkpoint_version=checkpoint_id,
                 only_if_advanced=False,
+                operational_metadata_patch={
+                    "ceri_feature_prepare": metadata["ceri_feature_prepare"]
+                },
             )
         )
+        set_committed_value(job, "operational_metadata_json", metadata)
     elif job.id is not None and job.execution_token:
+        job.operational_metadata_json = metadata
         record_job_progress(
             db,
             job_id=job.id,
@@ -922,6 +977,7 @@ def _feature_prepare_checkpoint(
         )
         cancelled = _heartbeat_and_cancel(db, job)
     else:
+        job.operational_metadata_json = metadata
         job.last_progress_at = checkpoint_at
         job.progress_sequence = int(job.progress_sequence or 0) + 1
         job.progress_stage = CERI_FEATURE_PREPARE_PROGRESS_STAGE

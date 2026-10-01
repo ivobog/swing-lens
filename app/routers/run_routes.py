@@ -609,6 +609,22 @@ def run_full_pipeline_action(
     certification_mode = (
         getattr(settings, "runtime_mode", RuntimeMode.NORMAL) is RuntimeMode.CERTIFICATION
     )
+    if certification_mode and transition_preflight_plan_id is None:
+        # The production certification UI uses this same normal run endpoint.
+        # Reserve its immutable transition plan inside the request rather than
+        # allowing a test harness to bypass the production admission boundary.
+        from app.services.certification_runtime import require_certification_session_id
+        from app.services.transition_preflight_plan_service import (
+            create_transition_preflight_plan,
+        )
+
+        certification_session_id = require_certification_session_id(settings)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key=f"certification:{certification_session_id}:run:{run_id}",
+        )
+        transition_preflight_plan_id = int(plan.id)
     try:
         policy = MarketDataPolicy(market_data_policy)
     except ValueError as exc:

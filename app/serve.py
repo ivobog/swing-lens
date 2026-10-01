@@ -61,6 +61,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         args = parse_args(argv)
         settings = get_settings()
         require_process_role(settings, ProcessRole.WEB)
+        from app.services.certification_adapter import install_certification_adapter
+
+        install_certification_adapter(settings)
         log_event(logger, "runtime.role_validation", stage="role_validation", result="success")
     except Exception as exc:
         log_event(

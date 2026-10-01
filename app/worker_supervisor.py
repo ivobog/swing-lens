@@ -622,7 +622,46 @@ def _supervise_once(
 ) -> LaunchedWorker | None:
     settings = get_settings()
     worker = _registered_worker(worker_id)
-    worker_alive = _registered_worker_process_alive(worker)
+    process_alive = _registered_worker_process_alive(worker)
+    control_loop_alive = _registered_worker_control_loop_alive(worker)
+    resource_sampler_alive = _registered_worker_resource_sampler_alive(worker)
+
+    if process_alive and worker is not None and not control_loop_alive:
+        context = {
+            **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
+            "reason_code": "WORKER_CONTROL_LOOP_STALE",
+            "process_alive": True,
+            "resource_sampler_alive": resource_sampler_alive,
+            "control_loop_alive": False,
+            "job_execution_alive": False,
+        }
+        logger.error("worker.supervisor.control_loop_stale %s", context, extra=context)
+        # A wedged owner can retain the job row, making SKIP LOCKED recovery
+        # powerless. Terminate the exact registered generation first so normal
+        # PostgreSQL process cleanup rolls its transaction back. Only then
+        # reconcile jobs owned by that generation.
+        _terminate_worker_instance(worker, child, settings.worker_shutdown_grace_seconds)
+        if _worker_os_process_alive(worker):
+            logger.critical(
+                "worker.supervisor.control_loop_termination_failed %s",
+                context,
+                extra=context,
+            )
+            return child
+        reconciliation = _fence_worker(
+            worker_id,
+            worker.instance_id,
+            "Worker control-loop heartbeat is stale while its process heartbeat remains live.",
+            certification_session_id=certification_session_id,
+        )
+        _retire_worker_registration(worker)
+        _requeue(
+            list(reconciliation.fenced_job_ids),
+            certification_session_id=certification_session_id,
+        )
+        return None
+
+    worker_alive = process_alive and control_loop_alive
 
     if worker_alive and worker is not None:
         if child is not None:
@@ -816,7 +855,9 @@ def _start_web(args: argparse.Namespace) -> subprocess.Popen:
 def _start_logged_child(
     command: list[str], *, kwargs: dict[str, object], role: str
 ) -> subprocess.Popen:
-    log_path = Path.cwd() / "logs" / f"lifecycle-{role}.log"
+    configured_log_dir = os.environ.get("SWINGLENS_RUNTIME_CHILD_LOG_DIR")
+    log_root = Path(configured_log_dir).resolve() if configured_log_dir else Path.cwd() / "logs"
+    log_path = log_root / f"lifecycle-{role}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("ab", buffering=0) as output:
         return subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT, **kwargs)
@@ -847,6 +888,10 @@ def _registered_worker(worker_id: str) -> BackgroundWorker | None:
     with SessionLocal() as db:
         worker = db.get(BackgroundWorker, worker_id)
         if worker is not None:
+            # These health dimensions are deferred on the ORM model. Load them
+            # before detaching the registration used by the supervisor.
+            _ = worker.control_loop_heartbeat_at
+            _ = worker.resource_collector_heartbeat_at
             db.expunge(worker)
         return worker
 
@@ -862,6 +907,34 @@ def _registered_worker_process_alive(worker: BackgroundWorker | None) -> bool:
         seconds=settings.job_worker_heartbeat_timeout_seconds
     ):
         return False
+    return _worker_os_process_alive(worker)
+
+
+def _registered_worker_control_loop_alive(worker: BackgroundWorker | None) -> bool:
+    if worker is None or worker.stopping_at is not None:
+        return False
+    heartbeat = worker.control_loop_heartbeat_at
+    if heartbeat is None:
+        return False
+    if heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=UTC)
+    return heartbeat >= datetime.now(UTC) - timedelta(
+        seconds=get_settings().job_worker_heartbeat_timeout_seconds
+    )
+
+
+def _registered_worker_resource_sampler_alive(worker: BackgroundWorker | None) -> bool:
+    if worker is None or worker.resource_collector_heartbeat_at is None:
+        return False
+    heartbeat = worker.resource_collector_heartbeat_at
+    if heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=UTC)
+    return heartbeat >= datetime.now(UTC) - timedelta(
+        seconds=get_settings().job_worker_heartbeat_timeout_seconds
+    )
+
+
+def _worker_os_process_alive(worker: BackgroundWorker) -> bool:
     try:
         return process_is_alive(worker.process_id, worker.process_started_at)
     except Exception:

@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.ceri_tables import (
     CeriChangeEvent,
@@ -146,7 +147,7 @@ def execute_provider_ingest_job(
     except SQLAlchemyError:
         raise
     except Exception as exc:
-        job.status = JobStatus.PARTIAL
+        _set_job_outcome_status(job, JobStatus.PARTIAL)
         return {
             "job_type": CERI_PROVIDER_INGEST,
             "status": "PARTIAL",
@@ -171,7 +172,7 @@ def execute_provider_ingest_job(
     if normalize_job_id is not None:
         values["normalize_job_id"] = normalize_job_id
     if values.get("status") in {"PARTIAL", "CANCELLED"} or values.get("failed", 0):
-        job.status = JobStatus.PARTIAL
+        _set_job_outcome_status(job, JobStatus.PARTIAL)
     require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     return {"job_type": CERI_PROVIDER_INGEST, **values}
 
@@ -348,7 +349,7 @@ def execute_rebuild_features_job(
         errors={"records": list(result.errors)} if result.errors else None,
     )
     if result.failed:
-        job.status = JobStatus.PARTIAL
+        _set_job_outcome_status(job, JobStatus.PARTIAL)
     if pipeline_owned:
         require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     values = {
@@ -499,7 +500,6 @@ def execute_capture_run_job(
                     checkpoint_gap,
                 ),
             }
-            job.operational_metadata_json = metadata
             if callable(control_plane):
                 with db.no_autoflush:
                     require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
@@ -511,9 +511,12 @@ def execute_capture_run_job(
                     total=total,
                     checkpoint_version=f"ceri-capture:{processed}:{ticker}",
                     only_if_advanced=False,
+                    operational_metadata_patch={"ceri_capture": metadata["ceri_capture"]},
                 ):
                     raise CancelRequested("CERI capture cancelled.")
+                set_committed_value(job, "operational_metadata_json", metadata)
             elif job.id is not None and job.execution_token:
+                job.operational_metadata_json = metadata
                 record_job_progress(
                     db,
                     job_id=job.id,
@@ -532,6 +535,8 @@ def execute_capture_run_job(
                 if callable(heartbeat):
                     require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
                     heartbeat()
+            else:
+                job.operational_metadata_json = metadata
 
         capture_kwargs: dict[str, Any] = {}
         if market_cutoff is not None:
@@ -569,7 +574,7 @@ def execute_capture_run_job(
         result="partial" if values.get("failed") else "success",
     )
     if values.get("failed"):
-        job.status = JobStatus.PARTIAL
+        _set_job_outcome_status(job, JobStatus.PARTIAL)
     return {
         "job_type": CERI_CAPTURE_RUN,
         "processing_run_id": processing.id,
@@ -706,7 +711,7 @@ def execute_change_detection_job(
         errors={"records": list(result.errors)} if result.errors else None,
     )
     if result.failed:
-        job.status = JobStatus.PARTIAL
+        _set_job_outcome_status(job, JobStatus.PARTIAL)
     if _is_pipeline_owned_ceri_job(job, payload):
         require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     values = {
@@ -764,7 +769,7 @@ def execute_backfill_job(
         ),
     )
     if result.status == "PARTIAL":
-        job.status = JobStatus.PARTIAL
+        _set_job_outcome_status(job, JobStatus.PARTIAL)
     return {"job_type": CERI_BACKFILL, **result.as_dict()}
 
 
@@ -1405,6 +1410,13 @@ def _bind_semantic_child(source: BackgroundJob, child: BackgroundJob) -> None:
 
 def _safe_job_error(exc: Exception) -> str:
     return redact_text(str(exc)).replace("\n", " ").strip()[:500] or exc.__class__.__name__
+
+
+def _set_job_outcome_status(job: BackgroundJob, status: str) -> None:
+    if callable(getattr(job, "_control_plane_progress", None)):
+        set_committed_value(job, "status", status)
+    else:
+        job.status = status
 
 
 def _heartbeat_and_check_cancel(db: Session, job: BackgroundJob) -> bool:
