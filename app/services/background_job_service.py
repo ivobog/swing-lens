@@ -34,6 +34,7 @@ from app.models.tables import (
 from app.observability.correlation import CausalityContext, enqueue_causality, workflow_family
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_queue import QueueClaimGroup, worker_queue_filter
+from app.services.pipeline_stage_registry import progress_timeout_seconds
 from app.services.redaction import redact_sensitive, redacted_token_metadata
 from app.services.runtime_mutation_authority import (
     RecoveryAuthority,
@@ -1021,25 +1022,12 @@ def fence_stalled_jobs(
         if job.requested_cancel:
             _finalize_recovery_cancellation(db, job, now=observed_at)
             continue
-        if job.progress_stage == "FETCHING_MARKET_DATA":
-            timeout = market_data_timeout_seconds
-        elif job.progress_stage in {
-            "SCORING_TECHNICALS",
-            "CERI_PROVIDER_INGEST",
-            "CERI_NORMALIZE",
-            "CERI_FEATURE_REBUILD",
-            "CAPTURING_CERI",
-            "CAPTURING_SETUP_LIFECYCLE",
-            "EVALUATING_SETUP_LIFECYCLE",
-            "CAPTURING_WINNER_PREDICTIONS",
-            "RESOLVING_IDENTIFIERS",
-            "PREPARING_SEC_EVIDENCE",
-            "RECHECKING_READINESS",
-            "RETRYING_TRANSIENT_FAILURES",
-        }:
-            timeout = long_stage_timeout_seconds
-        else:
-            timeout = default_timeout_seconds
+        timeout = progress_timeout_seconds(
+            job.progress_stage,
+            default_timeout_seconds=default_timeout_seconds,
+            market_data_timeout_seconds=market_data_timeout_seconds,
+            long_stage_timeout_seconds=long_stage_timeout_seconds,
+        )
         metadata = dict(job.operational_metadata_json or {})
         observation = dict(metadata.get("progress_watchdog") or {})
         current_sequence = int(job.progress_sequence or 0)
@@ -1098,6 +1086,30 @@ def fence_stalled_jobs(
         job.locked_at = None
         job.heartbeat_at = None
         job.lease_expires_at = None
+        stall_identity = {
+            "stage": job.progress_stage,
+            "current_item": job.progress_current_item,
+            "processed": int(job.progress_processed or 0),
+            "total": int(job.progress_total) if job.progress_total is not None else None,
+            "checkpoint_version": job.checkpoint_version,
+            "decision": decision,
+        }
+        signature = hashlib.sha256(
+            json.dumps(stall_identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        prior_recovery = dict(metadata.get("progress_recovery") or {})
+        identical_count = (
+            int(prior_recovery.get("identical_count") or 0) + 1
+            if prior_recovery.get("signature") == signature
+            else 1
+        )
+        metadata["progress_recovery"] = {
+            "signature": signature,
+            "identical_count": identical_count,
+            "stall_identity": stall_identity,
+            "last_stalled_at": observed_at.isoformat(),
+        }
+        job.operational_metadata_json = metadata
         job.operational_metadata_json = _with_lease_event(
             job.operational_metadata_json,
             event_type="PROGRESS_STALLED_FENCED",
@@ -1192,9 +1204,15 @@ def requeue_stalled_jobs(
     authority: RecoveryAuthority,
     job_ids: Iterable[int] | None = None,
     now: datetime | None = None,
+    max_identical_recoveries: int | None = None,
 ) -> int:
     authority = require_recovery_authority(authority)
     observed_at = now or _utcnow()
+    identical_limit = int(
+        max_identical_recoveries
+        if max_identical_recoveries is not None
+        else get_settings().job_max_identical_progress_recoveries
+    )
     query = select(BackgroundJob).where(BackgroundJob.status == JobStatus.STALLED)
     if job_ids is not None:
         query = query.where(BackgroundJob.id.in_(tuple(job_ids)))
@@ -1209,6 +1227,38 @@ def requeue_stalled_jobs(
     for job in db.scalars(query.with_for_update(skip_locked=True)).all():
         if job.requested_cancel:
             _finalize_recovery_cancellation(db, job, now=observed_at)
+            continue
+        recovery = dict((job.operational_metadata_json or {}).get("progress_recovery") or {})
+        if int(recovery.get("identical_count") or 0) >= identical_limit:
+            metadata = dict(job.operational_metadata_json or {})
+            metadata["blocked"] = {
+                "reason_code": "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED",
+                "blocked_at": observed_at.isoformat(),
+                "diagnostics": recovery,
+            }
+            job.operational_metadata_json = metadata
+            job.status = JobStatus.BLOCKED
+            job.completed_at = observed_at
+            job.error_message = (
+                "Automatic recovery stopped after "
+                f"{recovery.get('identical_count')} equivalent progress stalls."
+            )
+            if isinstance(db, Session) and job.job_type == "FULL_PIPELINE":
+                pipeline_id = (job.payload_json or {}).get("pipeline_run_id")
+                pipeline = (
+                    db.get(PipelineRun, int(pipeline_id)) if pipeline_id is not None else None
+                )
+                if pipeline is not None:
+                    from app.services.pipeline_state_machine import transition_pipeline
+
+                    transition_pipeline(
+                        db,
+                        pipeline,
+                        "BLOCKED",
+                        actor="recovery",
+                        current_step=job.progress_stage or pipeline.current_step,
+                        message="Automatic recovery stopped after equivalent progress stalls.",
+                    )
             continue
         job.status = JobStatus.RECOVERING
         job.recovery_count = int(job.recovery_count or 0) + 1
@@ -1280,9 +1330,7 @@ def reconcile_jobs_for_worker_loss(
 
         owned_ids = tuple(
             int(value)
-            for value in db.scalars(
-                owned_query.with_only_columns(BackgroundJob.id)
-            ).all()
+            for value in db.scalars(owned_query.with_only_columns(BackgroundJob.id)).all()
         )
         authorized_query = apply_certification_claim_scope(
             authorized_query,
@@ -1453,9 +1501,7 @@ def mark_job_blocked(
     )
     _observe_job_duration(job, now, JobStatus.BLOCKED, db)
     _observe_fanout_size(db, job)
-    if str(job.workflow_key or "").startswith(
-        ("ceri:pipeline:", "ceri:feature-certification:")
-    ):
+    if str(job.workflow_key or "").startswith(("ceri:pipeline:", "ceri:feature-certification:")):
         from app.services.pipeline_service import roll_up_ceri_pipeline_job_failure
 
         roll_up_ceri_pipeline_job_failure(db, job)

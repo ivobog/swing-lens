@@ -1,5 +1,6 @@
 """Measure native capture and durable pipeline delivery at real populations."""
 
+import os
 import sys
 from collections import Counter
 from datetime import UTC, datetime
@@ -25,13 +26,17 @@ from app.services.market_clock_service import MarketClockService
 contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
+CAPTURE_POPULATIONS = (
+    [1, 10, 25, 50, 107] if os.getenv("RUN_RUN8_REMEDIATION_BENCHMARK") == "1" else [1, 50]
+)
+
 
 @pytest.fixture(scope="module")
 def capture_authority_measurements():
     return {}
 
 
-@pytest.mark.parametrize("population", [1, 50])
+@pytest.mark.parametrize("population", CAPTURE_POPULATIONS)
 @pytest.mark.parametrize("delivery", ["capture", "pipeline", "material"])
 def test_capture_authority_scaling(
     contextual_engine,
@@ -53,8 +58,11 @@ def test_capture_authority_scaling(
 
     get_settings.cache_clear()
     statements = Counter()
+    query_fingerprints = Counter()
     authority = Counter()
     calls = Counter()
+    sql_seconds = 0.0
+    flush_count = 0
     names = {
         "_required_rows",
         "_rows_where",
@@ -80,9 +88,11 @@ def test_capture_authority_scaling(
         "effective_disposition_by_snapshot",
     }
 
-    def observe(_conn, _cursor, sql, _params, _context, _many):
+    def observe(_conn, _cursor, sql, _params, context, _many):
+        context._t14d_query_started = perf_counter()
         kind = sql.lstrip().split(None, 1)[0].upper()
         statements[kind] += 1
+        query_fingerprints[" ".join(sql.split())] += 1
         if kind != "SELECT":
             return
         frame = sys._getframe().f_back
@@ -96,6 +106,14 @@ def test_capture_authority_scaling(
                 authority[frame.f_code.co_name] += 1
                 break
             frame = frame.f_back
+
+    def observe_finished(_conn, _cursor, _sql, _params, context, _many):
+        nonlocal sql_seconds
+        sql_seconds += perf_counter() - context._t14d_query_started
+
+    def observe_flush(_session, _flush_context):
+        nonlocal flush_count
+        flush_count += 1
 
     try:
         with Session(contextual_engine) as db:
@@ -178,6 +196,8 @@ def test_capture_authority_scaling(
                     },
                 )
             event.listen(contextual_engine, "before_cursor_execute", observe)
+            event.listen(contextual_engine, "after_cursor_execute", observe_finished)
+            event.listen(Session, "after_flush", observe_flush)
             from app.services.ceri import change_authority
 
             real_persist = CeriSnapshotService.persist_snapshot
@@ -209,11 +229,19 @@ def test_capture_authority_scaling(
             finally:
                 duration = perf_counter() - started
                 event.remove(contextual_engine, "before_cursor_execute", observe)
+                event.remove(contextual_engine, "after_cursor_execute", observe_finished)
+                event.remove(Session, "after_flush", observe_flush)
             record_property("population", population)
             record_property("delivery", delivery)
             record_property("wall_seconds", duration)
             record_property("selects", statements["SELECT"])
             record_property("total_sql", sum(statements.values()))
+            record_property(
+                "duplicate_queries",
+                sum(count - 1 for count in query_fingerprints.values()),
+            )
+            record_property("sql_seconds", sql_seconds)
+            record_property("flush_count", flush_count)
             record_property("authority_selects", sum(authority.values()))
             record_property("authority_by_function", dict(authority))
             record_property("authority_validations", calls["validate_score_source"])
@@ -240,7 +268,9 @@ def test_capture_authority_scaling(
                 assert all(change.comparison_state == "COMPARABLE" for change in material)
                 record_property("material_changes", len(material))
             capture_authority_measurements[delivery, population] = sum(authority.values())
-            expected_authority_selects = {"capture": 29, "pipeline": 70, "material": 29}
+            # One immutable configuration binding/anchor lookup is cached for
+            # the active transaction, removing two duplicate authority reads.
+            expected_authority_selects = {"capture": 27, "pipeline": 68, "material": 27}
             assert sum(authority.values()) == expected_authority_selects[delivery], dict(authority)
     finally:
         get_settings.cache_clear()

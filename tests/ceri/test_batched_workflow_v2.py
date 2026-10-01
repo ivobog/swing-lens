@@ -12,6 +12,7 @@ from app.services.background_job_service import JobStatus, enqueue_job
 from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.ceri import batched_job_handlers
 from app.services.ceri.batched_job_handlers import (
+    _heartbeat_and_cancel,
     _normalization_checkpoint,
     _require_terminal_stage,
     _save_checkpoint,
@@ -33,6 +34,23 @@ from app.services.ceri.feature_rebuild_service import CeriFeatureRebuildResult
 from app.services.ceri.orchestration import CeriIngestionResult, CeriIngestionService
 from app.services.pipeline_prerequisites import CeriUpstreamStageBlockedError
 from app.settings import SecDocumentIncrementalMode, Settings
+
+
+def test_detached_heartbeat_does_not_commit_through_domain_callback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        batched_job_handlers,
+        "require_parent_pipeline_active",
+        lambda *_args, **_kwargs: None,
+    )
+    domain_heartbeats: list[str] = []
+    control_heartbeats: list[str] = []
+    job = BackgroundJob(id=17, job_type=CERI_FEATURE_BATCH, status=JobStatus.RUNNING)
+    job._heartbeat = lambda: domain_heartbeats.append("domain")
+    job._control_plane_progress = lambda **_progress: control_heartbeats.append("control") or False
+
+    assert _heartbeat_and_cancel(FakeDb(), job) is False
+    assert control_heartbeats == ["control"]
+    assert domain_heartbeats == []
 
 
 def test_402_ticker_plan_is_deterministic_bounded_and_under_sanity_target() -> None:

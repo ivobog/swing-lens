@@ -126,9 +126,7 @@ class PipelineContinuationSuppressed(Exception):
     def __init__(self, pipeline_id: int, status: str) -> None:
         self.pipeline_id = int(pipeline_id)
         self.status = str(status)
-        super().__init__(
-            f"PIPELINE_CONTINUATION_SUPPRESSED:pipeline={pipeline_id}:status={status}"
-        )
+        super().__init__(f"PIPELINE_CONTINUATION_SUPPRESSED:pipeline={pipeline_id}:status={status}")
 
 
 class IBGatewayUnavailable(Exception):
@@ -911,6 +909,12 @@ def execute_full_pipeline(
 
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
+            setup_capture_checkpoint = _setup_capture_checkpoint_callback(
+                db,
+                should_cancel=should_cancel,
+                progress_callback=progress_callback,
+            )
+
             with _pipeline_step(
                 db,
                 pipeline,
@@ -925,6 +929,8 @@ def execute_full_pipeline(
                     upload_run.id,
                     market_cutoff,
                     frozen_tickers=tuple(tickers),
+                    should_cancel=should_cancel,
+                    checkpoint_callback=setup_capture_checkpoint,
                 )
                 _apply_setup_lifecycle_capture_result(
                     result,
@@ -1156,24 +1162,35 @@ def _execute_resumed_pipeline(
         _raise_if_cancelled(should_cancel)
         _validate_ceri_completion_barrier(db, pipeline, tickers=tickers)
         if _pipeline_has_step(db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP):
-            if dependencies.market_cutoff is None:
-                raise RuntimeError("resumed pipeline is missing its frozen market cutoff")
-            _freeze_pipeline_handoff(
-                db,
-                pipeline,
-                upload_run.id,
-                dependencies.market_cutoff,
-                dependencies,
-                result,
-                lease_guard=lease_guard,
-                performance=performance,
-            )
+            retained_handoff = _reusable_decision_handoff(db, pipeline, upload_run.id)
+            if retained_handoff is not None:
+                result.update(retained_handoff)
+            else:
+                if dependencies.market_cutoff is None:
+                    raise RuntimeError("resumed pipeline is missing its frozen market cutoff")
+                _freeze_pipeline_handoff(
+                    db,
+                    pipeline,
+                    upload_run.id,
+                    dependencies.market_cutoff,
+                    dependencies,
+                    result,
+                    lease_guard=lease_guard,
+                    performance=performance,
+                )
         validate_checkpoint = dependencies.validate_resume_checkpoint
-        checkpoint = (
-            validate_checkpoint(db, upload_run.id, resume_from_step)
-            if validate_checkpoint is not None
-            else _validate_resume_checkpoint(db, pipeline, upload_run.id, resume_from_step)
-        )
+        checkpoint = _reusable_resume_checkpoint(db, pipeline, upload_run.id, resume_from_step)
+        if checkpoint is None:
+            checkpoint = (
+                validate_checkpoint(db, upload_run.id, resume_from_step)
+                if validate_checkpoint is not None
+                else _validate_resume_checkpoint(db, pipeline, upload_run.id, resume_from_step)
+            )
+            pipeline.result_json = {
+                **(pipeline.result_json or {}),
+                "resume_checkpoint": checkpoint,
+            }
+            _save_progress(db, lease_guard=lease_guard)
         result["resume_checkpoint"] = checkpoint
         result["technical_error_count"] = int(checkpoint.get("technical_error_count") or 0)
         result["market_regime_low_confidence"] = int(
@@ -1182,6 +1199,11 @@ def _execute_resumed_pipeline(
 
         if _setup_lifecycle_pipeline_step_enabled(dependencies):
             _raise_if_cancelled(should_cancel)
+            setup_capture_checkpoint = _setup_capture_checkpoint_callback(
+                db,
+                should_cancel=should_cancel,
+                progress_callback=progress_callback,
+            )
             with _pipeline_step(
                 db,
                 pipeline,
@@ -1198,6 +1220,8 @@ def _execute_resumed_pipeline(
                     upload_run.id,
                     dependencies.market_cutoff,
                     frozen_tickers=tuple(tickers),
+                    should_cancel=should_cancel,
+                    checkpoint_callback=setup_capture_checkpoint,
                 )
                 _apply_setup_lifecycle_capture_result(
                     result,
@@ -1292,6 +1316,64 @@ def _execute_resumed_pipeline(
         result["performance"] = performance.snapshot()
         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
         raise
+
+
+def _reusable_decision_handoff(
+    db: Session,
+    pipeline: PipelineRun,
+    upload_run_id: int,
+) -> dict[str, Any] | None:
+    step = db.scalar(
+        select(PipelineStep).where(
+            PipelineStep.pipeline_run_id == pipeline.id,
+            PipelineStep.step_name == DECISION_HANDOFF_PIPELINE_STEP,
+        )
+    )
+    if step is None or step.status != PipelineStepStatus.COMPLETED:
+        return None
+    handoff = db.scalar(
+        select(TransitionDecisionHandoffManifest).where(
+            TransitionDecisionHandoffManifest.pipeline_run_id == pipeline.id
+        )
+    )
+    if handoff is None:
+        return None
+    manifest = dict(handoff.manifest_json or {})
+    if CanonicalEvidenceSerializer.fingerprint(manifest) != handoff.manifest_fingerprint:
+        return None
+    binding = dict(manifest.get("run") or {})
+    if (
+        binding.get("upload_run_id") != upload_run_id
+        or binding.get("pipeline_run_id") != pipeline.id
+    ):
+        return None
+    return {
+        "decision_handoff_manifest_id": handoff.id,
+        "decision_handoff_manifest_hash": handoff.manifest_fingerprint,
+        "decision_handoff_reused": True,
+    }
+
+
+def _reusable_resume_checkpoint(
+    db: Session,
+    pipeline: PipelineRun,
+    upload_run_id: int,
+    resume_from_step: str,
+) -> dict[str, Any] | None:
+    retained = dict((pipeline.result_json or {}).get("resume_checkpoint") or {})
+    if not retained.get("validated") or retained.get("resume_from_step") != resume_from_step:
+        return None
+    handoff = _reusable_decision_handoff(db, pipeline, upload_run_id)
+    if handoff is None:
+        return None
+    if (
+        retained.get("decision_handoff_manifest_fingerprint")
+        != handoff["decision_handoff_manifest_hash"]
+    ):
+        return None
+    if int(retained.get("expected_tickers") or 0) != len(_pipeline_scope_tickers(db, pipeline)):
+        return None
+    return {**retained, "reused": True}
 
 
 def _validate_resume_checkpoint(
@@ -1667,15 +1749,14 @@ def _validate_projection_source_pins(db, *, kind, projection, evidence):
                 # that case the compatibility projection has no score-row address;
                 # its immutable eligibility decision is the source address.
                 if role == "fundamental":
-                    permission = (
-                        debug.get("contextual_consumer_eligibility") or {}
-                    ).get(role) or {}
+                    permission = (debug.get("contextual_consumer_eligibility") or {}).get(
+                        role
+                    ) or {}
                     decision = permission.get("decision") or {}
-                    excluded = (
-                        permission.get("included") is False
-                        and decision.get("status")
-                        in {"INELIGIBLE", "POLICY_UNDECIDED"}
-                    )
+                    excluded = permission.get("included") is False and decision.get("status") in {
+                        "INELIGIBLE",
+                        "POLICY_UNDECIDED",
+                    }
                 else:
                     decision = (debug.get("technical_consumer_eligibility") or {}).get(
                         "decision"
@@ -1685,9 +1766,7 @@ def _validate_projection_source_pins(db, *, kind, projection, evidence):
                         "POLICY_UNDECIDED",
                     }
                 valid = (
-                    valid
-                    and excluded
-                    and decision.get("producer_evidence_id") == pins.get(role)
+                    valid and excluded and decision.get("producer_evidence_id") == pins.get(role)
                 )
         if not valid:
             raise ValueError("HISTORICAL_EVIDENCE_UNAVAILABLE: resume source evidence changed")
@@ -1869,13 +1948,31 @@ def _archive_pipeline_step_attempt(
         "finished_at": archived_finished.isoformat() if archived_finished else None,
         "reason": reason,
     }
-    if not history or any(
-        history[-1].get(key) != record.get(key)
-        for key in ("attempt", "status", "started_at", "finished_at")
-    ):
+    if not history or not _same_pipeline_attempt(history[-1], record):
         history.append(record)
     payload["attempt_history"] = history
     step.result_json = payload
+
+
+def _same_pipeline_attempt(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    if any(left.get(key) != right.get(key) for key in ("attempt", "status")):
+        return False
+    return all(
+        _normalized_attempt_instant(left.get(key)) == _normalized_attempt_instant(right.get(key))
+        for key in ("started_at", "finished_at")
+    )
+
+
+def _normalized_attempt_instant(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _interrupt_superseded_running_steps(
@@ -2083,6 +2180,10 @@ def _mark_pipeline_waiting_for_ceri(
     workflow_key = str(result.get("ceri_provider_workflow_key") or "")
     if not workflow_key.startswith("ceri:pipeline:"):
         raise RuntimeError("CERI provider scheduling produced no durable workflow identity.")
+    provider_step = _require_step(db, pipeline.id, CERI_PIPELINE_PROVIDER_INGEST_STEP)
+    provider_step.status = PipelineStepStatus.WAITING_DEPENDENCY
+    provider_step.completed_at = None
+    provider_step.message = "Provider workflow dispatched; waiting for required child stages."
     transition_pipeline(
         db,
         pipeline,
@@ -2095,6 +2196,7 @@ def _mark_pipeline_waiting_for_ceri(
         **(pipeline.result_json or {}),
         **_public_result(result),
         "ceri_completion_state": "WAITING",
+        "ceri_async_state": "RUNNING_CHILD_WORKFLOW",
         "ceri_provider_workflow_key": workflow_key,
     }
     _save_progress(db, lease_guard=lease_guard)
@@ -2259,6 +2361,35 @@ def _save_progress(db: Session, *, lease_guard: Callable[[], None] | None = None
 def _raise_if_cancelled(should_cancel: Callable[[], bool]) -> None:
     if should_cancel():
         raise PipelineCancelled("Pipeline cancellation requested.")
+
+
+def _setup_capture_checkpoint_callback(
+    db: Session,
+    *,
+    should_cancel: Callable[[], bool],
+    progress_callback: Callable[..., None] | None,
+) -> Callable[..., None]:
+    def checkpoint(
+        current_item: str,
+        processed: int,
+        total: int,
+        *,
+        phase: str = "PERSISTING",
+    ) -> None:
+        _raise_if_cancelled(should_cancel)
+        if progress_callback is not None:
+            progress_callback(
+                db,
+                stage=SLSE_PIPELINE_CAPTURE_STEP,
+                current_item=f"{phase}:{current_item}",
+                last_completed_item=current_item if processed else None,
+                processed=processed,
+                total=total,
+                checkpoint_version=f"setup-capture-v1:{phase}:{processed}",
+                only_if_advanced=False,
+            )
+
+    return checkpoint
 
 
 def _pipeline_has_step(db: Session, pipeline_run_id: int, step_name: str) -> bool:
@@ -2857,17 +2988,25 @@ def _capture_setup_signals(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
     frozen_tickers: tuple[str, ...] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ):
     from app.services.setup_lifecycle.snapshot_builder import (
+        SetupLifecycleCaptureCancelled,
         SetupLifecycleSnapshotCaptureService,
     )
 
-    return SetupLifecycleSnapshotCaptureService().capture_snapshots_for_run(
-        db,
-        run_id,
-        market_cutoff=market_cutoff,
-        frozen_tickers=frozen_tickers,
-    )
+    try:
+        return SetupLifecycleSnapshotCaptureService().capture_snapshots_for_run(
+            db,
+            run_id,
+            market_cutoff=market_cutoff,
+            frozen_tickers=frozen_tickers,
+            should_cancel=should_cancel,
+            progress_callback=checkpoint_callback,
+        )
+    except SetupLifecycleCaptureCancelled as exc:
+        raise PipelineCancelled(str(exc)) from exc
 
 
 def _evaluate_setup_lifecycles(

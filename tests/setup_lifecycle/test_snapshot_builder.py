@@ -28,6 +28,7 @@ from app.services.setup_lifecycle.config import load_setup_lifecycle_config
 from app.services.setup_lifecycle.enums import DataQualityLabel, EvaluationStatus
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.snapshot_builder import (
+    SetupLifecycleCaptureCancelled,
     SetupLifecycleSnapshotBuilder,
     SetupLifecycleSnapshotCaptureService,
     _trigger_distance_pct,
@@ -374,6 +375,54 @@ def test_capture_service_persists_one_snapshot_per_ticker_and_retries_idempotent
     assert len(repository.snapshots_by_key) == 2
 
 
+def test_capture_service_has_one_batch_persistence_owner() -> None:
+    repository = FakeBatchRepository()
+    loader = FakeLoader(
+        RunSourceContext(
+            upload_run=_upload_run(),
+            market_regime_snapshot=_market_snapshot(),
+            sector_rotation_snapshot=_sector_snapshot(),
+            tickers=(_ticker_context(ticker="MSFT"), _ticker_context(ticker="AAPL")),
+        )
+    )
+    service = SetupLifecycleSnapshotCaptureService(
+        loader=loader,
+        repository=repository,
+        config=load_setup_lifecycle_config(),
+    )
+
+    result = service.capture_snapshots_for_run(db=object(), run_id=7)
+
+    assert result.captured == 2
+    assert repository.batch_calls == 1
+    assert repository.single_calls == 0
+
+
+def test_capture_service_honors_cancellation_before_persistence() -> None:
+    repository = FakeBatchRepository()
+    service = SetupLifecycleSnapshotCaptureService(
+        loader=FakeLoader(
+            RunSourceContext(
+                upload_run=_upload_run(),
+                market_regime_snapshot=_market_snapshot(),
+                sector_rotation_snapshot=_sector_snapshot(),
+                tickers=(_ticker_context(ticker="MSFT"),),
+            )
+        ),
+        repository=repository,
+        config=load_setup_lifecycle_config(),
+    )
+
+    with pytest.raises(SetupLifecycleCaptureCancelled):
+        service.capture_snapshots_for_run(
+            db=object(),
+            run_id=7,
+            should_cancel=lambda: True,
+        )
+
+    assert repository.batch_calls == 0
+
+
 def test_capture_service_marks_partial_when_one_ticker_fails() -> None:
     repository = FakeRepository()
     service = SetupLifecycleSnapshotCaptureService(
@@ -436,6 +485,25 @@ class FakeRepository:
         evaluation_run.counts_json = counts
         self.completed_runs.append(evaluation_run)
         return evaluation_run
+
+
+class FakeBatchRepository(FakeRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self.batch_calls = 0
+        self.single_calls = 0
+
+    def upsert_snapshots(self, _db, dtos, **_kwargs):
+        self.batch_calls += 1
+        rows = []
+        for dto in dtos:
+            rows.append(SimpleNamespace(id=self.next_id, dto=dto, evidence_id=self.next_id + 1000))
+            self.next_id += 1
+        return rows
+
+    def upsert_snapshot(self, _db, _dto):
+        self.single_calls += 1
+        raise AssertionError("batch-owned persistence must not fall back to per-row writes")
 
 
 class FailingBuilder(SetupLifecycleSnapshotBuilder):

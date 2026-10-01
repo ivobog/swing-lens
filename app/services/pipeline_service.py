@@ -108,6 +108,8 @@ class PipelineStatus:
 
 class PipelineStepStatus:
     PENDING = "PENDING"
+    DISPATCHED = "DISPATCHED"
+    WAITING_DEPENDENCY = "WAITING_DEPENDENCY"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
@@ -133,6 +135,10 @@ class PipelineStepStatusDto:
     message: str | None
     error_message: str | None
     retry_count: int
+    original_started_at: datetime | None = None
+    latest_attempt_started_at: datetime | None = None
+    latest_attempt_finished_at: datetime | None = None
+    attempt_count: int = 1
 
 
 @dataclass(frozen=True)
@@ -477,6 +483,105 @@ def pipeline_step_names(
     )
 
 
+def _step_status_dto(step: PipelineStep) -> PipelineStepStatusDto:
+    history = list((step.result_json or {}).get("attempt_history") or [])
+
+    def parsed(value: Any) -> datetime | None:
+        if value in (None, ""):
+            return None
+        try:
+            result = datetime.fromisoformat(str(value))
+        except (TypeError, ValueError):
+            return None
+        return result.replace(tzinfo=UTC) if result.tzinfo is None else result
+
+    starts = [value for item in history for value in (parsed(item.get("started_at")),) if value]
+    original_started_at = min(starts, default=step.started_at)
+    return PipelineStepStatusDto(
+        step_name=step.step_name,
+        step_order=step.step_order,
+        status=step.status,
+        started_at=step.started_at,
+        completed_at=step.completed_at,
+        message=step.message,
+        error_message=step.error_message,
+        retry_count=step.retry_count,
+        original_started_at=original_started_at,
+        latest_attempt_started_at=step.started_at,
+        latest_attempt_finished_at=step.completed_at,
+        attempt_count=int(step.retry_count or 0) + 1,
+    )
+
+
+def _ceri_async_visibility(db: Session, pipeline: PipelineRun) -> dict[str, Any] | None:
+    workflow_key = str((pipeline.result_json or {}).get("ceri_provider_workflow_key") or "")
+    if not workflow_key.startswith("ceri:pipeline:"):
+        return None
+    jobs = list(
+        db.scalars(
+            select(BackgroundJob)
+            .where(BackgroundJob.workflow_key == workflow_key)
+            .order_by(BackgroundJob.created_at, BackgroundJob.id)
+        )
+    )
+    dependency = db.scalar(
+        select(PipelineDependency).where(PipelineDependency.pipeline_run_id == pipeline.id)
+    )
+    if dependency is not None and dependency.continuation_job_id is not None:
+        continuation = db.get(BackgroundJob, dependency.continuation_job_id)
+        if continuation is not None:
+            jobs.append(continuation)
+    phase_types = {
+        "provider_acquisition": {"CERI_PROVIDER_INGEST_BATCH"},
+        "normalization": {"CERI_NORMALIZE_BATCH"},
+        "feature_computation": {"CERI_FEATURE_BATCH"},
+        "capture": {"CERI_CAPTURE_RUN"},
+        "certification_barrier": {
+            "CERI_RUN_FINALIZE",
+            "CERI_CHANGE_DETECTION",
+            "CERI_ALERT_REBUILD",
+        },
+        "continuation": {FULL_PIPELINE_JOB_TYPE},
+    }
+
+    def phase_view(types: set[str]) -> dict[str, Any]:
+        members = [job for job in jobs if job.job_type in types]
+        statuses = {str(job.status) for job in members}
+        if not members:
+            state = "PENDING"
+        elif statuses & {JobStatus.FAILED, JobStatus.BLOCKED, JobStatus.CANCELLED}:
+            state = "FAILED"
+        elif statuses & {JobStatus.RUNNING, JobStatus.RECOVERING, JobStatus.STALLED}:
+            state = "RUNNING"
+        elif all(status in {JobStatus.COMPLETED, JobStatus.PARTIAL} for status in statuses):
+            state = "COMPLETED"
+        else:
+            state = "DISPATCHED"
+        return {
+            "state": state,
+            "job_count": len(members),
+            "completed_jobs": sum(
+                job.status in {JobStatus.COMPLETED, JobStatus.PARTIAL} for job in members
+            ),
+            "processed": sum(int(job.progress_processed or 0) for job in members),
+            "total": sum(int(job.progress_total or 0) for job in members),
+            "original_started_at": min(
+                (job.started_at for job in members if job.started_at is not None),
+                default=None,
+            ),
+            "latest_finished_at": max(
+                (job.completed_at for job in members if job.completed_at is not None),
+                default=None,
+            ),
+        }
+
+    return {
+        "workflow_key": workflow_key,
+        "dependency_state": dependency.state if dependency is not None else None,
+        "phases": {name: phase_view(types) for name, types in phase_types.items()},
+    }
+
+
 def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
     pipeline = db.get(PipelineRun, pipeline_run_id)
     if pipeline is None:
@@ -493,6 +598,10 @@ def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
 
         scope_size = len(retained_scope_members(db, pipeline.scope_id))
         child_counts = required_child_counts(db, pipeline.scope_id)
+    visible_result = dict(pipeline.result_json or {})
+    async_visibility = _ceri_async_visibility(db, pipeline)
+    if async_visibility is not None:
+        visible_result["ceri_async"] = async_visibility
     status = PipelineStatusDto(
         pipeline_run_id=pipeline.id,
         upload_run_id=pipeline.upload_run_id,
@@ -505,20 +614,8 @@ def get_pipeline_status(db: Session, pipeline_run_id: int) -> PipelineStatusDto:
         message=pipeline.message,
         error_message=pipeline.error_message,
         background_job_id=_background_job_id(pipeline),
-        steps=[
-            PipelineStepStatusDto(
-                step_name=step.step_name,
-                step_order=step.step_order,
-                status=step.status,
-                started_at=step.started_at,
-                completed_at=step.completed_at,
-                message=step.message,
-                error_message=step.error_message,
-                retry_count=step.retry_count,
-            )
-            for step in steps
-        ],
-        result_json=pipeline.result_json,
+        steps=[_step_status_dto(step) for step in steps],
+        result_json=visible_result,
         scope_id=pipeline.scope_id,
         refresh_cycle_id=pipeline.refresh_cycle_id,
         acquisition_plan_id=pipeline.acquisition_plan_id,
@@ -703,9 +800,7 @@ def _failed_sec_repair(db, pipeline):
 def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
     cancellation_started_at = datetime.now(UTC)
     if isinstance(db, Session):
-        db.execute(
-            text(f"SET LOCAL lock_timeout = '{PIPELINE_CANCELLATION_LOCK_TIMEOUT_MS}ms'")
-        )
+        db.execute(text(f"SET LOCAL lock_timeout = '{PIPELINE_CANCELLATION_LOCK_TIMEOUT_MS}ms'"))
         try:
             pipeline = db.scalar(
                 select(PipelineRun)
@@ -720,9 +815,7 @@ def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
             diagnostics = _pipeline_cancellation_lock_diagnostics(
                 db, pipeline_id=pipeline_run_id, job_id=0
             )
-            operational_metrics.increment(
-                "swinglens_pipeline_cancellation_lock_contention_total"
-            )
+            operational_metrics.increment("swinglens_pipeline_cancellation_lock_contention_total")
             raise PipelineCancellationContended(diagnostics) from exc
     else:
         pipeline = db.get(PipelineRun, pipeline_run_id)
@@ -763,9 +856,7 @@ def cancel_pipeline(db: Session, pipeline_run_id: int) -> PipelineRun:
             diagnostics = _pipeline_cancellation_lock_diagnostics(
                 db, pipeline_id=pipeline_run_id, job_id=job_id
             )
-            operational_metrics.increment(
-                "swinglens_pipeline_cancellation_lock_contention_total"
-            )
+            operational_metrics.increment("swinglens_pipeline_cancellation_lock_contention_total")
             raise PipelineCancellationContended(diagnostics) from exc
 
     pipeline = (
@@ -1287,11 +1378,22 @@ def enqueue_pipeline_after_ceri_completion(
         current_step=resume_from_step,
         message="Certified CERI workflow completed; downstream continuation queued.",
     )
+    provider_step = db.scalar(
+        select(PipelineStep).where(
+            PipelineStep.pipeline_run_id == pipeline.id,
+            PipelineStep.step_name == CERI_PIPELINE_PROVIDER_INGEST_STEP,
+        )
+    )
+    if provider_step is not None:
+        provider_step.status = PipelineStepStatus.COMPLETED
+        provider_step.completed_at = _utcnow()
+        provider_step.message = "Required CERI child workflow completed and certified."
     pipeline.result_json = {
         **retained,
         "background_job_id": continuation.id,
         "resume_from_step": resume_from_step,
         "ceri_completion_state": "CERTIFIED",
+        "ceri_async_state": "CONTINUATION_QUEUED",
         "ceri_certified_capture_count": certified,
         "ceri_continuation_request_key": request_key,
         "ceri_continuation_job_id": continuation.id,

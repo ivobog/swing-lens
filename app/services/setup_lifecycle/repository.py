@@ -349,6 +349,9 @@ class SetupLifecycleRepository:
         self,
         db: Session,
         dtos: list[SetupSignalSnapshotWrite] | tuple[SetupSignalSnapshotWrite, ...],
+        *,
+        progress_callback=None,
+        should_cancel=None,
     ) -> list[SetupSignalSnapshot]:
         """Idempotently persist one capture batch without a lookup/savepoint per ticker."""
         if not dtos:
@@ -427,11 +430,20 @@ class SetupLifecycleRepository:
         from app.services.decision_mutation_authority import validate_setup_projection
         from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
 
-        for snapshot in by_identity.values():
+        snapshots = list(by_identity.values())
+        for index, snapshot in enumerate(snapshots, start=1):
+            if should_cancel is not None and should_cancel():
+                from app.services.setup_lifecycle.snapshot_builder import (
+                    SetupLifecycleCaptureCancelled,
+                )
+
+                raise SetupLifecycleCaptureCancelled("SETUP_CAPTURE_CANCELLED")
             if snapshot.evidence_id is None:
                 persist_setup_evidence(db, snapshot)
             else:
                 validate_setup_projection(db, snapshot)
+            if progress_callback is not None:
+                progress_callback(snapshot.ticker, index, len(snapshots), phase="EVIDENCE")
 
         return [
             by_identity[

@@ -242,6 +242,11 @@ def test_repaired_initial_preflight_restarts_same_pipeline_from_validation() -> 
     assert "ceri_schedule" in calls
     assert "winner_capture" not in calls
     assert db.steps[0].retry_count == 1
+    provider_step = next(
+        step for step in db.steps if step.step_name == "CERI_PROVIDER_INGEST"
+    )
+    assert provider_step.status == PipelineStepStatus.WAITING_DEPENDENCY
+    assert provider_step.completed_at is None
 
 
 def test_resume_from_ceri_does_not_reexecute_completed_expensive_stages() -> None:
@@ -287,6 +292,8 @@ def test_resume_from_ceri_does_not_reexecute_completed_expensive_stages() -> Non
 
     assert calls == ["ceri_schedule"]
     assert result.status == PipelineStatus.WAITING_FOR_CERI_COMPLETION
+    assert db.steps[ceri_index].status == PipelineStepStatus.WAITING_DEPENDENCY
+    assert db.steps[ceri_index].completed_at is None
     assert all(
         step.retry_count == 0
         for step in db.steps
@@ -660,6 +667,50 @@ def test_replay_interrupts_stale_running_step_and_preserves_attempt_history() ->
         attempt["status"] == "INTERRUPTED" for attempt in stale.result_json["attempt_history"]
     )
     assert all(step.status != PipelineStepStatus.RUNNING for step in db.steps)
+
+
+def test_attempt_history_deduplicates_equivalent_timezone_instants() -> None:
+    step = PipelineStep(
+        pipeline_run_id=3,
+        step_name="CAPTURING_SETUP_SIGNALS",
+        step_order=11,
+        status=PipelineStepStatus.INTERRUPTED,
+        retry_count=3,
+        started_at=datetime.fromisoformat("2026-10-01T00:16:27.711557+02:00"),
+        completed_at=datetime.fromisoformat("2026-10-01T00:21:32.538846+02:00"),
+    )
+    pipeline_executor._archive_pipeline_step_attempt(step)
+
+    step.started_at = datetime.fromisoformat("2026-09-30T22:16:27.711557+00:00")
+    step.completed_at = datetime.fromisoformat("2026-09-30T22:21:32.538846+00:00")
+    pipeline_executor._archive_pipeline_step_attempt(step)
+
+    assert len(step.result_json["attempt_history"]) == 1
+
+
+def test_resume_checkpoint_is_reused_only_for_same_handoff_and_scope(monkeypatch) -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT", "AAPL"])
+    checkpoint = {
+        "validated": True,
+        "resume_from_step": "FREEZING_DECISION_HANDOFF_MANIFEST",
+        "decision_handoff_manifest_fingerprint": "handoff-hash",
+        "expected_tickers": 2,
+    }
+    db.pipeline.result_json = {"resume_checkpoint": checkpoint}
+    monkeypatch.setattr(
+        pipeline_executor,
+        "_reusable_decision_handoff",
+        lambda *_args: {"decision_handoff_manifest_hash": "handoff-hash"},
+    )
+
+    reused = pipeline_executor._reusable_resume_checkpoint(
+        db,
+        db.pipeline,
+        db.upload_run.id,
+        "FREEZING_DECISION_HANDOFF_MANIFEST",
+    )
+
+    assert reused == {**checkpoint, "reused": True}
 
 
 def test_execute_full_pipeline_marks_ranking_skipped_without_profiles() -> None:
@@ -1282,10 +1333,7 @@ def test_execute_full_pipeline_commits_stage_before_detached_lease_checkpoint() 
 
     assert calls == ["fundamentals"]
     assert db.commits == 5
-    assert (
-        db.commit_snapshots[-1]["steps"]["SCORING_FUNDAMENTALS"]
-        == PipelineStepStatus.COMPLETED
-    )
+    assert db.commit_snapshots[-1]["steps"]["SCORING_FUNDAMENTALS"] == PipelineStepStatus.COMPLETED
 
 
 def test_execute_full_pipeline_records_replay_attempt_for_previously_completed_step() -> None:

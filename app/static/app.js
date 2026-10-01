@@ -806,6 +806,23 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-cache-used]", result.cache_used_count || 0);
   setText(root, "[data-pipeline-expected-session]", result.latest_expected_market_session || "Unknown");
   setText(root, "[data-pipeline-actual-session]", result.actual_latest_data_session || "Unknown");
+  const ceriVisibility = root.querySelector("[data-ceri-async-visibility]");
+  const ceriAsync = result.ceri_async || null;
+  if (ceriVisibility) {
+    ceriVisibility.hidden = !ceriAsync;
+    if (ceriAsync) {
+      setText(root, "[data-ceri-dependency-state]", ceriAsync.dependency_state || "UNKNOWN");
+      Object.entries(ceriAsync.phases || {}).forEach(([phaseName, phase]) => {
+        const phaseRoot = root.querySelector(`[data-ceri-phase="${cssEscape(phaseName)}"]`);
+        if (!phaseRoot) return;
+        setText(phaseRoot, "[data-ceri-phase-state]", phase.state || "PENDING");
+        setText(phaseRoot, "[data-ceri-phase-completed]", phase.completed_jobs || 0);
+        setText(phaseRoot, "[data-ceri-phase-jobs]", phase.job_count || 0);
+        setText(phaseRoot, "[data-ceri-phase-processed]", phase.processed || 0);
+        setText(phaseRoot, "[data-ceri-phase-total]", phase.total || 0);
+      });
+    }
+  }
   const degraded = root.querySelector("[data-pipeline-degraded]");
   if (degraded) {
     degraded.hidden = !result.degraded;
@@ -850,8 +867,9 @@ function updatePipelineStepRows(steps) {
     const row = document.querySelector(selector);
     if (!row) return;
     setText(row, "[data-step-status]", step.status);
-    setText(row, "[data-step-started]", step.started_at || "");
-    setText(row, "[data-step-completed]", step.completed_at || "");
+    setText(row, "[data-step-original-started]", step.original_started_at || step.started_at || "");
+    setText(row, "[data-step-started]", step.latest_attempt_started_at || step.started_at || "");
+    setText(row, "[data-step-completed]", step.latest_attempt_finished_at || step.completed_at || "");
     setText(row, "[data-step-message]", step.message || "");
     setText(row, "[data-step-error]", step.error_message || "");
   });

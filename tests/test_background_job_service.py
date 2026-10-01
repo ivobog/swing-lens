@@ -483,9 +483,7 @@ def test_recover_stale_jobs_requeues_jobs_with_retries_remaining() -> None:
     original_payload = dict(stale.payload_json)
     db = FakeDb(stale_jobs=[stale])
 
-    count = recover_stale_jobs(
-        db, stale_after_seconds=900, authority=NORMAL_RECOVERY
-    )
+    count = recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY)
 
     assert count == 1
     assert stale.status == JobStatus.QUEUED
@@ -545,9 +543,7 @@ def test_recover_stale_jobs_finalizes_requested_cancellation() -> None:
     stale.requested_cancel = True
     db = FakeDb(stale_jobs=[stale])
 
-    assert (
-        recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 0
-    )
+    assert recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 0
 
     assert stale.status == JobStatus.CANCELLED
     assert stale.completed_at is not None
@@ -577,9 +573,7 @@ def test_live_heartbeat_prevents_stale_recovery() -> None:
     live = _running_job(lease_expires_at=datetime.now(UTC) + timedelta(minutes=5))
     db = FakeDb(stale_jobs=[live])
 
-    assert (
-        recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 0
-    )
+    assert recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 0
 
     assert live.status == JobStatus.RUNNING
     assert live.execution_token == "token-1"
@@ -604,12 +598,8 @@ def test_expired_lease_can_be_recovered_exactly_once() -> None:
     stale = _running_job(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
     db = FakeDb(stale_jobs=[stale])
 
-    assert (
-        recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 1
-    )
-    assert (
-        recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 0
-    )
+    assert recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 1
+    assert recover_stale_jobs(db, stale_after_seconds=900, authority=NORMAL_RECOVERY) == 0
 
 
 def test_recovered_job_receives_new_execution_token_when_claimed() -> None:
@@ -685,12 +675,7 @@ def test_live_worker_without_progress_is_fenced_and_recovering() -> None:
     assert job.execution_token is None
     assert job.worker_id is None
     db.stale_jobs = [job]
-    assert (
-        requeue_stalled_jobs(
-            db, authority=NORMAL_RECOVERY, job_ids=fenced, now=now
-        )
-        == 1
-    )
+    assert requeue_stalled_jobs(db, authority=NORMAL_RECOVERY, job_ids=fenced, now=now) == 1
     assert job.status == JobStatus.RECOVERING
     assert job.recovery_count == 1
 
@@ -703,9 +688,7 @@ def test_requeue_stalled_job_finalizes_requested_cancellation() -> None:
     job.recovery_count = 0
     db = FakeDb(stale_jobs=[job])
 
-    assert (
-        requeue_stalled_jobs(db, authority=NORMAL_RECOVERY, job_ids=[job.id]) == 0
-    )
+    assert requeue_stalled_jobs(db, authority=NORMAL_RECOVERY, job_ids=[job.id]) == 0
     assert job.status == JobStatus.CANCELLED
     assert job.completed_at is not None
     assert job.recovery_count == 0
@@ -804,15 +787,18 @@ def test_sec_repair_progress_advance_prevents_false_default_timeout_fence() -> N
     }
     db = FakeDb(stale_jobs=[job])
 
-    assert fence_stalled_jobs(
-        db,
-        authority=NORMAL_RECOVERY,
-        default_timeout_seconds=300,
-        market_data_timeout_seconds=300,
-        long_stage_timeout_seconds=1800,
-        now=now,
-        worker_id="worker-a",
-    ) == []
+    assert (
+        fence_stalled_jobs(
+            db,
+            authority=NORMAL_RECOVERY,
+            default_timeout_seconds=300,
+            market_data_timeout_seconds=300,
+            long_stage_timeout_seconds=1800,
+            now=now,
+            worker_id="worker-a",
+        )
+        == []
+    )
     assert job.status == JobStatus.RUNNING
     observation = job.operational_metadata_json["progress_watchdog"]
     assert observation["progress_sequence"] == 12
@@ -863,31 +849,37 @@ def test_winner_stage_can_run_over_300_seconds_while_useful_progress_advances() 
 
     after_six_minutes = started + timedelta(minutes=6)
     job.heartbeat_at = after_six_minutes
-    assert fence_stalled_jobs(
-        db,
-        authority=NORMAL_RECOVERY,
-        default_timeout_seconds=300,
-        market_data_timeout_seconds=300,
-        long_stage_timeout_seconds=1800,
-        now=after_six_minutes,
-        worker_id="worker-a",
-        worker_heartbeat_at=after_six_minutes,
-    ) == []
+    assert (
+        fence_stalled_jobs(
+            db,
+            authority=NORMAL_RECOVERY,
+            default_timeout_seconds=300,
+            market_data_timeout_seconds=300,
+            long_stage_timeout_seconds=1800,
+            now=after_six_minutes,
+            worker_id="worker-a",
+            worker_heartbeat_at=after_six_minutes,
+        )
+        == []
+    )
 
     job.progress_sequence = 38
     job.last_progress_at = after_six_minutes
     after_twelve_minutes = started + timedelta(minutes=12)
     job.heartbeat_at = after_twelve_minutes
-    assert fence_stalled_jobs(
-        db,
-        authority=NORMAL_RECOVERY,
-        default_timeout_seconds=300,
-        market_data_timeout_seconds=300,
-        long_stage_timeout_seconds=1800,
-        now=after_twelve_minutes,
-        worker_id="worker-a",
-        worker_heartbeat_at=after_twelve_minutes,
-    ) == []
+    assert (
+        fence_stalled_jobs(
+            db,
+            authority=NORMAL_RECOVERY,
+            default_timeout_seconds=300,
+            market_data_timeout_seconds=300,
+            long_stage_timeout_seconds=1800,
+            now=after_twelve_minutes,
+            worker_id="worker-a",
+            worker_heartbeat_at=after_twelve_minutes,
+        )
+        == []
+    )
     assert job.status == JobStatus.RUNNING
 
 
@@ -918,6 +910,86 @@ def test_truly_frozen_winner_stage_is_fenced_despite_live_heartbeats() -> None:
     ) == [job.id]
     assert job.status == JobStatus.STALLED
     assert "sequence 37 remained frozen for 1800s" in job.error_message
+
+
+@pytest.mark.parametrize(
+    "stage",
+    ("CAPTURING_SETUP_SIGNALS", "EVALUATING_SETUP_LIFECYCLES"),
+)
+def test_setup_stages_use_canonical_long_running_timeout(stage: str) -> None:
+    started = datetime.now(UTC)
+    job = _running_job()
+    job.progress_stage = stage
+    job.progress_sequence = 4
+    job.last_progress_at = started
+    job.operational_metadata_json = {
+        "progress_watchdog": {
+            "progress_sequence": 4,
+            "unchanged_since": started.isoformat(),
+        }
+    }
+    db = FakeDb(stale_jobs=[job])
+
+    after_six_minutes = started + timedelta(minutes=6)
+    job.heartbeat_at = after_six_minutes
+    assert (
+        fence_stalled_jobs(
+            db,
+            authority=NORMAL_RECOVERY,
+            default_timeout_seconds=300,
+            market_data_timeout_seconds=300,
+            long_stage_timeout_seconds=1800,
+            now=after_six_minutes,
+            worker_id="worker-a",
+            worker_heartbeat_at=after_six_minutes,
+        )
+        == []
+    )
+
+    after_thirty_one_minutes = started + timedelta(minutes=31)
+    job.heartbeat_at = after_thirty_one_minutes
+    assert fence_stalled_jobs(
+        db,
+        authority=NORMAL_RECOVERY,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=300,
+        long_stage_timeout_seconds=1800,
+        now=after_thirty_one_minutes,
+        worker_id="worker-a",
+        worker_heartbeat_at=after_thirty_one_minutes,
+    ) == [job.id]
+    assert "remained frozen for 1800s" in job.error_message
+
+
+def test_identical_progress_stalls_stop_automatic_recovery_at_bound() -> None:
+    job = _running_job()
+    job.status = JobStatus.STALLED
+    job.execution_token = None
+    job.operational_metadata_json = {
+        "progress_recovery": {
+            "signature": "same-stall",
+            "identical_count": 3,
+            "stall_identity": {
+                "stage": "CAPTURING_SETUP_SIGNALS",
+                "processed": 0,
+            },
+        }
+    }
+    db = FakeDb(stale_jobs=[job])
+
+    assert (
+        requeue_stalled_jobs(
+            db,
+            authority=NORMAL_RECOVERY,
+            job_ids=[job.id],
+            max_identical_recoveries=3,
+        )
+        == 0
+    )
+    assert job.status == JobStatus.BLOCKED
+    assert job.operational_metadata_json["blocked"]["reason_code"] == (
+        "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
+    )
 
 
 def test_worker_recycle_preserves_more_than_one_hundred_queued_jobs() -> None:

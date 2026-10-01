@@ -58,14 +58,20 @@ from app.services.ceri.source_manifest_service import (
 )
 from app.services.configuration_delivery import anchored_job_configuration
 from app.services.pipeline_prerequisites import CeriUpstreamStageBlockedError
+from app.services.pipeline_stage_registry import (
+    CERI_FEATURE_PREPARE_PROGRESS_STAGE,
+    CERI_FEATURE_PROGRESS_STAGE,
+    CERI_NORMALIZE_PROGRESS_STAGE,
+    CERI_PROVIDER_PROGRESS_STAGE,
+)
 from app.settings import get_settings
 
 CERI_CAPTURE_RUN = "CERI_CAPTURE_RUN"
 logger = logging.getLogger(__name__)
 CERI_PROGRESS_STAGES = {
-    CERI_PROVIDER_INGEST_BATCH: "CERI_PROVIDER_INGEST",
-    CERI_NORMALIZE_BATCH: "CERI_NORMALIZE",
-    CERI_FEATURE_BATCH: "CERI_FEATURE_REBUILD",
+    CERI_PROVIDER_INGEST_BATCH: CERI_PROVIDER_PROGRESS_STAGE,
+    CERI_NORMALIZE_BATCH: CERI_NORMALIZE_PROGRESS_STAGE,
+    CERI_FEATURE_BATCH: CERI_FEATURE_PROGRESS_STAGE,
 }
 
 
@@ -367,9 +373,6 @@ def execute_feature_batch_job(
             if retained_manifest is not None and retained_manifest.id != manifest.id:
                 raise ValueError("CERI_SOURCE_MANIFEST_IDENTITY_MISMATCH")
             batch_context.source_manifest_id = manifest.id
-            # Publish the immutable authority in its own pre-output transaction.
-            # The pipeline row lock orders this commit against terminal roll-up.
-            require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
             if _heartbeat_and_cancel(db, job):
                 raise CancelRequested("CERI feature batch cancelled after source freeze.")
     failed = 0
@@ -443,8 +446,7 @@ def execute_feature_batch_job(
                 }
                 db.flush()
                 raise ValueError(
-                    "CERI_FEATURE_OUTPUT_MISSING_FOR_REFERENCED_INPUT:"
-                    f"ticker={ticker}"
+                    f"CERI_FEATURE_OUTPUT_MISSING_FOR_REFERENCED_INPUT:ticker={ticker}"
                 )
             CeriProcessingRunService().finish(
                 db,
@@ -474,10 +476,9 @@ def execute_feature_batch_job(
             total=len(tickers),
             last_completed=ticker,
         )
-        # Make feature rows, processing-run completion, and the ticker
-        # checkpoint durable in that order. This also bounds retry work to one
-        # ticker without discarding the shared read-only batch context.
-        require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
+        # The financial batch remains atomic; only lease/progress state is
+        # committed independently. A retry restarts this bounded ticker batch
+        # against the same immutable source manifest.
         if _heartbeat_and_cancel(db, job):
             raise CancelRequested("CERI feature batch cancelled.")
     if failed or any(value.get("status") == "PARTIAL" for value in results.values()):
@@ -739,7 +740,19 @@ def _save_checkpoint(
     }
     job.operational_metadata_json = metadata
     stage = CERI_PROGRESS_STAGES.get(job.job_type, "CERI_BATCH")
-    if isinstance(db, Session) and job.id is not None and job.execution_token:
+    control_plane = getattr(job, "_control_plane_progress", None)
+    if callable(control_plane):
+        if control_plane(
+            stage=stage,
+            current_item=last_completed,
+            last_completed_item=last_completed,
+            processed=processed,
+            total=total,
+            checkpoint_version=checkpoint_id,
+            only_if_advanced=True,
+        ):
+            raise CancelRequested(f"{job.job_type} cancelled at {last_completed}.")
+    elif isinstance(db, Session) and job.id is not None and job.execution_token:
         record_job_progress(
             db,
             job_id=job.id,
@@ -818,7 +831,20 @@ def _normalization_checkpoint(
         ),
     }
     job.operational_metadata_json = metadata
-    if job.id is not None and job.execution_token:
+    control_plane = getattr(job, "_control_plane_progress", None)
+    if callable(control_plane):
+        with db.no_autoflush:
+            require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
+        cancelled = bool(
+            control_plane(
+                stage=CERI_NORMALIZE_PROGRESS_STAGE,
+                current_item=ticker,
+                last_completed_item=ticker,
+                processed=processed,
+                checkpoint_version=f"ceri-normalize:{ticker}:{source_record_id}",
+            )
+        )
+    elif job.id is not None and job.execution_token:
         record_job_progress(
             db,
             job_id=job.id,
@@ -829,7 +855,10 @@ def _normalization_checkpoint(
             processed=processed,
             checkpoint_version=f"ceri-normalize:{ticker}:{source_record_id}",
         )
-    if _heartbeat_and_cancel(db, job):
+        cancelled = _heartbeat_and_cancel(db, job)
+    else:
+        cancelled = _heartbeat_and_cancel(db, job)
+    if cancelled:
         raise CeriNormalizationCancelled("CERI normalization batch cancelled.")
 
 
@@ -866,32 +895,54 @@ def _feature_prepare_checkpoint(
         ),
     }
     job.operational_metadata_json = metadata
-    if job.id is not None and job.execution_token:
+    control_plane = getattr(job, "_control_plane_progress", None)
+    if callable(control_plane):
+        with db.no_autoflush:
+            require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
+        cancelled = bool(
+            control_plane(
+                stage=CERI_FEATURE_PREPARE_PROGRESS_STAGE,
+                current_item=phase,
+                last_completed_item=phase,
+                processed=processed_queries,
+                checkpoint_version=checkpoint_id,
+                only_if_advanced=False,
+            )
+        )
+    elif job.id is not None and job.execution_token:
         record_job_progress(
             db,
             job_id=job.id,
             execution_token=str(job.execution_token),
-            stage="CERI_FEATURE_PREPARE",
+            stage=CERI_FEATURE_PREPARE_PROGRESS_STAGE,
             current_item=phase,
             last_completed_item=phase,
             processed=processed_queries,
             checkpoint_version=checkpoint_id,
         )
+        cancelled = _heartbeat_and_cancel(db, job)
     else:
         job.last_progress_at = checkpoint_at
         job.progress_sequence = int(job.progress_sequence or 0) + 1
-        job.progress_stage = "CERI_FEATURE_PREPARE"
+        job.progress_stage = CERI_FEATURE_PREPARE_PROGRESS_STAGE
         job.progress_current_item = phase
         job.progress_last_completed_item = phase
         job.progress_processed = max(int(job.progress_processed or 0), processed_queries)
         job.checkpoint_version = checkpoint_id
-    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
-    if _heartbeat_and_cancel(db, job):
+        cancelled = _heartbeat_and_cancel(db, job)
+    if cancelled:
         raise CancelRequested("CERI feature batch cancelled during context preparation.")
 
 
 def _heartbeat_and_cancel(db: Session, job: BackgroundJob, *, heartbeat: bool = True) -> bool:
-    require_parent_pipeline_active(db, job, lock_for_checkpoint=heartbeat)
+    if isinstance(db, Session):
+        with db.no_autoflush:
+            require_parent_pipeline_active(db, job, lock_for_checkpoint=heartbeat)
+    else:
+        require_parent_pipeline_active(db, job, lock_for_checkpoint=heartbeat)
+    control_plane = getattr(job, "_control_plane_progress", None)
+    if callable(control_plane):
+        return bool(control_plane())
     callback = getattr(job, "_heartbeat", None)
     if heartbeat and callable(callback):
         callback()

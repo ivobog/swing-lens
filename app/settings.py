@@ -301,6 +301,7 @@ class Settings(BaseSettings):
     job_progress_timeout_seconds: int = Field(default=300, ge=30, le=86_400)
     job_market_data_progress_timeout_seconds: int = Field(default=360, ge=30, le=86_400)
     job_long_stage_progress_timeout_seconds: int = Field(default=1800, ge=60, le=86_400)
+    job_max_identical_progress_recoveries: int = Field(default=3, ge=1, le=20)
     job_watchdog_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
     worker_memory_warning_mb: int = Field(default=4096, ge=128)
     worker_memory_critical_mb: int = Field(default=6144, ge=256)
@@ -308,12 +309,8 @@ class Settings(BaseSettings):
     worker_memory_tracemalloc_enabled: bool = False
     worker_memory_top_allocations: int = Field(default=10, ge=1, le=50)
     worker_shutdown_grace_seconds: float = Field(default=15.0, ge=1.0, le=300.0)
-    worker_infrastructure_backoff_initial_seconds: float = Field(
-        default=1.0, ge=0.1, le=60.0
-    )
-    worker_infrastructure_backoff_max_seconds: float = Field(
-        default=30.0, ge=0.1, le=300.0
-    )
+    worker_infrastructure_backoff_initial_seconds: float = Field(default=1.0, ge=0.1, le=60.0)
+    worker_infrastructure_backoff_max_seconds: float = Field(default=30.0, ge=0.1, le=300.0)
     supervisor_restart_budget: int = Field(default=5, ge=1, le=50)
     supervisor_restart_window_seconds: float = Field(default=60.0, ge=1.0, le=3600.0)
     supervisor_restart_backoff_initial_seconds: float = Field(default=0.5, ge=0.0, le=60.0)

@@ -296,6 +296,11 @@ def binding_reference(db, *, job_id=None, pipeline_run_id=None, winner_cohort_ge
         key = "winner-generation:" + str(winner_cohort_generation_id)
     else:
         key = "job:" + str(job_id) if job_id is not None else "pipeline:" + str(pipeline_run_id)
+    transaction = db.get_transaction() if isinstance(db, Session) else None
+    cache = db.info.setdefault("configuration_binding_reference_cache", {}) if transaction else {}
+    cached = cache.get(key)
+    if cached is not None and cached[0] is transaction:
+        return dict(cached[1])
     from app.services.source_mutation_authority import prefetched_source_rows
 
     rows = prefetched_source_rows(db, ExecutionConfigurationBinding, [key])
@@ -313,7 +318,10 @@ def binding_reference(db, *, job_id=None, pipeline_run_id=None, winner_cohort_ge
         or binding.winner_cohort_generation_id != winner_cohort_generation_id
     ):
         raise ValueError("CONFIGURATION_ANCHOR_BINDING_MISMATCH")
-    return {"anchor_id": anchor.anchor_id, "fingerprint": anchor.fingerprint}
+    reference = {"anchor_id": anchor.anchor_id, "fingerprint": anchor.fingerprint}
+    if transaction is not None:
+        cache[key] = (transaction, reference)
+    return dict(reference)
 
 
 def execution_configuration_reference(db, job, *, _seen=None):

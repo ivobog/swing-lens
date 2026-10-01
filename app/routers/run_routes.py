@@ -1770,6 +1770,10 @@ def _pipeline_status_payload(
             "message": step.message,
             "error_message": step.error_message,
             "retry_count": step.retry_count,
+            "original_started_at": step.original_started_at,
+            "latest_attempt_started_at": step.latest_attempt_started_at,
+            "latest_attempt_finished_at": step.latest_attempt_finished_at,
+            "attempt_count": step.attempt_count,
         }
         for step in status.steps
     ]

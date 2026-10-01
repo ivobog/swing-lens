@@ -766,14 +766,14 @@ def run_worker_once(
                 from app.services.domain_write_fence import current_fenced_domain_session
 
                 source_db = current_fenced_domain_session(job.id, execution_token)
-                if job.job_type != "FULL_PIPELINE" and source_db is not None and (
-                    source_db is not db or source_db.in_nested_transaction()
+                if (
+                    job.job_type != "FULL_PIPELINE"
+                    and source_db is not None
+                    and (source_db is not db or source_db.in_nested_transaction())
                 ):
                     # A bounded non-pipeline handler may own the control row in
                     # a child Session. Renew there instead of self-blocking.
-                    source_job = (
-                        job if source_db is db else source_db.get(BackgroundJob, job.id)
-                    )
+                    source_job = job if source_db is db else source_db.get(BackgroundJob, job.id)
                     heartbeat_job(
                         source_db,
                         source_job,
@@ -864,7 +864,10 @@ def run_worker_once(
 
                 mark_dependency_job_running(db, job.id)
                 db.commit()
-            if job.job_type in {"CERI_CHANGE_DETECTION", "SEC_READINESS_REPAIR"}:
+            if job.job_type.startswith("CERI_") or job.job_type == "SEC_READINESS_REPAIR":
+                # CERI calculations may hold large, exact source bundles under
+                # one financial transaction. Progress and cancellation belong
+                # to the control plane and must never commit that transaction.
                 job._control_plane_progress = detached_control_progress
             result = execute_job(
                 db,
@@ -953,9 +956,7 @@ def run_worker_once(
                 orchestration_db.close()
         return True
     except Exception as exc:
-        reason_code = (
-            None if claim_committed else _classify_preclaim_infrastructure_error(exc)
-        )
+        reason_code = None if claim_committed else _classify_preclaim_infrastructure_error(exc)
         if reason_code is not None:
             _rollback_and_invalidate(db)
             raise PreClaimInfrastructureError(reason_code, exc) from exc
@@ -1148,6 +1149,7 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
         if isinstance(db, Session)
         else None
     )
+
     def lease_guard() -> None:
         heartbeat = getattr(job, "_heartbeat", None)
         if callable(heartbeat):

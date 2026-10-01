@@ -208,6 +208,26 @@
       <strong data-pipeline-actual-session>{{ pipeline_result.get("actual_latest_data_session", "") or "Unknown" }}</strong>
     </div>
   </div>
+
+  {% set ceri_async = pipeline_result.get('ceri_async') or {} %}
+    <section class="panel section-gap" data-ceri-async-visibility {% if not ceri_async %}hidden{% endif %}>
+      <div class="panel-header compact-header">
+        <div>
+          <h2>CERI child workflow</h2>
+          <p>Dependency: <span data-ceri-dependency-state>{{ ceri_async.get('dependency_state') or 'UNKNOWN' }}</span></p>
+        </div>
+      </div>
+      <div class="metric-grid">
+        {% for phase_name in ['provider_acquisition', 'normalization', 'feature_computation', 'capture', 'certification_barrier', 'continuation'] %}
+          {% set phase = (ceri_async.get('phases') or {}).get(phase_name) or {} %}
+          <div class="metric" data-ceri-phase="{{ phase_name }}">
+            <span>{{ phase_name|replace('_', ' ')|title }}</span>
+            <strong data-ceri-phase-state>{{ phase.get('state') or 'PENDING' }}</strong>
+            <small><span data-ceri-phase-completed>{{ phase.get('completed_jobs') or 0 }}</span> / <span data-ceri-phase-jobs>{{ phase.get('job_count') or 0 }}</span> jobs; <span data-ceri-phase-processed>{{ phase.get('processed') or 0 }}</span> / <span data-ceri-phase-total>{{ phase.get('total') or 0 }}</span> items</small>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
   {% if pipeline_result.get("degraded") %}
     <div class="alert section-gap" data-pipeline-degraded role="alert">
       Degraded run: cached market data was explicitly allowed. Winner Evidence capture is skipped
@@ -245,8 +265,9 @@
           <th scope="col">Order</th>
           <th scope="col">Step</th>
           <th scope="col">Status</th>
-          <th scope="col">Started</th>
-          <th scope="col">Finished</th>
+          <th scope="col">Original started</th>
+          <th scope="col">Latest attempt</th>
+          <th scope="col">Latest finished</th>
           <th scope="col">Message</th>
           <th scope="col">Error</th>
         </tr>
@@ -257,12 +278,13 @@
             <td>{{ step.step_order }}</td>
             <td>{{ step.label }}</td>
             <td data-step-status>
-              <span class="badge badge-{{ 'success' if step.status in ['COMPLETED', 'SKIPPED'] else 'warning' if step.status in ['PENDING', 'RUNNING', 'INTERRUPTED'] else 'danger' }}">
+              <span class="badge badge-{{ 'success' if step.status in ['COMPLETED', 'SKIPPED'] else 'warning' if step.status in ['PENDING', 'DISPATCHED', 'WAITING_DEPENDENCY', 'RUNNING', 'INTERRUPTED'] else 'danger' }}">
                 {{ step.status|replace("_", " ")|title }}
               </span>
             </td>
-            <td data-step-started>{{ step.started_at or "" }}</td>
-            <td data-step-completed>{{ step.completed_at or "" }}</td>
+            <td data-step-original-started>{{ step.original_started_at or step.started_at or "" }}</td>
+            <td data-step-started>{{ step.latest_attempt_started_at or step.started_at or "" }}</td>
+            <td data-step-completed>{{ step.latest_attempt_finished_at or step.completed_at or "" }}</td>
             <td data-step-message>{{ step.message or "" }}</td>
             <td data-step-error>{{ step.error_message or "" }}</td>
           </tr>

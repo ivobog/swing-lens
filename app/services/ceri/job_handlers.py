@@ -64,6 +64,10 @@ from app.services.market_calculation_context_service import (
     resolve_pipeline_market_context,
 )
 from app.services.pipeline_prerequisites import CeriParentPipelineTerminalError
+from app.services.pipeline_stage_registry import (
+    CERI_CAPTURE_PROGRESS_STAGE,
+    CERI_CHANGE_DETECTION_PROGRESS_STAGE,
+)
 from app.services.redaction import redact_text
 
 CERI_PROVIDER_INGEST = "CERI_PROVIDER_INGEST"
@@ -458,6 +462,7 @@ def execute_capture_run_job(
         return values
     with job_phase("capture_calculation_and_persistence"):
         capture = capture_service or CeriRunCaptureService()
+        control_plane = getattr(job, "_control_plane_progress", None)
 
         def capture_progress(ticker: str, processed: int, total: int) -> None:
             checkpoint_at = datetime.now(UTC)
@@ -495,12 +500,25 @@ def execute_capture_run_job(
                 ),
             }
             job.operational_metadata_json = metadata
-            if job.id is not None and job.execution_token:
+            if callable(control_plane):
+                with db.no_autoflush:
+                    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
+                if control_plane(
+                    stage=CERI_CAPTURE_PROGRESS_STAGE,
+                    current_item=ticker,
+                    last_completed_item=ticker if processed else None,
+                    processed=processed,
+                    total=total,
+                    checkpoint_version=f"ceri-capture:{processed}:{ticker}",
+                    only_if_advanced=False,
+                ):
+                    raise CancelRequested("CERI capture cancelled.")
+            elif job.id is not None and job.execution_token:
                 record_job_progress(
                     db,
                     job_id=job.id,
                     execution_token=str(job.execution_token),
-                    stage="CERI_CAPTURE_RUN",
+                    stage=CERI_CAPTURE_PROGRESS_STAGE,
                     current_item=ticker,
                     last_completed_item=ticker if processed else None,
                     processed=processed,
@@ -510,10 +528,10 @@ def execute_capture_run_job(
                     # retain their item count while phase identity advances.
                     only_if_advanced=False,
                 )
-            heartbeat = getattr(job, "_heartbeat", None)
-            if callable(heartbeat):
-                require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
-                heartbeat()
+                heartbeat = getattr(job, "_heartbeat", None)
+                if callable(heartbeat):
+                    require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
+                    heartbeat()
 
         capture_kwargs: dict[str, Any] = {}
         if market_cutoff is not None:
@@ -635,7 +653,7 @@ def execute_change_detection_job(
             ) -> None:
                 if callable(control_plane):
                     control_plane(
-                        stage="CERI_CHANGE_DETECTION",
+                        stage=CERI_CHANGE_DETECTION_PROGRESS_STAGE,
                         current_item=f"companies:{company_ids[0]}-{company_ids[-1]}",
                         last_completed_item=str(company_ids[-1]),
                         processed=processed,
@@ -649,7 +667,7 @@ def execute_change_detection_job(
                     db,
                     job_id=job.id,
                     execution_token=execution_token,
-                    stage="CERI_CHANGE_DETECTION",
+                    stage=CERI_CHANGE_DETECTION_PROGRESS_STAGE,
                     current_item=f"companies:{company_ids[0]}-{company_ids[-1]}",
                     last_completed_item=str(company_ids[-1]),
                     processed=processed,

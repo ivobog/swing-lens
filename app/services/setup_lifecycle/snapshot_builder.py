@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from inspect import signature
 from types import SimpleNamespace
 from typing import Any
 
@@ -60,6 +61,10 @@ REQUIRED_FEATURE_SOURCES = (
 )
 OPTIONAL_CONTEXT_SOURCES = ("market_regime", "sector_rotation")
 FRESH_BAR_GRACE_SESSIONS = 3
+
+
+class SetupLifecycleCaptureCancelled(RuntimeError):
+    """Raised when cooperative cancellation stops setup snapshot capture."""
 
 
 @dataclass(frozen=True)
@@ -927,6 +932,8 @@ class SetupLifecycleSnapshotCaptureService:
         finalize_evaluation_run: bool = True,
         market_cutoff=None,
         frozen_tickers: tuple[str, ...] | None = None,
+        should_cancel=None,
+        progress_callback=None,
     ) -> SnapshotCaptureResult:
         from sqlalchemy.orm import Session
 
@@ -954,6 +961,10 @@ class SetupLifecycleSnapshotCaptureService:
                         "SETUP_FROZEN_SCOPE_MEMBERSHIP_MISMATCH",
                         "Setup capture source membership differs from the parent frozen scope.",
                     )
+            if should_cancel is not None and should_cancel():
+                raise SetupLifecycleCaptureCancelled("SETUP_CAPTURE_CANCELLED")
+            if progress_callback is not None:
+                progress_callback("SOURCE_CONTEXT", 0, len(run_context.tickers), phase="PREPARING")
         except Exception:
             if evaluation_run is not None:
                 self.repository.complete_evaluation_run(
@@ -978,6 +989,15 @@ class SetupLifecycleSnapshotCaptureService:
                 repository=self.repository,
                 errors_by_ticker=errors_by_ticker,
             )
+            if should_cancel is not None and should_cancel():
+                raise SetupLifecycleCaptureCancelled("SETUP_CAPTURE_CANCELLED")
+            if progress_callback is not None:
+                progress_callback(
+                    "SNAPSHOTS_BUILT",
+                    0,
+                    len(run_context.tickers),
+                    phase="PREPARING",
+                )
         except Exception:
             if evaluation_run is not None:
                 self.repository.complete_evaluation_run(
@@ -1025,7 +1045,17 @@ class SetupLifecycleSnapshotCaptureService:
         batch_upsert = getattr(self.repository, "upsert_snapshots", None)
         if batch_upsert is not None:
             try:
-                persisted = batch_upsert(db, [dto for _context, _built, dto in prepared_rows])
+                parameters = signature(batch_upsert).parameters
+                optional = {}
+                if "progress_callback" in parameters:
+                    optional["progress_callback"] = progress_callback
+                if "should_cancel" in parameters:
+                    optional["should_cancel"] = should_cancel
+                persisted = batch_upsert(
+                    db,
+                    [dto for _context, _built, dto in prepared_rows],
+                    **optional,
+                )
             except Exception:
                 if evaluation_run is not None:
                     self.repository.complete_evaluation_run(
@@ -1047,16 +1077,6 @@ class SetupLifecycleSnapshotCaptureService:
                     else self.repository.upsert_snapshot(db, dto)
                 )
                 snapshot_ids.append(snapshot.id)
-                if dto.effective_configuration is not None:
-                    from sqlalchemy.orm import Session
-
-                    from app.services.setup_lifecycle.decision_evidence import (
-                        persist_setup_evidence,
-                    )
-
-                    if isinstance(db, Session):
-                        snapshot._effective_configuration = dto.effective_configuration
-                        persist_setup_evidence(db, snapshot)
                 if built.warnings:
                     warnings_by_ticker[ticker_context.ticker] = built.warnings
                 if dto.data_quality_label in {

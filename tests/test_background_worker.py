@@ -76,9 +76,7 @@ def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     )
 
     with caplog.at_level(logging.CRITICAL):
-        summary = log_worker_startup_configuration(
-            Db(), settings=settings, worker_id="worker-test"
-        )
+        summary = log_worker_startup_configuration(Db(), settings=settings, worker_id="worker-test")
 
     assert summary["sec_incremental_mode"] == "OFF"
     assert summary["sec_processor_signature"].startswith("sec-guidance:")
@@ -146,9 +144,7 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
     )
     monkeypatch.setattr(
         "app.services.background_worker.heartbeat_job",
-        lambda control_db, control_job, **_kwargs: heartbeats.append(
-            (control_db, control_job)
-        ),
+        lambda control_db, control_job, **_kwargs: heartbeats.append((control_db, control_job)),
     )
     monkeypatch.setattr(
         "app.services.background_worker.record_job_progress",
@@ -163,9 +159,7 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
         lambda *_args, **_kwargs: None,
     )
 
-    def execute_pipeline(
-        *_args, should_cancel, progress_callback, lease_guard, **_kwargs
-    ):
+    def execute_pipeline(*_args, should_cancel, progress_callback, lease_guard, **_kwargs):
         assert should_cancel() is False
         progress_callback(db, stage="SCORING_FUNDAMENTALS", current_item=None)
         lease_guard()
@@ -179,9 +173,7 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
         assert should_cancel() is False
         return SimpleNamespace(status="COMPLETED")
 
-    monkeypatch.setattr(
-        "app.services.pipeline_executor.execute_full_pipeline", execute_pipeline
-    )
+    monkeypatch.setattr("app.services.pipeline_executor.execute_full_pipeline", execute_pipeline)
 
     try:
         assert _execute_full_pipeline_job(db, job) == {"status": "COMPLETED"}
@@ -275,12 +267,14 @@ def test_worker_rolls_back_failed_transaction_before_marking_job_failed(
     assert db.closed is True
 
 
-def test_worker_attaches_detached_progress_callback_to_sec_repair(
+@pytest.mark.parametrize("job_type", ("SEC_READINESS_REPAIR", "CERI_FEATURE_BATCH"))
+def test_worker_attaches_detached_progress_callback_to_long_financial_jobs(
     monkeypatch: pytest.MonkeyPatch,
+    job_type: str,
 ) -> None:
     job = BackgroundJob(
         id=59,
-        job_type="SEC_READINESS_REPAIR",
+        job_type=job_type,
         status=JobStatus.RUNNING,
         execution_token="token-59",
     )
@@ -307,12 +301,15 @@ def test_worker_attaches_detached_progress_callback_to_sec_repair(
         callback_seen.append(callable(getattr(handled_job, "_control_plane_progress", None)))
         return {"status": "COMPLETED"}
 
-    assert run_worker_once(
-        worker_id="worker-a",
-        stale_after_seconds=60,
-        session_factory=lambda: db,
-        handlers={"SEC_READINESS_REPAIR": handler},
-    ) is True
+    assert (
+        run_worker_once(
+            worker_id="worker-a",
+            stale_after_seconds=60,
+            session_factory=lambda: db,
+            handlers={job_type: handler},
+        )
+        is True
+    )
     assert callback_seen == [True]
     assert not hasattr(job, "_control_plane_progress")
 
@@ -735,9 +732,7 @@ def test_successful_preclaim_interaction_clears_degraded_registration(
     )
     monkeypatch.setattr(
         "app.services.background_worker.mark_worker_infrastructure_healthy",
-        lambda _db, worker_id, **kwargs: healthy_calls.append(
-            (worker_id, kwargs["instance_id"])
-        ),
+        lambda _db, worker_id, **kwargs: healthy_calls.append((worker_id, kwargs["instance_id"])),
     )
 
     assert (
