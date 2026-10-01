@@ -19,6 +19,7 @@ from app.observability.logging import log_event
 from app.observability.metrics import operational_metrics
 from app.services.background_job_service import JobStatus
 from app.services.background_queue import job_queue_class
+from app.services.pipeline_execution_authority import apply_job_execution_authority_scope
 
 logger = logging.getLogger(__name__)
 _health_lock = Lock()
@@ -262,7 +263,7 @@ class SystemMetricsCollector:
             (BackgroundJob.status == JobStatus.QUEUED, "SCHEDULED"),
             else_=BackgroundJob.status,
         ).label("queue_state")
-        rows = session.execute(
+        queue_query = (
             select(
                 BackgroundJob.job_type,
                 queue_state,
@@ -281,7 +282,8 @@ class SystemMetricsCollector:
                 )
             )
             .group_by(BackgroundJob.job_type, queue_state)
-        ).all()
+        )
+        rows = session.execute(apply_job_execution_authority_scope(queue_query)).all()
         counts: dict[tuple[str, str], int] = {}
         oldest: dict[str, float] = {}
         type_counts: dict[tuple[str, str], int] = {}
@@ -338,8 +340,13 @@ class SystemMetricsCollector:
             }[status]
             operational_metrics.set_gauge(metric, 0, job_type=job_type)
         self._job_state_series = active_state_series
+        running_query = (
+            select(BackgroundJob)
+            .where(BackgroundJob.status == JobStatus.RUNNING)
+            .limit(100)
+        )
         running = session.scalars(
-            select(BackgroundJob).where(BackgroundJob.status == JobStatus.RUNNING).limit(100)
+            apply_job_execution_authority_scope(running_query)
         ).all()
         active_progress_series: set[tuple[str, str]] = set()
         for job in running:

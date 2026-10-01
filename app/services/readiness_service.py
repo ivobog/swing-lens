@@ -26,6 +26,10 @@ from app.observability.logging import log_event
 from app.services.alembic_heads import database_alembic_heads, repository_alembic_heads
 from app.services.background_job_service import JobStatus
 from app.services.lifecycle_safety import verify_authoritative_connection
+from app.services.pipeline_execution_authority import (
+    apply_job_execution_authority_scope,
+    job_execution_authority_predicate,
+)
 from app.services.process_identity import process_is_alive
 from app.services.redaction import redact_text
 from app.services.supervisor_registry import live_supervisors
@@ -103,6 +107,7 @@ class ReadinessService:
             queue_pressure = self._queue_pressure_check()
             db_pool = self._db_pool_check()
             pipeline_invariants = self._pipeline_invariant_check()
+            historical_jobs = self._historical_jobs_check()
         else:
             dependency_message = "skipped: database unavailable"
             migrations = ReadinessCheck(False, dependency_message)
@@ -117,6 +122,7 @@ class ReadinessService:
             queue_pressure = ReadinessCheck(False, dependency_message)
             db_pool = ReadinessCheck(False, dependency_message)
             pipeline_invariants = ReadinessCheck(False, dependency_message)
+            historical_jobs = ReadinessCheck(False, dependency_message)
         checks = {
             "database": database,
             "migrations": migrations,
@@ -132,6 +138,7 @@ class ReadinessService:
             "queue_pressure": queue_pressure,
             "db_pool": db_pool,
             "pipeline_invariants": pipeline_invariants,
+            "historical_jobs": historical_jobs,
             "telemetry": self._telemetry_check(),
             "metrics": self._metrics_configuration_check(),
             "resource_sampler": self._resource_collector_check(),
@@ -386,7 +393,8 @@ class ReadinessService:
         fatal = counts[InvariantDisposition.FATAL_STARTUP_INVARIANT.value]
         review = counts[InvariantDisposition.REQUIRES_OPERATOR_REVIEW.value]
         safe = counts[InvariantDisposition.SAFE_AUTO_RECONCILE.value]
-        message = f"fatal={fatal};review={review};safe={safe}"
+        historical = sum(not finding.operational_actionable for finding in findings)
+        message = f"fatal={fatal};review={review};safe={safe};historical={historical}"
         if fatal:
             return ReadinessCheck(False, message)
         if review or safe:
@@ -429,8 +437,7 @@ class ReadinessService:
     def _queue_pressure_check(self) -> ReadinessCheck:
         try:
             with Session(self.engine) as session:
-                row = session.execute(
-                    select(
+                query = select(
                         func.sum(
                             case(
                                 (
@@ -476,7 +483,7 @@ class ReadinessService:
                             )
                         )
                     )
-                ).one()
+                row = session.execute(_apply_readiness_job_scope(session, query)).one()
         except SQLAlchemyError as exc:
             return ReadinessCheck(False, _safe_message(exc))
         depth, scheduled, blocked, recovering, stalled, running, oldest = row
@@ -672,6 +679,7 @@ class ReadinessService:
                     )
                     .limit(1)
                 )
+                required_work = _apply_readiness_job_scope(session, required_work)
                 required = session.scalar(select(required_work.exists()))
             return bool(required)
         except SQLAlchemyError:
@@ -690,15 +698,17 @@ class ReadinessService:
                     now=self.now,
                 )
                 scalars = getattr(session, "scalars", None)
+                runnable_query = (
+                    select(BackgroundJob.job_type)
+                    .where(BackgroundJob.status == JobStatus.QUEUED)
+                    .where(BackgroundJob.run_after <= self.now)
+                    .distinct()
+                    .limit(100)
+                )
+                runnable_query = _apply_readiness_job_scope(session, runnable_query)
                 runnable_types = (
                     list(
-                        scalars(
-                            select(BackgroundJob.job_type)
-                            .where(BackgroundJob.status == JobStatus.QUEUED)
-                            .where(BackgroundJob.run_after <= self.now)
-                            .distinct()
-                            .limit(100)
-                        ).all()
+                        scalars(runnable_query).all()
                     )
                     if callable(scalars)
                     else ["FULL_PIPELINE"]
@@ -992,6 +1002,21 @@ class ReadinessService:
             return ReadinessCheck(False, f"recovering_jobs:{recovering_count}")
         return ReadinessCheck(True, "ok")
 
+    def _historical_jobs_check(self) -> ReadinessCheck:
+        """Expose fenced queue evidence without treating it as operational work."""
+
+        try:
+            with Session(self.engine) as session:
+                total, queued, stale_running = _historical_non_authoritative_job_counts(
+                    session, self.now
+                )
+        except SQLAlchemyError as exc:
+            return ReadinessCheck(False, _safe_message(exc))
+        return ReadinessCheck(
+            True,
+            f"non_authoritative={total};queued={queued};stale_running={stale_running}",
+        )
+
 
 def _probe_directory(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
@@ -1001,33 +1026,88 @@ def _probe_directory(directory: Path) -> None:
 
 
 def _unhealthy_job_counts(session: Session, now: datetime) -> tuple[int, int, int]:
+    stale_query = (
+        select(func.count())
+        .select_from(BackgroundJob)
+        .where(BackgroundJob.status == JobStatus.RUNNING)
+        .where(BackgroundJob.lease_expires_at.is_not(None))
+        .where(BackgroundJob.lease_expires_at < now)
+    )
     stale = int(
-        session.scalar(
-            select(func.count())
-            .select_from(BackgroundJob)
-            .where(BackgroundJob.status == JobStatus.RUNNING)
-            .where(BackgroundJob.lease_expires_at.is_not(None))
-            .where(BackgroundJob.lease_expires_at < now)
-        )
+        session.scalar(_apply_readiness_job_scope(session, stale_query))
         or 0
+    )
+    stalled_query = (
+        select(func.count())
+        .select_from(BackgroundJob)
+        .where(BackgroundJob.status == JobStatus.STALLED)
     )
     stalled = int(
-        session.scalar(
-            select(func.count())
-            .select_from(BackgroundJob)
-            .where(BackgroundJob.status == JobStatus.STALLED)
-        )
+        session.scalar(_apply_readiness_job_scope(session, stalled_query))
         or 0
     )
+    recovering_query = (
+        select(func.count())
+        .select_from(BackgroundJob)
+        .where(BackgroundJob.status == JobStatus.RECOVERING)
+    )
     recovering = int(
-        session.scalar(
-            select(func.count())
-            .select_from(BackgroundJob)
-            .where(BackgroundJob.status == JobStatus.RECOVERING)
-        )
+        session.scalar(_apply_readiness_job_scope(session, recovering_query))
         or 0
     )
     return stale, stalled, recovering
+
+
+def _historical_non_authoritative_job_counts(
+    session: Session, now: datetime
+) -> tuple[int, int, int]:
+    if not _readiness_authority_scope_supported(session):
+        return 0, 0, 0
+    historical_scope = ~job_execution_authority_predicate()
+    active_states = (
+        JobStatus.QUEUED,
+        JobStatus.BLOCKED,
+        JobStatus.RECOVERING,
+        JobStatus.STALLED,
+        JobStatus.RUNNING,
+    )
+    row = session.execute(
+        select(
+            func.count(BackgroundJob.id),
+            func.sum(case((BackgroundJob.status == JobStatus.QUEUED, 1), else_=0)),
+            func.sum(
+                case(
+                    (
+                        (BackgroundJob.status == JobStatus.RUNNING)
+                        & BackgroundJob.lease_expires_at.is_not(None)
+                        & (BackgroundJob.lease_expires_at < now),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ),
+        )
+        .select_from(BackgroundJob)
+        .where(BackgroundJob.status.in_(active_states))
+        .where(historical_scope)
+    ).one()
+    return tuple(int(value or 0) for value in row)
+
+
+def _apply_readiness_job_scope(session: Session, query):
+    if not _readiness_authority_scope_supported(session):
+        return query
+    return apply_job_execution_authority_scope(query)
+
+
+def _readiness_authority_scope_supported(session: Session) -> bool:
+    """SQLite is retained only for legacy, partial-schema readiness unit tests."""
+
+    get_bind = getattr(session, "get_bind", None)
+    if not callable(get_bind):
+        return True
+    dialect = getattr(get_bind(), "dialect", None)
+    return dialect is None or dialect.name != "sqlite"
 
 
 def _repository_alembic_heads() -> list[str]:

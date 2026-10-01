@@ -17,7 +17,7 @@ from time import monotonic, sleep
 from uuid import uuid4
 
 import psutil
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -55,6 +55,10 @@ from app.services.lifecycle_safety import (
     read_runtime_state,
     validate_runtime_process,
     verify_postgres_provenance,
+)
+from app.services.pipeline_execution_authority import (
+    apply_job_execution_authority_scope,
+    job_execution_authority_predicate,
 )
 from app.services.process_identity import process_is_alive
 from app.services.redaction import redact_sensitive, redact_text
@@ -1410,12 +1414,20 @@ def _jobs_report() -> dict[str, object]:
     try:
         with Session(engine) as db:
             now = datetime.now(UTC)
-            rows = (
+            active_query = (
                 db.query(BackgroundJob)
                 .filter(BackgroundJob.status.in_(("RUNNING", "RECOVERING")))
                 .order_by(BackgroundJob.id)
                 .limit(100)
-                .all()
+            )
+            rows = apply_job_execution_authority_scope(active_query).all()
+            historical_count = int(
+                db.scalar(
+                    select(func.count(BackgroundJob.id))
+                    .where(BackgroundJob.status.in_(("RUNNING", "RECOVERING")))
+                    .where(~job_execution_authority_predicate())
+                )
+                or 0
             )
             active = []
             for row in rows:
@@ -1453,7 +1465,12 @@ def _jobs_report() -> dict[str, object]:
                         "blocks_stop": lease_fresh or owner_fresh,
                     }
                 )
-            return {"reachable": True, "active": active, "activeCount": len(active)}
+            return {
+                "reachable": True,
+                "active": active,
+                "activeCount": len(active),
+                "historicalNonAuthoritativeCount": historical_count,
+            }
     except Exception as exc:
         return {"reachable": False, "error": redact_text(str(exc)), "active": []}
     finally:

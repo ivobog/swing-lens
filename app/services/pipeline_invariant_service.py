@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -16,6 +16,10 @@ from app.models.tables import (
     PipelineStep,
 )
 from app.services.background_job_service import ACTIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES
+from app.services.pipeline_execution_authority import (
+    job_execution_authority_predicate,
+    pipeline_execution_is_authorized,
+)
 from app.services.pipeline_state_machine import TERMINAL_PIPELINE_STATES
 
 
@@ -23,6 +27,11 @@ class InvariantDisposition(StrEnum):
     SAFE_AUTO_RECONCILE = "SAFE_AUTO_RECONCILE"
     REQUIRES_OPERATOR_REVIEW = "REQUIRES_OPERATOR_REVIEW"
     FATAL_STARTUP_INVARIANT = "FATAL_STARTUP_INVARIANT"
+
+
+class InvariantScope(StrEnum):
+    OPERATIONAL_ACTIONABLE = "OPERATIONAL_ACTIONABLE"
+    HISTORICAL_FORENSIC = "HISTORICAL_FORENSIC"
 
 
 @dataclass(frozen=True)
@@ -33,6 +42,11 @@ class PipelineInvariantFinding:
     job_id: int | None = None
     dependency_id: int | None = None
     detail: str = ""
+    scope: InvariantScope = InvariantScope.OPERATIONAL_ACTIONABLE
+
+    @property
+    def operational_actionable(self) -> bool:
+        return self.scope is InvariantScope.OPERATIONAL_ACTIONABLE
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -42,6 +56,8 @@ class PipelineInvariantFinding:
             "job_id": self.job_id,
             "dependency_id": self.dependency_id,
             "detail": self.detail,
+            "scope": self.scope.value,
+            "operational_actionable": self.operational_actionable,
         }
 
 
@@ -63,6 +79,9 @@ def inspect_pipeline_invariants(
     )
     dependencies_by_id = {dependency.id: dependency for dependency in dependencies}
     workers = {worker.worker_id: worker for worker in db.scalars(select(BackgroundWorker))}
+    executable_job_ids = set(
+        db.scalars(select(BackgroundJob.id).where(job_execution_authority_predicate()))
+    )
 
     active_full_by_pipeline: dict[int, list[BackgroundJob]] = {}
     for job in jobs:
@@ -285,16 +304,58 @@ def inspect_pipeline_invariants(
                     detail="cancelled pipeline has active step",
                 )
             )
-    return tuple(findings)
+    return tuple(
+        replace(
+            finding,
+            scope=_finding_scope(
+                finding,
+                executable_job_ids=executable_job_ids,
+                pipeline_by_id=pipeline_by_id,
+                dependencies_by_id=dependencies_by_id,
+            ),
+        )
+        for finding in findings
+    )
 
 
 def invariant_counts(findings: tuple[PipelineInvariantFinding, ...]) -> dict[str, int]:
     return {
         disposition.value: sum(
-            finding.disposition is disposition for finding in findings
+            finding.disposition is disposition and finding.operational_actionable
+            for finding in findings
         )
         for disposition in InvariantDisposition
     }
+
+
+def _finding_scope(
+    finding: PipelineInvariantFinding,
+    *,
+    executable_job_ids: set[int],
+    pipeline_by_id: dict[int, PipelineRun],
+    dependencies_by_id: dict[int, PipelineDependency],
+) -> InvariantScope:
+    if finding.job_id is not None:
+        actionable = finding.job_id in executable_job_ids
+    elif finding.pipeline_id is not None:
+        actionable = pipeline_execution_is_authorized(
+            pipeline_by_id.get(finding.pipeline_id)
+        )
+    elif finding.dependency_id is not None:
+        dependency = dependencies_by_id.get(finding.dependency_id)
+        actionable = bool(
+            dependency is not None
+            and pipeline_execution_is_authorized(
+                pipeline_by_id.get(dependency.pipeline_run_id)
+            )
+        )
+    else:
+        actionable = True
+    return (
+        InvariantScope.OPERATIONAL_ACTIONABLE
+        if actionable
+        else InvariantScope.HISTORICAL_FORENSIC
+    )
 
 
 def _job_pipeline_id(job: BackgroundJob) -> int | None:
