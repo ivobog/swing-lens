@@ -363,6 +363,59 @@ def test_worker_attaches_detached_progress_callback_to_long_financial_jobs(
     assert not hasattr(job, "_control_plane_progress")
 
 
+def test_ceri_job_renews_control_heartbeat_without_progress_callbacks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = BackgroundJob(
+        id=60,
+        job_type="CERI_FEATURE_BATCH",
+        status=JobStatus.RUNNING,
+        execution_token="token-60",
+    )
+    db = FakeWorkerDb()
+    autonomous_heartbeats: list[int] = []
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.claim_next_job",
+        lambda *_args, **_kwargs: job,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_job",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_job_completed",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.persist_detached_job_control",
+        lambda **kwargs: autonomous_heartbeats.append(kwargs["job_id"]) or False,
+    )
+
+    def long_handler(_db, _job):
+        # Simulates a stage exceeding its liveness window without invoking the
+        # feature progress callback; the test uses a compressed heartbeat clock.
+        Event().wait(0.25)
+        return {"status": "COMPLETED"}
+
+    assert (
+        run_worker_once(
+            worker_id="worker-a",
+            worker_instance_id="instance-a",
+            stale_after_seconds=60,
+            heartbeat_interval_seconds=0.01,
+            session_factory=lambda: db,
+            handlers={"CERI_FEATURE_BATCH": long_handler},
+        )
+        is True
+    )
+    assert len(autonomous_heartbeats) >= 2
+    assert set(autonomous_heartbeats) == {60}
+
+
 def test_worker_defers_barrier_without_consuming_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     job = BackgroundJob(
         id=1,

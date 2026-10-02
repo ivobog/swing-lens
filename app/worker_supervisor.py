@@ -15,12 +15,15 @@ from threading import Event
 from time import monotonic
 from uuid import uuid4
 
+from sqlalchemy import select
+
 from app.db import SessionLocal
-from app.models.tables import BackgroundSupervisor, BackgroundWorker
+from app.models.tables import BackgroundJob, BackgroundSupervisor, BackgroundWorker
 from app.observability.logging import configure_json_logging, log_event
 from app.observability.metrics import operational_metrics, start_metrics_http_server
 from app.observability.resource_sampler import ResourceSampler
 from app.services.background_job_service import (
+    JobStatus,
     WorkerJobReconciliation,
     fence_stalled_jobs,
     reconcile_jobs_for_worker_loss,
@@ -194,10 +197,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         while not stop.is_set():
             request = _read_shutdown_request(
-            request_path,
-            runtime_instance_id=args.runtime_instance_id,
-            supervisor_pid=process_id,
-            supervisor_started_at=process_start,
+                request_path,
+                runtime_instance_id=args.runtime_instance_id,
+                supervisor_pid=process_id,
+                supervisor_started_at=process_start,
             )
             if request is not None:
                 log_event(
@@ -625,41 +628,55 @@ def _supervise_once(
     process_alive = _registered_worker_process_alive(worker)
     control_loop_alive = _registered_worker_control_loop_alive(worker)
     resource_sampler_alive = _registered_worker_resource_sampler_alive(worker)
+    job_execution_alive = False
 
     if process_alive and worker is not None and not control_loop_alive:
+        job_execution_alive = _registered_worker_job_execution_alive(worker)
         context = {
             **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
             "reason_code": "WORKER_CONTROL_LOOP_STALE",
             "process_alive": True,
             "resource_sampler_alive": resource_sampler_alive,
             "control_loop_alive": False,
-            "job_execution_alive": False,
+            "job_execution_alive": job_execution_alive,
         }
-        logger.error("worker.supervisor.control_loop_stale %s", context, extra=context)
-        # A wedged owner can retain the job row, making SKIP LOCKED recovery
-        # powerless. Terminate the exact registered generation first so normal
-        # PostgreSQL process cleanup rolls its transaction back. Only then
-        # reconcile jobs owned by that generation.
-        _terminate_worker_instance(worker, child, settings.worker_shutdown_grace_seconds)
-        if _worker_os_process_alive(worker):
-            logger.critical(
-                "worker.supervisor.control_loop_termination_failed %s",
+        if job_execution_alive and resource_sampler_alive:
+            # Business progress and claim-loop liveness are separate signals.
+            # A fresh, fenced job heartbeat plus a live resource sampler proves
+            # execution is still active; the ordinary no-progress watchdog can
+            # decide later whether business progress is genuinely wedged.
+            logger.warning(
+                "worker.supervisor.control_loop_stale_active_job %s",
                 context,
                 extra=context,
             )
-            return child
-        reconciliation = _fence_worker(
-            worker_id,
-            worker.instance_id,
-            "Worker control-loop heartbeat is stale while its process heartbeat remains live.",
-            certification_session_id=certification_session_id,
-        )
-        _retire_worker_registration(worker)
-        _requeue(
-            list(reconciliation.fenced_job_ids),
-            certification_session_id=certification_session_id,
-        )
-        return None
+            control_loop_alive = True
+        else:
+            logger.error("worker.supervisor.control_loop_stale %s", context, extra=context)
+            # A wedged owner can retain the job row, making SKIP LOCKED recovery
+            # powerless. Terminate the exact registered generation first so normal
+            # PostgreSQL process cleanup rolls its transaction back. Only then
+            # reconcile jobs owned by that generation.
+            _terminate_worker_instance(worker, child, settings.worker_shutdown_grace_seconds)
+            if _worker_os_process_alive(worker):
+                logger.critical(
+                    "worker.supervisor.control_loop_termination_failed %s",
+                    context,
+                    extra=context,
+                )
+                return child
+            reconciliation = _fence_worker(
+                worker_id,
+                worker.instance_id,
+                "Worker control-loop heartbeat is stale while its process heartbeat remains live.",
+                certification_session_id=certification_session_id,
+            )
+            _retire_worker_registration(worker)
+            _requeue(
+                list(reconciliation.fenced_job_ids),
+                certification_session_id=certification_session_id,
+            )
+            return None
 
     worker_alive = process_alive and control_loop_alive
 
@@ -921,6 +938,39 @@ def _registered_worker_control_loop_alive(worker: BackgroundWorker | None) -> bo
     return heartbeat >= datetime.now(UTC) - timedelta(
         seconds=get_settings().job_worker_heartbeat_timeout_seconds
     )
+
+
+def _registered_worker_job_execution_alive(worker: BackgroundWorker | None) -> bool:
+    """Observe a fresh, fenced running-job heartbeat for this exact generation."""
+
+    if worker is None or worker.stopping_at is not None or not worker.instance_id:
+        return False
+    cutoff = datetime.now(UTC) - timedelta(
+        seconds=get_settings().job_worker_heartbeat_timeout_seconds
+    )
+    try:
+        with SessionLocal() as db:
+            return (
+                db.scalar(
+                    select(BackgroundJob.id)
+                    .where(
+                        BackgroundJob.status == JobStatus.RUNNING,
+                        BackgroundJob.worker_id == worker.worker_id,
+                        BackgroundJob.worker_instance_id == worker.instance_id,
+                        BackgroundJob.execution_token.is_not(None),
+                        BackgroundJob.heartbeat_at.is_not(None),
+                        BackgroundJob.heartbeat_at >= cutoff,
+                    )
+                    .limit(1)
+                )
+                is not None
+            )
+    except Exception:
+        logger.exception(
+            "worker.supervisor.job_execution_liveness_failed",
+            extra={"worker_id": worker.worker_id, "worker_instance_id": worker.instance_id},
+        )
+        return False
 
 
 def _registered_worker_resource_sampler_alive(worker: BackgroundWorker | None) -> bool:

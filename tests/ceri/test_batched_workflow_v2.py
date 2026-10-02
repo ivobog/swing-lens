@@ -703,10 +703,12 @@ def test_finalizer_defers_until_feature_batches_are_terminal(monkeypatch) -> Non
             "run_id": 95,
             "expected_feature_batches": 1,
         },
+        operational_metadata_json={"attempt_count": 6},
     )
 
-    with pytest.raises(JobDeferred, match="waiting for terminal"):
+    with pytest.raises(JobDeferred, match="waiting for terminal") as deferred:
         execute_run_finalize_job(FakeDb(stage_jobs=[feature]), finalizer)
+    assert deferred.value.delay_seconds == 160
 
 
 def test_settings_reject_simultaneous_legacy_and_v2_scheduling() -> None:

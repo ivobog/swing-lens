@@ -2181,6 +2181,29 @@ def _mark_pipeline_waiting_for_ceri(
     if not workflow_key.startswith("ceri:pipeline:"):
         raise RuntimeError("CERI provider scheduling produced no durable workflow identity.")
     provider_step = _require_step(db, pipeline.id, CERI_PIPELINE_PROVIDER_INGEST_STEP)
+    wait_started_at = _utcnow()
+    performance = dict(result.get("performance") or {})
+    dispatch_duration_ms = dict(performance.get("step_durations_ms") or {}).get(
+        CERI_PIPELINE_PROVIDER_INGEST_STEP
+    )
+    async_timing = {
+        "dispatch_duration_ms": dispatch_duration_ms,
+        "dependency_wait_duration_ms": None,
+        "child_execution_duration_ms": None,
+        "total_logical_duration_ms": None,
+        "dependency_wait_started_at": wait_started_at.isoformat(),
+        "completed_at": None,
+        "status": "WAITING_DEPENDENCY",
+    }
+    provider_step.result_json = {
+        **(provider_step.result_json or {}),
+        "async_timing": async_timing,
+    }
+    performance["async_step_timings"] = {
+        **dict(performance.get("async_step_timings") or {}),
+        CERI_PIPELINE_PROVIDER_INGEST_STEP: async_timing,
+    }
+    result["performance"] = performance
     provider_step.status = PipelineStepStatus.WAITING_DEPENDENCY
     provider_step.completed_at = None
     provider_step.message = "Provider workflow dispatched; waiting for required child stages."

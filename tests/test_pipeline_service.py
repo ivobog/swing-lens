@@ -11,6 +11,7 @@ from app.services.pipeline_service import (
     PIPELINE_STEP_NAMES,
     PipelineStatus,
     PipelineStepStatus,
+    _ceri_child_failure_detail,
     cancel_pipeline,
     get_pipeline_status,
     pipeline_step_names,
@@ -52,6 +53,46 @@ def _disable_optional_pipeline_flags(monkeypatch: pytest.MonkeyPatch) -> None:
             },
         )(),
     )
+
+
+def test_ceri_child_failure_detail_preserves_actionable_context() -> None:
+    job = BackgroundJob(
+        id=259,
+        job_type="CERI_FEATURE_BATCH",
+        status=JobStatus.FAILED,
+        related_run_id=10,
+        progress_stage="CERI_FEATURE_PREPARE",
+        payload_json={
+            "pipeline_run_id": 10,
+            "run_id": 10,
+            "batch_index": 1,
+            "calculation_context_id": 16,
+        },
+        result_json={
+            "failure_classification": {
+                "kind": "DETERMINISTIC",
+                "retryable": False,
+                "code": "CERI_CONTEXT_DANGLING",
+            }
+        },
+    )
+
+    assert _ceri_child_failure_detail(job) == {
+        "job_id": 259,
+        "job_type": "CERI_FEATURE_BATCH",
+        "status": JobStatus.FAILED,
+        "ceri_stage": "CERI_FEATURE_PREPARE",
+        "feature_batch": 1,
+        "calculation_context_id": 16,
+        "pipeline_run_id": 10,
+        "upload_run_id": 10,
+        "classification": {
+            "kind": "DETERMINISTIC",
+            "retryable": False,
+            "code": "CERI_CONTEXT_DANGLING",
+        },
+        "reason": "CERI_CONTEXT_DANGLING",
+    }
 
 
 def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:

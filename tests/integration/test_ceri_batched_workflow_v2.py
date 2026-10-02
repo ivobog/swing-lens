@@ -6,7 +6,7 @@ import socket
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
 from time import perf_counter
@@ -24,12 +24,21 @@ from app.models.ceri_tables import (
     CeriDerivedFeature,
     CeriEstimateSnapshot,
     CeriFeatureBuildState,
+    CeriFeatureSourceManifest,
     CeriIngestionRun,
+    CeriIngestionRunSourceRecord,
     CeriRevisionFeature,
     CeriScoreSnapshot,
     CeriSourceRecord,
 )
-from app.models.tables import BackgroundJob, PipelineRun, RawCompanyRow, UploadRun
+from app.models.tables import (
+    BackgroundJob,
+    MarketCalculationContext,
+    PipelineRun,
+    PipelineStep,
+    RawCompanyRow,
+    UploadRun,
+)
 from app.services.background_job_service import (
     JobStatus,
     claim_next_job,
@@ -50,6 +59,7 @@ from app.services.ceri.batched_workflow import (
     CERI_PROVIDER_INGEST_BATCH,
     CERI_RUN_FINALIZE,
 )
+from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
@@ -67,8 +77,16 @@ from app.services.ceri.job_handlers import (
 )
 from app.services.domain_write_fence import ControlPlaneLockTimeout, control_plane_transaction
 from app.services.market_calculation_context_service import (
+    CeriContextIntegrityError,
     create_pipeline_market_context,
+    freeze_or_validate_pipeline_ceri_authority,
     resolve_pipeline_ceri_context,
+)
+from app.services.pipeline_service import (
+    FULL_PIPELINE_JOB_TYPE,
+    PipelineStepStatus,
+    _finalize_ceri_async_timing,
+    _roll_up_ceri_pipeline_failure,
 )
 from app.services.scope_refresh_adoption import (
     LegacySemanticAuthorityError,
@@ -347,9 +365,7 @@ def test_detached_control_write_has_bounded_postgresql_lock_timeout(
         job_id = int(job.id)
 
     with Session(engine) as locker:
-        locker.execute(
-            select(BackgroundJob.id).where(BackgroundJob.id == job_id).with_for_update()
-        )
+        locker.execute(select(BackgroundJob.id).where(BackgroundJob.id == job_id).with_for_update())
         started = perf_counter()
         with Session(engine) as control:
             with pytest.raises(ControlPlaneLockTimeout, match="exceeded"):
@@ -486,13 +502,26 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
             "bar_readiness_version": main_context.bar_readiness_version,
         }
         workflow_key = f"ceri:pipeline:{pipeline.id}:zero-history"
-        _seed_current_run_estimates(
-            db,
-            run_id=run_id,
-            request_key=(
-                f"{workflow_key}:ingest:eodhd:estimates:MSFT:"
-                f"refresh:{authority.refresh_cycle_id}"
-            ),
+        pipeline.status = "WAITING_FOR_CERI_COMPLETION"
+        pipeline.current_step = CERI_PIPELINE_PROVIDER_INGEST_STEP
+        pipeline.result_json = {
+            **pipeline.result_json,
+            "ceri_provider_workflow_key": workflow_key,
+        }
+        db.add(
+            PipelineStep(
+                pipeline_run_id=pipeline.id,
+                step_name=CERI_PIPELINE_PROVIDER_INGEST_STEP,
+                step_order=9,
+                status=PipelineStepStatus.WAITING_DEPENDENCY,
+                started_at=datetime.now(UTC),
+                result_json={
+                    "async_timing": {
+                        "dispatch_duration_ms": 1.0,
+                        "dependency_wait_started_at": datetime.now(UTC).isoformat(),
+                    }
+                },
+            )
         )
         assert db.scalar(select(func.count()).select_from(CeriEstimateSnapshot)) == 0
 
@@ -502,9 +531,17 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
             workflow_key=workflow_key,
             request_key=f"{workflow_key}:provider:eodhd:estimates:0001",
             related_run_id=run_id,
-            status=JobStatus.COMPLETED,
+            status=JobStatus.RUNNING,
             priority=80,
-            payload_json={},
+            payload_json={
+                "workflow_key": workflow_key,
+                "provider": "eodhd",
+                "dataset": "estimates",
+                "tickers": ["MSFT"],
+                "run_id": run_id,
+                "pipeline_run_id": pipeline.id,
+                "checkpoint_interval": 1,
+            },
             max_retries=3,
         )
         normalize = _new_job(
@@ -530,37 +567,78 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
         bind_semantic_authority(normalize, authority)
         db.add_all([provider, normalize])
         db.commit()
+
+        class SeededProviderService:
+            def ingest(self, current_db, request, *, should_cancel):
+                _seed_current_run_estimates(
+                    current_db,
+                    run_id=run_id,
+                    request_key=request.request_key,
+                    commit=False,
+                )
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "as_dict": lambda self: {
+                            "status": "COMPLETED",
+                            "inserted": 4,
+                            "failed": 0,
+                        }
+                    },
+                )()
+
+        ingested = _execute_handler(
+            db,
+            provider,
+            lambda current_db, current_job: execute_provider_ingest_batch_job(
+                current_db,
+                current_job,
+                ingestion_service=SeededProviderService(),
+            ),
+        )
+        assert ingested["processed_tickers"] == 1
+        assert ingested["failed"] == 0
         normalized = _execute_handler(db, normalize, execute_normalize_batch_job)
         assert normalized["normalized"] == 4
         known_at = max(db.scalars(select(CeriEstimateSnapshot.known_at)))
         assert known_at > main_cutoff_at
 
-        feature = _new_job(
-            db,
-            job_type=CERI_FEATURE_BATCH,
-            workflow_key=workflow_key,
-            request_key=f"{workflow_key}:feature:0001",
-            related_run_id=run_id,
-            status=JobStatus.RUNNING,
-            priority=130,
-            payload_json={
-                "workflow_key": workflow_key,
-                "pipeline_run_id": pipeline.id,
-                "tickers": ["MSFT"],
-                "run_id": run_id,
-                "expected_normalization_batches": 1,
-                "checkpoint_interval": 1,
-            },
-            max_retries=3,
-        )
-        bind_semantic_authority(feature, authority)
-        db.add(feature)
+        features = []
+        for batch_index in (1, 2):
+            feature = _new_job(
+                db,
+                job_type=CERI_FEATURE_BATCH,
+                workflow_key=workflow_key,
+                request_key=f"{workflow_key}:feature:{batch_index:04d}",
+                related_run_id=run_id,
+                status=JobStatus.RUNNING,
+                priority=130,
+                payload_json={
+                    "workflow_key": workflow_key,
+                    "pipeline_run_id": pipeline.id,
+                    "tickers": ["MSFT"],
+                    "run_id": run_id,
+                    "batch_index": batch_index,
+                    "expected_normalization_batches": 1,
+                    "checkpoint_interval": 1,
+                },
+                max_retries=3,
+            )
+            bind_semantic_authority(feature, authority)
+            db.add(feature)
+            features.append(feature)
         db.commit()
-        rebuilt = _execute_handler(db, feature, execute_feature_batch_job)
-        assert rebuilt["features"] > 0
-        db.refresh(feature)
-        ceri_context_id = int(feature.payload_json["calculation_context_id"])
-        ceri_cutoff_at = datetime.fromisoformat(feature.payload_json["cutoff_at"])
+        rebuilt = [_execute_handler(db, feature, execute_feature_batch_job) for feature in features]
+        assert rebuilt[0]["features"] > 0
+        for feature in features:
+            db.refresh(feature)
+        ceri_context_id = int(features[0].payload_json["calculation_context_id"])
+        assert all(
+            int(feature.payload_json["calculation_context_id"]) == ceri_context_id
+            for feature in features
+        )
+        ceri_cutoff_at = datetime.fromisoformat(features[0].payload_json["cutoff_at"])
         assert ceri_context_id != main_context_id
         assert ceri_cutoff_at >= known_at
 
@@ -576,7 +654,7 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
                 "workflow_key": workflow_key,
                 "pipeline_run_id": pipeline.id,
                 "run_id": run_id,
-                "expected_feature_batches": 1,
+                "expected_feature_batches": 2,
             },
             max_retries=3,
         )
@@ -592,16 +670,28 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
         )
         captured = _execute_handler(db, capture, execute_capture_run_job)
         assert captured["score_snapshots"] == 1
-
-        snapshot = db.scalar(
-            select(CeriScoreSnapshot).where(CeriScoreSnapshot.run_id == run_id)
+        change = db.get(BackgroundJob, int(captured["change_job_id"]))
+        changed = _execute_handler(db, change, execute_change_detection_job)
+        alert = db.get(BackgroundJob, int(changed["alert_job_id"]))
+        _execute_handler(db, alert, execute_alert_rebuild_job)
+        continuation = db.scalar(
+            select(BackgroundJob).where(
+                BackgroundJob.job_type == FULL_PIPELINE_JOB_TYPE,
+                BackgroundJob.parent_job_id == alert.id,
+            )
         )
+        assert continuation is not None
+        assert continuation.payload_json["resume_from_step"] == "FREEZING_DECISION_HANDOFF_MANIFEST"
+
+        snapshot = db.scalar(select(CeriScoreSnapshot).where(CeriScoreSnapshot.run_id == run_id))
         db.refresh(pipeline)
         assert snapshot is not None
         assert snapshot.calculation_context_id == ceri_context_id
         assert pipeline.result_json["market_calculation_context_id"] == main_context_id
         assert pipeline.result_json["market_cutoff_at"] == main_cutoff_at.isoformat()
         assert pipeline.result_json["ceri_calculation_context_id"] == ceri_context_id
+        assert pipeline.result_json["ceri_completion_state"] == "CERTIFIED"
+        assert pipeline.result_json["ceri_continuation_job_id"] == continuation.id
         retained_ceri_context = resolve_pipeline_ceri_context(
             db,
             calculation_context_id=ceri_context_id,
@@ -623,6 +713,286 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
             built_rows=(),
         )
 
+    engine.dispose()
+
+
+def test_ceri_authority_crash_rolls_back_context_and_all_payload_references(
+    disposable_postgres_database: str,
+    monkeypatch,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        pipeline, features = _seed_ceri_authority_fixture(db, suffix="crash")
+        pipeline_id = int(pipeline.id)
+        workflow_key = str(features[0].workflow_key)
+        import app.services.market_calculation_context_service as context_service
+
+        original = context_service.create_or_get_pipeline_ceri_context
+
+        def crash_after_context(*args, **kwargs):
+            original(*args, **kwargs)
+            raise RuntimeError("simulated process termination before authority commit")
+
+        monkeypatch.setattr(
+            context_service,
+            "create_or_get_pipeline_ceri_context",
+            crash_after_context,
+        )
+        with pytest.raises(RuntimeError, match="simulated process termination"):
+            freeze_or_validate_pipeline_ceri_authority(
+                db,
+                job=features[0],
+                payload=dict(features[0].payload_json or {}),
+            )
+        db.rollback()
+
+    with Session(engine) as verification:
+        retained_pipeline = verification.get(PipelineRun, pipeline_id)
+        retained_features = list(
+            verification.scalars(
+                select(BackgroundJob)
+                .where(BackgroundJob.workflow_key == workflow_key)
+                .order_by(BackgroundJob.id)
+            )
+        )
+        assert "ceri_calculation_context_id" not in retained_pipeline.result_json
+        assert all("calculation_context_id" not in row.payload_json for row in retained_features)
+        assert (
+            verification.scalar(
+                select(func.count()).select_from(context_service.MarketCalculationContext)
+            )
+            == 0
+        )
+    engine.dispose()
+
+
+def test_ceri_authority_commit_is_durable_and_shared_by_all_feature_batches(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        pipeline, features = _seed_ceri_authority_fixture(db, suffix="shared")
+        pipeline_id = int(pipeline.id)
+        workflow_key = str(features[0].workflow_key)
+        frozen = freeze_or_validate_pipeline_ceri_authority(
+            db,
+            job=features[0],
+            payload=dict(features[0].payload_json or {}),
+        )
+        db.commit()
+        context_id = int(frozen["calculation_context_id"])
+
+    with Session(engine) as verification:
+        retained_pipeline = verification.get(PipelineRun, pipeline_id)
+        retained_features = list(
+            verification.scalars(
+                select(BackgroundJob)
+                .where(BackgroundJob.workflow_key == workflow_key)
+                .order_by(BackgroundJob.id)
+            )
+        )
+        assert retained_pipeline.result_json["ceri_calculation_context_id"] == context_id
+        assert {int(row.payload_json["calculation_context_id"]) for row in retained_features} == {
+            context_id
+        }
+        context_service_row = verification.get(MarketCalculationContext, context_id)
+        assert context_service_row is not None
+        assert context_service_row.upload_run_id == retained_pipeline.upload_run_id
+    engine.dispose()
+
+
+def test_missing_ceri_context_is_repaired_only_without_dependent_artifacts(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        pipeline, features = _seed_ceri_authority_fixture(db, suffix="repair")
+        dangling = {
+            **features[0].payload_json,
+            "calculation_context_id": 999_999,
+            "cutoff_at": datetime(2026, 8, 12, 12, tzinfo=UTC).isoformat(),
+            "as_of_session": "2026-08-11",
+            "calendar_version": "swinglens-us-equities-v1",
+        }
+        features[0].payload_json = dangling
+        db.commit()
+        repaired = freeze_or_validate_pipeline_ceri_authority(
+            db,
+            job=features[0],
+            payload=dangling,
+        )
+        db.commit()
+        assert int(repaired["calculation_context_id"]) != 999_999
+        assert (
+            pipeline.result_json["ceri_calculation_context_id"]
+            == repaired["calculation_context_id"]
+        )
+        assert {row.payload_json["calculation_context_id"] for row in features} == {
+            repaired["calculation_context_id"]
+        }
+    engine.dispose()
+
+
+def test_missing_ceri_context_with_existing_manifest_fails_closed(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        pipeline, features = _seed_ceri_authority_fixture(db, suffix="fail-closed")
+        frozen = freeze_or_validate_pipeline_ceri_authority(
+            db,
+            job=features[0],
+            payload=dict(features[0].payload_json or {}),
+        )
+        db.commit()
+        anchor = dict(features[0].payload_json["effective_configuration_anchor"])
+        db.add(
+            CeriFeatureSourceManifest(
+                background_job_id=features[0].id,
+                run_id=pipeline.upload_run_id,
+                pipeline_run_id=pipeline.id,
+                calculation_context_id=int(frozen["calculation_context_id"]),
+                batch_index=1,
+                cutoff_at=datetime.fromisoformat(str(frozen["cutoff_at"])),
+                as_of_session=date.fromisoformat(str(frozen["as_of_session"])),
+                calendar_version=str(frozen["calendar_version"]),
+                configuration_anchor_id=str(anchor["anchor_id"]),
+                configuration_fingerprint=str(anchor["fingerprint"]),
+                scope_id=features[0].scope_id,
+                refresh_cycle_id=features[0].refresh_cycle_id,
+                acquisition_plan_id=features[0].acquisition_plan_id,
+                bundle_fingerprint="retained-bundle",
+                source_count=0,
+                manifest_version="ceri-feature-source-manifest-v1",
+                manifest_json={"bundle_fingerprint": "retained-bundle", "source_count": 0},
+            )
+        )
+        pipeline.result_json = {
+            key: value
+            for key, value in pipeline.result_json.items()
+            if not key.startswith("ceri_calculation_")
+        }
+        features[0].payload_json = {
+            **features[0].payload_json,
+            "calculation_context_id": 999_999,
+        }
+        db.commit()
+
+        with pytest.raises(CeriContextIntegrityError) as caught:
+            freeze_or_validate_pipeline_ceri_authority(
+                db,
+                job=features[0],
+                payload=dict(features[0].payload_json),
+            )
+        assert caught.value.code == "CERI_CONTEXT_DANGLING"
+        assert "ceri_feature_source_manifests" in caught.value.diagnostics["artifacts"]
+        db.rollback()
+    engine.dispose()
+
+
+def test_ceri_async_timing_replaces_dispatch_only_duration_with_logical_duration(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    now = datetime.now(UTC)
+    with Session(engine) as db:
+        pipeline, features = _seed_ceri_authority_fixture(db, suffix="timing")
+        pipeline.result_json = {
+            **pipeline.result_json,
+            "performance": {"step_durations_ms": {CERI_PIPELINE_PROVIDER_INGEST_STEP: 1_408.0}},
+        }
+        provider_step = PipelineStep(
+            pipeline_run_id=pipeline.id,
+            step_name=CERI_PIPELINE_PROVIDER_INGEST_STEP,
+            step_order=9,
+            status=PipelineStepStatus.COMPLETED,
+            started_at=now - timedelta(minutes=10),
+            completed_at=now,
+            result_json={
+                "async_timing": {
+                    "dispatch_duration_ms": 1_408.0,
+                    "dependency_wait_started_at": (
+                        now - timedelta(minutes=9, seconds=58)
+                    ).isoformat(),
+                }
+            },
+        )
+        for index, feature in enumerate(features):
+            feature.started_at = now - timedelta(minutes=8 - index)
+            feature.completed_at = now - timedelta(minutes=1 - index)
+        db.add(provider_step)
+        db.flush()
+
+        _finalize_ceri_async_timing(
+            db,
+            pipeline=pipeline,
+            workflow_key=features[0].workflow_key,
+            provider_step=provider_step,
+            status=PipelineStepStatus.COMPLETED,
+        )
+        db.commit()
+
+        timing = pipeline.result_json["performance"]["async_step_timings"][
+            CERI_PIPELINE_PROVIDER_INGEST_STEP
+        ]
+        assert timing["dispatch_duration_ms"] == 1_408.0
+        assert timing["dependency_wait_duration_ms"] == pytest.approx(598_000, abs=5)
+        assert timing["total_logical_duration_ms"] == pytest.approx(600_000, abs=5)
+        assert pipeline.result_json["performance"]["step_durations_ms"][
+            CERI_PIPELINE_PROVIDER_INGEST_STEP
+        ] == pytest.approx(600_000, abs=5)
+    engine.dispose()
+
+
+def test_ceri_parent_rollup_retains_actionable_child_failure(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        pipeline, features = _seed_ceri_authority_fixture(db, suffix="parent-diagnostic")
+        workflow_key = f"ceri:feature-certification:{pipeline.id}:diagnostic"
+        failed = features[0]
+        failed.workflow_key = workflow_key
+        failed.status = JobStatus.FAILED
+        failed.progress_stage = "CERI_FEATURE_PREPARE"
+        failed.payload_json = {
+            **failed.payload_json,
+            "workflow_key": workflow_key,
+            "calculation_context_id": 16,
+        }
+        failed.result_json = {
+            "failure_classification": {
+                "kind": "DETERMINISTIC",
+                "retryable": False,
+                "code": "CERI_CONTEXT_DANGLING",
+                "diagnostics": {"calculation_context_id": 16},
+            }
+        }
+        pipeline.result_json = {"feature_certification_workflow_key": workflow_key}
+        db.flush()
+
+        _roll_up_ceri_pipeline_failure(
+            db,
+            pipeline,
+            workflow_key=workflow_key,
+            failed_jobs=(failed,),
+        )
+        db.commit()
+
+        assert pipeline.status == "FAILED"
+        assert pipeline.error_message == "CERI_FEATURE_CERTIFICATION_FAILED"
+        detail = pipeline.result_json["ceri_failure_detail"]
+        assert detail["job_id"] == failed.id
+        assert detail["ceri_stage"] == "CERI_FEATURE_PREPARE"
+        assert detail["feature_batch"] == 1
+        assert detail["calculation_context_id"] == 16
+        assert detail["classification"]["code"] == "CERI_CONTEXT_DANGLING"
     engine.dispose()
 
 
@@ -1044,7 +1414,52 @@ def _seed_zero_history_run(db: Session) -> int:
     return run.id
 
 
-def _seed_current_run_estimates(db: Session, *, run_id: int, request_key: str) -> int:
+def _seed_ceri_authority_fixture(
+    db: Session,
+    *,
+    suffix: str,
+) -> tuple[PipelineRun, list[BackgroundJob]]:
+    run_id = _seed_zero_history_run(db)
+    authority = _fixture_authority(db, run_id=run_id, cycle_key=f"authority-{suffix}")
+    pipeline = PipelineRun(upload_run_id=run_id, status="RUNNING", result_json={})
+    bind_semantic_authority(pipeline, authority)
+    db.add(pipeline)
+    db.flush()
+    workflow_key = f"ceri:pipeline:{pipeline.id}:authority-{suffix}"
+    features: list[BackgroundJob] = []
+    for batch_index in (1, 2):
+        feature = _new_job(
+            db,
+            job_type=CERI_FEATURE_BATCH,
+            workflow_key=workflow_key,
+            request_key=f"{workflow_key}:feature:{batch_index:04d}",
+            related_run_id=run_id,
+            status=JobStatus.QUEUED,
+            priority=130,
+            payload_json={
+                "workflow_key": workflow_key,
+                "pipeline_run_id": pipeline.id,
+                "run_id": run_id,
+                "tickers": ["MSFT"],
+                "batch_index": batch_index,
+                "expected_normalization_batches": 0,
+                "checkpoint_interval": 1,
+            },
+            max_retries=3,
+        )
+        bind_semantic_authority(feature, authority)
+        features.append(feature)
+    db.commit()
+    return pipeline, features
+
+
+def _seed_current_run_estimates(
+    db: Session,
+    *,
+    run_id: int,
+    request_key: str,
+    commit: bool = True,
+) -> int:
     ingestion = CeriIngestionRun(
         provider="eodhd",
         provider_terms_version="fixture-1",
@@ -1066,39 +1481,53 @@ def _seed_current_run_estimates(db: Session, *, run_id: int, request_key: str) -
         ("2026-08-11T20:00:00+00:00", "13.0"),
     )
     for index, (effective_at, consensus) in enumerate(observations, start=1):
+        source = CeriSourceRecord(
+            ingestion_run_id=ingestion.id,
+            provider="eodhd",
+            provider_terms_version="fixture-1",
+            dataset="estimates",
+            provider_record_id=f"MSFT-current-run-estimate-{index}",
+            company_hint_json={"ticker": "MSFT", "exchange": "US"},
+            restricted_normalized_json={
+                "ticker": "MSFT",
+                "metric": "EPS_DILUTED",
+                "period_type": "NEXT_FISCAL_YEAR",
+                "fiscal_period_end": "2027-06-30",
+                "consensus": consensus,
+                "high": str(float(consensus) + 1),
+                "low": str(float(consensus) - 1),
+                "analyst_count": 12,
+                "upward_count": 8,
+                "downward_count": 2,
+                "currency": "USD",
+                "effective_at": effective_at,
+            },
+            observed_at=datetime.fromisoformat(effective_at),
+            content_hash=f"zero-history-content-{index}",
+            idempotency_key=f"zero-history-estimate-{index}",
+            export_policy="exportable",
+            redistribution_allowed=False,
+            purge_eligible=False,
+            retrieved_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
+            ingested_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
+        )
+        db.add(source)
+        db.flush()
         db.add(
-            CeriSourceRecord(
+            CeriIngestionRunSourceRecord(
                 ingestion_run_id=ingestion.id,
-                provider="eodhd",
-                provider_terms_version="fixture-1",
-                dataset="estimates",
-                provider_record_id=f"MSFT-current-run-estimate-{index}",
-                company_hint_json={"ticker": "MSFT", "exchange": "US"},
-                restricted_normalized_json={
-                    "ticker": "MSFT",
-                    "metric": "EPS_DILUTED",
-                    "period_type": "NEXT_FISCAL_YEAR",
-                    "fiscal_period_end": "2027-06-30",
-                    "consensus": consensus,
-                    "high": str(float(consensus) + 1),
-                    "low": str(float(consensus) - 1),
-                    "analyst_count": 12,
-                    "upward_count": 8,
-                    "downward_count": 2,
-                    "currency": "USD",
-                    "effective_at": effective_at,
-                },
-                observed_at=datetime.fromisoformat(effective_at),
-                content_hash=f"zero-history-content-{index}",
-                idempotency_key=f"zero-history-estimate-{index}",
-                export_policy="exportable",
-                redistribution_allowed=False,
-                purge_eligible=False,
-                retrieved_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
-                ingested_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
+                source_record_id=source.id,
+                ticker="MSFT",
+                provider=source.provider,
+                dataset=source.dataset,
+                ingestion_outcome="INSERTED",
+                normalization_state="PENDING",
             )
         )
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return ingestion.id
 
 

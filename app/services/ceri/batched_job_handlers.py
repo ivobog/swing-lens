@@ -303,7 +303,6 @@ def execute_feature_batch_job(
     if not ceri_flags().enabled:
         return _skipped(CERI_FEATURE_BATCH, "ceri_disabled")
     payload = job.payload_json or {}
-    require_parent_pipeline_active(db, job)
     semantic_authority = None
     if isinstance(db, Session):
         from app.services.scope_refresh_adoption import require_semantic_authority
@@ -317,6 +316,7 @@ def execute_feature_batch_job(
         expected=int(payload.get("expected_normalization_batches") or 0),
     )
     payload = _freeze_pipeline_ceri_payload(db, job, payload)
+    require_parent_pipeline_active(db, job)
     missing_context = [
         key
         for key in ("calculation_context_id", "cutoff_at", "as_of_session", "calendar_version")
@@ -538,9 +538,7 @@ def execute_feature_batch_job(
             total=len(tickers),
             checkpoint_version=f"ceri-feature-complete:{len(completed)}",
             only_if_advanced=False,
-            operational_metadata_patch={
-                "ceri_feature_rebuild": metadata["ceri_feature_rebuild"]
-            },
+            operational_metadata_patch={"ceri_feature_rebuild": metadata["ceri_feature_rebuild"]},
         )
         if cancelled:
             raise CancelRequested("CERI feature batch cancelled after rebuild.")
@@ -570,6 +568,7 @@ def execute_run_finalize_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         workflow_key,
         CERI_FEATURE_BATCH,
         expected=int(payload.get("expected_feature_batches") or 0),
+        delay_seconds=_finalizer_barrier_delay(job),
     )
     payload = _freeze_pipeline_ceri_payload(db, job, payload)
     run_id = int(payload.get("run_id") or job.related_run_id)
@@ -636,31 +635,23 @@ def _freeze_pipeline_ceri_payload(
     pipeline_id = int(payload.get("pipeline_run_id") or 0)
     if not workflow_key.startswith("ceri:pipeline:") or not pipeline_id:
         return payload
-    # Preserve the immutable envelope of already-scheduled deliveries. New
-    # workflows intentionally omit it from calculation jobs so they freeze
-    # only after provider acquisition and normalization have completed.
-    if all(
-        payload.get(key) not in (None, "")
-        for key in (
-            "calculation_context_id",
-            "cutoff_at",
-            "as_of_session",
-            "calendar_version",
-        )
-    ):
-        return payload
     from app.services.market_calculation_context_service import (
-        create_or_get_pipeline_ceri_context,
+        freeze_or_validate_pipeline_ceri_authority,
     )
 
-    cutoff = create_or_get_pipeline_ceri_context(db, pipeline_run_id=pipeline_id)
-    frozen = {
-        **payload,
-        "calculation_context_id": cutoff.context_id,
-        "cutoff_at": cutoff.cutoff_at.isoformat(),
-        "as_of_session": cutoff.latest_completed_session.isoformat(),
-        "calendar_version": cutoff.calendar_version,
-    }
+    if not isinstance(db, Session):
+        # Lightweight unit-test stores do not own transaction boundaries. They
+        # may exercise already-frozen legacy envelopes, but production always
+        # reaches the SQLAlchemy path below.
+        return payload
+
+    frozen = freeze_or_validate_pipeline_ceri_authority(db, job=job, payload=dict(payload))
+    # Deliberate authority boundary: context row, pipeline-retained identity,
+    # and every feature-batch payload reference commit together before source
+    # preparation begins. Detached progress transactions never carry this ID.
+    db.commit()
+    db.refresh(job)
+    frozen = dict(job.payload_json or frozen)
     control_plane = getattr(job, "_control_plane_progress", None)
     if callable(control_plane):
         control_plane(
@@ -669,14 +660,9 @@ def _freeze_pipeline_ceri_payload(
             last_completed_item="calculation_context",
             processed=1,
             total=1,
-            checkpoint_version=f"ceri-context:{cutoff.context_id}",
+            checkpoint_version=f"ceri-context:{frozen['calculation_context_id']}",
             only_if_advanced=False,
-            payload_json=frozen,
         )
-        set_committed_value(job, "payload_json", frozen)
-    else:
-        job.payload_json = frozen
-        db.flush()
     return frozen
 
 
@@ -686,7 +672,9 @@ def _require_terminal_stage(
     job_type: str,
     *,
     expected: int = 0,
+    delay_seconds: int | None = None,
 ) -> None:
+    retry_seconds = int(delay_seconds or get_settings().ceri_barrier_retry_seconds)
     jobs = list(
         db.scalars(
             select(BackgroundJob).where(
@@ -698,12 +686,12 @@ def _require_terminal_stage(
     if (expected and len(jobs) != expected) or not jobs:
         raise JobDeferred(
             f"waiting for {job_type} creation",
-            delay_seconds=get_settings().ceri_barrier_retry_seconds,
+            delay_seconds=retry_seconds,
         )
     if any(job.status not in TERMINAL_JOB_STATUSES for job in jobs):
         raise JobDeferred(
             f"waiting for terminal {job_type} batches",
-            delay_seconds=get_settings().ceri_barrier_retry_seconds,
+            delay_seconds=retry_seconds,
         )
     unsuccessful = [
         job for job in jobs if job.status not in {JobStatus.COMPLETED, JobStatus.PARTIAL}
@@ -717,6 +705,17 @@ def _require_terminal_stage(
                 "jobs": [{"job_id": row.id, "status": row.status} for row in unsuccessful],
             },
         )
+
+
+def _finalizer_barrier_delay(job: BackgroundJob) -> int:
+    """Bound repeated finalizer claims while its feature barrier is closed."""
+
+    base = max(1, int(get_settings().ceri_barrier_retry_seconds))
+    attempt_count = max(
+        1,
+        int((job.operational_metadata_json or {}).get("attempt_count") or 1),
+    )
+    return min(300, base * (2 ** min(6, attempt_count - 1)))
 
 
 def _checkpoint_state(job: BackgroundJob) -> tuple[set[str], dict[str, dict[str, Any]]]:
@@ -887,9 +886,7 @@ def _normalization_checkpoint(
                 last_completed_item=ticker,
                 processed=processed,
                 checkpoint_version=f"ceri-normalize:{ticker}:{source_record_id}",
-                operational_metadata_patch={
-                    "ceri_normalization": metadata["ceri_normalization"]
-                },
+                operational_metadata_patch={"ceri_normalization": metadata["ceri_normalization"]},
             )
         )
         set_committed_value(job, "operational_metadata_json", metadata)

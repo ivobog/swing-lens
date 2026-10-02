@@ -45,6 +45,33 @@ class PipelineCalculationContextError(ValueError):
     """A pipeline-owned operation cannot prove its frozen market context."""
 
 
+class CeriContextIntegrityError(PipelineCalculationContextError):
+    """A durable CERI work item cannot prove its post-acquisition authority."""
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        diagnostics: dict[str, object] | None = None,
+    ) -> None:
+        super().__init__(f"{code}: {message}")
+        self.code = code
+        self.diagnostics = dict(diagnostics or {})
+
+
+_CERI_CONTEXT_RESULT_KEYS = frozenset(
+    {
+        "ceri_calculation_context_id",
+        "ceri_calculation_cutoff_at",
+        "ceri_calculation_as_of_session",
+        "ceri_calculation_calendar_version",
+        "ceri_calculation_bar_readiness_version",
+        "ceri_calculation_context_reason",
+    }
+)
+
+
 def create_pipeline_market_context(
     db: Session,
     pipeline: PipelineRun,
@@ -310,6 +337,361 @@ def resolve_pipeline_ceri_context(
     ):
         raise PipelineCalculationContextError("CERI payload calendar does not match its context.")
     return cutoff
+
+
+def freeze_or_validate_pipeline_ceri_authority(
+    db: Session,
+    *,
+    job: BackgroundJob,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    """Atomically retain one post-acquisition context for every feature batch.
+
+    The caller owns the commit boundary.  This function deliberately updates
+    the context, pipeline authority, and every feature-work reference in the
+    same SQLAlchemy transaction so a crash can expose all of them or none of
+    them, never a durable JSON reference to an uncommitted context row.
+    """
+
+    from app.services.ceri.batched_workflow import CERI_FEATURE_BATCH
+
+    pipeline_run_id = int(payload.get("pipeline_run_id") or 0)
+    workflow_key = str(job.workflow_key or payload.get("workflow_key") or "")
+    if pipeline_run_id <= 0 or not workflow_key.startswith("ceri:pipeline:"):
+        return payload
+
+    pipeline = db.scalar(
+        select(PipelineRun)
+        .where(PipelineRun.id == pipeline_run_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if pipeline is None:
+        raise CeriContextIntegrityError(
+            "CERI_CONTEXT_OWNER_MISMATCH",
+            f"pipeline {pipeline_run_id} was not found",
+            diagnostics={"pipeline_run_id": pipeline_run_id, "job_id": job.id},
+        )
+    if int(job.related_run_id or 0) != int(pipeline.upload_run_id):
+        raise CeriContextIntegrityError(
+            "CERI_CONTEXT_OWNER_MISMATCH",
+            "feature job upload run does not match its pipeline",
+            diagnostics={
+                "pipeline_run_id": pipeline_run_id,
+                "upload_run_id": pipeline.upload_run_id,
+                "job_id": job.id,
+                "job_upload_run_id": job.related_run_id,
+            },
+        )
+
+    feature_jobs = list(
+        db.scalars(
+            select(BackgroundJob)
+            .where(
+                BackgroundJob.workflow_key == workflow_key,
+                BackgroundJob.job_type == CERI_FEATURE_BATCH,
+            )
+            .order_by(BackgroundJob.id)
+            .with_for_update()
+        )
+    )
+    if job.job_type == CERI_FEATURE_BATCH and all(row.id != job.id for row in feature_jobs):
+        feature_jobs.append(job)
+
+    retained = dict(pipeline.result_json or {})
+    retained_id = _optional_positive_int(retained.get("ceri_calculation_context_id"))
+    payload_id = _optional_positive_int(payload.get("calculation_context_id"))
+    authority: MarketCalculationCutoff | None = None
+
+    if retained_id is not None:
+        authority = _resolve_ceri_authority_or_none(
+            db,
+            pipeline=pipeline,
+            calculation_context_id=retained_id,
+        )
+        if authority is None:
+            artifacts = _ceri_context_artifacts(
+                db,
+                calculation_context_id=retained_id,
+                feature_job_ids=[row.id for row in feature_jobs if row.id is not None],
+            )
+            if artifacts:
+                raise _dangling_ceri_context_error(
+                    job=job,
+                    pipeline=pipeline,
+                    calculation_context_id=retained_id,
+                    artifacts=artifacts,
+                )
+            pipeline.result_json = {
+                key: value
+                for key, value in retained.items()
+                if key not in _CERI_CONTEXT_RESULT_KEYS
+            }
+            db.flush()
+            retained_id = None
+
+    if payload_id is not None and authority is None:
+        authority = _resolve_ceri_authority_or_none(
+            db,
+            pipeline=pipeline,
+            calculation_context_id=payload_id,
+            payload=payload,
+        )
+        if authority is None:
+            artifacts = _ceri_context_artifacts(
+                db,
+                calculation_context_id=payload_id,
+                feature_job_ids=[job.id] if job.id is not None else [],
+            )
+            if artifacts:
+                raise _dangling_ceri_context_error(
+                    job=job,
+                    pipeline=pipeline,
+                    calculation_context_id=payload_id,
+                    artifacts=artifacts,
+                )
+
+    if authority is None:
+        authority = create_or_get_pipeline_ceri_context(db, pipeline_run_id=pipeline.id)
+
+    authoritative_id = int(authority.context_id or 0)
+    if authoritative_id <= 0:
+        raise CeriContextIntegrityError(
+            "CERI_CONTEXT_AUTHORITY_REQUIRED",
+            "post-acquisition context has no durable identity",
+            diagnostics={"pipeline_run_id": pipeline.id, "job_id": job.id},
+        )
+
+    all_jobs = [*feature_jobs]
+    if all(row.id != job.id for row in all_jobs):
+        all_jobs.append(job)
+    scope_identity = _ceri_scope_identity(payload, job)
+    frozen_for_current: dict[str, object] | None = None
+    for row in all_jobs:
+        row_payload = dict(row.payload_json or {})
+        _validate_ceri_scope_identity(
+            expected=scope_identity,
+            observed=_ceri_scope_identity(row_payload, row),
+            pipeline_run_id=pipeline.id,
+            job_id=row.id,
+        )
+        row_context_id = _optional_positive_int(row_payload.get("calculation_context_id"))
+        if row_context_id is not None and row_context_id != authoritative_id:
+            artifacts = _ceri_context_artifacts(
+                db,
+                calculation_context_id=row_context_id,
+                feature_job_ids=[row.id] if row.id is not None else [],
+            )
+            if artifacts or db.get(MarketCalculationContext, row_context_id) is not None:
+                raise CeriContextIntegrityError(
+                    "CERI_CONTEXT_COMPETING_AUTHORITY",
+                    "feature batches for one workflow reference different authorities",
+                    diagnostics={
+                        "pipeline_run_id": pipeline.id,
+                        "job_id": row.id,
+                        "feature_batch": row_payload.get("batch_index"),
+                        "calculation_context_id": row_context_id,
+                        "authoritative_context_id": authoritative_id,
+                        "artifacts": artifacts,
+                    },
+                )
+        frozen = {
+            **row_payload,
+            "calculation_context_id": authoritative_id,
+            "cutoff_at": authority.cutoff_at.isoformat(),
+            "as_of_session": authority.latest_completed_session.isoformat(),
+            "calendar_version": authority.calendar_version,
+        }
+        row.payload_json = frozen
+        if row.id == job.id:
+            frozen_for_current = frozen
+
+    if frozen_for_current is None:
+        frozen_for_current = {
+            **payload,
+            "calculation_context_id": authoritative_id,
+            "cutoff_at": authority.cutoff_at.isoformat(),
+            "as_of_session": authority.latest_completed_session.isoformat(),
+            "calendar_version": authority.calendar_version,
+        }
+        job.payload_json = frozen_for_current
+    db.flush()
+    return frozen_for_current
+
+
+def _resolve_ceri_authority_or_none(
+    db: Session,
+    *,
+    pipeline: PipelineRun,
+    calculation_context_id: int,
+    payload: dict[str, object] | None = None,
+) -> MarketCalculationCutoff | None:
+    row = db.get(MarketCalculationContext, calculation_context_id)
+    if row is None:
+        return None
+    retained_id = _optional_positive_int(
+        (pipeline.result_json or {}).get("ceri_calculation_context_id")
+    )
+    if retained_id is None:
+        # A context row without the pipeline's retained authority is not enough
+        # to authorize a retry; silently adopting it would rewrite lineage.
+        return None
+    try:
+        return resolve_pipeline_ceri_context(
+            db,
+            calculation_context_id=calculation_context_id,
+            upload_run_id=int(pipeline.upload_run_id),
+            pipeline_run_id=int(pipeline.id),
+            expected_cutoff_at=(
+                _optional_datetime(payload.get("cutoff_at")) if payload is not None else None
+            ),
+            expected_latest_completed_session=(
+                _optional_date(payload.get("as_of_session")) if payload is not None else None
+            ),
+            expected_calendar_version=(
+                str(payload.get("calendar_version"))
+                if payload is not None and payload.get("calendar_version") not in (None, "")
+                else None
+            ),
+        )
+    except PipelineCalculationContextError as exc:
+        raise CeriContextIntegrityError(
+            "CERI_CONTEXT_IDENTITY_MISMATCH",
+            str(exc),
+            diagnostics={
+                "pipeline_run_id": pipeline.id,
+                "upload_run_id": pipeline.upload_run_id,
+                "calculation_context_id": calculation_context_id,
+            },
+        ) from exc
+
+
+def _ceri_context_artifacts(
+    db: Session,
+    *,
+    calculation_context_id: int,
+    feature_job_ids: list[int],
+) -> dict[str, int]:
+    from app.models.ceri_tables import (
+        CeriDerivedFeature,
+        CeriFeatureBuildState,
+        CeriFeatureSourceManifest,
+        CeriPriceResponseFeature,
+        CeriRevisionFeature,
+        CeriScoreSnapshot,
+    )
+
+    models = (
+        CeriFeatureSourceManifest,
+        CeriFeatureBuildState,
+        CeriRevisionFeature,
+        CeriPriceResponseFeature,
+        CeriDerivedFeature,
+        CeriScoreSnapshot,
+    )
+    found: dict[str, int] = {}
+    for model in models:
+        artifact_id = db.scalar(
+            select(model.id).where(model.calculation_context_id == calculation_context_id).limit(1)
+        )
+        if artifact_id is not None:
+            found[model.__tablename__] = int(artifact_id)
+    if feature_job_ids:
+        manifest_id = db.scalar(
+            select(CeriFeatureSourceManifest.id)
+            .where(CeriFeatureSourceManifest.background_job_id.in_(feature_job_ids))
+            .limit(1)
+        )
+        if manifest_id is not None:
+            found.setdefault(CeriFeatureSourceManifest.__tablename__, int(manifest_id))
+    return found
+
+
+def _dangling_ceri_context_error(
+    *,
+    job: BackgroundJob,
+    pipeline: PipelineRun,
+    calculation_context_id: int,
+    artifacts: dict[str, int],
+) -> CeriContextIntegrityError:
+    return CeriContextIntegrityError(
+        "CERI_CONTEXT_DANGLING",
+        "durable feature authority references a missing calculation context",
+        diagnostics={
+            "job_id": job.id,
+            "feature_batch": (job.payload_json or {}).get("batch_index"),
+            "calculation_context_id": calculation_context_id,
+            "pipeline_run_id": pipeline.id,
+            "upload_run_id": pipeline.upload_run_id,
+            "artifacts": artifacts,
+        },
+    )
+
+
+def _ceri_scope_identity(payload: dict[str, object], job: BackgroundJob) -> dict[str, str | None]:
+    return {
+        "workflow_key": _optional_text(job.workflow_key or payload.get("workflow_key")),
+        "pipeline_run_id": _optional_text(payload.get("pipeline_run_id")),
+        "upload_run_id": _optional_text(payload.get("run_id") or job.related_run_id),
+        "scope_id": _optional_text(payload.get("scope_id") or job.scope_id),
+        "refresh_cycle_id": _optional_text(payload.get("refresh_cycle_id") or job.refresh_cycle_id),
+        "acquisition_plan_id": _optional_text(
+            payload.get("acquisition_plan_id") or job.acquisition_plan_id
+        ),
+    }
+
+
+def _validate_ceri_scope_identity(
+    *,
+    expected: dict[str, str | None],
+    observed: dict[str, str | None],
+    pipeline_run_id: int,
+    job_id: int | None,
+) -> None:
+    mismatched = {
+        key: {"expected": expected[key], "observed": observed[key]}
+        for key in expected
+        if expected[key] != observed[key]
+    }
+    if mismatched:
+        raise CeriContextIntegrityError(
+            "CERI_CONTEXT_SCOPE_MISMATCH",
+            "feature batches for one workflow do not share semantic scope",
+            diagnostics={
+                "pipeline_run_id": pipeline_run_id,
+                "job_id": job_id,
+                "mismatched_scope": mismatched,
+            },
+        )
+
+
+def _optional_positive_int(value: object) -> int | None:
+    try:
+        parsed = int(value) if value not in (None, "") else 0
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _optional_datetime(value: object) -> datetime | None:
+    if value in (None, ""):
+        return None
+    parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
+
+
+def _optional_date(value: object) -> date | None:
+    if value in (None, ""):
+        return None
+    return (
+        value
+        if isinstance(value, date) and not isinstance(value, datetime)
+        else date.fromisoformat(str(value))
+    )
+
+
+def _optional_text(value: object) -> str | None:
+    return str(value) if value not in (None, "") else None
 
 
 def market_context_for_upload_run(

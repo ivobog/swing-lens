@@ -21,11 +21,13 @@ from app.services.background_job_service import (
     mark_job_deferred,
     mark_job_failed_or_retry,
     mark_job_partial,
+    record_job_progress,
     recover_abandoned_jobs_for_worker,
     recover_stale_jobs,
     request_job_cancel,
     requeue_stalled_jobs,
 )
+from app.services.market_calculation_context_service import CeriContextIntegrityError
 from app.services.runtime_mutation_authority import (
     RecoveryAuthority,
     RuntimeMutationAuthorityError,
@@ -326,6 +328,68 @@ def test_transient_infrastructure_failure_remains_retryable(error: Exception) ->
 
     assert failure["kind"] == JobFailureKind.TRANSIENT.value
     assert failure["retryable"] is True
+
+
+def test_dangling_ceri_context_is_deterministic_and_preserves_safe_diagnostics() -> None:
+    failure = classify_job_failure(
+        CeriContextIntegrityError(
+            "CERI_CONTEXT_DANGLING",
+            "retained authority is missing",
+            diagnostics={
+                "job_id": 259,
+                "feature_batch": 1,
+                "calculation_context_id": 16,
+                "pipeline_run_id": 10,
+            },
+        )
+    )
+
+    assert failure == {
+        "kind": JobFailureKind.DETERMINISTIC.value,
+        "retryable": False,
+        "code": "CERI_CONTEXT_DANGLING",
+        "diagnostics": {
+            "job_id": 259,
+            "feature_batch": 1,
+            "calculation_context_id": 16,
+            "pipeline_run_id": 10,
+        },
+    }
+
+
+def test_dangling_ceri_context_fails_once_without_entering_retry_queue() -> None:
+    job = _running_job(retry_count=0, max_retries=3)
+    db = FakeDb(existing=job)
+
+    mark_job_failed_or_retry(
+        db,
+        job,
+        CeriContextIntegrityError(
+            "CERI_CONTEXT_DANGLING",
+            "retained authority is missing",
+            diagnostics={"job_id": job.id, "calculation_context_id": 16},
+        ),
+        execution_token=job.execution_token,
+    )
+
+    assert job.status == JobStatus.FAILED
+    assert job.retry_count == 1
+    assert job.run_after is None
+    assert job.result_json["failure_classification"]["code"] == "CERI_CONTEXT_DANGLING"
+
+
+def test_detached_progress_cannot_persist_ceri_authority_reference() -> None:
+    with pytest.raises(
+        ValueError,
+        match="CERI_AUTHORITY_REFERENCE_REQUIRES_BUSINESS_TRANSACTION",
+    ):
+        record_job_progress(
+            FakeDb(),
+            job_id=259,
+            execution_token="token-259",
+            stage="CERI_CONTEXT_FREEZE",
+            payload_json={"calculation_context_id": 16},
+        )
 
 
 def test_database_parameter_limit_failure_is_deterministic_and_nonretryable() -> None:

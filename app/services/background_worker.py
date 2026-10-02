@@ -880,7 +880,7 @@ def run_worker_once(
                 job._control_plane_progress = detached_control_progress
             control_heartbeat_stop: Event | None = None
             control_heartbeat_thread: Thread | None = None
-            if job.job_type == "FULL_PIPELINE":
+            if job.job_type == "FULL_PIPELINE" or job.job_type.startswith("CERI_"):
                 control_heartbeat_stop = Event()
                 control_heartbeat_thread = Thread(
                     target=_active_pipeline_control_heartbeat_loop,
@@ -894,7 +894,7 @@ def run_worker_once(
                         "interval_seconds": heartbeat_interval_seconds,
                         "stop_event": control_heartbeat_stop,
                     },
-                    name=f"{worker_id}-pipeline-control-heartbeat",
+                    name=f"{worker_id}-job-control-heartbeat",
                     daemon=True,
                 )
                 control_heartbeat_thread.start()
@@ -1113,7 +1113,7 @@ def _active_pipeline_control_heartbeat_loop(
     interval_seconds: float,
     stop_event: Event,
 ) -> None:
-    """Renew full-pipeline control authority independently of stage checkpoints."""
+    """Renew long-running job authority independently of business progress."""
 
     interval = max(0.1, float(interval_seconds))
     while not stop_event.wait(interval):
@@ -1130,7 +1130,7 @@ def _active_pipeline_control_heartbeat_loop(
             return
         except Exception:
             logger.exception(
-                "job.pipeline_control_heartbeat_failed",
+                "job.autonomous_control_heartbeat_failed",
                 extra={
                     "job_id": job_id,
                     "worker_id": worker_id,

@@ -68,9 +68,7 @@ def test_exited_worker_launcher_is_replaced_automatically(monkeypatch, return_co
     assert operational_metrics.total("swinglens_worker_restarts_total", worker_id="worker-a") == 1
 
 
-def test_exited_worker_launcher_records_exit_before_registration(
-    monkeypatch, caplog
-) -> None:
+def test_exited_worker_launcher_records_exit_before_registration(monkeypatch, caplog) -> None:
     replacement = FakeProcess(300, None)
     monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
     monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: None)
@@ -127,9 +125,7 @@ def test_frozen_worker_is_fenced_terminated_and_recoverable(monkeypatch) -> None
     monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: worker)
     monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _row: True)
     monkeypatch.setattr(worker_supervisor, "_safe_memory_status", lambda _row: "OK")
-    monkeypatch.setattr(
-        worker_supervisor, "_fence_no_progress", lambda *_args, **_kwargs: [71]
-    )
+    monkeypatch.setattr(worker_supervisor, "_fence_no_progress", lambda *_args, **_kwargs: [71])
     monkeypatch.setattr(
         worker_supervisor,
         "_terminate_worker_instance",
@@ -160,6 +156,9 @@ def test_stale_control_loop_terminates_generation_before_fencing_locked_jobs(mon
     monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
     monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: worker)
     monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _row: True)
+    monkeypatch.setattr(
+        worker_supervisor, "_registered_worker_job_execution_alive", lambda _row: False
+    )
     monkeypatch.setattr(
         worker_supervisor, "_worker_os_process_alive", lambda _row: os_alive["value"]
     )
@@ -194,6 +193,56 @@ def test_stale_control_loop_terminates_generation_before_fencing_locked_jobs(mon
     assert events == ["terminated", "fenced", "retired", ("requeued", [91])]
 
 
+def test_stale_claim_loop_does_not_kill_observably_active_job(monkeypatch, caplog) -> None:
+    worker = _worker()
+    worker.control_loop_heartbeat_at = datetime.now(UTC) - timedelta(seconds=31)
+    events = []
+    monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
+    monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: worker)
+    monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _row: True)
+    monkeypatch.setattr(
+        worker_supervisor, "_registered_worker_job_execution_alive", lambda _row: True
+    )
+    monkeypatch.setattr(worker_supervisor, "_safe_memory_status", lambda _row: "OK")
+    monkeypatch.setattr(worker_supervisor, "_fence_no_progress", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        worker_supervisor,
+        "_terminate_worker_instance",
+        lambda *_args: events.append("terminated"),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = worker_supervisor._supervise_once(
+            worker_id="worker-a", queues="interactive,broker,background", child=None
+        )
+
+    assert result is None
+    assert events == []
+    assert "worker.supervisor.control_loop_stale_active_job" in caplog.text
+
+
+@pytest.mark.parametrize(("running_job_id", "expected"), [(259, True), (None, False)])
+def test_job_execution_liveness_is_observed_from_the_running_claim(
+    monkeypatch,
+    running_job_id,
+    expected,
+) -> None:
+    class ObservingSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def scalar(self, _statement):
+            return running_job_id
+
+    monkeypatch.setattr(worker_supervisor, "SessionLocal", ObservingSession)
+    monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
+
+    assert worker_supervisor._registered_worker_job_execution_alive(_worker()) is expected
+
+
 def test_stale_registration_is_retired_and_supervisor_continues(monkeypatch) -> None:
     worker = _worker(pid=99999)
     replacement = FakeProcess(300, None)
@@ -204,9 +253,7 @@ def test_stale_registration_is_retired_and_supervisor_continues(monkeypatch) -> 
     monkeypatch.setattr(
         worker_supervisor,
         "_fence_worker",
-        lambda *_args, **_kwargs: worker_supervisor.WorkerJobReconciliation(
-            fenced_job_ids=(88,)
-        ),
+        lambda *_args, **_kwargs: worker_supervisor.WorkerJobReconciliation(fenced_job_ids=(88,)),
     )
     monkeypatch.setattr(
         worker_supervisor, "_retire_worker_registration", lambda _row: events.append("retired")
@@ -283,12 +330,15 @@ def test_shutdown_request_requires_runtime_and_supervisor_identity(tmp_path) -> 
         encoding="utf-8",
     )
 
-    assert worker_supervisor._read_shutdown_request(
-        request_path,
-        runtime_instance_id="runtime-a",
-        supervisor_pid=123,
-        supervisor_started_at=started_at,
-    ) == payload
+    assert (
+        worker_supervisor._read_shutdown_request(
+            request_path,
+            runtime_instance_id="runtime-a",
+            supervisor_pid=123,
+            supervisor_started_at=started_at,
+        )
+        == payload
+    )
     assert (
         worker_supervisor._read_shutdown_request(
             request_path,
@@ -330,9 +380,7 @@ def test_unhandled_supervisor_failure_is_durably_logged(monkeypatch) -> None:
     ]
 
 
-def test_shutdown_request_observability_uses_non_reserved_log_fields(
-    caplog, monkeypatch
-) -> None:
+def test_shutdown_request_observability_uses_non_reserved_log_fields(caplog, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.observability.logging.append_lifecycle_event", lambda *_args, **_kwargs: None
     )

@@ -7,8 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriFeatureSourceManifest
-from app.models.tables import BackgroundJob, ExecutionConfigurationAnchor
+from app.models.tables import BackgroundJob, ExecutionConfigurationAnchor, MarketCalculationContext
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.market_calculation_context_service import (
+    CeriContextIntegrityError,
+    PipelineCalculationContextError,
+    resolve_pipeline_ceri_context,
+)
 from app.services.source_mutation_authority import PrefetchedSourceBodies
 
 
@@ -66,6 +71,34 @@ def freeze_or_verify_feature_source_manifest(
     missing = [key for key, value in required.items() if value in (None, "")]
     if missing:
         raise ValueError("CERI_SOURCE_MANIFEST_AUTHORITY_REQUIRED: " + ", ".join(missing))
+    try:
+        resolve_pipeline_ceri_context(
+            db,
+            calculation_context_id=int(required["calculation_context_id"]),
+            upload_run_id=int(required["run_id"]),
+            pipeline_run_id=int(required["pipeline_run_id"]),
+            expected_cutoff_at=_datetime(required["cutoff_at"]),
+            expected_latest_completed_session=_date(required["as_of_session"]),
+            expected_calendar_version=str(required["calendar_version"]),
+        )
+    except PipelineCalculationContextError as exc:
+        context_id = int(required["calculation_context_id"])
+        missing = db.get(MarketCalculationContext, context_id) is None
+        raise CeriContextIntegrityError(
+            "CERI_CONTEXT_DANGLING" if missing else "CERI_CONTEXT_IDENTITY_MISMATCH",
+            (
+                "source manifest references a missing calculation context"
+                if missing
+                else "source manifest calculation context identity does not match"
+            ),
+            diagnostics={
+                "job_id": job.id,
+                "feature_batch": payload.get("batch_index"),
+                "calculation_context_id": context_id,
+                "pipeline_run_id": required["pipeline_run_id"],
+                "upload_run_id": required["run_id"],
+            },
+        ) from exc
     manifest = CeriFeatureSourceManifest(
         background_job_id=job.id,
         run_id=int(required["run_id"]),

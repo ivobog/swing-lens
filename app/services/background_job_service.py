@@ -91,6 +91,12 @@ NON_RETRYABLE_PROVENANCE_CODES = frozenset(
         "ACQUISITION_PLAN_REQUEST_SCOPE_MISMATCH",
         "ACQUISITION_PLAN_RESOLUTION_SCOPE_REQUIRED",
         "ACQUISITION_PLAN_CONTRACT_IDENTITY_MISMATCH",
+        "CERI_CONTEXT_AUTHORITY_REQUIRED",
+        "CERI_CONTEXT_COMPETING_AUTHORITY",
+        "CERI_CONTEXT_DANGLING",
+        "CERI_CONTEXT_IDENTITY_MISMATCH",
+        "CERI_CONTEXT_OWNER_MISMATCH",
+        "CERI_CONTEXT_SCOPE_MISMATCH",
     }
 )
 
@@ -903,9 +909,11 @@ def record_job_progress(
             **operational_metadata_patch,
         }
     if payload_json is not None:
-        # Payload freezing is control-plane state.  Persist it under the same
-        # execution-token fence as the checkpoint so the business Session
-        # never owns the background_jobs row while calling a detached writer.
+        if payload_json.get("calculation_context_id") not in (None, ""):
+            raise ValueError("CERI_AUTHORITY_REFERENCE_REQUIRES_BUSINESS_TRANSACTION")
+        # Non-authoritative payload checkpoints remain control-plane state.
+        # Business authority references are rejected above because their
+        # referenced rows must commit atomically with the job payload.
         values["payload_json"] = dict(payload_json)
     stage_changed = or_(
         BackgroundJob.progress_stage != stage,
@@ -1662,10 +1670,31 @@ def classify_job_failure(error: str | Exception) -> dict[str, Any]:
         prefix = message.split(":", 1)[0].strip()
         code = prefix if prefix in NON_RETRYABLE_PROVENANCE_CODES else None
     if code in NON_RETRYABLE_PROVENANCE_CODES:
-        return {
+        classified = {
             "kind": JobFailureKind.DETERMINISTIC.value,
             "retryable": False,
             "code": str(code),
+        }
+        diagnostics = getattr(error, "diagnostics", None)
+        if isinstance(diagnostics, dict):
+            classified["diagnostics"] = redact_sensitive(diagnostics)
+        return classified
+    if isinstance(error, IntegrityError):
+        original = getattr(error, "orig", None)
+        diagnostic = getattr(original, "diag", None)
+        constraint_name = getattr(diagnostic, "constraint_name", None)
+        return {
+            "kind": JobFailureKind.DETERMINISTIC.value,
+            "retryable": False,
+            "code": "DATABASE_INTEGRITY_VIOLATION",
+            "diagnostics": {
+                "error_type": (
+                    original.__class__.__name__
+                    if original is not None
+                    else error.__class__.__name__
+                ),
+                "constraint": str(constraint_name) if constraint_name else None,
+            },
         }
     if isinstance(error, ValueError):
         return {

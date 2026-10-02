@@ -1398,8 +1398,117 @@ def enqueue_pipeline_after_ceri_completion(
         "ceri_continuation_request_key": request_key,
         "ceri_continuation_job_id": continuation.id,
     }
+    _finalize_ceri_async_timing(
+        db,
+        pipeline=pipeline,
+        workflow_key=workflow_key,
+        provider_step=provider_step,
+        status=PipelineStepStatus.COMPLETED,
+    )
     db.flush()
     return continuation
+
+
+def _ceri_child_failure_detail(job: BackgroundJob) -> dict[str, Any]:
+    payload = dict(job.payload_json or {})
+    result = dict(job.result_json or {})
+    metadata = dict(job.operational_metadata_json or {})
+    classification = dict(
+        result.get("failure_classification") or metadata.get("failure_classification") or {}
+    )
+    return {
+        "job_id": job.id,
+        "job_type": job.job_type,
+        "status": job.status,
+        "ceri_stage": job.progress_stage or job.job_type,
+        "feature_batch": payload.get("batch_index"),
+        "calculation_context_id": payload.get("calculation_context_id"),
+        "pipeline_run_id": payload.get("pipeline_run_id"),
+        "upload_run_id": payload.get("run_id") or job.related_run_id,
+        "classification": classification or None,
+        "reason": classification.get("code") or job.error_message,
+    }
+
+
+def _finalize_ceri_async_timing(
+    db: Session,
+    *,
+    pipeline: PipelineRun,
+    workflow_key: str,
+    provider_step: PipelineStep | None,
+    status: str,
+) -> None:
+    if provider_step is None:
+        return
+    completed_at = provider_step.completed_at or pipeline.completed_at or _utcnow()
+    step_timing = dict((provider_step.result_json or {}).get("async_timing") or {})
+    dispatch_ms = _optional_float(step_timing.get("dispatch_duration_ms"))
+    wait_started = _optional_datetime(step_timing.get("dependency_wait_started_at"))
+    dependency_wait_ms = (
+        max(0.0, (completed_at - wait_started).total_seconds() * 1000)
+        if wait_started is not None
+        else None
+    )
+    total_ms = (
+        max(0.0, (completed_at - provider_step.started_at).total_seconds() * 1000)
+        if provider_step.started_at is not None
+        else None
+    )
+    children = list(
+        db.scalars(select(BackgroundJob).where(BackgroundJob.workflow_key == workflow_key))
+    )
+    child_starts = [row.started_at for row in children if row.started_at is not None]
+    child_finishes = [row.completed_at for row in children if row.completed_at is not None]
+    child_execution_ms = None
+    if child_starts:
+        child_completed_at = max([*child_finishes, completed_at])
+        child_execution_ms = max(
+            0.0,
+            (child_completed_at - min(child_starts)).total_seconds() * 1000,
+        )
+    timing = {
+        "dispatch_duration_ms": dispatch_ms,
+        "dependency_wait_duration_ms": round(dependency_wait_ms, 3)
+        if dependency_wait_ms is not None
+        else None,
+        "child_execution_duration_ms": round(child_execution_ms, 3)
+        if child_execution_ms is not None
+        else None,
+        "total_logical_duration_ms": round(total_ms, 3) if total_ms is not None else None,
+        "dependency_wait_started_at": (
+            wait_started.isoformat() if wait_started is not None else None
+        ),
+        "completed_at": completed_at.isoformat(),
+        "status": status,
+    }
+    provider_step.result_json = {
+        **(provider_step.result_json or {}),
+        "async_timing": timing,
+    }
+    retained = dict(pipeline.result_json or {})
+    performance = dict(retained.get("performance") or {})
+    async_timings = dict(performance.get("async_step_timings") or {})
+    async_timings[CERI_PIPELINE_PROVIDER_INGEST_STEP] = timing
+    performance["async_step_timings"] = async_timings
+    if total_ms is not None:
+        durations = dict(performance.get("step_durations_ms") or {})
+        durations[CERI_PIPELINE_PROVIDER_INGEST_STEP] = round(total_ms, 3)
+        performance["step_durations_ms"] = durations
+    pipeline.result_json = {**retained, "performance": performance}
+
+
+def _optional_float(value: object) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_datetime(value: object) -> datetime | None:
+    if value in (None, ""):
+        return None
+    parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
 
 
 def roll_up_ceri_pipeline_job_failure(db: Session, job: BackgroundJob) -> None:
@@ -1441,9 +1550,7 @@ def _roll_up_ceri_pipeline_failure(
     failed_jobs: tuple[BackgroundJob, ...] | list[BackgroundJob],
     reason: str | None = None,
 ) -> None:
-    details = [
-        {"job_id": row.id, "job_type": row.job_type, "status": row.status} for row in failed_jobs
-    ]
+    details = [_ceri_child_failure_detail(row) for row in failed_jobs]
     partial_only = bool(details) and all(row["status"] == JobStatus.PARTIAL for row in details)
     feature_certification = workflow_key.startswith("ceri:feature-certification:")
     message = (
@@ -1489,6 +1596,7 @@ def _roll_up_ceri_pipeline_failure(
             else {"ceri_provider_workflow_key": workflow_key}
         ),
         "ceri_failure_jobs": details,
+        "ceri_failure_detail": details[0] if details else None,
         "ceri_failure_reason": reason
         or (
             "CERI_FEATURE_CERTIFICATION_FAILED"
@@ -1512,8 +1620,20 @@ def _roll_up_ceri_pipeline_failure(
     if step is not None:
         step.status = PipelineStepStatus.FAILED
         step.completed_at = pipeline.completed_at
-        step.message = pipeline.message
+        failure_code = ((details[0].get("classification") or {}).get("code")) if details else None
+        step.message = (
+            f"{pipeline.message} Child job {details[0]['job_id']} failed: {failure_code}."
+            if failure_code
+            else pipeline.message
+        )
         step.error_message = pipeline.error_message
+    _finalize_ceri_async_timing(
+        db,
+        pipeline=pipeline,
+        workflow_key=workflow_key,
+        provider_step=step,
+        status=PipelineStepStatus.FAILED,
+    )
     if feature_certification:
         upload_run = db.get(UploadRun, pipeline.upload_run_id)
         if upload_run is not None:
