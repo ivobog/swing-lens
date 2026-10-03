@@ -54,6 +54,31 @@ class EpisodeEvaluationResult:
     updated: bool = False
     closed: bool = False
     warning_codes: tuple[str, ...] = ()
+    reconciliation_results: tuple[EpisodeEvaluationResult, ...] = ()
+
+
+@dataclass(frozen=True)
+class LifecycleReconciliationPlan:
+    snapshot_id: int
+    ticker: str
+    timeframe: str
+    current_family: str | None
+    active_episode_ids: tuple[int, ...]
+    retained_episode_id: int | None
+    displaced_episode_ids: tuple[int, ...]
+    reason_code: str | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "snapshot_id": self.snapshot_id,
+            "ticker": self.ticker,
+            "timeframe": self.timeframe,
+            "current_family": self.current_family,
+            "active_episode_ids": list(self.active_episode_ids),
+            "retained_episode_id": self.retained_episode_id,
+            "displaced_episode_ids": list(self.displaced_episode_ids),
+            "reason_code": self.reason_code,
+        }
 
 
 class SetupLifecycleEpisodeService:
@@ -75,6 +100,139 @@ class SetupLifecycleEpisodeService:
             self.config
         )
 
+    def plan_reconciliation(
+        self,
+        db,
+        snapshot: SetupSignalSnapshot,
+        *,
+        prior_snapshots: tuple[NormalizedSnapshot, ...] = (),
+        preloaded_episodes: tuple[SetupLifecycleEpisode, ...] | None = None,
+    ) -> LifecycleReconciliationPlan:
+        """Validate a key completely and freeze its reconciliation before mutation."""
+        from sqlalchemy.orm import Session
+
+        from app.services.core_mutation_authority import identity_cutoff
+        from app.services.decision_mutation_authority import validate_episode_projection
+        from app.services.setup_lifecycle.errors import SetupLifecycleReconciliationError
+
+        normalized = normalized_snapshot_from_row(snapshot)
+        if snapshot.evidence_id is not None:
+            setup = get_setup_evidence(db, snapshot.evidence_id)
+            if setup.run_id != snapshot.run_id or setup.ticker != snapshot.ticker.upper():
+                raise SetupLifecycleReconciliationError(
+                    "MUTATION_LIFECYCLE_RECONCILIATION_SETUP_SCOPE_MISMATCH",
+                    stage="preflight",
+                    ticker=snapshot.ticker,
+                    timeframe=snapshot.timeframe,
+                    snapshot_id=snapshot.id,
+                    setup_evidence_id=snapshot.evidence_id,
+                )
+            normalized = replace(
+                normalized,
+                source_lineage=dict(setup.payload_json.get("source_lineage_json") or {}),
+            )
+        observed = self.lifecycle_engine.evaluate(
+            _request(normalized, previous_snapshots=prior_snapshots)
+        )
+        supplied_episodes = (
+            preloaded_episodes
+            if preloaded_episodes is not None
+            else tuple(
+                self.repository.active_episodes_for_ticker(
+                    db, ticker=snapshot.ticker, timeframe=snapshot.timeframe
+                )
+            )
+        )
+        active = sorted(
+            (episode for episode in supplied_episodes if episode.status == "ACTIVE"),
+            key=lambda episode: episode.id,
+        )
+        if setup_technical_blocked(normalized) and active:
+            observed = replace(
+                observed,
+                setup_family=SetupFamily(
+                    select_primary_episodes(active, config=self.config)[0].setup_family
+                ),
+            )
+        no_current = "INSUFFICIENT_FAMILY_EVIDENCE" in observed.reason_codes
+        current_family = None if no_current else observed.setup_family.value
+        grouped: dict[str, list[SetupLifecycleEpisode]] = {}
+        cutoff = self._snapshot_cutoff(db, snapshot)
+        for episode in active:
+            grouped.setdefault(episode.setup_family, []).append(episode)
+            if isinstance(db, Session):
+                validate_episode_projection(db, episode)
+                evaluation = db.get(
+                    SetupLifecycleEvaluationEvidence, episode.latest_evaluation_evidence_id
+                )
+                try:
+                    from app.services.calculation_identity import CalculationIdentity
+
+                    evaluation_cutoff = identity_cutoff(
+                        db,
+                        CalculationIdentity.from_canonical_payload(
+                            evaluation.payload_json["calculation_identity"]
+                        ),
+                    )
+                except Exception as exc:
+                    raise SetupLifecycleReconciliationError(
+                        "MUTATION_LIFECYCLE_RECONCILIATION_IDENTITY_INVALID",
+                        stage="preflight",
+                        ticker=snapshot.ticker,
+                        timeframe=snapshot.timeframe,
+                        snapshot_id=snapshot.id,
+                        episode_id=episode.id,
+                        evaluation_id=getattr(evaluation, "id", None),
+                        cause=type(exc).__name__,
+                    ) from exc
+                if evaluation_cutoff.cutoff_at > cutoff.cutoff_at:
+                    raise SetupLifecycleReconciliationError(
+                        "MUTATION_LIFECYCLE_RECONCILIATION_FUTURE_EPISODE",
+                        stage="preflight",
+                        ticker=snapshot.ticker,
+                        timeframe=snapshot.timeframe,
+                        snapshot_id=snapshot.id,
+                        episode_id=episode.id,
+                        evaluation_id=evaluation.id,
+                        expected_cutoff=cutoff.cutoff_at,
+                        actual_cutoff=evaluation_cutoff.cutoff_at,
+                    )
+        duplicates = {family: rows for family, rows in grouped.items() if len(rows) > 1}
+        if duplicates:
+            raise SetupLifecycleReconciliationError(
+                "MUTATION_LIFECYCLE_RECONCILIATION_DUPLICATE_ACTIVE_FAMILY",
+                stage="preflight",
+                ticker=snapshot.ticker,
+                timeframe=snapshot.timeframe,
+                snapshot_id=snapshot.id,
+                current_family=current_family,
+                episode_ids={
+                    family: [row.id for row in rows] for family, rows in duplicates.items()
+                },
+            )
+        retained = grouped.get(current_family, [None])[0] if current_family is not None else None
+        displaced = tuple(
+            episode.id
+            for episode in active
+            if current_family is None or episode.setup_family != current_family
+        )
+        return LifecycleReconciliationPlan(
+            snapshot_id=snapshot.id,
+            ticker=snapshot.ticker,
+            timeframe=snapshot.timeframe,
+            current_family=current_family,
+            active_episode_ids=tuple(episode.id for episode in active),
+            retained_episode_id=getattr(retained, "id", None),
+            displaced_episode_ids=displaced,
+            reason_code=(
+                "NO_CURRENT_FAMILY"
+                if current_family is None and displaced
+                else "FAMILY_DISPLACED"
+                if displaced
+                else None
+            ),
+        )
+
     @anchored_decision_calculator
     @core_writer_transaction
     def apply_snapshot(
@@ -86,6 +244,7 @@ class SetupLifecycleEpisodeService:
         completed_observation_sessions: int = 1,
         prior_snapshots: tuple[NormalizedSnapshot, ...] = (),
         preloaded_episodes: tuple[SetupLifecycleEpisode, ...] | None = None,
+        reconciliation_plan: LifecycleReconciliationPlan | None = None,
         refresh_primary: bool = True,
     ) -> EpisodeEvaluationResult:
         from sqlalchemy.orm import Session
@@ -152,6 +311,56 @@ class SetupLifecycleEpisodeService:
                 primary = select_primary_episodes(eligible, config=self.config)[0]
                 lookup_family = primary.setup_family
                 first_pass = replace(first_pass, setup_family=SetupFamily(lookup_family))
+        current_family = (
+            None
+            if "INSUFFICIENT_FAMILY_EVIDENCE" in first_pass.reason_codes
+            else first_pass.setup_family.value
+        )
+        if reconciliation_plan is None:
+            reconciliation_plan = self.plan_reconciliation(
+                db,
+                snapshot,
+                prior_snapshots=prior_snapshots,
+                preloaded_episodes=preloaded_episodes,
+            )
+        if (
+            reconciliation_plan.snapshot_id != snapshot.id
+            or reconciliation_plan.ticker != snapshot.ticker
+            or reconciliation_plan.timeframe != snapshot.timeframe
+            or reconciliation_plan.current_family != current_family
+        ):
+            from app.services.setup_lifecycle.errors import SetupLifecycleReconciliationError
+
+            raise SetupLifecycleReconciliationError(
+                "MUTATION_LIFECYCLE_RECONCILIATION_PLAN_MISMATCH",
+                stage="execution",
+                expected=reconciliation_plan.as_dict(),
+                actual={
+                    "snapshot_id": snapshot.id,
+                    "ticker": snapshot.ticker,
+                    "timeframe": snapshot.timeframe,
+                    "current_family": current_family,
+                },
+            )
+        reconciliation_results = self._execute_reconciliation(
+            db,
+            snapshot=snapshot,
+            observation=first_pass,
+            plan=reconciliation_plan,
+            episodes=tuple(
+                preloaded_episodes
+                if preloaded_episodes is not None
+                else self.repository.active_episodes_for_ticker(
+                    db, ticker=snapshot.ticker, timeframe=snapshot.timeframe
+                )
+            ),
+            evaluation_run_id=evaluation_run_id,
+            prior_snapshots=prior_snapshots,
+        )
+        if preloaded_episodes is not None:
+            preloaded_episodes = tuple(
+                episode for episode in preloaded_episodes if episode.status == "ACTIVE"
+            )
         active = (
             _active_episode_from_preloaded(
                 preloaded_episodes,
@@ -234,10 +443,11 @@ class SetupLifecycleEpisodeService:
                 lifecycle_evaluation_evidence=evaluation_evidence,
                 actionability_before=active.current_actionability,
                 updated=False,
+                reconciliation_results=reconciliation_results,
             )
 
         if active is None:
-            return self._maybe_open_episode(
+            result = self._maybe_open_episode(
                 db,
                 snapshot,
                 decision,
@@ -247,8 +457,9 @@ class SetupLifecycleEpisodeService:
                 preloaded_episodes=preloaded_episodes,
                 refresh_primary=refresh_primary,
             )
+            return replace(result, reconciliation_results=reconciliation_results)
 
-        return self._update_episode(
+        result = self._update_episode(
             db,
             active,
             snapshot,
@@ -259,6 +470,7 @@ class SetupLifecycleEpisodeService:
             completed_observation_sessions=effective_observation_sessions,
             refresh_primary=refresh_primary,
         )
+        return replace(result, reconciliation_results=reconciliation_results)
 
     def _retire_legacy_active_episodes(
         self, db, *, snapshot: SetupSignalSnapshot, evaluation_run_id: int | None
@@ -454,6 +666,86 @@ class SetupLifecycleEpisodeService:
             lifecycle_event_id=event.id,
         )
 
+    @core_writer_member(
+        "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_snapshot"
+    )
+    def _execute_reconciliation(
+        self,
+        db,
+        *,
+        snapshot: SetupSignalSnapshot,
+        observation: LifecycleDecision,
+        plan: LifecycleReconciliationPlan,
+        episodes: tuple[SetupLifecycleEpisode, ...],
+        evaluation_run_id: int | None,
+        prior_snapshots: tuple[NormalizedSnapshot, ...],
+    ) -> tuple[EpisodeEvaluationResult, ...]:
+        by_id = {episode.id: episode for episode in episodes}
+        results: list[EpisodeEvaluationResult] = []
+        reason = plan.reason_code
+        for episode_id in plan.displaced_episode_ids:
+            episode = by_id.get(episode_id)
+            if episode is None or episode.status != "ACTIVE" or reason is None:
+                from app.services.setup_lifecycle.errors import SetupLifecycleReconciliationError
+
+                raise SetupLifecycleReconciliationError(
+                    "MUTATION_LIFECYCLE_RECONCILIATION_PARTICIPANT_MISMATCH",
+                    stage="execution",
+                    ticker=snapshot.ticker,
+                    timeframe=snapshot.timeframe,
+                    snapshot_id=snapshot.id,
+                    episode_id=episode_id,
+                    plan=plan.as_dict(),
+                )
+            decision = lifecycle_reconciliation_decision(
+                observation,
+                episode=episode,
+                current_family=plan.current_family,
+                reason_code=reason,
+                snapshot_id=snapshot.id,
+            )
+            actionability = self.actionability_policy.evaluate(
+                decision, normalized_snapshot_from_row(snapshot)
+            )
+            evidence = persist_lifecycle_evaluation_evidence(
+                db,
+                snapshot=snapshot,
+                episode=episode,
+                decision=decision,
+                actionability=actionability,
+                evaluation_run_id=evaluation_run_id,
+                transition_eligible=True,
+                effective_configuration=self.lifecycle_engine.effective_configuration,
+                prior_snapshots=prior_snapshots,
+                completed_observation_sessions=(
+                    0 if snapshot.data_as_of_date <= episode.last_observed_on else 1
+                ),
+                reconciliation={
+                    "contract": "setup-lifecycle-family-reconciliation-v1",
+                    "reason_code": reason,
+                    "current_family": plan.current_family,
+                    "displaced_family": episode.setup_family,
+                    "episode_id": episode.id,
+                    "snapshot_id": snapshot.id,
+                },
+            )
+            results.append(
+                self._update_episode(
+                    db,
+                    episode,
+                    snapshot,
+                    decision,
+                    actionability,
+                    evaluation_run_id=evaluation_run_id,
+                    evaluation_evidence=evidence,
+                    completed_observation_sessions=(
+                        0 if snapshot.data_as_of_date <= episode.last_observed_on else 1
+                    ),
+                    refresh_primary=False,
+                )
+            )
+        return tuple(results)
+
     @core_writer_transaction
     def refresh_primary_status(
         self, db, *, ticker: str, timeframe: str, market_cutoff=None
@@ -486,6 +778,7 @@ class SetupLifecycleEpisodeService:
         from sqlalchemy import select
         from sqlalchemy.orm import Session
 
+        from app.models.tables import MarketCalculationContext
         from app.services.calculation_identity import CalculationIdentity
         from app.services.contextual_calculation_identity import (
             build_contextual_result_identity,
@@ -498,6 +791,7 @@ class SetupLifecycleEpisodeService:
             validate_episode_projection,
         )
         from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+        from app.services.setup_lifecycle.errors import SetupLifecycleReconciliationError
 
         if not isinstance(db, Session):
             return
@@ -543,46 +837,71 @@ class SetupLifecycleEpisodeService:
                     "evaluation_key": evaluation.evidence_key,
                 }
             )
-        base = CalculationIdentity.from_canonical_payload(
-            evaluations[0].payload_json["calculation_identity"]
-        )
-        if identity_cutoff(db, base) != market_cutoff:
-            from app.models.tables import BackgroundJob
-            from app.services.domain_write_fence import current_domain_write_ownership
-
-            ownership = current_domain_write_ownership()
-            if ownership is not None:
-                job = db.get(BackgroundJob, ownership.job_id)
-                if (
-                    job.job_type != "SETUP_LIFECYCLE_DAILY_MAINTENANCE"
-                    or job.related_run_id is not None
-                ):
-                    raise ValueError("MUTATION_LIFECYCLE_PRIMARY_EXECUTION_SCOPE_MISMATCH")
-                from datetime import datetime, time
-                from zoneinfo import ZoneInfo
-
-                from app.services.market_clock_service import EXCHANGE_TIMEZONE, MarketClockService
-
-                maintenance_day = date.fromisoformat(str(job.payload_json["as_of_date"]))
-                expected_cutoff = MarketClockService().cutoff_for(
-                    datetime.combine(maintenance_day, time.max, tzinfo=ZoneInfo(EXCHANGE_TIMEZONE)),
-                    reason="LIFECYCLE_CURRENT_STATE_MAINTENANCE_AS_OF_DAY",
-                )
-                if job.payload_json.get("market_session_completed", True) is not True or any(
-                    getattr(market_cutoff, field) != getattr(expected_cutoff, field)
-                    for field in (
-                        "cutoff_at",
-                        "latest_completed_session",
-                        "exchange_timezone",
-                        "calendar_version",
-                        "bar_readiness_version",
-                        "context_id",
-                    )
-                ):
-                    raise ValueError("MUTATION_LIFECYCLE_PRIMARY_EXECUTION_SCOPE_MISMATCH")
-            base = consumer_context_identity(
-                market_cutoff=market_cutoff, run_id=None, pipeline_id=None, ticker=ticker
+        for episode, evaluation, participant in zip(episodes, evaluations, manifest, strict=True):
+            participant_identity = CalculationIdentity.from_canonical_payload(
+                evaluation.payload_json["calculation_identity"]
             )
+            participant_cutoff = identity_cutoff(db, participant_identity)
+            if participant_cutoff != market_cutoff:
+                raise SetupLifecycleReconciliationError(
+                    "MUTATION_LIFECYCLE_PRIMARY_EXECUTION_SCOPE_MISMATCH",
+                    stage="primary_projection",
+                    ticker=ticker.upper(),
+                    timeframe=timeframe,
+                    episode_id=episode.id,
+                    evaluation_id=evaluation.id,
+                    participant_episode_ids=[item.id for item in episodes],
+                    expected={
+                        "context_id": market_cutoff.context_id,
+                        "cutoff": market_cutoff.cutoff_at,
+                        "session": market_cutoff.latest_completed_session,
+                    },
+                    actual={
+                        "context_id": participant_cutoff.context_id,
+                        "cutoff": participant_cutoff.cutoff_at,
+                        "session": participant_cutoff.latest_completed_session,
+                        "identity_fingerprint": evaluation.calculation_identity_fingerprint,
+                    },
+                )
+            participant.update(
+                setup_family=episode.setup_family,
+                disposition={
+                    "status": episode.status,
+                    "state": episode.current_state,
+                    "phase": episode.current_phase,
+                },
+                source_identity={
+                    "fingerprint": evaluation.calculation_identity_fingerprint,
+                    "run_id": participant_identity.ownership.run_id.value,
+                    "pipeline_id": participant_identity.ownership.pipeline_id.value,
+                    "market_context_id": (
+                        participant_identity.calculation_context.market_calculation_context_id.value
+                    ),
+                    "cutoff": participant_identity.temporal.calculation_cutoff.value,
+                    "session": participant_identity.temporal.as_of_session.value,
+                },
+                reconciliation=evaluation.payload_json.get("reconciliation"),
+            )
+        context = (
+            db.get(MarketCalculationContext, market_cutoff.context_id)
+            if market_cutoff.context_id is not None
+            else None
+        )
+        if market_cutoff.context_id is not None and context is None:
+            raise SetupLifecycleReconciliationError(
+                "MUTATION_LIFECYCLE_PRIMARY_EXECUTION_SCOPE_MISMATCH",
+                stage="primary_projection",
+                ticker=ticker.upper(),
+                timeframe=timeframe,
+                expected_context_id=market_cutoff.context_id,
+                cause="MARKET_CONTEXT_MISSING",
+            )
+        base = consumer_context_identity(
+            market_cutoff=market_cutoff,
+            run_id=getattr(context, "upload_run_id", None),
+            pipeline_id=getattr(context, "pipeline_run_id", None),
+            ticker=ticker,
+        )
         identity = self.effective_configuration.bind(
             build_contextual_result_identity(
                 base=base,
@@ -600,8 +919,22 @@ class SetupLifecycleEpisodeService:
             writer="refresh_primary_status",
             identity=identity,
             configuration=self.effective_configuration,
-            records={"target_evidence": evaluations[0]},
-            manifests={"projection_scope": {"episodes": manifest, "timeframe": timeframe}},
+            records={
+                "target_evidence": db.get(
+                    SetupLifecycleEvaluationEvidence,
+                    select_primary_episodes(episodes, config=self.config)[
+                        0
+                    ].latest_evaluation_evidence_id,
+                )
+            },
+            manifests={
+                "projection_scope": {
+                    "contract": "lifecycle-primary-aggregate-v1",
+                    "episodes": manifest,
+                    "timeframe": timeframe,
+                    "market_context_id": market_cutoff.context_id,
+                }
+            },
             semantic_mode=MutationSemanticMode.CURRENT_PROJECTION_ADVANCE,
         )
 
@@ -1120,6 +1453,47 @@ def select_primary_episodes(
 ) -> list[SetupLifecycleEpisode]:
     config = config or load_setup_lifecycle_config()
     return sorted(episodes, key=lambda episode: _primary_sort_key(episode, config), reverse=True)
+
+
+def lifecycle_reconciliation_decision(
+    observation: LifecycleDecision,
+    *,
+    episode: SetupLifecycleEpisode,
+    current_family: str | None,
+    reason_code: str,
+    snapshot_id: int,
+) -> LifecycleDecision:
+    if reason_code not in {"FAMILY_DISPLACED", "NO_CURRENT_FAMILY"}:
+        raise ValueError("MUTATION_LIFECYCLE_RECONCILIATION_REASON_INVALID")
+    if reason_code == "FAMILY_DISPLACED" and (
+        current_family is None or current_family == episode.setup_family
+    ):
+        raise ValueError("MUTATION_LIFECYCLE_RECONCILIATION_FAMILY_INVALID")
+    if reason_code == "NO_CURRENT_FAMILY" and current_family is not None:
+        raise ValueError("MUTATION_LIFECYCLE_RECONCILIATION_FAMILY_INVALID")
+    evidence = dict(observation.evidence or {})
+    evidence["reconciliation"] = {
+        "contract": "setup-lifecycle-family-reconciliation-v1",
+        "reason_code": reason_code,
+        "current_family": current_family,
+        "displaced_family": episode.setup_family,
+        "episode_id": episode.id,
+        "prior_evaluation_evidence_id": episode.latest_evaluation_evidence_id,
+        "prior_transition_evidence_id": episode.latest_transition_evidence_id,
+        "snapshot_id": snapshot_id,
+    }
+    return replace(
+        observation,
+        setup_family=SetupFamily(episode.setup_family),
+        phase_code=reason_code,
+        previous_state=LifecycleState(episode.current_state),
+        proposed_state=LifecycleState.EXPIRED,
+        actionability_candidate=Actionability.WATCH_ONLY,
+        reason_codes=(reason_code,),
+        evidence=evidence,
+        immediate_transition=False,
+        terminal_reason=reason_code,
+    )
 
 
 def trading_sessions_between(start_exclusive: date, end_inclusive: date) -> int:

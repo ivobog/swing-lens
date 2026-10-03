@@ -27,6 +27,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=",".join(VALID_WORKER_QUEUES),
         help="Comma-separated queue allowlist: interactive,broker,background",
     )
+    parser.add_argument(
+        "--job-types",
+        default="",
+        help="Optional comma-separated job-type allowlist for a constrained worker.",
+    )
     args = parser.parse_args(argv)
     try:
         args.queues = normalize_worker_queues(args.queues)
@@ -35,6 +40,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     if not str(args.worker_id).strip():
         parser.error("--worker-id is required")
     args.worker_id = str(args.worker_id).strip()
+    args.job_types = tuple(
+        sorted({value.strip() for value in str(args.job_types).split(",") if value.strip()})
+    )
     return args
 
 
@@ -94,7 +102,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         sampler.start()
     try:
         log_event(logger, "runtime.worker_loop_begin", stage="worker_loop", result="success")
-        run_worker(worker_id=args.worker_id, queues=args.queues, stop_event=stop_event)
+        run_worker(
+            worker_id=args.worker_id,
+            queues=args.queues,
+            included_job_types=args.job_types,
+            stop_event=stop_event,
+        )
     finally:
         log_event(logger, "runtime.process_shutdown", stage="process_shutdown")
         if settings.observability_metrics_enabled:

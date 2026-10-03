@@ -1,0 +1,29 @@
+{
+  "after_data_hash": "83000ad95bb9eee3e57aaefd35e15ac8",
+  "before_data_hash": "83000ad95bb9eee3e57aaefd35e15ac8",
+  "core_update": {
+    "blocked": true,
+    "sqlstate": "55P03",
+    "wait_seconds": 0.5147309000021778
+  },
+  "durable_body_unchanged": true,
+  "isolation_level": "read committed",
+  "key_share_non_key_update": {
+    "blocked": false,
+    "seconds": 0.0021983000333420932
+  },
+  "old_exclusive_reader": {
+    "blocked": true,
+    "sqlstate": "55P03",
+    "wait_seconds": 0.5236398000270128
+  },
+  "price_bar_id": 1,
+  "raw_delete": {
+    "blocked": true,
+    "sqlstate": "55P03",
+    "wait_seconds": 0.5119164999923669
+  },
+  "rollback_only": true,
+  "second_share_reader_seconds": 0.0028316000243648887,
+  "share_readers_compatible": true
+}

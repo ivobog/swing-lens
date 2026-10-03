@@ -189,6 +189,81 @@ def test_concurrent_finalizers_create_one_capture_in_postgresql(
     assert capture.request_key == f"{workflow_key}:capture"
 
 
+def test_two_feature_workers_cannot_claim_same_attempt_or_unrelated_job_postgresql(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    worker_ids = ("ceri-feature-a", "ceri-feature-b")
+    instance_ids = ("feature-instance-a", "feature-instance-b")
+    with Session(engine) as db:
+        for worker_id, instance_id in zip(worker_ids, instance_ids, strict=True):
+            register_worker(
+                db,
+                worker_id=worker_id,
+                instance_id=instance_id,
+                queues=("background",),
+                heartbeat_timeout_seconds=30,
+            )
+        feature = _new_job(
+            db,
+            job_type=CERI_FEATURE_BATCH,
+            request_key="p2:claim:feature",
+            status=JobStatus.QUEUED,
+            priority=1,
+            payload_json={},
+        )
+        unrelated = _new_job(
+            db,
+            job_type=CERI_RUN_FINALIZE,
+            request_key="p2:claim:finalizer",
+            status=JobStatus.QUEUED,
+            priority=2,
+            payload_json={},
+        )
+        db.add_all((feature, unrelated))
+        db.commit()
+        feature_id = int(feature.id)
+        unrelated_id = int(unrelated.id)
+
+    barrier = Barrier(2)
+
+    def claim(index: int) -> tuple[int, str, str] | None:
+        with Session(engine, expire_on_commit=False) as db:
+            barrier.wait(timeout=10)
+            job = claim_next_job(
+                db,
+                worker_ids[index],
+                worker_instance_id=instance_ids[index],
+                queues=("background",),
+                included_job_types=(CERI_FEATURE_BATCH,),
+            )
+            db.commit()
+            return (
+                (int(job.id), str(job.worker_id), str(job.execution_token))
+                if job is not None
+                else None
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        claims = list(executor.map(claim, range(2)))
+
+    successful = [value for value in claims if value is not None]
+    with Session(engine) as db:
+        feature = db.get(BackgroundJob, feature_id)
+        unrelated = db.get(BackgroundJob, unrelated_id)
+        assert feature is not None and unrelated is not None
+        assert len(successful) == 1
+        assert successful[0][0] == feature_id
+        assert feature.status == JobStatus.RUNNING
+        assert feature.worker_id == successful[0][1]
+        assert feature.execution_token == successful[0][2]
+        assert unrelated.status == JobStatus.QUEUED
+        assert unrelated.worker_id is None
+        assert unrelated.execution_token is None
+    engine.dispose()
+
+
 def test_run9_two_ticker_detached_checkpoint_does_not_self_lock_postgresql(
     disposable_postgres_database: str,
     monkeypatch,
@@ -1196,16 +1271,19 @@ def _execute_legacy_fixture(database_url: str) -> dict:
         cutoff = create_pipeline_market_context(
             db, pipeline, cutoff_at=datetime(2026, 9, 8, 17, 30, tzinfo=UTC)
         )
+        ceri_context = _retain_fixture_ceri_context(db, pipeline, cutoff)
+        workflow_key = f"ceri:pipeline:{pipeline.id}:legacy-parity"
         temporal_payload = {
             "pipeline_run_id": pipeline.id,
-            "calculation_context_id": cutoff.context_id,
-            "cutoff_at": cutoff.cutoff_at.isoformat(),
-            "as_of_session": cutoff.latest_completed_session.isoformat(),
-            "calendar_version": cutoff.calendar_version,
+            "calculation_context_id": ceri_context.id,
+            "cutoff_at": ceri_context.cutoff_at.isoformat(),
+            "as_of_session": ceri_context.latest_completed_session.isoformat(),
+            "calendar_version": ceri_context.calendar_version,
         }
         normalize = _new_job(
             db,
             job_type="CERI_NORMALIZE",
+            workflow_key=workflow_key,
             related_run_id=run_id,
             request_key="legacy:normalize:MSFT",
             status=JobStatus.RUNNING,
@@ -1229,8 +1307,10 @@ def _execute_legacy_fixture(database_url: str) -> dict:
         feature = db.scalar(
             select(BackgroundJob).where(BackgroundJob.job_type == CERI_REBUILD_FEATURES)
         )
+        feature.workflow_key = workflow_key
         _execute_handler(db, feature, execute_rebuild_features_job)
         capture = db.scalar(select(BackgroundJob).where(BackgroundJob.job_type == CERI_CAPTURE_RUN))
+        capture.workflow_key = workflow_key
         _execute_handler(db, capture, execute_capture_run_job)
         db.refresh(capture)
         capture_metadata = dict((capture.operational_metadata_json or {}).get("ceri_capture") or {})
@@ -1263,6 +1343,7 @@ def _execute_batched_fixture(database_url: str) -> dict:
         cutoff = create_pipeline_market_context(
             db, pipeline, cutoff_at=datetime(2026, 9, 8, 17, 30, tzinfo=UTC)
         )
+        ceri_context = _retain_fixture_ceri_context(db, pipeline, cutoff)
         workflow_key = f"ceri:pipeline:{pipeline.id}:fixture-config"
         ingestion = db.get(CeriIngestionRun, ingestion_run_id)
         ingestion.request_key = (
@@ -1270,10 +1351,10 @@ def _execute_batched_fixture(database_url: str) -> dict:
         )
         temporal_payload = {
             "pipeline_run_id": pipeline.id,
-            "calculation_context_id": cutoff.context_id,
-            "cutoff_at": cutoff.cutoff_at.isoformat(),
-            "as_of_session": cutoff.latest_completed_session.isoformat(),
-            "calendar_version": cutoff.calendar_version,
+            "calculation_context_id": ceri_context.id,
+            "cutoff_at": ceri_context.cutoff_at.isoformat(),
+            "as_of_session": ceri_context.latest_completed_session.isoformat(),
+            "calendar_version": ceri_context.calendar_version,
         }
         provider = _new_job(
             db,
@@ -1575,8 +1656,9 @@ def _seed_fixture(db: Session, *, request_key: str) -> tuple[int, int]:
         ("2026-08-01T20:00:00+00:00", "12.0"),
         ("2026-08-11T20:00:00+00:00", "13.0"),
     )
+    source_records = []
     for index, (effective_at, consensus) in enumerate(observations, start=1):
-        db.add(
+        source_records.append(
             CeriSourceRecord(
                 ingestion_run_id=ingestion.id,
                 provider="eodhd",
@@ -1608,8 +1690,50 @@ def _seed_fixture(db: Session, *, request_key: str) -> tuple[int, int]:
                 ingested_at=datetime(2026, 8, 12, 12, tzinfo=UTC),
             )
         )
+    db.add_all(source_records)
+    db.flush()
+    db.add_all(
+        CeriIngestionRunSourceRecord(
+            ingestion_run_id=ingestion.id,
+            source_record_id=record.id,
+            ticker="MSFT",
+            provider="eodhd",
+            dataset="estimates",
+            ingestion_outcome="INSERTED",
+        )
+        for record in source_records
+    )
     db.commit()
     return run.id, ingestion.id
+
+
+def _retain_fixture_ceri_context(db: Session, pipeline: PipelineRun, cutoff):
+    """Retain the deterministic post-acquisition context used by feature jobs."""
+
+    context = MarketCalculationContext(
+        pipeline_run_id=None,
+        upload_run_id=pipeline.upload_run_id,
+        cutoff_at=cutoff.cutoff_at,
+        exchange_timezone=cutoff.exchange_timezone,
+        latest_completed_session=cutoff.latest_completed_session,
+        daily_bar_ready_at=cutoff.daily_bar_ready_at,
+        calendar_version=cutoff.calendar_version,
+        bar_readiness_version=cutoff.bar_readiness_version,
+        cutoff_reason="CERI_POST_ACQUISITION_FROZEN",
+    )
+    db.add(context)
+    db.flush()
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "ceri_calculation_context_id": context.id,
+        "ceri_calculation_cutoff_at": context.cutoff_at.isoformat(),
+        "ceri_calculation_as_of_session": context.latest_completed_session.isoformat(),
+        "ceri_calculation_calendar_version": context.calendar_version,
+        "ceri_calculation_bar_readiness_version": context.bar_readiness_version,
+        "ceri_calculation_context_reason": context.cutoff_reason,
+    }
+    db.flush()
+    return context
 
 
 def _claim_native_fixture_job(db: Session, job: BackgroundJob) -> None:

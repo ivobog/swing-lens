@@ -326,6 +326,7 @@ class SetupLifecycleChangeDetector:
             old_value=_json_value(change.old_value),
             new_value=_json_value(change.new_value),
             config_hash=current.config_hash,
+            calculation_context_id=current.calculation_context_id,
         )
         return SignalChangeEvent(
             evaluation_run_id=evaluation_run_id,

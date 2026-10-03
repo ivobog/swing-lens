@@ -127,6 +127,7 @@ def run_worker(
     handlers: Mapping[str, JobHandler] | None = None,
     worker_id: str | None = None,
     queues: Iterable[str] | None = None,
+    included_job_types: Iterable[str] | None = None,
     stop_after_one: bool = False,
     stop_event: Event | None = None,
 ) -> None:
@@ -139,6 +140,9 @@ def run_worker(
         certification_session_id = require_certification_session_id(settings)
     worker_id = (worker_id or settings.job_worker_id).strip()
     queue_names = normalize_worker_queues(queues)
+    allowed_job_types = tuple(
+        sorted({str(value).strip() for value in (included_job_types or ()) if str(value).strip()})
+    )
     handlers = handlers or default_job_handlers()
     hostname = socket.gethostname()
     process_id = os.getpid()
@@ -220,6 +224,7 @@ def run_worker(
             worker_id=worker_id,
             worker_instance_id=instance_id,
             queue_names=queue_names,
+            included_job_types=allowed_job_types,
             handlers=handlers,
             claim_state=claim_state,
             session_factory=session_factory,
@@ -259,6 +264,7 @@ def _run_worker_control_loop(
     runtime_stop_event: Event,
     certification_session_id: str | None,
     stop_after_one: bool,
+    included_job_types: Iterable[str] = (),
     poll_once: Callable[..., bool] | None = None,
 ) -> None:
     """Run claims while containing only classified pre-claim DB infrastructure faults."""
@@ -290,6 +296,7 @@ def _run_worker_control_loop(
                 worker_id=worker_id,
                 worker_instance_id=worker_instance_id,
                 queues=queue_names,
+                included_job_types=included_job_types,
                 stale_after_seconds=settings.job_stale_after_seconds,
                 heartbeat_timeout_seconds=settings.job_worker_heartbeat_timeout_seconds,
                 heartbeat_interval_seconds=getattr(
@@ -625,6 +632,7 @@ def run_worker_once(
     worker_id: str,
     worker_instance_id: str | None = None,
     queues: Iterable[str] | None = None,
+    included_job_types: Iterable[str] | None = None,
     stale_after_seconds: int,
     heartbeat_timeout_seconds: int = 30,
     heartbeat_interval_seconds: float = 5.0,
@@ -650,6 +658,15 @@ def run_worker_once(
     claim_committed = False
     try:
         queue_names = normalize_worker_queues(queues)
+        allowed_job_types = tuple(
+            sorted(
+                {
+                    str(value).strip()
+                    for value in (included_job_types or ())
+                    if str(value).strip()
+                }
+            )
+        )
         hostname = socket.gethostname()
         process_id = os.getpid()
         abandoned_count = (
@@ -730,6 +747,7 @@ def run_worker_once(
             certification_only=certification_mode,
             certification_session_id=certification_session_id,
             excluded_job_types=excluded_job_types,
+            included_job_types=allowed_job_types,
         )
         mark_worker_infrastructure_healthy(
             db,

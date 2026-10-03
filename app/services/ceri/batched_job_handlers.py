@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, date, datetime
 from functools import partial
-from time import perf_counter
+from time import perf_counter, process_time
 from typing import Any
 
 from sqlalchemy import or_, select
@@ -333,6 +333,7 @@ def execute_feature_batch_job(
     completed, results = _checkpoint_state(job)
     remaining_tickers = tuple(ticker for ticker in tickers if ticker not in completed)
     batch_started = perf_counter()
+    batch_cpu_started = process_time()
     batch_context = None
     # The worker heartbeat commits. Keep the immutable batch-prefetched ORM
     # evidence resident across those per-ticker durable checkpoints instead of
@@ -383,10 +384,16 @@ def execute_feature_batch_job(
     for ticker in tickers:
         if ticker in completed:
             continue
+        ticker_started = perf_counter()
+        ticker_cpu_started = process_time()
+        handler_phases: dict[str, int] = {}
+        phase_started = perf_counter()
         require_parent_pipeline_active(db, job)
         if _heartbeat_and_cancel(db, job, heartbeat=False):
             raise CancelRequested("CERI feature batch cancelled.")
+        handler_phases["admission_ms"] = int((perf_counter() - phase_started) * 1000)
         processing_key = f"{workflow_key}:feature-ticker:{ticker}"
+        phase_started = perf_counter()
         processing, _ = CeriProcessingRunService().create_or_get(
             db,
             job_type=CERI_FEATURE_BATCH,
@@ -405,6 +412,7 @@ def execute_feature_batch_job(
             background_job_id=job.id,
             semantic_authority=semantic_authority,
         )
+        handler_phases["processing_run_ms"] = int((perf_counter() - phase_started) * 1000)
         if processing.status in {"COMPLETED", "PARTIAL"}:
             values = {
                 "processing_run_id": processing.id,
@@ -413,6 +421,7 @@ def execute_feature_batch_job(
                 "coalesced": True,
             }
         else:
+            phase_started = perf_counter()
             result = service.rebuild(
                 db,
                 CeriFeatureRebuildRequest(
@@ -429,6 +438,8 @@ def execute_feature_batch_job(
                 processing_run=processing,
                 **({"batch_context": batch_context} if batch_context is not None else {}),
             )
+            handler_phases["rebuild_call_ms"] = int((perf_counter() - phase_started) * 1000)
+            phase_started = perf_counter()
             if (
                 not result.failed
                 and not has_revision_feature_output(
@@ -452,6 +463,8 @@ def execute_feature_batch_job(
                 raise ValueError(
                     f"CERI_FEATURE_OUTPUT_MISSING_FOR_REFERENCED_INPUT:ticker={ticker}"
                 )
+            handler_phases["output_validation_ms"] = int((perf_counter() - phase_started) * 1000)
+            phase_started = perf_counter()
             CeriProcessingRunService().finish(
                 db,
                 processing,
@@ -464,6 +477,7 @@ def execute_feature_batch_job(
                 checkpoint={"ticker": ticker, "processed_companies": result.processed_companies},
                 errors={"records": list(result.errors)} if result.errors else None,
             )
+            handler_phases["processing_finish_ms"] = int((perf_counter() - phase_started) * 1000)
             values = {
                 "processing_run_id": processing.id,
                 "status": processing.status,
@@ -472,6 +486,7 @@ def execute_feature_batch_job(
         results[ticker] = values
         failed += int(values.get("failed") or 0)
         completed.add(ticker)
+        phase_started = perf_counter()
         _save_checkpoint(
             db,
             job,
@@ -480,17 +495,55 @@ def execute_feature_batch_job(
             total=len(tickers),
             last_completed=ticker,
         )
+        handler_phases["checkpoint_ms"] = int((perf_counter() - phase_started) * 1000)
         # The financial batch remains atomic; only lease/progress state is
         # committed independently. A retry restarts this bounded ticker batch
         # against the same immutable source manifest.
+        phase_started = perf_counter()
         if _heartbeat_and_cancel(db, job):
             raise CancelRequested("CERI feature batch cancelled.")
+        handler_phases["heartbeat_ms"] = int((perf_counter() - phase_started) * 1000)
+        ticker_total_ms = int((perf_counter() - ticker_started) * 1000)
+        values["handler_timing"] = {
+            **handler_phases,
+            "total_ms": ticker_total_ms,
+            "cpu_ms": int((process_time() - ticker_cpu_started) * 1000),
+            "unclassified_ms": max(0, ticker_total_ms - sum(handler_phases.values())),
+        }
+        logger.info(
+            "ceri.feature_ticker.timing",
+            extra={
+                "job_id": job.id,
+                "run_id": job.related_run_id,
+                "ticker": ticker,
+                **values["handler_timing"],
+            },
+        )
     if failed or any(value.get("status") == "PARTIAL" for value in results.values()):
         _set_job_outcome_status(job, JobStatus.PARTIAL)
+    source_bodies = getattr(batch_context, "source_bodies", None)
+    if source_bodies is not None:
+        # One bounded audit before the handler returns to the worker's durable
+        # commit catches in-place mutable source changes invisible to the ORM
+        # UOW. SQL/Core/unknown mutations are then resolved by exact refresh.
+        source_bodies.full_audit_unchanged_in_memory()
+        source_bodies.refresh()
     family_timings: dict[str, int] = {}
     for value in results.values():
         for family, duration in (value.get("family_runtime_ms") or {}).items():
             family_timings[family] = family_timings.get(family, 0) + int(duration or 0)
+    batch_total_ms = int((perf_counter() - batch_started) * 1000)
+    batch_cpu_ms = int((process_time() - batch_cpu_started) * 1000)
+    source_telemetry = None
+    if source_bodies is not None:
+        snapshot = getattr(source_bodies, "telemetry_snapshot", None)
+        if callable(snapshot):
+            source_telemetry = snapshot()
+    ticker_handler_timings = [
+        value["handler_timing"]
+        for value in results.values()
+        if isinstance(value.get("handler_timing"), dict)
+    ]
     telemetry = {
         "feature_rebuild_impl_version": FEATURE_REBUILD_IMPL_VERSION,
         "ticker_count": len(tickers),
@@ -509,7 +562,11 @@ def execute_feature_batch_job(
         "features_deduplicated": sum(
             int(value.get("features_deduplicated") or 0) for value in results.values()
         ),
-        "batch_total_ms": int((perf_counter() - batch_started) * 1000),
+        "batch_total_ms": batch_total_ms,
+        "batch_cpu_ms": batch_cpu_ms,
+        "batch_cpu_utilization_pct": (
+            round(100.0 * batch_cpu_ms / batch_total_ms, 3) if batch_total_ms else 0.0
+        ),
         "load_context_ms": int(getattr(batch_context, "load_context_ms", 0) or 0),
         "persistence_ms": sum(int(value.get("persistence_ms") or 0) for value in results.values()),
         "revision_compute_ms": family_timings.get("revisions", 0),
@@ -524,6 +581,28 @@ def execute_feature_batch_job(
             int(value.get("sql_write_count") or 0) for value in results.values()
         ),
         "rows_loaded": dict(getattr(batch_context, "rows_loaded", {}) or {}),
+        # Avoid the generic persistence redactor's credential fragment "auth";
+        # these are numeric integrity counters, not authority credentials.
+        "source_integrity_telemetry": source_telemetry,
+        "ticker_handler_total_ms": sum(
+            int(value.get("total_ms") or 0) for value in ticker_handler_timings
+        ),
+        "ticker_handler_cpu_ms": sum(
+            int(value.get("cpu_ms") or 0) for value in ticker_handler_timings
+        ),
+        "ticker_handler_phase_ms": {
+            phase: sum(int(value.get(phase) or 0) for value in ticker_handler_timings)
+            for phase in (
+                "admission_ms",
+                "processing_run_ms",
+                "rebuild_call_ms",
+                "output_validation_ms",
+                "processing_finish_ms",
+                "checkpoint_ms",
+                "heartbeat_ms",
+                "unclassified_ms",
+            )
+        },
     }
     telemetry["sql_monitor"] = current_sql_summary_snapshot()
     metadata = dict(job.operational_metadata_json or {})

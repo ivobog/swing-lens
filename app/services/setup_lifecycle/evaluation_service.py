@@ -54,6 +54,8 @@ class SetupLifecycleEvaluationResult:
     captured_snapshot_ids: tuple[int, ...] = ()
     canonical_snapshot_ids: tuple[int, ...] = ()
     errors_by_ticker: dict[str, str] = field(default_factory=dict)
+    reconciled_episodes: int = 0
+    reconciliation_plans: tuple[dict[str, Any], ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -74,6 +76,8 @@ class SetupLifecycleEvaluationResult:
             "warning": self.warnings,
             "captured": self.snapshots_captured,
             "canonical": self.canonical_snapshots,
+            "reconciled_episodes": self.reconciled_episodes,
+            "reconciliation_plans": list(self.reconciliation_plans),
         }
 
 
@@ -226,10 +230,12 @@ class SetupLifecycleEvaluationService:
                 self.repository.get_signal_change_events_by_ids(db, changes.event_ids),
             )
             self._checkpoint(db, evaluation_run.id, "lifecycle", should_cancel)
-            lifecycle_transitions, lifecycle_alerts = self._evaluate_lifecycle_episodes(
-                db,
-                evaluation_run_id=evaluation_run.id,
-                snapshot_ids=canonical.selected_snapshot_ids,
+            lifecycle_transitions, lifecycle_alerts, reconciliation_plans = (
+                self._evaluate_lifecycle_episodes(
+                    db,
+                    evaluation_run_id=evaluation_run.id,
+                    snapshot_ids=canonical.selected_snapshot_ids,
+                )
             )
             self._checkpoint(db, evaluation_run.id, "finalize", should_cancel)
         except SetupLifecycleEvaluationCancelled:
@@ -242,13 +248,21 @@ class SetupLifecycleEvaluationService:
             )
             raise
         except Exception as exc:
+            from app.services.setup_lifecycle.errors import SetupLifecycleReconciliationError
+
             self.repository.complete_evaluation_run(
                 db,
                 evaluation_run,
                 status=EvaluationStatus.FAILED.value,
                 current_phase="failed",
                 counts={"failed": 1},
-                errors={"system": str(exc)},
+                errors={
+                    "system": (
+                        exc.as_dict()
+                        if isinstance(exc, SetupLifecycleReconciliationError)
+                        else str(exc)
+                    )
+                },
             )
             raise
 
@@ -260,6 +274,7 @@ class SetupLifecycleEvaluationService:
             changes,
             lifecycle_transitions=lifecycle_transitions,
             alerts=change_alerts.created + lifecycle_alerts,
+            reconciliation_plans=reconciliation_plans,
         )
         self.repository.complete_evaluation_run(
             db,
@@ -276,6 +291,7 @@ class SetupLifecycleEvaluationService:
                 "skipped": capture.skipped,
                 "warning": result.warnings,
                 "failed": result.failed,
+                "reconciled": result.reconciled_episodes,
             },
             errors=dict(capture.errors_by_ticker),
             source_snapshot_min_id=min(capture.snapshot_ids) if capture.snapshot_ids else None,
@@ -345,6 +361,7 @@ class SetupLifecycleEvaluationService:
         *,
         lifecycle_transitions: int,
         alerts: int,
+        reconciliation_plans: tuple[dict[str, Any], ...] = (),
     ) -> SetupLifecycleEvaluationResult:
         failed = capture.failed
         status = EvaluationStatus.PARTIAL.value if failed else EvaluationStatus.COMPLETED.value
@@ -367,6 +384,10 @@ class SetupLifecycleEvaluationService:
             captured_snapshot_ids=capture.snapshot_ids,
             canonical_snapshot_ids=canonical.selected_snapshot_ids,
             errors_by_ticker=dict(capture.errors_by_ticker),
+            reconciled_episodes=sum(
+                len(plan.get("displaced_episode_ids", ())) for plan in reconciliation_plans
+            ),
+            reconciliation_plans=reconciliation_plans,
         )
 
     def _evaluation_version(self, run_id: int) -> str:
@@ -378,7 +399,7 @@ class SetupLifecycleEvaluationService:
         *,
         evaluation_run_id: int,
         snapshot_ids: tuple[int, ...],
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, tuple[dict[str, Any], ...]]:
         transitions = 0
         alert_created = 0
         snapshots = self.repository.get_snapshots_by_ids(db, snapshot_ids)
@@ -411,6 +432,26 @@ class SetupLifecycleEvaluationService:
         preload_alert_rules = "rules" in alert_parameters
         alert_rules = self.alert_service.rules_for_evaluation(db) if preload_alert_rules else None
 
+        planner = getattr(self.episode_service, "plan_reconciliation", None)
+        plans_by_snapshot: dict[int, Any] = {}
+        if callable(planner) and use_preloaded_episodes:
+            for snapshot in snapshots:
+                key = (snapshot.ticker, snapshot.timeframe)
+                plan = planner(
+                    db,
+                    snapshot,
+                    prior_snapshots=tuple(history_by_key.get(key, ())[-window:]),
+                    preloaded_episodes=tuple(episodes_by_key.get(key, ())),
+                )
+                plans_by_snapshot[snapshot.id] = plan
+            audit = {
+                "contract": "setup-lifecycle-reconciliation-preflight-v1",
+                "plans": [plans_by_snapshot[key].as_dict() for key in sorted(plans_by_snapshot)],
+            }
+            recorder = getattr(self.repository, "record_evaluation_audit", None)
+            if callable(recorder):
+                recorder(db, evaluation_run_id, audit)
+
         for snapshot in snapshots:
             key = (snapshot.ticker, snapshot.timeframe)
             history = history_by_key.setdefault(key, [])
@@ -418,6 +459,12 @@ class SetupLifecycleEvaluationService:
                 {
                     "preloaded_episodes": tuple(episodes_by_key.get(key, ())),
                     "refresh_primary": False,
+                    **(
+                        {"reconciliation_plan": plans_by_snapshot[snapshot.id]}
+                        if snapshot.id in plans_by_snapshot
+                        and "reconciliation_plan" in apply_parameters
+                        else {}
+                    ),
                 }
                 if use_preloaded_episodes
                 else {}
@@ -436,13 +483,19 @@ class SetupLifecycleEvaluationService:
             history.append(normalized_snapshot_from_row(snapshot))
             if result.lifecycle_event is not None and not result.opened:
                 transitions += 1
-            alerts = self.alert_service.evaluate_episode_result(
-                db,
-                result,
-                evaluation_run_id=evaluation_run_id,
-                **({"rules": alert_rules} if preload_alert_rules else {}),
+            reconciliation_results = tuple(getattr(result, "reconciliation_results", ()))
+            all_results = (*reconciliation_results, result)
+            transitions += sum(
+                1 for reconciled in reconciliation_results if reconciled.lifecycle_event is not None
             )
-            alert_created += alerts.created
+            for evaluated in all_results:
+                alerts = self.alert_service.evaluate_episode_result(
+                    db,
+                    evaluated,
+                    evaluation_run_id=evaluation_run_id,
+                    **({"rules": alert_rules} if preload_alert_rules else {}),
+                )
+                alert_created += alerts.created
         if use_preloaded_episodes:
             self.episode_service.refresh_primary_statuses(
                 db,
@@ -454,7 +507,11 @@ class SetupLifecycleEvaluationService:
                     for snapshot in snapshots
                 },
             )
-        return transitions, alert_created
+        return (
+            transitions,
+            alert_created,
+            tuple(plans_by_snapshot[key].as_dict() for key in sorted(plans_by_snapshot)),
+        )
 
 
 def evaluate_setup_lifecycles_for_run(

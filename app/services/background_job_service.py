@@ -88,6 +88,8 @@ NON_RETRYABLE_PROVENANCE_CODES = frozenset(
         "SEC_REPAIR_PROCESSOR_SIGNATURE_MISMATCH",
         "MUTATION_WINNER_CERTIFIED_CAPTURE_REQUIRED",
         "MUTATION_WINNER_CERTIFIED_OBLIGATION_SCOPE_REQUIRED",
+        "MUTATION_LIFECYCLE_PRIMARY_EXECUTION_SCOPE_MISMATCH",
+        "MUTATION_LIFECYCLE_RECONCILIATION_DUPLICATE_ACTIVE_FAMILY",
         "ACQUISITION_PLAN_REQUEST_SCOPE_MISMATCH",
         "ACQUISITION_PLAN_RESOLUTION_SCOPE_REQUIRED",
         "ACQUISITION_PLAN_CONTRACT_IDENTITY_MISMATCH",
@@ -776,6 +778,7 @@ def claim_next_job(
     certification_only: bool = False,
     certification_session_id: str | None = None,
     excluded_job_types: Iterable[str] = (),
+    included_job_types: Iterable[str] = (),
 ) -> BackgroundJob | None:
     if certification_only:
         from app.services.certification_runtime import require_certification_session_id
@@ -813,6 +816,7 @@ def claim_next_job(
             certification_only=certification_only,
             certification_session_id=certification_session_id,
             excluded_job_types=excluded_job_types,
+            included_job_types=included_job_types,
         )
         if job_id is not None:
             break
@@ -1418,6 +1422,7 @@ def _claim_ready_job_id(
     certification_only: bool = False,
     certification_session_id: str | None = None,
     excluded_job_types: Iterable[str] = (),
+    included_job_types: Iterable[str] = (),
 ) -> int | None:
     query = select(BackgroundJob.id).where(
         BackgroundJob.status.in_((JobStatus.QUEUED, JobStatus.RECOVERING))
@@ -1443,6 +1448,9 @@ def _claim_ready_job_id(
     excluded = tuple(sorted({str(value) for value in excluded_job_types if str(value)}))
     if excluded:
         query = query.where(BackgroundJob.job_type.not_in(excluded))
+    included = tuple(sorted({str(value) for value in included_job_types if str(value)}))
+    if included:
+        query = query.where(BackgroundJob.job_type.in_(included))
     if group.queues:
         queue_filter = worker_queue_filter(group.queues)
         if queue_filter is not None:

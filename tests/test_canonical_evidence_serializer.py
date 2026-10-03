@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 from datetime import UTC, date, datetime, time, timedelta, timezone
@@ -146,3 +147,123 @@ def test_unsafe_scalar_representation_fails_closed(value: object) -> None:
 def test_mapping_key_collision_fails_closed() -> None:
     with pytest.raises(ValueError, match="colliding key"):
         CanonicalEvidenceSerializer.bytes({1: "integer", "1": "string"})
+
+
+def test_precomputed_canonical_subtree_is_exactly_byte_equivalent() -> None:
+    row = {
+        "at": datetime(2026, 10, 2, 12, 30, 58, 244864, tzinfo=UTC),
+        "amount": Decimal("123.4500"),
+        "reason_codes": ["Z", "A"],
+    }
+    manifest = {"writer": "fixture", "native_source": {"rows": [row, row]}}
+    canonical_row = CanonicalEvidenceSerializer.canonicalize(row)
+
+    reference = CanonicalEvidenceSerializer.bytes(manifest)
+    optimized = CanonicalEvidenceSerializer.bytes(
+        manifest,
+        precomputed={id(row): canonical_row},
+    )
+
+    assert optimized == reference
+    assert CanonicalEvidenceSerializer.fingerprint(manifest) == hashlib.sha256(
+        optimized
+    ).hexdigest()
+
+
+def test_precomputed_subtree_does_not_hide_changes_outside_cached_identity() -> None:
+    cached = {"amount": Decimal("1.00")}
+    mutable = {"amount": Decimal("2.00")}
+    manifest = {"cached": cached, "mutable": mutable}
+    precomputed = {id(cached): CanonicalEvidenceSerializer.canonicalize(cached)}
+    before = CanonicalEvidenceSerializer.bytes(manifest, precomputed=precomputed)
+
+    mutable["amount"] = Decimal("3.00")
+
+    assert CanonicalEvidenceSerializer.bytes(manifest, precomputed=precomputed) != before
+
+
+def test_streaming_bytes_and_fingerprint_match_reference_torture_suite() -> None:
+    class Status(Enum):
+        READY = "READY"
+
+    values = [
+        None,
+        True,
+        False,
+        0,
+        -123,
+        1.25,
+        -9.5,
+        -0.0,
+        Decimal("123.4500"),
+        datetime(2026, 10, 3, 12, 34, 56, 789, tzinfo=UTC),
+        date(2026, 10, 3),
+        time(12, 34, 56, 789, tzinfo=timezone(timedelta(hours=2))),
+        timezone(timedelta(hours=-5, minutes=-30)),
+        ZoneInfo("Europe/Zurich"),
+        UUID("58C34B4A-8D7D-4CD1-BD2C-5319C36E7A2C"),
+        Status.READY,
+        b"\x00evidence\xff",
+        {"z": 1, "a": ["Ω", 'quote"', "line\n", "slash\\"]},
+        [1, (2, 3), {"nested": frozenset({"b", "a"})}],
+        {"reason_codes": ["Z", "A", "B"]},
+        {"nested_reason_codes_json": [{"z": 1}, {"a": 2}]},
+        "x" * 100_000,
+        {},
+        [],
+    ]
+    for value in values:
+        telemetry: dict[str, int | float] = {}
+        expected = CanonicalEvidenceSerializer.bytes(value)
+        actual = CanonicalEvidenceSerializer.streaming_bytes(value)
+        digest = CanonicalEvidenceSerializer.fingerprint_streaming(
+            value, telemetry=telemetry
+        )
+        assert actual == expected
+        assert digest == hashlib.sha256(expected).hexdigest()
+        assert telemetry["canonical_byte_count"] == len(expected)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {1: "integer", "1": "string"},
+        object(),
+        datetime(2026, 10, 3),
+        Decimal("NaN"),
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_streaming_failure_matches_reference_exception(value: object) -> None:
+    with pytest.raises(Exception) as reference:
+        CanonicalEvidenceSerializer.bytes(value)
+    with pytest.raises(Exception) as candidate:
+        CanonicalEvidenceSerializer.streaming_bytes(value)
+    assert type(candidate.value) is type(reference.value)
+    assert str(candidate.value) == str(reference.value)
+
+
+def test_streaming_precomputed_fragments_are_exact_and_scoped() -> None:
+    row = {
+        "at": datetime(2026, 10, 2, 12, 30, 58, 244864, tzinfo=UTC),
+        "amount": Decimal("123.4500"),
+        "reason_codes": ["Z", "A"],
+    }
+    manifest = {"writer": "fixture", "native_source": {"rows": [row, row]}}
+    precomputed = {id(row): CanonicalEvidenceSerializer.canonicalize(row)}
+    fragments: dict[int, bytes] = {}
+    telemetry: dict[str, int | float] = {}
+
+    actual = CanonicalEvidenceSerializer.streaming_bytes(
+        manifest,
+        precomputed=precomputed,
+        fragments=fragments,
+        telemetry=telemetry,
+    )
+
+    assert actual == CanonicalEvidenceSerializer.bytes(manifest, precomputed=precomputed)
+    assert telemetry["stable_fragment_misses"] == 1
+    assert telemetry["stable_fragment_hits"] == 1
+    assert telemetry["stable_fragment_byte_reuse"] == len(fragments[id(row)])

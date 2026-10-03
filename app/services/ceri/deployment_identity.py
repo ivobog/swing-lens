@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import column, select, table
 from sqlalchemy.orm import Session
 
 from app.services.alembic_heads import repository_alembic_heads
@@ -23,7 +23,11 @@ def session_database_schema_revision(db: Any) -> str | None:
 
     if not isinstance(db, Session):
         return None
-    value = db.scalar(text("select version_num from alembic_version"))
+    # Keep this proven read-only control query structurally classifiable. A
+    # raw TextClause is intentionally fail-closed at the retained-source SQL
+    # listener and historically forced one complete bundle refresh per ticker.
+    alembic_version = table("alembic_version", column("version_num"))
+    value = db.scalar(select(alembic_version.c.version_num))
     if value in (None, ""):
         raise DeploymentSchemaMismatch("CERI_DEPLOYMENT_SCHEMA_UNAVAILABLE")
     return str(value)

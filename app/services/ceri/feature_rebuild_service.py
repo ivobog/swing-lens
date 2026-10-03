@@ -1475,7 +1475,10 @@ class CeriFeatureRebuildService:
                 func.upper(CeriCompany.ticker).in_(
                     select(func.upper(RawCompanyRow.ticker))
                     .where(RawCompanyRow.run_id == request.run_id)
-                    .with_for_update()
+                    # Run membership is source authority too.  A shared row lock
+                    # keeps it stable while allowing another feature batch from
+                    # the same frozen run to validate the same membership.
+                    .with_for_update(read=True)
                 )
             )
         if ids:

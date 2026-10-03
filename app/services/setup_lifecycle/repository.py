@@ -206,6 +206,27 @@ class SetupLifecycleRepository:
         db.flush()
         return evaluation_run
 
+    @core_writer_transaction
+    def record_evaluation_audit(
+        self,
+        db: Session,
+        evaluation_run_id: int,
+        audit: dict[str, Any],
+    ) -> SetupLifecycleEvaluationRun:
+        evaluation_run = db.get(
+            SetupLifecycleEvaluationRun, evaluation_run_id, with_for_update=True
+        )
+        if evaluation_run is None or evaluation_run.status != "RUNNING":
+            raise ValueError("MUTATION_LIFECYCLE_EVALUATION_AUDIT_SCOPE_MISMATCH")
+        self._evaluation_run_authority(
+            db,
+            evaluation_run.source_run_id,
+            {"evaluation_run_id": evaluation_run.id, "audit": audit},
+        )
+        evaluation_run.audit_json = dict(audit)
+        db.flush()
+        return evaluation_run
+
     def _evaluation_run_authority(self, db, run_id, manifest):
         from app.services.decision_mutation_authority import operational_decision_authority
 
@@ -2148,6 +2169,7 @@ class SetupLifecycleRepository:
         old_value: Any,
         new_value: Any,
         config_hash: str,
+        calculation_context_id: int | None = None,
     ) -> str:
         payload = {
             "ticker": cls.normalize_ticker(ticker),
@@ -2157,6 +2179,10 @@ class SetupLifecycleRepository:
             "old": old_value,
             "new": new_value,
             "config_hash": config_hash,
+            # A repeated semantic change under a different frozen execution is
+            # new authoritative evidence, not a retry of the older projection.
+            # The context remains stable for retries of the same frozen input.
+            "calculation_context_id": calculation_context_id,
         }
         return cls.stable_hash(payload)
 

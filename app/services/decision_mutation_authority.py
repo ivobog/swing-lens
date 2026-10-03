@@ -68,9 +68,7 @@ def operational_decision_authority(db, *, writer, manifest, run_id=None, job_typ
     fence_mutation_transaction(db, context)
     if ownership is not None:
         job = db.get(BackgroundJob, ownership.job_id)
-        if job.job_type not in job_types or (
-            run_id is not None and job.related_run_id != run_id
-        ):
+        if job.job_type not in job_types or (run_id is not None and job.related_run_id != run_id):
             raise ValueError("MUTATION_OPERATIONAL_EXECUTION_SCOPE_MISMATCH")
 
 
@@ -408,9 +406,7 @@ def validate_setup_projection(db, snapshot):
             if key in current and current.get(key) != value
         )
         if changed:
-            raise ValueError(
-                "MUTATION_SETUP_PROJECTION_PAYLOAD_MISMATCH: " + ",".join(changed)
-            )
+            raise ValueError("MUTATION_SETUP_PROJECTION_PAYLOAD_MISMATCH: " + ",".join(changed))
 
 
 def validate_retained_decision(db, row, *, contract, payload_key="payload"):
@@ -645,6 +641,7 @@ def lifecycle_evaluation_authority(
     mutation_context=None,
     prior_snapshots=(),
     evaluation_run_id=None,
+    reconciliation=None,
 ):
     from app.services.calculation_identity import CalculationIdentity
     from app.services.contextual_calculation_identity import build_contextual_result_identity
@@ -671,9 +668,14 @@ def lifecycle_evaluation_authority(
                 "prior_transition_evidence_id": getattr(
                     episode, "latest_transition_evidence_id", None
                 ),
+                "reconciliation": reconciliation,
             },
         )
     )
+    # Reconciliation is a deterministic part of this evaluation's calculation
+    # identity and payload, not an independent source artifact.  Declaring it
+    # as an evidence role would exceed the lifecycle authority policy, whose
+    # external dependencies remain exactly setup + optional previous_episode.
     manifests = {}
     from app.models.tables import SetupLifecycleEvaluationRun
 
@@ -768,6 +770,7 @@ def validate_native_lifecycle_output(
     prior_snapshots,
     evaluation_run_id,
     transition_eligible,
+    reconciliation=None,
 ):
     from dataclasses import asdict, replace
 
@@ -805,7 +808,7 @@ def validate_native_lifecycle_output(
     native_config = configuration.setup_config()
     normalized = normalized_snapshot_from_row(snapshot)
     request_args = {"previous_snapshots": tuple(history)}
-    if episode is not None:
+    if episode is not None and reconciliation is None:
         request_args.update(
             previous_state=LifecycleState(episode.current_state),
             previous_phase=episode.current_phase,
@@ -817,8 +820,35 @@ def validate_native_lifecycle_output(
     expected = SetupLifecycleEngine(config=native_config).evaluate(
         _request(normalized, **request_args)
     )
-    if episode is not None and setup_technical_blocked(normalized):
+    if episode is not None and reconciliation is None and setup_technical_blocked(normalized):
         expected = replace(expected, setup_family=SetupFamily(episode.setup_family))
+    if reconciliation is not None:
+        from app.services.setup_lifecycle.episode_service import (
+            lifecycle_reconciliation_decision,
+        )
+
+        if episode is None:
+            raise ValueError("MUTATION_LIFECYCLE_RECONCILIATION_EPISODE_REQUIRED")
+        expected_current_family = (
+            None
+            if "INSUFFICIENT_FAMILY_EVIDENCE" in expected.reason_codes
+            else expected.setup_family.value
+        )
+        if (
+            reconciliation.get("contract") != "setup-lifecycle-family-reconciliation-v1"
+            or reconciliation.get("episode_id") != episode.id
+            or reconciliation.get("snapshot_id") != snapshot.id
+            or reconciliation.get("displaced_family") != episode.setup_family
+            or reconciliation.get("current_family") != expected_current_family
+        ):
+            raise ValueError("MUTATION_LIFECYCLE_RECONCILIATION_NATIVE_SCOPE_MISMATCH")
+        expected = lifecycle_reconciliation_decision(
+            expected,
+            episode=episode,
+            current_family=expected_current_family,
+            reason_code=str(reconciliation.get("reason_code")),
+            snapshot_id=snapshot.id,
+        )
     expected_actionability = SetupLifecycleActionabilityPolicy(native_config).evaluate(
         expected, normalized
     )
@@ -834,7 +864,9 @@ def validate_native_lifecycle_output(
         False
         if run is not None and run.mode == "REPLAY"
         else (
-            _opens_episode(expected)
+            True
+            if reconciliation is not None
+            else _opens_episode(expected)
             if episode is None
             else episode.current_state != expected.proposed_state.value
             or episode.current_phase != expected.phase_code

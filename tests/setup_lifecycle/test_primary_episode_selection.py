@@ -31,8 +31,10 @@ def test_primary_selection_is_deterministic() -> None:
     )
 
     selected = select_primary_episodes([vcp, breakout, pullback])
+    reversed_selected = select_primary_episodes([pullback, breakout, vcp])
 
     assert selected == [pullback, breakout, vcp]
+    assert reversed_selected == selected
 
 
 def _episode(

@@ -1,0 +1,9 @@
+{
+  "background_job_id": 423,
+  "market_data_policy": "ALLOW_CACHE_FALLBACK",
+  "pipeline_id": 16,
+  "pipeline_location": "/runs/16/pipeline/16",
+  "pipeline_status_code": 303,
+  "upload_run_id": 16,
+  "upload_status_code": 303
+}

@@ -1,0 +1,123 @@
+{
+  "clean_assert_once": {
+    "cpu_seconds": 0.0,
+    "cpu_to_wall_ratio": 0.0,
+    "rss_after_bytes": 539131904,
+    "rss_before_bytes": 539115520,
+    "wall_seconds": 3.91000066883862e-05
+  },
+  "dirty_row_assert_once": {
+    "cpu_seconds": 0.0,
+    "cpu_to_wall_ratio": 0.0,
+    "rss_after_bytes": 554213376,
+    "rss_before_bytes": 554205184,
+    "wall_seconds": 0.0002982000005431473
+  },
+  "dirty_row_probe": {
+    "detected": true,
+    "field": "ticker",
+    "table": "ceri_companies"
+  },
+  "durable_manifest_once": {
+    "cpu_seconds": 6.296875,
+    "cpu_to_wall_ratio": 0.9888523334454208,
+    "rss_after_bytes": 554205184,
+    "rss_before_bytes": 553332736,
+    "wall_seconds": 6.367861800012179
+  },
+  "forced_refresh_once": {
+    "cpu_seconds": 13.375,
+    "cpu_to_wall_ratio": 0.9622614512478959,
+    "rss_after_bytes": 553332736,
+    "rss_before_bytes": 537145344,
+    "wall_seconds": 13.899548800021876
+  },
+  "full_boundary_audit_once": {
+    "cpu_seconds": 18.65625,
+    "cpu_to_wall_ratio": 0.9384427765898332,
+    "rss_after_bytes": 537145344,
+    "rss_before_bytes": 539131904,
+    "wall_seconds": 19.880008100008126
+  },
+  "git_sha": "2a91dc195dbe0b2211d47617b0dfaf6e48d177ae",
+  "job_id": 288,
+  "logical_cpu_count": 4,
+  "manifest_fingerprint": "445537fff9ae40f73ca283276668b3acbdc57d307c7e9e2efbc6cd8c51c754aa",
+  "manifest_table_counts": {
+    "ceri_catalyst_event_revisions": 335,
+    "ceri_catalyst_events": 335,
+    "ceri_companies": 44,
+    "ceri_earnings_actuals": 303,
+    "ceri_estimate_snapshots": 2284,
+    "ceri_source_records": 2922,
+    "price_bars": 65854
+  },
+  "noop_refresh_once": {
+    "cpu_seconds": 0.0,
+    "cpu_to_wall_ratio": 0.0,
+    "rss_after_bytes": 539131904,
+    "rss_before_bytes": 539131904,
+    "wall_seconds": 1.0499963536858559e-05
+  },
+  "postgres_version": "PostgreSQL 18.3 on x86_64-windows, compiled by msvc-19.44.35223, 64-bit",
+  "process_id": 14144,
+  "profile_top_cumulative": "not collected (--skip-cprofile)",
+  "reconstructed_fingerprint": "445537fff9ae40f73ca283276668b3acbdc57d307c7e9e2efbc6cd8c51c754aa",
+  "retained_retry_load": {
+    "cpu_seconds": 20.390625,
+    "cpu_to_wall_ratio": 0.8757915088239916,
+    "rss_after_bytes": 539115520,
+    "rss_before_bytes": 190201856,
+    "wall_seconds": 23.282510499993805
+  },
+  "rows_loaded": {
+    "ceri_catalyst_event_revisions": 335,
+    "ceri_catalyst_events": 335,
+    "ceri_derived_features": 122,
+    "ceri_earnings_actuals": 303,
+    "ceri_estimate_snapshots": 2284,
+    "ceri_feature_build_states": 44,
+    "ceri_guidance_events": 0,
+    "ceri_price_response_features": 44,
+    "ceri_revision_features": 984,
+    "ceri_source_records": 2922,
+    "companies": 44,
+    "price_bars": 65854
+  },
+  "source_authority_telemetry": {
+    "assert_calls": 2,
+    "assert_clean_noop_calls": 1,
+    "assert_dirty_rows": 1,
+    "assert_ms": 0.226,
+    "assert_rows": 1,
+    "full_audit_calls": 1,
+    "full_audit_ms": 19880.003,
+    "full_audit_rows": 72077,
+    "invalidation_causes": {},
+    "invalidation_total": 0,
+    "load_calls": 8,
+    "load_ms": 14612.513,
+    "loaded_rows": 72077,
+    "manifest_calls": 1,
+    "manifest_ms": 6357.756,
+    "refresh_calls": 10,
+    "refresh_executed_calls": 1,
+    "refresh_noop_calls": 9,
+    "refresh_rows": 72077,
+    "refresh_sql_ms": 2251.269,
+    "refresh_total_ms": 13833.164,
+    "refresh_validation_ms": 11151.665,
+    "scope_body_ms": 0.0,
+    "scope_calls": 0,
+    "scope_entry_refresh_ms": 0.0,
+    "scope_exit_assert_ms": 0.0,
+    "scope_exit_refresh_ms": 0.0,
+    "seal_calls": 1,
+    "seal_ms": 7590.969,
+    "writer_body_ms": 0.0,
+    "writer_calls": 0,
+    "writer_fence_ms": 0.0,
+    "writer_manifest_ms": 0.0
+  },
+  "source_count": 72077
+}

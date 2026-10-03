@@ -1,0 +1,304 @@
+{
+  "captured_at": "2026-10-03T18:50:37.111689+00:00",
+  "overall_sha256": "48c2fa572234d5f05430cf57c67b485c36046222bed27b01662fa2eff250f3fa",
+  "run_ids": [
+    11,
+    13,
+    14,
+    15
+  ],
+  "runs": {
+    "11": {
+      "overall_sha256": "1d86f8736bf195c715b5a84d0cd02b4da2e0879fd5667c7b13dcb2c5231adf3f",
+      "tables": {
+        "background_jobs": {
+          "rows": 32,
+          "sha256": "c5e7ceb3ee2b2aee14e005836dcd84d97cd849028b74979982bd4ff9e83fbacd"
+        },
+        "ceri_feature_build_states": {
+          "rows": 94,
+          "sha256": "0266a045ec0102dd3561ebdbcdb75f35e5fc3fba122f1cea9fd7158c19ad8f9b"
+        },
+        "ceri_feature_source_manifests": {
+          "rows": 2,
+          "sha256": "37387da6780ee069f4932120ac02017a9fd2aeb29005f648b5bdf66c6f7fc1ac"
+        },
+        "ceri_score_snapshots": {
+          "rows": 94,
+          "sha256": "6fe4a6688e8d43661f5fde8bca477264c4bd3dfb28aeebc4ecaab26ec394301a"
+        },
+        "pipeline_runs": {
+          "rows": 1,
+          "sha256": "5c483866aade9ab46ba2ae87ab5ac361f864e133dc0cc6f814def46ecee8b92f"
+        },
+        "pipeline_steps": {
+          "rows": 13,
+          "sha256": "8abce7bccc0a6ad4b0b201b50945e195591d5e401cc97fb7befed93c978efa19"
+        },
+        "raw_company_rows": {
+          "rows": 94,
+          "sha256": "bc994d6fd44b48fc9fa6f1bac4c80b9ab96a313d4b8ad186d34b806d62cfc7f4"
+        },
+        "setup_lifecycle_episodes": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_evaluation_evidence": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_evaluation_runs": {
+          "rows": 1,
+          "sha256": "61bb920854cac827fb3abd3027d0a1c7cbdb9c2f2f3243d1dd74a609c6d25aa5"
+        },
+        "setup_lifecycle_events": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_transition_evidence": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_signal_snapshot_selection_events": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_signal_snapshots": {
+          "rows": 94,
+          "sha256": "beb46b368cf5838aef006a64210c7722b3c8fa75109fcdd31f3a9f06d2241ced"
+        },
+        "upload_runs": {
+          "rows": 1,
+          "sha256": "5797c25b5de7bf6881bbe3d54acb7225450b94c2bfc3e417310737c7c7c87496"
+        },
+        "winner_prediction_snapshots": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "winner_processing_runs": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "13": {
+      "overall_sha256": "b8571f72d0d3d947777eeb26f84a5c3e015c658179dac189fbbda31c1af29cf9",
+      "tables": {
+        "background_jobs": {
+          "rows": 32,
+          "sha256": "676ec07104359e71b9dbfaadd0d83ab5fcc074bc35d4e89537ecb9a9a3fc9603"
+        },
+        "ceri_feature_build_states": {
+          "rows": 94,
+          "sha256": "0a90e20fe5a33e1d7f3216eba6c5487a9ec59fc26484f7c48e156de096e70a7b"
+        },
+        "ceri_feature_source_manifests": {
+          "rows": 2,
+          "sha256": "b2b47d630fcdeec997d806394bff239aaef92f40b7718a505835a4e53c5e300c"
+        },
+        "ceri_score_snapshots": {
+          "rows": 94,
+          "sha256": "c4357961a2b6b490a74d0b6f8659b296c7e536866de15d8974174682b544f2f0"
+        },
+        "pipeline_runs": {
+          "rows": 1,
+          "sha256": "1969964572814f6be302e5b21fa42981909db103c8dd3d6995ce89380dbeee9f"
+        },
+        "pipeline_steps": {
+          "rows": 13,
+          "sha256": "3e89d5f31d0513c696e7df5be6428c6191267bc77b5f290637559f4854b3908a"
+        },
+        "raw_company_rows": {
+          "rows": 94,
+          "sha256": "0343c9e5317cbd815af0447d6158105d6905efabbdd77e041a60d79013153b0d"
+        },
+        "setup_lifecycle_episodes": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_evaluation_evidence": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_evaluation_runs": {
+          "rows": 1,
+          "sha256": "bf75e182aa4b45fd6e26514708ad8dcf6522e1d447a95505d36aa423fed7ee55"
+        },
+        "setup_lifecycle_events": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_transition_evidence": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_signal_snapshot_selection_events": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_signal_snapshots": {
+          "rows": 94,
+          "sha256": "b253a0a6009f35490931d5e3d80fb765cbf593b6e79c32e99aab37201fb7c361"
+        },
+        "upload_runs": {
+          "rows": 1,
+          "sha256": "74f7a5e71323ec36a12ef39b827e08b76ffb377f3b9950bf82bdd5119fda82fa"
+        },
+        "winner_prediction_snapshots": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "winner_processing_runs": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "14": {
+      "overall_sha256": "e0a8d5c94bb7897de8710ee1d6f3db0bffc8358c9d599280221c580c18213a0f",
+      "tables": {
+        "background_jobs": {
+          "rows": 32,
+          "sha256": "b0d351d42ae000a34d2988b6625dc7290a4deb5c0d8782ea9b2d06f5ff3d0983"
+        },
+        "ceri_feature_build_states": {
+          "rows": 94,
+          "sha256": "c1defb2405ee0b3eb144446c46211ec8e96cb5033630e2f4a2516db65bbbf2e7"
+        },
+        "ceri_feature_source_manifests": {
+          "rows": 2,
+          "sha256": "d1809c1abe38fc5c5afd7bf90ffeade6563dd4bdde83cf27aff26469876f19d6"
+        },
+        "ceri_score_snapshots": {
+          "rows": 94,
+          "sha256": "e2ecbc5f370c7f4069df86dd174e13b6aeaf679d6f1dad98df83471dbe28b3be"
+        },
+        "pipeline_runs": {
+          "rows": 1,
+          "sha256": "3dbf02de6439678d3b537890d5c39c8b5392fa72fb213ea88d43ae1c906430b2"
+        },
+        "pipeline_steps": {
+          "rows": 13,
+          "sha256": "b0761ef6397438b930c6bc64ee9321b3b77a942c56f7c8e2b824d2c0732b6ea6"
+        },
+        "raw_company_rows": {
+          "rows": 94,
+          "sha256": "71d63219f783e2d787be2541fee610c463881b74872d28e2632be8fb2175a50c"
+        },
+        "setup_lifecycle_episodes": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_evaluation_evidence": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_evaluation_runs": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_events": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_transition_evidence": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_signal_snapshot_selection_events": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_signal_snapshots": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "upload_runs": {
+          "rows": 1,
+          "sha256": "299b7541d3e25123057eb879428832b463a742e6e42735fc038ef79c1ead0ddf"
+        },
+        "winner_prediction_snapshots": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "winner_processing_runs": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    },
+    "15": {
+      "overall_sha256": "d19e51972e646abd5b4f509c192650716ea984bd1e338a67cf9d5ecd48514ad5",
+      "tables": {
+        "background_jobs": {
+          "rows": 32,
+          "sha256": "f1a748f2ee2102a883f6cfa906a3101aaa0271fdaed20b8240a929eede3e286a"
+        },
+        "ceri_feature_build_states": {
+          "rows": 94,
+          "sha256": "c4536935f5e67eae05ab05c1e34c32a67a5f80faf5d6a30f5767193abde3b7cc"
+        },
+        "ceri_feature_source_manifests": {
+          "rows": 2,
+          "sha256": "b1f5c8594b63e937416ceead03d6ecad33bf302db9a1f8ef17c11a9006128b67"
+        },
+        "ceri_score_snapshots": {
+          "rows": 94,
+          "sha256": "89fc77b0ef9417e3b2aad441a9b306b1d696beb5edd20a3bb53e8f01d1b1fc9a"
+        },
+        "pipeline_runs": {
+          "rows": 1,
+          "sha256": "32b719615123c9433c69b6cbd09e88f53868edcf62046a7c4a5573660aa66ab3"
+        },
+        "pipeline_steps": {
+          "rows": 13,
+          "sha256": "35571c7dc142e4e407e10af9009e6fc4ae3db2874e415cde7dbe9e837a66ce1e"
+        },
+        "raw_company_rows": {
+          "rows": 94,
+          "sha256": "458ab1763c2da0d9430c213c49166c29650280a09cde93ee6ef0e711f6755bd5"
+        },
+        "setup_lifecycle_episodes": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_evaluation_evidence": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_evaluation_runs": {
+          "rows": 1,
+          "sha256": "ca51dfbdbac2c7a76ee2c53e637045d1c7c0a75bd217b861ead585d85928e66b"
+        },
+        "setup_lifecycle_events": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_lifecycle_transition_evidence": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_signal_snapshot_selection_events": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "setup_signal_snapshots": {
+          "rows": 94,
+          "sha256": "d6ab560e59612053cb33f7c972ca519c87b8031554a27ff4513e109216b40221"
+        },
+        "upload_runs": {
+          "rows": 1,
+          "sha256": "063f6842ec6e6bdc70efe087ee1eaf8bb07d513ffa60699d0fcb1e095b610fbc"
+        },
+        "winner_prediction_snapshots": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "winner_processing_runs": {
+          "rows": 0,
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      }
+    }
+  }
+}

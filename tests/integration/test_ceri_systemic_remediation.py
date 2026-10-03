@@ -225,7 +225,9 @@ def _seed_manifest_authority(db: Session, *, tickers: tuple[str, ...] = ("AAA",)
     db.add(pipeline)
     db.flush()
     context = MarketCalculationContext(
-        pipeline_run_id=pipeline.id,
+        # Feature manifests use the post-acquisition CERI authority, which is
+        # owned through PipelineRun.result_json rather than the run-start FK.
+        pipeline_run_id=None,
         upload_run_id=run.id,
         cutoff_at=datetime(2026, 9, 25, 18, tzinfo=UTC),
         exchange_timezone="America/New_York",
@@ -244,6 +246,14 @@ def _seed_manifest_authority(db: Session, *, tickers: tuple[str, ...] = ("AAA",)
         )
     )
     db.flush()
+    pipeline.result_json = {
+        "ceri_calculation_context_id": context.id,
+        "ceri_calculation_cutoff_at": context.cutoff_at.isoformat(),
+        "ceri_calculation_as_of_session": context.latest_completed_session.isoformat(),
+        "ceri_calculation_calendar_version": context.calendar_version,
+        "ceri_calculation_bar_readiness_version": context.bar_readiness_version,
+        "ceri_calculation_context_reason": context.cutoff_reason,
+    }
     job = BackgroundJob(
         job_type="CERI_FEATURE_BATCH",
         status=JobStatus.RUNNING,

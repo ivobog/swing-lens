@@ -186,6 +186,7 @@ def persist_lifecycle_evaluation_evidence(
     mutation_context=None,
     prior_snapshots=(),
     completed_observation_sessions=1,
+    reconciliation: dict[str, Any] | None = None,
 ) -> SetupLifecycleEvaluationEvidence | None:
     if effective_configuration is None:
         raise ValueError("MUTATION_LIFECYCLE_CONFIGURATION_REQUIRED")
@@ -233,6 +234,7 @@ def persist_lifecycle_evaluation_evidence(
         mutation_context=mutation_context,
         prior_snapshots=prior_snapshots,
         evaluation_run_id=evaluation_run_id,
+        reconciliation=reconciliation,
     )
     if isinstance(db, Session):
         from app.services.decision_mutation_authority import validate_native_lifecycle_output
@@ -247,6 +249,7 @@ def persist_lifecycle_evaluation_evidence(
             prior_snapshots=prior_snapshots,
             evaluation_run_id=evaluation_run_id,
             transition_eligible=transition_eligible,
+            reconciliation=reconciliation,
         )
     if (
         prior_evaluation is not None
@@ -347,6 +350,8 @@ def persist_lifecycle_evaluation_evidence(
         "reasons": list(decision.reason_codes),
         "warnings": list(snapshot.warning_flags_json or []),
     }
+    if reconciliation is not None:
+        decision_payload["reconciliation"] = dict(reconciliation)
     from app.services.decision_mutation_authority import lifecycle_projection_after
 
     effective_sessions = (
@@ -392,6 +397,7 @@ def persist_lifecycle_evaluation_evidence(
                     ],
                     "prior_evaluation_evidence_id": prior_evaluation_id,
                     "prior_transition_evidence_id": prior_transition_id,
+                    "reconciliation": reconciliation,
                 },
             )
         )

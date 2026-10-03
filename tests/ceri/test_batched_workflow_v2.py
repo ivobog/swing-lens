@@ -471,6 +471,25 @@ def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch
     )
     monkeypatch.setattr(batched_job_handlers.CeriProcessingRunService, "finish", finish)
 
+    class SourceBodies:
+        def __init__(self):
+            self.full_audits = 0
+            self.refreshes = 0
+
+        def full_audit_unchanged_in_memory(self):
+            self.full_audits += 1
+
+        def refresh(self):
+            self.refreshes += 1
+
+        def telemetry_snapshot(self):
+            return {
+                "full_audit_calls": self.full_audits,
+                "refresh_calls": self.refreshes,
+            }
+
+    source_bodies = SourceBodies()
+
     class Service:
         def __init__(self):
             self.prepared = []
@@ -485,6 +504,7 @@ def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch
                 load_context_ms=3,
                 select_count=9,
                 rows_loaded={"ceri_estimate_snapshots": 6},
+                source_bodies=source_bodies,
             )
 
         def rebuild(self, _db, request, **_kwargs):
@@ -531,6 +551,23 @@ def test_feature_batch_prepares_once_and_preserves_resume_checkpoint(monkeypatch
     assert service.rebuilt == ["T1", "T2"]
     assert result["processed_tickers"] == 3
     assert result["telemetry"]["sql_select_count"] == 9
+    assert result["telemetry"]["batch_cpu_ms"] >= 0
+    assert result["telemetry"]["batch_cpu_utilization_pct"] >= 0
+    assert result["telemetry"]["ticker_handler_total_ms"] >= 0
+    assert set(result["telemetry"]["ticker_handler_phase_ms"]) == {
+        "admission_ms",
+        "processing_run_ms",
+        "rebuild_call_ms",
+        "output_validation_ms",
+        "processing_finish_ms",
+        "checkpoint_ms",
+        "heartbeat_ms",
+        "unclassified_ms",
+    }
+    assert result["results"]["T1"]["handler_timing"]["cpu_ms"] >= 0
+    assert source_bodies.full_audits == 1
+    assert source_bodies.refreshes == 1
+    assert result["telemetry"]["source_integrity_telemetry"]["full_audit_calls"] == 1
     assert job.operational_metadata_json["ceri_feature_prepare"]["phase"] == "price_bars"
     assert job.operational_metadata_json["ceri_batch"]["completed_tickers"] == [
         "T0",

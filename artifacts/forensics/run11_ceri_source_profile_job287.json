@@ -1,0 +1,74 @@
+{
+  "assert_unchanged_once": {
+    "cpu_seconds": 45.65625,
+    "cpu_to_wall_ratio": 0.9661302052951328,
+    "rss_after_bytes": 509063168,
+    "rss_before_bytes": 518438912,
+    "wall_seconds": 47.256829100020695
+  },
+  "durable_manifest_once": {
+    "cpu_seconds": 19.5625,
+    "cpu_to_wall_ratio": 0.9765330119392616,
+    "rss_after_bytes": 541450240,
+    "rss_before_bytes": 540762112,
+    "wall_seconds": 20.03260490001412
+  },
+  "forced_refresh_once": {
+    "cpu_seconds": 67.703125,
+    "cpu_to_wall_ratio": 0.9678464181374923,
+    "rss_after_bytes": 540762112,
+    "rss_before_bytes": 509063168,
+    "wall_seconds": 69.9523433999857
+  },
+  "git_sha": "2a91dc195dbe0b2211d47617b0dfaf6e48d177ae",
+  "job_id": 287,
+  "logical_cpu_count": 4,
+  "postgres_version": "PostgreSQL 18.3 on x86_64-windows, compiled by msvc-19.44.35223, 64-bit",
+  "prepare": {
+    "cpu_seconds": 48.796875,
+    "cpu_to_wall_ratio": 0.9587832982246021,
+    "rss_after_bytes": 518438912,
+    "rss_before_bytes": 156418048,
+    "wall_seconds": 50.89458180003567
+  },
+  "process_id": 8340,
+  "profile_top_cumulative": "         201621678 function calls (178172192 primitive calls) in 188.204 seconds\n\n   Ordered by: cumulative time\n   List reduced from 894 to 60 due to restriction <60>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n   126/59    0.658    0.005  237.813    4.031 db_monitor.py:849(_next_item)\n   415836    2.081    0.000  163.451    0.000 canonical_evidence.py:140(fingerprint)\n      110    0.830    0.008  150.137    1.365 threading.py:637(wait)\n     6178    0.630    0.000  143.436    0.023 pathlib.py:835(stat)\n   415836    0.657    0.000  103.322    0.000 canonical_evidence.py:136(bytes)\n   415836    2.049    0.000   98.448    0.000 canonical_evidence.py:99(dumps)\n12282905/415836   50.304    0.000   81.216    0.000 canonical_evidence.py:24(canonicalize)\n     3059    0.294    0.000   65.765    0.021 pathlib.py:1228(resolve)\n9306638/166334   19.475    0.000   42.853    0.000 copy.py:118(deepcopy)\n      108    0.653    0.006   41.883    0.388 threading.py:323(wait)\n187232/166334    4.036    0.000   40.022    0.000 copy.py:217(_deepcopy_dict)\n        4    0.010    0.003   37.945    9.486 profile_ceri_source_bundle.py:33(_measure)\n     6118    2.329    0.000   31.362    0.005 {built-in method nt._getfinalpathname}\n    83167    0.205    0.000   22.278    0.000 source_mutation_authority.py:181(__getitem__)\n        1    0.003    0.003   22.147   22.147 profile_ceri_source_bundle.py:121(prepare)\n        1    0.009    0.009   22.144   22.144 profile_ceri_source_bundle.py:55(_load_exact_manifest)\n        1    0.064    0.064   19.985   19.985 source_mutation_authority.py:312(seal)\n     3059    0.417    0.000   16.427    0.005 <frozen ntpath>:700(realpath)\n43837036/43836918   12.116    0.000   13.172    0.000 {built-in method builtins.isinstance}\n 11618949    7.339    0.000   10.898    0.000 canonical_evidence.py:178(_mapping_path)\n   415873    1.509    0.000   10.132    0.000 __init__.py:183(dumps)\n849152/682818    2.477    0.000    9.642    0.000 copy.py:247(_reconstruct)\n     6178    1.352    0.000    9.580    0.002 {built-in method nt.stat}\n   415873    1.105    0.000    8.277    0.000 encoder.py:183(encode)\n       16    0.000    0.000    7.987    0.499 session.py:2313(execute)\n       16    0.000    0.000    7.987    0.499 session.py:2141(_execute_internal)\n       16    0.000    0.000    7.984    0.499 base.py:1377(execute)\n       16    0.000    0.000    7.984    0.499 elements.py:517(_execute_on_connection)\n       16    0.000    0.000    7.697    0.481 base.py:1593(_execute_clauseelement)\n       16    0.000    0.000    7.653    0.478 base.py:1793(_execute_context)\n2382562/1883560    1.716    0.000    7.519    0.000 copy.py:252(<genexpr>)\n       20    0.006    0.000    7.066    0.353 db_monitor.py:740(_path_for)\n       16    0.001    0.000    6.879    0.430 base.py:1852(_exec_single_context)\n   415873    6.720    0.000    6.722    0.000 encoder.py:205(iterencode)\n  523/511    2.796    0.005    6.721    0.013 {method 'acquire' of '_thread.lock' objects}\n  1553791    6.485    0.000    6.485    0.000 {method 'isoformat' of 'datetime.datetime' objects}\n        8    0.006    0.001    5.960    0.745 result.py:2122(all)\n       20    0.266    0.013    5.633    0.282 pathlib.py:852(exists)\n       16    0.068    0.004    5.468    0.342 default.py:951(do_execute)\n 19278547    5.300    0.000    5.300    0.000 {method 'get' of 'dict' objects}\n1850293/415836    2.636    0.000    5.288    0.000 canonical_evidence.py:109(_already_canonical_json)\n 13530748    4.237    0.000    4.237    0.000 {method 'append' of 'list' objects}\n        8    0.000    0.000    4.221    0.528 context.py:296(orm_execute_statement)\n        8    0.012    0.001    4.146    0.518 result.py:1416(all)\n 11619830    4.004    0.000    4.004    0.000 {method 'add' of 'set' objects}\n        8    0.229    0.029    3.858    0.482 source_mutation_authority.py:351(load)\n 11618949    3.566    0.000    3.566    0.000 {method 'isidentifier' of 'str' objects}\n  4225500    2.208    0.000    3.295    0.000 {built-in method builtins.getattr}\n       43    0.000    0.000    3.286    0.076 {built-in method builtins.next}\n       16    0.006    0.000    3.023    0.189 cursor.py:100(execute)\n433277/415836    0.600    0.000    2.922    0.000 {built-in method builtins.all}\n       16    0.062    0.004    2.826    0.177 result.py:582(_allrows)\n1867732/1815412    1.872    0.000    2.701    0.000 canonical_evidence.py:123(<genexpr>)\n 11393442    2.580    0.000    2.580    0.000 {built-in method builtins.id}\n   645195    2.154    0.000    2.514    0.000 {built-in method builtins.sorted}\n       16    0.000    0.000    2.362    0.148 connection.py:476(wait)\n       16    0.019    0.001    2.359    0.147 waiting.py:251(wait_select)\n  2352864    2.113    0.000    2.113    0.000 {built-in method builtins.format}\n     3081    0.053    0.000    2.076    0.001 pathlib.py:1081(glob)\n   415852    1.877    0.000    1.885    0.000 {built-in method _hashlib.openssl_sha256}\n\n\n",
+  "rows_loaded": {
+    "ceri_catalyst_event_revisions": 335,
+    "ceri_catalyst_events": 335,
+    "ceri_companies": 50,
+    "ceri_earnings_actuals": 350,
+    "ceri_estimate_snapshots": 2803,
+    "ceri_source_records": 3488,
+    "price_bars": 75806
+  },
+  "source_authority_telemetry": {
+    "assert_calls": 1,
+    "assert_ms": 47256.808,
+    "assert_rows": 83167,
+    "load_calls": 8,
+    "load_ms": 30524.35,
+    "loaded_rows": 83167,
+    "manifest_calls": 1,
+    "manifest_ms": 20022.334,
+    "refresh_calls": 1,
+    "refresh_executed_calls": 1,
+    "refresh_noop_calls": 0,
+    "refresh_rows": 83167,
+    "refresh_sql_ms": 5048.235,
+    "refresh_total_ms": 69883.309,
+    "refresh_validation_ms": 63923.403,
+    "scope_body_ms": 0.0,
+    "scope_calls": 0,
+    "scope_entry_refresh_ms": 0.0,
+    "scope_exit_assert_ms": 0.0,
+    "scope_exit_refresh_ms": 0.0,
+    "seal_calls": 1,
+    "seal_ms": 19984.529,
+    "writer_body_ms": 0.0,
+    "writer_calls": 0,
+    "writer_fence_ms": 0.0,
+    "writer_manifest_ms": 0.0
+  },
+  "source_count": 83167
+}

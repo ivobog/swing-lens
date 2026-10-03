@@ -1,0 +1,947 @@
+{
+  "ceri": {
+    "bundle_fingerprints": [
+      "4e58bbe3483daea7322c1708bca4d033c3fb6f7f5a1377e521536efa47a4a183"
+    ],
+    "manifest_count": 1,
+    "snapshot_count": 23
+  },
+  "database_counts": {
+    "winner_estimates": 23
+  },
+  "episodes": [
+    {
+      "episode_id": 236,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 518,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "GENERIC",
+      "is_primary": true,
+      "phase": "READY",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1581,
+      "state": "READY",
+      "status": "ACTIVE",
+      "ticker": "A"
+    },
+    {
+      "episode_id": 238,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 519,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "GENERIC",
+      "is_primary": true,
+      "phase": "READY",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1582,
+      "state": "READY",
+      "status": "ACTIVE",
+      "ticker": "ADI"
+    },
+    {
+      "episode_id": 239,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 520,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "PULLBACK",
+      "is_primary": true,
+      "phase": "SUPPORT_TEST",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1583,
+      "state": "TIGHTENING",
+      "status": "ACTIVE",
+      "ticker": "AIT"
+    },
+    {
+      "episode_id": 240,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 521,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "PULLBACK",
+      "is_primary": true,
+      "phase": "SUPPORT_TEST",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1584,
+      "state": "TIGHTENING",
+      "status": "ACTIVE",
+      "ticker": "AME"
+    },
+    {
+      "episode_id": 246,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 522,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "GENERIC",
+      "is_primary": true,
+      "phase": "READY",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1585,
+      "state": "READY",
+      "status": "ACTIVE",
+      "ticker": "BHE"
+    },
+    {
+      "episode_id": 249,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 523,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "BREAKOUT",
+      "is_primary": true,
+      "phase": "BASE_FORMING",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1586,
+      "state": "DEVELOPING",
+      "status": "ACTIVE",
+      "ticker": "CGNX"
+    },
+    {
+      "episode_id": 255,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 524,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "BREAKOUT",
+      "is_primary": true,
+      "phase": "BREAKOUT",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1587,
+      "state": "TRIGGERED",
+      "status": "ACTIVE",
+      "ticker": "DIOD"
+    },
+    {
+      "episode_id": 258,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 525,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "GENERIC",
+      "is_primary": true,
+      "phase": "CANDIDATE",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1588,
+      "state": "DEVELOPING",
+      "status": "ACTIVE",
+      "ticker": "FIGS"
+    },
+    {
+      "episode_id": 259,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 526,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "BREAKOUT",
+      "is_primary": true,
+      "phase": "VOLUME_DRY_UP",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1589,
+      "state": "TIGHTENING",
+      "status": "ACTIVE",
+      "ticker": "FIX"
+    },
+    {
+      "episode_id": 264,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 527,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "VCP",
+      "is_primary": true,
+      "phase": "CONTRACTION_1",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1590,
+      "state": "DEVELOPING",
+      "status": "ACTIVE",
+      "ticker": "GLW"
+    },
+    {
+      "episode_id": 265,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 528,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "VCP",
+      "is_primary": true,
+      "phase": "CONTRACTION_1",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1591,
+      "state": "DEVELOPING",
+      "status": "ACTIVE",
+      "ticker": "HURN"
+    },
+    {
+      "episode_id": 268,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 529,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "GENERIC",
+      "is_primary": true,
+      "phase": "TRIGGERED",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1592,
+      "state": "TRIGGERED",
+      "status": "ACTIVE",
+      "ticker": "KN"
+    },
+    {
+      "episode_id": 271,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 530,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "BREAKOUT",
+      "is_primary": true,
+      "phase": "RANGE_CONTRACTION",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1593,
+      "state": "TIGHTENING",
+      "status": "ACTIVE",
+      "ticker": "LSCC"
+    },
+    {
+      "episode_id": 273,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 531,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "BREAKOUT",
+      "is_primary": true,
+      "phase": "BASE_FORMING",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1594,
+      "state": "DEVELOPING",
+      "status": "ACTIVE",
+      "ticker": "MPWR"
+    },
+    {
+      "episode_id": 277,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 532,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "BREAKOUT",
+      "is_primary": true,
+      "phase": "VOLUME_DRY_UP",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1595,
+      "state": "TIGHTENING",
+      "status": "ACTIVE",
+      "ticker": "NVT"
+    },
+    {
+      "episode_id": 280,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 533,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "GENERIC",
+      "is_primary": true,
+      "phase": "TRIGGERED",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1596,
+      "state": "TRIGGERED",
+      "status": "ACTIVE",
+      "ticker": "QLYS"
+    },
+    {
+      "episode_id": 281,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 534,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "BREAKOUT",
+      "is_primary": true,
+      "phase": "BASE_FORMING",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1597,
+      "state": "DEVELOPING",
+      "status": "ACTIVE",
+      "ticker": "ROK"
+    },
+    {
+      "episode_id": 282,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 535,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "CONTINUATION",
+      "is_primary": true,
+      "phase": "TIGHT_RANGE",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1598,
+      "state": "TIGHTENING",
+      "status": "ACTIVE",
+      "ticker": "SANM"
+    },
+    {
+      "episode_id": 284,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 536,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "PULLBACK",
+      "is_primary": true,
+      "phase": "REVERSAL_TRIGGER",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1599,
+      "state": "TRIGGERED",
+      "status": "ACTIVE",
+      "ticker": "SN"
+    },
+    {
+      "episode_id": 285,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 537,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "PULLBACK",
+      "is_primary": true,
+      "phase": "SUPPORT_TEST",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1600,
+      "state": "TIGHTENING",
+      "status": "ACTIVE",
+      "ticker": "STNG"
+    },
+    {
+      "episode_id": 290,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 538,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "GENERIC",
+      "is_primary": true,
+      "phase": "CANDIDATE",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1601,
+      "state": "DEVELOPING",
+      "status": "ACTIVE",
+      "ticker": "TXN"
+    },
+    {
+      "episode_id": 294,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 539,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "PULLBACK",
+      "is_primary": true,
+      "phase": "SUPPORT_TEST",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1602,
+      "state": "TIGHTENING",
+      "status": "ACTIVE",
+      "ticker": "WST"
+    },
+    {
+      "episode_id": 296,
+      "evaluation_context_id": 34,
+      "evaluation_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "evaluation_id": 540,
+      "evaluation_pipeline_id": 19,
+      "evaluation_run_id": 19,
+      "family": "PULLBACK",
+      "is_primary": true,
+      "phase": "REVERSAL_READY",
+      "primary_rank": 1,
+      "reconciliation": null,
+      "snapshot_context_id": 34,
+      "snapshot_cutoff": "2026-10-03 20:35:12.439953+02:00",
+      "snapshot_id": 1603,
+      "state": "READY",
+      "status": "ACTIVE",
+      "ticker": "XOM"
+    }
+  ],
+  "jobs": {
+    "count": 15,
+    "failed": [],
+    "retry_total": 0,
+    "statuses": {
+      "COMPLETED": 15
+    }
+  },
+  "lifecycle_run": {
+    "audit_contract": "setup-lifecycle-reconciliation-preflight-v1",
+    "counts": {
+      "alerted": 0,
+      "canonical": 23,
+      "captured": 23,
+      "changed": 89,
+      "failed": 0,
+      "read": 23,
+      "reconciled": 0,
+      "skipped": 0,
+      "transitioned": 0,
+      "warning": 46
+    },
+    "errors": {},
+    "id": 31,
+    "phase": "completed",
+    "status": "COMPLETED"
+  },
+  "mixed_scope_participants": [],
+  "pipeline": {
+    "ceri_certified_capture_count": 23,
+    "ceri_completion_state": "CERTIFIED",
+    "current_step": null,
+    "error_message": null,
+    "id": 19,
+    "message": "Pipeline completed with 23 combined rows.",
+    "status": "COMPLETED",
+    "upload_run_id": 19
+  },
+  "reconciliation": {
+    "evaluation_count": 23,
+    "event_count": 23,
+    "event_types": {
+      "CANONICAL_REVISION": 23
+    },
+    "planned_actions": 0,
+    "plans": [
+      {
+        "active_episode_ids": [
+          236
+        ],
+        "current_family": "GENERIC",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 236,
+        "snapshot_id": 1581,
+        "ticker": "A",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          238
+        ],
+        "current_family": "GENERIC",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 238,
+        "snapshot_id": 1582,
+        "ticker": "ADI",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          239
+        ],
+        "current_family": "PULLBACK",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 239,
+        "snapshot_id": 1583,
+        "ticker": "AIT",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          240
+        ],
+        "current_family": "PULLBACK",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 240,
+        "snapshot_id": 1584,
+        "ticker": "AME",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          246
+        ],
+        "current_family": "GENERIC",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 246,
+        "snapshot_id": 1585,
+        "ticker": "BHE",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          249
+        ],
+        "current_family": "BREAKOUT",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 249,
+        "snapshot_id": 1586,
+        "ticker": "CGNX",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          255
+        ],
+        "current_family": "BREAKOUT",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 255,
+        "snapshot_id": 1587,
+        "ticker": "DIOD",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          258
+        ],
+        "current_family": "GENERIC",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 258,
+        "snapshot_id": 1588,
+        "ticker": "FIGS",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          259
+        ],
+        "current_family": "BREAKOUT",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 259,
+        "snapshot_id": 1589,
+        "ticker": "FIX",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          264
+        ],
+        "current_family": "VCP",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 264,
+        "snapshot_id": 1590,
+        "ticker": "GLW",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          265
+        ],
+        "current_family": "VCP",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 265,
+        "snapshot_id": 1591,
+        "ticker": "HURN",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          268
+        ],
+        "current_family": "GENERIC",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 268,
+        "snapshot_id": 1592,
+        "ticker": "KN",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          271
+        ],
+        "current_family": "BREAKOUT",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 271,
+        "snapshot_id": 1593,
+        "ticker": "LSCC",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          273
+        ],
+        "current_family": "BREAKOUT",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 273,
+        "snapshot_id": 1594,
+        "ticker": "MPWR",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          277
+        ],
+        "current_family": "BREAKOUT",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 277,
+        "snapshot_id": 1595,
+        "ticker": "NVT",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          280
+        ],
+        "current_family": "GENERIC",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 280,
+        "snapshot_id": 1596,
+        "ticker": "QLYS",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          281
+        ],
+        "current_family": "BREAKOUT",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 281,
+        "snapshot_id": 1597,
+        "ticker": "ROK",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          282
+        ],
+        "current_family": "CONTINUATION",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 282,
+        "snapshot_id": 1598,
+        "ticker": "SANM",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          284
+        ],
+        "current_family": "PULLBACK",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 284,
+        "snapshot_id": 1599,
+        "ticker": "SN",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          285
+        ],
+        "current_family": "PULLBACK",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 285,
+        "snapshot_id": 1600,
+        "ticker": "STNG",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          290
+        ],
+        "current_family": "GENERIC",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 290,
+        "snapshot_id": 1601,
+        "ticker": "TXN",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          294
+        ],
+        "current_family": "PULLBACK",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 294,
+        "snapshot_id": 1602,
+        "ticker": "WST",
+        "timeframe": "1d"
+      },
+      {
+        "active_episode_ids": [
+          296
+        ],
+        "current_family": "PULLBACK",
+        "displaced_episode_ids": [],
+        "reason_code": null,
+        "retained_episode_id": 296,
+        "snapshot_id": 1603,
+        "ticker": "XOM",
+        "timeframe": "1d"
+      }
+    ],
+    "transition_evidence_count": 0
+  },
+  "setup_contexts": [
+    [
+      34,
+      "2026-10-03 20:35:12.439953+02:00"
+    ]
+  ],
+  "setup_snapshot_count": 23,
+  "steps": [
+    {
+      "completed_at": "2026-10-03 20:35:16.647051+02:00",
+      "duration_seconds": 0.229268,
+      "error_message": null,
+      "message": null,
+      "name": "VALIDATING_RUN",
+      "order": 1,
+      "started_at": "2026-10-03 20:35:16.417783+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:35:24.586978+02:00",
+      "duration_seconds": 7.782928,
+      "error_message": null,
+      "message": null,
+      "name": "SCORING_FUNDAMENTALS",
+      "order": 2,
+      "started_at": "2026-10-03 20:35:16.804050+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:35:25.672349+02:00",
+      "duration_seconds": 0.895706,
+      "error_message": null,
+      "message": null,
+      "name": "FETCHING_MARKET_DATA",
+      "order": 3,
+      "started_at": "2026-10-03 20:35:24.776643+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:36:42.081286+02:00",
+      "duration_seconds": 76.224015,
+      "error_message": null,
+      "message": null,
+      "name": "SCORING_TECHNICALS",
+      "order": 4,
+      "started_at": "2026-10-03 20:35:25.857271+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:36:45.737468+02:00",
+      "duration_seconds": 3.535877,
+      "error_message": null,
+      "message": null,
+      "name": "MARKET_REGIME_SNAPSHOT",
+      "order": 5,
+      "started_at": "2026-10-03 20:36:42.201591+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:36:50.741178+02:00",
+      "duration_seconds": 4.888716,
+      "error_message": null,
+      "message": null,
+      "name": "COMBINING_RESULTS",
+      "order": 6,
+      "started_at": "2026-10-03 20:36:45.852462+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:37:08.466828+02:00",
+      "duration_seconds": 17.615128,
+      "error_message": null,
+      "message": "Persisted 115 ranking results across 5 profiles.",
+      "name": "RANKING_PROFILES",
+      "order": 7,
+      "started_at": "2026-10-03 20:36:50.851700+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:38:16.373613+02:00",
+      "duration_seconds": 67.756032,
+      "error_message": null,
+      "message": null,
+      "name": "SECTOR_ROTATION_SNAPSHOT",
+      "order": 8,
+      "started_at": "2026-10-03 20:37:08.617581+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:44:46.252776+02:00",
+      "duration_seconds": 389.756158,
+      "error_message": null,
+      "message": "Required CERI child workflow completed and certified.",
+      "name": "CERI_PROVIDER_INGEST",
+      "order": 9,
+      "started_at": "2026-10-03 20:38:16.496618+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:44:59.140216+02:00",
+      "duration_seconds": 12.295727,
+      "error_message": null,
+      "message": null,
+      "name": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "order": 10,
+      "started_at": "2026-10-03 20:44:46.844489+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:46:02.729610+02:00",
+      "duration_seconds": 53.997017,
+      "error_message": null,
+      "message": null,
+      "name": "CAPTURING_SETUP_SIGNALS",
+      "order": 11,
+      "started_at": "2026-10-03 20:45:08.732593+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:48:00.420103+02:00",
+      "duration_seconds": 117.570493,
+      "error_message": null,
+      "message": null,
+      "name": "EVALUATING_SETUP_LIFECYCLES",
+      "order": 12,
+      "started_at": "2026-10-03 20:46:02.849610+02:00",
+      "status": "COMPLETED"
+    },
+    {
+      "completed_at": "2026-10-03 20:49:14.462764+02:00",
+      "duration_seconds": 73.880137,
+      "error_message": null,
+      "message": null,
+      "name": "CAPTURING_WINNER_PREDICTIONS",
+      "order": 13,
+      "started_at": "2026-10-03 20:48:00.582627+02:00",
+      "status": "COMPLETED"
+    }
+  ],
+  "winner": {
+    "eligible_count": 23,
+    "prediction_count": 23,
+    "source_cutoffs": [
+      "2026-10-03 20:36:50.877980+02:00"
+    ],
+    "tickers": [
+      "A",
+      "ADI",
+      "AIT",
+      "AME",
+      "BHE",
+      "CGNX",
+      "DIOD",
+      "FIGS",
+      "FIX",
+      "GLW",
+      "HURN",
+      "KN",
+      "LSCC",
+      "MPWR",
+      "NVT",
+      "QLYS",
+      "ROK",
+      "SANM",
+      "SN",
+      "STNG",
+      "TXN",
+      "WST",
+      "XOM"
+    ]
+  }
+}

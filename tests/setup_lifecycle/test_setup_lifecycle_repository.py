@@ -156,6 +156,42 @@ def test_repository_signal_change_key_handles_json_values_deterministically() ->
     assert first == repeated
 
 
+def test_repository_signal_change_key_distinguishes_frozen_execution_contexts() -> None:
+    first = SetupLifecycleRepository.signal_change_key(
+        ticker="AME",
+        timeframe="1d",
+        signal_key="classification",
+        effective_date=date(2026, 10, 2),
+        old_value="CONTINUATION",
+        new_value="PULLBACK",
+        config_hash="config-hash",
+        calculation_context_id=30,
+    )
+    repeated = SetupLifecycleRepository.signal_change_key(
+        ticker="AME",
+        timeframe="1d",
+        signal_key="classification",
+        effective_date=date(2026, 10, 2),
+        old_value="CONTINUATION",
+        new_value="PULLBACK",
+        config_hash="config-hash",
+        calculation_context_id=30,
+    )
+    next_execution = SetupLifecycleRepository.signal_change_key(
+        ticker="AME",
+        timeframe="1d",
+        signal_key="classification",
+        effective_date=date(2026, 10, 2),
+        old_value="CONTINUATION",
+        new_value="PULLBACK",
+        config_hash="config-hash",
+        calculation_context_id=32,
+    )
+
+    assert first == repeated
+    assert first != next_execution
+
+
 def test_repository_alert_event_key_includes_rule_source_and_ticker() -> None:
     first = SetupLifecycleRepository.alert_event_key(
         rule_id="became_actionable",

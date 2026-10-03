@@ -1,0 +1,74 @@
+{
+  "assert_unchanged_once": {
+    "cpu_seconds": 13.09375,
+    "cpu_to_wall_ratio": 0.9788988251528767,
+    "rss_after_bytes": 461099008,
+    "rss_before_bytes": 463040512,
+    "wall_seconds": 13.37599929998396
+  },
+  "durable_manifest_once": {
+    "cpu_seconds": 6.015625,
+    "cpu_to_wall_ratio": 0.9920282853897253,
+    "rss_after_bytes": 479633408,
+    "rss_before_bytes": 477044736,
+    "wall_seconds": 6.063965199980885
+  },
+  "forced_refresh_once": {
+    "cpu_seconds": 18.09375,
+    "cpu_to_wall_ratio": 0.9496500789732689,
+    "rss_after_bytes": 477044736,
+    "rss_before_bytes": 461099008,
+    "wall_seconds": 19.05307060002815
+  },
+  "git_sha": "2a91dc195dbe0b2211d47617b0dfaf6e48d177ae",
+  "job_id": 288,
+  "logical_cpu_count": 4,
+  "postgres_version": "PostgreSQL 18.3 on x86_64-windows, compiled by msvc-19.44.35223, 64-bit",
+  "prepare": {
+    "cpu_seconds": 13.5625,
+    "cpu_to_wall_ratio": 0.9108809278720787,
+    "rss_after_bytes": 463040512,
+    "rss_before_bytes": 149770240,
+    "wall_seconds": 14.88943239999935
+  },
+  "process_id": 4356,
+  "profile_top_cumulative": "not collected (--skip-cprofile)",
+  "rows_loaded": {
+    "ceri_catalyst_event_revisions": 335,
+    "ceri_catalyst_events": 335,
+    "ceri_companies": 44,
+    "ceri_earnings_actuals": 303,
+    "ceri_estimate_snapshots": 2284,
+    "ceri_source_records": 2922,
+    "price_bars": 65854
+  },
+  "source_authority_telemetry": {
+    "assert_calls": 1,
+    "assert_ms": 13375.994,
+    "assert_rows": 72077,
+    "load_calls": 8,
+    "load_ms": 9415.812,
+    "loaded_rows": 72077,
+    "manifest_calls": 1,
+    "manifest_ms": 6054.811,
+    "refresh_calls": 1,
+    "refresh_executed_calls": 1,
+    "refresh_noop_calls": 0,
+    "refresh_rows": 72077,
+    "refresh_sql_ms": 2506.127,
+    "refresh_total_ms": 18993.803,
+    "refresh_validation_ms": 15984.44,
+    "scope_body_ms": 0.0,
+    "scope_calls": 0,
+    "scope_entry_refresh_ms": 0.0,
+    "scope_exit_assert_ms": 0.0,
+    "scope_exit_refresh_ms": 0.0,
+    "seal_calls": 1,
+    "seal_ms": 5388.863,
+    "writer_body_ms": 0.0,
+    "writer_calls": 0,
+    "writer_fence_ms": 0.0,
+    "writer_manifest_ms": 0.0
+  },
+  "source_count": 72077
+}

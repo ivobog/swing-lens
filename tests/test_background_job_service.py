@@ -32,6 +32,7 @@ from app.services.runtime_mutation_authority import (
     RecoveryAuthority,
     RuntimeMutationAuthorityError,
 )
+from app.services.setup_lifecycle.errors import SetupLifecycleReconciliationError
 from app.services.transition_preflight_plan_service import TransitionPreflightError
 from app.services.winner_probability.job_handlers import enqueue_outcome_maturation_workflow
 
@@ -376,6 +377,30 @@ def test_dangling_ceri_context_fails_once_without_entering_retry_queue() -> None
     assert job.retry_count == 1
     assert job.run_after is None
     assert job.result_json["failure_classification"]["code"] == "CERI_CONTEXT_DANGLING"
+
+
+def test_lifecycle_reconciliation_error_fails_once_with_bounded_diagnostics() -> None:
+    job = _running_job(retry_count=0, max_retries=3)
+    db = FakeDb(existing=job)
+    error = SetupLifecycleReconciliationError(
+        "MUTATION_LIFECYCLE_RECONCILIATION_DUPLICATE_ACTIVE_FAMILY",
+        stage="preflight",
+        ticker="ACMR",
+        timeframe="1d",
+        episode_ids={"VCP": [1, 2]},
+        expected={"context_id": 26, "cutoff": "2026-10-03T15:04:04+02:00"},
+    )
+
+    mark_job_failed_or_retry(db, job, error, execution_token=job.execution_token)
+
+    assert job.status == JobStatus.FAILED
+    assert job.retry_count == 1
+    assert job.run_after is None
+    failure = job.result_json["failure_classification"]
+    assert failure["code"] == error.code
+    assert failure["retryable"] is False
+    assert failure["diagnostics"]["ticker"] == "ACMR"
+    assert failure["diagnostics"]["expected"]["context_id"] == 26
 
 
 def test_detached_progress_cannot_persist_ceri_authority_reference() -> None:

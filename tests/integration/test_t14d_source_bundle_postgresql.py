@@ -7,12 +7,14 @@ from decimal import Decimal
 import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
 from sqlalchemy import delete, event, select, text, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from test_ceri_batched_workflow_v2 import _execute_handler, _new_job, _seed_fixture
 
 from app.models.ceri_tables import CeriCompany, CeriSourceRecord
 from app.models.tables import PipelineRun, PriceBar, PriceBarRevision, RawCompanyRow
 from app.services.background_job_service import JobStatus
+from app.services.ceri.deployment_identity import session_database_schema_revision
 from app.services.ceri.feature_rebuild_service import (
     CeriFeatureRebuildRequest,
     CeriFeatureRebuildService,
@@ -25,6 +27,7 @@ from app.services.source_mutation_authority import (
     SOURCE_REFRESH_QUERY_PARAMETER_BUDGET,
     PrefetchedSourceBodies,
     _source_value,
+    compare_writer_manifest_paths,
     prefetched_source_scope,
 )
 from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
@@ -159,6 +162,57 @@ def test_unflushed_prefetched_source_argument_is_not_authoritative(contextual_en
         assert db.get(CeriSourceRecord, source.id).content_hash == original
 
 
+def test_writer_manifest_reuse_is_byte_and_digest_equivalent(contextual_engine):
+    with Session(contextual_engine, expire_on_commit=False) as db:
+        request = _normalized_fixture(db)
+        service = CeriFeatureRebuildService()
+        context = service.prepare_batch(db, request)
+
+        with compare_writer_manifest_paths():
+            result = service.rebuild(db, request, batch_context=context)
+
+        assert result.failed == 0, result.as_dict()
+        telemetry = context.source_bodies.telemetry_snapshot()
+        invocations = telemetry["writer_top_invocations"]
+        assert telemetry["writer_calls"] == 2
+        assert telemetry["writer_max_nesting_depth"] == 2
+        assert telemetry["writer_source_value_cache_hits"] > 0
+        assert telemetry["writer_source_value_cache_misses"] > 0
+        assert telemetry["writer_actual_refreshes"] == 0
+        assert all(item["manifest_equal"] is True for item in invocations)
+        assert all(item["canonical_equal"] is True for item in invocations)
+        assert all(item["digest"] == item["reference_digest"] for item in invocations)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        text("SELECT 1"),
+        update(CeriSourceRecord).where(CeriSourceRecord.id == -1).values(content_hash="noop"),
+    ],
+)
+def test_writer_reuse_is_cleared_by_fail_closed_sql_invalidation(
+    contextual_engine, statement
+):
+    with Session(contextual_engine, expire_on_commit=False) as db:
+        request = _normalized_fixture(db)
+        service = CeriFeatureRebuildService()
+        context = service.prepare_batch(db, request)
+        result = service.rebuild(db, request, batch_context=context)
+        assert result.failed == 0, result.as_dict()
+        bundle = context.source_bodies
+        assert bundle._writer_source_values
+        assert bundle._writer_canonical_values
+        assert bundle._writer_canonical_fragments
+
+        db.execute(statement)
+
+        assert bundle._requires_revalidation is True
+        assert bundle._writer_source_values == {}
+        assert bundle._writer_canonical_values == {}
+        assert bundle._writer_canonical_fragments == {}
+
+
 def test_commit_revalidates_exact_sql_bodies_before_bundle_reuse(contextual_engine):
     with Session(contextual_engine, expire_on_commit=False) as db:
         request = _normalized_fixture(db)
@@ -216,6 +270,14 @@ def test_advisory_lock_exclusion_is_exact_and_dml_cte_cannot_retain_witness(cont
         db.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:scope, 0))"),
             {"scope": "t14d-exact-nonmutating-lock"},
+        )
+        assert bundle._requires_revalidation is False
+        assert session_database_schema_revision(db)
+        assert bundle._requires_revalidation is False
+        db.execute(select(CeriSourceRecord.id).limit(1)).all()
+        assert bundle._requires_revalidation is False
+        db.execute(
+            update(RawCompanyRow).where(RawCompanyRow.id == -1).values(company_name="unrelated")
         )
         assert bundle._requires_revalidation is False
         for sql in (
@@ -395,7 +457,7 @@ def test_price_bar_source_bundle_refresh_chunks_75k_identities_and_detects_mutat
 
     def record(_conn, _cursor, sql, parameters, _context, _many):
         normalized = sql.upper()
-        if "FROM PRICE_BARS" in normalized and " IN (" in normalized and "FOR UPDATE" in normalized:
+        if "FROM PRICE_BARS" in normalized and " IN (" in normalized and "FOR SHARE" in normalized:
             refresh_parameter_counts.append(len(parameters))
 
     with Session(contextual_engine, expire_on_commit=False) as db:
@@ -425,11 +487,24 @@ def test_price_bar_source_bundle_refresh_chunks_75k_identities_and_detects_mutat
         )
         assert len(rows) == 75_000
         bundle.seal()
+        durable_manifest = bundle.durable_manifest()
+        original_fingerprint = bundle.body_fingerprint
         highest_id = max(row.id for row in rows)
         db.commit()  # Releases the original source locks and forces refresh.
 
         event.listen(contextual_engine, "before_cursor_execute", record)
         try:
+            retry = PrefetchedSourceBodies(db, expected_manifest=durable_manifest)
+            retry_rows = retry.load(
+                PriceBar,
+                select(PriceBar).where(PriceBar.ticker.like("T14DS%")),
+            )
+            retry.seal()
+            assert len(retry_rows) == durable_manifest["source_count"] == 75_000
+            assert retry.body_fingerprint == original_fingerprint
+            assert retry.durable_manifest() == durable_manifest
+            db.commit()
+
             with prefetched_source_scope(db, bundle):
                 assert _source_value(db, bundle)["exact_prefetched_source_count"] == 75_000
             db.commit()
@@ -448,8 +523,133 @@ def test_price_bar_source_bundle_refresh_chunks_75k_identities_and_detects_mutat
         finally:
             event.remove(contextual_engine, "before_cursor_execute", record)
 
-    assert refresh_parameter_counts == [50_000, 25_000, 50_000, 25_000]
+    # Retry chunks reserve the ambient LIKE bind: 49,999 + 25,001 identities.
+    # The four later exact refresh statements have no ambient predicate.
+    assert refresh_parameter_counts == [50_000, 25_002, 50_000, 25_000, 50_000, 25_000]
     assert max(refresh_parameter_counts) <= SOURCE_REFRESH_QUERY_PARAMETER_BUDGET
+
+
+def test_retained_source_share_locks_coexist_and_block_body_mutation(contextual_engine):
+    with Session(contextual_engine, expire_on_commit=False) as seed:
+        row = PriceBar(
+            ticker="T14DSHARELOCK",
+            bar_date=date(2026, 9, 11),
+            timeframe="1 day",
+            open=Decimal("100"),
+            high=Decimal("101"),
+            low=Decimal("99"),
+            close=Decimal("100"),
+            volume=Decimal("1000"),
+            source="IB",
+            what_to_show="TRADES",
+        )
+        seed.add(row)
+        seed.commit()
+        retained_id = row.id
+
+    emitted = []
+
+    def record(_conn, _cursor, sql, _parameters, _context, _many):
+        if "FROM price_bars" in sql and "FOR " in sql:
+            emitted.append(sql)
+
+    event.listen(contextual_engine, "before_cursor_execute", record)
+    try:
+        with Session(contextual_engine) as first, Session(contextual_engine) as second:
+            first_bundle = PrefetchedSourceBodies(first)
+            assert first_bundle.load(
+                PriceBar, select(PriceBar).where(PriceBar.id == retained_id)
+            )
+
+            # A second evidence reader gets a compatible lock immediately.
+            second.execute(text("SET LOCAL lock_timeout = '250ms'"))
+            second_bundle = PrefetchedSourceBodies(second)
+            assert second_bundle.load(
+                PriceBar, select(PriceBar).where(PriceBar.id == retained_id)
+            )
+
+            with Session(contextual_engine) as writer:
+                writer.execute(text("SET LOCAL lock_timeout = '250ms'"))
+                with pytest.raises(OperationalError, match="lock timeout"):
+                    writer.execute(
+                        update(PriceBar)
+                        .where(PriceBar.id == retained_id)
+                        .values(data_hash="must-not-publish")
+                    )
+                writer.rollback()
+
+            with Session(contextual_engine) as deleter:
+                deleter.execute(text("SET LOCAL lock_timeout = '250ms'"))
+                with pytest.raises(OperationalError, match="lock timeout"):
+                    deleter.execute(delete(PriceBar).where(PriceBar.id == retained_id))
+                deleter.rollback()
+
+            # Unrelated append-only evidence remains admissible while readers run.
+            with Session(contextual_engine) as appender:
+                appender.add(
+                    PriceBar(
+                        ticker="T14DSHAREAPPEND",
+                        bar_date=date(2026, 9, 11),
+                        timeframe="1 day",
+                        close=Decimal("101"),
+                        source="IB",
+                        what_to_show="TRADES",
+                    )
+                )
+                appender.flush()
+                appender.rollback()
+
+            second.rollback()
+            first.rollback()
+
+        # The selected row, and only its target source relation, is named in the
+        # locking clause.  Supporting relations in more complex queries cannot
+        # be accidentally promoted to exclusive row locks by this helper.
+        assert emitted
+        assert all("FOR SHARE OF price_bars" in sql for sql in emitted)
+
+        with Session(contextual_engine) as released:
+            released.execute(text("SET LOCAL lock_timeout = '250ms'"))
+            released.execute(
+                update(PriceBar)
+                .where(PriceBar.id == retained_id)
+                .values(data_hash="lock-released")
+            )
+            released.rollback()
+    finally:
+        event.remove(contextual_engine, "before_cursor_execute", record)
+
+
+def test_key_share_is_too_weak_for_retained_source_bodies(contextual_engine):
+    with Session(contextual_engine, expire_on_commit=False) as seed:
+        row = PriceBar(
+            ticker="T14DKEYSHARE",
+            bar_date=date(2026, 9, 12),
+            timeframe="1 day",
+            close=Decimal("100"),
+            source="IB",
+            what_to_show="TRADES",
+        )
+        seed.add(row)
+        seed.commit()
+        retained_id = row.id
+
+    with Session(contextual_engine) as reader, Session(contextual_engine) as writer:
+        reader.execute(
+            select(PriceBar.id)
+            .where(PriceBar.id == retained_id)
+            .with_for_update(read=True, key_share=True)
+        ).all()
+        writer.execute(text("SET LOCAL lock_timeout = '250ms'"))
+        # PostgreSQL FOR KEY SHARE permits a non-key body UPDATE, so it cannot
+        # protect the exact physical evidence body required by the manifest.
+        writer.execute(
+            update(PriceBar)
+            .where(PriceBar.id == retained_id)
+            .values(data_hash="key-share-allows-this")
+        )
+        writer.rollback()
+        reader.rollback()
 
 
 def test_source_bundle_refresh_detects_missing_retained_identity(contextual_engine):

@@ -1,0 +1,1305 @@
+{
+  "current_setup_snapshots": 94,
+  "displaced_family": 11,
+  "multiple_family": 0,
+  "new_family": 82,
+  "no_current_family": 0,
+  "planned_reconciliation_actions": 11,
+  "pre_existing_active_episodes": 12,
+  "rows": [
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1369,
+      "ticker": "A",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1309,
+      "ticker": "AAMI",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1363,
+      "ticker": "AAPL",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        1
+      ],
+      "active_families": [
+        "VCP"
+      ],
+      "classification": "SAME_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": 1,
+      "snapshot_id": 1292,
+      "ticker": "ACMR",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1318,
+      "ticker": "ADI",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1314,
+      "ticker": "AIT",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        8
+      ],
+      "active_families": [
+        "CONTINUATION"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [
+        8
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1345,
+      "ticker": "AME",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "CONTINUATION",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1325,
+      "ticker": "AMG",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1355,
+      "ticker": "AMN",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1347,
+      "ticker": "ANET",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "CONTINUATION",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1327,
+      "ticker": "APH",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1338,
+      "ticker": "ARM",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1317,
+      "ticker": "ARW",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1296,
+      "ticker": "ASC",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1323,
+      "ticker": "ATEN",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        2
+      ],
+      "active_families": [
+        "CONTINUATION"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [
+        2
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1312,
+      "ticker": "AVT",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        3
+      ],
+      "active_families": [
+        "PULLBACK"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [
+        3
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1315,
+      "ticker": "BHE",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1352,
+      "ticker": "BOW",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1301,
+      "ticker": "CACI",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1320,
+      "ticker": "CAT",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1307,
+      "ticker": "CGNX",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1349,
+      "ticker": "CHEF",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1276,
+      "ticker": "COHR",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1329,
+      "ticker": "CON",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1364,
+      "ticker": "CORT",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1277,
+      "ticker": "CRDO",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1331,
+      "ticker": "CVX",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "CONTINUATION",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1339,
+      "ticker": "DAL",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1340,
+      "ticker": "DIOD",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1286,
+      "ticker": "DK",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1350,
+      "ticker": "ESI",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1324,
+      "ticker": "ETN",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1362,
+      "ticker": "EXEL",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1358,
+      "ticker": "FFIV",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1330,
+      "ticker": "FIGS",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1322,
+      "ticker": "FIX",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1304,
+      "ticker": "FRSH",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1328,
+      "ticker": "FTK",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1354,
+      "ticker": "FTNT",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1302,
+      "ticker": "GCT",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1288,
+      "ticker": "GEV",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1334,
+      "ticker": "GLBE",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1285,
+      "ticker": "GLW",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1287,
+      "ticker": "GNK",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1278,
+      "ticker": "HURN",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1305,
+      "ticker": "KLAC",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        5
+      ],
+      "active_families": [
+        "BREAKOUT"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [
+        5
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1321,
+      "ticker": "KLIC",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1303,
+      "ticker": "KN",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "CONTINUATION",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1359,
+      "ticker": "LAUR",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1368,
+      "ticker": "LGND",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        6
+      ],
+      "active_families": [
+        "CONTINUATION"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [
+        6
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1308,
+      "ticker": "LSCC",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        10
+      ],
+      "active_families": [
+        "CONTINUATION"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [
+        10
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1360,
+      "ticker": "LTC",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1341,
+      "ticker": "MGNI",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1284,
+      "ticker": "MITK",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1337,
+      "ticker": "MPWR",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1356,
+      "ticker": "MSGE",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1281,
+      "ticker": "MTSI",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1319,
+      "ticker": "NMM",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1332,
+      "ticker": "NPK",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1297,
+      "ticker": "NPO",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "CONTINUATION",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1335,
+      "ticker": "NVDA",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1343,
+      "ticker": "NVEC",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        16
+      ],
+      "active_families": [
+        "PULLBACK"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [
+        16
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1291,
+      "ticker": "NVT",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1333,
+      "ticker": "OPY",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1283,
+      "ticker": "PARR",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1346,
+      "ticker": "PENG",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1295,
+      "ticker": "PLUS",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        17
+      ],
+      "active_families": [
+        "PULLBACK"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [
+        17
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1289,
+      "ticker": "PLXS",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1290,
+      "ticker": "PSX",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1299,
+      "ticker": "PWR",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1313,
+      "ticker": "Q",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1351,
+      "ticker": "QLYS",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1306,
+      "ticker": "REPX",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "BREAKOUT",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1326,
+      "ticker": "ROK",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "CONTINUATION",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1293,
+      "ticker": "SANM",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1316,
+      "ticker": "SHOO",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1367,
+      "ticker": "SIMO",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1280,
+      "ticker": "SLDE",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1357,
+      "ticker": "SN",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1282,
+      "ticker": "SNX",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1311,
+      "ticker": "STNG",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        18
+      ],
+      "active_families": [
+        "PULLBACK"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [
+        18
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1310,
+      "ticker": "STX",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1361,
+      "ticker": "TENB",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1279,
+      "ticker": "TSEM",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "VCP",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1300,
+      "ticker": "TTMI",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        14
+      ],
+      "active_families": [
+        "BREAKOUT"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [
+        14
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1348,
+      "ticker": "TXN",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1298,
+      "ticker": "URBN",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1336,
+      "ticker": "VCTR",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "CONTINUATION",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1353,
+      "ticker": "VSXY",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "GENERIC",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1294,
+      "ticker": "WCC",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1366,
+      "ticker": "WST",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [
+        19
+      ],
+      "active_families": [
+        "PULLBACK"
+      ],
+      "classification": "DISPLACED_FAMILY",
+      "current_family": "CONTINUATION",
+      "displaced_episode_ids": [
+        19
+      ],
+      "multiple_active_families": false,
+      "reason_code": "FAMILY_DISPLACED",
+      "retained_episode_id": null,
+      "snapshot_id": 1365,
+      "ticker": "WT",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "PULLBACK",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1342,
+      "ticker": "XOM",
+      "timeframe": "1d"
+    },
+    {
+      "active_episode_ids": [],
+      "active_families": [],
+      "classification": "NEW_FAMILY",
+      "current_family": "CONTINUATION",
+      "displaced_episode_ids": [],
+      "multiple_active_families": false,
+      "reason_code": null,
+      "retained_episode_id": null,
+      "snapshot_id": 1344,
+      "ticker": "ZBRA",
+      "timeframe": "1d"
+    }
+  ],
+  "run_id": 15,
+  "same_family": 1
+}
