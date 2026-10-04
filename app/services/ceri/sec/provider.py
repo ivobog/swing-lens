@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -22,6 +23,18 @@ from app.services.ceri.sec.client import SecClientConfig, SecEdgarClient
 from app.services.ceri.sec.guidance_extractor import GuidanceExtractionService
 
 GUIDANCE_FORMS = frozenset({"8-K", "10-Q", "10-K", "6-K", "20-F"})
+_CANONICAL_SHARE_CLASS_TICKER = re.compile(
+    r"^[A-Z0-9]+(?:-[A-Z0-9]+)*\.[A-Z0-9]+$"
+)
+
+
+def sec_share_class_alias(ticker: str) -> str | None:
+    """Return SEC's hyphenated alias for a canonical dot share-class ticker."""
+    canonical_ticker = ticker.upper()
+    if not _CANONICAL_SHARE_CLASS_TICKER.fullmatch(canonical_ticker):
+        return None
+    issuer, share_class = canonical_ticker.split(".", maxsplit=1)
+    return f"{issuer}-{share_class}"
 
 
 @dataclass(frozen=True)
@@ -164,7 +177,16 @@ class SecCeriProvider:
             self._ticker_ciks = {
                 symbol: tuple(sorted(ciks)) for symbol, ciks in grouped.items()
             }
-        return self._ticker_ciks.get(ticker.upper(), ())
+        canonical_ticker = ticker.upper()
+        exact_candidates = self._ticker_ciks.get(canonical_ticker, ())
+        if exact_candidates:
+            return exact_candidates
+
+        alias = sec_share_class_alias(canonical_ticker)
+        if alias is None:
+            return ()
+        alias_candidates = self._ticker_ciks.get(alias, ())
+        return alias_candidates if len(alias_candidates) == 1 else ()
 
     def discover_guidance_documents(
         self, request: GuidanceRequest, *, cik: str | None = None

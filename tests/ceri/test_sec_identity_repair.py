@@ -1,5 +1,7 @@
 from app.models.ceri_tables import CeriCompany
+from app.services.ceri.sec.client import SecClientConfig
 from app.services.ceri.sec.identity_repair import resolve_and_persist_sec_identity
+from app.services.ceri.sec.provider import SecCeriProvider
 
 
 class _Scalars:
@@ -74,3 +76,26 @@ def test_missing_exact_sec_ticker_is_reported_without_placeholder_mapping() -> N
     assert result.status == "UNRESOLVED"
     assert result.cik is None
     assert db.added == []
+
+
+def test_sec_share_class_alias_persists_only_the_canonical_ticker() -> None:
+    class Client:
+        config = SecClientConfig()
+        requests = 0
+        failures = 0
+        last_success_at = None
+
+        def company_tickers(self):
+            return {"0": {"ticker": "MOG-A", "cik_str": 67887}}
+
+    db = _Db()
+    provider = SecCeriProvider(client=Client())
+
+    result = resolve_and_persist_sec_identity(db, provider=provider, ticker="MOG.A")
+
+    assert result.status == "RESOLVED"
+    assert result.ticker == "MOG.A"
+    assert result.cik == "0000067887"
+    assert len(db.added) == 1
+    assert db.added[0].ticker == "MOG.A"
+    assert db.added[0].cik == "0000067887"

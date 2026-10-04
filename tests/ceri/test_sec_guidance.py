@@ -6,7 +6,7 @@ from app.services.ceri.dtos import GuidanceRequest
 from app.services.ceri.sec import processor_signature
 from app.services.ceri.sec.client import SecClientConfig
 from app.services.ceri.sec.guidance_extractor import GuidanceExtractionService
-from app.services.ceri.sec.provider import SecCeriProvider
+from app.services.ceri.sec.provider import SecCeriProvider, sec_share_class_alias
 
 
 def test_guidance_extractor_preserves_locator_and_marks_ambiguous_claims() -> None:
@@ -140,3 +140,61 @@ def test_conflicting_exact_sec_ticker_metadata_is_not_collapsed_or_guessed() -> 
 
     assert provider.resolve_cik_candidates("DUP") == ("0000111111", "0000222222")
     assert provider.resolve_cik("DUP") is None
+
+
+def test_sec_ticker_resolution_uses_only_unambiguous_share_class_aliases() -> None:
+    class Client:
+        config = SecClientConfig()
+        requests = 0
+        failures = 0
+        last_success_at = None
+
+        def company_tickers(self):
+            return {
+                "0": {"ticker": "AAPL", "cik_str": 320193},
+                "1": {"ticker": "MOG-A", "cik_str": 67887},
+                "2": {"ticker": "BRK-B", "cik_str": 1067983},
+                "3": {"ticker": "EXACT.A", "cik_str": 111111},
+                "4": {"ticker": "EXACT-A", "cik_str": 222222},
+                "5": {"ticker": "AMBIG-A", "cik_str": 333333},
+                "6": {"ticker": "AMBIG-A", "cik_str": 444444},
+            }
+
+        def submissions(self, cik):
+            assert cik == "0000067887"
+            return {
+                "filings": {
+                    "recent": {
+                        "form": ["8-K"],
+                        "accessionNumber": ["0000067887-26-000001"],
+                        "primaryDocument": ["mog-8k.htm"],
+                        "filingDate": ["2026-10-01"],
+                    }
+                }
+            }
+
+    provider = SecCeriProvider(client=Client())
+    canonical_ticker = "MOG.A"
+
+    assert provider.resolve_cik("AAPL") == "0000320193"
+    assert provider.resolve_cik(canonical_ticker) == "0000067887"
+    assert canonical_ticker == "MOG.A"
+    documents = provider.discover_guidance_documents(
+        GuidanceRequest(company_id=None, ticker=canonical_ticker)
+    )
+    assert documents[0].ticker == "MOG.A"
+    assert documents[0].cik == "0000067887"
+    assert provider.resolve_cik("BRK.B") == "0001067983"
+    assert provider.resolve_cik("EXACT.A") == "0000111111"
+    assert provider.resolve_cik_candidates("AMBIG.A") == ()
+    assert provider.resolve_cik("MISSING.A") is None
+    assert provider.resolve_cik("MISSING") is None
+
+
+def test_sec_share_class_alias_rejects_non_share_class_shapes() -> None:
+    assert sec_share_class_alias("MOG.A") == "MOG-A"
+    assert sec_share_class_alias("brk.b") == "BRK-B"
+    assert sec_share_class_alias("AAPL") is None
+    assert sec_share_class_alias("TOO.MANY.DOTS") is None
+    assert sec_share_class_alias(".A") is None
+    assert sec_share_class_alias("MOG.") is None
