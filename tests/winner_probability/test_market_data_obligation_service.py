@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
+import pytest
+
 from app.services.winner_probability.market_data_obligation_service import (
+    MarketDataObligationService,
     RecoveryNeed,
     build_recovery_request_plan,
     complete_basis_for_rows,
@@ -121,3 +124,12 @@ def test_price_watermark_is_order_independent_and_changes_with_bar_content() -> 
 
     assert first == second
     assert changed != first
+
+
+def test_ticker_scoped_evaluation_requires_an_owner_run() -> None:
+    with pytest.raises(ValueError, match="MUTATION_WINNER_OBLIGATION_OWNER_RUN_REQUIRED"):
+        MarketDataObligationService().evaluate(
+            SimpleNamespace(),
+            tickers=("AAPL",),
+            now=datetime(2026, 10, 4, 16, 0, tzinfo=UTC),
+        )

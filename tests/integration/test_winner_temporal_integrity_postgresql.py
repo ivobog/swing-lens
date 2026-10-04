@@ -832,6 +832,303 @@ def test_current_fetch_does_not_mutate_legacy_winner_obligation(
     engine.dispose()
 
 
+def test_current_full_pipeline_fetch_isolates_dirty_foreign_native_obligations(
+    disposable_postgres_database: str,
+) -> None:
+    from app.models.tables import BackgroundJob, PipelineRun
+    from app.services.domain_write_fence import fence_domain_commits
+
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    now = datetime(2026, 10, 4, 15, 22, tzinfo=UTC)
+    with Session(engine) as db:
+        db.add_all(
+            [
+                UploadRun(id=17, filename="historical-failed.csv", status="FAILED"),
+                UploadRun(id=19, filename="historical-blocked.csv", status="COMPLETED"),
+                UploadRun(id=21, filename="current.csv", status="COMPLETED"),
+            ]
+        )
+        db.flush()
+        db.add_all(
+            [
+                PipelineRun(upload_run_id=17, status="FAILED", current_step="FETCHING_MARKET_DATA"),
+                PipelineRun(upload_run_id=19, status="BLOCKED", current_step="VALIDATING_RUN"),
+                PipelineRun(
+                    upload_run_id=21,
+                    status="RUNNING",
+                    current_step="FETCHING_MARKET_DATA",
+                ),
+            ]
+        )
+        config = load_winner_probability_config()
+        historical = []
+        for run_id, ticker, basis in (
+            (17, "AAPL", "ADJUSTED_LAST"),
+            (19, "AAPL", "TRADES"),
+            (19, "NVDA", "ADJUSTED_LAST"),
+        ):
+            prediction = WinnerPredictionSnapshot(
+                run_id=run_id,
+                ticker=ticker,
+                prediction_as_of_date=date(2026, 10, 2),
+                source_data_cutoff_at=now - timedelta(days=2),
+                decision_at=now - timedelta(days=2),
+                captured_at=now - timedelta(days=2),
+                planned_entry_session=date(2026, 10, 2),
+                entry_schedule_status="RESOLVED",
+                entry_data_status="NOT_DUE",
+                eligibility_status="ELIGIBLE",
+                feature_schema_version=config.feature_schema.version,
+                feature_vector_hash=f"dirty-{run_id}-{ticker}-{basis}",
+                config_hash=config.config_hash,
+                calculation_version=config.engine.calculation_version,
+                feature_json={"setup_family": "breakout"},
+                source_ids_json={},
+                warning_flags_json=[],
+                lineage_json={"native_capture_proof": {"dirty_database_fixture": True}},
+            )
+            db.add(prediction)
+            db.flush()
+            sessions = required_outcome_sessions(prediction.planned_entry_session, 5)
+            outcome = WinnerForwardOutcome(
+                prediction_id=prediction.id,
+                entry_model="NEXT_OPEN",
+                horizon_sessions=5,
+                entry_session=sessions[0],
+                due_session=sessions[-1],
+                status="PENDING",
+                revision=1,
+                is_current_revision=True,
+                metadata_json={},
+            )
+            db.add(outcome)
+            db.flush()
+            obligation = WinnerMarketDataObligation(
+                prediction_id=prediction.id,
+                forward_outcome_id=outcome.id,
+                ticker_snapshot=ticker,
+                entry_session=sessions[0],
+                required_through_session=sessions[-1],
+                required_sessions_json=[session.isoformat() for session in sessions],
+                timeframe="1 day",
+                what_to_show=basis,
+                status="FETCH_REQUIRED",
+                first_missing_session=sessions[0],
+                last_missing_session=sessions[-1],
+                price_series_watermark=EMPTY_PRICE_WATERMARK,
+                last_checked_at=now - timedelta(days=1),
+                failure_reason="REQUIRED_SESSION_MISSING",
+                metadata_json={"native_obligation_scope": {"dirty_database_fixture": True}},
+            )
+            db.add(obligation)
+            historical.append(obligation)
+
+        fetch_run = IBFetchRun(
+            run_id=21,
+            requested_tickers=["AAPL", "NVDA"],
+            symbols_including_benchmarks=["AAPL", "NVDA"],
+            status="PARTIAL",
+            completed_at=now,
+            planned_request_count=2,
+            executed_request_count=2,
+            success_count=2,
+        )
+        fetch_run.items.extend(
+            IBFetchItem(
+                ticker=ticker,
+                what_to_show="ADJUSTED_LAST",
+                status="SUCCESS",
+                action="TOP_UP_RECENT",
+                bar_size="1 day",
+                attempt_count=1,
+                completed_at=now,
+            )
+            for ticker in ("AAPL", "NVDA")
+        )
+        job = BackgroundJob(
+            job_type="FULL_PIPELINE",
+            related_run_id=21,
+            status="RUNNING",
+            payload_json={},
+            execution_token="run-21-token",
+            worker_id="dirty-db-worker",
+            lease_owner="dirty-db-worker",
+            lease_expires_at=now + timedelta(minutes=5),
+            max_retries=3,
+            retry_count=0,
+            run_after=now,
+        )
+        db.add_all([fetch_run, job])
+        db.commit()
+        fetch_run_id = fetch_run.id
+        job_id = job.id
+        obligation_ids = [row.id for row in historical]
+        before = {
+            row.id: (
+                row.status,
+                row.failure_reason,
+                row.price_series_watermark,
+                row.last_checked_at,
+            )
+            for row in historical
+        }
+
+        fetch_run = db.get(IBFetchRun, fetch_run_id)
+        with fence_domain_commits(db, job_id=job_id, execution_token="run-21-token"):
+            result = MarketDataObligationService().record_fetch_results(
+                db, fetch_run=fetch_run, now=now
+            )
+            db.commit()
+
+        assert result.updated == 0
+        assert db.scalar(
+            select(func.count()).select_from(WinnerPredictionSnapshot).where(
+                WinnerPredictionSnapshot.run_id == 21
+            )
+        ) == 0
+        retained = {row.id: row for row in db.scalars(
+            select(WinnerMarketDataObligation).where(
+                WinnerMarketDataObligation.id.in_(obligation_ids)
+            )
+        )}
+        assert {
+            row_id: (
+                row.status,
+                row.failure_reason,
+                row.price_series_watermark,
+                row.last_checked_at,
+            )
+            for row_id, row in retained.items()
+        } == before
+        assert {
+            row.upload_run_id: row.status
+            for row in db.scalars(select(PipelineRun).order_by(PipelineRun.upload_run_id))
+        } == {17: "FAILED", 19: "BLOCKED", 21: "RUNNING"}
+    engine.dispose()
+
+
+def test_fetch_advances_owned_obligation_and_cross_run_fence_remains_enforced(
+    disposable_postgres_database: str,
+) -> None:
+    from native_winner_support import native_pending_prediction
+
+    from app.models.tables import BackgroundJob
+    from app.services.bar_cache_service import cache_bars
+    from app.services.domain_write_fence import fence_domain_commits
+    from app.services.ib_data_fetcher import HistoricalBar
+    from app.services.winner_probability.outcome_authority import obligation_authority
+
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    now = datetime(2027, 1, 15, 22, tzinfo=UTC)
+    with Session(engine) as db:
+        prediction, outcome = native_pending_prediction(db)
+        sessions = required_outcome_sessions(outcome.entry_session, 5)
+        cache_bars(
+            db,
+            [
+                HistoricalBar(
+                    ticker=prediction.ticker,
+                    timeframe="1 day",
+                    source="TEST",
+                    adjustment_type=None,
+                    bar_date=session,
+                    open=Decimal("100"),
+                    high=Decimal("102"),
+                    low=Decimal("99"),
+                    close=Decimal("101"),
+                    volume=Decimal("1000"),
+                    what_to_show="ADJUSTED_LAST",
+                )
+                for session in sessions
+            ],
+        )
+        fetch_run = IBFetchRun(
+            run_id=prediction.run_id,
+            requested_tickers=[prediction.ticker],
+            symbols_including_benchmarks=[prediction.ticker],
+            status="COMPLETED",
+            completed_at=now,
+            planned_request_count=1,
+            executed_request_count=1,
+            success_count=1,
+        )
+        fetch_run.items.append(
+            IBFetchItem(
+                ticker=prediction.ticker,
+                what_to_show="ADJUSTED_LAST",
+                status="SUCCESS",
+                action="TOP_UP_RECENT",
+                bar_size="1 day",
+                attempt_count=1,
+                completed_at=now,
+            )
+        )
+        current_job = BackgroundJob(
+            job_type="IB_FETCH",
+            related_run_id=prediction.run_id,
+            status="RUNNING",
+            payload_json={},
+            execution_token="current-run-token",
+            worker_id="current-run-worker",
+            lease_owner="current-run-worker",
+            lease_expires_at=now + timedelta(minutes=5),
+            max_retries=3,
+            retry_count=0,
+            run_after=now,
+        )
+        db.add_all([fetch_run, current_job])
+        db.commit()
+        fetch_run = db.get(IBFetchRun, fetch_run.id)
+
+        with fence_domain_commits(
+            db, job_id=current_job.id, execution_token="current-run-token"
+        ):
+            result = MarketDataObligationService().record_fetch_results(
+                db, fetch_run=fetch_run, now=now
+            )
+            db.commit()
+        assert result.satisfied == 1
+        assert db.scalar(
+            select(func.count()).select_from(WinnerMarketDataObligation).where(
+                WinnerMarketDataObligation.prediction_id == prediction.id,
+                WinnerMarketDataObligation.status == "SATISFIED",
+            )
+        ) == 1
+
+        db.add(UploadRun(id=21, filename="foreign-execution.csv", status="COMPLETED"))
+        foreign_job = BackgroundJob(
+            job_type="FULL_PIPELINE",
+            related_run_id=21,
+            status="RUNNING",
+            payload_json={},
+            execution_token="foreign-run-token",
+            worker_id="foreign-run-worker",
+            lease_owner="foreign-run-worker",
+            lease_expires_at=now + timedelta(minutes=5),
+            max_retries=3,
+            retry_count=0,
+            run_after=now,
+        )
+        db.add(foreign_job)
+        db.commit()
+        with fence_domain_commits(
+            db, job_id=foreign_job.id, execution_token="foreign-run-token"
+        ):
+            with pytest.raises(
+                ValueError, match="MUTATION_WINNER_OBLIGATION_EXECUTION_RUN_MISMATCH"
+            ):
+                obligation_authority(
+                    db,
+                    [outcome],
+                    now=now,
+                    writer="test.explicit_cross_run_obligation_mutation",
+                )
+        db.rollback()
+    engine.dispose()
+
+
 def _prediction(
     db: Session,
     *,

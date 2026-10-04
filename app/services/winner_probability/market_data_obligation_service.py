@@ -147,6 +147,30 @@ def _native_obligations(
     return native
 
 
+def _owned_obligations_for_tickers(
+    db: Session,
+    *,
+    tickers: Sequence[str],
+    owner_run_id: int | None,
+    status: str | None = None,
+) -> list[WinnerMarketDataObligation]:
+    """Select ticker-matched obligations only within their prediction-run owner."""
+    if owner_run_id is None or not tickers:
+        return []
+    statement = (
+        select(WinnerMarketDataObligation)
+        .join(
+            WinnerPredictionSnapshot,
+            WinnerPredictionSnapshot.id == WinnerMarketDataObligation.prediction_id,
+        )
+        .where(WinnerMarketDataObligation.ticker_snapshot.in_(sorted(set(tickers))))
+        .where(WinnerPredictionSnapshot.run_id == owner_run_id)
+    )
+    if status is not None:
+        statement = statement.where(WinnerMarketDataObligation.status == status)
+    return list(db.scalars(statement))
+
+
 def build_recovery_request_plan(needs: Sequence[RecoveryNeed]) -> tuple[RecoveryRequest, ...]:
     grouped: dict[tuple[int, int, str, str], list[RecoveryNeed]] = defaultdict(list)
     for need in needs:
@@ -317,20 +341,23 @@ class MarketDataObligationService:
         *,
         obligations: Sequence[WinnerMarketDataObligation] | None = None,
         tickers: Sequence[str] = (),
+        owner_run_id: int | None = None,
         now: datetime | None = None,
     ) -> ObligationSyncResult:
         if isinstance(db, Session) and (now is None or now.tzinfo is None):
             raise ValueError("MUTATION_WINNER_OBLIGATION_EXPLICIT_OPERATION_TIME_REQUIRED")
         now = now or datetime.now(UTC)
         if obligations is None:
-            statement = select(WinnerMarketDataObligation)
             if tickers:
-                statement = statement.where(
-                    WinnerMarketDataObligation.ticker_snapshot.in_(
-                        sorted({ticker.upper() for ticker in tickers})
-                    )
+                if owner_run_id is None:
+                    raise ValueError("MUTATION_WINNER_OBLIGATION_OWNER_RUN_REQUIRED")
+                obligations = _owned_obligations_for_tickers(
+                    db,
+                    tickers=tuple(ticker.upper() for ticker in tickers),
+                    owner_run_id=owner_run_id,
                 )
-            obligations = list(db.scalars(statement))
+            else:
+                obligations = list(db.scalars(select(WinnerMarketDataObligation)))
             # A normal market-data fetch is not a migration of historical
             # Winner obligations. Only native obligations may enter this
             # current writer; retained legacy rows remain untouched.
@@ -543,12 +570,10 @@ class MarketDataObligationService:
         now = now or datetime.now(UTC)
         items = list(fetch_run.items or [])
         tickers = sorted({str(item.ticker).upper() for item in items})
-        candidates = list(
-            db.scalars(
-                select(WinnerMarketDataObligation).where(
-                    WinnerMarketDataObligation.ticker_snapshot.in_(tickers)
-                )
-            )
+        candidates = _owned_obligations_for_tickers(
+            db,
+            tickers=tickers,
+            owner_run_id=fetch_run.run_id,
         )
         result = self.evaluate(db, obligations=_native_obligations(db, candidates), now=now)
         terminal_by_key = {
@@ -558,12 +583,11 @@ class MarketDataObligationService:
         }
         if not terminal_by_key:
             return result
-        obligations = list(
-            db.scalars(
-                select(WinnerMarketDataObligation)
-                .where(WinnerMarketDataObligation.ticker_snapshot.in_(tickers))
-                .where(WinnerMarketDataObligation.status == "FETCH_REQUIRED")
-            )
+        obligations = _owned_obligations_for_tickers(
+            db,
+            tickers=tickers,
+            owner_run_id=fetch_run.run_id,
+            status="FETCH_REQUIRED",
         )
         obligations = _native_obligations(db, obligations)
         unavailable = failed = 0
