@@ -1040,13 +1040,14 @@ def fence_stalled_jobs(
     for candidate in candidates:
         if candidate.id in acquired_ids:
             continue
+        effective_stage = _effective_progress_stage(candidate)
         decision_context = {
             "job_id": candidate.id,
             "run_id": candidate.related_run_id,
             "job_type": candidate.job_type,
             "job_progress_age_seconds": _age_seconds(observed_at, candidate.last_progress_at),
             "progress_sequence": int(candidate.progress_sequence or 0),
-            "stage": candidate.progress_stage,
+            "stage": effective_stage,
             "decision": "LOCKED_CANDIDATE_SKIPPED",
         }
         logger.warning("job.watchdog.decision %s", decision_context, extra=decision_context)
@@ -1055,8 +1056,9 @@ def fence_stalled_jobs(
         if job.requested_cancel:
             _finalize_recovery_cancellation(db, job, now=observed_at)
             continue
+        effective_stage = _effective_progress_stage(job)
         timeout = progress_timeout_seconds(
-            job.progress_stage,
+            effective_stage,
             default_timeout_seconds=default_timeout_seconds,
             market_data_timeout_seconds=market_data_timeout_seconds,
             long_stage_timeout_seconds=long_stage_timeout_seconds,
@@ -1097,7 +1099,7 @@ def fence_stalled_jobs(
                 "job_lease_heartbeat_age_seconds": lease_age,
                 "job_progress_age_seconds": progress_age,
                 "progress_sequence": current_sequence,
-                "stage": job.progress_stage,
+                "stage": effective_stage,
                 "stall_threshold_seconds": timeout,
                 "decision": decision,
             }
@@ -1110,7 +1112,7 @@ def fence_stalled_jobs(
         decision = "STALL_PROGRESS_SEQUENCE_FROZEN"
         job.error_message = (
             f"Useful progress sequence {current_sequence} remained frozen for {timeout}s "
-            f"at {job.progress_stage or 'UNSPECIFIED'}; lease heartbeat age={lease_age}s"
+            f"at {effective_stage or 'UNSPECIFIED'}; lease heartbeat age={lease_age}s"
         )
         job.worker_id = None
         job.worker_instance_id = None
@@ -1120,7 +1122,7 @@ def fence_stalled_jobs(
         job.heartbeat_at = None
         job.lease_expires_at = None
         stall_identity = {
-            "stage": job.progress_stage,
+            "stage": effective_stage,
             "current_item": job.progress_current_item,
             "processed": int(job.progress_processed or 0),
             "total": int(job.progress_total) if job.progress_total is not None else None,
@@ -1159,7 +1161,7 @@ def fence_stalled_jobs(
             "job_lease_heartbeat_age_seconds": lease_age,
             "job_progress_age_seconds": progress_age,
             "progress_sequence": current_sequence,
-            "stage": job.progress_stage,
+            "stage": effective_stage,
             "stall_threshold_seconds": timeout,
             "decision": decision,
         }
@@ -1167,6 +1169,15 @@ def fence_stalled_jobs(
         publish_after_commit(db, "increment", "swinglens_job_stalls_total", job_type=job.job_type)
     db.flush()
     return fenced
+
+
+def _effective_progress_stage(job: BackgroundJob) -> str | None:
+    """Resolve the declared resume boundary before its first item checkpoint."""
+
+    if job.progress_stage:
+        return str(job.progress_stage)
+    resume_from_step = (job.payload_json or {}).get("resume_from_step")
+    return str(resume_from_step) if resume_from_step else None
 
 
 def _interrupt_fenced_pipeline_steps(
@@ -1219,6 +1230,32 @@ def _interrupt_fenced_pipeline_steps(
         step.message = (
             f"Attempt {int(step.retry_count or 0) + 1} was interrupted; automatic replay pending."
         )
+    effective_stage = _effective_progress_stage(job)
+    if effective_stage == "SECTOR_ROTATION_SNAPSHOT":
+        all_steps = list(
+            db.scalars(
+                select(PipelineStep)
+                .where(PipelineStep.pipeline_run_id == pipeline_id)
+                .order_by(PipelineStep.step_order)
+            )
+        )
+        target = next(
+            (step for step in all_steps if step.step_name == "SECTOR_ROTATION_SNAPSHOT"),
+            None,
+        )
+        if target is not None and all(
+            step.status in {"COMPLETED", "SKIPPED"}
+            for step in all_steps
+            if step.step_order < target.step_order
+        ):
+            job.payload_json = {
+                **(job.payload_json or {}),
+                "resume_from_step": "SECTOR_ROTATION_SNAPSHOT",
+            }
+            pipeline.result_json = {
+                **(pipeline.result_json or {}),
+                "resume_from_step": "SECTOR_ROTATION_SNAPSHOT",
+            }
     from app.services.pipeline_state_machine import transition_pipeline
 
     transition_pipeline(
@@ -1226,7 +1263,7 @@ def _interrupt_fenced_pipeline_steps(
         pipeline,
         "QUEUED",
         actor="recovery",
-        current_step=job.progress_stage or pipeline.current_step,
+        current_step=effective_stage or pipeline.current_step,
         message="Pipeline execution was interrupted; automatic replay is pending.",
     )
 
@@ -1281,7 +1318,7 @@ def requeue_stalled_jobs(
                 "Automatic recovery stopped after "
                 f"{recovery.get('identical_count')} equivalent progress stalls."
             )
-            if isinstance(db, Session) and job.job_type == "FULL_PIPELINE":
+            if job.job_type == "FULL_PIPELINE":
                 pipeline_id = (job.payload_json or {}).get("pipeline_run_id")
                 pipeline = (
                     db.get(PipelineRun, int(pipeline_id)) if pipeline_id is not None else None
@@ -1289,14 +1326,34 @@ def requeue_stalled_jobs(
                 if pipeline is not None:
                     from app.services.pipeline_state_machine import transition_pipeline
 
+                    effective_stage = _effective_progress_stage(job)
                     transition_pipeline(
                         db,
                         pipeline,
                         "BLOCKED",
                         actor="recovery",
-                        current_step=job.progress_stage or pipeline.current_step,
+                        current_step=effective_stage or pipeline.current_step,
                         message="Automatic recovery stopped after equivalent progress stalls.",
                     )
+                    blocked_step = db.scalar(
+                        select(PipelineStep).where(
+                            PipelineStep.pipeline_run_id == pipeline.id,
+                            PipelineStep.step_name
+                            == (effective_stage or pipeline.current_step),
+                        )
+                    )
+                    if blocked_step is not None:
+                        blocked_step.status = "BLOCKED"
+                        blocked_step.completed_at = observed_at
+                        blocked_step.message = "Blocked after repeated progress stalls."
+                        blocked_step.error_message = (
+                            "Useful progress remained frozen and automatic recovery was exhausted."
+                        )
+                        payload = dict(blocked_step.result_json or {})
+                        payload["terminal_reason_code"] = (
+                            "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
+                        )
+                        blocked_step.result_json = payload
             continue
         job.status = JobStatus.RECOVERING
         job.recovery_count = int(job.recovery_count or 0) + 1

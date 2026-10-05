@@ -29,6 +29,10 @@ from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI
 from app.services.ceri.feature_flags import ceri_flags
 from app.services.market_data_prewarm_service import request_active_prewarm_preemption
 from app.services.operational_metrics import operational_metrics
+from app.services.pipeline_stage_registry import (
+    CANONICAL_BASE_PIPELINE_STAGES,
+    DECISION_HANDOFF_PIPELINE_STEP,
+)
 from app.services.scope_refresh_adoption import (
     SemanticWorkAuthority,
     admit_frozen_operation,
@@ -43,18 +47,7 @@ FULL_PIPELINE_JOB_TYPE = "FULL_PIPELINE"
 PIPELINE_JOB_PRIORITY = 100
 PIPELINE_JOB_MAX_RETRIES = 3
 PIPELINE_CANCELLATION_LOCK_TIMEOUT_MS = 750
-DECISION_HANDOFF_PIPELINE_STEP = "FREEZING_DECISION_HANDOFF_MANIFEST"
-
-PIPELINE_STEP_NAMES_BEFORE_OPTIONAL_RESEARCH = (
-    "VALIDATING_RUN",
-    "SCORING_FUNDAMENTALS",
-    "FETCHING_MARKET_DATA",
-    "SCORING_TECHNICALS",
-    "MARKET_REGIME_SNAPSHOT",
-    "COMBINING_RESULTS",
-    "RANKING_PROFILES",
-    "SECTOR_ROTATION_SNAPSHOT",
-)
+PIPELINE_STEP_NAMES_BEFORE_OPTIONAL_RESEARCH = CANONICAL_BASE_PIPELINE_STAGES
 PIPELINE_STEP_NAMES = (
     *PIPELINE_STEP_NAMES_BEFORE_OPTIONAL_RESEARCH,
     "CAPTURING_WINNER_PREDICTIONS",

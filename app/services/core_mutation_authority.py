@@ -421,7 +421,7 @@ def _validate_evidence(evidence):
         raise ValueError("MUTATION_SOURCE_EVIDENCE_KEY_MISMATCH")
 
 
-def validate_source_configuration(db, identity, evidence, execution=None):
+def validate_source_configuration(db, identity, evidence, execution=None, cache=None):
     """Compare pinned producers with the parent's retained slots, when present."""
     from app.models.tables import ExecutionConfigurationAnchor
     from app.services.configuration_delivery import binding_reference
@@ -437,11 +437,16 @@ def validate_source_configuration(db, identity, evidence, execution=None):
     if execution is not None:
         owners.append({"job_id": execution.job_id})
     for owner in owners:
-        reference = binding_reference(db, **owner)
-        if reference is None:
-            raise ValueError("MUTATION_SOURCE_PARENT_CONFIGURATION_BINDING_REQUIRED")
-        anchor = db.get(ExecutionConfigurationAnchor, reference["anchor_id"])
-        slot = anchor.payload_json["configurations"].get(key)
+        cache_key = (tuple(sorted(owner.items())), key)
+        slot = cache.get(cache_key) if cache is not None else None
+        if cache is None or cache_key not in cache:
+            reference = binding_reference(db, **owner)
+            if reference is None:
+                raise ValueError("MUTATION_SOURCE_PARENT_CONFIGURATION_BINDING_REQUIRED")
+            anchor = db.get(ExecutionConfigurationAnchor, reference["anchor_id"])
+            slot = anchor.payload_json["configurations"].get(key)
+            if cache is not None:
+                cache[cache_key] = slot
         if slot is not None and Canonical.canonicalize(slot["identity"]) != configuration.as_dict():
             raise ValueError("MUTATION_SOURCE_RETAINED_CONFIGURATION_MISMATCH")
 
@@ -726,7 +731,17 @@ def _validate_artifact_temporal_identity(current_row, identity) -> None:
 
 
 def artifact_mutation_context(
-    db, *, kind, current_row, identity, configuration, sources, payload, declaration_only=False
+    db,
+    *,
+    kind,
+    current_row,
+    identity,
+    configuration,
+    sources,
+    payload,
+    declaration_only=False,
+    checkpoint_callback=None,
+    checkpoint_phase=None,
 ):
     """Native artifact adapter. Every named manifest is independently checked."""
     from app.models.tables import RawCompanyRow
@@ -885,7 +900,13 @@ def artifact_mutation_context(
         if not isinstance(envelope, dict):
             raise ValueError("MUTATION_SECTOR_NATIVE_INPUT_ENVELOPE_REQUIRED")
         require_payload_reference(identity, "sector-rotation-input-envelope", envelope)
-        validate_sector_manifest(db, identity, envelope)
+        validate_sector_manifest(
+            db,
+            identity,
+            envelope,
+            checkpoint_callback=checkpoint_callback,
+            checkpoint_phase=checkpoint_phase,
+        )
         manifest["universe_manifest"] = {
             "native_input_envelope": envelope,
             "source_evidence": {
@@ -990,7 +1011,7 @@ def validate_financial_source_context(identity, evidence):
         raise ValueError("MUTATION_SOURCE_CALCULATION_CONTEXT_MISMATCH")
 
 
-def validate_sector_permission(evidence, universe_rows):
+def validate_sector_permission(evidence, universe_rows, permission_index=None):
     from app.services import contextual_consumer_eligibility as contextual
     from app.services import technical_consumer_eligibility as technical
 
@@ -1000,8 +1021,19 @@ def validate_sector_permission(evidence, universe_rows):
         technical if evidence.artifact_kind == "TECHNICAL" else contextual,
         evidence.artifact_kind + "_TO_SECTOR",
     )
-    for row in universe_rows:
-        for frozen in (row.get("debug", {}).get("contextual_consumer_eligibility") or {}).values():
+    candidates = (
+        permission_index.get(evidence.id, ())
+        if permission_index is not None
+        else (
+            frozen
+            for row in universe_rows
+            for frozen in (
+                row.get("debug", {}).get("contextual_consumer_eligibility") or {}
+            ).values()
+        )
+    )
+    for frozen in candidates:
+        if frozen is not None:
             if (frozen.get("decision") or {}).get("producer_evidence_id") == evidence.id:
                 pin = mutation_eligibility(evidence.artifact_kind.lower(), evidence, frozen)
                 if native.evaluate(pin.readiness) != pin.decision:
@@ -1010,53 +1042,138 @@ def validate_sector_permission(evidence, universe_rows):
     raise ValueError("MUTATION_FROZEN_ELIGIBILITY_REQUIRED: sector contributor")
 
 
-def validate_sector_manifest(db, identity, envelope):
+def validate_sector_manifest(
+    db,
+    identity,
+    envelope,
+    *,
+    checkpoint_callback=None,
+    checkpoint_phase=None,
+):
     from sqlalchemy import select
 
     from app.models.tables import RawCompanyRow
 
-    for universe in envelope["universe_rows"]:
+    universe_rows = envelope["universe_rows"]
+    manifests = []
+    seen_manifest_fingerprints = set()
+    permission_index = {}
+    for universe in universe_rows:
         manifest = universe.get("debug", {}).get("native_source_manifest")
         if not isinstance(manifest, dict):
             raise ValueError("MUTATION_SECTOR_CONTRIBUTOR_MANIFEST_REQUIRED")
+        fingerprint = Canonical.fingerprint(manifest)
+        if fingerprint not in seen_manifest_fingerprints:
+            seen_manifest_fingerprints.add(fingerprint)
+            manifests.append(manifest)
+        for frozen in (
+            universe.get("debug", {}).get("contextual_consumer_eligibility") or {}
+        ).values():
+            evidence_id = (frozen.get("decision") or {}).get("producer_evidence_id")
+            if evidence_id is not None:
+                permission_index.setdefault(evidence_id, []).append(frozen)
+
+    financial_pins = {}
+    raw_pins = {}
+    for manifest in manifests:
         for pin in manifest["financial_inputs"]:
-            evidence = db.get(CoreCalculationEvidence, pin["evidence_id"])
-            _validate_evidence(evidence)
-            validate_source_configuration(db, identity, evidence, current_domain_write_ownership())
-            if (
-                evidence.artifact_kind != pin["artifact_kind"]
-                or evidence.ticker != pin["ticker"]
-                or evidence.run_id != pin["run_id"]
-            ):
+            existing = financial_pins.setdefault(pin["evidence_id"], pin)
+            if existing != pin:
                 raise ValueError("MUTATION_SECTOR_CONTRIBUTOR_ADDRESS_MISMATCH")
-            validate_financial_source_context(identity, evidence)
-            validate_sector_permission(evidence, envelope["universe_rows"])
         for pin in manifest["raw_inputs"]:
-            raw = db.scalar(
-                select(RawCompanyRow).where(RawCompanyRow.id == pin["id"]).with_for_update()
-            )
-            if (
-                raw is None
-                or raw.run_id != identity.ownership.run_id.value
-                or Canonical.fingerprint(
-                    {
-                        "run_id": raw.run_id,
-                        "ticker": raw.ticker,
-                        "raw_json": raw.raw_json,
-                        "sector": raw.sector,
-                        "sector_canonical": raw.sector_canonical,
-                    }
-                )
-                != pin["fingerprint"]
-            ):
+            existing = raw_pins.setdefault(pin["id"], pin)
+            if existing != pin:
                 raise ValueError("MUTATION_SECTOR_RAW_SOURCE_MISMATCH")
+
+    evidence_rows = {
+        row.id: row
+        for row in db.scalars(
+            select(CoreCalculationEvidence).where(
+                CoreCalculationEvidence.id.in_(tuple(financial_pins))
+            )
+        )
+    }
+    raw_rows = {
+        row.id: row
+        for row in db.scalars(
+            select(RawCompanyRow)
+            .where(RawCompanyRow.id.in_(tuple(raw_pins)))
+            .with_for_update()
+        )
+    }
+    etf_sources = [
+        source
+        for etf in envelope["etf_rows"]
+        if not etf.get("debug", {}).get("missing_proxy")
+        for source in (etf.get("debug", {}).get("source_manifests") or {}).values()
+    ]
+    total = len(financial_pins) + len(raw_pins) + len(etf_sources)
+    processed = 0
+    phase = checkpoint_phase or "SECTOR_MANIFEST_VALIDATION"
+
+    def checkpoint(current_item, *, metrics=None):
+        if checkpoint_callback is not None and (processed % 50 == 0 or processed == total):
+            values = {
+                "phase": phase,
+                "processed": processed,
+                "total": total,
+                "current_item": str(current_item),
+                "last_completed_item": str(current_item) if processed else None,
+            }
+            if metrics is not None:
+                values["metrics"] = metrics
+            checkpoint_callback(
+                **values,
+            )
+
+    checkpoint("started")
+    configuration_cache = {}
+    for evidence_id, pin in financial_pins.items():
+        evidence = evidence_rows.get(evidence_id)
+        _validate_evidence(evidence)
+        validate_source_configuration(
+            db,
+            identity,
+            evidence,
+            current_domain_write_ownership(),
+            cache=configuration_cache,
+        )
+        if (
+            evidence.artifact_kind != pin["artifact_kind"]
+            or evidence.ticker != pin["ticker"]
+            or evidence.run_id != pin["run_id"]
+        ):
+            raise ValueError("MUTATION_SECTOR_CONTRIBUTOR_ADDRESS_MISMATCH")
+        validate_financial_source_context(identity, evidence)
+        validate_sector_permission(evidence, universe_rows, permission_index)
+        processed += 1
+        checkpoint(f"evidence:{evidence_id}")
+    for raw_id, pin in raw_pins.items():
+        raw = raw_rows.get(raw_id)
+        if (
+            raw is None
+            or raw.run_id != identity.ownership.run_id.value
+            or Canonical.fingerprint(
+                {
+                    "run_id": raw.run_id,
+                    "ticker": raw.ticker,
+                    "raw_json": raw.raw_json,
+                    "sector": raw.sector,
+                    "sector_canonical": raw.sector_canonical,
+                }
+            )
+            != pin["fingerprint"]
+        ):
+            raise ValueError("MUTATION_SECTOR_RAW_SOURCE_MISMATCH")
+        processed += 1
+        checkpoint(f"raw:{raw_id}")
     for etf in envelope["etf_rows"]:
         if etf.get("debug", {}).get("missing_proxy"):
             continue
-        manifests = etf.get("debug", {}).get("source_manifests")
-        if not isinstance(manifests, dict) or not manifests:
+        source_manifests = etf.get("debug", {}).get("source_manifests")
+        if not isinstance(source_manifests, dict) or not source_manifests:
             raise ValueError("MUTATION_SECTOR_ETF_PIT_MANIFEST_REQUIRED")
-        for source in manifests.values():
+        for source in source_manifests.values():
             if source is None:
                 raise ValueError("MUTATION_SECTOR_ETF_PIT_MANIFEST_REQUIRED")
             validate_price_source_manifest(
@@ -1065,6 +1182,20 @@ def validate_sector_manifest(db, identity, envelope):
                 identity.temporal.calculation_cutoff.value,
                 identity.temporal.as_of_session.value,
             )
+            processed += 1
+            checkpoint("etf")
+    checkpoint(
+        "complete",
+        metrics={
+            "manifest_traversal_count": len(manifests),
+            "contributor_validation_count": total,
+            "configuration_anchor_lookup_count": len(configuration_cache),
+            "evidence_bulk_load_count": len(evidence_rows),
+            "raw_source_lock_count": len(raw_rows),
+            "etf_source_lock_count": len(etf_sources),
+            "evidence_source_lock_count": len(raw_rows) + len(etf_sources),
+        },
+    )
 
 
 def validate_source_address(identity, role, source, evidence):

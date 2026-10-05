@@ -37,6 +37,9 @@ class SetupLifecycleEvaluationCancelled(Exception):
     pass
 
 
+_LIFECYCLE_PROGRESS_BATCH_SIZE = 25
+
+
 @dataclass(frozen=True)
 class SetupLifecycleEvaluationResult:
     evaluation_run_id: int | None
@@ -131,6 +134,7 @@ class SetupLifecycleEvaluationService:
         snapshot_ids: tuple[int, ...] | None = None,
         market_cutoff: MarketCalculationCutoff | None = None,
         pipeline_run_id: int | None = None,
+        progress_callback: Callable[..., None] | None = None,
     ) -> SetupLifecycleEvaluationResult:
         from sqlalchemy.orm import Session
 
@@ -198,6 +202,15 @@ class SetupLifecycleEvaluationService:
                     captured=len(handoff_snapshot_ids),
                     snapshot_ids=handoff_snapshot_ids,
                 )
+            capture_total = len(capture.snapshot_ids)
+            _report_lifecycle_progress(
+                progress_callback,
+                phase="INPUTS_LOADED",
+                processed=capture_total,
+                total=capture_total,
+                current_item="captured-setup-snapshots",
+                last_completed_item="captured-setup-snapshots",
+            )
             self._checkpoint(db, evaluation_run.id, "canonicalize", should_cancel)
             canonical = _canonicalize_run(
                 self.canonicalizer,
@@ -206,9 +219,20 @@ class SetupLifecycleEvaluationService:
                 evaluation_run_id=evaluation_run.id,
                 snapshot_ids=handoff_snapshot_ids,
             )
-            for snapshot in self.repository.get_snapshots_by_ids(
-                db, canonical.selected_snapshot_ids
-            ):
+            selected_snapshot_ids = tuple(canonical.selected_snapshot_ids)
+            selected_total = len(selected_snapshot_ids)
+            _report_lifecycle_progress(
+                progress_callback,
+                phase="CANDIDATES_SELECTED",
+                processed=selected_total,
+                total=capture_total,
+                current_item="canonical-setup-candidates",
+                last_completed_item="canonical-setup-candidates",
+            )
+            selected_snapshots = self.repository.get_snapshots_by_ids(
+                db, selected_snapshot_ids
+            )
+            for index, snapshot in enumerate(selected_snapshots, start=1):
                 if snapshot.evidence_id is None:
                     persist_setup_evidence(db, snapshot)
                 else:
@@ -217,11 +241,39 @@ class SetupLifecycleEvaluationService:
                     )
 
                     validate_setup_projection(db, snapshot)
+                if (
+                    index % _LIFECYCLE_PROGRESS_BATCH_SIZE == 0
+                    or index == selected_total
+                ):
+                    _report_lifecycle_progress(
+                        progress_callback,
+                        phase="EVIDENCE_VALIDATION_BATCH_COMPLETED",
+                        processed=index,
+                        total=selected_total,
+                        current_item=snapshot.ticker,
+                        last_completed_item=snapshot.ticker,
+                    )
+            _report_lifecycle_progress(
+                progress_callback,
+                phase="EVIDENCE_AUTHORITY_VALIDATION_COMPLETED",
+                processed=selected_total,
+                total=selected_total,
+                current_item="canonical-setup-candidates",
+                last_completed_item="canonical-setup-candidates",
+            )
             self._checkpoint(db, evaluation_run.id, "change_detection", should_cancel)
             changes = self.change_detector.detect_and_persist(
                 db,
                 evaluation_run_id=evaluation_run.id,
-                snapshot_ids=canonical.selected_snapshot_ids,
+                snapshot_ids=selected_snapshot_ids,
+            )
+            _report_lifecycle_progress(
+                progress_callback,
+                phase="CHANGE_DETECTION_COMPLETED",
+                processed=selected_total,
+                total=selected_total,
+                current_item="canonical-setup-candidates",
+                last_completed_item="canonical-setup-candidates",
             )
             self._checkpoint(db, evaluation_run.id, "alerts", should_cancel)
             self.alert_service.seed_builtin_rules(db)
@@ -229,12 +281,21 @@ class SetupLifecycleEvaluationService:
                 db,
                 self.repository.get_signal_change_events_by_ids(db, changes.event_ids),
             )
+            _report_lifecycle_progress(
+                progress_callback,
+                phase="CHANGE_ALERT_EVALUATION_COMPLETED",
+                processed=len(changes.event_ids),
+                total=len(changes.event_ids),
+                current_item="signal-change-events",
+                last_completed_item="signal-change-events",
+            )
             self._checkpoint(db, evaluation_run.id, "lifecycle", should_cancel)
             lifecycle_transitions, lifecycle_alerts, reconciliation_plans = (
                 self._evaluate_lifecycle_episodes(
                     db,
                     evaluation_run_id=evaluation_run.id,
-                    snapshot_ids=canonical.selected_snapshot_ids,
+                    snapshot_ids=selected_snapshot_ids,
+                    progress_callback=progress_callback,
                 )
             )
             self._checkpoint(db, evaluation_run.id, "finalize", should_cancel)
@@ -276,6 +337,13 @@ class SetupLifecycleEvaluationService:
             alerts=change_alerts.created + lifecycle_alerts,
             reconciliation_plans=reconciliation_plans,
         )
+        _report_lifecycle_progress(
+            progress_callback,
+            phase="PERSISTENCE_STARTED",
+            processed=0,
+            total=1,
+            current_item="evaluation-result",
+        )
         self.repository.complete_evaluation_run(
             db,
             evaluation_run,
@@ -296,6 +364,14 @@ class SetupLifecycleEvaluationService:
             errors=dict(capture.errors_by_ticker),
             source_snapshot_min_id=min(capture.snapshot_ids) if capture.snapshot_ids else None,
             source_snapshot_max_id=max(capture.snapshot_ids) if capture.snapshot_ids else None,
+        )
+        _report_lifecycle_progress(
+            progress_callback,
+            phase="PERSISTENCE_STAGED",
+            processed=1,
+            total=1,
+            current_item="evaluation-result",
+            last_completed_item="evaluation-result",
         )
         return result
 
@@ -399,6 +475,7 @@ class SetupLifecycleEvaluationService:
         *,
         evaluation_run_id: int,
         snapshot_ids: tuple[int, ...],
+        progress_callback: Callable[..., None] | None = None,
     ) -> tuple[int, int, tuple[dict[str, Any], ...]]:
         transitions = 0
         alert_created = 0
@@ -431,11 +508,20 @@ class SetupLifecycleEvaluationService:
         alert_parameters = signature(self.alert_service.evaluate_episode_result).parameters
         preload_alert_rules = "rules" in alert_parameters
         alert_rules = self.alert_service.rules_for_evaluation(db) if preload_alert_rules else None
+        total = len(snapshots)
+        _report_lifecycle_progress(
+            progress_callback,
+            phase="LIFECYCLE_INPUTS_LOADED",
+            processed=total,
+            total=total,
+            current_item="history-episodes-alert-rules",
+            last_completed_item="history-episodes-alert-rules",
+        )
 
         planner = getattr(self.episode_service, "plan_reconciliation", None)
         plans_by_snapshot: dict[int, Any] = {}
         if callable(planner) and use_preloaded_episodes:
-            for snapshot in snapshots:
+            for index, snapshot in enumerate(snapshots, start=1):
                 key = (snapshot.ticker, snapshot.timeframe)
                 plan = planner(
                     db,
@@ -444,6 +530,15 @@ class SetupLifecycleEvaluationService:
                     preloaded_episodes=tuple(episodes_by_key.get(key, ())),
                 )
                 plans_by_snapshot[snapshot.id] = plan
+                if index % _LIFECYCLE_PROGRESS_BATCH_SIZE == 0 or index == total:
+                    _report_lifecycle_progress(
+                        progress_callback,
+                        phase="RECONCILIATION_BATCH_COMPLETED",
+                        processed=index,
+                        total=total,
+                        current_item=snapshot.ticker,
+                        last_completed_item=snapshot.ticker,
+                    )
             audit = {
                 "contract": "setup-lifecycle-reconciliation-preflight-v1",
                 "plans": [plans_by_snapshot[key].as_dict() for key in sorted(plans_by_snapshot)],
@@ -452,7 +547,14 @@ class SetupLifecycleEvaluationService:
             if callable(recorder):
                 recorder(db, evaluation_run_id, audit)
 
-        for snapshot in snapshots:
+        _report_lifecycle_progress(
+            progress_callback,
+            phase="LIFECYCLE_EVALUATION_STARTED",
+            processed=0,
+            total=total,
+            current_item="setup-candidates",
+        )
+        for index, snapshot in enumerate(snapshots, start=1):
             key = (snapshot.ticker, snapshot.timeframe)
             history = history_by_key.setdefault(key, [])
             episode_kwargs = (
@@ -496,6 +598,15 @@ class SetupLifecycleEvaluationService:
                     **({"rules": alert_rules} if preload_alert_rules else {}),
                 )
                 alert_created += alerts.created
+            if index % _LIFECYCLE_PROGRESS_BATCH_SIZE == 0 or index == total:
+                _report_lifecycle_progress(
+                    progress_callback,
+                    phase="LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+                    processed=index,
+                    total=total,
+                    current_item=snapshot.ticker,
+                    last_completed_item=snapshot.ticker,
+                )
         if use_preloaded_episodes:
             self.episode_service.refresh_primary_statuses(
                 db,
@@ -507,6 +618,14 @@ class SetupLifecycleEvaluationService:
                     for snapshot in snapshots
                 },
             )
+        _report_lifecycle_progress(
+            progress_callback,
+            phase="STATE_TRANSITION_EVALUATION_COMPLETED",
+            processed=total,
+            total=total,
+            current_item="setup-candidates",
+            last_completed_item="setup-candidates",
+        )
         return (
             transitions,
             alert_created,
@@ -526,6 +645,26 @@ def evaluate_setup_lifecycles_for_run(
         run_id,
         capture_result=capture_result,
         snapshot_ids=snapshot_ids,
+    )
+
+
+def _report_lifecycle_progress(
+    progress_callback: Callable[..., None] | None,
+    *,
+    phase: str,
+    processed: int,
+    total: int,
+    current_item: str | None = None,
+    last_completed_item: str | None = None,
+) -> None:
+    if progress_callback is None:
+        return
+    progress_callback(
+        phase=phase,
+        processed=processed,
+        total=total,
+        current_item=current_item,
+        last_completed_item=last_completed_item,
     )
 
 

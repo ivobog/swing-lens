@@ -3,11 +3,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy.exc import OperationalError
 
-from app.models.tables import BackgroundJob
+from app.models.tables import BackgroundJob, PipelineRun, PipelineStep
 from app.services.background_job_service import (
     JobFailureKind,
     JobLeaseLost,
     JobStatus,
+    _interrupt_fenced_pipeline_steps,
     claim_next_job,
     classify_job_failure,
     default_retry_delay,
@@ -37,6 +38,67 @@ from app.services.transition_preflight_plan_service import TransitionPreflightEr
 from app.services.winner_probability.job_handlers import enqueue_outcome_maturation_workflow
 
 NORMAL_RECOVERY = RecoveryAuthority.normal("test.background_job_recovery")
+
+
+def test_sector_fence_promotes_sector_to_durable_resume_boundary() -> None:
+    now = datetime.now(UTC)
+    job = _running_job()
+    job.id = 81
+    job.job_type = "FULL_PIPELINE"
+    job.progress_stage = "SECTOR_ROTATION_SNAPSHOT"
+    job.payload_json = {"pipeline_run_id": 33, "resume_from_step": "VALIDATING_RUN"}
+    pipeline = PipelineRun(
+        id=33,
+        upload_run_id=23,
+        status="SECTOR_ROTATION_SNAPSHOT",
+        current_step="SECTOR_ROTATION_SNAPSHOT",
+        result_json={},
+    )
+    steps = [
+        PipelineStep(
+            id=index,
+            pipeline_run_id=33,
+            step_name=name,
+            step_order=index,
+            status="COMPLETED" if index < 8 else "RUNNING",
+            retry_count=0,
+            started_at=now - timedelta(minutes=6) if index == 8 else now,
+        )
+        for index, name in enumerate(
+            (
+                "VALIDATING_RUN",
+                "SCORING_FUNDAMENTALS",
+                "FETCHING_MARKET_DATA",
+                "SCORING_TECHNICALS",
+                "MARKET_REGIME_SNAPSHOT",
+                "COMBINING_RESULTS",
+                "RANKING_PROFILES",
+                "SECTOR_ROTATION_SNAPSHOT",
+            ),
+            start=1,
+        )
+    ]
+
+    class FenceDb:
+        def __init__(self):
+            self.scalar_calls = 0
+
+        def get(self, model, row_id):
+            return pipeline if model is PipelineRun and row_id == pipeline.id else None
+
+        def scalars(self, statement):
+            self.scalar_calls += 1
+            return [steps[-1]] if self.scalar_calls == 1 else steps
+
+        def flush(self):
+            pass
+
+    _interrupt_fenced_pipeline_steps(FenceDb(), job, observed_at=now)
+
+    assert job.payload_json["resume_from_step"] == "SECTOR_ROTATION_SNAPSHOT"
+    assert pipeline.result_json["resume_from_step"] == "SECTOR_ROTATION_SNAPSHOT"
+    assert all(step.status == "COMPLETED" for step in steps[:7])
+    assert steps[-1].status == "INTERRUPTED"
 
 
 def test_recovery_primitive_rejects_missing_or_untyped_authority() -> None:
@@ -1001,6 +1063,63 @@ def test_truly_frozen_winner_stage_is_fenced_despite_live_heartbeats() -> None:
     assert "sequence 37 remained frozen for 1800s" in job.error_message
 
 
+def test_sector_progress_can_cross_bounded_timeout_without_false_fencing() -> None:
+    started = datetime.now(UTC)
+    job = _running_job()
+    job.progress_stage = "SECTOR_ROTATION_SNAPSHOT"
+    job.progress_sequence = 10
+    job.last_progress_at = started
+    job.operational_metadata_json = {
+        "progress_watchdog": {
+            "progress_sequence": 9,
+            "unchanged_since": (started - timedelta(minutes=6)).isoformat(),
+        }
+    }
+    after_six_minutes = started + timedelta(minutes=6)
+    job.heartbeat_at = after_six_minutes
+    db = FakeDb(stale_jobs=[job])
+
+    assert fence_stalled_jobs(
+        db,
+        authority=NORMAL_RECOVERY,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=360,
+        long_stage_timeout_seconds=1800,
+        now=after_six_minutes,
+        worker_id="worker-a",
+        worker_heartbeat_at=after_six_minutes,
+    ) == []
+    assert job.status == JobStatus.RUNNING
+
+
+def test_sector_live_heartbeats_do_not_substitute_for_frozen_useful_progress() -> None:
+    now = datetime.now(UTC)
+    job = _running_job()
+    job.progress_stage = "SECTOR_ROTATION_SNAPSHOT"
+    job.progress_sequence = 10
+    job.last_progress_at = now - timedelta(minutes=31)
+    job.heartbeat_at = now
+    job.operational_metadata_json = {
+        "progress_watchdog": {
+            "progress_sequence": 10,
+            "unchanged_since": (now - timedelta(minutes=31)).isoformat(),
+        }
+    }
+    db = FakeDb(stale_jobs=[job])
+
+    assert fence_stalled_jobs(
+        db,
+        authority=NORMAL_RECOVERY,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=360,
+        long_stage_timeout_seconds=1800,
+        now=now,
+        worker_id="worker-a",
+        worker_heartbeat_at=now,
+    ) == [job.id]
+    assert "remained frozen for 1800s" in job.error_message
+
+
 @pytest.mark.parametrize(
     "stage",
     ("CAPTURING_SETUP_SIGNALS", "EVALUATING_SETUP_LIFECYCLES"),
@@ -1050,6 +1169,39 @@ def test_setup_stages_use_canonical_long_running_timeout(stage: str) -> None:
     assert "remained frozen for 1800s" in job.error_message
 
 
+def test_resume_boundary_sets_timeout_before_first_item_checkpoint() -> None:
+    started = datetime.now(UTC)
+    job = _running_job()
+    job.payload_json = {
+        "pipeline_run_id": 24,
+        "resume_from_step": "CAPTURING_SETUP_SIGNALS",
+    }
+    job.progress_stage = None
+    job.progress_sequence = 1
+    job.last_progress_at = started
+    job.operational_metadata_json = {
+        "progress_watchdog": {
+            "progress_sequence": 1,
+            "unchanged_since": started.isoformat(),
+        }
+    }
+    after_six_minutes = started + timedelta(minutes=6)
+    job.heartbeat_at = after_six_minutes
+    db = FakeDb(stale_jobs=[job])
+
+    assert fence_stalled_jobs(
+        db,
+        authority=NORMAL_RECOVERY,
+        default_timeout_seconds=300,
+        market_data_timeout_seconds=300,
+        long_stage_timeout_seconds=1800,
+        now=after_six_minutes,
+        worker_id="worker-a",
+        worker_heartbeat_at=after_six_minutes,
+    ) == []
+    assert job.status == JobStatus.RUNNING
+
+
 def test_identical_progress_stalls_stop_automatic_recovery_at_bound() -> None:
     job = _running_job()
     job.status = JobStatus.STALLED
@@ -1079,6 +1231,52 @@ def test_identical_progress_stalls_stop_automatic_recovery_at_bound() -> None:
     assert job.operational_metadata_json["blocked"]["reason_code"] == (
         "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
     )
+
+
+def test_exhausted_sector_recovery_sets_truthful_terminal_step_status() -> None:
+    job = _running_job()
+    job.status = JobStatus.STALLED
+    job.execution_token = None
+    job.progress_stage = "SECTOR_ROTATION_SNAPSHOT"
+    job.payload_json = {"pipeline_run_id": 33, "resume_from_step": "SECTOR_ROTATION_SNAPSHOT"}
+    job.operational_metadata_json = {
+        "progress_recovery": {
+            "signature": "same-sector-stall",
+            "identical_count": 3,
+            "stall_identity": {"stage": "SECTOR_ROTATION_SNAPSHOT", "processed": 0},
+        }
+    }
+    pipeline = PipelineRun(id=33, upload_run_id=23, status="QUEUED")
+    step = PipelineStep(
+        id=44,
+        pipeline_run_id=33,
+        step_name="SECTOR_ROTATION_SNAPSHOT",
+        step_order=8,
+        status="INTERRUPTED",
+        retry_count=2,
+        message="Attempt 3 was interrupted; automatic replay pending.",
+    )
+
+    class RecoveryDb(FakeDb):
+        def get(self, model, row_id):
+            return pipeline if model is PipelineRun and row_id == pipeline.id else None
+
+        def scalar(self, statement):
+            return step
+
+    db = RecoveryDb(stale_jobs=[job])
+
+    assert requeue_stalled_jobs(
+        db,
+        authority=NORMAL_RECOVERY,
+        job_ids=[job.id],
+        max_identical_recoveries=3,
+    ) == 0
+    assert job.status == JobStatus.BLOCKED
+    assert pipeline.status == "BLOCKED"
+    assert step.status == "BLOCKED"
+    assert step.message == "Blocked after repeated progress stalls."
+    assert step.result_json["terminal_reason_code"] == "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
 
 
 def test_worker_recycle_preserves_more_than_one_hundred_queued_jobs() -> None:

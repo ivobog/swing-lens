@@ -90,6 +90,7 @@ class SectorRotationService:
         market_cutoff: MarketCalculationCutoff | None = None,
         effective_configuration=None,
         expected_calculation_identity=None,
+        checkpoint_callback=None,
     ) -> SectorRotationSnapshotDto:
         return build_sector_rotation_snapshot(
             db=db,
@@ -105,6 +106,7 @@ class SectorRotationService:
             market_cutoff=market_cutoff,
             effective_configuration=effective_configuration,
             expected_calculation_identity=expected_calculation_identity,
+            checkpoint_callback=checkpoint_callback,
         )
 
 
@@ -122,7 +124,19 @@ def build_sector_rotation_snapshot(
     market_cutoff: MarketCalculationCutoff | None = None,
     effective_configuration=None,
     expected_calculation_identity=None,
+    checkpoint_callback=None,
 ) -> SectorRotationSnapshotDto:
+    def checkpoint(phase: str, processed: int, total: int, current_item: str) -> None:
+        if checkpoint_callback is not None:
+            checkpoint_callback(
+                phase=phase,
+                processed=processed,
+                total=total,
+                current_item=current_item,
+                last_completed_item=current_item if processed else None,
+            )
+
+    checkpoint("LOADING_INPUTS", 0, 1, "market-and-universe")
     if persist and isinstance(db, Session):
         from app.services.configuration_delivery import current_delivery
         from app.services.entrypoint_authority import EntryPointAuthorityError
@@ -183,6 +197,7 @@ def build_sector_rotation_snapshot(
         if run_id is not None
         else []
     )
+    checkpoint("UNIVERSE_CONSTRUCTED", 1, 1, f"sectors:{len(universe_rows)}")
     etf_rows = etf_service.build(
         db=db, universe_rows=universe_rows, config=config, market_cutoff=market_cutoff
     )
@@ -205,6 +220,7 @@ def build_sector_rotation_snapshot(
     previous_rows = {
         key: frozen_sector_row(previous_snapshot, row) for key, row in previous_rows.items()
     }
+    checkpoint("INPUTS_LOADED", 1, 1, "market-universe-etf-prior")
 
     decisions = [
         policy_service.decide(
@@ -217,6 +233,7 @@ def build_sector_rotation_snapshot(
         for universe in universe_rows
     ]
     decisions = _rank_decisions(decisions)
+    checkpoint("SECTOR_AGGREGATION_COMPLETED", 1, 1, f"sectors:{len(decisions)}")
     summary = _summary(decisions, universe_rows)
     warnings = _snapshot_warnings(universe_rows, decisions)
     if market_snapshot is None:
@@ -351,8 +368,10 @@ def build_sector_rotation_snapshot(
                 policy=SECTOR_RANKING_COMPATIBILITY.name,
             ),
         )
+        checkpoint("SOURCE_MANIFEST_PREPARED", 1, 1, "native-input-envelope")
 
     if persist:
+        checkpoint("PERSISTENCE_STARTED", 0, 1, "sector-snapshot")
         snapshot_write = _to_snapshot_write(dto, config)
         object.__setattr__(
             snapshot_write, "_effective_configuration", effective_configuration.snapshot
@@ -372,13 +391,13 @@ def build_sector_rotation_snapshot(
                 evidence_sources["regime"] = selected_market
             if selected_previous is not None:
                 evidence_sources["prior_sector"] = selected_previous
-            repository.save_snapshot(
-                db,
-                snapshot_write,
-                evidence_sources=evidence_sources,
-            )
+            save_kwargs = {"evidence_sources": evidence_sources}
+            if checkpoint_callback is not None:
+                save_kwargs["checkpoint_callback"] = checkpoint_callback
+            repository.save_snapshot(db, snapshot_write, **save_kwargs)
         else:
             repository.save_snapshot(db, snapshot_write)
+        checkpoint("SNAPSHOT_STAGED", 1, 1, "sector-snapshot")
     return dto
 
 

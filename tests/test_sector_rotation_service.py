@@ -78,6 +78,35 @@ def test_build_snapshot_persist_false_does_not_save() -> None:
     assert dto.debug["persist_requested"] is False
 
 
+def test_sector_rotation_reports_meaningful_progress_boundaries() -> None:
+    repository = FakeSectorRepository()
+    service = _service(
+        universe_rows=[_metrics("Technology", score=8.0)],
+        repository=repository,
+    )
+    checkpoints = []
+
+    service.build_sector_rotation_snapshot(
+        object(),
+        run_id=7,
+        as_of_date=date(2026, 7, 28),
+        persist=True,
+        config=load_sector_rotation_config(),
+        checkpoint_callback=lambda **payload: checkpoints.append(payload),
+    )
+
+    phases = [checkpoint["phase"] for checkpoint in checkpoints]
+    assert phases == [
+        "LOADING_INPUTS",
+        "UNIVERSE_CONSTRUCTED",
+        "INPUTS_LOADED",
+        "SECTOR_AGGREGATION_COMPLETED",
+        "PERSISTENCE_STARTED",
+        "SNAPSHOT_STAGED",
+    ]
+    assert all(checkpoint["total"] >= checkpoint["processed"] for checkpoint in checkpoints)
+
+
 def test_build_snapshot_empty_run_returns_warning_and_empty_summary() -> None:
     repository = FakeSectorRepository()
     service = _service(universe_rows=[], repository=repository)

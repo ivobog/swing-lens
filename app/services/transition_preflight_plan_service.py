@@ -340,6 +340,7 @@ def verify_transition_decision_manifests_before_mutation(
     market_cutoff: MarketCalculationCutoff,
     built_rows,
     repository,
+    checkpoint_callback=None,
 ) -> None:
     """Compare post-upstream artifacts with the persisted handoff contract."""
 
@@ -362,6 +363,7 @@ def verify_transition_decision_manifests_before_mutation(
         built_rows=built_rows,
         repository=repository,
         tickers=expected_tickers,
+        checkpoint_callback=checkpoint_callback,
     )
     handoff = db.scalar(
         select(TransitionDecisionHandoffManifest)
@@ -382,6 +384,7 @@ def verify_transition_decision_manifests_before_mutation(
         market_cutoff=market_cutoff,
         ceri_market_cutoff=ceri_market_cutoff,
         built_rows=built_rows,
+        checkpoint_callback=checkpoint_callback,
     )
     observed_anchor = build_run_start_anchor_manifest(
         db,
@@ -411,6 +414,7 @@ def verify_transition_decision_manifests_before_mutation(
         ceri_market_cutoff=ceri_market_cutoff,
         built_rows=built_rows,
         decision_manifests=actual,
+        checkpoint_callback=checkpoint_callback,
     )
     observed_fingerprint = CanonicalEvidenceSerializer.fingerprint(observed)
     if (
@@ -443,8 +447,19 @@ def freeze_transition_decision_handoff_manifest(
     *,
     upload_run_id: int,
     market_cutoff: MarketCalculationCutoff,
+    checkpoint_callback=None,
 ) -> TransitionDecisionHandoffManifest | None:
     """Persist the actual decision inputs after upstream stages have committed."""
+
+    def checkpoint(phase: str, processed: int, total: int, current_item: str) -> None:
+        if checkpoint_callback is not None:
+            checkpoint_callback(
+                phase=phase,
+                processed=processed,
+                total=total,
+                current_item=current_item,
+                last_completed_item=current_item if processed else None,
+            )
 
     plan = db.scalar(
         select(TransitionPreflightPlan)
@@ -461,6 +476,7 @@ def freeze_transition_decision_handoff_manifest(
             upload_run_id=upload_run_id,
             market_cutoff=market_cutoff,
         )
+    checkpoint("PLAN_LOADED", 1, 1, f"plan:{plan.id}")
     if not plan.run_start_anchor_json or not plan.run_start_anchor_fingerprint:
         raise _rejection(
             plan,
@@ -483,11 +499,14 @@ def freeze_transition_decision_handoff_manifest(
         market_cutoff=market_cutoff,
         tickers=set(plan.tickers_json or ()),
     )
+    ticker_total = len(getattr(run_context, "tickers", ()) or plan.tickers_json or ())
+    checkpoint("RUN_CONTEXT_LOADED", ticker_total, ticker_total, "run-context")
     built_rows = build_run_context_snapshots(
         db,
         run_context,
         builder=SetupLifecycleSnapshotBuilder(),
         repository=repository,
+        checkpoint_callback=checkpoint_callback,
     )
     actual = reconstruct_transition_decision_manifests(
         db,
@@ -495,6 +514,7 @@ def freeze_transition_decision_handoff_manifest(
         built_rows=built_rows,
         repository=repository,
         tickers=set(plan.tickers_json or ()),
+        checkpoint_callback=checkpoint_callback,
     )
     if set(actual) != set(plan.tickers_json or ()):
         raise _rejection(
@@ -510,6 +530,7 @@ def freeze_transition_decision_handoff_manifest(
         market_cutoff=market_cutoff,
         ceri_market_cutoff=ceri_market_cutoff,
         built_rows=built_rows,
+        checkpoint_callback=checkpoint_callback,
     )
     observed_anchor = build_run_start_anchor_manifest(
         db,
@@ -530,6 +551,7 @@ def freeze_transition_decision_handoff_manifest(
             expected_fingerprint=plan.run_start_anchor_fingerprint,
             actual_fingerprint=observed_anchor_fingerprint,
         )
+    checkpoint("RUN_START_ANCHOR_VERIFIED", ticker_total, ticker_total, "run-start-anchor")
 
     payload = _build_decision_handoff_payload(
         db,
@@ -538,6 +560,7 @@ def freeze_transition_decision_handoff_manifest(
         ceri_market_cutoff=ceri_market_cutoff,
         built_rows=built_rows,
         decision_manifests=actual,
+        checkpoint_callback=checkpoint_callback,
     )
     fingerprint = CanonicalEvidenceSerializer.fingerprint(payload)
     existing = db.scalar(
@@ -555,6 +578,7 @@ def freeze_transition_decision_handoff_manifest(
                 expected_fingerprint=existing.manifest_fingerprint,
                 actual_fingerprint=fingerprint,
             )
+        checkpoint("MANIFEST_REUSED", ticker_total, ticker_total, f"manifest:{existing.id}")
         return existing
     manifest = TransitionDecisionHandoffManifest(
         preflight_plan_id=plan.id,
@@ -567,6 +591,7 @@ def freeze_transition_decision_handoff_manifest(
     )
     db.add(manifest)
     db.flush()
+    checkpoint("MANIFEST_STAGED", ticker_total, ticker_total, f"manifest:{manifest.id}")
     return manifest
 
 
@@ -725,14 +750,17 @@ def reconstruct_transition_decision_manifests(
     built_rows,
     repository,
     tickers: set[str] | None = None,
+    checkpoint_callback=None,
 ) -> dict[str, dict[str, object]]:
     """Reconstruct the exact manifest consumed by lifecycle persistence."""
 
     discovery = TransitionCandidateDiscoveryService(repository=repository)
     actual: dict[str, dict[str, object]] = {}
-    for ticker_context, built in built_rows:
-        if tickers is not None and ticker_context.ticker not in tickers:
-            continue
+    selected_rows = [
+        row for row in built_rows if tickers is None or row[0].ticker in tickers
+    ]
+    total = len(selected_rows)
+    for index, (ticker_context, built) in enumerate(selected_rows, start=1):
         latest_pointer, exact_pointer, latest_revision, exact_revision = discovery._pointers(
             db,
             ticker=built.dto.ticker,
@@ -772,6 +800,14 @@ def reconstruct_transition_decision_manifests(
             "decision_manifest": manifest.as_dict(),
             "decision_manifest_fingerprint": manifest.fingerprint,
         }
+        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+            checkpoint_callback(
+                phase="DECISION_MANIFESTS_RECONSTRUCTED",
+                processed=index,
+                total=total,
+                current_item=ticker_context.ticker,
+                last_completed_item=ticker_context.ticker,
+            )
     return actual
 
 
@@ -922,9 +958,11 @@ def _build_decision_handoff_payload(
     ceri_market_cutoff: MarketCalculationCutoff,
     built_rows,
     decision_manifests: dict[str, dict[str, object]],
+    checkpoint_callback=None,
 ) -> dict[str, Any]:
     artifacts: dict[str, Any] = {}
-    for context, built in built_rows:
+    total = len(built_rows)
+    for index, (context, built) in enumerate(built_rows, start=1):
         ticker = context.ticker
         artifacts[ticker] = {
             "raw_row": _artifact_identity(context.raw_row),
@@ -954,6 +992,14 @@ def _build_decision_handoff_payload(
             ],
             "setup_signal_input_hash": built.source_data_hash,
         }
+        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+            checkpoint_callback(
+                phase="ARTIFACT_LINEAGE_SERIALIZED",
+                processed=index,
+                total=total,
+                current_item=ticker,
+                last_completed_item=ticker,
+            )
     ceri_rows = list(
         db.scalars(
             eligible_snapshot_select(name="effective_handoff_dispositions")
@@ -1041,10 +1087,12 @@ def _validate_handoff_temporal_lineage(
     market_cutoff: MarketCalculationCutoff,
     ceri_market_cutoff: MarketCalculationCutoff | None = None,
     built_rows,
+    checkpoint_callback=None,
 ) -> None:
     ceri_cutoff = ceri_market_cutoff or market_cutoff
     failures: list[str] = []
-    for context, _built in built_rows:
+    total = len(built_rows)
+    for index, (context, _built) in enumerate(built_rows, start=1):
         ticker = context.ticker
         raw = context.raw_row
         fundamental = context.fundamental_score
@@ -1141,6 +1189,14 @@ def _validate_handoff_temporal_lineage(
                 cutoff_at=market_cutoff.cutoff_at,
             ):
                 failures.append(f"{ticker}:post_cutoff_bar")
+        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+            checkpoint_callback(
+                phase="TEMPORAL_LINEAGE_VALIDATED",
+                processed=index,
+                total=total,
+                current_item=ticker,
+                last_completed_item=ticker,
+            )
 
     ceri_rows = list(
         db.scalars(

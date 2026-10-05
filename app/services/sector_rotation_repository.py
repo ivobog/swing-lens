@@ -104,11 +104,18 @@ class SectorRotationRepository:
         dto: SectorRotationSnapshotWrite,
         *,
         evidence_sources: dict[str, Any] | None = None,
+        checkpoint_callback=None,
     ) -> SectorRotationSnapshot:
         evidence_hash = self.snapshot_evidence_hash(dto)
         snapshot = self._matching_snapshot(db, dto, evidence_hash)
         if snapshot is not None:
-            self._persist_evidence(db, snapshot, dto, evidence_sources=evidence_sources)
+            self._persist_evidence(
+                db,
+                snapshot,
+                dto,
+                evidence_sources=evidence_sources,
+                checkpoint_callback=checkpoint_callback,
+            )
             return snapshot
 
         previous = self._latest_logical_snapshot(db, dto)
@@ -140,6 +147,7 @@ class SectorRotationRepository:
             snapshot,
             dto,
             evidence_sources=evidence_sources,
+            checkpoint_callback=checkpoint_callback,
         )
         return snapshot
 
@@ -150,6 +158,7 @@ class SectorRotationRepository:
         dto: SectorRotationSnapshotWrite,
         *,
         evidence_sources: dict[str, Any] | None,
+        checkpoint_callback=None,
     ) -> None:
         if not isinstance(db, Session):
             return
@@ -188,7 +197,9 @@ class SectorRotationRepository:
                 sources=evidence_sources,
                 payload=payload,
                 effective_configuration=getattr(dto, "_effective_configuration", None),
+                checkpoint_callback=checkpoint_callback,
             ),
+            checkpoint_callback=checkpoint_callback,
         )
 
     @staticmethod

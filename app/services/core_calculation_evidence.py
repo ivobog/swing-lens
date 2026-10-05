@@ -73,6 +73,7 @@ def declare_core_evidence_mutation(
     payload: dict[str, Any] | None = None,
     calculation_identity: CalculationIdentity | None = None,
     effective_configuration: EffectiveConfigurationSnapshot | None = None,
+    checkpoint_callback=None,
 ) -> DomainMutationContext:
     """Native callers declare exact arguments; the writer revalidates storage."""
     identity = calculation_identity or calculation_identity_from_debug(
@@ -89,6 +90,8 @@ def declare_core_evidence_mutation(
             sources=sources or {},
             payload=payload or {},
             declaration_only=True,
+            checkpoint_callback=checkpoint_callback,
+            checkpoint_phase="DECLARATION_VALIDATION",
         )
     return declaration
 
@@ -106,6 +109,7 @@ def persist_core_evidence(
     calculation_identity: CalculationIdentity | None = None,
     effective_configuration: EffectiveConfigurationSnapshot | None = None,
     mutation_context: DomainMutationContext | None = None,
+    checkpoint_callback=None,
 ) -> CoreCalculationEvidence | None:
     """Persist/reuse immutable evidence and advance its independent current pointer.
 
@@ -176,6 +180,8 @@ def persist_core_evidence(
             configuration=effective_configuration,
             sources=source_rows,
             payload=payload or {},
+            checkpoint_callback=checkpoint_callback,
+            checkpoint_phase="PERSISTENCE_VALIDATION",
         )
         validate_core_mutation_authority(
             db,

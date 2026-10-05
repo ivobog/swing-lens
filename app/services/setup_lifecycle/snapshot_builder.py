@@ -862,6 +862,7 @@ def build_run_context_snapshots(
     repository: SetupLifecycleRepository,
     errors_by_ticker: dict[str, str] | None = None,
     technical_preview: bool = False,
+    checkpoint_callback=None,
 ) -> tuple[tuple[TickerSourceContext, BuiltSnapshot], ...]:
     """Build lifecycle inputs through the one production history/query contract."""
 
@@ -884,7 +885,8 @@ def build_run_context_snapshots(
         history_loader(db, cutoffs=cutoffs, limit=max_window) if history_loader is not None else {}
     )
     built_rows: list[tuple[TickerSourceContext, BuiltSnapshot]] = []
-    for ticker_context in run_context.tickers:
+    total = len(run_context.tickers)
+    for index, ticker_context in enumerate(run_context.tickers, start=1):
         try:
             build_kwargs = {
                 "history": tuple(
@@ -906,6 +908,14 @@ def build_run_context_snapshots(
             if errors_by_ticker is None:
                 raise
             errors_by_ticker[ticker_context.ticker] = str(exc)
+        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+            checkpoint_callback(
+                phase="SETUP_INPUTS_BUILT",
+                processed=index,
+                total=total,
+                current_item=ticker_context.ticker,
+                last_completed_item=ticker_context.ticker,
+            )
     return tuple(built_rows)
 
 
@@ -1022,12 +1032,22 @@ class SetupLifecycleSnapshotCaptureService:
                 verify_transition_decision_manifests_before_mutation,
             )
 
+            def verification_checkpoint(**progress) -> None:
+                if progress_callback is not None:
+                    progress_callback(
+                        progress.get("current_item") or "-",
+                        int(progress.get("processed") or 0),
+                        int(progress.get("total") or 0),
+                        phase=str(progress.get("phase") or "VERIFYING_HANDOFF"),
+                    )
+
             verify_transition_decision_manifests_before_mutation(
                 db,
                 upload_run_id=run_id,
                 market_cutoff=market_cutoff,
                 built_rows=built_rows,
                 repository=self.repository,
+                checkpoint_callback=verification_checkpoint,
             )
 
         if evaluation_run is None:

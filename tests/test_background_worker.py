@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
+import app.services.pipeline_executor as pipeline_executor
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus
 from app.services.background_worker import (
@@ -182,6 +183,18 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
             processed=10,
             total=25,
         )
+        lifecycle_progress = pipeline_executor._setup_evaluation_checkpoint_callback(
+            db,
+            should_cancel=should_cancel,
+            progress_callback=progress_callback,
+        )
+        lifecycle_progress(
+            phase="LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+            processed=25,
+            total=51,
+            current_item="MSFT",
+            last_completed_item="MSFT",
+        )
         assert should_cancel() is False
         return SimpleNamespace(status="COMPLETED")
 
@@ -193,14 +206,19 @@ def test_full_pipeline_control_callbacks_use_detached_job_on_independent_session
         db.close()
         engine.dispose()
 
-    assert len(heartbeats) == 4
+    assert len(heartbeats) == 6
     assert all(control_db is not db for control_db, _control_job in heartbeats)
     assert all(control_job is not job for _control_db, control_job in heartbeats)
     assert {control_job.id for _control_db, control_job in heartbeats} == {job.id}
     assert all(control_db is not db for control_db, _progress in progress_updates)
     assert progress_updates[1][1]["processed"] == 10
-    assert len(worker_heartbeats) == 2
-    assert len(control_heartbeats) == 2
+    assert progress_updates[2][1]["stage"] == "EVALUATING_SETUP_LIFECYCLES"
+    assert progress_updates[2][1]["processed"] == 25
+    assert progress_updates[2][1]["checkpoint_version"] == (
+        "setup-evaluation-v1:LIFECYCLE_EVALUATION_BATCH_COMPLETED:25"
+    )
+    assert len(worker_heartbeats) == 3
+    assert len(control_heartbeats) == 3
     assert all(control_db is not db for control_db, _worker_id in worker_heartbeats)
     assert all(control_db is not db for control_db, _worker_id in control_heartbeats)
 

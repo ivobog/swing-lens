@@ -243,6 +243,80 @@ def test_evaluation_service_cancellation_finalizes_run_as_cancelled() -> None:
     assert repository.completed[-1].current_phase == "cancelled"
 
 
+def test_evaluation_progress_is_multiphase_monotonic_and_output_neutral() -> None:
+    snapshot_ids = tuple(range(100, 151))
+
+    def build_service():
+        repository = FakeEvaluationRepository()
+        episodes = FakeEpisodeService(transitions=3)
+        service = SetupLifecycleEvaluationService(
+            repository=repository,
+            capture_service=FakeCaptureService(
+                SnapshotCaptureResult(
+                    evaluation_run_id=1,
+                    status=EvaluationStatus.COMPLETED.value,
+                    read=len(snapshot_ids),
+                    captured=len(snapshot_ids),
+                    snapshot_ids=snapshot_ids,
+                )
+            ),
+            canonicalizer=FakeCanonicalizer(
+                CanonicalizationResult(selected_snapshot_ids=snapshot_ids)
+            ),
+            change_detector=FakeChangeDetector(SignalChangeDetectionResult()),
+            episode_service=episodes,
+            alert_service=FakeAlertService(episode_alerts=1),
+            config=load_setup_lifecycle_config(),
+        )
+        return service, repository, episodes
+
+    baseline_service, baseline_repository, baseline_episodes = build_service()
+    baseline = baseline_service.evaluate_run(db=object(), run_id=7)
+
+    events: list[dict] = []
+
+    def progress(**event) -> None:
+        events.append({"sequence": len(events) + 1, **event})
+
+    observed_service, observed_repository, observed_episodes = build_service()
+    observed = observed_service.evaluate_run(
+        db=object(),
+        run_id=7,
+        progress_callback=progress,
+    )
+
+    assert observed.as_dict() == baseline.as_dict()
+    assert [event["sequence"] for event in events] == list(range(1, len(events) + 1))
+    phases = [event["phase"] for event in events]
+    assert phases == [
+        "INPUTS_LOADED",
+        "CANDIDATES_SELECTED",
+        "EVIDENCE_VALIDATION_BATCH_COMPLETED",
+        "EVIDENCE_VALIDATION_BATCH_COMPLETED",
+        "EVIDENCE_VALIDATION_BATCH_COMPLETED",
+        "EVIDENCE_AUTHORITY_VALIDATION_COMPLETED",
+        "CHANGE_DETECTION_COMPLETED",
+        "CHANGE_ALERT_EVALUATION_COMPLETED",
+        "LIFECYCLE_INPUTS_LOADED",
+        "LIFECYCLE_EVALUATION_STARTED",
+        "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+        "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+        "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+        "STATE_TRANSITION_EVALUATION_COMPLETED",
+        "PERSISTENCE_STARTED",
+        "PERSISTENCE_STAGED",
+    ]
+    assert [
+        event["processed"]
+        for event in events
+        if event["phase"] == "LIFECYCLE_EVALUATION_BATCH_COMPLETED"
+    ] == [25, 50, 51]
+    assert observed_episodes.applied_snapshot_ids == list(snapshot_ids)
+    assert baseline_episodes.applied_snapshot_ids == list(snapshot_ids)
+    assert len(observed_repository.created) == len(observed_repository.completed) == 1
+    assert len(baseline_repository.created) == len(baseline_repository.completed) == 1
+
+
 class FakeEvaluationRepository:
     def __init__(self) -> None:
         self.created = []
@@ -337,6 +411,7 @@ class FakeEpisodeService:
         self.transitions = transitions
         self.calls = 0
         self.prior_dates: list[list[date]] = []
+        self.applied_snapshot_ids: list[int] = []
 
     def apply_snapshot(
         self,
@@ -347,6 +422,7 @@ class FakeEpisodeService:
         prior_snapshots=(),
     ):
         self.calls += 1
+        self.applied_snapshot_ids.append(_snapshot.id)
         self.prior_dates.append([item.data_as_of_date for item in prior_snapshots])
         has_transition = self.calls <= self.transitions
         return type(

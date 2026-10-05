@@ -301,6 +301,97 @@ def test_resume_from_ceri_does_not_reexecute_completed_expensive_stages() -> Non
     )
 
 
+def test_resume_from_sector_does_not_reexecute_completed_upstream_stages() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    sector_index = next(
+        index for index, step in enumerate(db.steps) if step.step_name == "SECTOR_ROTATION_SNAPSHOT"
+    )
+    for step in db.steps[:sector_index]:
+        step.status = PipelineStepStatus.COMPLETED
+    db.steps[sector_index].status = PipelineStepStatus.INTERRUPTED
+    db.pipeline.status = PipelineStatus.QUEUED
+    db.pipeline.result_json.update(
+        {
+            "market_data_mode": "IB_GATEWAY",
+            "ranking_status": "COMPLETED",
+            "fundamental_scores": 1,
+            "technical_scores": 1,
+            "combined_results": 1,
+            "ranking_results": 5,
+            "ranking_profiles": 5,
+        }
+    )
+    calls: list[str] = []
+    progress: list[dict[str, object]] = []
+    dependencies = replace(
+        _dependencies(calls),
+        validate_sector_resume_checkpoint=lambda *_args, **_kwargs: {
+            "validated": True,
+            "resume_from_step": "SECTOR_ROTATION_SNAPSHOT",
+            "restored_result": dict(db.pipeline.result_json),
+        },
+    )
+
+    result = execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=dependencies,
+        resume_from_step="SECTOR_ROTATION_SNAPSHOT",
+        progress_callback=lambda _db, **values: progress.append(values),
+    )
+
+    assert calls == ["sector_rotation"]
+    assert result.status == PipelineStatus.COMPLETED
+    assert db.steps[sector_index].status == PipelineStepStatus.COMPLETED
+    assert db.steps[sector_index].retry_count == 1
+    assert all(step.retry_count == 0 for step in db.steps[:sector_index])
+    assert any(
+        item["stage"] == "SECTOR_ROTATION_SNAPSHOT"
+        and str(item["current_item"]).startswith("SNAPSHOT_COMMITTED:")
+        for item in progress
+    )
+
+
+def test_sector_resume_rejects_cross_run_source_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_cutoff = datetime(2026, 10, 2, 22, 0, tzinfo=UTC)
+    cutoff = SimpleNamespace(
+        context_id=17,
+        cutoff_at=expected_cutoff,
+        latest_completed_session=date(2026, 10, 2),
+    )
+
+    def dimension(value):
+        return SimpleNamespace(state=pipeline_executor.IdentityState.KNOWN, value=value)
+
+    wrong_identity = SimpleNamespace(
+        ownership=SimpleNamespace(run_id=dimension(999), pipeline_id=dimension(3)),
+        calculation_context=SimpleNamespace(
+            market_calculation_context_id=dimension(17)
+        ),
+        temporal=SimpleNamespace(
+            calculation_cutoff=dimension(expected_cutoff),
+            as_of_session=dimension(date(2026, 10, 2)),
+        ),
+    )
+    monkeypatch.setattr(
+        pipeline_executor.CalculationIdentity,
+        "from_canonical_payload",
+        lambda _payload: wrong_identity,
+    )
+
+    with pytest.raises(ValueError, match="run_id"):
+        pipeline_executor._require_sector_resume_source_authority(
+            SimpleNamespace(calculation_identity_json={}),
+            kind=pipeline_executor.CoreEvidenceKind.RANKING,
+            row=SimpleNamespace(id=91),
+            upload_run_id=7,
+            pipeline_run_id=3,
+            market_cutoff=cutoff,
+        )
+
+
 def test_resume_from_ceri_propagates_frozen_context_to_setup_evaluation() -> None:
     db = PipelineExecutorFakeDb(
         tickers=["MSFT"],
@@ -398,6 +489,7 @@ def test_post_ceri_continuation_runs_handoff_setup_and_winner_without_upstream_r
         }
     )
     calls: list[str] = []
+    progress: list[dict[str, object]] = []
     dependencies = replace(
         _dependencies(
             calls,
@@ -421,11 +513,87 @@ def test_post_ceri_continuation_runs_handoff_setup_and_winner_without_upstream_r
         pipeline_run_id=3,
         dependencies=dependencies,
         resume_from_step="FREEZING_DECISION_HANDOFF_MANIFEST",
+        progress_callback=lambda _db, **values: progress.append(values),
     )
 
     assert result.status == PipelineStatus.COMPLETED, db.pipeline.error_message
     assert calls == ["setup_capture", "setup_evaluate", "winner_capture"]
     assert db.pipeline.result_json["decision_handoff_manifest_id"] == 91
+    assert any(
+        item["stage"] == "FREEZING_DECISION_HANDOFF_MANIFEST"
+        and str(item["current_item"]).startswith("MANIFEST_COMMITTED:")
+        for item in progress
+    )
+
+
+def test_resume_from_setup_capture_skips_completed_tail_and_cache_fallback_winner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = PipelineExecutorFakeDb(
+        tickers=["MSFT"],
+        ceri_provider_ingest_enabled=True,
+        setup_lifecycle_enabled=True,
+    )
+    capture_index = next(
+        index
+        for index, step in enumerate(db.steps)
+        if step.step_name == "CAPTURING_SETUP_SIGNALS"
+    )
+    for step in db.steps[:capture_index]:
+        step.status = PipelineStepStatus.COMPLETED
+    db.pipeline.status = PipelineStatus.QUEUED
+    db.pipeline.current_step = "CAPTURING_SETUP_SIGNALS"
+    db.pipeline.result_json.update(
+        {
+            "market_data_mode": "CACHE_FALLBACK",
+            "fundamental_scores": 1,
+            "technical_scores": 1,
+            "combined_results": 1,
+            "ranking_results": 5,
+            "ranking_profiles": 5,
+            "ranking_status": "COMPLETED",
+            "ceri_completion_state": "CERTIFIED",
+            "ceri_provider_workflow_key": "ceri:pipeline:7:test",
+        }
+    )
+    monkeypatch.setattr(
+        pipeline_executor,
+        "_reusable_decision_handoff",
+        lambda *_args: {
+            "decision_handoff_manifest_id": 91,
+            "decision_handoff_manifest_hash": "handoff-hash",
+            "decision_handoff_reused": True,
+        },
+    )
+    calls: list[str] = []
+    dependencies = replace(
+        _dependencies(
+            calls,
+            setup_lifecycle_enabled=True,
+            setup_capture_result={"snapshots_captured": 1},
+            setup_evaluation_result={"canonical_snapshots": 1},
+            winner_capture_enabled=True,
+        ),
+        ceri_provider_ingest_enabled=True,
+        validate_resume_checkpoint=lambda *_args: {
+            "validated": True,
+            "technical_error_count": 1,
+        },
+    )
+
+    result = execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=dependencies,
+        resume_from_step="CAPTURING_SETUP_SIGNALS",
+    )
+
+    assert result.status == PipelineStatus.PARTIAL
+    assert calls == ["setup_capture", "setup_evaluate"]
+    assert db.pipeline.result_json["winner_prediction_capture_skip_reason"] == (
+        "CACHE_FALLBACK_MARKET_DATA"
+    )
+    assert all(step.retry_count == 0 for step in db.steps[:capture_index])
 
 
 def test_resume_preflight_schedules_repair_without_ceri_enqueue() -> None:
@@ -641,6 +809,102 @@ def test_execute_full_pipeline_propagates_winner_control_and_progress_contract()
     assert received["memory_probe"] is memory_probe
     assert received["market_cutoff"].cutoff_reason == "PIPELINE_TEST_SESSION_COMPATIBILITY"
     assert received["decision_handoff_manifest_id"] == 91
+
+
+def test_setup_evaluation_progress_is_adapted_to_job_progress_contract() -> None:
+    db = object()
+    forwarded: list[dict] = []
+    cancellations: list[int] = []
+
+    def should_cancel() -> bool:
+        cancellations.append(len(cancellations) + 1)
+        return False
+
+    def job_progress(progress_db, **progress) -> None:
+        assert progress_db is db
+        forwarded.append({"sequence": len(forwarded) + 1, **progress})
+
+    checkpoint = pipeline_executor._setup_evaluation_checkpoint_callback(
+        db,
+        should_cancel=should_cancel,
+        progress_callback=job_progress,
+    )
+    received: dict[str, object] = {}
+    expected = object()
+
+    def evaluate(
+        _db,
+        _run_id,
+        *,
+        market_cutoff,
+        pipeline_run_id,
+        progress_callback,
+    ):
+        received.update(
+            market_cutoff=market_cutoff,
+            pipeline_run_id=pipeline_run_id,
+            progress_callback=progress_callback,
+        )
+        progress_callback(
+            phase="LIFECYCLE_INPUTS_LOADED",
+            processed=51,
+            total=51,
+            current_item="inputs",
+            last_completed_item="inputs",
+        )
+        progress_callback(
+            phase="LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+            processed=25,
+            total=51,
+            current_item="MSFT",
+            last_completed_item="MSFT",
+        )
+        progress_callback(
+            phase="LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+            processed=51,
+            total=51,
+            current_item="NVDA",
+            last_completed_item="NVDA",
+        )
+        return expected
+
+    cutoff = SimpleNamespace(context_id=41)
+    actual = pipeline_executor._invoke_setup_evaluation(
+        evaluate,
+        db,
+        24,
+        capture_result=None,
+        market_cutoff=cutoff,
+        pipeline_run_id=24,
+        progress_callback=checkpoint,
+    )
+
+    assert actual is expected
+    assert received == {
+        "market_cutoff": cutoff,
+        "pipeline_run_id": 24,
+        "progress_callback": checkpoint,
+    }
+    assert [event["sequence"] for event in forwarded] == [1, 2, 3]
+    assert [event["stage"] for event in forwarded] == [
+        "EVALUATING_SETUP_LIFECYCLES",
+        "EVALUATING_SETUP_LIFECYCLES",
+        "EVALUATING_SETUP_LIFECYCLES",
+    ]
+    assert [event["processed"] for event in forwarded] == [51, 25, 51]
+    assert [event["checkpoint_version"] for event in forwarded] == [
+        "setup-evaluation-v1:LIFECYCLE_INPUTS_LOADED:51",
+        "setup-evaluation-v1:LIFECYCLE_EVALUATION_BATCH_COMPLETED:25",
+        "setup-evaluation-v1:LIFECYCLE_EVALUATION_BATCH_COMPLETED:51",
+    ]
+    assert forwarded[-1]["operational_metadata_patch"] == {
+        "setup_lifecycle_evaluation_progress": {
+            "phase": "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+            "processed": 51,
+            "total": 51,
+        }
+    }
+    assert cancellations == [1, 2, 3]
 
 
 def test_replay_interrupts_stale_running_step_and_preserves_attempt_history() -> None:
@@ -1304,6 +1568,73 @@ def test_allow_cache_fallback_persists_degraded_metadata_and_skips_winner_captur
     assert audit["latest_expected_market_session"] == "2026-08-14"
     assert audit["actual_latest_data_session"] == "2026-08-14"
     assert audit["winner_prediction_capture_skip_reason"] == "CACHE_FALLBACK_MARKET_DATA"
+
+
+def test_resume_normalizes_only_exact_cache_fallback_serving_diagnostics() -> None:
+    evidence_payload = {
+        "ticker": "MSFT",
+        "technical_confidence": "high",
+        "data_quality_score": "10",
+        "warning_flags_json": [],
+        "missing_data_json": {"row_count": 300},
+    }
+    projection = {
+        **evidence_payload,
+        "technical_confidence": "low",
+        "data_quality_score": "6",
+        "warning_flags_json": ["cache_fallback_market_data"],
+        "missing_data_json": {
+            "row_count": 300,
+            "market_data": {
+                "mode": "CACHE_FALLBACK",
+                "ib_api_available": False,
+                "expected_latest_session": "2026-10-02",
+                "actual_latest_session": "2026-09-30",
+            },
+        },
+    }
+
+    pipeline_executor._normalize_allowed_resume_projection_diagnostics(
+        kind=pipeline_executor.CoreEvidenceKind.TECHNICAL,
+        projection=projection,
+        evidence_payload=evidence_payload,
+    )
+
+    assert projection == evidence_payload
+
+
+def test_resume_cache_fallback_normalization_rejects_extra_diagnostic_mutation() -> None:
+    evidence_payload = {
+        "ticker": "MSFT",
+        "technical_confidence": "high",
+        "data_quality_score": "10",
+        "warning_flags_json": [],
+        "missing_data_json": {"row_count": 300},
+    }
+    projection = {
+        **evidence_payload,
+        "technical_confidence": "low",
+        "data_quality_score": "5",
+        "warning_flags_json": ["cache_fallback_market_data"],
+        "missing_data_json": {
+            "row_count": 299,
+            "market_data": {
+                "mode": "CACHE_FALLBACK",
+                "ib_api_available": False,
+                "expected_latest_session": "2026-10-02",
+                "actual_latest_session": "2026-09-30",
+            },
+        },
+    }
+
+    pipeline_executor._normalize_allowed_resume_projection_diagnostics(
+        kind=pipeline_executor.CoreEvidenceKind.TECHNICAL,
+        projection=projection,
+        evidence_payload=evidence_payload,
+    )
+
+    assert projection["data_quality_score"] == "5"
+    assert projection["missing_data_json"]["row_count"] == 299
 
 
 def test_execute_full_pipeline_commits_stage_before_detached_lease_checkpoint() -> None:
