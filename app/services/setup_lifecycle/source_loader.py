@@ -39,7 +39,10 @@ from app.services.market_calculation_context_service import (
 from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.services.market_regime_policy import load_market_regime_command_center_config
 from app.services.operational_metrics import operational_metrics
-from app.services.price_bar_repository import project_price_bar_rows_as_of
+from app.services.price_bar_repository import (
+    load_price_bar_rows_for_context,
+    project_price_bar_rows_as_of,
+)
 from app.services.sector_rotation_config import (
     load_sector_rotation_config,
     sector_rotation_config_hash,
@@ -138,7 +141,11 @@ class SetupLifecycleSourceLoader:
         )
         source_cutoff = market_cutoff.latest_completed_session
         price_bars = self._load_price_bars(
-            db, tickers, cutoff=source_cutoff, cutoff_at=market_cutoff.cutoff_at
+            db,
+            tickers,
+            cutoff=source_cutoff,
+            cutoff_at=market_cutoff.cutoff_at,
+            calculation_context_id=market_cutoff.context_id,
         )
         operational_metrics.increment(
             "swinglens_setup_price_rows_materialized_total",
@@ -355,6 +362,7 @@ class SetupLifecycleSourceLoader:
         *,
         cutoff: date,
         cutoff_at: datetime | None = None,
+        calculation_context_id: int | None = None,
     ) -> tuple[PriceBar, ...]:
         if not tickers:
             self.last_metrics["setup_latest_bar_query_ms"] = 0.0
@@ -364,31 +372,67 @@ class SetupLifecycleSourceLoader:
         legacy_price_bars: tuple[PriceBar, ...] | None = None
         projected_price_bars: tuple[PriceBar, ...] | None = None
 
+        authoritative_context = (
+            isinstance(db, Session)
+            and cutoff_at is not None
+            and calculation_context_id is not None
+        )
         if self.latest_bar_projection_enabled or self.shadow_compare_enabled:
-            projected_price_bars = tuple(
-                db.scalars(
-                    _latest_price_bar_history_statement(
+            if authoritative_context:
+                projected_price_bars = tuple(
+                    load_price_bar_rows_for_context(
+                        db,
                         tickers,
-                        cutoff=cutoff,
-                        cutoff_at=cutoff_at,
+                        what_to_show=PRICE_BAR_SOURCE_ORDER,
+                        timeframes=DAILY_PRICE_TIMEFRAMES,
+                        max_session=cutoff,
+                        as_of=cutoff_at,
+                        calculation_context_id=calculation_context_id,
                         session_count=2,
+                        one_source_per_session=True,
+                        source_priority=PRICE_BAR_SOURCE_ORDER,
                     )
                 )
-            )
-            if cutoff_at is not None:
+            else:
                 projected_price_bars = tuple(
-                    project_price_bar_rows_as_of(db, projected_price_bars, as_of=cutoff_at)
+                    db.scalars(
+                        _latest_price_bar_history_statement(
+                            tickers,
+                            cutoff=cutoff,
+                            cutoff_at=cutoff_at,
+                            session_count=2,
+                        )
+                    )
                 )
+                if cutoff_at is not None:
+                    projected_price_bars = tuple(
+                        project_price_bar_rows_as_of(db, projected_price_bars, as_of=cutoff_at)
+                    )
         if not self.latest_bar_projection_enabled or self.shadow_compare_enabled:
-            legacy_price_bars = tuple(
-                db.scalars(
-                    _legacy_price_bars_statement(tickers, cutoff=cutoff, cutoff_at=cutoff_at)
-                )
-            )
-            if cutoff_at is not None:
+            if authoritative_context:
                 legacy_price_bars = tuple(
-                    project_price_bar_rows_as_of(db, legacy_price_bars, as_of=cutoff_at)
+                    load_price_bar_rows_for_context(
+                        db,
+                        tickers,
+                        what_to_show=PRICE_BAR_SOURCE_ORDER,
+                        timeframes=DAILY_PRICE_TIMEFRAMES,
+                        max_session=cutoff,
+                        as_of=cutoff_at,
+                        calculation_context_id=calculation_context_id,
+                    )
                 )
+            else:
+                legacy_price_bars = tuple(
+                    db.scalars(
+                        _legacy_price_bars_statement(
+                            tickers, cutoff=cutoff, cutoff_at=cutoff_at
+                        )
+                    )
+                )
+                if cutoff_at is not None:
+                    legacy_price_bars = tuple(
+                        project_price_bar_rows_as_of(db, legacy_price_bars, as_of=cutoff_at)
+                    )
 
         if self.shadow_compare_enabled:
             assert legacy_price_bars is not None

@@ -23,13 +23,19 @@ from app.models.tables import (
 )
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.evidence_eligibility import eligible_snapshot_select
-from app.services.ceri.pit_eligibility import price_bar_is_eligible
+from app.services.decision_handoff_contract import (
+    REQUIRED_HANDOFF_CONTEXT_ARTIFACTS,
+    RequiredHandoffArtifactError,
+    handoff_artifact_identity,
+    validate_required_handoff_context_artifact,
+)
 from app.services.market_calculation_context_service import (
     attach_reserved_market_context,
     cutoff_from_row,
     reserve_preflight_market_context,
 )
 from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.price_bar_repository import invalid_price_bar_rows_for_context
 from app.services.setup_lifecycle.decision_manifest import (
     build_transition_decision_manifest,
     candidate_type_for,
@@ -964,6 +970,18 @@ def _build_decision_handoff_payload(
     total = len(built_rows)
     for index, (context, built) in enumerate(built_rows, start=1):
         ticker = context.ticker
+        for definition in REQUIRED_HANDOFF_CONTEXT_ARTIFACTS:
+            validate_required_handoff_context_artifact(
+                getattr(context, definition.key),
+                definition=definition,
+                ticker=ticker,
+                upload_run_id=plan.upload_run_id,
+                pipeline_run_id=plan.pipeline_run_id,
+                calculation_context_id=market_cutoff.context_id,
+                cutoff_at=market_cutoff.cutoff_at,
+                input_as_of_session=market_cutoff.latest_completed_session,
+                calendar_version=market_cutoff.calendar_version,
+            )
         artifacts[ticker] = {
             "raw_row": _artifact_identity(context.raw_row),
             "fundamental_score": _artifact_identity(context.fundamental_score),
@@ -1091,6 +1109,9 @@ def _validate_handoff_temporal_lineage(
 ) -> None:
     ceri_cutoff = ceri_market_cutoff or market_cutoff
     failures: list[str] = []
+    price_bars = []
+    calculation_context = db.get(MarketCalculationContext, market_cutoff.context_id)
+    pipeline_run_id = getattr(calculation_context, "pipeline_run_id", None)
     total = len(built_rows)
     for index, (context, _built) in enumerate(built_rows, start=1):
         ticker = context.ticker
@@ -1169,26 +1190,29 @@ def _validate_handoff_temporal_lineage(
                 or ranking.raw_row_id != raw.id
             ):
                 failures.append(f"{ticker}:ranking_sources")
-        if market is not None and not _temporal_artifact_matches(
-            market, market_cutoff, upload_run_id
-        ):
-            failures.append(f"{ticker}:market_regime_cutoff")
-        if sector is not None:
-            if not _temporal_artifact_matches(sector, market_cutoff, upload_run_id):
-                failures.append(f"{ticker}:sector_cutoff")
-            if market is not None and sector.market_regime_snapshot_id != market.id:
+        for definition in REQUIRED_HANDOFF_CONTEXT_ARTIFACTS:
+            try:
+                validate_required_handoff_context_artifact(
+                    getattr(context, definition.key),
+                    definition=definition,
+                    ticker=ticker,
+                    upload_run_id=upload_run_id,
+                    pipeline_run_id=pipeline_run_id,
+                    calculation_context_id=market_cutoff.context_id,
+                    cutoff_at=market_cutoff.cutoff_at,
+                    input_as_of_session=market_cutoff.latest_completed_session,
+                    calendar_version=market_cutoff.calendar_version,
+                )
+            except RequiredHandoffArtifactError as exc:
+                failures.append(str(exc))
+        if sector is not None and market is not None:
+            if sector.market_regime_snapshot_id != market.id:
                 failures.append(f"{ticker}:sector_market_parent")
         if context.sector_rotation_row is not None and (
             sector is None or context.sector_rotation_row.snapshot_id != sector.id
         ):
             failures.append(f"{ticker}:sector_row_parent")
-        for bar in context.price_bars:
-            if not price_bar_is_eligible(
-                bar,
-                latest_completed_session=market_cutoff.latest_completed_session,
-                cutoff_at=market_cutoff.cutoff_at,
-            ):
-                failures.append(f"{ticker}:post_cutoff_bar")
+        price_bars.extend(context.price_bars)
         if checkpoint_callback is not None and (index % 25 == 0 or index == total):
             checkpoint_callback(
                 phase="TEMPORAL_LINEAGE_VALIDATED",
@@ -1197,6 +1221,15 @@ def _validate_handoff_temporal_lineage(
                 current_item=ticker,
                 last_completed_item=ticker,
             )
+
+    for bar in invalid_price_bar_rows_for_context(
+        db,
+        price_bars,
+        max_session=market_cutoff.latest_completed_session,
+        as_of=market_cutoff.cutoff_at,
+        calculation_context_id=market_cutoff.context_id,
+    ):
+        failures.append(f"{bar.ticker.upper()}:post_cutoff_bar")
 
     ceri_rows = list(
         db.scalars(
@@ -1271,13 +1304,7 @@ def _semantic_model_payload(row: Any) -> dict[str, Any]:
 
 
 def _artifact_identity(row: Any | None) -> dict[str, Any] | None:
-    if row is None:
-        return None
-    payload = _semantic_model_payload(row)
-    return {
-        "id": getattr(row, "id", None),
-        "semantic_hash": CanonicalEvidenceSerializer.fingerprint(payload),
-    }
+    return handoff_artifact_identity(row)
 
 
 def _collect_source_ids(value: Any, target: set[int], *, key: str | None = None) -> None:

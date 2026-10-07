@@ -929,6 +929,32 @@ def test_handoff_rejects_later_market_bar(
             input_as_of_session=date(2026, 9, 8),
             calendar_version=cutoff.calendar_version,
         )
+        market = MarketRegimeSnapshot(
+            id=502,
+            run_id=run_id,
+            as_of_date=cutoff.latest_completed_session,
+            calculation_context_id=context_row.id,
+            calculation_cutoff_at=CUTOFF,
+            input_as_of_session=cutoff.latest_completed_session,
+            calendar_version=cutoff.calendar_version,
+            calculation_version="test",
+            regime="NEUTRAL",
+            risk_state="NORMAL",
+            score=0,
+            action_summary="test",
+        )
+        sector = SectorRotationSnapshot(
+            id=503,
+            run_id=run_id,
+            market_regime_snapshot_id=market.id,
+            as_of_date=cutoff.latest_completed_session,
+            calculation_context_id=context_row.id,
+            calculation_cutoff_at=CUTOFF,
+            input_as_of_session=cutoff.latest_completed_session,
+            calendar_version=cutoff.calendar_version,
+            calculation_version="test",
+            mode="test",
+        )
         later_bar = PriceBar(
             id=601,
             ticker="MSFT",
@@ -936,6 +962,7 @@ def test_handoff_rejects_later_market_bar(
             timeframe="1 day",
             source="IB",
             what_to_show="TRADES",
+            created_at=CUTOFF,
             first_seen_at=CUTOFF,
             last_seen_at=CUTOFF,
             revision_count=1,
@@ -944,6 +971,8 @@ def test_handoff_rejects_later_market_bar(
         source_context = TickerSourceContext(
             raw_row=raw,
             technical_score=technical,
+            market_regime_snapshot=market,
+            sector_rotation_snapshot=sector,
             price_bars=(later_bar,),
             market_cutoff=cutoff,
         )

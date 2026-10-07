@@ -40,6 +40,7 @@ from app.services.core_calculation_evidence import (
     EvidenceUnavailableError,
     calculation_evidence_payload,
 )
+from app.services.decision_handoff_contract import REQUIRED_HANDOFF_CONTEXT_ARTIFACTS
 from app.services.historical_read_service import (
     HistoricalReadError,
     ReadMode,
@@ -693,10 +694,15 @@ def test_resume_evidence_guards_reject_legacy_and_changed_current_rows(
 
 
 def test_resume_uses_manifest_context_evidence_after_current_revision_advances() -> None:
+    cutoff_at = datetime(2026, 9, 1, tzinfo=UTC)
     frozen = MarketRegimeSnapshot(
         id=801,
         run_id=44,
         evidence_id=802,
+        calculation_context_id=803,
+        calculation_cutoff_at=cutoff_at,
+        input_as_of_session=date(2026, 8, 31),
+        calendar_version="test-v1",
         is_current_revision=True,
         superseded_by_snapshot_id=None,
         superseded_at=None,
@@ -725,13 +731,65 @@ def test_resume_uses_manifest_context_evidence_after_current_revision_advances()
     assert (
         _require_frozen_context_evidence(
             _ObjectDb([frozen, evidence]),
-            kind=CoreEvidenceKind.REGIME,
-            model=MarketRegimeSnapshot,
+            definition=REQUIRED_HANDOFF_CONTEXT_ARTIFACTS[0],
             expected=expected,
-            label="ACME:market_regime_snapshot",
+            ticker="ACME",
+            pipeline=SimpleNamespace(id=804, upload_run_id=44),
+            market_context=SimpleNamespace(
+                id=803,
+                cutoff_at=cutoff_at,
+                latest_completed_session=date(2026, 8, 31),
+                calendar_version="test-v1",
+            ),
         )
         == evidence.id
     )
+
+
+@pytest.mark.parametrize(
+    ("expected", "rows", "reason"),
+    (
+        (None, [], "required_reference_absent"),
+        (
+            {"id": 901, "semantic_hash": "a" * 64},
+            [],
+            "referenced_database_row_unavailable",
+        ),
+        (
+            {"id": 901, "semantic_hash": "b" * 64},
+            [
+                MarketRegimeSnapshot(
+                    id=901,
+                    run_id=44,
+                    calculation_context_id=803,
+                    calculation_cutoff_at=datetime(2026, 9, 1, tzinfo=UTC),
+                    input_as_of_session=date(2026, 8, 31),
+                    calendar_version="test-v1",
+                )
+            ],
+            "artifact_identity_invalid",
+        ),
+    ),
+)
+def test_resume_context_diagnostics_distinguish_manifest_database_and_identity_failures(
+    expected,
+    rows,
+    reason,
+) -> None:
+    with pytest.raises(ValueError, match=reason):
+        _require_frozen_context_evidence(
+            _ObjectDb(rows),
+            definition=REQUIRED_HANDOFF_CONTEXT_ARTIFACTS[0],
+            expected=expected,
+            ticker="ACME",
+            pipeline=SimpleNamespace(id=804, upload_run_id=44),
+            market_context=SimpleNamespace(
+                id=803,
+                cutoff_at=datetime(2026, 9, 1, tzinfo=UTC),
+                latest_completed_session=date(2026, 8, 31),
+                calendar_version="test-v1",
+            ),
+        )
 
 
 def _evidence(

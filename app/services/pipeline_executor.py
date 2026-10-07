@@ -18,6 +18,7 @@ from app.models.tables import (
     CoreCalculationEvidence,
     FundamentalScore,
     IBFetchRun,
+    MarketCalculationContext,
     MarketRegimeSnapshot,
     PipelineRun,
     PipelineStep,
@@ -48,6 +49,12 @@ from app.services.core_calculation_evidence import (
     EvidenceUnavailableError,
     calculation_evidence_payload,
     get_certified_evidence_for_row,
+)
+from app.services.decision_handoff_contract import (
+    REQUIRED_HANDOFF_CONTEXT_ARTIFACTS,
+    RequiredHandoffArtifactError,
+    RequiredHandoffContextArtifact,
+    validate_required_handoff_context_artifact,
 )
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
@@ -1963,6 +1970,17 @@ def _validate_resume_evidence(
         or market_context.get("id") != handoff.market_calculation_context_id
     ):
         raise ValueError("HISTORICAL_EVIDENCE_UNAVAILABLE: resume handoff ownership mismatch")
+    frozen_context = db.get(MarketCalculationContext, handoff.market_calculation_context_id)
+    if (
+        frozen_context is None
+        or frozen_context.upload_run_id != upload_run_id
+        or frozen_context.pipeline_run_id != pipeline.id
+    ):
+        raise ValueError(
+            "HISTORICAL_EVIDENCE_UNAVAILABLE: resume market context unavailable or "
+            f"misowned upload_run_id={upload_run_id} pipeline_run_id={pipeline.id} "
+            f"context_id={handoff.market_calculation_context_id}"
+        )
 
     raw_rows = list(
         db.scalars(
@@ -2006,17 +2024,15 @@ def _validate_resume_evidence(
             certified_ids.add(
                 _require_unchanged_core_evidence(db, kind=CoreEvidenceKind.RANKING, row=ranking)
             )
-        for label, kind, model in (
-            ("market_regime_snapshot", CoreEvidenceKind.REGIME, MarketRegimeSnapshot),
-            ("sector_rotation_snapshot", CoreEvidenceKind.SECTOR, SectorRotationSnapshot),
-        ):
+        for definition in REQUIRED_HANDOFF_CONTEXT_ARTIFACTS:
             certified_ids.add(
                 _require_frozen_context_evidence(
                     db,
-                    kind=kind,
-                    model=model,
-                    expected=expected.get(label),
-                    label=f"{ticker}:{label}",
+                    definition=definition,
+                    expected=expected.get(definition.key),
+                    ticker=ticker,
+                    pipeline=pipeline,
+                    market_context=frozen_context,
                 )
             )
         if checkpoint_callback is not None and (index % 5 == 0 or index == total):
@@ -2079,39 +2095,49 @@ def _require_certified_pointer(db: Session, *, kind: CoreEvidenceKind, row: Any)
 def _require_frozen_context_evidence(
     db: Session,
     *,
-    kind: CoreEvidenceKind,
-    model: type,
+    definition: RequiredHandoffContextArtifact,
     expected: Any,
-    label: str,
+    ticker: str,
+    pipeline: PipelineRun,
+    market_context: MarketCalculationContext,
 ) -> int:
     """Resolve the manifest-addressed context row, never a newer current revision."""
 
-    if not isinstance(expected, dict) or not isinstance(expected.get("id"), int):
-        raise ValueError(f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume artifact missing {label}")
-    row = db.get(model, int(expected["id"]))
-    if row is None:
-        raise ValueError(f"HISTORICAL_EVIDENCE_UNAVAILABLE: resume artifact missing {label}")
     try:
-        _require_manifest_artifact(row, expected, label=label)
-    except ValueError:
-        # Advancing a context revision only changes these selection fields on the
-        # frozen row.  Prove that exact mutation before accepting its immutable
-        # evidence pointer; any decision-field mutation still fails closed.
-        payload = {
-            column.name: getattr(row, column.name, None)
-            for column in row.__table__.columns
-            if column.name not in {"created_at", "updated_at", "last_seen_at", "calculated_at"}
-        }
-        payload.update(
-            {
-                "is_current_revision": True,
-                "superseded_by_snapshot_id": None,
-                "superseded_at": None,
-            }
+        if (
+            not isinstance(expected, dict)
+            or not isinstance(expected.get("id"), int)
+            or not isinstance(expected.get("semantic_hash"), str)
+        ):
+            validate_required_handoff_context_artifact(
+                None,
+                definition=definition,
+                ticker=ticker,
+                upload_run_id=pipeline.upload_run_id,
+                pipeline_run_id=pipeline.id,
+                calculation_context_id=market_context.id,
+                cutoff_at=market_context.cutoff_at,
+                input_as_of_session=market_context.latest_completed_session,
+                calendar_version=market_context.calendar_version,
+                expected_identity=expected,
+            )
+        row = db.get(definition.model, int(expected["id"]))
+        validate_required_handoff_context_artifact(
+            row,
+            definition=definition,
+            ticker=ticker,
+            upload_run_id=pipeline.upload_run_id,
+            pipeline_run_id=pipeline.id,
+            calculation_context_id=market_context.id,
+            cutoff_at=market_context.cutoff_at,
+            input_as_of_session=market_context.latest_completed_session,
+            calendar_version=market_context.calendar_version,
+            expected_identity=expected,
+            allow_current_revision_transition=True,
         )
-        if CanonicalEvidenceSerializer.fingerprint(payload) != expected.get("semantic_hash"):
-            raise
-    return _require_certified_pointer(db, kind=kind, row=row)
+    except RequiredHandoffArtifactError as exc:
+        raise ValueError(f"HISTORICAL_EVIDENCE_UNAVAILABLE: {exc}") from exc
+    return _require_certified_pointer(db, kind=definition.kind, row=row)
 
 
 def _require_unchanged_core_evidence(

@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pandas as pd
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -169,16 +169,27 @@ def project_price_bar_rows_as_of(
     back accidentally.
     """
 
-    materialized = list(rows)
+    return _project_price_bar_rows_at_boundaries(
+        db,
+        [(row, as_of) for row in rows],
+    )
+
+
+def _project_price_bar_rows_at_boundaries(
+    db: Session,
+    rows: list[tuple[PriceBar, datetime]],
+) -> list[PriceBar]:
+    """Project many rows at individual visibility boundaries with one revision query."""
+
     revised_ids = [
         int(row.id)
-        for row in materialized
+        for row, boundary in rows
         if row.id is not None
         and row.revised_at is not None
-        and _as_utc(row.revised_at) > _as_utc(as_of)
+        and _as_utc(row.revised_at) > _as_utc(boundary)
     ]
     if not revised_ids:
-        return materialized
+        return [row for row, _boundary in rows]
     revisions = list(
         db.scalars(
             select(PriceBarRevision)
@@ -195,9 +206,9 @@ def project_price_bar_rows_as_of(
         by_bar.setdefault(int(revision.price_bar_id), []).append(revision)
 
     projected: list[PriceBar] = []
-    for row in materialized:
+    for row, boundary in rows:
         history = by_bar.get(int(row.id or 0), [])
-        normalized_as_of = _as_utc(as_of)
+        normalized_as_of = _as_utc(boundary)
         first_after = next(
             (item for item in history if _as_utc(item.observed_at) > normalized_as_of),
             None,
@@ -237,7 +248,7 @@ def project_price_bar_rows_as_of(
         )
         # The source mutation guard replays this projection from retained SQL
         # before accepting it as a historical source argument.
-        historical._pit_projection_as_of = as_of
+        historical._pit_projection_as_of = boundary
         historical._pit_projection_revision_id = first_after.id
         projected.append(historical)
     return projected
@@ -249,6 +260,166 @@ def _decimal_or_none(value: object) -> Decimal | None:
 
 def _as_utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def load_price_bar_rows_for_context(
+    db: Session,
+    tickers: tuple[str, ...],
+    *,
+    what_to_show: tuple[str, ...],
+    timeframes: tuple[str, ...],
+    max_session: date,
+    as_of: datetime,
+    calculation_context_id: int,
+    session_count: int | None = None,
+    one_source_per_session: bool = False,
+    source_priority: tuple[str, ...] = (),
+) -> list[PriceBar]:
+    """Load a batched PIT bar view including only this pipeline's authorized acquisition.
+
+    Ordinary cache rows remain bounded by ``as_of``. Rows first acquired after that
+    boundary are admitted only when their immutable fetch addresses belong to the
+    calculation context's exact acquisition, and are projected at that fetch item's
+    completion time. Revision reconstruction is batched across all requested tickers.
+    """
+
+    normalized_tickers = tuple(sorted({ticker.strip().upper() for ticker in tickers if ticker}))
+    normalized_sources = tuple(dict.fromkeys(what_to_show))
+    normalized_timeframes = tuple(dict.fromkeys(timeframes))
+    if not normalized_tickers or not normalized_sources or not normalized_timeframes:
+        return []
+
+    visibilities = _pipeline_acquisition_visibilities(
+        db,
+        calculation_context_id=calculation_context_id,
+        tickers=normalized_tickers,
+        what_to_show=normalized_sources,
+        timeframes=normalized_timeframes,
+    )
+    owned_pairs = {
+        (visibility.fetch_run_id, visibility.fetch_item_id)
+        for visibility in visibilities.values()
+        if visibility is not None
+    }
+    pit_visible = and_(PriceBar.created_at <= as_of, PriceBar.first_seen_at <= as_of)
+    visibility_predicate = pit_visible
+    if owned_pairs:
+        visibility_predicate = or_(
+            pit_visible,
+            tuple_(PriceBar.first_fetch_run_id, PriceBar.first_fetch_item_id).in_(owned_pairs),
+        )
+    rows = list(
+        db.scalars(
+            select(PriceBar)
+            .where(
+                PriceBar.ticker.in_(normalized_tickers),
+                PriceBar.what_to_show.in_(normalized_sources),
+                PriceBar.timeframe.in_(normalized_timeframes),
+                PriceBar.bar_date <= max_session,
+                PriceBar.close.is_not(None),
+                visibility_predicate,
+            )
+            .order_by(PriceBar.ticker, PriceBar.bar_date, PriceBar.id)
+        )
+    )
+
+    bounded: list[tuple[PriceBar, datetime]] = []
+    for row in rows:
+        boundary = _price_bar_visibility_boundary(row, as_of=as_of, visibilities=visibilities)
+        if boundary is not None:
+            bounded.append((row, boundary))
+    projected = _project_price_bar_rows_at_boundaries(db, bounded)
+    if session_count is None and not one_source_per_session:
+        return projected
+
+    safe_count = max(1, min(int(session_count or 1), 10))
+    priority = {source: index for index, source in enumerate(source_priority)}
+    grouped: dict[str, dict[date, list[PriceBar]]] = {}
+    for row in projected:
+        grouped.setdefault(row.ticker.upper(), {}).setdefault(row.bar_date, []).append(row)
+
+    selected: list[PriceBar] = []
+    for ticker in sorted(grouped):
+        sessions = sorted(grouped[ticker], reverse=True)[:safe_count]
+        for session in sessions:
+            candidates = grouped[ticker][session]
+            if one_source_per_session:
+                selected.append(
+                    min(
+                        candidates,
+                        key=lambda row: (
+                            priority.get(row.what_to_show, len(priority)),
+                            -(row.id or 0),
+                        ),
+                    )
+                )
+            else:
+                selected.extend(candidates)
+    selected.sort(key=lambda row: (row.ticker, row.bar_date, row.id or 0))
+    return selected
+
+
+def invalid_price_bar_rows_for_context(
+    db: Session,
+    rows: list[PriceBar] | tuple[PriceBar, ...],
+    *,
+    max_session: date,
+    as_of: datetime,
+    calculation_context_id: int,
+) -> tuple[PriceBar, ...]:
+    """Return rows that cannot be proven visible under the shared context policy."""
+
+    materialized = tuple(rows)
+    if not materialized:
+        return ()
+    visibilities = _pipeline_acquisition_visibilities(
+        db,
+        calculation_context_id=calculation_context_id,
+        tickers=tuple({row.ticker.upper() for row in materialized}),
+        what_to_show=tuple({row.what_to_show for row in materialized}),
+        timeframes=tuple({row.timeframe for row in materialized}),
+    )
+    invalid = []
+    for row in materialized:
+        boundary = _price_bar_visibility_boundary(row, as_of=as_of, visibilities=visibilities)
+        revised_at = row.revised_at
+        if (
+            row.bar_date > max_session
+            or boundary is None
+            or (revised_at is not None and _as_utc(revised_at) > _as_utc(boundary))
+        ):
+            invalid.append(row)
+    return tuple(invalid)
+
+
+def _price_bar_visibility_boundary(
+    row: PriceBar,
+    *,
+    as_of: datetime,
+    visibilities: dict[tuple[str, str, str], PipelineAcquisitionVisibility | None],
+) -> datetime | None:
+    created_at = row.created_at
+    first_seen_at = row.first_seen_at
+    if (
+        created_at is not None
+        and first_seen_at is not None
+        and _as_utc(created_at) <= _as_utc(as_of)
+        and _as_utc(first_seen_at) <= _as_utc(as_of)
+    ):
+        return as_of
+    visibility = visibilities.get((row.ticker.upper(), row.what_to_show, row.timeframe))
+    if visibility is None:
+        return None
+    if (
+        row.first_fetch_run_id != visibility.fetch_run_id
+        or row.first_fetch_item_id != visibility.fetch_item_id
+        or created_at is None
+        or first_seen_at is None
+        or _as_utc(created_at) > _as_utc(visibility.completed_at)
+        or _as_utc(first_seen_at) > _as_utc(visibility.completed_at)
+    ):
+        return None
+    return visibility.completed_at
 
 
 def load_preferred_ohlcv_frames(
@@ -308,18 +479,51 @@ def _pipeline_acquisition_visibility(
     cannot prove that a post-cutoff row came from this pipeline's acquisition.
     """
 
+    return _pipeline_acquisition_visibilities(
+        db,
+        calculation_context_id=calculation_context_id,
+        tickers=(ticker.upper(),),
+        what_to_show=(what_to_show,),
+        timeframes=(timeframe,),
+    ).get((ticker.upper(), what_to_show, timeframe))
+
+
+def _pipeline_acquisition_visibilities(
+    db: Session,
+    *,
+    calculation_context_id: int,
+    tickers: tuple[str, ...],
+    what_to_show: tuple[str, ...],
+    timeframes: tuple[str, ...],
+) -> dict[tuple[str, str, str], PipelineAcquisitionVisibility | None]:
+    """Resolve exact acquisition authority for many ticker/feed keys in one query."""
+
     cache = db.info.setdefault("pipeline_price_acquisition_visibility", {})
-    key = (int(calculation_context_id), ticker.upper(), what_to_show, timeframe)
-    if key in cache:
-        return cache[key]
+    requested = {
+        (ticker.upper(), source, timeframe)
+        for ticker in tickers
+        for source in what_to_show
+        for timeframe in timeframes
+    }
+    missing = {
+        key
+        for key in requested
+        if (int(calculation_context_id), *key) not in cache
+    }
+    if not missing:
+        return {
+            key: cache[(int(calculation_context_id), *key)]
+            for key in requested
+        }
     owner = db.execute(
         select(MarketCalculationContext, PipelineRun)
         .join(PipelineRun, PipelineRun.id == MarketCalculationContext.pipeline_run_id)
         .where(MarketCalculationContext.id == calculation_context_id)
     ).first()
     if owner is None:
-        cache[key] = None
-        return None
+        for key in missing:
+            cache[(int(calculation_context_id), *key)] = None
+        return {key: cache[(int(calculation_context_id), *key)] for key in requested}
     context, pipeline = owner
     retained = (pipeline.result_json or {}).get("ib_fetch_authority")
     child_scope = False
@@ -339,21 +543,28 @@ def _pipeline_acquisition_visibility(
         scope_id = None if child_scope else pipeline.scope_id
         refresh_cycle_id = None if child_scope else pipeline.refresh_cycle_id
     if acquisition_plan_id is None and not child_scope:
-        cache[key] = None
-        return None
+        for key in missing:
+            cache[(int(calculation_context_id), *key)] = None
+        return {key: cache[(int(calculation_context_id), *key)] for key in requested}
+    missing_tickers = {key[0] for key in missing}
+    missing_sources = {key[1] for key in missing}
+    accepted_bar_sizes = {
+        candidate
+        for key in missing
+        for candidate in (key[2], "1 day", "1 d")
+    }
     statement = (
         select(IBFetchRun, IBFetchItem)
         .join(IBFetchItem, IBFetchItem.fetch_run_id == IBFetchRun.id)
         .where(
             IBFetchRun.run_id == context.upload_run_id,
-            IBFetchItem.ticker == ticker.upper(),
-            IBFetchItem.what_to_show == what_to_show,
-            IBFetchItem.bar_size.in_((timeframe, "1 day", "1 d")),
+            IBFetchItem.ticker.in_(missing_tickers),
+            IBFetchItem.what_to_show.in_(missing_sources),
+            IBFetchItem.bar_size.in_(accepted_bar_sizes),
             IBFetchItem.status == "SUCCESS",
             IBFetchItem.completed_at.is_not(None),
         )
         .order_by(IBFetchItem.completed_at.desc(), IBFetchItem.id.desc())
-        .limit(1)
     )
     if child_scope:
         statement = statement.join(
@@ -372,31 +583,41 @@ def _pipeline_acquisition_visibility(
             IBFetchRun.scope_id.is_not_distinct_from(scope_id),
             IBFetchRun.refresh_cycle_id.is_not_distinct_from(refresh_cycle_id),
         )
-    row = db.execute(statement).first()
-    visibility = None
-    if row is not None:
+    resolved: dict[tuple[str, str, str], PipelineAcquisitionVisibility] = {}
+    for row in db.execute(statement):
         fetch_run, fetch_item = row
         completed_at = fetch_item.completed_at
-        if completed_at is not None:
-            if completed_at.tzinfo is None:
-                completed_at = completed_at.replace(tzinfo=UTC)
-            visibility = PipelineAcquisitionVisibility(
-                pipeline_run_id=int(pipeline.id),
-                upload_run_id=int(context.upload_run_id),
-                calculation_context_id=int(context.id),
-                acquisition_plan_id=str(fetch_run.acquisition_plan_id),
-                scope_id=(str(fetch_run.scope_id) if fetch_run.scope_id is not None else None),
-                refresh_cycle_id=(
-                    str(fetch_run.refresh_cycle_id)
-                    if fetch_run.refresh_cycle_id is not None
-                    else None
-                ),
-                fetch_run_id=int(fetch_run.id),
-                fetch_item_id=int(fetch_item.id),
-                completed_at=completed_at,
-            )
-    cache[key] = visibility
-    return visibility
+        if completed_at is None:
+            continue
+        if completed_at.tzinfo is None:
+            completed_at = completed_at.replace(tzinfo=UTC)
+        visibility = PipelineAcquisitionVisibility(
+            pipeline_run_id=int(pipeline.id),
+            upload_run_id=int(context.upload_run_id),
+            calculation_context_id=int(context.id),
+            acquisition_plan_id=str(fetch_run.acquisition_plan_id),
+            scope_id=(str(fetch_run.scope_id) if fetch_run.scope_id is not None else None),
+            refresh_cycle_id=(
+                str(fetch_run.refresh_cycle_id)
+                if fetch_run.refresh_cycle_id is not None
+                else None
+            ),
+            fetch_run_id=int(fetch_run.id),
+            fetch_item_id=int(fetch_item.id),
+            completed_at=completed_at,
+        )
+        for key in missing:
+            ticker, source, timeframe = key
+            if (
+                key not in resolved
+                and fetch_item.ticker.upper() == ticker
+                and fetch_item.what_to_show == source
+                and fetch_item.bar_size in {timeframe, "1 day", "1 d"}
+            ):
+                resolved[key] = visibility
+    for key in missing:
+        cache[(int(calculation_context_id), *key)] = resolved.get(key)
+    return {key: cache[(int(calculation_context_id), *key)] for key in requested}
 
 
 def load_price_bar_rows(
