@@ -11,6 +11,7 @@ from app.main import create_app
 from app.routers import ceri_routes
 from app.routers import setup_lifecycle_routes as setup_routes
 from app.security import (
+    ROUTE_CLASS_LOCAL_ADMIN,
     ROUTE_CLASS_PUBLIC_LOCAL,
     RuntimeMutationContextMiddleware,
     http_mutation_route_registry,
@@ -24,7 +25,7 @@ def test_unsafe_route_inventory_requires_classification() -> None:
     app = create_app(Settings(_env_file=None, job_worker_enabled=False))
     registry = http_mutation_route_registry(app)
 
-    assert len(app.routes) == 196
+    assert len(app.routes) == 197
     assert len(registry) == 52
     assert [row for row in registry if not row.classified] == []
     assert _capability_counts(registry) == {
@@ -176,7 +177,7 @@ def test_ceri_admin_accepts_current_header_csrf_token() -> None:
 def test_persisted_setup_lifecycle_replay_requires_confirmation_reason_and_requester() -> None:
     with pytest.raises(HTTPException) as exc:
         setup_routes.replay_setup_lifecycle(
-            request=SimpleNamespace(client=SimpleNamespace(host="testclient")),
+            request=_admin_request(csrf_token="secure-test-token"),
             db=FakeDb(),  # type: ignore[arg-type]
             persist=True,
         )
@@ -218,6 +219,7 @@ def _admin_request(*, csrf_token: str | None, query_csrf_token: str | None = Non
                     ceri_enabled=True,
                     ceri_admin_enabled=True,
                     ceri_provider_ingest_enabled=True,
+                    setup_lifecycle_enabled=True,
                 ),
             )
         ),
@@ -284,6 +286,7 @@ def _authority_test_app(mode: RuntimeMode) -> tuple[FastAPI, list[str]]:
         else Settings(_env_file=None, job_worker_enabled=False)
     )
     app.add_middleware(RuntimeMutationContextMiddleware)
+    app.state.local_admin_csrf_token = "secure-test-token"
     mutations: list[str] = []
 
     @app.post("/unclassified")
@@ -336,7 +339,75 @@ def _authority_test_app(mode: RuntimeMode) -> tuple[FastAPI, list[str]]:
         mutations.append("session-scoped")
         return {"ok": True}
 
+    @app.post("/admin")
+    @unsafe_route(
+        ROUTE_CLASS_LOCAL_ADMIN,
+        reason="test local administrator mutation",
+        mutation_capability=MutationCapability.NORMAL_ONLY,
+        operation="test.http.admin",
+        local_admin_required=True,
+        csrf_required=True,
+    )
+    def admin() -> dict[str, bool]:
+        mutations.append("admin")
+        return {"ok": True}
+
     return app, mutations
+
+
+@pytest.mark.parametrize("headers", [{}, {"x-csrf-token": "wrong"}])
+def test_declared_admin_mutation_rejects_missing_or_invalid_csrf_without_mutating(
+    headers: dict[str, str],
+) -> None:
+    app, mutations = _authority_test_app(RuntimeMode.NORMAL)
+
+    response = TestClient(app).post("/admin", headers=headers)
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "ADMIN_FORBIDDEN"
+    assert mutations == []
+
+
+def test_declared_admin_mutation_rejects_non_loopback_without_mutating() -> None:
+    app, mutations = _authority_test_app(RuntimeMode.NORMAL)
+
+    response = TestClient(app, client=("203.0.113.7", 41000)).post(
+        "/admin",
+        headers={"x-csrf-token": "secure-test-token"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "ADMIN_FORBIDDEN"
+    assert mutations == []
+
+
+def test_declared_admin_mutation_accepts_valid_loopback_csrf() -> None:
+    app, mutations = _authority_test_app(RuntimeMode.NORMAL)
+
+    response = TestClient(app).post(
+        "/admin",
+        headers={"x-csrf-token": "secure-test-token"},
+    )
+
+    assert response.status_code == 200
+    assert mutations == ["admin"]
+
+
+def test_target_admin_routes_declare_both_local_and_csrf_policy() -> None:
+    app = create_app(Settings(_env_file=None, job_worker_enabled=False))
+    records = {
+        row.path: row.classification for row in http_mutation_route_registry(app)
+    }
+
+    for path in (
+        "/api/setup-lifecycle/evaluations",
+        "/api/setup-lifecycle/replay",
+        "/api/winner-probability/outcomes/process",
+        "/api/winner-probability/cohorts/refresh",
+    ):
+        assert records[path] is not None
+        assert records[path].local_admin_required is True
+        assert records[path].csrf_required is True
 
 
 def _capability_counts(registry) -> dict[MutationCapability, int]:

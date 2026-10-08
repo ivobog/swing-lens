@@ -17,14 +17,19 @@ def technical_score_display_fields(
     rollout_mode = str(_dict(v5.get("rollout")).get("mode") or "").lower()
     engine_version = str(_value(score, "technical_engine_version") or "")
     v5_active = engine_version.startswith("5.") or rollout_mode == "active"
-    active_score = _first_present(
-        _value(combined, "dual_score"),
-        _value(score, "dual_score"),
+    decision_technical_present = combined is None or _value(combined, "dual_score") is not None
+    active_score = (
+        _value(combined, "dual_score")
+        if combined is not None
+        else _value(score, "dual_score")
     )
-    active_classification = _first_present(
-        _value(combined, "technical_classification"),
-        _value(score, "classification"),
+    active_classification = (
+        _value(combined, "technical_classification")
+        if combined is not None
+        else _value(score, "classification")
     )
+    observed_score = _value(score, "dual_score")
+    observed_classification = _value(score, "classification")
     v4_debug = _explainability(score)
     shadow_comparison = _dict(v5.get("shadow_comparison"))
     v5_score = _value(score, "technical_composite_score")
@@ -98,7 +103,14 @@ def technical_score_display_fields(
     return {
         "active": active,
         "comparison": comparison,
-        "feeds_combined_decision": active["version"],
+        "feeds_combined_decision": active["version"] if decision_technical_present else None,
+        "used_in_combined_decision": decision_technical_present,
+        "observed": _score_tier(
+            version="V5" if v5_active else "V4",
+            role="OBSERVED",
+            score=observed_score,
+            classification=observed_classification,
+        ),
         "v4_score": v4_score,
         "v5_score": v5_score,
         "v4_classification": v4_classification,

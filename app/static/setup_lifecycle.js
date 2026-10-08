@@ -39,28 +39,37 @@ function bindSetupLifecycleOperationForms() {
   document.querySelectorAll("[data-slse-operation-form]").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const status = document.querySelector("[data-slse-operation-status]");
+      const status = form.parentElement?.querySelector("[data-slse-operation-status]");
       const button = form.querySelector("button[type='submit']");
+      const operationKind = form.dataset.operationKind || "evaluation";
       const params = new URLSearchParams();
       new FormData(form).forEach((value, key) => {
         if (String(value).trim()) params.set(key, String(value));
       });
       if (button) button.disabled = true;
-      if (status) status.textContent = "Queueing scoped evaluation...";
+      if (status) {
+        status.setAttribute("role", "status");
+        status.textContent = operationKind === "replay" ? "Running replay..." : "Queueing scoped evaluation...";
+      }
       try {
         const response = await fetch(`${form.action}?${params.toString()}`, {
           method: "POST",
-          headers: { Accept: "application/json" },
+          headers: {
+            Accept: "application/json",
+            "X-CSRF-Token": form.dataset.csrfToken || "",
+          },
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.detail?.message || `HTTP ${response.status}`);
         if (status) {
-          status.textContent = `Queued job ${payload.job_id}: ${payload.scope} (${payload.safety_classification}).`;
+          status.textContent = operationKind === "replay"
+            ? `Replay completed: ${payload.read_count ?? payload.processed_count ?? 0} item(s) read${payload.persisted_count != null ? `, ${payload.persisted_count} persisted` : ""}.`
+            : `Queued job ${payload.job_id}: ${payload.scope} (${payload.safety_classification}).`;
         }
       } catch (error) {
         if (status) {
           status.setAttribute("role", "alert");
-          status.textContent = `Evaluation was not queued: ${error.message}`;
+          status.textContent = `${operationKind === "replay" ? "Replay failed" : "Evaluation was not queued"}: ${error.message}`;
         }
       } finally {
         if (button) button.disabled = false;

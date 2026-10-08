@@ -487,3 +487,32 @@ class FakeScalarResult:
 
     def __iter__(self):
         return iter(self.rows)
+def test_run_detail_defaults_to_canonical_active_pipeline(monkeypatch) -> None:
+    class PipelineLookupDb:
+        def scalar(self, statement):
+            sql = str(statement)
+            assert "pipeline_runs" in sql
+            assert "execution_authority_state" in sql
+            return 88
+
+    marker = object()
+    monkeypatch.setattr(
+        run_routes,
+        "_require_pipeline_for_run",
+        lambda _db, pipeline_id, run_id: marker
+        if (pipeline_id, run_id) == (88, 7)
+        else None,
+    )
+    monkeypatch.setattr(
+        run_routes,
+        "_pipeline_status_payload",
+        lambda _db, status: {"pipeline_run_id": 88} if status is marker else None,
+    )
+
+    payload = run_routes._pipeline_status_for_run(  # noqa: SLF001
+        PipelineLookupDb(),  # type: ignore[arg-type]
+        7,
+        None,
+    )
+
+    assert payload == {"pipeline_run_id": 88}

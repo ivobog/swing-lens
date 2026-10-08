@@ -14,7 +14,13 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.tables import SetupSignalSnapshot, UploadRun
 from app.routers.export_responses import attachment_response
-from app.security import ROUTE_CLASS_LOCAL_ADMIN, ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
+from app.security import (
+    ROUTE_CLASS_LOCAL_ADMIN,
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    local_admin_csrf_token,
+    require_local_admin,
+    unsafe_route,
+)
 from app.services.background_job_service import enqueue_job
 from app.services.core_calculation_evidence import CoreEvidenceKind, EvidenceUnavailableError
 from app.services.historical_read_service import (
@@ -311,6 +317,7 @@ def setup_lifecycle_operations_page(request: Request, db: DbSession) -> HTMLResp
             "active_nav": "setup-lifecycle",
             "operations": setup_lifecycle_operations(db=db),
             "diagnostics": setup_lifecycle_diagnostics(db=db),
+            "csrf_token": local_admin_csrf_token(request),
         },
     )
 
@@ -766,8 +773,10 @@ def evaluate_setup_lifecycle_run(
     mutation_capability=MutationCapability.NORMAL_ONLY,
     operation="http.setup_lifecycle.queue_evaluation",
     local_admin_required=True,
+    csrf_required=True,
 )
 def queue_setup_lifecycle_evaluation(
+    request: Request,
     db: DbSession,
     scope: str,
     requester: str,
@@ -778,6 +787,7 @@ def queue_setup_lifecycle_evaluation(
     date_to: date | None = None,
     as_of_date: date | None = None,
 ) -> JSONResponse:
+    _require_local_admin(request, csrf_required=True)
     normalized_scope = scope.strip().upper()
     if normalized_scope == "RUN":
         from app.services.entrypoint_authority import reject_unbound_standalone
@@ -873,6 +883,7 @@ def queue_setup_lifecycle_evaluation(
     mutation_capability=MutationCapability.NORMAL_ONLY,
     operation="http.setup_lifecycle.replay",
     local_admin_required=True,
+    csrf_required=True,
 )
 def replay_setup_lifecycle(
     request: Request,
@@ -885,6 +896,7 @@ def replay_setup_lifecycle(
     reason: str | None = None,
     requester: str | None = None,
 ) -> dict[str, Any]:
+    _require_local_admin(request, csrf_required=True)
     if persist:
         _require_persisted_replay_confirmation(
             confirmation=confirmation,
@@ -904,6 +916,19 @@ def replay_setup_lifecycle(
     if persist:
         db.commit()
     return result
+
+
+def _require_local_admin(request: Request, *, csrf_required: bool = False) -> None:
+    settings = getattr(request.app.state, "settings", None)
+    require_local_admin(
+        request,
+        enabled=bool(settings and settings.setup_lifecycle_enabled),
+        disabled_message="Setup lifecycle is disabled.",
+        local_only_message="Setup lifecycle administration is local only.",
+        csrf_message="A valid setup lifecycle CSRF token is required.",
+        structured_code="ADMIN_FORBIDDEN",
+        csrf_required=csrf_required,
+    )
 
 
 def _require_persisted_replay_confirmation(

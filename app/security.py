@@ -181,6 +181,33 @@ def _authorize_http_mutation(
     request: Request | Any | None,
     classification: UnsafeRouteClassification,
 ) -> None:
+    if classification.local_admin_required:
+        host = (
+            getattr(getattr(request, "client", None), "host", None)
+            if request is not None
+            else None
+        )
+        if not is_local_admin_host(host):
+            raise _guard_error(
+                http_status.HTTP_403_FORBIDDEN,
+                "This mutation is restricted to the local administrator.",
+                "ADMIN_FORBIDDEN",
+            )
+    if classification.csrf_required:
+        if request is None or not hasattr(request, "app"):
+            raise _guard_error(
+                http_status.HTTP_403_FORBIDDEN,
+                "A valid local admin CSRF token is required.",
+                "ADMIN_FORBIDDEN",
+            )
+        expected = local_admin_csrf_token(request)
+        supplied = getattr(request, "headers", {}).get("x-csrf-token")
+        if not supplied or not secrets.compare_digest(supplied, expected):
+            raise _guard_error(
+                http_status.HTTP_403_FORBIDDEN,
+                "A valid local admin CSRF token is required.",
+                "ADMIN_FORBIDDEN",
+            )
     settings = (
         getattr(getattr(request, "app", None), "state", None)
         if request is not None

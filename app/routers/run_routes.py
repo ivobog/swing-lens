@@ -14,14 +14,13 @@ from app.models.tables import (
     BackgroundJob,
     BackgroundWorker,
     CombinedResult,
+    FundamentalScore,
     MarketRegimeSnapshot,
     PipelineDependency,
+    PipelineRun,
     RankingResult,
     RawCompanyRow,
-    SetupLifecycleEpisode,
     SetupLifecycleEvaluationRun,
-    SetupLifecycleEvent,
-    SetupSignalSnapshot,
     TechnicalScore,
     UploadRun,
     WinnerPredictionSnapshot,
@@ -31,6 +30,7 @@ from app.routers.export_responses import attachment_response
 from app.security import ROUTE_CLASS_PUBLIC_LOCAL, unsafe_route
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.ceri.evidence_eligibility import eligible_snapshot_select
+from app.services.ceri.evidence_population import evidence_population_summary
 from app.services.chart_data_service import build_ticker_chart_payload
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.column_mapping_summary_service import summarize_run_column_mapping
@@ -99,9 +99,9 @@ from app.services.resource_limits import (
 from app.services.runtime_mutation_authority import MutationCapability
 from app.services.score_card_view_service import build_score_cards
 from app.services.sector_rotation_repository import SectorRotationRepository
+from app.services.setup_lifecycle.run_summary import setup_lifecycle_run_summary
 from app.services.technical_display_fields import (
     technical_score_displays_by_ticker,
-    technical_v4_details_by_ticker,
 )
 from app.services.winner_probability.estimate_lifecycle import estimate_is_serving
 from app.services.worker_registry import has_live_worker_for_job
@@ -258,6 +258,8 @@ def run_detail_page(
     request: Request,
     db: DbSession,
     pipeline_id: int | None = None,
+    cockpit_limit: int = Query(100, ge=25, le=100),
+    cockpit_offset: int = Query(0, ge=0),
 ) -> HTMLResponse:
     run = _load_run(db, run_id)
     if not run:
@@ -268,6 +270,7 @@ def run_detail_page(
     technical_by_ticker = {score.ticker: score for score in run.technical_scores}
     combined_by_ticker = {result.ticker: result for result in run.combined_results}
     combined_results = sorted(run.combined_results, key=cockpit_sort_key)
+    cockpit_results = combined_results[cockpit_offset : cockpit_offset + cockpit_limit]
     decision_counts = _decision_counts(combined_results)
     ranking_profile_summary = _ranking_profile_summary(run.ranking_results)
     coverage = summarize_run_ohlcv_coverage(db, run.id)
@@ -295,13 +298,22 @@ def run_detail_page(
             "raw_preview": rows[:10],
             "fundamental_by_ticker": fundamental_by_ticker,
             "technical_by_ticker": technical_by_ticker,
-            "technical_details_by_ticker": technical_v4_details_by_ticker(run.technical_scores),
             "technical_score_displays_by_ticker": technical_score_displays_by_ticker(
                 run.technical_scores,
-                combined_results,
+                cockpit_results,
             ),
             "combined_by_ticker": combined_by_ticker,
-            "combined_results": combined_results,
+            "combined_results": cockpit_results,
+            "cockpit_page": {
+                "total_items": len(combined_results),
+                "page_size": cockpit_limit,
+                "start_item": cockpit_offset + 1 if cockpit_results else 0,
+                "end_item": cockpit_offset + len(cockpit_results),
+                "has_previous": cockpit_offset > 0,
+                "has_next": cockpit_offset + cockpit_limit < len(combined_results),
+                "previous_offset": max(0, cockpit_offset - cockpit_limit),
+                "next_offset": cockpit_offset + cockpit_limit,
+            },
             "decision_counts": decision_counts,
             "ranking_profile_summary": ranking_profile_summary,
             "market_regime_context": market_regime_context,
@@ -368,10 +380,37 @@ def ticker_chart_panel(
     )
 
 
+@router.get("/runs/{run_id}/tickers/{ticker}/details", response_class=HTMLResponse)
+def ticker_detail_fragment(
+    run_id: int,
+    ticker: str,
+    request: Request,
+    db: DbSession,
+) -> HTMLResponse:
+    context = _ticker_chart_context(db, run_id, ticker)
+    return templates.TemplateResponse(
+        request,
+        "partials/_run_ticker_detail.html",
+        context,
+    )
+
+
 @router.get("/api/runs/{run_id}/tickers/{ticker}/chart-data")
 def ticker_chart_data(run_id: int, ticker: str, db: DbSession) -> dict[str, object]:
-    context = _ticker_chart_context(db, run_id, ticker)
-    return build_ticker_chart_payload(db, context["run"].id, context["ticker"])
+    normalized_ticker = ticker.upper()
+    if isinstance(db, Session):
+        _require_run(db, run_id)
+        ticker_exists = db.scalar(
+            select(RawCompanyRow.id).where(
+                RawCompanyRow.run_id == run_id,
+                RawCompanyRow.ticker == normalized_ticker,
+            )
+        )
+        if ticker_exists is None:
+            raise HTTPException(status_code=404, detail="Ticker not found in this run.")
+    else:
+        _ticker_chart_context(db, run_id, normalized_ticker)
+    return build_ticker_chart_payload(db, run_id, normalized_ticker)
 
 
 @router.get("/runs/{run_id}/exports/{export_type}.csv")
@@ -1306,41 +1345,24 @@ def _winner_probability_context(db: Session, run_id: int) -> dict[str, object]:
 
 
 def _setup_lifecycle_context(db: Session, run_id: int) -> dict[str, object]:
-    change_count = int(
-        db.scalar(
-            select(func.count(SetupLifecycleEvent.id))
-            .join(
-                SetupSignalSnapshot,
-                SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id,
-            )
-            .where(SetupSignalSnapshot.run_id == run_id)
-        )
-        or 0
-    )
+    summary = setup_lifecycle_run_summary(db, run_id)
     latest_run = db.scalar(
         select(SetupLifecycleEvaluationRun)
         .where(SetupLifecycleEvaluationRun.source_run_id == run_id)
         .order_by(SetupLifecycleEvaluationRun.created_at.desc())
         .limit(1)
     )
-    active_episode_count = int(
-        db.scalar(
-            select(func.count(SetupLifecycleEpisode.id)).where(
-                SetupLifecycleEpisode.status == "ACTIVE"
-            )
-        )
-        or 0
-    )
     return {
-        "change_count": change_count,
+        **summary,
+        "change_count": summary["meaningful_change_count"],
         "latest_status": latest_run.status if latest_run is not None else None,
-        "active_episode_count": active_episode_count,
         "run_url": f"/runs/{run_id}/setup-lifecycle",
         "operations_url": "/setup-lifecycle/operations",
     }
 
 
 def _ceri_context(db: Session, run_id: int) -> dict[str, object]:
+    population = evidence_population_summary(db, run_id=run_id)
     snapshots = list(
         db.scalars(
             eligible_snapshot_select(name="effective_run_detail_dispositions")
@@ -1361,10 +1383,11 @@ def _ceri_context(db: Session, run_id: int) -> dict[str, object]:
     ]
     return {
         "snapshot_count": len(snapshots),
+        **population,
         "low_confidence_count": low_confidence_count,
         "warning_count": warning_count,
         "high_opportunity_low_risk_count": high_opportunity_low_risk_count,
-        "latest_status": "Captured" if snapshots else None,
+        "latest_status": population["state"],
         "run_url": f"/runs/{run_id}/ceri",
         "dashboard_url": "/ceri",
         "operations_url": "/ceri/operations",
@@ -1752,7 +1775,17 @@ def _pipeline_status_for_run(
     pipeline_id: int | None,
 ) -> dict[str, object] | None:
     if pipeline_id is None:
-        return None
+        pipeline_id = db.scalar(
+            select(PipelineRun.id)
+            .where(
+                PipelineRun.upload_run_id == run_id,
+                PipelineRun.execution_authority_state == "ACTIVE",
+            )
+            .order_by(PipelineRun.created_at.desc(), PipelineRun.id.desc())
+            .limit(1)
+        )
+        if pipeline_id is None:
+            return None
     status = _require_pipeline_for_run(db, pipeline_id, run_id)
     return _pipeline_status_payload(db, status)
 
@@ -1939,18 +1972,43 @@ def _redirect_to_fetch_progress(
 
 
 def _ticker_chart_context(db: Session, run_id: int, ticker: str) -> dict[str, object]:
-    run = _load_run(db, run_id)
+    normalized_ticker = ticker.upper()
+    if isinstance(db, Session):
+        run = db.get(UploadRun, run_id)
+        raw_row = db.scalar(
+            select(RawCompanyRow).where(
+                RawCompanyRow.run_id == run_id,
+                RawCompanyRow.ticker == normalized_ticker,
+            )
+        )
+        fundamental = db.scalar(
+            select(FundamentalScore).where(
+                FundamentalScore.run_id == run_id,
+                FundamentalScore.ticker == normalized_ticker,
+            )
+        )
+        technical = db.scalar(
+            select(TechnicalScore).where(
+                TechnicalScore.run_id == run_id,
+                TechnicalScore.ticker == normalized_ticker,
+            )
+        )
+        combined = db.scalar(
+            select(CombinedResult).where(
+                CombinedResult.run_id == run_id,
+                CombinedResult.ticker == normalized_ticker,
+            )
+        )
+    else:
+        run = _load_run(db, run_id)
+        raw_row = _by_ticker(run.raw_company_rows).get(normalized_ticker) if run else None
+        fundamental = _by_ticker(run.fundamental_scores).get(normalized_ticker) if run else None
+        technical = _by_ticker(run.technical_scores).get(normalized_ticker) if run else None
+        combined = _by_ticker(run.combined_results).get(normalized_ticker) if run else None
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-
-    normalized_ticker = ticker.upper()
-    raw_row = _by_ticker(run.raw_company_rows).get(normalized_ticker)
     if raw_row is None:
         raise HTTPException(status_code=404, detail="Ticker not found in this run.")
-
-    fundamental = _by_ticker(run.fundamental_scores).get(normalized_ticker)
-    technical = _by_ticker(run.technical_scores).get(normalized_ticker)
-    combined = _by_ticker(run.combined_results).get(normalized_ticker)
     company_name = _first_context_value(
         getattr(combined, "company_name", None),
         raw_row.company_name,

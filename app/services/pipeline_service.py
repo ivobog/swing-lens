@@ -539,6 +539,8 @@ def _ceri_async_visibility(db: Session, pipeline: PipelineRun) -> dict[str, Any]
 
     def phase_view(types: set[str]) -> dict[str, Any]:
         members = [job for job in jobs if job.job_type in types]
+        known_total_members = [job for job in members if job.progress_total is not None]
+        unknown_total_members = [job for job in members if job.progress_total is None]
         statuses = {str(job.status) for job in members}
         if not members:
             state = "PENDING"
@@ -556,8 +558,14 @@ def _ceri_async_visibility(db: Session, pipeline: PipelineRun) -> dict[str, Any]
             "completed_jobs": sum(
                 job.status in {JobStatus.COMPLETED, JobStatus.PARTIAL} for job in members
             ),
-            "processed": sum(int(job.progress_processed or 0) for job in members),
-            "total": sum(int(job.progress_total or 0) for job in members),
+            "processed": sum(
+                int(job.progress_processed or 0) for job in known_total_members
+            ),
+            "total": sum(int(job.progress_total or 0) for job in known_total_members),
+            "unknown_total_processed": sum(
+                int(job.progress_processed or 0) for job in unknown_total_members
+            ),
+            "unknown_total_jobs": len(unknown_total_members),
             "original_started_at": min(
                 (job.started_at for job in members if job.started_at is not None),
                 default=None,

@@ -10,7 +10,7 @@ from app.db import get_db
 from app.main import create_app
 from app.models.ceri_tables import CeriScoreSnapshot
 from app.routers import ceri_routes
-from app.services.ceri.query_service import _score_snapshot_payload
+from app.services.ceri.query_service import CeriQueryError, _score_snapshot_payload
 from app.settings import Settings
 
 
@@ -54,6 +54,11 @@ def test_run_dashboard_renders_pagination_rated_coverage_and_safe_semantics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    monkeypatch.setattr(
+        ceri_routes,
+        "evidence_population_summary",
+        lambda *_args, **_kwargs: _evidence_population(),
+    )
     app = _app(ceri_ui_enabled=True)
 
     response = TestClient(app).get("/runs/104/ceri?limit=50&offset=50")
@@ -78,6 +83,11 @@ def test_summary_uses_full_population_and_explicit_zero_risk_predicate(
 ) -> None:
     service = FakeCeriQueryService()
     monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: service)
+    monkeypatch.setattr(
+        ceri_routes,
+        "evidence_population_summary",
+        lambda *_args, **_kwargs: _evidence_population(),
+    )
     app = _app(ceri_ui_enabled=True)
 
     response = TestClient(app).get("/runs/104/ceri?limit=50")
@@ -97,6 +107,11 @@ def test_run_page_reuses_one_query_service_instance(monkeypatch: pytest.MonkeyPa
         return service
 
     monkeypatch.setattr(ceri_routes, "CeriQueryService", factory)
+    monkeypatch.setattr(
+        ceri_routes,
+        "evidence_population_summary",
+        lambda *_args, **_kwargs: _evidence_population(),
+    )
     response = TestClient(_app(ceri_ui_enabled=True)).get("/runs/104/ceri")
 
     assert response.status_code == 200
@@ -139,6 +154,59 @@ def test_ceri_ticker_detail_renders_provenance_and_warnings(
     assert "Selected: 3" in response.text
     assert "Blocker: none" in response.text
     assert "Price Response" in response.text
+
+
+def test_missing_ceri_ticker_html_preserves_404(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MissingTickerService(FakeCeriQueryService):
+        def ticker(self, _db, _ticker):
+            raise CeriQueryError("TICKER_NOT_FOUND", "Ticker was not found.", status_code=404)
+
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: MissingTickerService())
+    monkeypatch.setattr(
+        ceri_routes,
+        "evidence_population_summary",
+        lambda *_args, **_kwargs: {
+            "state": "ABSENT",
+            "captured_count": 0,
+            "eligible_count": 0,
+            "excluded_count": 0,
+            "quarantined_count": 0,
+            "exclusion_reasons": [],
+        },
+    )
+
+    response = TestClient(_app(ceri_ui_enabled=True)).get("/ceri/ticker/NOTREAL")
+
+    assert response.status_code == 404
+    assert "TICKER_NOT_FOUND" in response.text
+
+
+def test_captured_excluded_ticker_is_distinct_from_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ExcludedTickerService(FakeCeriQueryService):
+        def ticker(self, _db, _ticker):
+            raise CeriQueryError("TICKER_NOT_FOUND", "No eligible ticker.", status_code=404)
+
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: ExcludedTickerService())
+    monkeypatch.setattr(
+        ceri_routes,
+        "evidence_population_summary",
+        lambda *_args, **_kwargs: {
+            "state": "CAPTURED_EXCLUDED",
+            "captured_count": 1,
+            "eligible_count": 0,
+            "excluded_count": 1,
+            "quarantined_count": 0,
+            "exclusion_reasons": [{"reason": "PARENT_PIPELINE_UNSUCCESSFUL", "count": 1}],
+        },
+    )
+
+    response = TestClient(_app(ceri_ui_enabled=True)).get("/ceri/ticker/ABBV")
+
+    assert response.status_code == 200
+    assert "1 captured; 0 eligible/current; 1 excluded" in response.text
+    assert "not a current decision input" in response.text
 
 
 def test_ceri_changes_render_groups_and_alert_actions(
@@ -217,6 +285,20 @@ def test_ceri_operations_render_health_checkpoints_and_preview_only_purge(
     assert "/api/ceri/purge/execute" not in response.text
 
 
+def test_ceri_operations_stale_records_are_pageable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    monkeypatch.setattr(ceri_routes, "_provider_health_payload", lambda: [])
+
+    response = TestClient(_app(ceri_ui_enabled=True)).get(
+        "/ceri/operations?stale_limit=50&stale_offset=50"
+    )
+
+    assert response.status_code == 200
+    assert "Showing 51-100 of 101 stale records" in response.text
+    assert "Previous stale records" in response.text
+    assert "Next stale records" in response.text
+
+
 def test_run_detail_renders_ceri_status_when_snapshots_exist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -279,7 +361,8 @@ def test_run_detail_renders_ceri_status_when_snapshots_exist(
 
     assert response.status_code == 200
     assert "CERI Evidence" in response.text
-    assert "3</strong> snapshots" in response.text
+    assert "3</strong> captured" in response.text
+    assert "2</strong> eligible/current" in response.text
     assert 'href="/runs/7/ceri"' in response.text
 
 
@@ -317,6 +400,12 @@ def _run():
 def _ceri_context():
     return {
         "snapshot_count": 3,
+        "state": "CAPTURED_MIXED",
+        "captured_count": 3,
+        "eligible_count": 2,
+        "excluded_count": 1,
+        "quarantined_count": 0,
+        "exclusion_reasons": [{"reason": "PARENT_PIPELINE_UNSUCCESSFUL", "count": 1}],
         "low_confidence_count": 1,
         "warning_count": 1,
         "high_opportunity_low_risk_count": 2,
@@ -324,6 +413,17 @@ def _ceri_context():
         "run_url": "/runs/7/ceri",
         "dashboard_url": "/ceri",
         "operations_url": "/ceri/operations",
+    }
+
+
+def _evidence_population():
+    return {
+        "state": "CAPTURED_MIXED",
+        "captured_count": 177,
+        "eligible_count": 176,
+        "excluded_count": 1,
+        "quarantined_count": 0,
+        "exclusion_reasons": [{"reason": "PARENT_PIPELINE_UNSUCCESSFUL", "count": 1}],
     }
 
 
@@ -498,7 +598,7 @@ class FakeCeriQueryService:
             "errors": [],
             "quarantined_count": 1,
             "conflicted_count": 1,
-            "stale_count": 1,
+            "stale_count": 101,
             "processing_runs": [
                 {
                     "id": 1,
@@ -537,7 +637,7 @@ class FakeCeriQueryService:
         return {"items": [{"id": 2, "conflict_flags": ["provider_disagreement"]}]}
 
     def operations_stale(self, _db, _query, *, known_total=None):
-        assert known_total == 1
+        assert known_total == 101
         return {
             "items": [
                 {
@@ -546,7 +646,16 @@ class FakeCeriQueryService:
                     "stale_days": 9,
                     "max_stale_days": 7,
                 }
-            ]
+            ],
+            "total": 101,
+            "total_items": 101,
+            "page_size": _query.limit,
+            "start_item": _query.offset + 1,
+            "end_item": min(101, _query.offset + _query.limit),
+            "has_previous": _query.offset > 0,
+            "has_next": _query.offset + _query.limit < 101,
+            "previous_offset": max(0, _query.offset - _query.limit),
+            "next_offset": _query.offset + _query.limit,
         }
 
 

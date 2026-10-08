@@ -24,6 +24,18 @@
     <span>Summary population {{ summary.population_count or 0 }}</span>
     {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
   </div>
+  {% if evidence_population %}
+    <div class="run-meta" data-ceri-evidence-population data-state="{{ evidence_population.state }}">
+      <span><strong>{{ evidence_population.captured_count }}</strong> captured</span>
+      <span><strong>{{ evidence_population.eligible_count }}</strong> eligible/current</span>
+      <span><strong>{{ evidence_population.excluded_count }}</strong> excluded</span>
+      <span><strong>{{ evidence_population.quarantined_count }}</strong> quarantined</span>
+      <span class="badge badge-{{ 'success' if evidence_population.state == 'CAPTURED_ELIGIBLE' else 'warning' if evidence_population.captured_count else 'muted' }}">{{ evidence_population.state|replace('_', ' ')|title }}</span>
+    </div>
+    {% if evidence_population.exclusion_reasons %}
+      <p class="muted-line">Exclusion reasons: {% for row in evidence_population.exclusion_reasons %}{{ row.reason|replace('_', ' ')|title }} ({{ row.count }}){% if not loop.last %}; {% endif %}{% endfor %}. Retained excluded evidence is auditable but not a current candidate.</p>
+    {% endif %}
+  {% endif %}
   {% set disclaimer_context = "CERI opportunity, event risk, posture, and catalyst evidence" %}
   {% include "partials/_research_disclaimer.html" %}
   {% set provenance = {

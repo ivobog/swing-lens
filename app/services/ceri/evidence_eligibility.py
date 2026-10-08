@@ -78,6 +78,7 @@ def effective_disposition_subquery(name: str | None = None) -> Any:
         select(
             CeriEvidenceDisposition.ceri_snapshot_id,
             CeriEvidenceDisposition.disposition,
+            CeriEvidenceDisposition.reason_code,
         )
         .distinct(CeriEvidenceDisposition.ceri_snapshot_id)
         .order_by(

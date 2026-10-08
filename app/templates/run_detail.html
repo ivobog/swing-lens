@@ -145,7 +145,12 @@
   {% endif %}
 
   <div class="run-meta">
-    <span class="status-pill status-{{ run.status|lower|replace('_', '-') }}">{{ run.status }}</span>
+    <span>Upload ingestion <span class="status-pill status-{{ run.status|lower|replace('_', '-') }}">{{ run.status }}</span></span>
+    {% if latest_pipeline %}
+      <span>Pipeline execution <a href="/runs/{{ run.id }}/pipeline/{{ latest_pipeline.pipeline_run_id }}"><span class="status-pill status-{{ latest_pipeline.status|lower|replace('_', '-') }}">{{ latest_pipeline.status }}</span></a></span>
+    {% else %}
+      <span>Pipeline execution <span class="status-pill status-not-started">Not started</span></span>
+    {% endif %}
     <span>Uploaded {{ run.uploaded_at }}</span>
     {% if run.processed_at %}<span>Processed {{ run.processed_at }}</span>{% endif %}
     {% if run.notes %}<span>{{ run.notes }}</span>{% endif %}
@@ -193,12 +198,18 @@
       </div>
     </div>
     <div class="summary-strip">
-      <span class="summary-item"><strong>{{ ceri_context.snapshot_count }}</strong> snapshots</span>
+      <span class="summary-item"><strong>{{ ceri_context.captured_count }}</strong> captured</span>
+      <span class="summary-item"><strong>{{ ceri_context.eligible_count }}</strong> eligible/current</span>
+      <span class="summary-item"><strong>{{ ceri_context.excluded_count }}</strong> excluded</span>
+      <span class="summary-item"><strong>{{ ceri_context.quarantined_count }}</strong> quarantined</span>
       <span class="summary-item"><strong>{{ ceri_context.high_opportunity_low_risk_count }}</strong> high opportunity / low risk</span>
       <span class="summary-item"><strong>{{ ceri_context.low_confidence_count }}</strong> low-confidence</span>
       <span class="summary-item"><strong>{{ ceri_context.warning_count }}</strong> warning flags</span>
       <span class="summary-item">{{ ceri_context.latest_status or "No CERI capture yet" }}</span>
     </div>
+    {% if ceri_context.exclusion_reasons %}
+      <p class="muted-line">Excluded: {% for row in ceri_context.exclusion_reasons %}{{ row.reason|replace('_', ' ')|title }} ({{ row.count }}){% if not loop.last %}; {% endif %}{% endfor %}. Excluded evidence is retained for audit and is not current decision input.</p>
+    {% endif %}
   </section>
 {% endif %}
 
@@ -215,8 +226,11 @@
     </div>
   </div>
   <div class="summary-strip">
-    <span class="summary-item"><strong>{{ setup_lifecycle_context.change_count }}</strong> changes</span>
-    <span class="summary-item"><strong>{{ setup_lifecycle_context.active_episode_count }}</strong> active episodes</span>
+    <span class="summary-item"><strong>{{ setup_lifecycle_context.active_episode_count }}</strong> active episodes represented by this run's current snapshots</span>
+    <span class="summary-item"><strong>{{ setup_lifecycle_context.canonical_revision_count }}</strong> canonical revisions</span>
+    <span class="summary-item"><strong>{{ setup_lifecycle_context.lifecycle_change_count }}</strong> lifecycle changes</span>
+    <span class="summary-item"><strong>{{ setup_lifecycle_context.signal_change_count }}</strong> signal changes</span>
+    <span class="summary-item"><strong>{{ setup_lifecycle_context.meaningful_change_count }}</strong> meaningful changes</span>
     <span class="summary-item">{{ setup_lifecycle_context.latest_status or "No evaluation yet" }}</span>
   </div>
   {% if latest_pipeline and latest_pipeline.status in ["PENDING", "PREPARING", "RUNNING", "CANCELLING"] %}
@@ -628,7 +642,7 @@
       {% endif %}
       {% if latest_fetch.items %}
         <details class="collapsible-table">
-          <summary>Latest Fetch rows</summary>
+          <summary>Latest Fetch rows (first 50 of {{ latest_fetch.items|length }}; open progress for all)</summary>
           <div class="table-wrap">
             <table>
               <caption>Latest IB fetch rows for this run.</caption>
@@ -649,7 +663,7 @@
                 </tr>
               </thead>
               <tbody>
-                {% for item in latest_fetch.items %}
+                {% for item in latest_fetch.items[:50] %}
                   <tr>
                     <td>{{ item.ticker }}</td>
                     <td>{{ item.what_to_show }}</td>
@@ -679,7 +693,7 @@
 
   {% if coverage.items %}
     <details class="coverage-details">
-      <summary>OHLCV coverage by ticker</summary>
+      <summary>OHLCV coverage by ticker (first 50 of {{ coverage.items|length }}; open coverage for all)</summary>
       <div class="table-wrap">
         <table>
           <caption>OHLCV coverage by ticker for this run.</caption>
@@ -697,7 +711,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for item in coverage.items %}
+            {% for item in coverage.items[:50] %}
               <tr>
                 <td>{{ item.ticker }}</td>
                 <td>
@@ -847,9 +861,9 @@
             {% set decision_class = result.combined_decision|default("unclassified", true)|lower|replace(" ", "-") %}
             {% set fundamental = fundamental_by_ticker.get(result.ticker) %}
             {% set technical = technical_by_ticker.get(result.ticker) %}
-            {% set technical_details = technical_details_by_ticker.get(result.ticker, {}) %}
             {% set technical_display = technical_score_displays_by_ticker.get(result.ticker) %}
             {% set active_technical = technical_display.get("active", {}) if technical_display else {} %}
+            {% set observed_technical = technical_display.get("observed", {}) if technical_display else {} %}
             {% set comparison_technical = technical_display.get("comparison") if technical_display else none %}
             {% set warning_flags = result.warning_flags_json or [] %}
             {% set warning_badges = warning_badges_by_ticker.get(result.ticker, []) %}
@@ -867,10 +881,11 @@
               data-sector="{{ result.sector or '' }}"
               data-decision="{{ result.combined_decision or '' }}"
               data-fundamental-label="{{ result.fundamental_label or '' }}"
-              data-technical-classification="{{ active_technical.get('classification', result.technical_classification or '') }}"
+              data-technical-classification="{{ active_technical.get('classification', '') if technical_display and technical_display.get('used_in_combined_decision') else '' }}"
               data-final-score="{{ result.final_score if result.final_score is not none else '' }}"
               data-fundamental-score="{{ result.fundamental_score if result.fundamental_score is not none else '' }}"
-              data-active-technical-score="{{ active_technical.get('score', result.dual_score) if active_technical.get('score', result.dual_score) is not none else '' }}"
+              data-active-technical-score="{{ active_technical.get('score') if technical_display and technical_display.get('used_in_combined_decision') and active_technical.get('score') is not none else '' }}"
+              data-observed-technical-score="{{ observed_technical.get('score') if observed_technical.get('score') is not none else '' }}"
               data-active-technical-version="{{ active_technical.get('version', '') }}"
               data-v4-score="{{ technical_display.get('v4_score', '') if technical_display and technical_display.get('v4_score') is not none else '' }}"
               data-v5-score="{{ technical_display.get('v5_score', '') if technical_display and technical_display.get('v5_score') is not none else '' }}"
@@ -878,7 +893,7 @@
               data-v4-classification="{{ technical_display.get('v4_classification', '') if technical_display else '' }}"
               data-v5-classification="{{ technical_display.get('v5_classification', '') if technical_display else '' }}"
               {# Compatibility alias: data-technical-score always means the ACTIVE production input. #}
-              data-technical-score="{{ active_technical.get('score', result.dual_score) if active_technical.get('score', result.dual_score) is not none else '' }}"
+              data-technical-score="{{ active_technical.get('score') if technical_display and technical_display.get('used_in_combined_decision') and active_technical.get('score') is not none else '' }}"
               data-incomplete="{{ 'true' if not result.is_complete else 'false' }}"
               data-has-warning="{{ 'true' if result.has_warning else 'false' }}"
               data-warning-count="{{ warning_flags|length }}"
@@ -922,7 +937,7 @@
                 {% endif %}
               </td>
               <td>
-                {% if technical_display %}
+                {% if technical_display and technical_display.get("used_in_combined_decision") %}
                   <div class="technical-score-stack">
                     <div class="technical-score-active">
                       <span class="badge badge-success">{{ active_technical.get("version") }} ACTIVE</span>
@@ -953,6 +968,14 @@
                       </div>
                     {% endif %}
                   </div>
+                {% elif technical_display %}
+                  <div class="technical-score-stack">
+                    <span class="badge badge-warning">No technical decision input</span>
+                    <span class="technical-score-lineage">Does not feed Final / Decision</span>
+                    {% if observed_technical.get("score") is number %}
+                      <span class="muted-line">Observed {{ observed_technical.get("version") }} {{ "%.2f"|format(observed_technical.get("score")) }}{% if observed_technical.get("classification") %} · {{ observed_technical.get("classification") }}{% endif %}; retained but not used.</span>
+                    {% endif %}
+                  </div>
                 {% else %}
                   {{ "%.2f"|format(result.dual_score) if result.dual_score is not none else "" }}
                   {% if result.technical_classification %}
@@ -975,6 +998,10 @@
             </tr>
             <tr class="detail-row" data-detail-row hidden>
               <td colspan="12">
+                <div data-detail-content data-detail-url="/runs/{{ run.id }}/tickers/{{ result.ticker }}/details" role="status" aria-live="polite">
+                  <p>Open Details to load score evidence for {{ result.ticker }}.</p>
+                </div>
+                {% if false %}
                 <div class="detail-grid">
                   {% if ibmi_enabled %}
                   <div>
@@ -1145,12 +1172,22 @@
                     </dl>
                   </div>
                 </div>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    {% if cockpit_page and cockpit_page.total_items %}
+      <nav class="pagination" aria-label="Decision cockpit pages">
+        <span>Showing {{ cockpit_page.start_item }}-{{ cockpit_page.end_item }} of {{ cockpit_page.total_items }} decisions. Filters and sorting apply to this page; exports remain run-wide.</span>
+        <div class="actions">
+          {% if cockpit_page.has_previous %}<a class="button-link secondary" href="{{ request.url.include_query_params(cockpit_offset=cockpit_page.previous_offset, cockpit_limit=cockpit_page.page_size) }}">Previous decisions</a>{% else %}<span class="button-link secondary" aria-disabled="true">Previous decisions</span>{% endif %}
+          {% if cockpit_page.has_next %}<a class="button-link secondary" href="{{ request.url.include_query_params(cockpit_offset=cockpit_page.next_offset, cockpit_limit=cockpit_page.page_size) }}">Next decisions</a>{% else %}<span class="button-link secondary" aria-disabled="true">Next decisions</span>{% endif %}
+        </div>
+      </nav>
+    {% endif %}
   {% else %}
     <div class="empty-state">
       <strong>No combined decisions yet.</strong>

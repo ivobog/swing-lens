@@ -207,6 +207,12 @@ def test_operations_page_exposes_overdue_pending_and_failed_jobs(monkeypatch) ->
             "pending_outcomes": 12,
             "overdue_pending_outcomes": 2,
             "failed_processing_runs": 1,
+            "market_data_obligations": {
+                "FETCH_REQUIRED": 4,
+                "SATISFIED": 3,
+                "UNAVAILABLE": 2,
+                "FAILED": 1,
+            },
             "recent_processing_runs": [
                 {
                     "id": 9,
@@ -232,7 +238,32 @@ def test_operations_page_exposes_overdue_pending_and_failed_jobs(monkeypatch) ->
     assert "Refresh cohorts" in html
     assert "data-winner-json-form" in html
     assert "data-winner-form-output" in html
+    assert "Bar Data Unavailable" in html
+    assert "Bar Fetch Failed" in html
     assert "<caption>Recent winner probability processing runs and errors.</caption>" in html
+
+
+def test_run_page_never_renders_python_none_for_model_metadata(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    payload = _run_payload()
+    payload["items"][0]["estimate"]["model_version_label"] = None
+    payload["items"][0]["estimate"]["model_status"] = None
+
+    html = templates.get_template("winner_probability_run.html").render(
+        run=UploadRun(id=30, filename="sample.csv", status="COMPLETED"),
+        payload=payload,
+        summary={
+            "row_count": 1,
+            "estimate_count": 1,
+            "calibrated_count": 0,
+            "insufficient_count": 1,
+        },
+        filters=_filters(),
+        ui_error=None,
+    )
+
+    assert "Unavailable<small>Insufficient evidence</small>" in html
+    assert ">None<" not in html
 
 
 def test_operations_page_disables_maturation_button_for_active_workflow(monkeypatch) -> None:

@@ -37,6 +37,7 @@ from app.services.background_job_service import (
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.change_semantics import ChangeGroup
+from app.services.ceri.evidence_population import evidence_population_summary
 from app.services.ceri.export_service import CeriExportService
 from app.services.ceri.feature_flags import ceri_flags, require_flag
 from app.services.ceri.job_handlers import (
@@ -167,6 +168,7 @@ def ceri_run_page(
     offset: int = 0,
 ) -> HTMLResponse:
     service = CeriQueryService()
+    evidence_population = evidence_population_summary(db, run_id=run_id)
     payload, ui_error = _ui_payload_or_empty(
         lambda: service.run(
             db,
@@ -196,6 +198,7 @@ def ceri_run_page(
             ),
             "changes": _group_changes(changes.get("items", [])),
             "provider_freshness": [],
+            "evidence_population": evidence_population,
             "filters": {
                 "sort": sort,
                 "direction": direction,
@@ -213,7 +216,33 @@ def ceri_run_page(
     dependencies=[Depends(_require_ceri_ui)],
 )
 def ceri_ticker_page(ticker: str, request: Request, db: DbSession) -> HTMLResponse:
-    payload, ui_error = _ui_payload_or_empty(lambda: CeriQueryService().ticker(db, ticker))
+    status_code = http_status.HTTP_200_OK
+    evidence_population = None
+    try:
+        payload = CeriQueryService().ticker(db, ticker)
+        ui_error = None
+    except CeriQueryError as exc:
+        evidence_population = evidence_population_summary(db, ticker=ticker)
+        if evidence_population["state"] in {
+            "CAPTURED_EXCLUDED",
+            "CAPTURED_QUARANTINED",
+        }:
+            payload = {"ticker": ticker.strip().upper()}
+            ui_error = {
+                "code": evidence_population["state"],
+                "message": (
+                    "Captured evidence exists, but it is not eligible as the current "
+                    "CERI projection."
+                ),
+            }
+        else:
+            payload = {"items": [], "total": 0}
+            ui_error = {"code": exc.code, "message": exc.message}
+            status_code = exc.status_code
+    except ValueError as exc:
+        payload = {"items": [], "total": 0}
+        ui_error = {"code": "INVALID_FILTER", "message": redact_text(str(exc))}
+        status_code = http_status.HTTP_400_BAD_REQUEST
     return templates.TemplateResponse(
         request,
         "ceri_ticker.html",
@@ -221,7 +250,9 @@ def ceri_ticker_page(ticker: str, request: Request, db: DbSession) -> HTMLRespon
             "active_nav": "ceri",
             "payload": payload,
             "ui_error": ui_error,
+            "evidence_population": evidence_population,
         },
+        status_code=status_code,
     )
 
 
@@ -325,7 +356,12 @@ def ceri_changes_page(
     response_class=HTMLResponse,
     dependencies=[Depends(_require_ceri_ui)],
 )
-def ceri_operations_page(request: Request, db: DbSession) -> HTMLResponse:
+def ceri_operations_page(
+    request: Request,
+    db: DbSession,
+    stale_limit: int = Query(50, ge=1, le=100),
+    stale_offset: int = Query(0, ge=0),
+) -> HTMLResponse:
     service = CeriQueryService()
     operations = service.operations_status(db)
     quarantine, _quarantine_error = _ui_payload_or_empty(
@@ -345,7 +381,12 @@ def ceri_operations_page(request: Request, db: DbSession) -> HTMLResponse:
     stale, _stale_error = _ui_payload_or_empty(
         lambda: service.operations_stale(
             db,
-            _list_query(sort="stale_days", direction="desc", limit=50),
+            _list_query(
+                sort="stale_days",
+                direction="desc",
+                limit=stale_limit,
+                offset=stale_offset,
+            ),
             known_total=operations["stale_count"],
         )
     )
@@ -359,6 +400,7 @@ def ceri_operations_page(request: Request, db: DbSession) -> HTMLResponse:
             "quarantined": quarantine.get("items", []),
             "conflicts": conflicts.get("items", []),
             "stale": stale.get("items", []),
+            "stale_page": stale,
             "admin_enabled": _admin_enabled(request),
             "csrf_token": local_admin_csrf_token(request) if _admin_enabled(request) else "",
         },
