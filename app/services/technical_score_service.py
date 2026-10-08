@@ -1986,7 +1986,16 @@ def _score_ticker(
         )
 
     features = calculate_technical_features(
-        price, trades, ticker=ticker, params=pine_params, v4_params=v4_params
+        price,
+        trades,
+        ticker=ticker,
+        params=pine_params,
+        v4_params=v4_params,
+        expected_session=(
+            market_cutoff.latest_completed_session
+            if market_cutoff.context_id is not None
+            else None
+        ),
     )
     htf_features = (
         calculate_htf_trend_features(

@@ -130,6 +130,12 @@ def execute_technical_work_item(item: TechnicalWorkItem) -> TechnicalWorkResult:
                 ticker=item.ticker,
                 params=item.pine_config,
                 v4_params=item.technical_config,
+                expected_session=(
+                    None
+                    if item.input_as_of_session == date.max
+                    or item.calculation_context_id is None
+                    else item.input_as_of_session
+                ),
             )
             htf_features = calculate_htf_trend_features(
                 price,
@@ -255,6 +261,18 @@ def _assert_temporal_boundary(
     benchmark: pd.DataFrame,
     sector: pd.DataFrame | None,
 ) -> None:
+    ticker_latest = _latest_session(price)
+    if (
+        item.input_as_of_session != date.max
+        and item.calculation_context_id is not None
+        and ticker_latest is not None
+        and ticker_latest < item.input_as_of_session
+    ):
+        raise ValueError(
+            "technical freshness violation: ticker_price ends at "
+            f"{ticker_latest}, before expected session {item.input_as_of_session}; "
+            f"context_id={item.calculation_context_id}"
+        )
     for source, frame in (
         ("ticker_price", price),
         ("ticker_trades", trades),

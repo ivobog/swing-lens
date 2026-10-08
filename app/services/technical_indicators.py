@@ -53,11 +53,12 @@ def calculate_technical_features(
     ticker: str = "",
     params: dict[str, Any] | None = None,
     v4_params: dict[str, Any] | None = None,
+    expected_session: date | None = None,
 ) -> TechnicalFeatureResult:
     params = params or load_pine_defaults()
     v4_params = v4_params or load_technical_scoring_v4_config()
     df = prepare_ohlcv_frame(price_df, trades_df)
-    missing_data = _missing_data(df, params)
+    missing_data = _missing_data(df, params, expected_session=expected_session)
     insufficient_data = bool(missing_data["insufficient_history"])
 
     if df.empty:
@@ -843,12 +844,19 @@ def _bars_since(condition: pd.Series) -> pd.Series:
     return pd.Series(counter, index=condition.index, dtype="float")
 
 
-def _missing_data(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def _missing_data(
+    df: pd.DataFrame,
+    params: dict[str, Any],
+    *,
+    expected_session: date | None = None,
+) -> dict[str, Any]:
     slow_len = int(params["trend"]["smaSlowLen"])
     high_low_len = int(params["trend"]["highLow52Len"])
     roc_long_len = int(params["market_rs"]["rocLongLen"])
     required = max(slow_len, high_low_len, roc_long_len)
-    bar_quality = _bar_quality_summary(df, required_rows=required)
+    bar_quality = _bar_quality_summary(
+        df, required_rows=required, expected_session=expected_session
+    )
     return {
         "row_count": len(df),
         "required_rows": required,
@@ -895,16 +903,23 @@ def _validate_bar_quality(df: pd.DataFrame, *, frame_name: str) -> None:
         raise ValueError(f"{frame_name} OHLCV frame has negative volume: {sample}")
 
 
-def _bar_quality_summary(df: pd.DataFrame, *, required_rows: int | None = None) -> dict[str, Any]:
+def _bar_quality_summary(
+    df: pd.DataFrame,
+    *,
+    required_rows: int | None = None,
+    expected_session: date | None = None,
+) -> dict[str, Any]:
     sorted_dates = pd.to_datetime(df["date"]).sort_values()
     gaps = sorted_dates.diff().dt.days.dropna()
     max_gap = int(gaps.max()) if not gaps.empty else 0
     relevant = sorted_dates.iloc[-required_rows:] if required_rows else sorted_dates
     missing_sessions: list[str] = []
-    if len(relevant) >= 2:
+    if len(relevant) >= 1:
         present = {value.date() for value in relevant}
         current = min(present)
         end = max(present)
+        if expected_session is not None and expected_session > end:
+            end = expected_session
         while current <= end:
             if is_us_trading_day(current) and current not in present:
                 missing_sessions.append(current.isoformat())
@@ -916,6 +931,10 @@ def _bar_quality_summary(df: pd.DataFrame, *, required_rows: int | None = None) 
         "missing_trading_session_count": len(missing_sessions),
         "missing_trading_sessions": missing_sessions,
         "session_complete": not missing_sessions,
+        "expected_session": expected_session.isoformat() if expected_session else None,
+        "latest_observed_session": (
+            max(sorted_dates).date().isoformat() if not sorted_dates.empty else None
+        ),
     }
 
 
