@@ -155,6 +155,75 @@ class IBContract(Base):
     last_resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class InstrumentLifecycleRecord(Base):
+    """Append-only evidence describing whether an instrument can trade.
+
+    Contract lookup failures are deliberately not lifecycle evidence. A terminal
+    state is authoritative only when a separately sourced record exists here.
+    """
+
+    __tablename__ = "instrument_lifecycle_records"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    lifecycle_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    effective_date: Mapped[date | None] = mapped_column(Date)
+    last_trading_date: Mapped[date | None] = mapped_column(Date)
+    reason: Mapped[str | None] = mapped_column(Text)
+    successor_ticker: Mapped[str | None] = mapped_column(Text)
+    contract_valid_from: Mapped[date | None] = mapped_column(Date)
+    contract_valid_to: Mapped[date | None] = mapped_column(Date)
+    evidence_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    is_current_revision: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    supersedes_id: Mapped[int | None] = mapped_column(
+        ForeignKey("instrument_lifecycle_records.id", ondelete="RESTRICT")
+    )
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "lifecycle_state IN ('ACTIVE', 'HALTED', 'INACTIVE', 'MERGED', 'DELISTED', 'UNKNOWN')",
+            name="ck_instrument_lifecycle_state",
+        ),
+        CheckConstraint("revision > 0", name="ck_instrument_lifecycle_revision_positive"),
+        CheckConstraint(
+            "jsonb_typeof(evidence_json) = 'object' AND evidence_json <> '{}'::jsonb",
+            name="ck_instrument_lifecycle_evidence_nonempty",
+        ),
+        CheckConstraint(
+            "lifecycle_state NOT IN ('INACTIVE', 'MERGED', 'DELISTED') OR "
+            "effective_date IS NOT NULL OR last_trading_date IS NOT NULL OR "
+            "contract_valid_to IS NOT NULL",
+            name="ck_instrument_lifecycle_terminal_boundary",
+        ),
+        CheckConstraint(
+            "effective_date IS NULL OR last_trading_date IS NULL OR "
+            "last_trading_date <= effective_date",
+            name="ck_instrument_lifecycle_trading_date_order",
+        ),
+        CheckConstraint(
+            "contract_valid_from IS NULL OR contract_valid_to IS NULL OR "
+            "contract_valid_from <= contract_valid_to",
+            name="ck_instrument_lifecycle_contract_date_order",
+        ),
+        UniqueConstraint("ticker", "revision", name="uq_instrument_lifecycle_ticker_revision"),
+        Index("idx_instrument_lifecycle_current", "ticker", "is_current_revision"),
+        Index(
+            "uq_instrument_lifecycle_one_current",
+            "ticker",
+            unique=True,
+            postgresql_where=text("is_current_revision"),
+        ),
+    )
+
+
 class PriceBar(Base):
     __tablename__ = "price_bars"
 
@@ -1718,6 +1787,100 @@ class PipelineStep(Base):
             "pipeline_run_id",
             "step_name",
             name="uq_pipeline_steps_pipeline_step",
+        ),
+    )
+
+
+class MarketDataSessionDisposition(Base):
+    """Durable ticker/session admission decision between fetch and scoring."""
+
+    __tablename__ = "market_data_session_dispositions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    upload_run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    market_calculation_context_id: Mapped[int] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="RESTRICT"), nullable=False
+    )
+    fetch_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ib_fetch_runs.id", ondelete="RESTRICT")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_session: Mapped[date] = mapped_column(Date, nullable=False)
+    latest_bar_session: Mapped[date | None] = mapped_column(Date)
+    disposition: Mapped[str] = mapped_column(String(48), nullable=False)
+    lifecycle_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    technical_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    downstream_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(96), nullable=False)
+    reason_message: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    is_current_revision: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    supersedes_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_data_session_dispositions.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "disposition IN ('READY', 'TRANSIENT_FAILURE', 'REQUIRED_DATA_UNAVAILABLE', "
+            "'TERMINAL_INACTIVE', 'UNKNOWN')",
+            name="ck_market_data_session_disposition",
+        ),
+        CheckConstraint(
+            "lifecycle_state IN ('ACTIVE', 'HALTED', 'INACTIVE', 'MERGED', 'DELISTED', 'UNKNOWN')",
+            name="ck_market_data_session_lifecycle_state",
+        ),
+        CheckConstraint("revision > 0", name="ck_market_data_session_revision_positive"),
+        CheckConstraint(
+            "jsonb_typeof(evidence_json) = 'object' AND evidence_json <> '{}'::jsonb",
+            name="ck_market_data_session_evidence_nonempty",
+        ),
+        CheckConstraint(
+            "latest_bar_session IS NULL OR latest_bar_session <= expected_session",
+            name="ck_market_data_session_bar_not_after_expected",
+        ),
+        CheckConstraint(
+            "(disposition = 'READY' AND technical_eligible AND downstream_eligible) OR "
+            "(disposition <> 'READY' AND NOT technical_eligible AND NOT downstream_eligible)",
+            name="ck_market_data_session_eligibility",
+        ),
+        CheckConstraint(
+            "disposition <> 'READY' OR "
+            "(latest_bar_session IS NOT NULL AND latest_bar_session = expected_session)",
+            name="ck_market_data_session_ready_fresh",
+        ),
+        CheckConstraint(
+            "disposition <> 'TERMINAL_INACTIVE' OR "
+            "lifecycle_state IN ('INACTIVE', 'MERGED', 'DELISTED')",
+            name="ck_market_data_session_terminal_lifecycle",
+        ),
+        UniqueConstraint(
+            "pipeline_run_id", "ticker", "revision", name="uq_market_data_disposition_revision"
+        ),
+        Index(
+            "idx_market_data_disposition_current",
+            "pipeline_run_id",
+            "is_current_revision",
+            "ticker",
+        ),
+        Index(
+            "uq_market_data_disposition_one_current",
+            "pipeline_run_id",
+            "ticker",
+            unique=True,
+            postgresql_where=text("is_current_revision"),
         ),
     )
 
