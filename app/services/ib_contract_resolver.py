@@ -94,6 +94,34 @@ def resolve_us_stock_contract(
         return _mark_failed(db, row, str(exc))
 
 
+@source_mutation_writer(
+    MutationDomain.IBMI_SOURCE, "request_scope", mode=MutationSemanticMode.MAINTENANCE
+)
+def invalidate_cached_contract(
+    db: Session,
+    ticker: str,
+    *,
+    expected_conid: int | None,
+    reason: str,
+) -> bool:
+    """Revoke only the cached identity that actually failed at the provider.
+
+    A concurrent/newly qualified identity is left untouched. Historical fetch
+    plans retain the rejected identity as immutable acquisition evidence.
+    """
+
+    normalized = ticker.strip().upper()
+    row = db.scalar(select(IBContract).where(IBContract.ticker == normalized))
+    if row is None or (expected_conid is not None and row.ib_conid != expected_conid):
+        return False
+    _clear_contract_identity_values(row)
+    row.resolution_status = "FAILED"
+    row.error_message = reason
+    row.last_resolved_at = datetime.now(UTC)
+    db.flush()
+    return True
+
+
 @source_writer_member("app.services.ib_contract_resolver:resolve_us_stock_contract")
 def _mark_failed(db: Session, row: IBContract, message: str) -> ContractResolution:
     _clear_contract_identity(row)
@@ -136,6 +164,10 @@ def _mark_ambiguous(
 
 @source_writer_member("app.services.ib_contract_resolver:resolve_us_stock_contract")
 def _clear_contract_identity(row: IBContract) -> None:
+    _clear_contract_identity_values(row)
+
+
+def _clear_contract_identity_values(row: IBContract) -> None:
     row.ib_conid = None
     row.symbol = None
     row.exchange = None

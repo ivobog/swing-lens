@@ -12,7 +12,11 @@ from app.services import bar_cache_service
 from app.services.bar_cache_service import _normalize_symbols, cache_bars
 from app.services.ib_api import Contract
 from app.services.ib_connection import check_ib_connection
-from app.services.ib_contract_resolver import cached_contract_to_ib, resolve_us_stock_contract
+from app.services.ib_contract_resolver import (
+    cached_contract_to_ib,
+    invalidate_cached_contract,
+    resolve_us_stock_contract,
+)
 from app.services.ib_data_fetcher import (
     HistoricalBar,
     IBHistoricalRequestError,
@@ -371,6 +375,54 @@ def test_cached_contract_to_ib_ignores_ambiguous_contract() -> None:
     )
 
     assert cached_contract_to_ib(row) is None
+
+
+def test_contract_not_found_invalidation_clears_only_matching_cached_identity() -> None:
+    row = IBContract(
+        ticker="BLFS",
+        ib_conid=143288128,
+        symbol="BLFS",
+        exchange="SMART",
+        primary_exchange="NASDAQ",
+        currency="USD",
+        sec_type="STK",
+        local_symbol="BLFS",
+        trading_class="BLFS",
+        resolution_status="RESOLVED",
+    )
+    db = FakeContractDb(row)
+
+    assert (
+        invalidate_cached_contract(
+            db,
+            "BLFS",
+            expected_conid=143288128,
+            reason="IB error 200 CONTRACT_NOT_FOUND",
+        )
+        is True
+    )
+    assert row.resolution_status == "FAILED"
+    assert row.ib_conid is None
+    assert row.symbol is None
+    assert row.error_message == "IB error 200 CONTRACT_NOT_FOUND"
+    assert db.flushed is True
+
+
+def test_invalidation_does_not_revoke_a_newer_contract_identity() -> None:
+    row = IBContract(ticker="BLFS", ib_conid=222, resolution_status="RESOLVED")
+    db = FakeContractDb(row)
+
+    assert (
+        invalidate_cached_contract(
+            db,
+            "BLFS",
+            expected_conid=111,
+            reason="old identity failed",
+        )
+        is False
+    )
+    assert row.resolution_status == "RESOLVED"
+    assert row.ib_conid == 222
 
 
 def test_resolve_us_stock_contract_marks_multiple_qualified_contracts_ambiguous() -> None:
