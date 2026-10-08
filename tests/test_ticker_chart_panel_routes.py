@@ -50,6 +50,37 @@ def test_ticker_chart_panel_renders_context(monkeypatch) -> None:
     ]
 
 
+def test_ticker_detail_fragment_reuses_scoped_score_context(monkeypatch) -> None:
+    captured = {}
+    run = _run()
+
+    def fake_template_response(request, template_name, context):
+        captured["template_name"] = template_name
+        captured["context"] = context
+        return SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr(run_routes, "_load_run", lambda _db, _run_id: run)
+    monkeypatch.setattr(run_routes.templates, "TemplateResponse", fake_template_response)
+
+    response = run_routes.ticker_detail_fragment(
+        run_id=7,
+        ticker="msft",
+        request=SimpleNamespace(),
+        db=SimpleNamespace(),
+    )
+
+    assert response.status_code == 200
+    assert captured["template_name"] == "partials/_run_ticker_detail.html"
+    assert captured["context"]["ticker"] == "MSFT"
+    assert [card["title"] for card in captured["context"]["score_cards"]] == [
+        "Combined Decision",
+        "Fundamentals",
+        "Technicals",
+        "Risk Context",
+        "Warnings and Missing Data",
+    ]
+
+
 def test_ticker_chart_panel_returns_404_for_unknown_ticker(monkeypatch) -> None:
     monkeypatch.setattr(run_routes, "_load_run", lambda db, run_id: _run())
 

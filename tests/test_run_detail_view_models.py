@@ -34,6 +34,7 @@ from app.routers.run_routes import (
 )
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
 from app.services.ohlcv_coverage_service import OhlcvCoverageItem, OhlcvCoverageSummary
+from app.services.score_card_view_service import build_score_cards
 from app.services.technical_display_fields import technical_score_display_fields
 from app.templates import templates
 
@@ -530,11 +531,36 @@ def test_run_detail_collapses_secondary_tables_by_default(monkeypatch) -> None:
         warning_badges_by_ticker={"MSFT": []},
     )
 
-    assert "<summary>Latest Fetch rows</summary>" in html
+    assert "<summary>Latest Fetch rows (first 50 of 1; open progress for all)</summary>" in html
     assert "<summary>Raw CSV Preview rows</summary>" in html
     assert '<details class="collapsible-table" open>' not in html
     assert 'data-cockpit-table' in html
     assert "<h2>Decision Cockpit</h2>" in html
+
+
+def test_run_detail_pipeline_hero_links_to_resolved_pipeline_identity(monkeypatch) -> None:
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    run = UploadRun(id=7, filename="sample.csv", row_count=0, status="COMPLETED")
+
+    html = templates.get_template("run_detail.html").render(
+        run=run,
+        latest_pipeline={
+            "pipeline_run_id": 99,
+            "status": "PARTIAL",
+            "message": "Partial execution",
+            "completed_steps": 1,
+            "total_steps": 1,
+            "job_status": "COMPLETED",
+            "job_cancel_requested": False,
+            "steps": [],
+            "result": {},
+        },
+    )
+
+    assert "Upload ingestion" in html
+    assert "Pipeline execution" in html
+    assert 'href="/runs/7/pipeline/99"' in html
+    assert 'href="/runs/7/pipeline/"' not in html
 
 
 def test_run_detail_template_renders_ranking_profile_summary(monkeypatch) -> None:
@@ -704,13 +730,16 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
         technical_by_ticker={},
         warning_badges_by_ticker={"MSFT": _warning_badges(["high_accrual_risk"])},
     )
+    detail_html = templates.get_template("partials/_run_ticker_detail.html").render(
+        score_cards=build_score_cards(None, fundamental, None, combined)
+    )
 
-    assert "fundamentals_v2.0" in html
-    assert "Coverage" in html
-    assert "Earnings" in html
-    assert "Capital" in html
-    assert "quick_ratio_quarterly" in html
-    assert "high_accrual_risk" in html
+    assert "fundamentals_v2.0" in detail_html
+    assert "Coverage" in detail_html
+    assert "Earnings" in detail_html
+    assert "Capital" in detail_html
+    assert "quick_ratio_quarterly" in detail_html
+    assert "high_accrual_risk" in detail_html
     assert 'data-quick-filter="top10"' in html
     assert 'data-quick-filter="hide-earnings-blocked"' in html
     assert 'data-quick-filter="earnings-risk"' in html
@@ -731,6 +760,7 @@ def test_run_detail_template_renders_v2_fundamental_details(monkeypatch) -> None
     assert 'class="cockpit-row clickable-row"' in html
     assert 'data-href="/runs/1/tickers/MSFT/chart"' in html
     assert 'data-no-row-nav="true" aria-expanded="false">Details</button>' in html
+    assert 'data-detail-url="/runs/1/tickers/MSFT/details"' in html
     assert '<a data-no-row-nav="true" href="https://www.tradingview.com/chart/?symbol=MSFT"' in html
     assert 'data-candidate-plus="true"' in html
     assert 'data-clean="false"' in html
@@ -773,6 +803,9 @@ def test_run_detail_template_renders_earnings_risk_context(monkeypatch) -> None:
         },
         warning_badges_by_ticker={"MSFT": _warning_badges(["earnings_blocked"])},
     )
+    detail_html = templates.get_template("partials/_run_ticker_detail.html").render(
+        score_cards=build_score_cards(None, None, None, combined)
+    )
 
     assert "Earnings Blocked" in html
     assert 'data-earnings-date="2026-07-14"' in html
@@ -781,15 +814,24 @@ def test_run_detail_template_renders_earnings_risk_context(monkeypatch) -> None:
     assert 'data-sort-key="earnings-risk"' not in html
     assert 'data-avoid="true"' in html
     assert "Blocked by earnings gate" in html
-    assert "Earnings Date" in html
-    assert "Earnings Flags" in html
-    assert "earnings_blocked" in html
+    assert "Earnings Date" in detail_html
+    assert "Earnings" in detail_html
+    assert "earnings_blocked" in detail_html
 
 
 def test_run_detail_template_renders_v4_technical_details(monkeypatch) -> None:
     monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
     run = UploadRun(id=1, filename="sample.csv", row_count=1, status="COMPLETED")
     technical = _technical("MSFT")
+    technical.technical_engine_version = "4.0.0"
+    technical.stage = "Stage 2"
+    technical.market_regime = "Bull trend"
+    technical.leadership_score = Decimal("9.2")
+    technical.vcp_score = Decimal("7.4")
+    technical.breakout_quality_score = Decimal("8.8")
+    technical.climax_risk_score = Decimal("2.2")
+    technical.sub_tags_json = ["VCP", "Stage 2"]
+    technical.warning_flags_json = ["missing_benchmark_data"]
     combined = _combined("MSFT", "Candidate", is_complete=True, has_warning=False)
     combined.dual_score = Decimal("8.44")
     combined.technical_classification = "Prime clean pullback"
@@ -799,33 +841,23 @@ def test_run_detail_template_renders_v4_technical_details(monkeypatch) -> None:
         combined_results=[combined],
         fundamental_by_ticker={},
         technical_by_ticker={"MSFT": technical},
-        technical_details_by_ticker={
-            "MSFT": {
-                "technical_version": "4.0.0",
-                "stage": "Stage 2",
-                "market_regime": "Bull trend",
-                "leadership_score": 9.2,
-                "vcp_score": 7.4,
-                "box_breakout": True,
-                "breakout_quality_score": 8.8,
-                "climax_risk_score": 2.2,
-                "sub_tags": "VCP; Stage 2",
-                "warning_flags": "missing_benchmark_data",
-            }
-        },
         warning_badges_by_ticker={"MSFT": []},
     )
+    detail_html = templates.get_template("partials/_run_ticker_detail.html").render(
+        score_cards=build_score_cards(None, None, technical, combined)
+    )
 
-    assert "4.0.0" in html
-    assert "Stage 2" in html
-    assert "Bull trend" in html
-    assert "9.20" in html
-    assert "7.40" in html
-    assert "Breakout" in html
-    assert "8.80" in html
-    assert "2.20" in html
-    assert "VCP; Stage 2" in html
-    assert "missing_benchmark_data" in html
+    assert 'data-detail-url="/runs/1/tickers/MSFT/details"' in html
+    assert "4.0.0" in detail_html
+    assert "Stage 2" in detail_html
+    assert "Bull trend" in detail_html
+    assert "9.2" in detail_html
+    assert "7.4" in detail_html
+    assert "Breakout Quality" in detail_html
+    assert "8.8" in detail_html
+    assert "2.2" in detail_html
+    assert "VCP; Stage 2" in detail_html
+    assert "missing_benchmark_data" in detail_html
 
 
 def test_run_detail_template_renders_v4_active_before_v5_shadow(monkeypatch) -> None:

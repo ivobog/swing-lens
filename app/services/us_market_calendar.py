@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 _NY_TZ = ZoneInfo("America/New_York")
@@ -148,7 +149,8 @@ def _previous_us_trading_day(day: date) -> date:
 _is_us_trading_day = is_us_trading_day
 
 
-def _nyse_holidays(year: int) -> set[date]:
+@lru_cache(maxsize=32)
+def _nyse_holidays(year: int) -> frozenset[date]:
     holidays = {
         _observed(date(year, 1, 1)),
         _nth_weekday(year, 1, 0, 3),  # Martin Luther King Jr. Day
@@ -170,10 +172,11 @@ def _nyse_holidays(year: int) -> set[date]:
         observed = _observed(raw)
         if observed.year == year:
             holidays.add(observed)
-    return holidays
+    return frozenset(holidays)
 
 
-def _nyse_early_closes(year: int) -> set[date]:
+@lru_cache(maxsize=32)
+def _nyse_early_closes(year: int) -> frozenset[date]:
     """Rule-based NYSE 13:00 closes used by the shared session service.
 
     Exceptional one-off closures remain full holiday overrides; these stable
@@ -192,7 +195,7 @@ def _nyse_early_closes(year: int) -> set[date]:
     christmas_eve = date(year, 12, 24)
     if christmas_eve.weekday() < 5:
         candidates.add(christmas_eve)
-    return {day for day in candidates if is_us_trading_day(day)}
+    return frozenset(day for day in candidates if is_us_trading_day(day))
 
 
 def _observed(day: date) -> date:

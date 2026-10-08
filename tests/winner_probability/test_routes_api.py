@@ -423,7 +423,8 @@ def test_cohort_refresh_admin_endpoint_queues_job(monkeypatch) -> None:
     app.dependency_overrides[get_db] = lambda: db
 
     response = TestClient(app).post(
-        "/api/winner-probability/cohorts/refresh?outcome_definition_id=T2_5_S2_0_H5_NEXT_OPEN"
+        "/api/winner-probability/cohorts/refresh?outcome_definition_id=T2_5_S2_0_H5_NEXT_OPEN",
+        headers={"x-csrf-token": app.state.local_admin_csrf_token},
     )
 
     assert response.status_code == 200

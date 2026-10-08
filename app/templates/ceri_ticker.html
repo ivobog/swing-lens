@@ -3,6 +3,12 @@
 {% block title %}CERI {{ payload.ticker if payload else "Ticker" }}{% endblock %}
 
 {% block content %}
+{% if evidence_population and evidence_population.captured_count %}
+  <section class="alert" role="status" data-ceri-evidence-population data-state="{{ evidence_population.state }}">
+    {{ evidence_population.captured_count }} captured; {{ evidence_population.eligible_count }} eligible/current; {{ evidence_population.excluded_count }} excluded; {{ evidence_population.quarantined_count }} quarantined.
+    Captured excluded evidence is retained for audit and is not a current decision input.
+  </section>
+{% endif %}
 <script src="{{ url_for('static', path='/ceri.js') }}" defer></script>
 
 {% set latest = payload.latest if payload else none %}

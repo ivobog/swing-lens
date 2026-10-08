@@ -25,7 +25,7 @@
 
 <section class="panel section-gap">
   <div class="panel-header compact-header"><div><h2>Scoped Evaluation</h2><p>Queue an audited run, dry-run scope, or targeted retry.</p></div></div>
-  <form class="setup-lifecycle-filter-grid section-gap" data-slse-operation-form method="post" action="/api/setup-lifecycle/evaluations">
+  <form class="setup-lifecycle-filter-grid section-gap" data-slse-operation-form data-operation-kind="evaluation" data-csrf-token="{{ csrf_token }}" method="post" action="/api/setup-lifecycle/evaluations">
     <label><span>Scope</span><select name="scope" required>{% for option in ["RUN", "TICKER", "DATE_RANGE", "ALL_ELIGIBLE", "SINGLE_TICKER_RETRY"] %}<option value="{{ option }}">{{ option }}</option>{% endfor %}</select></label>
     <label><span>Run ID</span><input name="run_id" type="number" min="1"></label>
     <label><span>Ticker</span><input name="ticker"></label>
@@ -41,7 +41,7 @@
 
 <section class="panel section-gap">
   <div class="panel-header compact-header"><div><h2>Replay</h2></div></div>
-  <form class="setup-lifecycle-filter-grid section-gap" method="post" action="/api/setup-lifecycle/replay">
+  <form class="setup-lifecycle-filter-grid section-gap" data-slse-operation-form data-operation-kind="replay" data-csrf-token="{{ csrf_token }}" method="post" action="/api/setup-lifecycle/replay">
     <label><span>Ticker</span><input name="ticker" placeholder="Optional"></label>
     <label><span>From</span><input name="date_from" type="date"></label>
     <label><span>To</span><input name="date_to" type="date"></label>
@@ -51,6 +51,7 @@
     <label class="toggle-row"><input name="persist" type="checkbox" value="true"><span>Persist replay version</span></label>
     <div class="actions setup-lifecycle-filter-actions"><button type="submit">Run replay</button></div>
   </form>
+  <p data-slse-operation-status role="status" aria-live="polite"></p>
 </section>
 
 <section class="panel section-gap">

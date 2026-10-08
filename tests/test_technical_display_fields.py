@@ -130,6 +130,29 @@ def test_score_display_historical_v4_only_has_no_comparison() -> None:
     assert display["v5_rollout_mode"] == ""
 
 
+def test_score_display_does_not_promote_observed_score_when_combined_omits_technical() -> None:
+    score = TechnicalScore(
+        run_id=1,
+        ticker="ABBV",
+        dual_score=Decimal("6.75"),
+        classification="Observed setup",
+        technical_engine_version="4.0.0",
+    )
+    combined = CombinedResult(
+        run_id=1,
+        ticker="ABBV",
+        dual_score=None,
+        technical_classification=None,
+    )
+
+    display = technical_score_display_fields(score, combined)
+
+    assert display["used_in_combined_decision"] is False
+    assert display["feeds_combined_decision"] is None
+    assert display["active"]["score"] is None
+    assert display["observed"]["score"] == Decimal("6.75")
+
+
 def test_technical_v4_detail_fields_prefer_explicit_columns_and_use_v4_debug() -> None:
     score = TechnicalScore(
         run_id=1,
