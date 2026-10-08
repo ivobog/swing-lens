@@ -36,7 +36,7 @@ from app.services.contextual_calculation_identity import (
 from app.services.market_calculation_context_service import (
     standalone_market_context,
 )
-from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
+from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.market_regime_policy import load_market_regime_command_center_config
 from app.services.operational_metrics import operational_metrics
 from app.services.price_bar_repository import (
@@ -175,27 +175,25 @@ class SetupLifecycleSourceLoader:
                     policy=SETUP_TECHNICAL_COMPATIBILITY,
                 )
             )
+        # Regime and sector snapshots are global session artifacts. Their temporal
+        # eligibility is anchored to the frozen market context, never to an
+        # individual ticker's latest OHLCV observation. A stale/terminal ticker
+        # must not make a valid global snapshot appear to come from its future.
         context_cutoff = source_cutoff
         context_started_at = perf_counter()
-        latest_bars_by_ticker = _latest_bars_by_ticker(price_bars)
-        ticker_cutoffs = {
-            normalize_ticker(row.ticker): (
-                latest_bars_by_ticker.get(normalize_ticker(row.ticker)).bar_date
-                if normalize_ticker(row.ticker) in latest_bars_by_ticker
-                else context_cutoff
-            )
+        context_tickers = {
+            normalize_ticker(row.ticker)
             for row in raw_rows
             if row.ticker and row.ticker.strip()
         }
-        latest_cutoff = max(ticker_cutoffs.values(), default=context_cutoff)
         market_statement = _latest_context_statement(
             MarketRegimeSnapshot,
-            latest_cutoff,
+            context_cutoff,
             cutoff_at=market_cutoff.cutoff_at if isinstance(db, Session) else None,
         )
         sector_statement = _latest_context_statement(
             SectorRotationSnapshot,
-            latest_cutoff,
+            context_cutoff,
             cutoff_at=market_cutoff.cutoff_at if isinstance(db, Session) else None,
         ).where(
             or_(
@@ -243,30 +241,9 @@ class SetupLifecycleSourceLoader:
             if sector_config is not None
             else None
         )
-        market_by_ticker = {
-            ticker: _select_compatible_context_candidate(
-                market_candidates,
-                cutoff,
-                run_id,
-                expected=regime_expected,
-                policy=SETUP_REGIME_COMPATIBILITY,
-                allow_cross_run=True,
-            )
-            for ticker, cutoff in ticker_cutoffs.items()
-        }
-        sector_by_ticker = {
-            ticker: _select_compatible_context_candidate(
-                sector_candidates,
-                cutoff,
-                run_id,
-                expected=sector_expected,
-                policy=SETUP_SECTOR_COMPATIBILITY,
-            )
-            for ticker, cutoff in ticker_cutoffs.items()
-        }
         market_snapshot = _select_compatible_context_candidate(
             market_candidates,
-            latest_cutoff,
+            context_cutoff,
             run_id,
             expected=regime_expected,
             policy=SETUP_REGIME_COMPATIBILITY,
@@ -274,11 +251,13 @@ class SetupLifecycleSourceLoader:
         )
         sector_snapshot = _select_compatible_context_candidate(
             sector_candidates,
-            latest_cutoff,
+            context_cutoff,
             run_id,
             expected=sector_expected,
             policy=SETUP_SECTOR_COMPATIBILITY,
         )
+        market_by_ticker = dict.fromkeys(context_tickers, market_snapshot)
+        sector_by_ticker = dict.fromkeys(context_tickers, sector_snapshot)
         sector_snapshot_ids = tuple(
             snapshot.id for snapshot in sector_candidates if snapshot.id is not None
         )
@@ -690,60 +669,6 @@ def _latest_context_statement(model, cutoff: date, *, cutoff_at: datetime | None
             model.calculation_cutoff_at <= cutoff_at
         )
     return statement
-
-
-def _run_context_cutoff_date(
-    *,
-    upload_run: UploadRun,
-    raw_rows: tuple[RawCompanyRow, ...],
-    technical_scores: tuple[TechnicalScore, ...],
-    price_bars: tuple[PriceBar, ...],
-) -> date:
-    latest_bars = _latest_bars_by_ticker(price_bars)
-    ticker_cutoffs = [
-        latest_bar.bar_date
-        for row in raw_rows
-        if row.ticker and (latest_bar := latest_bars.get(normalize_ticker(row.ticker))) is not None
-    ]
-    if ticker_cutoffs:
-        return min(ticker_cutoffs)
-    timestamp = upload_run.processed_at or upload_run.uploaded_at
-    if timestamp is None:
-        raise ValueError("run cutoff cannot be proven without a bar or run timestamp")
-    return (
-        MarketClockService()
-        .cutoff_for(timestamp, reason="SETUP_LEGACY_CONTEXT_COMPATIBILITY")
-        .latest_completed_session
-    )
-
-
-def _upload_run_cutoff_date(upload_run: UploadRun) -> date:
-    timestamp = upload_run.processed_at or upload_run.uploaded_at
-    if timestamp is None:
-        raise ValueError("completed upload run requires a processed or uploaded timestamp")
-    return (
-        MarketClockService()
-        .cutoff_for(timestamp, reason="SETUP_UPLOAD_RUN_TIMESTAMP")
-        .latest_completed_session
-    )
-
-
-def _ticker_context_cutoff_date(
-    raw_row: RawCompanyRow,
-    technical_scores: tuple[TechnicalScore, ...],
-    price_bars: tuple[PriceBar, ...],
-) -> date | None:
-    ticker = normalize_ticker(raw_row.ticker)
-    latest_bar = latest_completed_bar(
-        tuple(row for row in price_bars if normalize_ticker(row.ticker) == ticker)
-    )
-    if latest_bar is not None:
-        return latest_bar.bar_date
-    # A technical persistence timestamp is a knowledge instant, not a market
-    # session. The caller falls back to the frozen run session when no eligible
-    # ticker bar exists.
-    _ = technical_scores
-    return None
 
 
 def _latest_bars_by_ticker(
