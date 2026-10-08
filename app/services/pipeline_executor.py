@@ -83,6 +83,11 @@ from app.services.market_data_prewarm_service import (
     record_pipeline_prewarm_reuse,
     resolve_pipeline_prewarm_context,
 )
+from app.services.market_data_session_readiness import (
+    MarketDataDisposition,
+    evaluate_and_persist_session_readiness,
+    load_current_session_readiness,
+)
 from app.services.market_regime_command_center import MarketRegimeCommandCenterService
 from app.services.market_regime_dtos import MarketRegimeCommandCenterDto
 from app.services.operational_metrics import operational_metrics
@@ -558,35 +563,15 @@ def execute_full_pipeline(
                     cache_fallback = True
                     result["market_data_mode"] = "CACHE_FALLBACK"
                     result["degraded"] = True
-            overlap_callback_supported = _accepts_keyword(
-                dependencies.execute_fetch_plan,
-                "on_ticker_ready",
-            )
-            if _fetch_technical_overlap_enabled(dependencies) and overlap_callback_supported:
-                benchmark_tickers = sorted(
-                    {
-                        item.ticker
-                        for item in plan.items
-                        if {"BENCHMARK", "SECTOR"}.intersection(item.dependency_roles)
-                    }
-                )
-                overlap_coordinator = TechnicalScoringOverlapCoordinator(
-                    db,
-                    run_id=upload_run.id,
-                    tickers=tickers,
-                    should_cancel=should_cancel,
-                    lease_guard=lease_guard,
-                    required_market_tickers=benchmark_tickers,
-                    wait_for_market_events=bool(plan.estimated_request_count),
-                    market_cutoff=market_cutoff,
-                    pipeline_run_id=pipeline.id,
-                )
-            elif _fetch_technical_overlap_enabled(dependencies):
-                performance.add_fallback("technical_overlap_callback_unsupported")
+            if _fetch_technical_overlap_enabled(dependencies):
+                # Scoring may not begin from a per-ticker fetch callback. The
+                # complete requested universe must first receive a durable
+                # ticker/session disposition at the explicit readiness boundary.
+                performance.add_fallback("technical_overlap_readiness_boundary")
                 operational_metrics.increment(
                     "swinglens_pipeline_optimized_fallback_total",
                     component="technical_overlap",
-                    reason="callback_unsupported",
+                    reason="readiness_boundary",
                 )
             fetch_run = None
             if plan.estimated_request_count and not cache_fallback:
@@ -656,6 +641,48 @@ def execute_full_pipeline(
             if overlap_coordinator is not None:
                 overlap_coordinator.mark_fetch_complete()
 
+            if isinstance(db, Session):
+                readiness = evaluate_and_persist_session_readiness(
+                    db,
+                    pipeline_run_id=pipeline.id,
+                    upload_run_id=upload_run.id,
+                    tickers=tickers,
+                    market_cutoff=market_cutoff,
+                    fetch_run_id=fetch_run.id if fetch_run is not None else None,
+                )
+                result["market_data_session_readiness"] = readiness.as_dict()
+                step = _require_step(db, pipeline.id, "FETCHING_MARKET_DATA")
+                step.result_json = readiness.as_dict()
+                if readiness.accepted_inactive_tickers:
+                    step.message = "Accepted explicit terminal exclusions: " + ", ".join(
+                        readiness.accepted_inactive_tickers
+                    )
+                if readiness.blockers:
+                    diagnostics = readiness.as_dict()
+                    transient_only = all(
+                        row.disposition == MarketDataDisposition.TRANSIENT_FAILURE.value
+                        for row in readiness.blockers
+                    )
+                    reason_code = (
+                        "MARKET_DATA_TRANSIENT_UNRESOLVED"
+                        if transient_only
+                        else "MARKET_DATA_SESSION_READINESS_BLOCKED"
+                    )
+                    raise PipelineBlockedError(
+                        f"{reason_code}: "
+                        + ",".join(
+                            f"{row.ticker}={row.disposition}:{row.reason_code}"
+                            for row in readiness.blockers
+                        ),
+                        reason_code=reason_code,
+                        diagnostics=diagnostics,
+                    )
+                technical_tickers = readiness.technical_tickers
+                downstream_tickers = readiness.downstream_tickers
+            else:
+                technical_tickers = tuple(tickers)
+                downstream_tickers = tuple(tickers)
+
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
             db, pipeline, "SCORING_TECHNICALS", lease_guard=lease_guard, performance=performance
@@ -685,6 +712,7 @@ def execute_full_pipeline(
                         upload_run.id,
                         market_cutoff,
                         pipeline_run_id=pipeline.id,
+                        frozen_tickers=technical_tickers,
                         should_cancel=should_cancel,
                         checkpoint_callback=lambda **progress: _technical_job_checkpoint(
                             db,
@@ -879,7 +907,7 @@ def execute_full_pipeline(
             db,
             pipeline=pipeline,
             upload_run=upload_run,
-            tickers=tickers,
+            tickers=list(downstream_tickers),
             market_cutoff=market_cutoff,
             should_cancel=should_cancel,
             lease_guard=lease_guard,
@@ -957,6 +985,38 @@ def _continue_after_sector_snapshot(
     progress_callback: Callable[..., None] | None,
     memory_probe: Callable[..., None] | None,
 ) -> PipelineExecutionResult:
+    if not tickers:
+        reason = "ALL_REQUESTED_TICKERS_TERMINAL_INACTIVE"
+        result["downstream_publication_skipped"] = 1
+        result["downstream_publication_skip_reason"] = reason
+        for step_name in (
+            CERI_PIPELINE_PROVIDER_INGEST_STEP,
+            CERI_PIPELINE_CAPTURE_STEP,
+            DECISION_HANDOFF_PIPELINE_STEP,
+            SLSE_PIPELINE_CAPTURE_STEP,
+            SLSE_PIPELINE_EVALUATION_STEP,
+            WINNER_CAPTURE_PIPELINE_STEP,
+        ):
+            if not _pipeline_has_step(db, pipeline.id, step_name):
+                continue
+            current = _require_step(db, pipeline.id, step_name)
+            if current.status in {PipelineStepStatus.COMPLETED, PipelineStepStatus.SKIPPED}:
+                continue
+            with _pipeline_step(
+                db,
+                pipeline,
+                step_name,
+                lease_guard=lease_guard,
+                performance=performance,
+            ) as skipped_step:
+                skipped_step.status = PipelineStepStatus.SKIPPED
+                skipped_step.message = reason
+        result["performance"] = performance.snapshot()
+        final_status = PipelineStatus.COMPLETED
+        _record_performance_metrics(db, final_status, result["performance"])
+        _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
+        return _to_execution_result(pipeline, result)
+
     provider_ingest_enabled = _ceri_provider_ingest_enabled(dependencies)
     if provider_ingest_enabled:
         _raise_if_cancelled(should_cancel)
@@ -1212,7 +1272,37 @@ def _execute_resumed_pipeline(
     )
     try:
         tickers = _pipeline_scope_tickers(db, pipeline)
+        resumed_readiness = (
+            load_current_session_readiness(db, pipeline_run_id=pipeline.id)
+            if isinstance(db, Session)
+            else None
+        )
+        if resumed_readiness is not None:
+            if resumed_readiness.blockers:
+                raise PipelineBlockedError(
+                    "MARKET_DATA_SESSION_READINESS_BLOCKED: resumed decision tail has blockers",
+                    reason_code="MARKET_DATA_SESSION_READINESS_BLOCKED",
+                    diagnostics=resumed_readiness.as_dict(),
+                )
+            tickers = list(resumed_readiness.downstream_tickers)
         _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
+        if not tickers and resume_from_step != "SECTOR_ROTATION_SNAPSHOT":
+            if dependencies.market_cutoff is None:
+                raise RuntimeError("resumed pipeline is missing its frozen market cutoff")
+            return _continue_after_sector_snapshot(
+                db,
+                pipeline=pipeline,
+                upload_run=upload_run,
+                tickers=[],
+                market_cutoff=dependencies.market_cutoff,
+                should_cancel=should_cancel,
+                lease_guard=lease_guard,
+                dependencies=dependencies,
+                result=result,
+                performance=performance,
+                progress_callback=progress_callback,
+                memory_probe=memory_probe,
+            )
         if resume_from_step == "SECTOR_ROTATION_SNAPSHOT":
             if dependencies.market_cutoff is None:
                 raise RuntimeError("resumed sector pipeline is missing its frozen market cutoff")

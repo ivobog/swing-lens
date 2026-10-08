@@ -133,6 +133,7 @@ def score_run_technicals(
     expected_calculation_identity: CalculationIdentity | None = None,
     should_cancel: Callable[[], bool] | None = None,
     checkpoint_callback: Callable[..., None] | None = None,
+    frozen_tickers: tuple[str, ...] | None = None,
 ) -> list[TechnicalScore]:
     should_cancel = should_cancel or (lambda: False)
     _technical_checkpoint(
@@ -153,7 +154,11 @@ def score_run_technicals(
         or market_context_for_upload_run(db, run_id)
         or standalone_market_context(reason="STANDALONE_TECHNICAL_SCORING")
     )
-    symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
+    symbols = _normalize_tickers(
+        list(frozen_tickers)
+        if frozen_tickers is not None
+        else (tickers or _tickers_for_run(db, run_id))
+    )
     settings = deepcopy(get_settings())
     effective_configuration = effective_configuration or resolve_technical_configuration(
         pine=load_pine_defaults(),

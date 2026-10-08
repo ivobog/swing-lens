@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriScoreSnapshot, CeriSourceRecord
 from app.models.tables import (
     MarketCalculationContext,
+    MarketDataSessionDisposition,
     MarketRegimeSnapshot,
     PipelineRun,
     RawCompanyRow,
@@ -635,10 +636,18 @@ def _create_pipeline_decision_handoff_plan(
     from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
 
     repository = SetupLifecycleRepository()
+    downstream_tickers = _pipeline_downstream_tickers(db, pipeline_run_id=context.pipeline_run_id)
+    if downstream_tickers == set():
+        raise TransitionPreflightError(
+            "NO_DOWNSTREAM_ELIGIBLE_TICKERS",
+            "all requested instruments have explicit terminal exclusions; "
+            "no decision handoff is eligible",
+        )
     run_context = SetupLifecycleSourceLoader().load_run_context(
         db,
         upload_run_id,
         market_cutoff=market_cutoff,
+        tickers=downstream_tickers,
     )
     built_rows = build_run_context_snapshots(
         db,
@@ -651,6 +660,7 @@ def _create_pipeline_decision_handoff_plan(
         market_cutoff=market_cutoff,
         built_rows=built_rows,
         repository=repository,
+        tickers=downstream_tickers,
     )
     if not decision_manifests:
         raise TransitionPreflightError(
@@ -747,6 +757,33 @@ def _create_pipeline_decision_handoff_plan(
     db.add(plan)
     db.flush()
     return plan
+
+
+def _pipeline_downstream_tickers(
+    db: Session,
+    *,
+    pipeline_run_id: int,
+) -> set[str] | None:
+    """Return the frozen admitted population, or None for legacy/preflight callers."""
+
+    rows = tuple(
+        db.scalars(
+            select(MarketDataSessionDisposition).where(
+                MarketDataSessionDisposition.pipeline_run_id == pipeline_run_id,
+                MarketDataSessionDisposition.is_current_revision.is_(True),
+            )
+        )
+    )
+    if not rows:
+        return None
+    blockers = [row for row in rows if row.disposition not in {"READY", "TERMINAL_INACTIVE"}]
+    if blockers:
+        raise TransitionPreflightError(
+            "MARKET_DATA_SESSION_READINESS_BLOCKED",
+            "decision handoff cannot bypass unresolved market-data dispositions: "
+            + ",".join(f"{row.ticker}={row.disposition}" for row in blockers),
+        )
+    return {row.ticker.upper() for row in rows if row.downstream_eligible}
 
 
 def reconstruct_transition_decision_manifests(

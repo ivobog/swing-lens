@@ -7,11 +7,19 @@ import pytest
 
 import app.services.pipeline_executor as pipeline_executor
 from app.models.ceri_tables import CeriCompany
-from app.models.tables import CombinedResult, IBFetchRun, PipelineRun, PipelineStep, UploadRun
+from app.models.tables import (
+    CombinedResult,
+    IBFetchRun,
+    MarketDataSessionDisposition,
+    PipelineRun,
+    PipelineStep,
+    UploadRun,
+)
 from app.services.background_job_service import JobLeaseLost
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.feature_flags import CeriFeatureFlags
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
+from app.services.market_data_session_readiness import SessionReadinessResult
 from app.services.pipeline_executor import (
     PipelineCancelled,
     PipelineExecutionDependencies,
@@ -23,6 +31,7 @@ from app.services.pipeline_prerequisites import (
     CeriBootstrapRequiredError,
     IBHistoricalCircuitOpenError,
     IBHistoricalDataUnavailableError,
+    PipelineBlockedError,
 )
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
 from app.services.ranking_profile_service import RankingPipelineResult
@@ -1683,6 +1692,271 @@ def test_execute_full_pipeline_records_replay_attempt_for_previously_completed_s
 
     assert db.steps[0].retry_count == 1
     assert db.steps[0].message == "Replaying step attempt 2."
+
+
+def test_readiness_unresolved_blocker_stops_technical_and_handoff_progression(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = PipelineExecutorFakeDb(tickers=["BLOCKED"])
+    calls: list[str] = []
+    readiness = SessionReadinessResult(
+        rows=(
+            _readiness_row(
+                "BLOCKED",
+                disposition="TRANSIENT_FAILURE",
+                lifecycle_state="UNKNOWN",
+                eligible=False,
+                reason_code="IB_RETRYABLE_FAILURE",
+            ),
+        )
+    )
+    _enable_readiness_boundary(monkeypatch, readiness)
+    dependencies = replace(_dependencies(calls), market_cutoff=_readiness_cutoff())
+
+    with pytest.raises(PipelineBlockedError, match="MARKET_DATA_TRANSIENT_UNRESOLVED"):
+        execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert calls == ["fundamentals", "build_fetch_plan"]
+    assert db.pipeline.status == PipelineStatus.BLOCKED
+    fetch_step = next(step for step in db.steps if step.step_name == "FETCHING_MARKET_DATA")
+    assert fetch_step.result_json["blockers"] == ["BLOCKED"]
+    assert fetch_step.result_json["tickers"]["BLOCKED"]["reason_code"] == (
+        "IB_RETRYABLE_FAILURE"
+    )
+    technical_step = next(
+        step for step in db.steps if step.step_name == "SCORING_TECHNICALS"
+    )
+    assert technical_step.status == PipelineStepStatus.PENDING
+
+
+def test_all_terminal_inactive_universe_skips_scoring_population_and_downstream() -> None:
+    db = PipelineExecutorFakeDb(tickers=["OLD", "MERGED"])
+    calls: list[str] = []
+    readiness = SessionReadinessResult(
+        rows=(
+            _readiness_row(
+                "OLD",
+                disposition="TERMINAL_INACTIVE",
+                lifecycle_state="DELISTED",
+                eligible=False,
+            ),
+            _readiness_row(
+                "MERGED",
+                disposition="TERMINAL_INACTIVE",
+                lifecycle_state="MERGED",
+                eligible=False,
+            ),
+        )
+    )
+    technical_populations: list[tuple[str, ...] | None] = []
+
+    def score(_db, _run_id, *, frozen_tickers=None, **_kwargs):
+        calls.append("technicals")
+        technical_populations.append(frozen_tickers)
+        return []
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        _enable_readiness_boundary(monkeypatch, readiness)
+        dependencies = replace(
+            _dependencies(calls),
+            market_cutoff=_readiness_cutoff(),
+            score_technicals=score,
+        )
+        result = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert technical_populations == [()]
+    assert result.status == PipelineStatus.COMPLETED
+    assert db.pipeline.result_json["downstream_publication_skipped"] == 1
+    assert db.pipeline.result_json["downstream_publication_skip_reason"] == (
+        "ALL_REQUESTED_TICKERS_TERMINAL_INACTIVE"
+    )
+    assert db.pipeline.status == PipelineStatus.COMPLETED
+    assert db.pipeline.result_json["market_data_session_readiness"][
+        "accepted_inactive_tickers"
+    ] == ["OLD", "MERGED"]
+
+
+def test_mixed_ready_and_terminal_universe_uses_exact_admitted_populations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = PipelineExecutorFakeDb(tickers=["READY", "OLD"])
+    calls: list[str] = []
+    readiness = SessionReadinessResult(
+        rows=(
+            _readiness_row(
+                "READY",
+                disposition="READY",
+                lifecycle_state="ACTIVE",
+                eligible=True,
+            ),
+            _readiness_row(
+                "OLD",
+                disposition="TERMINAL_INACTIVE",
+                lifecycle_state="DELISTED",
+                eligible=False,
+            ),
+        )
+    )
+    technical_populations: list[tuple[str, ...] | None] = []
+    downstream_populations: list[list[str]] = []
+
+    def score(_db, _run_id, *, frozen_tickers=None, **_kwargs):
+        calls.append("technicals")
+        technical_populations.append(frozen_tickers)
+        return [SimpleNamespace(ticker="READY", insufficient_data=False)]
+
+    def capture_downstream(_db, *, tickers, pipeline, result, **_kwargs):
+        downstream_populations.append(list(tickers))
+        pipeline.status = PipelineStatus.COMPLETED
+        pipeline.result_json = dict(result)
+        return pipeline_executor._to_execution_result(pipeline, result)
+
+    _enable_readiness_boundary(monkeypatch, readiness)
+    monkeypatch.setattr(pipeline_executor, "_continue_after_sector_snapshot", capture_downstream)
+    dependencies = replace(
+        _dependencies(calls),
+        market_cutoff=_readiness_cutoff(),
+        score_technicals=score,
+    )
+
+    execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+
+    assert technical_populations == [("READY",)]
+    assert downstream_populations == [["READY"]]
+    assert db.pipeline.result_json["market_data_session_readiness"]["blockers"] == []
+    assert db.pipeline.result_json["market_data_session_readiness"][
+        "accepted_inactive_tickers"
+    ] == ["OLD"]
+
+
+def test_resume_reloads_pipeline_scoped_readiness_without_broadening_population(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = PipelineExecutorFakeDb(tickers=["STALE_GLOBAL", "TERMINAL"])
+    db.pipeline.status = PipelineStatus.QUEUED
+    loaded_for: list[int] = []
+    downstream_populations: list[list[str]] = []
+    readiness = SessionReadinessResult(
+        rows=(
+            _readiness_row(
+                "TERMINAL",
+                disposition="TERMINAL_INACTIVE",
+                lifecycle_state="DELISTED",
+                eligible=False,
+            ),
+        )
+    )
+    monkeypatch.setattr(pipeline_executor, "Session", PipelineExecutorFakeDb)
+    monkeypatch.setattr(
+        pipeline_executor,
+        "_claim_pipeline_continuation_resume",
+        lambda _db, pipeline: pipeline,
+    )
+    monkeypatch.setattr(
+        pipeline_executor,
+        "_pipeline_scope_tickers",
+        lambda _db, _pipeline: ["STALE_GLOBAL", "TERMINAL"],
+    )
+
+    def load(_db, *, pipeline_run_id):
+        loaded_for.append(pipeline_run_id)
+        return readiness
+
+    def capture_downstream(_db, *, tickers, pipeline, result, **_kwargs):
+        downstream_populations.append(list(tickers))
+        pipeline.status = PipelineStatus.COMPLETED
+        return pipeline_executor._to_execution_result(pipeline, result)
+
+    monkeypatch.setattr(pipeline_executor, "load_current_session_readiness", load)
+    monkeypatch.setattr(pipeline_executor, "_continue_after_sector_snapshot", capture_downstream)
+    dependencies = replace(_dependencies([]), market_cutoff=_readiness_cutoff())
+
+    execute_full_pipeline(
+        db,
+        pipeline_run_id=3,
+        dependencies=dependencies,
+        resume_from_step="FREEZING_DECISION_HANDOFF_MANIFEST",
+    )
+
+    assert loaded_for == [3]
+    assert downstream_populations == [[]]
+
+
+def _enable_readiness_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    readiness: SessionReadinessResult,
+) -> None:
+    authority = SimpleNamespace(
+        scope_id="scope-3",
+        refresh_cycle_id=None,
+        acquisition_plan_id=None,
+        as_dict=lambda: {"scope_id": "scope-3"},
+    )
+    monkeypatch.setattr(pipeline_executor, "Session", PipelineExecutorFakeDb)
+    monkeypatch.setattr(
+        pipeline_executor,
+        "_pipeline_scope_tickers",
+        lambda db, _pipeline: list(db.tickers),
+    )
+    monkeypatch.setattr(
+        pipeline_executor,
+        "require_semantic_authority",
+        lambda _pipeline: authority,
+    )
+    monkeypatch.setattr(
+        "app.services.scope_refresh_adoption.require_semantic_authority",
+        lambda _pipeline: authority,
+    )
+    monkeypatch.setattr(
+        "app.services.scope_refresh_adoption.require_children_terminal",
+        lambda _db, _scope_id: {"terminal": True},
+    )
+    monkeypatch.setattr(
+        pipeline_executor,
+        "_admit_fetch_authority",
+        lambda *_args, **_kwargs: authority,
+    )
+    monkeypatch.setattr(
+        pipeline_executor,
+        "evaluate_and_persist_session_readiness",
+        lambda *_args, **_kwargs: readiness,
+    )
+
+
+def _readiness_cutoff():
+    return SimpleNamespace(
+        context_id=17,
+        cutoff_at=datetime(2026, 10, 6, 22, 0, tzinfo=UTC),
+        latest_completed_session=date(2026, 10, 6),
+    )
+
+
+def _readiness_row(
+    ticker: str,
+    *,
+    disposition: str,
+    lifecycle_state: str,
+    eligible: bool,
+    reason_code: str = "CERTIFIED_READINESS",
+) -> MarketDataSessionDisposition:
+    return MarketDataSessionDisposition(
+        id=100 + len(ticker),
+        pipeline_run_id=3,
+        upload_run_id=7,
+        market_calculation_context_id=17,
+        ticker=ticker,
+        expected_session=date(2026, 10, 6),
+        latest_bar_session=(date(2026, 10, 6) if eligible else None),
+        disposition=disposition,
+        lifecycle_state=lifecycle_state,
+        technical_eligible=eligible,
+        downstream_eligible=eligible,
+        reason_code=reason_code,
+        reason_message="certified readiness fixture",
+        evidence_json={"source": "g5-direct-regression"},
+        revision=1,
+        is_current_revision=True,
+    )
 
 
 def _dependencies(
