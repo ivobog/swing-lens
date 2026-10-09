@@ -36,6 +36,16 @@ contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
 
+@pytest.fixture
+def enabled_ceri(monkeypatch):
+    from app.settings import get_settings
+
+    monkeypatch.setenv("CERI_ENABLED", "true")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 def test_historical_price_bar_projection_requires_retained_revision_body(contextual_engine):
     cutoff = datetime(2026, 9, 9, 20, tzinfo=UTC)
     revised_at = datetime(2026, 9, 10, 20, tzinfo=UTC)
@@ -191,9 +201,7 @@ def test_writer_manifest_reuse_is_byte_and_digest_equivalent(contextual_engine):
         update(CeriSourceRecord).where(CeriSourceRecord.id == -1).values(content_hash="noop"),
     ],
 )
-def test_writer_reuse_is_cleared_by_fail_closed_sql_invalidation(
-    contextual_engine, statement
-):
+def test_writer_reuse_is_cleared_by_fail_closed_sql_invalidation(contextual_engine, statement):
     with Session(contextual_engine, expire_on_commit=False) as db:
         request = _normalized_fixture(db)
         service = CeriFeatureRebuildService()
@@ -368,8 +376,9 @@ def test_physical_connection_commit_invalidates_source_locks(contextual_engine):
 
 @pytest.mark.parametrize("company_count", [1, 50])
 def test_pipeline_feature_authority_selects_remain_within_14_after_explicit_scope_mode(
-    contextual_engine, company_count
+    contextual_engine, company_count, enabled_ceri
 ):
+    del enabled_ceri
     statements = []
 
     def record(_conn, _cursor, sql, _parameters, _context, _many):
@@ -557,16 +566,12 @@ def test_retained_source_share_locks_coexist_and_block_body_mutation(contextual_
     try:
         with Session(contextual_engine) as first, Session(contextual_engine) as second:
             first_bundle = PrefetchedSourceBodies(first)
-            assert first_bundle.load(
-                PriceBar, select(PriceBar).where(PriceBar.id == retained_id)
-            )
+            assert first_bundle.load(PriceBar, select(PriceBar).where(PriceBar.id == retained_id))
 
             # A second evidence reader gets a compatible lock immediately.
             second.execute(text("SET LOCAL lock_timeout = '250ms'"))
             second_bundle = PrefetchedSourceBodies(second)
-            assert second_bundle.load(
-                PriceBar, select(PriceBar).where(PriceBar.id == retained_id)
-            )
+            assert second_bundle.load(PriceBar, select(PriceBar).where(PriceBar.id == retained_id))
 
             with Session(contextual_engine) as writer:
                 writer.execute(text("SET LOCAL lock_timeout = '250ms'"))
@@ -611,9 +616,7 @@ def test_retained_source_share_locks_coexist_and_block_body_mutation(contextual_
         with Session(contextual_engine) as released:
             released.execute(text("SET LOCAL lock_timeout = '250ms'"))
             released.execute(
-                update(PriceBar)
-                .where(PriceBar.id == retained_id)
-                .values(data_hash="lock-released")
+                update(PriceBar).where(PriceBar.id == retained_id).values(data_hash="lock-released")
             )
             released.rollback()
     finally:

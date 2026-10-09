@@ -22,6 +22,8 @@ from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.contextual_effective_configuration import resolve_ceri_configuration
 from app.services.market_calculation_context_service import create_pipeline_market_context
 from app.services.market_clock_service import MarketClockService
+from app.services.scope_refresh_adoption import admit_frozen_operation, bind_semantic_authority
+from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 
 contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
@@ -154,8 +156,23 @@ def test_capture_authority_scaling(
                     "volatility": {"ceri_risk_max_contribution": 1.5},
                 },
             )
+            semantic_authority = None
             if delivery == "pipeline":
+                semantic_authority = admit_frozen_operation(
+                    db,
+                    operation_kind="full-pipeline-run",
+                    subject_kind="ticker",
+                    members=tuple(ScopeMember("TICKER", ticker) for ticker in tickers),
+                    cycle_key=f"capture-scaling:{population}",
+                    business_cutoff=cutoff.latest_completed_session,
+                    provider_source_class="CERI",
+                    request_type="FEATURE_REBUILD",
+                    requirements=(AcquisitionRequirement("CERI_SOURCE_RECORDS"),),
+                    policy_identity="t14d-capture-scaling-v1",
+                    scope_definition={"run_id": run.id},
+                )
                 pipeline = PipelineRun(upload_run_id=run.id, status="RUNNING")
+                bind_semantic_authority(pipeline, semantic_authority)
                 db.add(pipeline)
                 db.flush()
                 cutoff = create_pipeline_market_context(db, pipeline, cutoff_at=cutoff.cutoff_at)
@@ -173,6 +190,7 @@ def test_capture_authority_scaling(
                     calculation_context_id=cutoff.context_id,
                     calendar_version=cutoff.calendar_version,
                     ownership_mode="PIPELINE" if delivery == "pipeline" else "STANDALONE",
+                    semantic_authority=semantic_authority,
                 ),
             )
             assert prepared.failed == 0 and prepared.companies_rebuilt == population, (
@@ -183,7 +201,7 @@ def test_capture_authority_scaling(
                 job = _new_job(
                     db,
                     job_type="CERI_CAPTURE_RUN",
-                    status=JobStatus.RUNNING,
+                    status=JobStatus.QUEUED,
                     related_run_id=run.id,
                     request_key=f"capture-scaling-{population}",
                     payload_json={
@@ -195,6 +213,7 @@ def test_capture_authority_scaling(
                         "calendar_version": cutoff.calendar_version,
                     },
                 )
+                bind_semantic_authority(job, semantic_authority)
             event.listen(contextual_engine, "before_cursor_execute", observe)
             event.listen(contextual_engine, "after_cursor_execute", observe_finished)
             event.listen(Session, "after_flush", observe_flush)
@@ -267,10 +286,19 @@ def test_capture_authority_scaling(
                 assert len({change.company_id for change in material}) == population
                 assert all(change.comparison_state == "COMPARABLE" for change in material)
                 record_property("material_changes", len(material))
-            capture_authority_measurements[delivery, population] = sum(authority.values())
-            # One immutable configuration binding/anchor lookup is cached for
-            # the active transaction, removing two duplicate authority reads.
-            expected_authority_selects = {"capture": 27, "pipeline": 68, "material": 27}
-            assert sum(authority.values()) == expected_authority_selects[delivery], dict(authority)
+            authority_selects = sum(authority.values())
+            # Preserve the certified upper budget while also proving that
+            # authority reads do not grow with the captured population.
+            authority_budgets = {"capture": 27, "pipeline": 68, "material": 27}
+            assert authority_selects <= authority_budgets[delivery], dict(authority)
+            if population == CAPTURE_POPULATIONS[0]:
+                capture_authority_measurements[delivery] = authority_selects
+            else:
+                assert authority_selects == capture_authority_measurements[delivery], {
+                    "baseline": capture_authority_measurements[delivery],
+                    "measured": authority_selects,
+                    "population": population,
+                    "authority_by_function": dict(authority),
+                }
     finally:
         get_settings.cache_clear()

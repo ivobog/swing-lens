@@ -25,6 +25,7 @@ from app.services.ceri.change_rebuild_service import (
     CeriChangeRebuildRequest,
     CeriChangeRebuildService,
 )
+from app.services.ceri.evidence_eligibility import UNSUCCESSFUL_PIPELINE_STATES
 
 contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
@@ -135,7 +136,13 @@ def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
         assert materialized["ceri_catalyst_events"] == target_count
         assert materialized["ceri_catalyst_event_revisions"] == target_count
         assert materialized["ceri_guidance_events"] == target_count
-        assert max_parameters <= 10
+        # The eligibility predicate carries two fixed terminal-owner status
+        # sets and two disposition values in the same scoped SELECT.  Those
+        # ten policy parameters do not grow with the population; only the
+        # chunk IDs plus the run/session/cutoff boundary do.
+        fixed_eligibility_parameters = 2 + (2 * len(UNSUCCESSFUL_PIPELINE_STATES))
+        scoped_boundary_parameters = 3 + 2  # run/session/cutoff plus the two-row chunk
+        assert max_parameters <= fixed_eligibility_parameters + scoped_boundary_parameters
 
 
 class RecordingDetector:
