@@ -680,11 +680,11 @@
       "path": "/uploads",
       "function": "app.routers.upload_routes.upload_csv",
       "domain": "upload",
-      "mutation_capability": "NORMAL_ONLY",
+      "mutation_capability": "CERTIFICATION_SESSION_SCOPED",
       "operation": "http.upload.create",
       "modes": {
         "NORMAL": "ENABLED",
-        "CERTIFICATION": "DISABLED"
+        "CERTIFICATION": "SESSION_SCOPED"
       },
       "writer_family": "HTTP_OPERATION"
     }
@@ -929,6 +929,7 @@
     {
       "job_type": "FULL_PIPELINE",
       "creators": [
+        "app/services/pipeline_dependency_service.py:_enqueue_dependency_continuation",
         "app/services/pipeline_service.py:enqueue_pipeline_after_ceri_completion",
         "app/services/pipeline_service.py:enqueue_pipeline_after_sec_repair",
         "app/services/pipeline_service.py:resume_pipeline",
@@ -1094,7 +1095,7 @@
     {
       "job_type": "SEC_READINESS_REPAIR",
       "creators": [
-        "app/services/ceri/sec/readiness_repair.py:schedule_sec_readiness_repair"
+        "app/services/pipeline_dependency_service.py:enqueue_sec_readiness_dependency"
       ],
       "handler": "app.services.background_worker._execute_sec_readiness_repair_job",
       "subsystem": "sec",
@@ -1643,6 +1644,20 @@
       "transaction_family": "REGISTERED_WRITER_BOUNDARY",
       "tests": [
         "tests/test_t14a_mutation_inventory.py"
+      ]
+    },
+    {
+      "table": "ceri_ingestion_run_source_records",
+      "model": "app.models.ceri_tables.CeriIngestionRunSourceRecord",
+      "domain": "CERI run-local source membership",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-076"
+      ],
+      "authority": "INGESTION_RUN_SOURCE_MEMBERSHIP_AUTHORITY",
+      "transaction_family": "SOURCE_RECORD_AND_RUN_MEMBERSHIP_SINGLE_TRANSACTION",
+      "tests": [
+        "tests/integration/test_ceri_run_isolation_remediation.py"
       ]
     },
     {
@@ -2211,6 +2226,20 @@
       ]
     },
     {
+      "table": "instrument_lifecycle_records",
+      "model": "app.models.tables.InstrumentLifecycleRecord",
+      "domain": "Market-data instrument lifecycle evidence",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-077"
+      ],
+      "authority": "OBSERVED_CONTRACT_LIFECYCLE_REVISION_AUTHORITY",
+      "transaction_family": "LIFECYCLE_REVISION_AND_CURRENT_SELECTION_TRANSACTION",
+      "tests": [
+        "tests/integration/test_market_data_readiness_postgresql.py"
+      ]
+    },
+    {
       "table": "market_calculation_contexts",
       "model": "app.models.tables.MarketCalculationContext",
       "domain": "Scope/core/market",
@@ -2225,6 +2254,20 @@
       ]
     },
     {
+      "table": "market_data_session_dispositions",
+      "model": "app.models.tables.MarketDataSessionDisposition",
+      "domain": "Pipeline market-session readiness evidence",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-078"
+      ],
+      "authority": "FROZEN_SESSION_TICKER_DISPOSITION_AUTHORITY",
+      "transaction_family": "PIPELINE_SESSION_READINESS_REVISION_TRANSACTION",
+      "tests": [
+        "tests/integration/test_market_data_readiness_postgresql.py"
+      ]
+    },
+    {
       "table": "market_regime_snapshots",
       "model": "app.models.tables.MarketRegimeSnapshot",
       "domain": "Scope/core/market",
@@ -2236,6 +2279,20 @@
       "transaction_family": "REGISTERED_WRITER_BOUNDARY",
       "tests": [
         "tests/test_t14a_mutation_inventory.py"
+      ]
+    },
+    {
+      "table": "pipeline_dependencies",
+      "model": "app.models.tables.PipelineDependency",
+      "domain": "Pipeline dependency and continuation authority",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-079"
+      ],
+      "authority": "PIPELINE_EXECUTION_DEPENDENCY_AUTHORITY",
+      "transaction_family": "PIPELINE_DEPENDENCY_AND_CHILD_JOB_TRANSACTION",
+      "tests": [
+        "tests/integration/test_pipeline_execution_authority_postgresql.py"
       ]
     },
     {
@@ -2338,8 +2395,7 @@
       "domain": "Runtime/pipeline",
       "classification": "MUTABLE",
       "writer_ids": [
-        "WRITE-001",
-        "WRITE-075"
+        "WRITE-001"
       ],
       "authority": "REGISTERED_WRITER_AUTHORITY",
       "transaction_family": "REGISTERED_WRITER_BOUNDARY",
@@ -2663,7 +2719,8 @@
       "domain": "Runtime/pipeline",
       "classification": "MUTABLE",
       "writer_ids": [
-        "WRITE-001"
+        "WRITE-001",
+        "WRITE-075"
       ],
       "authority": "REGISTERED_WRITER_AUTHORITY",
       "transaction_family": "REGISTERED_WRITER_BOUNDARY",
@@ -3375,9 +3432,9 @@
         "ceri_companies",
         "ceri_company_aliases"
       ],
-      "functions": "CERI identity resolver/company ensure/SEC identity repair",
-      "entrypoints": "CERI ingest, batch setup, repair scripts",
-      "authority_transaction": "ticker/provider identity; TX-08"
+      "functions": "CERI identity resolver/company ensure/provider-evidence reconciliation/SEC identity repair",
+      "entrypoints": "CERI ingest, batch setup, evidence-backed repair scripts",
+      "authority_transaction": "ticker/provider identity plus exact normalized source-record provenance; TX-08"
     },
     {
       "id": "WRITE-035",
@@ -3785,61 +3842,45 @@
       "functions": "feature_certification_workflow.admit_ceri_feature_certification, execute_ceri_feature_certification_job",
       "entrypoints": "explicit certification CLI and session-scoped coordinator root",
       "authority_transaction": "exact two-ticker/provider scope, feature-only boundary, semantic/config/context authority; TX-28"
+    },
+    {
+      "id": "WRITE-076",
+      "tables": [
+        "ceri_ingestion_run_source_records"
+      ],
+      "functions": "ceri.source_record_service._associate_source_record",
+      "entrypoints": "CERI provider ingestion",
+      "authority_transaction": "exact ingestion run and immutable source record membership in the source-record transaction"
+    },
+    {
+      "id": "WRITE-077",
+      "tables": [
+        "instrument_lifecycle_records"
+      ],
+      "functions": "instrument_lifecycle_service.record_instrument_lifecycle",
+      "entrypoints": "validated IB contract acquisition and provider-rejection repair",
+      "authority_transaction": "ticker, qualified contract identity, observed-at timestamp, and revision/current-selection fence"
+    },
+    {
+      "id": "WRITE-078",
+      "tables": [
+        "market_data_session_dispositions"
+      ],
+      "functions": "market_data_session_readiness.evaluate_and_persist_session_readiness",
+      "entrypoints": "full-pipeline frozen-session readiness gate",
+      "authority_transaction": "pipeline, ticker, frozen session, cutoff context, lifecycle evidence, and readiness revision"
+    },
+    {
+      "id": "WRITE-079",
+      "tables": [
+        "pipeline_dependencies"
+      ],
+      "functions": "pipeline_dependency_service dependency preparation, reconciliation, completion, and failure",
+      "entrypoints": "FULL_PIPELINE CERI and SEC dependency orchestration",
+      "authority_transaction": "pipeline execution token, dependency key/type, child job identity, and continuation request key"
     }
   ],
   "writer_candidates": [
-    {
-      "path": "app/services/ceri/feature_certification_workflow.py",
-      "function": "admit_ceri_feature_certification",
-      "kind": "add",
-      "writer_ids": [
-        "WRITE-075"
-      ],
-      "reason": "Creates only the certification UploadRun/PipelineRun/PipelineStep authority; child and configuration writes remain owned by their registered services."
-    },
-    {
-      "path": "app/services/ceri/feature_certification_workflow.py",
-      "function": "admit_ceri_feature_certification",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-075"
-      ],
-      "reason": "Advances only the newly admitted certification step from PENDING to RUNNING after its immutable market context is frozen."
-    },
-    {
-      "path": "app/services/ceri/feature_certification_workflow.py",
-      "function": "execute_ceri_feature_certification_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-075"
-      ],
-      "reason": "Transitions only certification run/pipeline/step control state to the explicit feature-only terminal boundary."
-    },
-    {
-      "path": "app/services/ceri/source_manifest_service.py",
-      "function": "freeze_or_verify_feature_source_manifest",
-      "kind": "add",
-      "writer_ids": [
-        "WRITE-074"
-      ],
-      "reason": "Authorized feature-batch-only immutable manifest creation; retries verify and reuse rather than update."
-    },
-    {
-      "path": "app/services/pipeline_service.py",
-      "function": "_block_queued_ceri_siblings",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-006"
-      ],
-      "reason": "Job-control-only sibling status writer; it has no CERI domain-data authority."
-    },
-    {
-      "path": "app/services/source_mutation_authority.py",
-      "function": "__init__",
-      "kind": "add",
-      "writer_ids": [],
-      "reason": "AST false positive: set.add records expected source addresses in a private in-memory revalidation set; no SQLAlchemy row or domain mutation is created."
-    },
     {
       "path": "app/observability/db_monitor.py",
       "function": "install",
@@ -4395,6 +4436,32 @@
     },
     {
       "path": "app/services/canonical_evidence.py",
+      "function": "_iter_bytes",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/canonical_evidence.py",
       "function": "canonicalize",
       "kind": "add",
       "writer_ids": [
@@ -4556,6 +4623,34 @@
     },
     {
       "path": "app/services/ceri/batched_job_handlers.py",
+      "function": "_set_job_outcome_status",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-034",
+        "WRITE-035",
+        "WRITE-036",
+        "WRITE-037",
+        "WRITE-038",
+        "WRITE-039",
+        "WRITE-040",
+        "WRITE-041",
+        "WRITE-042",
+        "WRITE-043",
+        "WRITE-044",
+        "WRITE-045",
+        "WRITE-046",
+        "WRITE-047",
+        "WRITE-048",
+        "WRITE-049",
+        "WRITE-050",
+        "WRITE-051",
+        "WRITE-052",
+        "WRITE-065"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/batched_job_handlers.py",
       "function": "execute_feature_batch_job",
       "kind": "add",
       "writer_ids": [
@@ -4640,64 +4735,8 @@
     },
     {
       "path": "app/services/ceri/batched_job_handlers.py",
-      "function": "execute_normalize_batch_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/batched_job_handlers.py",
       "function": "execute_provider_ingest_batch_job",
       "kind": "add",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/batched_job_handlers.py",
-      "function": "execute_provider_ingest_batch_job",
-      "kind": "state_assignment",
       "writer_ids": [
         "WRITE-034",
         "WRITE-035",
@@ -4921,6 +4960,33 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "admit_ceri_feature_certification",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-075"
+      ],
+      "reason": "Creates only the certification UploadRun/PipelineRun/PipelineStep authority; child and configuration writes remain owned by their registered services."
+    },
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "admit_ceri_feature_certification",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-075"
+      ],
+      "reason": "Advances only the newly admitted certification step from PENDING to RUNNING after its immutable market context is frozen."
+    },
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "execute_ceri_feature_certification_job",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-075"
+      ],
+      "reason": "Transitions only certification run/pipeline/step control state to the explicit feature-only terminal boundary."
+    },
+    {
       "path": "app/services/ceri/feature_rebuild_service.py",
       "function": "_companies",
       "kind": "add",
@@ -5127,63 +5193,7 @@
     },
     {
       "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_backfill_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_capture_run_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_change_detection_job",
+      "function": "_set_job_outcome_status",
       "kind": "state_assignment",
       "writer_ids": [
         "WRITE-034",
@@ -5213,62 +5223,6 @@
       "path": "app/services/ceri/job_handlers.py",
       "function": "execute_normalize_job",
       "kind": "add",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_provider_ingest_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_rebuild_features_job",
-      "kind": "state_assignment",
       "writer_ids": [
         "WRITE-034",
         "WRITE-035",
@@ -5390,6 +5344,62 @@
       "path": "app/services/ceri/orchestration.py",
       "function": "_record_provider_telemetry",
       "kind": "add",
+      "writer_ids": [
+        "WRITE-034",
+        "WRITE-035",
+        "WRITE-036",
+        "WRITE-037",
+        "WRITE-038",
+        "WRITE-039",
+        "WRITE-040",
+        "WRITE-041",
+        "WRITE-042",
+        "WRITE-043",
+        "WRITE-044",
+        "WRITE-045",
+        "WRITE-046",
+        "WRITE-047",
+        "WRITE-048",
+        "WRITE-049",
+        "WRITE-050",
+        "WRITE-051",
+        "WRITE-052",
+        "WRITE-065"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/pipeline_containment_service.py",
+      "function": "_rebuild_ceri_projections",
+      "kind": "delete",
+      "writer_ids": [
+        "WRITE-034",
+        "WRITE-035",
+        "WRITE-036",
+        "WRITE-037",
+        "WRITE-038",
+        "WRITE-039",
+        "WRITE-040",
+        "WRITE-041",
+        "WRITE-042",
+        "WRITE-043",
+        "WRITE-044",
+        "WRITE-045",
+        "WRITE-046",
+        "WRITE-047",
+        "WRITE-048",
+        "WRITE-049",
+        "WRITE-050",
+        "WRITE-051",
+        "WRITE-052",
+        "WRITE-065"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/pipeline_containment_service.py",
+      "function": "_terminalize_processing",
+      "kind": "state_assignment",
       "writer_ids": [
         "WRITE-034",
         "WRITE-035",
@@ -5924,91 +5934,7 @@
     },
     {
       "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "_guard_cancel",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "_mark_pipeline_unresolved",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
       "function": "_reset_pipeline_step",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "_update_progress",
       "kind": "state_assignment",
       "writer_ids": [
         "WRITE-034",
@@ -6038,62 +5964,6 @@
       "path": "app/services/ceri/sec/readiness_repair.py",
       "function": "add_ingestion",
       "kind": "add",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "mark_sec_repair_failure",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "schedule_sec_readiness_repair",
-      "kind": "state_assignment",
       "writer_ids": [
         "WRITE-034",
         "WRITE-035",
@@ -6316,6 +6186,24 @@
         "WRITE-065"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/source_manifest_service.py",
+      "function": "freeze_or_verify_feature_source_manifest",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-074"
+      ],
+      "reason": "Authorized feature-batch-only immutable manifest creation; retries verify and reuse rather than update."
+    },
+    {
+      "path": "app/services/ceri/source_record_service.py",
+      "function": "_associate_source_record",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-076"
+      ],
+      "reason": "Associates an immutable source record to the exact ingestion run through the membership table; the source record itself is not rewritten."
     },
     {
       "path": "app/services/ceri/source_record_service.py",
@@ -6801,6 +6689,32 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
+      "path": "app/services/core_mutation_authority.py",
+      "function": "validate_sector_manifest",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
       "path": "app/services/decision_mutation_authority.py",
       "function": "validate_native_lifecycle_output",
       "kind": "add",
@@ -7090,6 +7004,32 @@
       "path": "app/services/ib_fetch_executor.py",
       "function": "_execute_plan_item",
       "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/ib_fetch_executor.py",
+      "function": "_invalidate_and_requalify_contract",
+      "kind": "add",
       "writer_ids": [
         "WRITE-001",
         "WRITE-002",
@@ -7804,6 +7744,15 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
+      "path": "app/services/instrument_lifecycle_service.py",
+      "function": "record_instrument_lifecycle",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-077"
+      ],
+      "reason": "Persists revision-fenced qualified-contract lifecycle evidence for the exact ticker, contract identity, observation time, and provider outcome."
+    },
+    {
       "path": "app/services/lifecycle_control.py",
       "function": "_dotenv_keys",
       "kind": "add",
@@ -7832,6 +7781,32 @@
     {
       "path": "app/services/lifecycle_safety.py",
       "function": "_descends_from",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/market_calculation_context_service.py",
+      "function": "create_or_get_pipeline_ceri_context",
       "kind": "add",
       "writer_ids": [
         "WRITE-001",
@@ -8012,6 +7987,15 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
+      "path": "app/services/market_data_session_readiness.py",
+      "function": "evaluate_and_persist_session_readiness",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-078"
+      ],
+      "reason": "Persists the pipeline/ticker/frozen-session readiness disposition and its lifecycle-bound evidence under exact run authority."
+    },
+    {
       "path": "app/services/market_regime_repository.py",
       "function": "delete_for_run",
       "kind": "delete",
@@ -8116,6 +8100,104 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "_reconcile_dependency_job",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-079"
+      ],
+      "reason": "Reconciles only durable dependency state under the exact pipeline execution token and dependency key; child domain writes remain separately governed."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "complete_ceri_workflow_dependency",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-079"
+      ],
+      "reason": "Marks the exact CERI dependency terminal only after its bound child workflow reaches the required authority state."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "enqueue_sec_readiness_dependency",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-079"
+      ],
+      "reason": "Binds the SEC dependency to its deterministic child job and enqueue outcome without changing SEC domain evidence."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "fail_ceri_workflow_dependency",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-079"
+      ],
+      "reason": "Records a terminal CERI dependency failure against the exact pipeline authority and child workflow evidence."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "mark_dependency_job_running",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-079"
+      ],
+      "reason": "Advances only the dependency row bound to the running child job and matching pipeline execution token."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "prepare_ceri_workflow_dependency",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-079"
+      ],
+      "reason": "Creates or verifies the deterministic CERI dependency for the exact pipeline execution token and continuation key."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "prepare_sec_readiness_dependency",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-079"
+      ],
+      "reason": "Creates or verifies the deterministic SEC readiness dependency for the exact pipeline execution token and continuation key."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "reconcile_safe_pipeline_invariants",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-079"
+      ],
+      "reason": "Repairs only terminal dependency invariants proven by the bound child jobs and exact pipeline execution authority."
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
+      "function": "__init__",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
       "path": "app/services/pipeline_executor.py",
       "function": "_apply_winner_step_outcome",
       "kind": "state_assignment",
@@ -8152,137 +8234,33 @@
     },
     {
       "path": "app/services/pipeline_executor.py",
+      "function": "_continue_after_sector_snapshot",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
       "function": "_interrupt_superseded_running_steps",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_blocked",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_cancelled",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_failed",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_finished",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_running",
       "kind": "state_assignment",
       "writer_ids": [
         "WRITE-001",
@@ -8423,6 +8401,32 @@
     },
     {
       "path": "app/services/pipeline_executor.py",
+      "function": "_validate_sector_resume_checkpoint",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
       "function": "execute_full_pipeline",
       "kind": "state_assignment",
       "writer_ids": [
@@ -8446,6 +8450,15 @@
         "WRITE-073"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_service.py",
+      "function": "_block_queued_ceri_siblings",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-006"
+      ],
+      "reason": "Job-control-only sibling status writer; it has no CERI domain-data authority."
     },
     {
       "path": "app/services/pipeline_service.py",
@@ -8519,16 +8532,16 @@
     },
     {
       "path": "app/services/pipeline_service.py",
-      "function": "enqueue_pipeline_after_sec_repair",
-      "kind": "state_assignment",
+      "function": "start_pipeline",
+      "kind": "add",
       "writer_ids": [
-        "WRITE-004"
+        "WRITE-002"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
-      "path": "app/services/pipeline_service.py",
-      "function": "mark_pipeline_job_failure",
+      "path": "app/services/pipeline_state_machine.py",
+      "function": "transition_pipeline",
       "kind": "state_assignment",
       "writer_ids": [
         "WRITE-001",
@@ -8553,29 +8566,28 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
-      "path": "app/services/pipeline_service.py",
-      "function": "resume_pipeline",
+      "path": "app/services/pipeline_state_machine.py",
+      "function": "transition_pipeline_step",
       "kind": "state_assignment",
       "writer_ids": [
-        "WRITE-004"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/pipeline_service.py",
-      "function": "start_pipeline",
-      "kind": "add",
-      "writer_ids": [
-        "WRITE-002"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/pipeline_service.py",
-      "function": "start_pipeline",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-002"
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
     },
@@ -9934,6 +9946,13 @@
         "WRITE-073"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/source_mutation_authority.py",
+      "function": "__init__",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "AST false positive: set.add records expected source addresses in a private in-memory revalidation set; no SQLAlchemy row or domain mutation is created."
     },
     {
       "path": "app/services/source_mutation_authority.py",
@@ -12074,17 +12093,21 @@
     "app/services/background_job_service.py:recover_stale_jobs",
     "app/services/background_job_service.py:requeue_stalled_jobs",
     "app/services/background_worker.py:_execute_worker_recovery_probe",
-    "app/services/background_worker.py:fenced_control_session",
     "app/services/ceri/identity_resolver.py:reconcile_missing_provider_identity",
+    "app/services/ceri/pipeline_containment_service.py:reconcile_unsuccessful_pipeline_ceri",
     "app/services/ceri/sec/processor_lifecycle.py:fence_worker_against_active_processor",
     "app/services/certification_runtime.py:apply_certification_recovery_scope",
     "app/services/certification_runtime.py:certification_recovery_filter",
     "app/services/domain_mutation.py:fence_mutation_transaction",
     "app/services/domain_write_fence.py:_fence_active_domain_commit",
-    "app/services/domain_write_fence.py:_release_fenced_session",
     "app/services/domain_write_fence.py:current_fenced_domain_session",
     "app/services/domain_write_fence.py:fence_domain_commits",
     "app/services/ib_fetch_executor.py:_is_hard_recovery_failure",
+    "app/services/pipeline_dependency_service.py:_reconcile_dependency_job",
+    "app/services/pipeline_dependency_service.py:_reconcile_pipeline_root_job",
+    "app/services/pipeline_dependency_service.py:reconcile_pending_dependency_enqueues",
+    "app/services/pipeline_dependency_service.py:reconcile_pipeline_job",
+    "app/services/pipeline_dependency_service.py:reconcile_safe_pipeline_invariants",
     "app/services/pipeline_service.py:_is_recoverable_sec_block",
     "app/services/runtime_identity_recovery.py:verified_recovery_state",
     "app/services/runtime_mutation_authority.py:recovery_authority",
@@ -12296,27 +12319,6 @@
     }
   ],
   "transaction_sites": [
-    {
-      "path": "app/services/ceri/feature_certification_workflow.py",
-      "function": "admit_ceri_feature_certification",
-      "primitive": "flush",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "TX-28 durable authority admission; caller commit publishes the complete bounded root atomically."
-    },
-    {
-      "path": "app/services/ceri/feature_certification_workflow.py",
-      "function": "execute_ceri_feature_certification_job",
-      "primitive": "flush",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "TX-28 coordinator graph/terminal-state flush inside the normal fenced worker transaction."
-    },
-    {
-      "path": "app/services/ceri/source_manifest_service.py",
-      "function": "freeze_or_verify_feature_source_manifest",
-      "primitive": "flush",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "TX-27 publishes immutable manifest authority before the handler's parent-fenced durable commit and before feature output."
-    },
     {
       "path": "app/db.py",
       "function": "get_db",
@@ -12781,13 +12783,6 @@
     },
     {
       "path": "app/services/background_worker.py",
-      "function": "_execute_full_pipeline_job",
-      "primitive": "commit",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
       "function": "_publish_worker_infrastructure_state",
       "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -12837,20 +12832,6 @@
     },
     {
       "path": "app/services/background_worker.py",
-      "function": "detached_control_progress",
-      "primitive": "commit",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
-      "function": "detached_control_progress",
-      "primitive": "rollback",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
       "function": "heartbeat",
       "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -12858,13 +12839,6 @@
     },
     {
       "path": "app/services/background_worker.py",
-      "function": "progress_callback",
-      "primitive": "commit",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
       "function": "run_worker",
       "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -12888,13 +12862,6 @@
       "path": "app/services/background_worker.py",
       "function": "run_worker_once",
       "primitive": "rollback",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
-      "function": "should_cancel",
-      "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -12948,6 +12915,20 @@
       "reason": "Exact production transaction site reviewed at R3."
     },
     {
+      "path": "app/services/ceri/batched_job_handlers.py",
+      "function": "_freeze_pipeline_ceri_payload",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/batched_job_handlers.py",
+      "function": "execute_feature_batch_job",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
       "path": "app/services/ceri/batched_workflow.py",
       "function": "_ensure_ceri_companies",
       "primitive": "flush",
@@ -12990,6 +12971,20 @@
       "reason": "Exact production transaction site reviewed at R3."
     },
     {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "admit_ceri_feature_certification",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-28 durable authority admission; caller commit publishes the complete bounded root atomically."
+    },
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "execute_ceri_feature_certification_job",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-28 coordinator graph/terminal-state flush inside the normal fenced worker transaction."
+    },
+    {
       "path": "app/services/ceri/feature_rebuild_service.py",
       "function": "_persist_company",
       "primitive": "flush",
@@ -13002,6 +12997,13 @@
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/identity_resolver.py",
+      "function": "reconcile_missing_provider_identity",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Evidence-backed provider identity promotion and provenance alias are flushed atomically in the caller transaction."
     },
     {
       "path": "app/services/ceri/job_handlers.py",
@@ -13027,6 +13029,20 @@
     {
       "path": "app/services/ceri/normalization_service.py",
       "function": "normalize",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/pipeline_containment_service.py",
+      "function": "_rebuild_ceri_projections",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/pipeline_containment_service.py",
+      "function": "_terminalize_processing",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
@@ -13072,13 +13088,6 @@
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/identity_resolver.py",
-      "function": "reconcile_missing_provider_identity",
-      "primitive": "flush",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Evidence-backed provider identity promotion and provenance alias are flushed atomically in the caller transaction."
     },
     {
       "path": "app/services/ceri/revision_feature_service.py",
@@ -13152,13 +13161,6 @@
     },
     {
       "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "_guard_cancel",
-      "primitive": "commit",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
       "function": "_mark_pipeline_unresolved",
       "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -13202,7 +13204,7 @@
     {
       "path": "app/services/ceri/sec/readiness_repair.py",
       "function": "schedule_sec_readiness_repair",
-      "primitive": "flush",
+      "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -13233,6 +13235,13 @@
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/source_manifest_service.py",
+      "function": "freeze_or_verify_feature_source_manifest",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-27 publishes immutable manifest authority before the handler's parent-fenced durable commit and before feature output."
     },
     {
       "path": "app/services/ceri/source_record_service.py",
@@ -13333,6 +13342,27 @@
       "reason": "Exact production transaction site reviewed at R3."
     },
     {
+      "path": "app/services/domain_write_fence.py",
+      "function": "bounded_domain_session",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/domain_write_fence.py",
+      "function": "control_plane_transaction",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/domain_write_fence.py",
+      "function": "control_plane_transaction",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
       "path": "app/services/fundamental_score_service.py",
       "function": "recalculate_run_fundamentals",
       "primitive": "flush",
@@ -13355,15 +13385,15 @@
     },
     {
       "path": "app/services/ib_contract_resolver.py",
-      "function": "resolve_us_stock_contract",
+      "function": "invalidate_cached_contract",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
     {
-      "path": "app/services/ib_fetch_executor.py",
-      "function": "_bounded_item_session",
-      "primitive": "autonomous_session",
+      "path": "app/services/ib_contract_resolver.py",
+      "function": "resolve_us_stock_contract",
+      "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -13585,6 +13615,13 @@
       "reason": "Exact production transaction site reviewed at R3."
     },
     {
+      "path": "app/services/instrument_lifecycle_service.py",
+      "function": "record_instrument_lifecycle",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "WRITE-077 lifecycle revision and current-selection fence are flushed together under the caller transaction."
+    },
+    {
       "path": "app/services/lifecycle_quiesce.py",
       "function": "request_worker_quiesce",
       "primitive": "flush",
@@ -13614,6 +13651,13 @@
     },
     {
       "path": "app/services/market_calculation_context_service.py",
+      "function": "create_or_get_pipeline_ceri_context",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/market_calculation_context_service.py",
       "function": "create_pipeline_market_context",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -13623,6 +13667,13 @@
       "path": "app/services/market_calculation_context_service.py",
       "function": "create_pipeline_market_context",
       "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/market_calculation_context_service.py",
+      "function": "freeze_or_validate_pipeline_ceri_authority",
+      "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -13655,6 +13706,13 @@
       "reason": "Exact production transaction site reviewed at R3."
     },
     {
+      "path": "app/services/market_data_session_readiness.py",
+      "function": "evaluate_and_persist_session_readiness",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "WRITE-078 flushes the exact run/ticker/session readiness disposition before pipeline admission may continue."
+    },
+    {
       "path": "app/services/market_regime_repository.py",
       "function": "_supersede_previous_revision",
       "primitive": "flush",
@@ -13672,6 +13730,48 @@
       "path": "app/services/market_regime_repository.py",
       "function": "upsert_snapshot",
       "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "_enqueue_dependency_continuation",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "WRITE-079 publishes the deterministic continuation request key and bound child-job evidence in the caller transaction."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "enqueue_sec_readiness_dependency",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "WRITE-079 binds the SEC dependency to its deterministic child job before the caller commits."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "mark_dependency_job_running",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "WRITE-079 fences RUNNING state to the exact dependency, child job, and pipeline execution token."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "prepare_ceri_workflow_dependency",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "WRITE-079 materializes the exact CERI dependency before child enqueue and continuation reconciliation."
+    },
+    {
+      "path": "app/services/pipeline_dependency_service.py",
+      "function": "prepare_sec_readiness_dependency",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "WRITE-079 materializes the exact SEC readiness dependency before child enqueue and continuation reconciliation."
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
+      "function": "_claim_pipeline_continuation_resume",
+      "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -13720,7 +13820,21 @@
     {
       "path": "app/services/pipeline_service.py",
       "function": "cancel_pipeline",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_service.py",
+      "function": "cancel_pipeline",
       "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_service.py",
+      "function": "cancel_pipeline",
+      "primitive": "rollback",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -13747,6 +13861,13 @@
     },
     {
       "path": "app/services/pipeline_service.py",
+      "function": "mark_pipeline_job_retry",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_service.py",
       "function": "resume_pipeline",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -13755,6 +13876,20 @@
     {
       "path": "app/services/pipeline_service.py",
       "function": "start_pipeline",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_state_machine.py",
+      "function": "transition_pipeline",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_state_machine.py",
+      "function": "transition_pipeline_step",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
@@ -13810,6 +13945,13 @@
     },
     {
       "path": "app/services/readiness_service.py",
+      "function": "_historical_jobs_check",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/readiness_service.py",
       "function": "_ib_workload_required",
       "primitive": "autonomous_session",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -13818,6 +13960,13 @@
     {
       "path": "app/services/readiness_service.py",
       "function": "_jobs_check",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/readiness_service.py",
+      "function": "_pipeline_invariant_check",
       "primitive": "autonomous_session",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
@@ -13999,6 +14148,13 @@
     },
     {
       "path": "app/services/setup_lifecycle/repository.py",
+      "function": "record_evaluation_audit",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/setup_lifecycle/repository.py",
       "function": "record_snapshot_canonical_decision",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -14085,6 +14241,13 @@
       "path": "app/services/source_mutation_authority.py",
       "function": "source_writer_member",
       "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/startup_preflight.py",
+      "function": "run_startup_preflight",
+      "primitive": "autonomous_session",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -14232,13 +14395,6 @@
       "path": "app/services/winner_probability/capture_service.py",
       "function": "_commit_if_supported",
       "primitive": "commit",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
-      "path": "app/services/winner_probability/capture_service.py",
-      "function": "capture_run",
-      "primitive": "autonomous_session",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -14741,6 +14897,13 @@
     },
     {
       "path": "app/worker_supervisor.py",
+      "function": "_registered_worker_job_execution_alive",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/worker_supervisor.py",
       "function": "_registration_snapshot",
       "primitive": "autonomous_session",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -14875,6 +15038,11 @@
     {
       "table": "ceri_guidance_events",
       "model": "CeriGuidanceEvent",
+      "reason": "Potentially large domain/evidence payload."
+    },
+    {
+      "table": "ceri_ingestion_run_source_records",
+      "model": "CeriIngestionRunSourceRecord",
       "reason": "Potentially large domain/evidence payload."
     },
     {
@@ -15162,7 +15330,7 @@
     {
       "path": "app/routers/ceri_routes.py",
       "function": "_admit_ceri_job_authority",
-      "line": 1286,
+      "line": 1328,
       "models": [
         "CeriCompany"
       ],
@@ -15174,7 +15342,7 @@
     {
       "path": "app/routers/ceri_routes.py",
       "function": "_load_processing_runs",
-      "line": 1346,
+      "line": 1388,
       "models": [
         "CeriProcessingRun"
       ],
@@ -15210,7 +15378,7 @@
     {
       "path": "app/services/ceri/batched_workflow.py",
       "function": "_ensure_ceri_companies",
-      "line": 410,
+      "line": 414,
       "models": [
         "CeriCompany"
       ],
@@ -15222,7 +15390,7 @@
     {
       "path": "app/services/ceri/identity_resolver.py",
       "function": "_load_aliases",
-      "line": 132,
+      "line": 484,
       "models": [
         "CeriCompanyAlias"
       ],
@@ -15234,7 +15402,7 @@
     {
       "path": "app/services/ceri/identity_resolver.py",
       "function": "_load_companies",
-      "line": 124,
+      "line": 476,
       "models": [
         "CeriCompany"
       ],
@@ -15246,7 +15414,7 @@
     {
       "path": "app/services/ceri/query_service.py",
       "function": "_database_freshness_records",
-      "line": 3537,
+      "line": 3549,
       "models": [
         "CeriIngestionRun"
       ],
@@ -15258,7 +15426,7 @@
     {
       "path": "app/services/ceri/query_service.py",
       "function": "_database_freshness_records",
-      "line": 3544,
+      "line": 3556,
       "models": [
         "CeriCompany"
       ],
@@ -15270,7 +15438,7 @@
     {
       "path": "app/services/ceri/query_service.py",
       "function": "_provider_cost_summary",
-      "line": 3674,
+      "line": 3686,
       "models": [
         "CeriProviderRequestTelemetry"
       ],
@@ -15318,7 +15486,7 @@
     {
       "path": "app/services/configuration_delivery.py",
       "function": "resolve_pipeline_configurations",
-      "line": 615,
+      "line": 640,
       "models": [
         "CeriAlertRule"
       ],
@@ -15330,7 +15498,7 @@
     {
       "path": "app/services/pipeline_executor.py",
       "function": "_schedule_ceri_provider_ingest",
-      "line": 2533,
+      "line": 3625,
       "models": [
         "CeriCompany"
       ],
@@ -15345,6 +15513,18 @@
       "line": 273,
       "models": [
         "WinnerModelVersion"
+      ],
+      "shape": "PREDICATE_FREE_MATERIALIZATION",
+      "classification": "REVIEWED_EXISTING_READ",
+      "reason": "Reviewed by R2/R3 global-read audit.",
+      "gap_id": "GLOBAL-READ-AUDIT"
+    },
+    {
+      "path": "app/services/winner_probability/market_data_obligation_service.py",
+      "function": "evaluate",
+      "line": 360,
+      "models": [
+        "WinnerMarketDataObligation"
       ],
       "shape": "PREDICATE_FREE_MATERIALIZATION",
       "classification": "REVIEWED_EXISTING_READ",
@@ -15825,24 +16005,6 @@
     {
       "path": "app/services/background_worker.py",
       "function": "_execute_full_pipeline_job",
-      "callee": "current_fenced_domain_session",
-      "trigger_ids": [
-        "AUTO-STATIC-CENSUS"
-      ],
-      "reason": "Exact autonomous-control callsite reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
-      "function": "_execute_full_pipeline_job",
-      "callee": "fenced_control_session",
-      "trigger_ids": [
-        "AUTO-STATIC-CENSUS"
-      ],
-      "reason": "Exact autonomous-control callsite reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
-      "function": "_execute_full_pipeline_job",
       "callee": "heartbeat",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
@@ -15853,6 +16015,24 @@
       "path": "app/services/background_worker.py",
       "function": "_execute_full_pipeline_job",
       "callee": "heartbeat_job",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "_execute_full_pipeline_job",
+      "callee": "heartbeat_worker",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "_execute_full_pipeline_job",
+      "callee": "heartbeat_worker_control_loop",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
       ],
@@ -15896,26 +16076,8 @@
     },
     {
       "path": "app/services/background_worker.py",
-      "function": "detached_control_progress",
-      "callee": "heartbeat_job",
-      "trigger_ids": [
-        "AUTO-STATIC-CENSUS"
-      ],
-      "reason": "Exact autonomous-control callsite reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
       "function": "execute_job",
       "callee": "fence_domain_commits",
-      "trigger_ids": [
-        "AUTO-STATIC-CENSUS"
-      ],
-      "reason": "Exact autonomous-control callsite reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
-      "function": "fenced_control_session",
-      "callee": "current_fenced_domain_session",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
       ],
@@ -15950,6 +16112,15 @@
     },
     {
       "path": "app/services/background_worker.py",
+      "function": "heartbeat",
+      "callee": "heartbeat_worker_control_loop",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
       "function": "lease_guard",
       "callee": "heartbeat",
       "trigger_ids": [
@@ -15959,7 +16130,25 @@
     },
     {
       "path": "app/services/background_worker.py",
-      "function": "lease_guard",
+      "function": "persist_detached_job_control",
+      "callee": "heartbeat_job",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "persist_detached_job_control",
+      "callee": "heartbeat_worker_control_loop",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "progress_callback",
       "callee": "heartbeat_job",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
@@ -15969,7 +16158,7 @@
     {
       "path": "app/services/background_worker.py",
       "function": "progress_callback",
-      "callee": "fenced_control_session",
+      "callee": "heartbeat_worker",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
       ],
@@ -15978,7 +16167,7 @@
     {
       "path": "app/services/background_worker.py",
       "function": "progress_callback",
-      "callee": "heartbeat_job",
+      "callee": "heartbeat_worker_control_loop",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
       ],
@@ -16041,6 +16230,24 @@
     {
       "path": "app/services/background_worker.py",
       "function": "run_worker_once",
+      "callee": "reconcile_pipeline_job",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "run_worker_once",
+      "callee": "reconcile_safe_pipeline_invariants",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "run_worker_once",
       "callee": "recover_abandoned_jobs_for_worker",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
@@ -16069,15 +16276,6 @@
       "path": "app/services/background_worker.py",
       "function": "run_worker_once",
       "callee": "schedule_primary_h5_maturation",
-      "trigger_ids": [
-        "AUTO-STATIC-CENSUS"
-      ],
-      "reason": "Exact autonomous-control callsite reviewed at R3."
-    },
-    {
-      "path": "app/services/background_worker.py",
-      "function": "should_cancel",
-      "callee": "fenced_control_session",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
       ],
@@ -16141,6 +16339,15 @@
       "path": "app/services/ceri/batched_job_handlers.py",
       "function": "execute_provider_ingest_batch_job",
       "callee": "_heartbeat_and_cancel",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/batched_job_handlers.py",
+      "function": "execute_run_finalize_job",
+      "callee": "_finalizer_barrier_delay",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
       ],
@@ -16554,7 +16761,34 @@
     {
       "path": "app/worker_supervisor.py",
       "function": "_supervise_once",
+      "callee": "_registered_worker_control_loop_alive",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/worker_supervisor.py",
+      "function": "_supervise_once",
+      "callee": "_registered_worker_job_execution_alive",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/worker_supervisor.py",
+      "function": "_supervise_once",
       "callee": "_registered_worker_process_alive",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/worker_supervisor.py",
+      "function": "_supervise_once",
+      "callee": "_registered_worker_resource_sampler_alive",
       "trigger_ids": [
         "AUTO-STATIC-CENSUS"
       ],
@@ -17059,18 +17293,6 @@
   ],
   "state_writer_sites": [
     {
-      "path": "app/services/ceri/feature_certification_workflow.py",
-      "function": "admit_ceri_feature_certification"
-    },
-    {
-      "path": "app/services/ceri/feature_certification_workflow.py",
-      "function": "execute_ceri_feature_certification_job"
-    },
-    {
-      "path": "app/services/pipeline_service.py",
-      "function": "_block_queued_ceri_siblings"
-    },
-    {
       "path": "app/services/background_job_service.py",
       "function": "_finalize_recovery_cancellation"
     },
@@ -17120,43 +17342,35 @@
     },
     {
       "path": "app/services/ceri/batched_job_handlers.py",
+      "function": "_set_job_outcome_status"
+    },
+    {
+      "path": "app/services/ceri/batched_job_handlers.py",
       "function": "execute_feature_batch_job"
-    },
-    {
-      "path": "app/services/ceri/batched_job_handlers.py",
-      "function": "execute_normalize_batch_job"
-    },
-    {
-      "path": "app/services/ceri/batched_job_handlers.py",
-      "function": "execute_provider_ingest_batch_job"
     },
     {
       "path": "app/services/ceri/controlled_replay_service.py",
       "function": "replay"
     },
     {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_backfill_job"
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "admit_ceri_feature_certification"
+    },
+    {
+      "path": "app/services/ceri/feature_certification_workflow.py",
+      "function": "execute_ceri_feature_certification_job"
     },
     {
       "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_capture_run_job"
-    },
-    {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_change_detection_job"
-    },
-    {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_provider_ingest_job"
-    },
-    {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "execute_rebuild_features_job"
+      "function": "_set_job_outcome_status"
     },
     {
       "path": "app/services/ceri/normalization_service.py",
       "function": "normalize"
+    },
+    {
+      "path": "app/services/ceri/pipeline_containment_service.py",
+      "function": "_terminalize_processing"
     },
     {
       "path": "app/services/ceri/processing_run_service.py",
@@ -17180,27 +17394,7 @@
     },
     {
       "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "_guard_cancel"
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "_mark_pipeline_unresolved"
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
       "function": "_reset_pipeline_step"
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "_update_progress"
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "mark_sec_repair_failure"
-    },
-    {
-      "path": "app/services/ceri/sec/readiness_repair.py",
-      "function": "schedule_sec_readiness_repair"
     },
     {
       "path": "app/services/ceri/source_record_service.py",
@@ -17280,6 +17474,10 @@
     },
     {
       "path": "app/services/pipeline_executor.py",
+      "function": "__init__"
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
       "function": "_apply_winner_step_outcome"
     },
     {
@@ -17288,27 +17486,11 @@
     },
     {
       "path": "app/services/pipeline_executor.py",
+      "function": "_continue_after_sector_snapshot"
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
       "function": "_interrupt_superseded_running_steps"
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_blocked"
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_cancelled"
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_failed"
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_finished"
-    },
-    {
-      "path": "app/services/pipeline_executor.py",
-      "function": "_mark_pipeline_running"
     },
     {
       "path": "app/services/pipeline_executor.py",
@@ -17324,6 +17506,10 @@
     },
     {
       "path": "app/services/pipeline_service.py",
+      "function": "_block_queued_ceri_siblings"
+    },
+    {
+      "path": "app/services/pipeline_service.py",
       "function": "_cancel_pending_steps"
     },
     {
@@ -17332,27 +17518,15 @@
     },
     {
       "path": "app/services/pipeline_service.py",
-      "function": "cancel_pipeline"
-    },
-    {
-      "path": "app/services/pipeline_service.py",
       "function": "enqueue_pipeline_after_ceri_completion"
     },
     {
-      "path": "app/services/pipeline_service.py",
-      "function": "enqueue_pipeline_after_sec_repair"
+      "path": "app/services/pipeline_state_machine.py",
+      "function": "transition_pipeline"
     },
     {
-      "path": "app/services/pipeline_service.py",
-      "function": "mark_pipeline_job_failure"
-    },
-    {
-      "path": "app/services/pipeline_service.py",
-      "function": "resume_pipeline"
-    },
-    {
-      "path": "app/services/pipeline_service.py",
-      "function": "start_pipeline"
+      "path": "app/services/pipeline_state_machine.py",
+      "function": "transition_pipeline_step"
     },
     {
       "path": "app/services/scope_refresh_adoption.py",
