@@ -1338,8 +1338,7 @@ def requeue_stalled_jobs(
                     blocked_step = db.scalar(
                         select(PipelineStep).where(
                             PipelineStep.pipeline_run_id == pipeline.id,
-                            PipelineStep.step_name
-                            == (effective_stage or pipeline.current_step),
+                            PipelineStep.step_name == (effective_stage or pipeline.current_step),
                         )
                     )
                     if blocked_step is not None:
@@ -1350,9 +1349,7 @@ def requeue_stalled_jobs(
                             "Useful progress remained frozen and automatic recovery was exhausted."
                         )
                         payload = dict(blocked_step.result_json or {})
-                        payload["terminal_reason_code"] = (
-                            "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
-                        )
+                        payload["terminal_reason_code"] = "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
                         blocked_step.result_json = payload
             continue
         job.status = JobStatus.RECOVERING
@@ -1683,6 +1680,10 @@ def mark_job_failed_or_retry(
         }
 
     _apply_running_job_update(db, job, expected_token, values)
+    if values["status"] == JobStatus.QUEUED and job.job_type == "FULL_PIPELINE":
+        from app.services.pipeline_service import mark_pipeline_job_retry
+
+        mark_pipeline_job_retry(db, job, failure)
     if (
         values["status"] == JobStatus.FAILED
         and job.job_type == "SEC_READINESS_REPAIR"

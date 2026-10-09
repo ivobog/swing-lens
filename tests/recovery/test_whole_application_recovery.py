@@ -54,6 +54,7 @@ from app.services.domain_write_fence import assert_current_execution_ownership
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_job_service import FetchJobOptions, _admit_fetch_authority
 from app.services.ib_fetch_plan_service import FetchPlan, fetch_plan_to_dict
+from app.services.ib_gateway_health_service import IBGatewayHealthStatus
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_executor import (
     PipelineExecutionDependencies,
@@ -776,6 +777,23 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
 
     dependencies = PipelineExecutionDependencies(
         market_cutoff=cutoff,
+        check_ib_gateway=lambda: IBGatewayHealthStatus(
+            status="IB_API_READY",
+            host="127.0.0.1",
+            port=1,
+            client_id=1,
+            api_connected=True,
+            api_ready=True,
+            process_running=True,
+            server_version=1,
+            smoke_response_received=True,
+            checked_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(minutes=1),
+            latency_ms=0,
+            error_code=None,
+            failure_category=None,
+            message="deterministic recovery fixture",
+        ),
         fetch_technical_overlap_enabled=False,
         validate_pipeline_preflight=lambda *_args: stage_calls.append("SEC") or {"complete": True},
         recalculate_fundamentals=fundamentals,
@@ -886,6 +904,9 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
             for row in verify.scalars(select(CombinedResult).where(CombinedResult.run_id == run_id))
             if row.has_warning
         }
+        assert technical_span["start"] is not None and technical_span["end"] is not None, (
+            result.__dict__
+        )
         measurement = {
             "size": size,
             "requested": size,

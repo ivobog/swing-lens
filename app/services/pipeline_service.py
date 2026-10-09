@@ -558,9 +558,7 @@ def _ceri_async_visibility(db: Session, pipeline: PipelineRun) -> dict[str, Any]
             "completed_jobs": sum(
                 job.status in {JobStatus.COMPLETED, JobStatus.PARTIAL} for job in members
             ),
-            "processed": sum(
-                int(job.progress_processed or 0) for job in known_total_members
-            ),
+            "processed": sum(int(job.progress_processed or 0) for job in known_total_members),
             "total": sum(int(job.progress_total or 0) for job in known_total_members),
             "unknown_total_processed": sum(
                 int(job.progress_processed or 0) for job in unknown_total_members
@@ -781,6 +779,41 @@ def mark_pipeline_job_failure(db, job, failure):
             message=view["message"],
             error_message=view["detail"],
         )
+    db.flush()
+
+
+def mark_pipeline_job_retry(db, job, failure):
+    """Keep an accepted durable retry inside active pipeline authority."""
+
+    pipeline_run_id = (job.payload_json or {}).get("pipeline_run_id")
+    if pipeline_run_id is None:
+        return
+    pipeline = db.scalar(
+        select(PipelineRun).where(PipelineRun.id == int(pipeline_run_id)).with_for_update()
+    )
+    if (
+        pipeline is None
+        or pipeline.status != PipelineStatus.FAILED
+        or pipeline.execution_authority_state != "ACTIVE"
+    ):
+        return
+    from app.services.pipeline_state_machine import transition_pipeline
+
+    transition_pipeline(
+        db,
+        pipeline,
+        PipelineStatus.QUEUED,
+        actor="job_retry",
+        message="Pipeline retry scheduled by the durable worker.",
+        error_message=str(job.error_message or "") or None,
+    )
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "job_retry_pending": {
+            "job_id": int(job.id),
+            "failure": dict(failure),
+        },
+    }
     db.flush()
 
 

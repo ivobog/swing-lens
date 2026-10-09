@@ -34,7 +34,9 @@ def _process(mode, cwd, database_url, **overrides):
         TECHNICAL_V5_SHADOW_COMPARE_ENABLED="false",
         WINNER_PROBABILITY_CAPTURE_IN_PIPELINE="false",
         SETUP_LIFECYCLE_PIPELINE_STEP_ENABLED="false",
+        CERI_ENABLED="false",
         CERI_RUN_CAPTURE_ENABLED="false",
+        CERI_PROVIDER_INGEST_ENABLED="false",
         EODHD_API_KEY="T13E_SECRET_MUST_NOT_APPEAR",
         IB_FLEX_TOKEN="T13E_SECRET_MUST_NOT_APPEAR",
     )
@@ -361,12 +363,16 @@ def test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri
         disposable_postgres_database,
         T13E_READY_BOUNDARY="true",
         T13E_SCHEDULER_BOUNDARY="true",
+        T13E_EXPECT_NO_WORK="true",
     )
     retried = next(j for j in retry["jobs"] if j["id"] == queued["job_id"])
-    assert retried["status"] == "COMPLETED", retried
-    assert retried["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
+    assert retried["status"] == "QUEUED", retried
+    assert retried["result"] is None
     assert retried["payload"]["effective_configuration_anchor"] == queued["anchor"]
-    assert retried["attempts"]["attempt_count"] >= 2
+    assert retried["attempts"]["attempt_count"] == 1
+    retained_continuation = retry["jobs"][-1]
+    assert retained_continuation["status"] == "COMPLETED"
+    assert retained_continuation["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
     assert retry["evidence"][: len(interrupted["evidence"])] == interrupted["evidence"]
     assert not retry["lifecycle"] and not retry["winner"]
 
@@ -519,7 +525,7 @@ def test_all_registered_business_handlers_reject_missing_binding_before_financia
     command.upgrade(config, "head")
     engine = create_engine(disposable_postgres_database)
     handlers = default_job_handlers()
-    assert len(handlers) == 34
+    assert len(handlers) == 35
     excluded = {name for name in handlers if not durable_business_job(name)}
     assert excluded == {
         "IB_FETCH",

@@ -467,7 +467,15 @@ def finalize_technical_scores(
         else {}
     )
     scores: list[TechnicalScore] = []
-    for result in score_results:
+    finalize_total = len(score_results)
+    _technical_checkpoint(
+        checkpoint_callback,
+        should_cancel,
+        phase="FINALIZING",
+        processed=0,
+        total=finalize_total,
+    )
+    for index, result in enumerate(score_results, start=1):
         _record_temporal_lineage_metrics(result)
         if not isinstance(result, PineReplicaScore):
             if isinstance(db, Session) and market_cutoff is not None:
@@ -498,6 +506,15 @@ def finalize_technical_scores(
                 result.input_as_of_session = market_cutoff.latest_completed_session
                 result.calendar_version = market_cutoff.calendar_version
             scores.append(result)
+            if index % 10 == 0 or index == finalize_total:
+                _technical_checkpoint(
+                    checkpoint_callback,
+                    should_cancel,
+                    phase="FINALIZING",
+                    processed=index,
+                    total=finalize_total,
+                    last_completed_item=result.ticker,
+                )
             continue
         base_with_v4_leadership = _with_leadership_debug(result, leadership)
         v4_score = technical_score_v4_from_base_score(base_with_v4_leadership, v4_params)
@@ -553,6 +570,15 @@ def finalize_technical_scores(
             persisted.input_as_of_session = market_cutoff.latest_completed_session
             persisted.calendar_version = market_cutoff.calendar_version
         scores.append(persisted)
+        if index % 10 == 0 or index == finalize_total:
+            _technical_checkpoint(
+                checkpoint_callback,
+                should_cancel,
+                phase="FINALIZING",
+                processed=index,
+                total=finalize_total,
+                last_completed_item=result.ticker,
+            )
     source_manifest_payload = None
     source_manifest_digest = None
     technical_identity = None
@@ -566,9 +592,7 @@ def finalize_technical_scores(
             market_cutoff=market_cutoff,
             effective_configuration=effective_configuration,
         )
-        source_manifest_digest = CanonicalEvidenceSerializer.fingerprint(
-            source_manifest_payload
-        )
+        source_manifest_digest = CanonicalEvidenceSerializer.fingerprint(source_manifest_payload)
         source_manifest_ref = {
             "contract": "technical-source-manifest-ref-v1",
             "digest": source_manifest_digest,
@@ -640,7 +664,7 @@ def finalize_technical_scores(
         db.add_all(scores)
         db.flush()
         if isinstance(db, Session):
-            for score in scores:
+            for index, score in enumerate(scores, start=1):
                 persist_core_evidence(
                     db,
                     kind=CoreEvidenceKind.TECHNICAL,
@@ -657,6 +681,15 @@ def finalize_technical_scores(
                         else None,
                     ),
                 )
+                if index % 10 == 0 or index == len(scores):
+                    _technical_checkpoint(
+                        checkpoint_callback,
+                        should_cancel,
+                        phase="PERSISTING_EVIDENCE",
+                        processed=index,
+                        total=len(scores),
+                        last_completed_item=score.ticker,
+                    )
     return scores
 
 
@@ -674,10 +707,7 @@ def _canonical_technical_source_manifest(
         for manifest in (lineage.get("source_manifests") or {}).values():
             canonical = CanonicalEvidenceSerializer.canonicalize(manifest)
             unique.setdefault(CanonicalEvidenceSerializer.fingerprint(canonical), canonical)
-    sources = [
-        {"digest": digest, "manifest": unique[digest]}
-        for digest in sorted(unique)
-    ]
+    sources = [{"digest": digest, "manifest": unique[digest]} for digest in sorted(unique)]
     return CanonicalEvidenceSerializer.canonicalize(
         {
             "contract": "technical-source-manifest-v1",
@@ -688,9 +718,7 @@ def _canonical_technical_source_manifest(
             "input_as_of_session": market_cutoff.latest_completed_session,
             "configuration_identity": effective_configuration.snapshot.identity.as_dict(),
             "source_count": len(sources),
-            "state_count": sum(
-                len(item["manifest"].get("states") or ()) for item in sources
-            ),
+            "state_count": sum(len(item["manifest"].get("states") or ()) for item in sources),
             "sources": sources,
         }
     )
@@ -1997,9 +2025,7 @@ def _score_ticker(
         params=pine_params,
         v4_params=v4_params,
         expected_session=(
-            market_cutoff.latest_completed_session
-            if market_cutoff.context_id is not None
-            else None
+            market_cutoff.latest_completed_session if market_cutoff.context_id is not None else None
         ),
     )
     htf_features = (

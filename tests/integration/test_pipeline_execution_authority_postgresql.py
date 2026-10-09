@@ -14,12 +14,72 @@ from app.services.background_job_service import (
     claim_next_job,
     enqueue_job,
     mark_job_completed,
+    mark_job_failed_or_retry,
     reconcile_jobs_for_worker_loss,
     recover_stale_jobs,
 )
 from app.services.pipeline_execution_authority import claimable_pipeline_job_ids
 from app.services.runtime_mutation_authority import RecoveryAuthority
 from app.services.worker_registry import register_worker
+
+
+def test_retryable_pipeline_job_reopens_only_its_active_failed_pipeline(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    now = datetime.now(UTC)
+    with Session(engine) as db:
+        upload = UploadRun(filename="retry-authority.csv", status="COMPLETED", row_count=1)
+        db.add(upload)
+        db.flush()
+        pipeline = PipelineRun(
+            upload_run_id=upload.id,
+            status="FAILED",
+            current_step="FETCHING_MARKET_DATA",
+            execution_authority_state="ACTIVE",
+            completed_at=now,
+            result_json={},
+        )
+        db.add(pipeline)
+        db.flush()
+        job = BackgroundJob(
+            job_type="FULL_PIPELINE",
+            related_run_id=upload.id,
+            status=JobStatus.RUNNING,
+            payload_json={"pipeline_run_id": pipeline.id},
+            retry_count=0,
+            max_retries=3,
+            run_after=now,
+            worker_id="retry-worker",
+            worker_instance_id="retry-instance",
+            execution_token="retry-token",
+            operational_metadata_json={},
+        )
+        db.add(job)
+        db.flush()
+        pipeline.result_json = {"background_job_id": job.id}
+        db.commit()
+
+        assert claimable_pipeline_job_ids(db, upload_run_id=upload.id) == ()
+        mark_job_failed_or_retry(
+            db,
+            job,
+            RuntimeError("temporary provider boundary"),
+            retry_delay=lambda _attempt: timedelta(0),
+            execution_token="retry-token",
+        )
+        db.commit()
+
+        db.refresh(job)
+        db.refresh(pipeline)
+        assert job.status == JobStatus.QUEUED
+        assert pipeline.status == "QUEUED"
+        assert pipeline.completed_at is None
+        assert pipeline.execution_authority_state == "ACTIVE"
+        assert pipeline.result_json["job_retry_pending"]["job_id"] == job.id
+        assert claimable_pipeline_job_ids(db, upload_run_id=upload.id) == (job.id,)
+    engine.dispose()
 
 
 def test_historical_pipeline_jobs_are_never_claimed_or_recovered_after_0089(

@@ -132,6 +132,8 @@ def _transition_allowed(
     if source == target:
         return True
     if source in TERMINAL_PIPELINE_STATES:
+        if actor == "job_retry" and source == "FAILED" and target in QUEUED_PIPELINE_STATES:
+            return True
         return bool(
             operator_resume
             and actor == "operator"

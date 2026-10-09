@@ -660,11 +660,7 @@ def run_worker_once(
         queue_names = normalize_worker_queues(queues)
         allowed_job_types = tuple(
             sorted(
-                {
-                    str(value).strip()
-                    for value in (included_job_types or ())
-                    if str(value).strip()
-                }
+                {str(value).strip() for value in (included_job_types or ()) if str(value).strip()}
             )
         )
         hostname = socket.gethostname()
@@ -684,7 +680,7 @@ def run_worker_once(
                 "job.restarted_worker_recovered",
                 extra={"count": abandoned_count, "worker_id": worker_id},
             )
-        register_worker(
+        registration = register_worker(
             db,
             worker_id=worker_id,
             queues=queue_names,
@@ -693,6 +689,7 @@ def run_worker_once(
             process_id=process_id,
             instance_id=worker_instance_id,
         )
+        worker_instance_id = str(registration.instance_id)
         recovered_count = (
             0
             if certification_mode

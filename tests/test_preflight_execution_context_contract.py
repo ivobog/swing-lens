@@ -59,6 +59,45 @@ def test_technical_finalize_preview_does_not_issue_database_writes() -> None:
     assert db.write_attempts == 0
 
 
+def test_technical_finalize_reports_bounded_progress_for_large_batches() -> None:
+    scores = [
+        TechnicalScore(
+            run_id=7,
+            ticker=f"T{index:03d}",
+            classification="No trade",
+            action_bias="No data",
+            technical_confidence="error",
+            warning_flags_json=["technical_error"],
+            missing_data_json={"unavailable": True},
+            debug_json={},
+        )
+        for index in range(21)
+    ]
+    checkpoints = []
+
+    result = finalize_technical_scores(
+        WriteRejectingDb(),
+        7,
+        scores,
+        symbols=[score.ticker for score in scores],
+        settings=Settings(
+            technical_v5_enabled=False,
+            technical_v5_shadow_compare_enabled=False,
+        ),
+        v5_context=TechnicalV5RunContext(resolutions={}, sector_features={}),
+        persist=False,
+        checkpoint_callback=lambda **values: checkpoints.append(values),
+    )
+
+    assert result == scores
+    assert [(item["phase"], item["processed"], item["total"]) for item in checkpoints] == [
+        ("FINALIZING", 0, 21),
+        ("FINALIZING", 10, 21),
+        ("FINALIZING", 20, 21),
+        ("FINALIZING", 21, 21),
+    ]
+
+
 class WriteRejectingDb:
     write_attempts = 0
 
