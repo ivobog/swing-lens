@@ -763,3 +763,19 @@ tables(
     "T14D",
     "These append-only compatibility decision/replay tables are written by Pre11CompatibilityWriteService. Native capture TrainingEligibilityPolicy writes classification into prediction lineage, not these tables. Retained legacy classification preserves original prediction contracts.",
 )
+tables(
+    "instrument_lifecycle_records",
+    "IBMI_SOURCE",
+    "app/services/instrument_lifecycle_service.py:record_instrument_lifecycle",
+    "DOMAIN_SUPPORTING_STATE",
+    "T14D",
+    "Append-only sourced lifecycle revisions establish terminal instrument state for an effective market boundary; successor symbols remain evidence and never substitute acquisition identity.",
+)
+tables(
+    "market_data_session_dispositions",
+    "PIPELINE",
+    "app/services/market_data_session_readiness.py:evaluate_and_persist_session_readiness",
+    "BUSINESS_SEMANTIC",
+    "T14D",
+    "The exact pipeline, upload run, market calculation context and expected session own readiness revisions that gate technical and downstream admission without a global/latest fallback.",
+)

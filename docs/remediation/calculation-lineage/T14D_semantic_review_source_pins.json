@@ -75,6 +75,15 @@
   },
   "foundation_baseline": "5eef0d08d783de132fecb14c5dedd66821f0949f",
   "historical_adoption_review": "T14C source ownership review; writer enforcement FAIL. T14A/T14B historical pins retained unchanged.",
+  "post_release_sources": {
+    "app/services/instrument_lifecycle_service.py": {
+      "authority_domain": "IBMI_SOURCE",
+      "introduced_by": "6fbcdcf8dbfa2070c8462f5e0e1a95e285be1ec3",
+      "purpose": "Append-only instrument lifecycle evidence and terminal cached-contract invalidation",
+      "sha256": "39ee20b7137b168e65feae75338791361479dea99361f90af4446a05114aca04",
+      "writer_family": "WF_INSTRUMENT_LIFECYCLE_EVIDENCE"
+    }
+  },
   "predecessor_sha256": "d276050cbc58c77998b9f08087c18138c31340ee038c95583e6092bea62f0129",
   "raw_discovery_sha256": "dd4f56c33bfbad1fe6dd9312bfcef098639b7ca161ce21b81da909a316fdf9b7",
   "review_boundary": "Finite source-qualified ownership review. Caller certification requires exact handoff reconciliation and all mandated validation lanes; hashes alone confer no PASS.",

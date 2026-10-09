@@ -68,9 +68,9 @@ FORWARDER_REVIEW_HASHES = dict(
         (
             "8b63c1f6d67eb5f0c7889588dd2041da0064a26a3a5b8149246b84ffae0abd40",
             "f2aca40e7fccc3a239cdf981324a460529f29e9f9e1aaa8050a25b17889e00ad",
-            "cda20ab41ced0056d290148a4dda98d57399640d9d164d73b798f6ba146bde53",
+            "c5f79e51a32c6ff91d45b319d60b17a228ce898d679cc7d4bec7dd267131f8a0",
             "31de965b89033d0a0154b06c31f973f3f106947d0ca56d0deee7ab9875b50d49",
-            "975a09d0fbe476d53a42f4b58941ea06b3549a18fc2a9fee0a2f5e4d7f85f2fe",
+            "aba4e4adf2d28a32b9c44f1100c8ed5defd5ea7d609fdbaa66ffda877ddd93d2",
         ),
         strict=True,
     )

@@ -69,6 +69,152 @@
   "continuation_wave8_numeric_retention_review": "Native browser observation identified a NUMERIC scale-six tie: owned pre-SQL exit_price 74.2934325 sealed with half-even 74.293432, while PostgreSQL retained half-away-from-zero 74.293433. Outcome body sealing now uses ROUND_HALF_UP to match actual retained SQL numeric values. Outcome formulas, proof fields and financial validation are unchanged; observation hooks removed; actual native H5 SQL-reload regression added without authority substitutions.",
   "continuation_wave8_replay_review": "Native replay validates the retained setup financial proof and the current replay run full configuration/job binding. Its retrospective ownership explicitly makes the original setup pipeline not applicable, preserving original C1 source scope without claiming it owns the replay C2 configuration. LIVE ownership and financial math are unchanged. Native retrospective isolation and native C1/C2 delivery cases pass.",
   "entry_families": {
+    "EF_21ea768dd4fc46fd": {
+      "adoption_status": "T14B_ADOPTION",
+      "authority_proof": "The source_mutation_writer boundary admits only the exact IBMI_SOURCE request scope; compare-and-invalidate preserves a concurrently requalified identity.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, ticker: str, *, expected_conid: int | None, reason: str",
+      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
+      "decorators": [
+        "source_mutation_writer"
+      ],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14B",
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_21ea768dd4fc46fd",
+      "entrypoints": [
+        "app/services/ib_contract_resolver.py:invalidate_cached_contract"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Exact rejected provider identity is compared before invalidation; missing or newer identities are left untouched.",
+      "reachability": "Called only from provider error handling and directly covered by bounded invalidation regression tests.",
+      "selectors": [
+        "row.ib_conid != expected_conid",
+        "source_mutation_writer"
+      ],
+      "semantic_adoption_status": "T14B_NATIVE_BOUNDARY_RECONCILED",
+      "semantic_review_complete": true,
+      "source_sha256": "8bdfea44d415e257c26bb148696757216da9e565c10fc2036415dfeb683e958d",
+      "status": "T14B_NATIVE_BOUNDARY_RECONCILED",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_IB_CONTRACT_IDENTITY"
+      ]
+    },
+    "EF_39c2ae3f7a0fc436": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The source_mutation_writer boundary owns append-only lifecycle evidence and terminal contract revocation in one IBMI_SOURCE transaction.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, *, ticker: str, lifecycle_state, evidence_json, effective lifecycle boundaries",
+      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
+      "decorators": [
+        "source_mutation_writer"
+      ],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_39c2ae3f7a0fc436",
+      "entrypoints": [
+        "app/services/instrument_lifecycle_service.py:record_instrument_lifecycle"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "Lifecycle state requires explicit evidence and effective dates; successor symbols are evidence only and never substitute instruments.",
+      "reachability": "Pipeline readiness classification and the explicit operator CLI call the same governed native writer.",
+      "selectors": [
+        "source_mutation_writer",
+        "TERMINAL_LIFECYCLE_STATES"
+      ],
+      "semantic_adoption_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "semantic_review_complete": true,
+      "source_sha256": "39ee20b7137b168e65feae75338791361479dea99361f90af4446a05114aca04",
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_INSTRUMENT_LIFECYCLE_EVIDENCE"
+      ]
+    },
+    "EF_88e5514123f7727c": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The active pipeline, upload run and frozen market context own one immutable readiness revision per requested ticker and expected session.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "db: Session, *, pipeline_run_id: int, upload_run_id: int, tickers, market_cutoff, fetch_run_id",
+      "behavior": "SYNCHRONOUS_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": [
+        "PIPELINE"
+      ],
+      "entry_point_family_id": "EF_88e5514123f7727c",
+      "entrypoints": [
+        "app/services/market_data_session_readiness.py:evaluate_and_persist_session_readiness"
+      ],
+      "kind": "SERVICE_PUBLIC",
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "proof_boundary": "Selection is bounded by the exact calculation context cutoff and expected session; no global or latest-row fallback is admitted.",
+      "reachability": "Invoked by the governed pipeline market-data stage before technical and downstream admission.",
+      "selectors": [
+        "pipeline_run_id",
+        "market_cutoff.context_id",
+        "market_cutoff.latest_completed_session"
+      ],
+      "semantic_adoption_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "semantic_review_complete": true,
+      "source_sha256": "6b940777f5e857f08274f3fb9e46fdb737249434b3a8f4696453b96c2b5cdb1a",
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_MARKET_DATA_SESSION_READINESS"
+      ]
+    },
+    "EF_f66c20f2b16f855b": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The operator command requires authoritative-local provenance, schema head, an explicit commit flag, ticker confirmation and complete evidence metadata before entering the native lifecycle writer.",
+      "authority_review_is_foundation_gate": false,
+      "authority_supplied": "argv: Sequence[str] | None = None",
+      "behavior": "EXPLICIT_ADMIN_NATIVE_OPERATION",
+      "decorators": [],
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "entry_point_family_id": "EF_f66c20f2b16f855b",
+      "entrypoints": [
+        "scripts/instrument_lifecycle_admin.py:main"
+      ],
+      "kind": "CLI",
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "proof_boundary": "No write occurs without explicit --commit, AUTHORITATIVE_LOCAL, connection provenance, schema head and ticker confirmation.",
+      "reachability": "Explicit local administrative CLI forwarding to record_instrument_lifecycle.",
+      "selectors": [
+        "--commit",
+        "AUTHORITATIVE_LOCAL",
+        "confirm_ticker"
+      ],
+      "semantic_adoption_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "semantic_review_complete": true,
+      "source_sha256": "b545e9ab1645ce89b9321a71fad29391d22143bb3028cfbcad00e8c2fd1bf80f",
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_adoption_dependencies": [],
+      "writer_families": [
+        "WF_INSTRUMENT_LIFECYCLE_EVIDENCE"
+      ]
+    },
     "EF_021cfb93d6813955": {
       "adoption_status": "T14B_ADOPTION",
       "authority_proof": "Assigned native writer dependencies enforce persisted core/contextual authority, or their explicit source/cache/legacy operation policy. Construction and discovery do not grant authority. Exact family-specific proof is recorded in T14B_core_contextual_writer_certification.json.",
@@ -14952,6 +15098,36 @@
       "proof": "Fenced execution status propagation to owning pipeline and steps.",
       "role": "DOMAIN_SUPPORTING_STATE"
     },
+    "app/services/background_job_service.py:requeue_stalled_jobs": {
+      "family_id": "WF_PIPELINE_STALL_RECOVERY",
+      "proof": "Durable stalled-job recovery and terminal pipeline-step propagation under the retained recovery authority.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/ib_contract_resolver.py:_clear_contract_identity_values": {
+      "family_id": "WF_IB_CONTRACT_IDENTITY",
+      "proof": "Shared member clears only cached provider identity fields; owning writers retain failure reason and compare-and-invalidate policy.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/ib_contract_resolver.py:invalidate_cached_contract": {
+      "family_id": "WF_IB_CONTRACT_IDENTITY",
+      "proof": "Provider-rejected cached identity invalidation is conditional on the exact rejected conid.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/instrument_lifecycle_service.py:_clear_cached_identity": {
+      "family_id": "WF_INSTRUMENT_LIFECYCLE_EVIDENCE",
+      "proof": "Terminal lifecycle evidence revokes cached contract identity in the same governed transaction.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/instrument_lifecycle_service.py:record_instrument_lifecycle": {
+      "family_id": "WF_INSTRUMENT_LIFECYCLE_EVIDENCE",
+      "proof": "Append-only sourced lifecycle revisions own terminal instrument status and contract revocation.",
+      "role": "CANONICAL_SEMANTIC_WRITER"
+    },
+    "app/services/market_data_session_readiness.py:evaluate_and_persist_session_readiness": {
+      "family_id": "WF_MARKET_DATA_SESSION_READINESS",
+      "proof": "Run- and context-scoped readiness revisions freeze technical/downstream admission for the expected market session.",
+      "role": "CANONICAL_SEMANTIC_WRITER"
+    },
     "app/services/bar_cache_service.py:cache_bars": {
       "family_id": "WF_PRICE_INGESTION",
       "proof": "Bar/revision source ingestion; price-series version changes are a separate family.",
@@ -16321,6 +16497,99 @@
     "task": "T16D"
   },
   "writer_families": {
+    "WF_INSTRUMENT_LIFECYCLE_EVIDENCE": {
+      "authority": "An explicit IBMI_SOURCE maintenance transaction retains sourced lifecycle revisions and, for terminal states only, revokes the cached provider identity in the same transaction.",
+      "disposition": "T14D",
+      "domains": [
+        "IBMI_SOURCE"
+      ],
+      "known_alternate_families": [
+        "WF_IB_CONTRACT_IDENTITY"
+      ],
+      "known_callers": [
+        "app/services/instrument_lifecycle_service.py:record_instrument_lifecycle",
+        "scripts/instrument_lifecycle_admin.py:main"
+      ],
+      "member_sites": [
+        "app/services/instrument_lifecycle_service.py:_clear_cached_identity",
+        "app/services/instrument_lifecycle_service.py:record_instrument_lifecycle"
+      ],
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "owner": "app/services/instrument_lifecycle_service.py:record_instrument_lifecycle",
+      "phase5_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "proof": "Append-only, sourced lifecycle revisions preserve effective boundaries and successor evidence. Terminal lifecycle states alone clear cached contract identity; successor symbols never substitute acquisition identity.",
+      "semantic_review_complete": true,
+      "status": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "ib_contracts",
+        "instrument_lifecycle_records"
+      ],
+      "writer_family_id": "WF_INSTRUMENT_LIFECYCLE_EVIDENCE"
+    },
+    "WF_MARKET_DATA_SESSION_READINESS": {
+      "authority": "The exact pipeline, upload run and frozen market calculation context own each readiness revision for the requested ticker and expected session.",
+      "disposition": "T14D",
+      "domains": [
+        "PIPELINE"
+      ],
+      "known_alternate_families": [
+        "WF_PIPELINE_STAGE_STATE"
+      ],
+      "known_callers": [
+        "app/services/market_data_session_readiness.py:evaluate_and_persist_session_readiness",
+        "app/services/pipeline_executor.py:execute_full_pipeline"
+      ],
+      "member_sites": [
+        "app/services/market_data_session_readiness.py:evaluate_and_persist_session_readiness"
+      ],
+      "modes": [
+        "CANONICAL_CALCULATION"
+      ],
+      "owner": "app/services/market_data_session_readiness.py:evaluate_and_persist_session_readiness",
+      "phase5_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "proof": "The frozen calculation context bounds price selection and expected session. Per-ticker immutable revisions retain lifecycle, fetch and bar evidence before technical and downstream admission; no ambient latest fallback is used.",
+      "semantic_review_complete": true,
+      "status": "CANONICAL_WRITER",
+      "tables": [
+        "market_data_session_dispositions"
+      ],
+      "writer_family_id": "WF_MARKET_DATA_SESSION_READINESS"
+    },
+    "WF_PIPELINE_STALL_RECOVERY": {
+      "authority": "A validated recovery authority selects only fenced stalled jobs in its execution scope and applies bounded retry or terminal blocked state to the owning durable pipeline records.",
+      "disposition": "T14D",
+      "domains": [
+        "PIPELINE"
+      ],
+      "known_alternate_families": [
+        "WF_PIPELINE_CONTROL",
+        "WF_PIPELINE_FENCE_INTERRUPTION",
+        "WF_PIPELINE_STAGE_STATE"
+      ],
+      "known_callers": [
+        "app/services/background_job_service.py:requeue_stalled_jobs",
+        "app/worker_supervisor.py:main"
+      ],
+      "member_sites": [
+        "app/services/background_job_service.py:requeue_stalled_jobs"
+      ],
+      "modes": [
+        "MAINTENANCE"
+      ],
+      "owner": "app/services/background_job_service.py:requeue_stalled_jobs",
+      "phase5_status": "T14D_ADOPTION",
+      "proof": "Recovery requires explicit normal or certification authority, preserves execution-scope fencing, bounds identical retries, and updates only recovery/job/pipeline status rather than recomputing business evidence.",
+      "semantic_review_complete": true,
+      "status": "DOMAIN_SUPPORTING_STATE",
+      "tables": [
+        "background_jobs",
+        "pipeline_runs",
+        "pipeline_steps"
+      ],
+      "writer_family_id": "WF_PIPELINE_STALL_RECOVERY"
+    },
     "WF_CERI_ALERT_CREATION": {
       "authority": "Resolve exact native domain policy in the writer transaction; supporting ledger mechanisms reuse originating caller policy. Native modes/conditional source permission remain authoritative.",
       "disposition": "T14C",
@@ -17872,6 +18141,7 @@
         "app/services/ib_fetch_executor.py:execute_fetch_plan",
         "app/services/ib_fetch_job_service.py:execute_durable_fetch_job",
         "app/services/ib_fetch_job_service.py:submit_fetch_job",
+        "app/services/ib_contract_resolver.py:invalidate_cached_contract",
         "app/services/ib_market_intelligence/orchestration.py:execute_histogram_fetch",
         "app/services/ib_market_intelligence/orchestration.py:execute_historical_refresh",
         "app/services/ib_market_intelligence/orchestration.py:execute_live_snapshot",
@@ -17887,9 +18157,11 @@
         "scripts/winner_ib_request_scope_canary.py:main"
       ],
       "member_sites": [
+        "app/services/ib_contract_resolver.py:_clear_contract_identity_values",
         "app/services/ib_contract_resolver.py:_clear_contract_identity",
         "app/services/ib_contract_resolver.py:_mark_ambiguous",
         "app/services/ib_contract_resolver.py:_mark_failed",
+        "app/services/ib_contract_resolver.py:invalidate_cached_contract",
         "app/services/ib_contract_resolver.py:resolve_us_stock_contract"
       ],
       "modes": [

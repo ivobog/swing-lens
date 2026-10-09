@@ -242,7 +242,8 @@ def test_production_adoption_is_source_qualified_and_preserves_foundation_histor
     )
     if caller_adoption.exists():
         adoption = json.loads(caller_adoption.read_text())
-    assert set(imports) <= set(adoption["sources"])
+    reviewed_sources = set(adoption["sources"]) | set(adoption.get("post_release_sources", {}))
+    assert set(imports) <= reviewed_sources
     assert {
         "app/services/core_mutation_authority.py",
         "app/services/source_mutation_authority.py",
