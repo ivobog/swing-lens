@@ -218,11 +218,14 @@ def test_stale_reclaim_changes_lease_but_preserves_configuration(delivery_db, mo
     first = execute_job(db, claimed, {claimed.job_type: _handler})
     claimed.lease_expires_at = datetime.now(UTC) - timedelta(minutes=1)
     db.commit()
-    assert recover_stale_jobs(
-        db,
-        1,
-        authority=RecoveryAuthority.normal("test.configuration_delivery.recovery"),
-    ) == 1
+    assert (
+        recover_stale_jobs(
+            db,
+            1,
+            authority=RecoveryAuthority.normal("test.configuration_delivery.recovery"),
+        )
+        == 1
+    )
     db.commit()
     monkeypatch.setattr("pathlib.Path.open", lambda *_a, **_k: pytest.fail("reclaim reads C2"))
     reclaimed = claim_next_job(db, "t13d")
@@ -262,6 +265,10 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
         resolve_winner_configuration,
     )
     from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+    from app.services.pipeline_executor import (
+        build_market_regime_snapshot_for_run,
+        build_sector_rotation_snapshot_for_run,
+    )
     from app.services.setup_lifecycle.canonicalization import SetupLifecycleCanonicalizer
     from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
     from app.services.setup_lifecycle.episode_service import SetupLifecycleEpisodeService
@@ -303,6 +310,8 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
         db.commit()
 
         def calculate(db, _job):
+            build_market_regime_snapshot_for_run(db, 7, market_cutoff=cutoff)
+            build_sector_rotation_snapshot_for_run(db, 7, market_cutoff=cutoff)
             repository = SetupLifecycleRepository()
             context = SetupLifecycleSourceLoader().load_run_context(db, 7, market_cutoff=cutoff)
             built = SetupLifecycleSnapshotBuilder().build(context.tickers[0])
@@ -430,6 +439,8 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
         db.expire_all()
         assert [row.payload_json for row in evidence + lifecycle] == frozen
         assert [row.lineage_json for row in predictions] == winner_frozen
+    monkeypatch.undo()
+    get_settings.cache_clear()
     engine.dispose()
 
 
@@ -765,17 +776,19 @@ def test_configuration_delivery_bulk_load_has_bounded_queries_and_batch_no_reads
 
 def test_pipeline_fingerprint_tracks_only_business_switches(delivery_db, monkeypatch):
     db = delivery_db
+    get_settings.cache_clear()
     baseline = persist_configuration_anchor(db, resolve_pipeline_configurations(db))
-    monkeypatch.setenv("JOB_POLL_INTERVAL_SECONDS", "7")
-    monkeypatch.setenv("IB_FLEX_TOKEN", "t13d-synthetic-test-secret")
-    get_settings.cache_clear()
-    operational = persist_configuration_anchor(db, resolve_pipeline_configurations(db))
-    assert operational == baseline
-    original = get_settings().winner_probability_capture_in_pipeline
-    monkeypatch.setenv("WINNER_PROBABILITY_CAPTURE_IN_PIPELINE", str(not original).lower())
-    get_settings.cache_clear()
-    behavioral = persist_configuration_anchor(db, resolve_pipeline_configurations(db))
-    assert behavioral["fingerprint"] != baseline["fingerprint"]
+    with monkeypatch.context() as environment:
+        environment.setenv("JOB_POLL_INTERVAL_SECONDS", "7")
+        environment.setenv("IB_FLEX_TOKEN", "t13d-synthetic-test-secret")
+        get_settings.cache_clear()
+        operational = persist_configuration_anchor(db, resolve_pipeline_configurations(db))
+        assert operational == baseline
+        original = get_settings().winner_probability_capture_in_pipeline
+        environment.setenv("WINNER_PROBABILITY_CAPTURE_IN_PIPELINE", str(not original).lower())
+        get_settings.cache_clear()
+        behavioral = persist_configuration_anchor(db, resolve_pipeline_configurations(db))
+        assert behavioral["fingerprint"] != baseline["fingerprint"]
     get_settings.cache_clear()
 
 

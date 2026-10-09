@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -75,6 +76,34 @@ class TransitionPreflightError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(f"{code}: {message}")
         self.code = code
+
+
+def _combined_source_evidence_pins(evidence: Any) -> dict[str, int] | None:
+    """Return canonical immutable source pins or reject a malformed envelope."""
+
+    if evidence is None:
+        return None
+    raw_pins = getattr(evidence, "source_evidence_ids_json", None)
+    if not isinstance(raw_pins, Mapping):
+        raise TransitionPreflightError(
+            "DECISION_LINEAGE_MISMATCH",
+            "combined evidence source pins must be a mapping",
+        )
+    pins: dict[str, int] = {}
+    for role, evidence_id in raw_pins.items():
+        if (
+            not isinstance(role, str)
+            or not role.strip()
+            or not isinstance(evidence_id, int)
+            or isinstance(evidence_id, bool)
+            or evidence_id <= 0
+        ):
+            raise TransitionPreflightError(
+                "DECISION_LINEAGE_MISMATCH",
+                "combined evidence source pins contain an invalid role or evidence ID",
+            )
+        pins[role] = evidence_id
+    return pins
 
 
 @dataclass(frozen=True)
@@ -334,8 +363,7 @@ def verify_transition_preflight_for_enqueue(
         ]
         raise TransitionPreflightError(
             "STALE_PREFLIGHT",
-            "candidate set no longer contains a HIGH result; "
-            f"candidates={candidate_diagnostics}",
+            f"candidate set no longer contains a HIGH result; candidates={candidate_diagnostics}",
         )
     return VerifiedTransitionPreflight(plan, market_cutoff, tuple(results))
 
@@ -799,9 +827,7 @@ def reconstruct_transition_decision_manifests(
 
     discovery = TransitionCandidateDiscoveryService(repository=repository)
     actual: dict[str, dict[str, object]] = {}
-    selected_rows = [
-        row for row in built_rows if tickers is None or row[0].ticker in tickers
-    ]
+    selected_rows = [row for row in built_rows if tickers is None or row[0].ticker in tickers]
     total = len(selected_rows)
     for index, (ticker_context, built) in enumerate(selected_rows, start=1):
         latest_pointer, exact_pointer, latest_revision, exact_revision = discovery._pointers(
@@ -1216,7 +1242,7 @@ def _validate_handoff_temporal_lineage(
                     "raw_row_id": raw.id,
                     **{role + "_evidence_id": address for role, address in expected_pins.items()},
                 }
-                if evidence is None or evidence.source_evidence_ids_json != expected_pins:
+                if _combined_source_evidence_pins(evidence) != expected_pins:
                     failures.append(f"{ticker}:combined_evidence_sources")
             if observed_sources != expected_sources:
                 failures.append(f"{ticker}:combined_sources")

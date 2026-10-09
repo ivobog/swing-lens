@@ -143,6 +143,34 @@ def test_handoff_validates_immutable_combined_source_pins(tampered):
         input_as_of_session=cutoff.latest_completed_session,
         calendar_version=cutoff.calendar_version,
     )
+    from app.models.tables import MarketRegimeSnapshot, SectorRotationSnapshot
+
+    market = MarketRegimeSnapshot(
+        id=501,
+        run_id=7,
+        as_of_date=cutoff.latest_completed_session,
+        calculation_context_id=cutoff.context_id,
+        calculation_cutoff_at=cutoff.cutoff_at,
+        input_as_of_session=cutoff.latest_completed_session,
+        calendar_version=cutoff.calendar_version,
+        calculation_version="test",
+        regime="NEUTRAL",
+        risk_state="NORMAL",
+        score=0,
+        action_summary="test",
+    )
+    sector = SectorRotationSnapshot(
+        id=502,
+        run_id=7,
+        market_regime_snapshot_id=market.id,
+        as_of_date=cutoff.latest_completed_session,
+        calculation_context_id=cutoff.context_id,
+        calculation_cutoff_at=cutoff.cutoff_at,
+        input_as_of_session=cutoff.latest_completed_session,
+        calendar_version=cutoff.calendar_version,
+        calculation_version="test",
+        mode="test",
+    )
     combined = Row(
         run_id=7,
         ticker="ACME",
@@ -160,8 +188,8 @@ def test_handoff_validates_immutable_combined_source_pins(tampered):
         fundamental_score=fundamental,
         technical_score=technical,
         combined_result=combined,
-        market_regime_snapshot=None,
-        sector_rotation_snapshot=None,
+        market_regime_snapshot=market,
+        sector_rotation_snapshot=sector,
         sector_rotation_row=None,
         ranking_results=[],
         price_bars=[],
@@ -169,6 +197,14 @@ def test_handoff_validates_immutable_combined_source_pins(tampered):
     evidence = Row(
         source_evidence_ids_json={"fundamental": 999 if tampered else 41, "technical": 42}
     )
+
+    def get_row(model, identity):
+        from app.models.tables import MarketCalculationContext
+
+        assert model is MarketCalculationContext
+        assert identity == cutoff.context_id
+        return Row(pipeline_run_id=None)
+
     with patch(
         "app.services.core_calculation_evidence.get_certified_evidence_for_row",
         return_value=evidence,
@@ -176,18 +212,49 @@ def test_handoff_validates_immutable_combined_source_pins(tampered):
         if tampered:
             with pytest.raises(TransitionPreflightError, match="combined_evidence_sources"):
                 _validate_handoff_temporal_lineage(
-                    Row(scalars=lambda _query: []),
+                    Row(get=get_row, scalars=lambda _query: []),
                     upload_run_id=7,
                     market_cutoff=cutoff,
                     built_rows=[(context, None)],
                 )
         else:
             _validate_handoff_temporal_lineage(
-                Row(scalars=lambda _query: []),
+                Row(get=get_row, scalars=lambda _query: []),
                 upload_run_id=7,
                 market_cutoff=cutoff,
                 built_rows=[(context, None)],
             )
+
+
+@pytest.mark.parametrize(
+    "raw_pins",
+    [None, [], "fundamental=41", {"": 41}, {"fundamental": 0}, {"fundamental": True}],
+)
+def test_handoff_rejects_malformed_combined_source_pin_payloads(raw_pins):
+    from types import SimpleNamespace as Row
+
+    from app.services.transition_preflight_plan_service import (
+        TransitionPreflightError,
+        _combined_source_evidence_pins,
+    )
+
+    with pytest.raises(TransitionPreflightError, match="combined evidence source pins"):
+        _combined_source_evidence_pins(Row(source_evidence_ids_json=raw_pins))
+
+
+def test_handoff_normalizes_structural_combined_source_pin_envelopes():
+    from dataclasses import dataclass
+    from types import SimpleNamespace as Row
+
+    from app.services.transition_preflight_plan_service import _combined_source_evidence_pins
+
+    @dataclass(frozen=True)
+    class EvidenceEnvelope:
+        source_evidence_ids_json: dict[str, int]
+
+    expected = {"fundamental": 41, "technical": 42}
+    assert _combined_source_evidence_pins(Row(source_evidence_ids_json=expected)) == expected
+    assert _combined_source_evidence_pins(EvidenceEnvelope(expected)) == expected
 
 
 @pytest.mark.parametrize(
@@ -297,7 +364,9 @@ def test_projection_normalization_accepts_only_source_pinned_policy_exclusions(
             "contextual_consumer_eligibility": {
                 "fundamental": {
                     "included": False if role == "fundamental" else True,
-                    "decision": decision if role == "fundamental" else {
+                    "decision": decision
+                    if role == "fundamental"
+                    else {
                         "status": "ELIGIBLE",
                         "producer_evidence_id": pins["fundamental"],
                     },
@@ -305,7 +374,9 @@ def test_projection_normalization_accepts_only_source_pinned_policy_exclusions(
                 }
             },
             "technical_consumer_eligibility": {
-                "decision": decision if role == "technical" else {
+                "decision": decision
+                if role == "technical"
+                else {
                     "status": "ELIGIBLE",
                     "producer_evidence_id": pins["technical"],
                 }
