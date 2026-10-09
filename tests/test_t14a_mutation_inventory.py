@@ -8,35 +8,85 @@ from scripts.qa.t14a_mutation_inventory import ROOT, discover
 from scripts.qa.t14a_reviewed_inventory import export_inventory, handler_registry, route_registry
 
 CURRENT_RELEASE_MISSING_OR_STALE_DELTAS = [
+    "app/main.py",
     "app/models/tables.py",
     "app/observability/metrics.py",
+    "app/routers/ceri_routes.py",
+    "app/routers/ib_market_intelligence_routes.py",
+    "app/routers/ib_routes.py",
+    "app/routers/market_data_routes.py",
+    "app/routers/market_regime_routes.py",
     "app/routers/run_routes.py",
+    "app/routers/sector_rotation_routes.py",
+    "app/routers/setup_lifecycle_routes.py",
+    "app/routers/upload_routes.py",
+    "app/routers/winner_probability_routes.py",
+    "app/serve.py",
     "app/services/background_job_service.py",
     "app/services/background_worker.py",
     "app/services/bar_cache_service.py",
+    "app/services/canonical_evidence.py",
+    "app/services/ceri/alert_service.py",
+    "app/services/ceri/backfill_service.py",
     "app/services/ceri/batched_job_handlers.py",
+    "app/services/ceri/batched_workflow.py",
     "app/services/ceri/capture_service.py",
+    "app/services/ceri/change_authority.py",
+    "app/services/ceri/change_detection_service.py",
+    "app/services/ceri/change_rebuild_service.py",
+    "app/services/ceri/decision_evidence.py",
+    "app/services/ceri/deployment_identity.py",
+    "app/services/ceri/evidence_eligibility.py",
     "app/services/ceri/feature_rebuild_service.py",
+    "app/services/ceri/identity_resolver.py",
     "app/services/ceri/job_handlers.py",
+    "app/services/ceri/normalization_service.py",
+    "app/services/ceri/price_response_service.py",
+    "app/services/ceri/processing_run_service.py",
+    "app/services/ceri/purge_service.py",
+    "app/services/ceri/sec/readiness_repair.py",
+    "app/services/ceri/source_record_service.py",
+    "app/services/ceri/surprise_feature_service.py",
     "app/services/configuration_delivery.py",
+    "app/services/core_calculation_evidence.py",
     "app/services/core_mutation_authority.py",
+    "app/services/decision_mutation_authority.py",
+    "app/services/domain_write_fence.py",
+    "app/services/ib_contract_resolver.py",
     "app/services/ib_fetch_executor.py",
     "app/services/ib_gateway_health_service.py",
+    "app/services/ib_market_intelligence/journal.py",
+    "app/services/market_calculation_context_service.py",
     "app/services/market_regime_command_center.py",
     "app/services/pipeline_executor.py",
     "app/services/pipeline_service.py",
+    "app/services/pre_enqueue_operational_gate.py",
+    "app/services/sector_rotation_repository.py",
+    "app/services/sector_rotation_service.py",
+    "app/services/setup_lifecycle/change_detector.py",
+    "app/services/setup_lifecycle/decision_evidence.py",
     "app/services/setup_lifecycle/episode_service.py",
+    "app/services/setup_lifecycle/evaluation_service.py",
     "app/services/setup_lifecycle/maintenance_service.py",
     "app/services/setup_lifecycle/repository.py",
+    "app/services/setup_lifecycle/snapshot_builder.py",
     "app/services/source_mutation_authority.py",
+    "app/services/technical_indicators.py",
     "app/services/technical_score_service.py",
+    "app/services/transition_preflight_plan_service.py",
+    "app/services/winner_probability/capture_service.py",
     "app/services/winner_probability/cohort_authority.py",
+    "app/services/winner_probability/cohort_generation_service.py",
     "app/services/winner_probability/cohort_refresh_planner.py",
     "app/services/winner_probability/episode_service.py",
     "app/services/winner_probability/market_data_obligation_service.py",
     "app/services/winner_probability/probability_estimator.py",
     "app/services/winner_probability/repository.py",
     "app/services/winner_probability/scope_refresh.py",
+    "app/templates/run_detail.html",
+    "app/worker_supervisor.py",
+    "scripts/ops/restore_postgres.ps1",
+    "scripts/qa/t13e_deployed_probe.py",
     "scripts/qa/t14a_reviewed_inventory.py",
 ]
 CURRENT_RELEASE_STALE_SOURCE_DELTAS = [
@@ -45,7 +95,10 @@ CURRENT_RELEASE_STALE_SOURCE_DELTAS = [
     if path
     not in {
         "app/observability/metrics.py",
+        "app/serve.py",
+        "app/services/canonical_evidence.py",
         "app/services/ib_gateway_health_service.py",
+        "app/worker_supervisor.py",
     }
 ]
 
@@ -150,7 +203,7 @@ def test_exports_are_byte_deterministic(inventory_pair):
 def test_route_and_registered_job_census(inventory_pair):
     inventory, _, _ = inventory_pair
     assert inventory["handlers"] == handler_registry()
-    assert len(inventory["handlers"]) == 34
+    assert len(inventory["handlers"]) == 35
     entries = {row["entrypoint"] for row in inventory["entrypoints"]}
     assert set(inventory["handlers"].values()) <= entries
     actual = {(row["path"], tuple(row["methods"]), row["entrypoint"]) for row in route_registry()}

@@ -235,6 +235,16 @@ non_edges(
     "Explicit subprocess module import and process/metadata command; receiver is stdlib subprocess, not a repository run() semantic writer.",
 )
 non_edges(
+    "app/services/certification_session_discovery.py:_repository_git_sha",
+    ("subprocess.run",),
+    "Explicit subprocess module import executes git rev-parse for repository metadata; it is not a repository run() semantic writer.",
+)
+non_edges(
+    "app/services/ib_market_intelligence/flex.py:IBFlexClient.get_statement app/services/ib_market_intelligence/flex.py:IBFlexClient.send_request app/services/ib_market_intelligence/flex.py:import_flex_report app/services/ib_market_intelligence/request_budget.py:WeightedWindowBudget.acquire app/services/setup_lifecycle/source_loader.py:SetupLifecycleSourceLoader._load_price_bars",
+    ("operational_metrics.observe",),
+    "The module-bound operational_metrics singleton exposes latency telemetry only; observe records no ORM state and cannot dispatch to a business writer.",
+)
+non_edges(
     "app/services/bar_cache_service.py:_hash_decimal app/services/bar_cache_service.py:_json_decimal app/services/winner_probability/evidence_manifest_service.py:_canonical_decimal",
     ("Decimal(str(value)).normalize",),
     "Explicit Decimal constructor canonicalizes a scalar; not CERI source normalization or ORM persistence.",
@@ -778,4 +788,28 @@ tables(
     "BUSINESS_SEMANTIC",
     "T14D",
     "The exact pipeline, upload run, market calculation context and expected session own readiness revisions that gate technical and downstream admission without a global/latest fallback.",
+)
+tables(
+    "ceri_feature_source_manifests",
+    "CERI",
+    "app/services/ceri/source_manifest_service.py:freeze_or_verify_feature_source_manifest",
+    "CONFIGURATION_AUTHORITY",
+    "T14D",
+    "One immutable manifest binds a CERI feature build to the exact ingestion run, source-record membership and frozen market calculation context; retries verify rather than replace it.",
+)
+tables(
+    "ceri_ingestion_run_source_records",
+    "CERI_SOURCE",
+    "app/services/ceri/source_record_service.py:_associate_source_record",
+    "DOMAIN_SUPPORTING_STATE",
+    "T14D",
+    "The append-only membership relation binds each retained provider source record to the exact ingestion run that admitted it; normalization may idempotently assert the same membership.",
+)
+tables(
+    "pipeline_dependencies",
+    "PIPELINE",
+    "app/services/pipeline_dependency_service.py:prepare_ceri_workflow_dependency",
+    "DOMAIN_SUPPORTING_STATE",
+    "T14D",
+    "Durable dependency rows bind a pipeline to its exact CERI or SEC prerequisite job and govern continuation, failure and reconciliation without a global or latest-job fallback.",
 )

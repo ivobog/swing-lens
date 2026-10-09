@@ -69,6 +69,258 @@
   "continuation_wave8_numeric_retention_review": "Native browser observation identified a NUMERIC scale-six tie: owned pre-SQL exit_price 74.2934325 sealed with half-even 74.293432, while PostgreSQL retained half-away-from-zero 74.293433. Outcome body sealing now uses ROUND_HALF_UP to match actual retained SQL numeric values. Outcome formulas, proof fields and financial validation are unchanged; observation hooks removed; actual native H5 SQL-reload regression added without authority substitutions.",
   "continuation_wave8_replay_review": "Native replay validates the retained setup financial proof and the current replay run full configuration/job binding. Its retrospective ownership explicitly makes the original setup pipeline not applicable, preserving original C1 source scope without claiming it owns the replay C2 configuration. LIVE ownership and financial math are unchanged. Native retrospective isolation and native C1/C2 delivery cases pass.",
   "entry_families": {
+    "EF_POST_RELEASE_JOB_BLOCKED": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The exact claimed job and its owning pipeline/dependency are terminalized under the retained execution fence; CERI projections are only rebuilt for that owning pipeline.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["PIPELINE", "CURRENT_PROJECTION"],
+      "entrypoints": ["app/services/background_job_service.py:mark_job_blocked"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CANONICAL_CALCULATION"],
+      "reachability": "Worker failure handling invokes this public service with the exact durable job row and execution owner.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_CORE_CURRENT_PROJECTION", "WF_PIPELINE_CONTROL", "WF_PIPELINE_DEPENDENCY_STATE"]
+    },
+    "EF_POST_RELEASE_STALL_RECOVERY": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "Only expired RUNNING jobs selected under the recovery authority are requeued or terminalized; owning pipeline state and projections remain scoped to the same job.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["PIPELINE", "CURRENT_PROJECTION"],
+      "entrypoints": ["app/services/background_job_service.py:requeue_stalled_jobs"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["MAINTENANCE"],
+      "reachability": "Worker recovery invokes the bounded stalled-job service; synthetic benchmark result objects are test-only receivers and not business dispatch.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_CORE_CURRENT_PROJECTION", "WF_PIPELINE_CONTROL", "WF_PIPELINE_STALL_RECOVERY"]
+    },
+    "EF_POST_RELEASE_CERI_FEATURE_ADMISSION": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "Admission creates an explicit upload/pipeline root, freezes the market/CERI context and source manifest, and queues only the exact certified feature scope.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["CERI", "PIPELINE"],
+      "entrypoints": ["app/services/ceri/feature_certification_workflow.py:admit_ceri_feature_certification"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CURRENT_STATE_REPAIR"],
+      "reachability": "The explicit certification CLI calls this native admission boundary before any feature work is enqueued.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_CERI_FEATURE_BUILD", "WF_CERI_FEATURE_CERTIFICATION", "WF_CERI_FEATURE_SOURCE_MANIFEST", "WF_MARKET_CONTEXT_AUTHORITY"]
+    },
+    "EF_POST_RELEASE_CERI_FEATURE_JOB": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The durable handler revalidates the job configuration, exact pipeline authority, source manifest and frozen scope before rebuilding features and terminalizing the same pipeline.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["CERI", "PIPELINE"],
+      "entrypoints": ["app/services/ceri/feature_certification_workflow.py:execute_ceri_feature_certification_job"],
+      "kind": "DURABLE_JOB",
+      "modes": ["CURRENT_STATE_REPAIR"],
+      "reachability": "Registered durable job handler for the explicit feature-certification admission flow.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_CERI_FEATURE_BUILD", "WF_CERI_FEATURE_CERTIFICATION", "WF_CERI_FEATURE_SOURCE_MANIFEST", "WF_PIPELINE_CONTROL"]
+    },
+    "EF_POST_RELEASE_CERI_IDENTITY_REPAIR": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "Only a retained source record with explicit provider identity may reconcile its normalized company and aliases; ambiguous or mismatched identity fails closed.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["CERI_SOURCE"],
+      "entrypoints": ["app/services/ceri/identity_resolver.py:reconcile_missing_provider_identity"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CURRENT_STATE_REPAIR"],
+      "reachability": "Explicit source-identity repair service, covered by native CERI identity regressions.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_CERI_PROVIDER_IDENTITY_REPAIR"]
+    },
+    "EF_POST_RELEASE_CERI_CONTAINMENT": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "Containment derives projection changes only from the exact unsuccessful CERI pipeline and its retained evidence dispositions.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["CURRENT_PROJECTION"],
+      "entrypoints": ["app/services/ceri/pipeline_containment_service.py:reconcile_unsuccessful_pipeline_ceri"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CURRENT_PROJECTION_ADVANCE"],
+      "reachability": "Job failure and recovery paths invoke the same pipeline-scoped containment boundary.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_CORE_CURRENT_PROJECTION"]
+    },
+    "EF_POST_RELEASE_CERI_SOURCE_MANIFEST": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The exact ingestion-run membership and frozen calculation context are hashed into an immutable manifest; retries verify the same body.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["CERI"],
+      "entrypoints": ["app/services/ceri/source_manifest_service.py:freeze_or_verify_feature_source_manifest"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CANONICAL_CALCULATION"],
+      "reachability": "Feature batch finalization and explicit certification call this source-evidence boundary.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_CERI_FEATURE_SOURCE_MANIFEST"]
+    },
+    "EF_POST_RELEASE_PIPELINE_CERI_CONTEXT": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The exact pipeline and durable job are bound to one frozen CERI market context; an existing different context or job binding is rejected.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["PIPELINE"],
+      "entrypoints": ["app/services/market_calculation_context_service.py:create_or_get_pipeline_ceri_context", "app/services/market_calculation_context_service.py:freeze_or_validate_pipeline_ceri_authority"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CANONICAL_CALCULATION"],
+      "reachability": "CERI admission, pipeline execution and durable handlers reuse the same exact context/authority binding services.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_MARKET_CONTEXT_AUTHORITY", "WF_PIPELINE_EXECUTION_AUTHORITY"]
+    },
+    "EF_POST_RELEASE_PIPELINE_DEPENDENCIES": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "Dependency creation, running, completion, failure, continuation and reconciliation address one pipeline dependency and its exact prerequisite/continuation jobs.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["PIPELINE"],
+      "entrypoints": ["app/services/pipeline_dependency_service.py:complete_ceri_workflow_dependency", "app/services/pipeline_dependency_service.py:enqueue_sec_readiness_dependency", "app/services/pipeline_dependency_service.py:fail_ceri_workflow_dependency", "app/services/pipeline_dependency_service.py:mark_dependency_job_running", "app/services/pipeline_dependency_service.py:prepare_ceri_workflow_dependency", "app/services/pipeline_dependency_service.py:prepare_sec_readiness_dependency", "app/services/pipeline_dependency_service.py:reconcile_pending_dependency_enqueues", "app/services/pipeline_dependency_service.py:reconcile_pipeline_job", "app/services/pipeline_dependency_service.py:reconcile_safe_pipeline_invariants"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CANONICAL_CALCULATION", "CURRENT_STATE_REPAIR"],
+      "reachability": "Pipeline admission, worker completion/failure and startup reconciliation call these dependency state-machine operations.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_PIPELINE_CONTROL", "WF_PIPELINE_DEPENDENCY_STATE"]
+    },
+    "EF_POST_RELEASE_PIPELINE_AUTHORITY_REVOKE": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "Revocation requires the exact active pipeline execution authority and records the revocation on that same pipeline only.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["PIPELINE"],
+      "entrypoints": ["app/services/pipeline_execution_authority.py:revoke_pipeline_execution_authority"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["MAINTENANCE"],
+      "reachability": "Explicit execution-authority maintenance boundary used by worker fencing and cancellation flows.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_PIPELINE_EXECUTION_AUTHORITY"]
+    },
+    "EF_POST_RELEASE_CERI_PIPELINE_CONTINUATION": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "Only the exact completed/failed CERI dependency may release or roll up its owning pipeline; sibling jobs and other pipelines are excluded.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["PIPELINE"],
+      "entrypoints": ["app/services/pipeline_service.py:enqueue_pipeline_after_ceri_completion", "app/services/pipeline_service.py:roll_up_ceri_pipeline_job_failure"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CANONICAL_CALCULATION"],
+      "reachability": "CERI terminal handlers invoke these exact dependency-to-pipeline continuation boundaries.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_PIPELINE_CONTROL", "WF_PIPELINE_DEPENDENCY_STATE"]
+    },
+    "EF_POST_RELEASE_PIPELINE_JOB_RETRY": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "Only the exact active failed pipeline owned by a retryable FULL_PIPELINE job returns to QUEUED; terminal or revoked pipelines remain unchanged.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["PIPELINE"],
+      "entrypoints": ["app/services/pipeline_service.py:mark_pipeline_job_retry"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CURRENT_STATE_REPAIR"],
+      "reachability": "The durable failure classifier invokes this service only when it has atomically requeued the same FULL_PIPELINE job.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_PIPELINE_CONTROL"]
+    },
+    "EF_POST_RELEASE_PIPELINE_TRANSITION_KERNEL": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "Typed transition helpers enforce the legal pipeline/step transition graph and mutate only the supplied locked aggregate; they do not select an ambient pipeline.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["PIPELINE"],
+      "entrypoints": ["app/services/pipeline_state_machine.py:transition_pipeline", "app/services/pipeline_state_machine.py:transition_pipeline_step"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CANONICAL_CALCULATION", "CURRENT_STATE_REPAIR", "MAINTENANCE"],
+      "reachability": "Pipeline control, dependency, SEC repair and executor operations reuse this non-selecting transition kernel.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_PIPELINE_CONTROL"]
+    },
+    "EF_POST_RELEASE_SETUP_EVALUATION_AUDIT": {
+      "adoption_status": "T14C_ADOPTION",
+      "authority_proof": "The audit update addresses the exact evaluation run and records its retained authority/progress metadata without changing setup financial evidence.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14C",
+      "domains": ["LIFECYCLE_EVALUATION"],
+      "entrypoints": ["app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.record_evaluation_audit"],
+      "kind": "SERVICE_PUBLIC",
+      "modes": ["CANONICAL_CALCULATION"],
+      "reachability": "Setup evaluation uses this typed repository operation for its exact evaluation-run audit body.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_SETUP_EVALUATION_RUN_STATE"]
+    },
+    "EF_POST_RELEASE_CERI_CERTIFICATION_CLI": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The operator CLI requires explicit scope and enters the governed CERI feature-certification admission boundary.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["CERI", "PIPELINE"],
+      "entrypoints": ["scripts/ceri_feature_certification.py:main"],
+      "kind": "CLI",
+      "modes": ["CURRENT_STATE_REPAIR"],
+      "reachability": "Explicit administrative CLI forwarding to admit_ceri_feature_certification.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_CERI_FEATURE_CERTIFICATION", "WF_CERI_FEATURE_SOURCE_MANIFEST"]
+    },
+    "EF_POST_RELEASE_PIPELINE_CANARY_CLI": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The guarded live canary creates an explicit upload/pipeline scope and exercises the native pipeline authority rather than mutating an ambient run.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["RAW", "FUNDAMENTAL", "PIPELINE"],
+      "entrypoints": ["scripts/ops/pipeline_authority_live_canary.py:main"],
+      "kind": "CLI",
+      "modes": ["CANONICAL_CALCULATION"],
+      "reachability": "Explicit operator canary guarded by repository/environment preflight and native start_pipeline.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_PIPELINE_CONTROL", "WF_UPLOAD_INITIALIZATION"]
+    },
+    "EF_POST_RELEASE_CERI_PROFILE_CLI": {
+      "adoption_status": "T14D_ADOPTION",
+      "authority_proof": "The profiler uses an explicit input manifest and the governed CERI feature writer; generated measurements confer no financial authority.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "T14D",
+      "domains": ["CERI"],
+      "entrypoints": ["scripts/profile_ceri_writer_manifest.py:main"],
+      "kind": "CLI",
+      "modes": ["CANONICAL_CALCULATION"],
+      "reachability": "Explicit profiling CLI invoking the existing CERI feature-build family.",
+      "semantic_review_complete": true,
+      "status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "writer_families": ["WF_CERI_FEATURE_BUILD"]
+    },
+    "EF_POST_RELEASE_CERI_LOCK_PROBE_CLI": {
+      "adoption_status": "NO_ACTION",
+      "authority_proof": "The standalone lock-mode probe performs direct SQL only against an explicitly selected disposable test database; it is not an application mutation path.",
+      "discovery_status": "DISCOVERED",
+      "disposition": "TEST_OR_MIGRATION_ONLY",
+      "domains": ["PRICE"],
+      "entrypoints": ["scripts/verify_ceri_p2_lock_modes.py:main"],
+      "kind": "CLI",
+      "modes": ["MAINTENANCE"],
+      "reachability": "Manual diagnostic script with no mounted route, worker registration or application import path.",
+      "semantic_review_complete": true,
+      "status": "TEST_OR_MIGRATION_ONLY",
+      "writer_families": ["WF_CERI_LOCK_MODE_PROBE"]
+    },
     "EF_21ea768dd4fc46fd": {
       "adoption_status": "T14B_ADOPTION",
       "authority_proof": "The source_mutation_writer boundary admits only the exact IBMI_SOURCE request scope; compare-and-invalidate preserves a concurrently requalified identity.",
@@ -15083,6 +15335,146 @@
     }
   ],
   "sink_reviews": {
+    "app/services/ceri/capture_service.py:CeriRunCaptureService.capture_run": {
+      "family_id": "WF_CERI_SCORE",
+      "proof": "Run-scoped CERI capture assembles the native score inputs and persists through the same CERI score transaction.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/ceri/feature_certification_workflow.py:admit_ceri_feature_certification": {
+      "family_id": "WF_CERI_FEATURE_CERTIFICATION",
+      "proof": "Explicit certification admission creates the owned upload/pipeline root and freezes its exact feature authority before enqueue.",
+      "role": "CURRENT_RULES_WRITER"
+    },
+    "app/services/ceri/feature_certification_workflow.py:execute_ceri_feature_certification_job": {
+      "family_id": "WF_CERI_FEATURE_CERTIFICATION",
+      "proof": "The durable certification job validates and terminalizes only its exact admitted upload/pipeline scope.",
+      "role": "CURRENT_RULES_WRITER"
+    },
+    "app/services/ceri/identity_resolver.py:reconcile_missing_provider_identity": {
+      "family_id": "WF_CERI_PROVIDER_IDENTITY_REPAIR",
+      "proof": "Current-state provider identity repair updates the retained normalized company and aliases only after exact source identity validation.",
+      "role": "CURRENT_RULES_WRITER"
+    },
+    "app/services/ceri/normalization_service.py:_mark_membership": {
+      "family_id": "WF_CERI_INGESTION_MEMBERSHIP",
+      "proof": "Normalization idempotently asserts the exact source-record membership in its owning ingestion run.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/ceri/pipeline_containment_service.py:_rebuild_ceri_projections": {
+      "family_id": "WF_CORE_CURRENT_PROJECTION",
+      "proof": "Pipeline-scoped CERI containment rebuilds only compatible current projections after recording explicit ineligibility.",
+      "role": "CURRENT_PROJECTION_WRITER"
+    },
+    "app/services/ceri/source_manifest_service.py:freeze_or_verify_feature_source_manifest": {
+      "family_id": "WF_CERI_FEATURE_SOURCE_MANIFEST",
+      "proof": "Canonical immutable source manifest freezes or verifies the exact ingestion membership and market context for feature computation.",
+      "role": "CANONICAL_SEMANTIC_WRITER"
+    },
+    "app/services/ceri/source_record_service.py:_associate_source_record": {
+      "family_id": "WF_CERI_INGESTION_MEMBERSHIP",
+      "proof": "Source ingestion appends the exact source-record membership to the owning ingestion run.",
+      "role": "CANONICAL_SEMANTIC_WRITER"
+    },
+    "app/services/market_calculation_context_service.py:create_or_get_pipeline_ceri_context": {
+      "family_id": "WF_MARKET_CONTEXT_AUTHORITY",
+      "proof": "Creates or verifies the immutable CERI market context owned by the exact pipeline.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/market_calculation_context_service.py:freeze_or_validate_pipeline_ceri_authority": {
+      "family_id": "WF_PIPELINE_EXECUTION_AUTHORITY",
+      "proof": "Freezes or verifies the exact pipeline, job and market-context authority tuple before CERI execution.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_dependency_service.py:_enqueue_dependency_continuation": {
+      "family_id": "WF_PIPELINE_DEPENDENCY_STATE",
+      "proof": "Continuation enqueue is conditional on the exact satisfied dependency and owning pipeline state.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/pipeline_dependency_service.py:_reconcile_dependency_job": {
+      "family_id": "WF_PIPELINE_DEPENDENCY_STATE",
+      "proof": "Reconciliation compares the exact prerequisite job before changing its dependency or pipeline.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/pipeline_dependency_service.py:complete_ceri_workflow_dependency": {
+      "family_id": "WF_PIPELINE_DEPENDENCY_STATE",
+      "proof": "Completion binds the exact terminal CERI job to its owned dependency.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_dependency_service.py:enqueue_sec_readiness_dependency": {
+      "family_id": "WF_PIPELINE_DEPENDENCY_STATE",
+      "proof": "SEC prerequisite enqueue records the exact job and pipeline dependency atomically.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_dependency_service.py:fail_ceri_workflow_dependency": {
+      "family_id": "WF_PIPELINE_DEPENDENCY_STATE",
+      "proof": "Failure terminalizes only the dependency owned by the exact failed CERI job.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_dependency_service.py:mark_dependency_job_running": {
+      "family_id": "WF_PIPELINE_DEPENDENCY_STATE",
+      "proof": "Running state is recorded on the dependency bound to the exact claimed job.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_dependency_service.py:prepare_ceri_workflow_dependency": {
+      "family_id": "WF_PIPELINE_DEPENDENCY_STATE",
+      "proof": "CERI prerequisite preparation creates or verifies one dependency for the exact pipeline and workflow root.",
+      "role": "CANONICAL_SEMANTIC_WRITER"
+    },
+    "app/services/pipeline_dependency_service.py:prepare_sec_readiness_dependency": {
+      "family_id": "WF_PIPELINE_DEPENDENCY_STATE",
+      "proof": "SEC prerequisite preparation creates or verifies one dependency for the exact pipeline and repair scope.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_dependency_service.py:reconcile_safe_pipeline_invariants": {
+      "family_id": "WF_PIPELINE_DEPENDENCY_STATE",
+      "proof": "Startup reconciliation repairs only provably safe dependency/pipeline states and never selects a latest unrelated job.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_execution_authority.py:revoke_pipeline_execution_authority": {
+      "family_id": "WF_PIPELINE_EXECUTION_AUTHORITY",
+      "proof": "Explicit revocation records terminal execution authority on the supplied pipeline only.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_executor.py:_execute_resumed_pipeline": {
+      "family_id": "WF_PIPELINE_STAGE_STATE",
+      "proof": "Resumed execution advances only the exact authorized pipeline and preserves its frozen source and calculation context.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/pipeline_service.py:_finalize_ceri_async_timing": {
+      "family_id": "WF_PIPELINE_STAGE_STATE",
+      "proof": "CERI timing finalization updates only the exact pipeline and CERI step after its owned asynchronous dependency resolves.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/pipeline_service.py:mark_pipeline_job_retry": {
+      "family_id": "WF_PIPELINE_CONTROL",
+      "proof": "A retryable exact FULL_PIPELINE job may reopen only its active failed pipeline to QUEUED.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "app/services/pipeline_state_machine.py:transition_pipeline": {
+      "family_id": "WF_PIPELINE_CONTROL",
+      "proof": "Typed transition kernel enforces legal aggregate state changes on the supplied pipeline without selecting an ambient row.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/pipeline_state_machine.py:transition_pipeline_step": {
+      "family_id": "WF_PIPELINE_CONTROL",
+      "proof": "Typed transition kernel enforces legal state changes on the supplied pipeline step without selecting an ambient row.",
+      "role": "SEMANTIC_WRITER_MEMBER"
+    },
+    "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.record_evaluation_audit": {
+      "family_id": "WF_SETUP_EVALUATION_RUN_STATE",
+      "proof": "Typed repository member records authority and progress metadata on the exact evaluation run without changing financial evidence.",
+      "role": "DOMAIN_SUPPORTING_STATE"
+    },
+    "scripts/ops/pipeline_authority_live_canary.py:launch": {
+      "family_id": "WF_UPLOAD_INITIALIZATION",
+      "proof": "Guarded canary creates an explicit synthetic upload root before invoking native pipeline control; it does not attach to an ambient run.",
+      "role": "LEGACY_WRITER"
+    },
+    "scripts/verify_ceri_p2_lock_modes.py:main": {
+      "family_id": "WF_CERI_LOCK_MODE_PROBE",
+      "proof": "Standalone disposable-database concurrency probe performs direct SQL solely to observe PostgreSQL lock behavior.",
+      "role": "TEST_OR_MIGRATION_ONLY"
+    },
     "app/routers/ceri_routes.py:review_ceri_event": {
       "family_id": "WF_CERI_REVIEW_METADATA",
       "proof": "Human audit and review_state only; distinct from source override and score calculation.",
@@ -16497,6 +16889,118 @@
     "task": "T16D"
   },
   "writer_families": {
+    "WF_CERI_FEATURE_CERTIFICATION": {
+      "authority": "An explicit current-state repair owns a new upload/pipeline root, frozen CERI market context, immutable feature source manifest and durable configuration before feature computation begins.",
+      "disposition": "T14D",
+      "domains": ["CERI", "PIPELINE"],
+      "known_alternate_families": ["WF_CERI_FEATURE_BUILD", "WF_CERI_FEATURE_SOURCE_MANIFEST", "WF_PIPELINE_CONTROL"],
+      "known_callers": ["app/services/ceri/feature_certification_workflow.py:admit_ceri_feature_certification", "app/services/ceri/feature_certification_workflow.py:execute_ceri_feature_certification_job", "scripts/ceri_feature_certification.py:main"],
+      "member_sites": ["app/services/ceri/feature_certification_workflow.py:admit_ceri_feature_certification", "app/services/ceri/feature_certification_workflow.py:execute_ceri_feature_certification_job"],
+      "modes": ["CURRENT_STATE_REPAIR"],
+      "owner": "app/services/ceri/feature_certification_workflow.py:admit_ceri_feature_certification",
+      "phase5_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "proof": "Admission and durable execution retain one explicit certification scope. Missing/mismatched pipeline, configuration, market context or source-manifest authority rejects before feature publication.",
+      "semantic_review_complete": true,
+      "status": "CURRENT_RULES_WRITER",
+      "tables": ["pipeline_runs", "pipeline_steps", "upload_runs"],
+      "writer_family_id": "WF_CERI_FEATURE_CERTIFICATION"
+    },
+    "WF_CERI_FEATURE_SOURCE_MANIFEST": {
+      "authority": "The exact CERI ingestion run, retained source-record membership, upload/pipeline scope and frozen market calculation context own one immutable feature source manifest.",
+      "disposition": "T14D",
+      "domains": ["CERI"],
+      "known_alternate_families": ["WF_CERI_FEATURE_BUILD", "WF_CERI_INGESTION_MEMBERSHIP"],
+      "known_callers": ["app/services/ceri/batched_job_handlers.py:execute_feature_batch_job", "app/services/ceri/batched_job_handlers.py:execute_run_finalize_job", "app/services/ceri/feature_certification_workflow.py:admit_ceri_feature_certification", "app/services/ceri/feature_certification_workflow.py:execute_ceri_feature_certification_job", "scripts/ceri_feature_certification.py:main"],
+      "member_sites": ["app/services/ceri/source_manifest_service.py:freeze_or_verify_feature_source_manifest"],
+      "modes": ["CANONICAL_CALCULATION", "CURRENT_STATE_REPAIR"],
+      "owner": "app/services/ceri/source_manifest_service.py:freeze_or_verify_feature_source_manifest",
+      "phase5_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "proof": "First creation freezes canonical membership/context hashes; retries compare the entire immutable manifest and fail on any source substitution.",
+      "semantic_review_complete": true,
+      "status": "CANONICAL_WRITER",
+      "tables": ["ceri_feature_source_manifests"],
+      "writer_family_id": "WF_CERI_FEATURE_SOURCE_MANIFEST"
+    },
+    "WF_CERI_INGESTION_MEMBERSHIP": {
+      "authority": "A retained provider source record is associated only with its exact owning CERI ingestion run; duplicate assertion is idempotent and cross-run substitution creates a distinct membership.",
+      "disposition": "T14D",
+      "domains": ["CERI_SOURCE"],
+      "known_alternate_families": ["WF_CERI_RAW_SOURCE", "WF_CERI_SOURCE_NORMALIZATION"],
+      "known_callers": ["app/services/ceri/normalization_service.py:CeriNormalizationService.normalize", "app/services/ceri/source_record_service.py:CeriSourceRecordService.store_source_record"],
+      "member_sites": ["app/services/ceri/normalization_service.py:_mark_membership", "app/services/ceri/source_record_service.py:_associate_source_record"],
+      "modes": ["CANONICAL_CALCULATION"],
+      "owner": "app/services/ceri/source_record_service.py:_associate_source_record",
+      "phase5_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "proof": "The append-only join is the source-membership authority consumed by immutable feature manifests; neither member selects a latest ingestion run.",
+      "semantic_review_complete": true,
+      "status": "DOMAIN_SUPPORTING_STATE",
+      "tables": ["ceri_ingestion_run_source_records"],
+      "writer_family_id": "WF_CERI_INGESTION_MEMBERSHIP"
+    },
+    "WF_CERI_LOCK_MODE_PROBE": {
+      "authority": "Explicit standalone diagnostic against a disposable database; no mounted application, worker, scheduler or production database path imports this direct-SQL probe.",
+      "disposition": "OUT_OF_SCOPE_WITH_PROOF",
+      "domains": ["PRICE"],
+      "known_alternate_families": ["WF_PRICE_INGESTION"],
+      "known_callers": ["scripts/verify_ceri_p2_lock_modes.py:main"],
+      "member_sites": ["scripts/verify_ceri_p2_lock_modes.py:main"],
+      "modes": ["MAINTENANCE"],
+      "owner": "scripts/verify_ceri_p2_lock_modes.py:main",
+      "phase5_status": "TEST_OR_MIGRATION_ONLY",
+      "proof": "Direct price-bar SQL exists only to compare PostgreSQL lock modes in an operator-selected disposable database and confers no serving or evidence authority.",
+      "semantic_review_complete": true,
+      "status": "DIRECT_SQL_LEGACY",
+      "tables": ["price_bars"],
+      "writer_family_id": "WF_CERI_LOCK_MODE_PROBE"
+    },
+    "WF_CERI_PROVIDER_IDENTITY_REPAIR": {
+      "authority": "An explicit retained CERI source record and provider identity own current normalized company/alias repair; missing, ambiguous or conflicting identities fail closed.",
+      "disposition": "T14D",
+      "domains": ["CERI_SOURCE"],
+      "known_alternate_families": ["WF_CERI_SOURCE_IDENTITY", "WF_CERI_SOURCE_NORMALIZATION"],
+      "known_callers": ["app/services/ceri/identity_resolver.py:reconcile_missing_provider_identity"],
+      "member_sites": ["app/services/ceri/identity_resolver.py:reconcile_missing_provider_identity"],
+      "modes": ["CURRENT_STATE_REPAIR"],
+      "owner": "app/services/ceri/identity_resolver.py:reconcile_missing_provider_identity",
+      "phase5_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "proof": "Repair updates only the company/aliases proven by the supplied retained source; it does not reinterpret historical score or decision evidence.",
+      "semantic_review_complete": true,
+      "status": "CURRENT_RULES_WRITER",
+      "tables": ["ceri_companies", "ceri_company_aliases"],
+      "writer_family_id": "WF_CERI_PROVIDER_IDENTITY_REPAIR"
+    },
+    "WF_PIPELINE_DEPENDENCY_STATE": {
+      "authority": "The exact owning pipeline, dependency kind, prerequisite job and continuation job govern durable prerequisite state from preparation through terminal reconciliation.",
+      "disposition": "T14D",
+      "domains": ["PIPELINE"],
+      "known_alternate_families": ["WF_PIPELINE_CONTROL", "WF_SEC_PIPELINE_READINESS_REPAIR"],
+      "known_callers": ["app/services/pipeline_dependency_service.py:complete_ceri_workflow_dependency", "app/services/pipeline_dependency_service.py:enqueue_sec_readiness_dependency", "app/services/pipeline_dependency_service.py:fail_ceri_workflow_dependency", "app/services/pipeline_dependency_service.py:mark_dependency_job_running", "app/services/pipeline_dependency_service.py:prepare_ceri_workflow_dependency", "app/services/pipeline_dependency_service.py:prepare_sec_readiness_dependency", "app/services/pipeline_dependency_service.py:reconcile_pending_dependency_enqueues", "app/services/pipeline_dependency_service.py:reconcile_pipeline_job", "app/services/pipeline_dependency_service.py:reconcile_safe_pipeline_invariants", "app/services/pipeline_service.py:enqueue_pipeline_after_ceri_completion", "app/services/pipeline_service.py:roll_up_ceri_pipeline_job_failure"],
+      "member_sites": ["app/services/pipeline_dependency_service.py:_enqueue_dependency_continuation", "app/services/pipeline_dependency_service.py:_reconcile_dependency_job", "app/services/pipeline_dependency_service.py:complete_ceri_workflow_dependency", "app/services/pipeline_dependency_service.py:enqueue_sec_readiness_dependency", "app/services/pipeline_dependency_service.py:fail_ceri_workflow_dependency", "app/services/pipeline_dependency_service.py:mark_dependency_job_running", "app/services/pipeline_dependency_service.py:prepare_ceri_workflow_dependency", "app/services/pipeline_dependency_service.py:prepare_sec_readiness_dependency", "app/services/pipeline_dependency_service.py:reconcile_safe_pipeline_invariants"],
+      "modes": ["CANONICAL_CALCULATION", "CURRENT_STATE_REPAIR", "MAINTENANCE"],
+      "owner": "app/services/pipeline_dependency_service.py:prepare_ceri_workflow_dependency",
+      "phase5_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "proof": "Unique dependency identity and exact job foreign keys prevent cross-pipeline completion. Reconciliation admits only provably safe state transitions and no global/latest fallback.",
+      "semantic_review_complete": true,
+      "status": "DOMAIN_SUPPORTING_STATE",
+      "tables": ["background_jobs", "pipeline_dependencies", "pipeline_runs"],
+      "writer_family_id": "WF_PIPELINE_DEPENDENCY_STATE"
+    },
+    "WF_PIPELINE_EXECUTION_AUTHORITY": {
+      "authority": "The exact pipeline, durable job and frozen market calculation context form one execution-authority tuple; validation rejects replacement and revocation is terminal for that pipeline.",
+      "disposition": "T14D",
+      "domains": ["PIPELINE"],
+      "known_alternate_families": ["WF_MARKET_CONTEXT_AUTHORITY", "WF_PIPELINE_CONTROL"],
+      "known_callers": ["app/services/market_calculation_context_service.py:freeze_or_validate_pipeline_ceri_authority", "app/services/pipeline_execution_authority.py:revoke_pipeline_execution_authority"],
+      "member_sites": ["app/services/market_calculation_context_service.py:freeze_or_validate_pipeline_ceri_authority", "app/services/pipeline_execution_authority.py:revoke_pipeline_execution_authority"],
+      "modes": ["CANONICAL_CALCULATION", "MAINTENANCE"],
+      "owner": "app/services/market_calculation_context_service.py:freeze_or_validate_pipeline_ceri_authority",
+      "phase5_status": "POST_RELEASE_NATIVE_BOUNDARY_RECONCILED",
+      "proof": "CERI execution freezes and verifies exact run/job/context ownership; revoked authority cannot be reconstructed from another job or current context.",
+      "semantic_review_complete": true,
+      "status": "DOMAIN_SUPPORTING_STATE",
+      "tables": ["background_jobs", "pipeline_runs"],
+      "writer_family_id": "WF_PIPELINE_EXECUTION_AUTHORITY"
+    },
     "WF_INSTRUMENT_LIFECYCLE_EVIDENCE": {
       "authority": "An explicit IBMI_SOURCE maintenance transaction retains sourced lifecycle revisions and, for terminal states only, revokes the cached provider identity in the same transaction.",
       "disposition": "T14D",
@@ -17385,6 +17889,7 @@
         "scripts/ceri_run104_controlled_replay.py:main"
       ],
       "member_sites": [
+        "app/services/ceri/capture_service.py:CeriRunCaptureService.capture_run",
         "app/services/ceri/snapshot_service.py:CeriSnapshotService.persist_snapshot",
         "app/services/ceri/decision_evidence.py:persist_ceri_decision_evidence"
       ],
@@ -17776,6 +18281,7 @@
         "scripts/qa/rebuild_slse_dev_history.py:main"
       ],
       "member_sites": [
+        "app/services/ceri/pipeline_containment_service.py:_rebuild_ceri_projections",
         "app/services/core_calculation_evidence.py:_advance_current_projection"
       ],
       "modes": [
@@ -18581,6 +19087,7 @@
       ],
       "member_sites": [
         "app/services/market_calculation_context_service.py:attach_reserved_market_context",
+        "app/services/market_calculation_context_service.py:create_or_get_pipeline_ceri_context",
         "app/services/market_calculation_context_service.py:create_pipeline_market_context",
         "app/services/market_calculation_context_service.py:reserve_preflight_market_context"
       ],
@@ -18628,8 +19135,11 @@
         "app/services/pipeline_service.py:cancel_pipeline",
         "app/services/pipeline_service.py:enqueue_pipeline_after_sec_repair",
         "app/services/pipeline_service.py:mark_pipeline_job_failure",
+        "app/services/pipeline_service.py:mark_pipeline_job_retry",
         "app/services/pipeline_service.py:resume_pipeline",
-        "app/services/pipeline_service.py:start_pipeline"
+        "app/services/pipeline_service.py:start_pipeline",
+        "app/services/pipeline_state_machine.py:transition_pipeline",
+        "app/services/pipeline_state_machine.py:transition_pipeline_step"
       ],
       "modes": [
         "BOOTSTRAP"
@@ -18710,6 +19220,7 @@
         "app/services/pre_enqueue_operational_gate.py:validate_pre_enqueue_operational_gate"
       ],
       "member_sites": [
+        "app/services/pipeline_executor.py:_execute_resumed_pipeline",
         "app/services/pipeline_executor.py:_apply_winner_step_outcome",
         "app/services/pipeline_executor.py:_archive_pipeline_step_attempt",
         "app/services/pipeline_executor.py:_cancel_unfinished_steps",
@@ -18722,7 +19233,8 @@
         "app/services/pipeline_executor.py:_pipeline_step",
         "app/services/pipeline_executor.py:_schedule_ceri_provider_ingest",
         "app/services/pipeline_executor.py:_schedule_sec_prerequisite_repair",
-        "app/services/pipeline_executor.py:execute_full_pipeline"
+        "app/services/pipeline_executor.py:execute_full_pipeline",
+        "app/services/pipeline_service.py:_finalize_ceri_async_timing"
       ],
       "modes": [
         "MAINTENANCE"
@@ -19883,7 +20395,8 @@
         "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.apply_evaluation_counts",
         "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.complete_evaluation_run",
         "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.create_evaluation_run",
-        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.heartbeat_evaluation_run"
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.heartbeat_evaluation_run",
+        "app/services/setup_lifecycle/repository.py:SetupLifecycleRepository.record_evaluation_audit"
       ],
       "modes": [
         "BOOTSTRAP",
@@ -20302,6 +20815,7 @@
         "app/services/upload_service.py:create_upload_run"
       ],
       "member_sites": [
+        "scripts/ops/pipeline_authority_live_canary.py:launch",
         "app/services/upload_service.py:create_upload_run"
       ],
       "modes": [
