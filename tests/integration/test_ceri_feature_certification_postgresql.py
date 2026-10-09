@@ -180,6 +180,7 @@ def test_provider_identity_reconciliation_and_admission_fail_closed(
     monkeypatch.setenv("MARKET_DATA_PREWARM_ENABLED", "false")
     monkeypatch.setenv("WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED", "false")
     monkeypatch.setenv("WINNER_PROBABILITY_AUTO_MATURATION_ENABLED", "false")
+    monkeypatch.setenv("CERI_ENABLED", "true")
     get_settings.cache_clear()
     engine = create_engine(disposable_postgres_database)
     try:
@@ -411,8 +412,7 @@ def test_feature_certification_admission_graph_and_terminal_boundary_are_durable
             assert failed_pipeline.status == PipelineStatus.FAILED
             assert failed_root.status == JobStatus.FAILED
             assert all(
-                child.status in {JobStatus.FAILED, JobStatus.BLOCKED}
-                for child in failed_children
+                child.status in {JobStatus.FAILED, JobStatus.BLOCKED} for child in failed_children
             )
             fenced_child = next(child for child in failed_children if child is not failed_child)
             with pytest.raises(CeriParentPipelineTerminalError):
@@ -442,6 +442,7 @@ def test_two_ticker_feature_certification_uses_scope_without_raw_rows_and_stops(
     monkeypatch.setenv("MARKET_DATA_PREWARM_ENABLED", "false")
     monkeypatch.setenv("WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED", "false")
     monkeypatch.setenv("WINNER_PROBABILITY_AUTO_MATURATION_ENABLED", "false")
+    monkeypatch.setenv("CERI_ENABLED", "true")
     get_settings.cache_clear()
     engine = create_engine(disposable_postgres_database)
     try:
@@ -504,9 +505,7 @@ def test_two_ticker_feature_certification_uses_scope_without_raw_rows_and_stops(
                 ownership_mode=CeriArtifactOwnership.PIPELINE.value,
                 semantic_authority=authority,
             )
-            membership_authority = service._pipeline_membership_authority(
-                db, certification_request
-            )
+            membership_authority = service._pipeline_membership_authority(db, certification_request)
             assert membership_authority == CERI_CERTIFICATION_SCOPE_KIND
             selected = service._companies(
                 db,
@@ -535,9 +534,7 @@ def test_two_ticker_feature_certification_uses_scope_without_raw_rows_and_stops(
             assert result["status"] == JobStatus.COMPLETED
             assert result["processed_tickers"] == 2
             assert set(result["results"]) == {"CRM", "NVDA"}
-            assert all(
-                values["processed_companies"] == 1 for values in result["results"].values()
-            )
+            assert all(values["processed_companies"] == 1 for values in result["results"].values())
             mark_job_completed(db, feature, result)
             db.commit()
 
@@ -564,9 +561,7 @@ def test_two_ticker_feature_certification_uses_scope_without_raw_rows_and_stops(
             assert manifest.scope_id == root.scope_id
             assert manifest.refresh_cycle_id == root.refresh_cycle_id
             assert manifest.acquisition_plan_id == root.acquisition_plan_id
-            manifest_tables = {
-                entry["table"] for entry in manifest.manifest_json["entries"]
-            }
+            manifest_tables = {entry["table"] for entry in manifest.manifest_json["entries"]}
             assert {
                 "ceri_companies",
                 "ceri_earnings_actuals",
@@ -603,8 +598,9 @@ def test_two_ticker_feature_certification_uses_scope_without_raw_rows_and_stops(
             )
             retained_hashes = dict(
                 db.execute(
-                    select(CeriSourceRecord.provider_record_id, CeriSourceRecord.content_hash)
-                    .where(CeriSourceRecord.provider_record_id.in_(original_hashes))
+                    select(
+                        CeriSourceRecord.provider_record_id, CeriSourceRecord.content_hash
+                    ).where(CeriSourceRecord.provider_record_id.in_(original_hashes))
                 ).all()
             )
             assert retained_hashes == original_hashes
@@ -884,9 +880,7 @@ def _assert_invalid_certification_memberships(
     ):
         service._companies(
             db,
-            CeriFeatureRebuildRequest(
-                tickers=("MISS1", "MISS2"), semantic_authority=unresolved
-            ),
+            CeriFeatureRebuildRequest(tickers=("MISS1", "MISS2"), semantic_authority=unresolved),
             membership_authority=CERI_CERTIFICATION_SCOPE_KIND,
         )
 

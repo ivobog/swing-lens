@@ -13,6 +13,7 @@ from app.services.market_calculation_context_service import (
     CeriContextIntegrityError,
     PipelineCalculationContextError,
     resolve_pipeline_ceri_context,
+    resolve_pipeline_market_context,
 )
 from app.services.source_mutation_authority import PrefetchedSourceBodies
 
@@ -71,8 +72,14 @@ def freeze_or_verify_feature_source_manifest(
     missing = [key for key, value in required.items() if value in (None, "")]
     if missing:
         raise ValueError("CERI_SOURCE_MANIFEST_AUTHORITY_REQUIRED: " + ", ".join(missing))
+    workflow_key = str(job.workflow_key or payload.get("workflow_key") or "")
+    resolver = (
+        resolve_pipeline_ceri_context
+        if workflow_key.startswith("ceri:pipeline:")
+        else resolve_pipeline_market_context
+    )
     try:
-        resolve_pipeline_ceri_context(
+        resolver(
             db,
             calculation_context_id=int(required["calculation_context_id"]),
             upload_run_id=int(required["run_id"]),

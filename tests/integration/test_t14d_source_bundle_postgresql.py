@@ -36,7 +36,7 @@ contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def enabled_ceri(monkeypatch):
     from app.settings import get_settings
 
@@ -376,9 +376,8 @@ def test_physical_connection_commit_invalidates_source_locks(contextual_engine):
 
 @pytest.mark.parametrize("company_count", [1, 50])
 def test_pipeline_feature_authority_selects_remain_within_14_after_explicit_scope_mode(
-    contextual_engine, company_count, enabled_ceri
+    contextual_engine, company_count
 ):
-    del enabled_ceri
     statements = []
 
     def record(_conn, _cursor, sql, _parameters, _context, _many):
