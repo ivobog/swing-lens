@@ -130,7 +130,7 @@ def test_native_handoff_uses_sealed_sources_and_writer_rechecks_after_declaratio
     from app.services.transition_preflight_plan_service import _validate_handoff_temporal_lineage
 
     with Session(contextual_engine) as db:
-        cutoff, configurations, sources = seed_native_core(db)
+        cutoff, configurations, sources = seed_native_core(db, contextual_snapshots=True)
         combined = sources["combined"]
         technical = sources["technical"]
         debug = deepcopy(combined.debug_json)
@@ -359,21 +359,27 @@ def test_legacy_active_episode_crosses_audited_certification_boundary(contextual
             assert applied.episode.id != legacy_id
             validate_episode_projection(db, applied.episode)
         audit_count = db.scalar(
-            select(func.count()).select_from(SetupLifecycleAdministrativeAuditEvent).where(
-                SetupLifecycleAdministrativeAuditEvent.event_type
-                == "LEGACY_CERTIFICATION_BOUNDARY"
+            select(func.count())
+            .select_from(SetupLifecycleAdministrativeAuditEvent)
+            .where(
+                SetupLifecycleAdministrativeAuditEvent.event_type == "LEGACY_CERTIFICATION_BOUNDARY"
             )
         )
         assert audit_count == 1
 
         service.apply_snapshot(db, snapshot)
         db.commit()
-        assert db.scalar(
-            select(func.count()).select_from(SetupLifecycleAdministrativeAuditEvent).where(
-                SetupLifecycleAdministrativeAuditEvent.event_type
-                == "LEGACY_CERTIFICATION_BOUNDARY"
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(SetupLifecycleAdministrativeAuditEvent)
+                .where(
+                    SetupLifecycleAdministrativeAuditEvent.event_type
+                    == "LEGACY_CERTIFICATION_BOUNDARY"
+                )
             )
-        ) == audit_count
+            == audit_count
+        )
 
 
 def test_native_lifecycle_concurrent_advance_and_decision_reclaim(contextual_engine):
@@ -425,11 +431,14 @@ def test_native_lifecycle_concurrent_advance_and_decision_reclaim(contextual_eng
         token_a = first.execution_token
         first.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
         db.commit()
-        assert recover_stale_jobs(
-            db,
-            stale_after_seconds=1,
-            authority=RecoveryAuthority.normal("test.t14c.decision_recovery"),
-        ) == 1
+        assert (
+            recover_stale_jobs(
+                db,
+                stale_after_seconds=1,
+                authority=RecoveryAuthority.normal("test.t14c.decision_recovery"),
+            )
+            == 1
+        )
         db.commit()
         second = _claim_registered_job(db, "t14c-native-decision-B")
         assert second.id == queued.id and second.execution_token != token_a
@@ -1296,6 +1305,7 @@ def test_worker_heartbeat_uses_child_transaction_retaining_fence(contextual_engi
     from app.services.domain_write_fence import (
         assert_current_execution_ownership,
         current_fenced_domain_session,
+        fence_domain_commits,
     )
 
     engine = create_engine(
@@ -1311,14 +1321,17 @@ def test_worker_heartbeat_uses_child_transaction_retaining_fence(contextual_engi
 
         def handler(parent, job):
             with factory() as child:
-                assert_current_execution_ownership(
+                with fence_domain_commits(
                     child, job_id=job.id, execution_token=job.execution_token
-                )
-                assert current_fenced_domain_session(job.id, job.execution_token) is child
-                job._heartbeat()
-                assert current_fenced_domain_session(job.id, job.execution_token) is child
-                assert child.get(BackgroundJob, job.id).heartbeat_at is not None
-                child.commit()
+                ):
+                    assert_current_execution_ownership(
+                        child, job_id=job.id, execution_token=job.execution_token
+                    )
+                    assert current_fenced_domain_session(job.id, job.execution_token) is child
+                    job._heartbeat()
+                    assert current_fenced_domain_session(job.id, job.execution_token) is child
+                    assert child.get(BackgroundJob, job.id).heartbeat_at is not None
+                    child.commit()
                 assert current_fenced_domain_session(job.id, job.execution_token) is None
             return {"child_heartbeat": True}
 

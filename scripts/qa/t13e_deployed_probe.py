@@ -81,6 +81,13 @@ def main(mode: str) -> dict:
         from fastapi.testclient import TestClient
 
         from app.main import create_app
+        from app.services.ceri.sec.processor_lifecycle import (
+            certify_processor,
+            promote_processor,
+        )
+        from app.services.ceri.sec.processor_signature import (
+            sec_guidance_processor_signature,
+        )
         from app.services.column_mapper import load_alias_map
         from app.services.market_clock_service import MarketClockService
         from app.services.worker_registry import register_worker
@@ -96,6 +103,18 @@ def main(mode: str) -> dict:
         seed_cutoff = MarketClockService().cutoff_for(now, reason="T13E_ACQUISITION_FIXTURE")
         dates = pd.bdate_range(end=seed_cutoff.latest_completed_session, periods=400)
         with SessionLocal() as db:
+            processor_signature = sec_guidance_processor_signature()
+            certify_processor(
+                db,
+                processor_signature=processor_signature,
+                evidence={"source": "t13e-disposable-certification"},
+                actor="t13e-deployed-probe",
+            )
+            promote_processor(
+                db,
+                processor_signature=processor_signature,
+                actor="t13e-deployed-probe",
+            )
             for ticker in (fixture_ticker, "SPY", "QQQ", "IWM", "XLK", "TLT", "VIXY"):
                 if db.scalar(select(PriceBar.id).where(PriceBar.ticker == ticker).limit(1)) is None:
                     db.add(IBContract(ticker=ticker, resolution_status="RESOLVED", ib_conid=1000))
@@ -299,22 +318,11 @@ def main(mode: str) -> dict:
             db.commit()
     if mode == "queue-downstream":
         from app.services.background_job_service import enqueue_job
-        from app.services.scope_refresh_adoption import bind_semantic_authority
-        from app.services.winner_probability.scope_refresh import admit_prediction_capture
 
         with SessionLocal() as db:
             parent_id = int(os.environ["T13E_PARENT_JOB_ID"])
             parent = db.get(BackgroundJob, parent_id)
             run_id = parent.related_run_id
-            winner_authority = admit_prediction_capture(
-                db,
-                run_id=run_id,
-                cycle_key=f"t13e:winner-capture:{run_id}:{parent_id}",
-                cutoff=datetime.fromisoformat(parent.payload_json["market_cutoff_at"]),
-                configuration_identity=parent.payload_json["effective_configuration_anchor"][
-                    "fingerprint"
-                ],
-            )
             enqueue_job(
                 db,
                 "SETUP_LIFECYCLE_DAILY_MAINTENANCE",
@@ -329,35 +337,6 @@ def main(mode: str) -> dict:
                 related_run_id=run_id,
                 parent_job_id=parent_id,
                 priority=200,
-            )
-            winner_job = enqueue_job(
-                db,
-                "WINNER_PREDICTION_CAPTURE",
-                {
-                    "run_id": run_id,
-                    "pipeline_run_id": parent.payload_json["pipeline_run_id"],
-                    "decision_handoff_manifest_id": db.get(
-                        PipelineRun, parent.payload_json["pipeline_run_id"]
-                    ).result_json["decision_handoff_manifest_id"],
-                    **{
-                        key: parent.payload_json[key]
-                        for key in (
-                            "market_calculation_context_id",
-                            "market_cutoff_at",
-                            "input_as_of_session",
-                            "market_calendar_version",
-                            "bar_readiness_version",
-                        )
-                    },
-                },
-                related_run_id=run_id,
-                parent_job_id=parent_id,
-                priority=200,
-            )
-            bind_semantic_authority(
-                winner_job,
-                winner_authority,
-                required_for_parent_completion=True,
             )
             db.commit()
     if mode == "claim":
@@ -449,7 +428,7 @@ def main(mode: str) -> dict:
             worked = False
             for _ in range(12 if mode == "prerequisites" else 1):
                 next_work = run_worker_once(
-                    worker_id=f"t13e-native-{os.getpid()}",
+                    worker_id=(f"t13e-native-{os.getpid()}-{PROBE_PROCESS_INSTANCE_ID}"),
                     queues=["background", "broker"] if mode == "prerequisites" else ["interactive"],
                     stale_after_seconds=120,
                     session_factory=SessionLocal,
@@ -457,7 +436,10 @@ def main(mode: str) -> dict:
                 worked = worked or next_work
                 if not next_work:
                     break
-        assert worked
+        if os.environ.get("T13E_EXPECT_NO_WORK") == "true":
+            assert not worked
+        else:
+            assert worked
     with SessionLocal() as db:
         evidence = db.scalars(
             select(CoreCalculationEvidence).order_by(CoreCalculationEvidence.id)

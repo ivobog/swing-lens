@@ -31,6 +31,7 @@ def native_pending_prediction(db):
         cutoff_at=datetime(2026, 8, 19, 21, 30, tzinfo=UTC),
         extra_configurations=configurations,
         raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+        contextual_snapshots=True,
     )
     db.commit()
     handoff = freeze_transition_decision_handoff_manifest(db, upload_run_id=7, market_cutoff=cutoff)

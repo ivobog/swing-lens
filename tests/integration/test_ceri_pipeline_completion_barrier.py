@@ -35,7 +35,16 @@ from app.services.pipeline_service import (
     start_pipeline,
 )
 from app.services.scope_refresh_adoption import bind_semantic_authority, require_semantic_authority
-from app.settings import Settings
+from app.settings import Settings, get_settings
+
+
+@pytest.fixture(autouse=True)
+def enabled_ceri_pipeline(monkeypatch):
+    monkeypatch.setenv("CERI_ENABLED", "true")
+    monkeypatch.setenv("CERI_PROVIDER_INGEST_ENABLED", "true")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def test_ceri_completion_barrier_is_restart_safe_and_exactly_once(

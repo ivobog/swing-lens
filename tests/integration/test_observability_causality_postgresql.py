@@ -5,19 +5,21 @@ from threading import Barrier, Thread
 from uuid import uuid4
 
 import pytest
+import test_contextual_configuration_adoption_postgresql as contextual
 from sqlalchemy import delete, inspect, select
+from sqlalchemy.orm import Session, sessionmaker
 
-from app.db import SessionLocal
 from app.models.tables import BackgroundJob, BackgroundJobEnqueueAttempt
 from app.observability.correlation import root_action_scope, worker_job_scope
 from app.services.background_job_service import enqueue_job
 
-pytestmark = pytest.mark.integration
+contextual_engine = contextual.contextual_engine
+pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
 
-def test_postgresql_root_child_coalescing_fixture() -> None:
+def test_postgresql_root_child_coalescing_fixture(contextual_engine) -> None:
     suffix = uuid4().hex
-    db = SessionLocal()
+    db = Session(contextual_engine)
     try:
         with root_action_scope("HTTP", "POST /fixture", request_id=f"request-{suffix}"):
             parent = enqueue_job(
@@ -60,15 +62,16 @@ def test_postgresql_root_child_coalescing_fixture() -> None:
         db.close()
 
 
-def test_concurrent_enqueue_coalesces_to_one_authoritative_job() -> None:
+def test_concurrent_enqueue_coalesces_to_one_authoritative_job(contextual_engine) -> None:
     suffix = uuid4().hex
     request_key = f"concurrent-{suffix}"
     barrier = Barrier(2)
     job_ids: list[int] = []
     errors: list[BaseException] = []
+    factory = sessionmaker(contextual_engine, expire_on_commit=False)
 
     def enqueue() -> None:
-        db = SessionLocal()
+        db = factory()
         try:
             barrier.wait(timeout=5)
             with root_action_scope("ADMINISTRATIVE", "concurrency-fixture"):
@@ -97,7 +100,7 @@ def test_concurrent_enqueue_coalesces_to_one_authoritative_job() -> None:
     assert len(job_ids) == 2
     assert len(set(job_ids)) == 1
 
-    with SessionLocal.begin() as cleanup:
+    with factory.begin() as cleanup:
         cleanup.execute(
             delete(BackgroundJobEnqueueAttempt).where(
                 BackgroundJobEnqueueAttempt.request_key == request_key
@@ -106,8 +109,8 @@ def test_concurrent_enqueue_coalesces_to_one_authoritative_job() -> None:
         cleanup.execute(delete(BackgroundJob).where(BackgroundJob.id == job_ids[0]))
 
 
-def test_causality_migration_columns_foreign_keys_and_indexes_exist() -> None:
-    inspector = inspect(SessionLocal.kw["bind"])
+def test_causality_migration_columns_foreign_keys_and_indexes_exist(contextual_engine) -> None:
+    inspector = inspect(contextual_engine)
     columns = {row["name"] for row in inspector.get_columns("background_jobs")}
     assert {
         "root_correlation_id",

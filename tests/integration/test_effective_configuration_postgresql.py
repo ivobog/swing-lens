@@ -39,7 +39,7 @@ from app.services.effective_configuration_families import resolve_ranking_profil
 
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
-CURRENT_HEAD = "0086_ceri_feature_source_manifest"
+CURRENT_HEAD = "0091_readiness_constraints"
 
 
 def test_configuration_embedded_evidence_round_trip_retry_drift_and_immutability(

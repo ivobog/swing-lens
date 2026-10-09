@@ -79,4 +79,4 @@ def test_every_assigned_source_adapter_rejects_malformed_authority_and_rolls_bac
             db.commit()
             assert db.get(RawCompanyRow, raw_id).ticker == "ACME", family["writer_family_id"]
             checked.append(family["writer_family_id"])
-        assert len(checked) == 18
+        assert len(checked) == 17

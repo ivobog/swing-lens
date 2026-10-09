@@ -567,7 +567,10 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
         journal = _serving_winner_estimate(
             db,
             prediction_id=ids["prediction"],
-            cutoff=observed + timedelta(seconds=30),
+            cutoff=(
+                db.get(WinnerProbabilityEstimate, ids["clean_latest"]).created_at
+                + timedelta(seconds=1)
+            ),
         )
         assert journal.id == ids["clean_latest"]
         assert journal.point_probability is None
@@ -780,7 +783,10 @@ def test_two_concurrent_api_clients_receive_one_maturation_workflow(
 
     def post() -> dict:
         with TestClient(app) as client:
-            response = client.post("/api/winner-probability/outcomes/process?limit=500")
+            response = client.post(
+                "/api/winner-probability/outcomes/process?limit=500",
+                headers={"x-csrf-token": app.state.local_admin_csrf_token},
+            )
             assert response.status_code == 200
             return response.json()
 
@@ -820,11 +826,14 @@ def test_recovered_maturation_job_retains_single_flight_identity(
         root_id = root.id
 
     with Session(engine) as db:
-        assert recover_stale_jobs(
-            db,
-            stale_after_seconds=1,
-            authority=RecoveryAuthority.normal("test.winner.recovery"),
-        ) == 1
+        assert (
+            recover_stale_jobs(
+                db,
+                stale_after_seconds=1,
+                authority=RecoveryAuthority.normal("test.winner.recovery"),
+            )
+            == 1
+        )
         db.commit()
         recovered = db.get(BackgroundJob, root_id)
         assert recovered is not None
@@ -1525,11 +1534,14 @@ def test_partial_generation_cannot_publish_and_recovery_closes_attempt(
         db.commit()
 
     with Session(engine) as db:
-        assert recover_stale_jobs(
-            db,
-            stale_after_seconds=1,
-            authority=RecoveryAuthority.normal("test.winner.attempt_recovery"),
-        ) == 1
+        assert (
+            recover_stale_jobs(
+                db,
+                stale_after_seconds=1,
+                authority=RecoveryAuthority.normal("test.winner.attempt_recovery"),
+            )
+            == 1
+        )
         db.commit()
         attempt = db.scalar(select(WinnerProcessingRun))
         assert attempt.status == "LOST"
@@ -2026,11 +2038,14 @@ def test_stale_lease_owner_cannot_publish_generation(
     try:
         stale_job = stale.get(BackgroundJob, job_id)
         with Session(engine) as recovery:
-            assert recover_stale_jobs(
-                recovery,
-                stale_after_seconds=1,
-                authority=RecoveryAuthority.normal("test.winner.publish_recovery"),
-            ) == 1
+            assert (
+                recover_stale_jobs(
+                    recovery,
+                    stale_after_seconds=1,
+                    authority=RecoveryAuthority.normal("test.winner.publish_recovery"),
+                )
+                == 1
+            )
             recovery.commit()
             claimed = _claim_registered_job(recovery, "worker-new")
             assert claimed is not None and claimed.execution_token != "old-token"

@@ -768,7 +768,12 @@ def _upgrade(database_url: str) -> None:
 
 
 @pytest.fixture
-def incident_db(disposable_postgres_database):
+def incident_db(disposable_postgres_database, monkeypatch):
+    from app.settings import get_settings
+
+    monkeypatch.setenv("CERI_ENABLED", "true")
+    monkeypatch.setenv("CERI_PROVIDER_INGEST_ENABLED", "true")
+    get_settings.cache_clear()
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     with Session(engine) as db:
@@ -804,6 +809,7 @@ def incident_db(disposable_postgres_database):
         yield db, pipeline, signature
         db.rollback()
     engine.dispose()
+    get_settings.cache_clear()
 
 
 def _schedule_incident(db, pipeline, signature):

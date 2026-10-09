@@ -1,6 +1,7 @@
 """Actual entry-point and durable authority delivery on task-owned PostgreSQL."""
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
@@ -36,9 +37,30 @@ from app.services.setup_lifecycle.caller_authority import setup_run_cutoff
 from app.services.setup_lifecycle.snapshot_builder import SetupLifecycleSnapshotCaptureService
 from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
 from app.services.technical_score_service import score_run_technicals
+from app.settings import Settings
 
 contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
+
+
+def _local_admin_request():
+    token = "t14d-local-admin-token"
+    return SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                local_admin_csrf_token=token,
+                settings=Settings(
+                    _env_file=None,
+                    job_worker_enabled=False,
+                    ceri_enabled=True,
+                    ceri_admin_enabled=True,
+                ),
+            )
+        ),
+        client=SimpleNamespace(host="testclient"),
+        headers={"x-csrf-token": token},
+        query_params={},
+    )
 
 
 def test_all_regime_sector_missing_state_reads_have_no_dml_or_enqueue(contextual_engine):
@@ -461,7 +483,7 @@ def test_trade_episode_retry_order_time_population_and_partial_failure(contextua
 def test_ceri_review_changes_metadata_and_override_appends_a_source_revision(
     contextual_engine, monkeypatch, population
 ):
-    monkeypatch.setattr(ceri_routes, "_require_local_admin", lambda *_: None)
+    request = _local_admin_request()
     with Session(contextual_engine) as db:
         company = CeriCompany(ticker="T14D")
         db.add(company)
@@ -497,7 +519,7 @@ def test_ceri_review_changes_metadata_and_override_appends_a_source_revision(
         db.commit()
         with pytest.raises(HTTPException) as error:
             ceri_routes.review_ceri_event(
-                event.id, object(), db, {"new_value": {"materiality": 99.0}}
+                event.id, request, db, {"new_value": {"materiality": 99.0}}
             )
         assert error.value.status_code == 422
         assert revision.materiality == 1.0
@@ -512,11 +534,11 @@ def test_ceri_review_changes_metadata_and_override_appends_a_source_revision(
 
         sql_events.listen(contextual_engine, "before_cursor_execute", count_selects)
         try:
-            first = ceri_routes.review_ceri_event(event_id, object(), db, None)
+            first = ceri_routes.review_ceri_event(event_id, request, db, None)
         finally:
             sql_events.remove(contextual_engine, "before_cursor_execute", count_selects)
         assert len(statements) <= 12, len(statements)
-        second = ceri_routes.review_ceri_event(event.id, object(), db, None)
+        second = ceri_routes.review_ceri_event(event.id, request, db, None)
         assert first["id"] == second["id"]
         assert revision.review_state == "REVIEWED"
         old_id = revision.id
@@ -606,6 +628,7 @@ def test_native_certified_outcome_is_unchanged_when_incident_canary_is_retired(c
             db,
             extra_configurations=configurations,
             raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+            contextual_snapshots=True,
         )
         db.commit()
         handoff = freeze_transition_decision_handoff_manifest(
@@ -703,7 +726,6 @@ def test_model_retirement_api_delivers_exact_new_governance_and_maps_rejections(
     contextual_engine, monkeypatch
 ):
     from datetime import timedelta
-    from types import SimpleNamespace
 
     from test_t14c_winner_writer_postgresql import _model_context
     from test_winner_maturation_canary_postgresql import _seed_native_ready_outcome
@@ -807,7 +829,7 @@ def test_model_retirement_api_delivers_exact_new_governance_and_maps_rejections(
         db.commit()
         assert result["model"]["status"] == "RETIRED"
         monkeypatch.setattr(winner_probability_routes, "_require_local_admin", lambda *_: None)
-        request = SimpleNamespace(client=SimpleNamespace(host="native-test"))
+        request = _local_admin_request()
         delivered = winner_probability_routes.retire_winner_probability_model(
             request, model_id, db, reason="Explicit new API governance request"
         )

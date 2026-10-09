@@ -72,7 +72,12 @@ PHASE2_REVISIONS = (
     "0078_ibmi_constituent_evidence",
     "0079_setup_lifecycle_alert_ev",
 )
-CURRENT_HEAD = "0086_ceri_feature_source_manifest"
+CURRENT_HEAD = "0091_readiness_constraints"
+MARKET_DATA_READINESS_REVISION = "0090_market_data_readiness"
+PIPELINE_EXECUTION_AUTHORITY_REVISION = "0089_pipeline_execution_authority"
+CERI_RUN_SOURCE_REVISION = "0088_ceri_run_source_lineage"
+PIPELINE_DEPENDENCIES_REVISION = "0087_pipeline_dependencies"
+CERI_FEATURE_SOURCE_REVISION = "0086_ceri_feature_source_manifest"
 CERI_CHANGE_SCOPE_REVISION = "0085_ceri_change_scope"
 TECHNICAL_RECOVERY_REVISION = "0084_technical_recovery"
 WINNER_SCOPE_REVISION = "0083_winner_scope_truth"
@@ -88,7 +93,27 @@ def test_phase2_postgresql_migration_chain_round_trip_and_schema_contract(
     config = _config(disposable_postgres_database)
     script = ScriptDirectory.from_config(config)
     assert tuple(script.get_heads()) == (CURRENT_HEAD,)
-    assert script.get_revision(CURRENT_HEAD).down_revision == CERI_CHANGE_SCOPE_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == MARKET_DATA_READINESS_REVISION
+    assert (
+        script.get_revision(MARKET_DATA_READINESS_REVISION).down_revision
+        == PIPELINE_EXECUTION_AUTHORITY_REVISION
+    )
+    assert (
+        script.get_revision(PIPELINE_EXECUTION_AUTHORITY_REVISION).down_revision
+        == CERI_RUN_SOURCE_REVISION
+    )
+    assert (
+        script.get_revision(CERI_RUN_SOURCE_REVISION).down_revision
+        == PIPELINE_DEPENDENCIES_REVISION
+    )
+    assert (
+        script.get_revision(PIPELINE_DEPENDENCIES_REVISION).down_revision
+        == CERI_FEATURE_SOURCE_REVISION
+    )
+    assert (
+        script.get_revision(CERI_FEATURE_SOURCE_REVISION).down_revision
+        == CERI_CHANGE_SCOPE_REVISION
+    )
     assert (
         script.get_revision(CERI_CHANGE_SCOPE_REVISION).down_revision == TECHNICAL_RECOVERY_REVISION
     )

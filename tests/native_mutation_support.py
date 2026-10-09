@@ -86,6 +86,7 @@ def seed_native_core(
     raw_values=None,
     ticker="ACME",
     price_frame=None,
+    contextual_snapshots=False,
 ):
     import pandas as pd
     from test_core_effective_configuration import core_configurations
@@ -130,6 +131,13 @@ def seed_native_core(
         v5=load_technical_scoring_v5_config(),
         settings=get_settings(),
     )
+    if contextual_snapshots:
+        from app.services.contextual_effective_configuration import (
+            resolve_regime_configuration,
+            resolve_sector_configuration,
+        )
+
+        configs.extend((resolve_regime_configuration(), resolve_sector_configuration()))
     cutoff, pipeline_id = bound_pipeline(
         db, run_id, [*configs, *extra_configurations], cutoff_at=cutoff_at
     )
@@ -152,5 +160,21 @@ def seed_native_core(
     r = refresh_ranking_profile(
         db, run_id, "momentum_swing", **args, effective_configuration=configs[3]
     )[0]
+    if contextual_snapshots:
+        from app.services.market_regime_command_center import MarketRegimeCommandCenterService
+        from app.services.sector_rotation_service import SectorRotationService
+
+        MarketRegimeCommandCenterService().build_snapshot(
+            db,
+            run_id=run_id,
+            market_cutoff=cutoff,
+            effective_configuration=configs[-2],
+        )
+        SectorRotationService().build_sector_rotation_snapshot(
+            db,
+            run_id=run_id,
+            market_cutoff=cutoff,
+            effective_configuration=configs[-1],
+        )
     db.commit()
     return cutoff, configs, {"fundamental": f, "technical": t, "combined": c, "ranking": r}

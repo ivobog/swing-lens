@@ -51,6 +51,7 @@ def test_native_winner_complete_capture_and_immutable_retry(contextual_engine):
             db,
             extra_configurations=configurations,
             raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+            contextual_snapshots=True,
         )
         db.commit()
         handoff = freeze_transition_decision_handoff_manifest(
@@ -1055,11 +1056,14 @@ def _native_winner_reclaim(db, prediction, definition, config, at):
     token_a = first.execution_token
     first.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
     db.commit()
-    assert recover_stale_jobs(
-        db,
-        stale_after_seconds=1,
-        authority=RecoveryAuthority.normal("test.t14c.winner_recovery"),
-    ) == 1
+    assert (
+        recover_stale_jobs(
+            db,
+            stale_after_seconds=1,
+            authority=RecoveryAuthority.normal("test.t14c.winner_recovery"),
+        )
+        == 1
+    )
     db.commit()
     second = _claim_registered_job(db, "t14c-native-winner-B")
     assert second.id == queued.id and second.execution_token != token_a
