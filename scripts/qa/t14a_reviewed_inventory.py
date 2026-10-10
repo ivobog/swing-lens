@@ -167,7 +167,7 @@ OVERRIDES = {
         "RawCompanyRow",
         "FundamentalScore",
     ],
-    "app/services/ranking_profile_service.py:_persist_rankings": ["RankingResult"],
+    "app/services/ranking_profile_service.py:_persist_ranking_profile_batch": ["RankingResult"],
     "app/services/sector_rotation_repository.py:SectorRotationRepository.save_snapshot": [
         "SectorRotationSnapshot",
         "SectorRotationRow",
@@ -305,9 +305,11 @@ DOMAIN_OWNERS = {
         "ProbabilityEstimator._create_estimate"
     ),
     "FUNDAMENTAL": "app/services/fundamental_score_service.py:recalculate_run_fundamentals",
-    "TECHNICAL": "app/services/technical_score_service.py:finalize_technical_scores",
-    "COMBINED": "app/services/combined_decision.py:refresh_combined_results",
-    "RANKING": "app/services/ranking_profile_service.py:_persist_rankings",
+    "TECHNICAL": (
+        "app/services/technical_score_service.py:_persist_finalized_technical_score_batch"
+    ),
+    "COMBINED": "app/services/combined_decision.py:_persist_combined_batch",
+    "RANKING": "app/services/ranking_profile_service.py:_persist_ranking_profile_batch",
     "REGIME": "app/services/market_regime_repository.py:MarketRegimeRepository.upsert_snapshot",
     "SECTOR": "app/services/sector_rotation_repository.py:SectorRotationRepository.save_snapshot",
     "CERI": "app/services/ceri/snapshot_service.py:CeriSnapshotService.persist_snapshot",

@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from scripts.qa.committed_source_identity import current_committed_source_bytes
+
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "docs" / "remediation" / "calculation-lineage"
 T14D = OUT / "T14D_operation_family_certification.json"
@@ -22,7 +24,8 @@ T14E_SOURCE = "f273e9a61b0a363d873b9f58cf0d702c976f5361a29eb56c2e480fa61b20a5d7"
 
 
 def _sha(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    relative_path = path.relative_to(ROOT).as_posix()
+    return hashlib.sha256(current_committed_source_bytes(ROOT, relative_path)).hexdigest()
 
 
 def _spec(

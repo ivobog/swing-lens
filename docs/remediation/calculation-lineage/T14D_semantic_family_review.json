@@ -15730,9 +15730,9 @@
       "proof": "Attach exact estimate/consensus relationship to earnings actual.",
       "role": "DOMAIN_SUPPORTING_STATE"
     },
-    "app/services/combined_decision.py:refresh_combined_results": {
+    "app/services/combined_decision.py:_persist_combined_batch": {
       "family_id": "WF_COMBINED_REFRESH",
-      "proof": "Combined serving results and serving links on prediction rows; frozen prediction authority is distinct.",
+      "proof": "Bounded atomic Combined serving/evidence batch plus serving-link maintenance; frozen prediction authority is distinct.",
       "role": "CANONICAL_SEMANTIC_WRITER"
     },
     "app/services/configuration_delivery.py:bind_job_configuration": {
@@ -15991,9 +15991,9 @@
       "proof": "Native ranking insert/copy; unanchored legacy replacement split below.",
       "role": "SEMANTIC_WRITER_MEMBER"
     },
-    "app/services/ranking_profile_service.py:_persist_rankings": {
+    "app/services/ranking_profile_service.py:_persist_ranking_profile_batch": {
       "family_id": "WF_RANKING_PERSISTENCE",
-      "proof": "Native ranking insert/copy; unanchored legacy replacement split below.",
+      "proof": "Profile-atomic native ranking insert/copy and retained evidence publication; unanchored legacy replacement split below.",
       "role": "CANONICAL_SEMANTIC_WRITER"
     },
     "app/services/ranking_profile_service.py:_replace_legacy_ranking": {
@@ -16196,10 +16196,15 @@
       "proof": "Cached features plus hit/shadow-validation metadata; not Technical evidence publication.",
       "role": "DOMAIN_SUPPORTING_STATE"
     },
-    "app/services/technical_score_service.py:finalize_technical_scores": {
+    "app/services/technical_score_service.py:_persist_finalized_technical_score_batch": {
       "family_id": "WF_TECHNICAL_FINALIZATION",
-      "proof": "Native Technical serving finalizer and retained ledger delivery; preview persist=False excluded.",
+      "proof": "Bounded atomic Technical score and retained evidence publication; preview persist=False excluded.",
       "role": "CANONICAL_SEMANTIC_WRITER"
+    },
+    "app/services/technical_score_service.py:_persist_validated_technical_source_manifest": {
+      "family_id": "WF_TECHNICAL_FINALIZATION",
+      "proof": "Persist and fully validate the immutable shared Technical source manifest before any bounded score publication.",
+      "role": "SEMANTIC_WRITER_MEMBER"
     },
     "app/services/transition_preflight_plan_service.py:_create_pipeline_decision_handoff_plan": {
       "family_id": "WF_TRANSITION_PREFLIGHT",
@@ -18080,18 +18085,18 @@
         "app/services/pre_enqueue_operational_gate.py:validate_pre_enqueue_operational_gate"
       ],
       "member_sites": [
-        "app/services/combined_decision.py:refresh_combined_results"
+        "app/services/combined_decision.py:_persist_combined_batch"
       ],
       "modes": [
         "CANONICAL_CALCULATION"
       ],
-      "owner": "app/services/combined_decision.py:refresh_combined_results",
+      "owner": "app/services/combined_decision.py:_persist_combined_batch",
       "phase5_status": "T14B_ADOPTION",
-      "proof": "refresh_combined_results validates all source identities and the single cohort context before persistence, then nulls only addressed Winner serving FKs, deletes/replaces Combined rows and persists immutable Combined evidence. Financial output and relationship maintenance have separate artifact authority.",
+      "proof": "refresh_combined_results validates all source identities and the single cohort context before _persist_combined_batch atomically nulls only addressed Winner serving FKs, replaces one bounded Combined ticker batch and persists immutable evidence. Financial output and relationship maintenance retain separate artifact authority.",
       "semantic_review_complete": true,
       "status": "CANONICAL_WRITER",
       "t14b_writer_adoption_review": {
-        "native_owner": "app/services/combined_decision.py:refresh_combined_results",
+        "native_owner": "app/services/combined_decision.py:_persist_combined_batch",
         "proof": "Existing domain policy; core/contextual seal validates persisted native authority, private mechanisms require its transaction, acquisition uses exact native source manifests, cache uses PIT key and payload integrity, upload is explicit legacy serving, derived delete forbids certified targets. PostgreSQL and family-specific certification recorded separately."
       },
       "tables": [
@@ -19438,18 +19443,18 @@
       ],
       "member_sites": [
         "app/services/ranking_profile_service.py:_copy_ranking_values",
-        "app/services/ranking_profile_service.py:_persist_rankings"
+        "app/services/ranking_profile_service.py:_persist_ranking_profile_batch"
       ],
       "modes": [
         "CANONICAL_CALCULATION"
       ],
-      "owner": "app/services/ranking_profile_service.py:_persist_rankings",
+      "owner": "app/services/ranking_profile_service.py:_persist_ranking_profile_batch",
       "phase5_status": "T14B_ADOPTION",
-      "proof": "Native ranking insert/copy; unanchored legacy replacement split below.",
+      "proof": "Profile-atomic native ranking insert/copy and retained evidence publication; unanchored legacy replacement split below.",
       "semantic_review_complete": true,
       "status": "CANONICAL_WRITER",
       "t14b_writer_adoption_review": {
-        "native_owner": "app/services/ranking_profile_service.py:_persist_rankings",
+        "native_owner": "app/services/ranking_profile_service.py:_persist_ranking_profile_batch",
         "proof": "Existing domain policy; core/contextual seal validates persisted native authority, private mechanisms require its transaction, acquisition uses exact native source manifests, cache uses PIT key and payload integrity, upload is explicit legacy serving, derived delete forbids certified targets. PostgreSQL and family-specific certification recorded separately."
       },
       "tables": [
@@ -20742,22 +20747,24 @@
         "scripts/certify_technical_artifact_cache.py:main"
       ],
       "member_sites": [
-        "app/services/technical_score_service.py:finalize_technical_scores"
+        "app/services/technical_score_service.py:_persist_finalized_technical_score_batch",
+        "app/services/technical_score_service.py:_persist_validated_technical_source_manifest"
       ],
       "modes": [
         "CANONICAL_CALCULATION"
       ],
-      "owner": "app/services/technical_score_service.py:finalize_technical_scores",
+      "owner": "app/services/technical_score_service.py:_persist_finalized_technical_score_batch",
       "phase5_status": "T14B_ADOPTION",
-      "proof": "Native Technical serving finalizer and retained ledger delivery; preview persist=False excluded.",
+      "proof": "The manifest member persists and validates the immutable cohort source basis before the canonical bounded score/evidence writer publishes Technical rows; preview persist=False excluded.",
       "semantic_review_complete": true,
       "status": "CANONICAL_WRITER",
       "t14b_writer_adoption_review": {
-        "native_owner": "app/services/technical_score_service.py:finalize_technical_scores",
+        "native_owner": "app/services/technical_score_service.py:_persist_finalized_technical_score_batch",
         "proof": "Existing domain policy; core/contextual seal validates persisted native authority, private mechanisms require its transaction, acquisition uses exact native source manifests, cache uses PIT key and payload integrity, upload is explicit legacy serving, derived delete forbids certified targets. PostgreSQL and family-specific certification recorded separately."
       },
       "tables": [
-        "technical_scores"
+        "technical_scores",
+        "technical_source_manifests"
       ],
       "writer_family_id": "WF_TECHNICAL_FINALIZATION"
     },

@@ -6430,7 +6430,7 @@
     },
     {
       "path": "app/services/combined_decision.py",
-      "function": "refresh_combined_results",
+      "function": "_persist_combined_batch",
       "kind": "add_all",
       "writer_ids": [
         "WRITE-001",
@@ -6456,7 +6456,7 @@
     },
     {
       "path": "app/services/combined_decision.py",
-      "function": "refresh_combined_results",
+      "function": "_persist_combined_batch",
       "kind": "delete",
       "writer_ids": [
         "WRITE-001",
@@ -6482,7 +6482,7 @@
     },
     {
       "path": "app/services/combined_decision.py",
-      "function": "refresh_combined_results",
+      "function": "_persist_combined_batch",
       "kind": "sql_dml",
       "writer_ids": [
         "WRITE-001",
@@ -8723,7 +8723,7 @@
     },
     {
       "path": "app/services/ranking_profile_service.py",
-      "function": "_persist_rankings",
+      "function": "_persist_ranking_profile_batch",
       "kind": "add_all",
       "writer_ids": [
         "WRITE-001",
@@ -10079,7 +10079,7 @@
     },
     {
       "path": "app/services/technical_score_service.py",
-      "function": "finalize_technical_scores",
+      "function": "_persist_validated_technical_source_manifest",
       "kind": "add",
       "writer_ids": [
         "WRITE-001",
@@ -10105,7 +10105,7 @@
     },
     {
       "path": "app/services/technical_score_service.py",
-      "function": "finalize_technical_scores",
+      "function": "_persist_finalized_technical_score_batch",
       "kind": "add_all",
       "writer_ids": [
         "WRITE-001",
@@ -10131,7 +10131,7 @@
     },
     {
       "path": "app/services/technical_score_service.py",
-      "function": "finalize_technical_scores",
+      "function": "_persist_finalized_technical_score_batch",
       "kind": "delete",
       "writer_ids": [
         "WRITE-001",
@@ -10157,7 +10157,7 @@
     },
     {
       "path": "app/services/technical_score_service.py",
-      "function": "finalize_technical_scores",
+      "function": "_persist_finalized_technical_score_batch",
       "kind": "sql_dml",
       "writer_ids": [
         "WRITE-001",
@@ -13273,7 +13273,7 @@
     },
     {
       "path": "app/services/combined_decision.py",
-      "function": "refresh_combined_results",
+      "function": "_persist_combined_batch",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
@@ -13305,6 +13305,13 @@
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/core_calculation_evidence.py",
+      "function": "persist_core_evidence_batch",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Batches an authority-validated evidence cohort under one semantic savepoint and one serving-link flush."
     },
     {
       "path": "app/services/core_mutation_authority.py",
@@ -13805,6 +13812,20 @@
     },
     {
       "path": "app/services/pipeline_executor.py",
+      "function": "close_pipeline_read_transaction",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Closes only a clean, outer pipeline read transaction before long CPU work; pending or nested mutation state is rejected."
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
+      "function": "commit_pipeline_mutation_checkpoint",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Durably commits one completed authority-validated pipeline mutation batch after rejecting pending ORM state or a live writer savepoint."
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
       "function": "execute_full_pipeline",
       "primitive": "rollback",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -13903,7 +13924,7 @@
     },
     {
       "path": "app/services/ranking_profile_service.py",
-      "function": "_persist_rankings",
+      "function": "_persist_ranking_profile_batch",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
@@ -14302,10 +14323,24 @@
     },
     {
       "path": "app/services/technical_score_service.py",
-      "function": "finalize_technical_scores",
+      "function": "_commit_independent_technical_artifacts",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Publishes independently recomputable technical cache/shadow artifacts in bounded batches before authoritative score publication."
+    },
+    {
+      "path": "app/services/technical_score_service.py",
+      "function": "_persist_finalized_technical_score_batch",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
+      "reason": "Atomically publishes one bounded Technical score/evidence batch under the semantic writer fence."
+    },
+    {
+      "path": "app/services/technical_score_service.py",
+      "function": "_persist_validated_technical_source_manifest",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Persists and fully validates the immutable shared Technical source manifest before bounded score publication."
     },
     {
       "path": "app/services/technical_score_service.py",
@@ -14397,6 +14432,13 @@
       "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/winner_probability/capture_service.py",
+      "function": "_release_capture_read_transaction",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Bounded parent-session read checkpoint during isolated per-ticker capture."
     },
     {
       "path": "app/services/winner_probability/capture_service.py",
