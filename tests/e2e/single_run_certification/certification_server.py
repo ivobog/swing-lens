@@ -114,13 +114,22 @@ def _bars_for_ticker(ticker: str) -> list[SimpleNamespace]:
 
 
 def _install_deterministic_fetch_dependency() -> None:
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.tables import BackgroundJob
     from app.services import background_worker
-    from app.services.background_job_service import is_cancel_requested
+    from app.services.background_job_service import (
+        JobStatus,
+        heartbeat_job,
+        is_cancel_requested,
+        record_job_progress,
+    )
     from app.services.ceri.artifact_lineage import CeriArtifactOwnership
     from app.services.ceri.feature_rebuild_service import (
         CeriFeatureRebuildRequest,
         CeriFeatureRebuildService,
     )
+    from app.services.domain_write_fence import control_plane_transaction
     from app.services.ib_fetch_executor import execute_fetch_plan as real_execute_fetch_plan
     from app.services.ib_gateway_health_service import check_status as real_check_status
     from app.services.ib_historical_capability import (
@@ -132,8 +141,11 @@ def _install_deterministic_fetch_dependency() -> None:
     from app.services.pipeline_executor import (
         PipelineCancelled,
         PipelineExecutionDependencies,
+        close_pipeline_read_transaction,
+        commit_pipeline_mutation_checkpoint,
         execute_full_pipeline,
     )
+    from app.settings import get_settings
 
     def deterministic_execute_fetch_plan(**kwargs):
         return real_execute_fetch_plan(
@@ -179,9 +191,46 @@ def _install_deterministic_fetch_dependency() -> None:
             if callable(heartbeat):
                 heartbeat()
 
+        execution_token = str(job.execution_token or "")
+        control_job = BackgroundJob(
+            id=job.id,
+            status=JobStatus.RUNNING,
+            execution_token=execution_token,
+            worker_id=job.worker_id,
+        )
+        settings = get_settings()
+        control_factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+
         def should_cancel() -> bool:
-            lease_guard()
-            return is_cancel_requested(db, job.id)
+            with control_factory() as control_db:
+                with control_plane_transaction(control_db):
+                    heartbeat_job(
+                        control_db,
+                        control_job,
+                        lease_seconds=settings.job_stale_after_seconds,
+                        execution_token=execution_token,
+                    )
+                    return is_cancel_requested(control_db, job.id)
+
+        def progress_callback(_progress_db, **progress) -> None:
+            if progress.pop("commit_mutation_transaction", False):
+                commit_pipeline_mutation_checkpoint(_progress_db)
+            if progress.pop("close_read_transaction", False):
+                close_pipeline_read_transaction(_progress_db)
+            with control_factory() as control_db:
+                with control_plane_transaction(control_db):
+                    heartbeat_job(
+                        control_db,
+                        control_job,
+                        lease_seconds=settings.job_stale_after_seconds,
+                        execution_token=execution_token,
+                    )
+                    record_job_progress(
+                        control_db,
+                        job_id=job.id,
+                        execution_token=execution_token,
+                        **progress,
+                    )
 
         try:
             result = execute_full_pipeline(
@@ -190,6 +239,9 @@ def _install_deterministic_fetch_dependency() -> None:
                 should_cancel=should_cancel,
                 lease_guard=lease_guard,
                 resume_from_step=job.payload_json.get("resume_from_step"),
+                progress_callback=progress_callback,
+                execution_token=execution_token,
+                execution_job_id=job.id,
                 dependencies=PipelineExecutionDependencies(
                     execute_fetch_plan=deterministic_execute_fetch_plan,
                     check_ib_gateway=deterministic_check_status,

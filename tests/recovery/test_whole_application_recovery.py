@@ -60,6 +60,7 @@ from app.services.pipeline_executor import (
     PipelineExecutionDependencies,
     build_market_regime_snapshot_for_run,
     build_sector_rotation_snapshot_for_run,
+    commit_pipeline_mutation_checkpoint,
     execute_full_pipeline,
 )
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus
@@ -305,7 +306,18 @@ def test_deterministic_pipeline_10_25_100(
     """Production Technical/PG path plus deterministic downstream orchestration."""
 
     recovery_settings = app_settings.get_settings().model_copy(
-        update={"ceri_provider_ingest_enabled": False}
+        update={
+            "ceri_enabled": True,
+            "ceri_run_capture_enabled": True,
+            "ceri_provider_ingest_enabled": False,
+            "setup_lifecycle_pipeline_step_enabled": True,
+            "setup_capture_handoff_enabled": True,
+            "winner_probability_enabled": True,
+            "winner_probability_capture_in_pipeline": True,
+            "technical_process_pool_enabled": False,
+            "technical_pure_boundary_enabled": True,
+            "technical_pure_boundary_shadow_compare_enabled": False,
+        }
     )
 
     def recovery_get_settings():
@@ -313,6 +325,7 @@ def test_deterministic_pipeline_10_25_100(
 
     monkeypatch.setattr(app_settings, "get_settings", recovery_get_settings)
     monkeypatch.setattr(pipeline_executor_service, "get_settings", recovery_get_settings)
+    monkeypatch.setattr(technical_score_service, "get_settings", recovery_get_settings)
 
     with disposable_postgres_database_factory() as database_url:
         config = Config("alembic.ini")
@@ -647,6 +660,10 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
 
     def progress(_db, **values):
         checkpoint_times.append(time.perf_counter())
+        if values.pop("commit_mutation_transaction", False):
+            commit_pipeline_mutation_checkpoint(_db)
+        if values.pop("close_read_transaction", False):
+            pipeline_executor_service.close_pipeline_read_transaction(_db)
         with sessions() as control:
             control_job = control.get(BackgroundJob, job_id)
             heartbeat_job(

@@ -97,9 +97,7 @@ def test_certification_enqueue_allowlist_accepts_only_explicit_root_or_lineage()
         SimpleNamespace(scalar=lambda _query: 99),
         job_type="CERI_PROVIDER_INGEST",
         payload={},
-        causality=CausalityContext(
-            "root-1", "cause-1", parent_job_id=99, triggered_by_job_id=99
-        ),
+        causality=CausalityContext("root-1", "cause-1", parent_job_id=99, triggered_by_job_id=99),
         settings=settings,
     )
     assert child_payload == {
@@ -132,7 +130,10 @@ def test_certification_worker_startup_supplies_read_only_processor_authority(
         return db
 
     monkeypatch.setattr(
-        "app.services.background_worker.register_worker", lambda *_args, **_kwargs: None
+        "app.services.background_worker.register_worker",
+        lambda *_args, **kwargs: SimpleNamespace(
+            instance_id=kwargs.get("instance_id") or "registered-instance"
+        ),
     )
     monkeypatch.setattr(
         "app.services.background_worker.establish_worker_processor_identity",
@@ -202,7 +203,9 @@ def test_ten_certification_worker_cycles_never_schedule_or_claim_unrelated_work(
     )
     monkeypatch.setattr(
         "app.services.background_worker.register_worker",
-        lambda *_args, **_kwargs: None,
+        lambda *_args, **kwargs: SimpleNamespace(
+            instance_id=kwargs.get("instance_id") or "registered-instance"
+        ),
     )
     monkeypatch.setattr(
         "app.services.background_worker.heartbeat_worker_control_loop",
@@ -250,7 +253,10 @@ def test_blocked_sec_capability_excludes_sec_jobs_without_stopping_worker(
         lambda _db: capability,
     )
     monkeypatch.setattr(
-        "app.services.background_worker.register_worker", lambda *_args, **_kwargs: None
+        "app.services.background_worker.register_worker",
+        lambda *_args, **kwargs: SimpleNamespace(
+            instance_id=kwargs.get("instance_id") or "registered-instance"
+        ),
     )
     monkeypatch.setattr(
         "app.services.background_worker.heartbeat_worker_control_loop",

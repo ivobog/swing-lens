@@ -91,6 +91,7 @@ class CertificationEnvironment:
     ib_log: Path
     provider_mode: str
     tickers: tuple[str, ...]
+    environment: dict[str, object]
 
 
 @pytest.fixture
@@ -137,7 +138,10 @@ def certification_environment(
     artifact_root = Path(
         os.environ.get(
             "SWINGLENS_CERTIFICATION_ARTIFACT_ROOT",
-            str(REPO_ROOT / "test-results" / "single-run-certification"),
+            # pytest-playwright owns and may clean its default test-results
+            # directory. Keep the certification evidence outside that lifecycle;
+            # production certification still supplies an explicit report root.
+            str(REPO_ROOT / ".qa_work" / "single-run-certification"),
         )
     ).resolve()
     artifact_dir = artifact_root / execution_id
@@ -193,6 +197,9 @@ def certification_environment(
         "IB_REQUESTS_PER_MINUTE": "10000",
         "IB_BACKOFF_SECONDS": "0",
         "IB_MAX_RETRIES": "1",
+        "TECHNICAL_PROCESS_POOL_ENABLED": "true",
+        "TECHNICAL_PURE_BOUNDARY_ENABLED": "true",
+        "TECHNICAL_PURE_BOUNDARY_SHADOW_COMPARE_ENABLED": "false",
         "TECHNICAL_ARTIFACT_CACHE_ENABLED": "true",
         "TECHNICAL_ARTIFACT_CACHE_WRITE_ENABLED": "true",
         "TECHNICAL_SERIES_VERSION_MAINTENANCE_ENABLED": "true",
@@ -344,6 +351,7 @@ def certification_environment(
             ib_log=ib_log,
             provider_mode=certification_provider_mode,
             tickers=certification_tickers,
+            environment=environment_payload,
         )
     finally:
         if process.poll() is None and sys.platform == "win32":
@@ -587,9 +595,7 @@ def test_single_run_comprehensive_e2e_certification(
             traceback.format_exc(), encoding="utf-8"
         )
     finally:
-        environment = json.loads(
-            (env.artifact_dir / "environment.json").read_text(encoding="utf-8")
-        )
+        environment = dict(env.environment)
         if recorder.run_id is not None:
             run_rows = query_rows(
                 engine,
@@ -601,6 +607,10 @@ def test_single_run_comprehensive_e2e_certification(
                 environment["ticker_count"] = run_rows[0]["row_count"]
         environment["provider_mode"] = "deterministic"
         environment["runtime_identity"] = runtime_identity
+        (env.artifact_dir / "environment.json").write_text(
+            json.dumps(environment, indent=2, sort_keys=True, default=str),
+            encoding="utf-8",
+        )
         write_report(
             env.artifact_dir,
             recorder=recorder,
@@ -833,15 +843,17 @@ def test_live_provider_canary_uses_production_runtime(
             traceback.format_exc(), encoding="utf-8"
         )
     finally:
-        environment = json.loads(
-            (env.artifact_dir / "environment.json").read_text(encoding="utf-8")
-        )
+        environment = dict(env.environment)
         environment["provider_mode"] = "live"
         environment["runtime_identity"] = runtime_identity
         environment["run_status"] = next(
             (row["status"] for row in pipeline_steps if row["step_order"] == 1), None
         )
         environment["ticker_count"] = len(env.tickers)
+        (env.artifact_dir / "environment.json").write_text(
+            json.dumps(environment, indent=2, sort_keys=True, default=str),
+            encoding="utf-8",
+        )
         write_report(
             env.artifact_dir,
             recorder=recorder,
@@ -903,6 +915,7 @@ def _run_pipeline_through_gui(
     *,
     absolute_deadline_seconds: int = 900,
     progress_deadline_seconds: int = 180,
+    admission_deadline_seconds: int = 300,
 ) -> tuple[int, str]:
     page.get_by_role("button", name="Run full pipeline").click()
     ib_preflight = page.locator("[data-ib-preflight-panel]")
@@ -916,7 +929,10 @@ def _run_pipeline_through_gui(
     # Playwright's 30-second action-navigation timeout even though the request
     # is still making bounded progress.
     confirm.locator("[data-confirm-continue]").click(no_wait_after=True)
-    page.wait_for_url(re.compile(rf"/runs/{run_id}/pipeline(?:/\d+)?$"), timeout=120_000)
+    page.wait_for_url(
+        re.compile(rf"/runs/{run_id}/pipeline(?:/\d+)?$"),
+        timeout=admission_deadline_seconds * 1000,
+    )
     if not re.search(rf"/runs/{run_id}/pipeline/\d+$", page.url):
         raise RuntimeError(
             "PIPELINE_ADMISSION_REJECTED: "
@@ -1082,11 +1098,10 @@ def _compare_run_detail(
         engine,
         """
         select c.ticker, c.sector, c.final_rank, c.final_score, c.combined_decision,
-               c.fundamental_score, coalesce(c.dual_score, t.dual_score) as dual_score,
+               c.fundamental_score, c.dual_score,
                c.days_until_earnings,
                c.is_complete, c.has_warning
         from combined_results c
-        left join technical_scores t on t.run_id=c.run_id and t.ticker=c.ticker
         where c.run_id=:run_id order by c.final_rank nulls last, c.ticker
         """,
         {"run_id": run_id},
@@ -1169,6 +1184,14 @@ def _compare_run_detail(
 def _compare_expanded_evidence(
     page: Page, engine, recorder: CertificationRecorder, run_id: int
 ) -> None:
+    toggles = page.locator("[data-detail-toggle]")
+    for index in range(toggles.count()):
+        toggle = toggles.nth(index)
+        toggle.click()
+        detail_content = toggle.locator("xpath=ancestor::tr/following-sibling::tr[1]").locator(
+            "[data-detail-content]"
+        )
+        expect(detail_content).to_have_attribute("data-loaded", "true", timeout=30_000)
     gui = page.locator("[data-cockpit-row]").evaluate_all(
         """
         rows => rows.map(row => {
@@ -1221,8 +1244,8 @@ def _compare_expanded_evidence(
         "Valuation": "valuation_quality_score",
         "Forward": "forward_quality_score",
         "Shareholder": "shareholder_quality_score",
-        "Liquidity": "liquidity_risk_score",
-        "Penalty": "missing_data_penalty",
+        "Liquidity Risk": "liquidity_risk_score",
+        "Missing Penalty": "missing_data_penalty",
     }
     tech_map = {
         "Score": "dual_score",
@@ -1247,7 +1270,8 @@ def _compare_expanded_evidence(
                 continue
             for label, field in mapping.items():
                 expected = _display_value(db[field])
-                actual = values.get(label, "").splitlines()[0].strip()
+                lines = values.get(label, "").splitlines()
+                actual = lines[0].strip() if lines else ""
                 recorder.check(
                     actual == expected,
                     f"{ticker} expanded {section_name} {label} GUI↔DB",

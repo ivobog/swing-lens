@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from scripts.qa.committed_source_identity import current_committed_source_bytes
+
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs/remediation/calculation-lineage"
 
@@ -41,7 +43,8 @@ def _json(name: str):
 
 def test_t16a_and_t16b_authoritative_artifacts_are_unchanged() -> None:
     for name, expected in EXPECTED_HASHES.items():
-        assert hashlib.sha256((DOCS / name).read_bytes()).hexdigest() == expected
+        path = f"docs/remediation/calculation-lineage/{name}"
+        assert hashlib.sha256(current_committed_source_bytes(ROOT, path)).hexdigest() == expected
 
 
 def test_certificate_is_complete_and_closes_exactly_xint_007() -> None:

@@ -5,6 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from scripts.qa.committed_source_identity import current_committed_source_bytes
+
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "docs" / "remediation" / "calculation-lineage"
 ASSIGNED = {
@@ -22,7 +24,8 @@ def _json(name: str):
 
 
 def _sha256(name: str) -> str:
-    return hashlib.sha256((ARTIFACTS / name).read_bytes()).hexdigest()
+    path = f"docs/remediation/calculation-lineage/{name}"
+    return hashlib.sha256(current_committed_source_bytes(ROOT, path)).hexdigest()
 
 
 def test_t16a_inputs_remain_byte_identical():

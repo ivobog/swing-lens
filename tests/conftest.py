@@ -26,6 +26,9 @@ DISPOSABLE_DATABASE_PREFIX = "swinglens_pytest_"
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     """Give every test an explicit QA lane without rewriting legacy modules."""
+    live_provider_enabled = (
+        os.environ.get("SWINGLENS_CERTIFICATION_PROVIDER_MODE", "deterministic") == "live"
+    )
     for item in items:
         path = Path(str(item.path)).as_posix().lower()
         name = item.name.lower()
@@ -49,6 +52,15 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
             item.add_marker(pytest.mark.destructive)
         if any(token in path for token in ("security", "no_order", "redaction")):
             item.add_marker(pytest.mark.security)
+        if item.get_closest_marker("live_provider") and not live_provider_enabled:
+            item.add_marker(
+                pytest.mark.skip(
+                    reason=(
+                        "live-provider certification requires "
+                        "SWINGLENS_CERTIFICATION_PROVIDER_MODE=live"
+                    )
+                )
+            )
 
 
 @dataclass(frozen=True)

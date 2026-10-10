@@ -134,47 +134,60 @@ def test_frozen_real_writer_cardinality(
             run_id,
             absolute_deadline_seconds=3600 if size == 100 else 900,
             progress_deadline_seconds=900 if size == 100 else 180,
+            admission_deadline_seconds=600 if size == 100 else 300,
         )
         if status != "COMPLETED":
             with engine.connect() as diagnostic_db:
-                pipeline_diagnostics = diagnostic_db.execute(
-                    text(
-                        "select status, error_message, "
-                        "result_json->>'ceri_completion_state' as ceri_completion_state, "
-                        "result_json->>'ceri_score_snapshots' as ceri_score_snapshots "
-                        "from pipeline_runs where id=:pipeline_id"
-                    ),
-                    {"pipeline_id": pipeline_id},
-                ).mappings().one()
-                job_diagnostics = diagnostic_db.execute(
-                    text(
-                        "select id, job_type, status, error_message, "
-                        "result_json->>'provider' as provider, "
-                        "result_json->>'dataset' as dataset, "
-                        "result_json->>'failed' as failed, "
-                        "jsonb_path_query_array(result_json, "
-                        "'$.results.* ? (@.status == \"PARTIAL\")') as partial_results "
-                        "from background_jobs where related_run_id=:run_id "
-                        "and status <> 'COMPLETED' order by id"
-                    ),
-                    {"run_id": run_id},
-                ).mappings().all()
-                job_summaries = diagnostic_db.execute(
-                    text(
-                        "select id, job_type, status, "
-                        "result_json->>'provider' as provider, "
-                        "result_json->>'dataset' as dataset, "
-                        "result_json->>'requested' as requested, "
-                        "result_json->>'inserted' as inserted, "
-                        "result_json->>'normalized' as normalized, "
-                        "result_json->>'features' as features, "
-                        "result_json->>'score_snapshots' as score_snapshots, "
-                        "operational_metadata_json#>'{ceri_feature_rebuild,rows_loaded}' "
-                        "as rows_loaded from background_jobs "
-                        "where related_run_id=:run_id order by id"
-                    ),
-                    {"run_id": run_id},
-                ).mappings().all()
+                pipeline_diagnostics = (
+                    diagnostic_db.execute(
+                        text(
+                            "select status, error_message, "
+                            "result_json->>'ceri_completion_state' as ceri_completion_state, "
+                            "result_json->>'ceri_score_snapshots' as ceri_score_snapshots "
+                            "from pipeline_runs where id=:pipeline_id"
+                        ),
+                        {"pipeline_id": pipeline_id},
+                    )
+                    .mappings()
+                    .one()
+                )
+                job_diagnostics = (
+                    diagnostic_db.execute(
+                        text(
+                            "select id, job_type, status, error_message, "
+                            "result_json->>'provider' as provider, "
+                            "result_json->>'dataset' as dataset, "
+                            "result_json->>'failed' as failed, "
+                            "jsonb_path_query_array(result_json, "
+                            "'$.results.* ? (@.status == \"PARTIAL\")') as partial_results "
+                            "from background_jobs where related_run_id=:run_id "
+                            "and status <> 'COMPLETED' order by id"
+                        ),
+                        {"run_id": run_id},
+                    )
+                    .mappings()
+                    .all()
+                )
+                job_summaries = (
+                    diagnostic_db.execute(
+                        text(
+                            "select id, job_type, status, "
+                            "result_json->>'provider' as provider, "
+                            "result_json->>'dataset' as dataset, "
+                            "result_json->>'requested' as requested, "
+                            "result_json->>'inserted' as inserted, "
+                            "result_json->>'normalized' as normalized, "
+                            "result_json->>'features' as features, "
+                            "result_json->>'score_snapshots' as score_snapshots, "
+                            "operational_metadata_json#>'{ceri_feature_rebuild,rows_loaded}' "
+                            "as rows_loaded from background_jobs "
+                            "where related_run_id=:run_id order by id"
+                        ),
+                        {"run_id": run_id},
+                    )
+                    .mappings()
+                    .all()
+                )
             pytest.fail(
                 repr(
                     {
@@ -215,38 +228,60 @@ def test_frozen_real_writer_cardinality(
                     {"run_id": run_id},
                 ).all()
             )
-            pipeline_metrics = db.execute(
-                text(
-                    "select extract(epoch from (completed_at-started_at)) as total_seconds, "
-                    "(select result_json#>>"
-                    "'{performance,step_durations_ms,SCORING_TECHNICALS}' "
-                    "from background_jobs where related_run_id=:run_id "
-                    "and job_type='FULL_PIPELINE' order by id limit 1) as technical_ms, "
-                    "result_json->>'ceri_provider_workflow_key' as workflow_key "
-                    "from pipeline_runs where id=:pipeline_id"
-                ),
-                {"pipeline_id": pipeline_id, "run_id": run_id},
-            ).mappings().one()
-            ceri_metrics = db.execute(
-                text(
-                    "select extract(epoch from (max(completed_at)-min(started_at))) "
-                    "as workflow_seconds, "
-                    "max(extract(epoch from (completed_at-started_at))) as max_job_seconds, "
-                    "max(greatest(coalesce((operational_metadata_json#>>"
-                    "'{ceri_batch,max_checkpoint_gap_seconds}')::numeric, 0), "
-                    "coalesce((operational_metadata_json#>>"
-                    "'{ceri_capture,max_checkpoint_gap_seconds}')::numeric, 0), "
-                    "coalesce((operational_metadata_json#>>"
-                    "'{ceri_normalization,max_checkpoint_gap_seconds}')::numeric, 0), "
-                    "coalesce(extract(epoch from (completed_at-last_progress_at)), 0))) "
-                    "as max_checkpoint_gap_seconds, "
-                    "max(recovery_count) as max_recovery_count, "
-                    "max(retry_count) as max_retry_count, "
-                    "count(*) filter (where stall_detected_at is not null) as stalled_jobs "
-                    "from background_jobs where workflow_key=:workflow_key"
-                ),
-                {"workflow_key": pipeline_metrics["workflow_key"]},
-            ).mappings().one()
+            pipeline_metrics = (
+                db.execute(
+                    text(
+                        "select extract(epoch from (completed_at-started_at)) as total_seconds, "
+                        "(select result_json#>>"
+                        "'{performance,step_durations_ms,SCORING_TECHNICALS}' "
+                        "from background_jobs where related_run_id=:run_id "
+                        "and job_type='FULL_PIPELINE' order by id limit 1) as technical_ms, "
+                        "result_json->>'ceri_provider_workflow_key' as workflow_key "
+                        "from pipeline_runs where id=:pipeline_id"
+                    ),
+                    {"pipeline_id": pipeline_id, "run_id": run_id},
+                )
+                .mappings()
+                .one()
+            )
+            ceri_metrics = (
+                db.execute(
+                    text(
+                        "select extract(epoch from (max(completed_at)-min(started_at))) "
+                        "as workflow_seconds, "
+                        "max(extract(epoch from (completed_at-started_at))) as max_job_seconds, "
+                        "max(greatest(coalesce((operational_metadata_json#>>"
+                        "'{ceri_batch,max_checkpoint_gap_seconds}')::numeric, 0), "
+                        "coalesce((operational_metadata_json#>>"
+                        "'{ceri_capture,max_checkpoint_gap_seconds}')::numeric, 0), "
+                        "coalesce((operational_metadata_json#>>"
+                        "'{ceri_normalization,max_checkpoint_gap_seconds}')::numeric, 0), "
+                        "coalesce(extract(epoch from (completed_at-last_progress_at)), 0))) "
+                        "as max_checkpoint_gap_seconds, "
+                        "max(recovery_count) as max_recovery_count, "
+                        "max(retry_count) as max_retry_count, "
+                        "count(*) filter (where stall_detected_at is not null) as stalled_jobs "
+                        "from background_jobs where workflow_key=:workflow_key"
+                    ),
+                    {"workflow_key": pipeline_metrics["workflow_key"]},
+                )
+                .mappings()
+                .one()
+            )
+            full_pipeline_control = (
+                db.execute(
+                    text(
+                        "select min(progress_sequence) as min_progress_sequence, "
+                        "max(recovery_count) as max_recovery_count, "
+                        "count(*) filter (where stall_detected_at is not null) as stalled_jobs "
+                        "from background_jobs where related_run_id=:run_id "
+                        "and job_type='FULL_PIPELINE'"
+                    ),
+                    {"run_id": run_id},
+                )
+                .mappings()
+                .one()
+            )
             provider_source_count = int(
                 db.scalar(
                     text(
@@ -289,25 +324,25 @@ def test_frozen_real_writer_cardinality(
             assert int(ceri_metrics["max_recovery_count"] or 0) == 0, ceri_metrics
             assert int(ceri_metrics["max_retry_count"] or 0) == 0, ceri_metrics
             assert int(ceri_metrics["stalled_jobs"] or 0) == 0, ceri_metrics
+            assert int(full_pipeline_control["min_progress_sequence"] or 0) > 1, (
+                full_pipeline_control
+            )
+            assert int(full_pipeline_control["max_recovery_count"] or 0) == 0, full_pipeline_control
+            assert int(full_pipeline_control["stalled_jobs"] or 0) == 0, full_pipeline_control
             assert provider_source_count == 6 * size, provider_source_count
             metrics_path = env.artifact_dir / "db-results" / f"provider-{size}-metrics.json"
             metrics_path.write_text(
                 json.dumps(
                     {
                         "size": size,
-                        "total_pipeline_seconds": float(
-                            pipeline_metrics["total_seconds"] or 0
-                        ),
+                        "total_pipeline_seconds": float(pipeline_metrics["total_seconds"] or 0),
                         "technical_ms": float(pipeline_metrics["technical_ms"] or 0),
-                        "ceri_workflow_seconds": float(
-                            ceri_metrics["workflow_seconds"] or 0
-                        ),
-                        "ceri_max_job_seconds": float(
-                            ceri_metrics["max_job_seconds"] or 0
-                        ),
+                        "ceri_workflow_seconds": float(ceri_metrics["workflow_seconds"] or 0),
+                        "ceri_max_job_seconds": float(ceri_metrics["max_job_seconds"] or 0),
                         "ceri_max_checkpoint_gap_seconds": float(
                             ceri_metrics["max_checkpoint_gap_seconds"] or 0
                         ),
+                        "full_pipeline_control": dict(full_pipeline_control),
                         "provider_source_records": provider_source_count,
                         "job_counts": job_counts,
                     },

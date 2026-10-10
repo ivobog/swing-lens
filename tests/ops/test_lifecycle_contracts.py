@@ -19,10 +19,17 @@ def _docker_compose_commands() -> list[str]:
 
 
 def test_root_lifecycle_exposes_exact_canonical_actions() -> None:
-    assert (
-        "ValidateSet('start', 'stop', 'restart', 'status', 'diagnose', 'recover-identity')"
-        in LAUNCHER
-    )
+    action_contract = re.search(r"\[ValidateSet\(([^)]*)\)\]\s*\[string\]\$Action", LAUNCHER)
+    assert action_contract is not None
+    assert set(re.findall(r"'([^']+)'", action_contract.group(1))) == {
+        "start",
+        "stop",
+        "restart",
+        "status",
+        "diagnose",
+        "recover-identity",
+        "certify-runtime",
+    }
     assert "SwingLensLifecycle.psm1" in LAUNCHER
     assert "canonical lifecycle requires USE_DURABLE_PIPELINE=true" in MODULE
 

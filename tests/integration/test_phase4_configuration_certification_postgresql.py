@@ -335,12 +335,12 @@ def test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri
     }
     for path in (tmp_path / "config").rglob("*.yaml"):
         path.write_text("invalid-current-C2: true\n", encoding="utf-8")
-    resumed = _process(
-        "resume", tmp_path, disposable_postgres_database, T13E_PARENT_JOB_ID=str(queued["job_id"])
+    _process(
+        "retry-ready",
+        tmp_path,
+        disposable_postgres_database,
+        T13E_PARENT_JOB_ID=str(queued["job_id"]),
     )
-    continuation = resumed["jobs"][-1]
-    assert continuation["payload"]["resume_from_step"] == "CERI_PROVIDER_INGEST"
-    assert continuation["payload"]["effective_configuration_anchor"] == queued["anchor"]
     completed = _process(
         "execute",
         tmp_path,
@@ -348,15 +348,12 @@ def test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri
         T13E_READY_BOUNDARY="true",
         T13E_SCHEDULER_BOUNDARY="true",
     )
-    assert completed["jobs"][-1]["status"] == "COMPLETED", completed["jobs"][-1]["error"]
-    assert completed["jobs"][-1]["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
+    retried = next(j for j in completed["jobs"] if j["id"] == queued["job_id"])
+    assert retried["status"] == "COMPLETED", retried["error"]
+    assert retried["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
+    assert retried["payload"]["effective_configuration_anchor"] == queued["anchor"]
+    assert retried["attempts"]["attempt_count"] == 2
     assert not completed["lifecycle"] and not completed["winner"]
-    _process(
-        "retry-ready",
-        tmp_path,
-        disposable_postgres_database,
-        T13E_PARENT_JOB_ID=str(queued["job_id"]),
-    )
     retry = _process(
         "execute",
         tmp_path,
@@ -365,14 +362,8 @@ def test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri
         T13E_SCHEDULER_BOUNDARY="true",
         T13E_EXPECT_NO_WORK="true",
     )
-    retried = next(j for j in retry["jobs"] if j["id"] == queued["job_id"])
-    assert retried["status"] == "QUEUED", retried
-    assert retried["result"] is None
-    assert retried["payload"]["effective_configuration_anchor"] == queued["anchor"]
-    assert retried["attempts"]["attempt_count"] == 1
-    retained_continuation = retry["jobs"][-1]
-    assert retained_continuation["status"] == "COMPLETED"
-    assert retained_continuation["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
+    retained_retry = next(j for j in retry["jobs"] if j["id"] == queued["job_id"])
+    assert retained_retry == retried
     assert retry["evidence"][: len(interrupted["evidence"])] == interrupted["evidence"]
     assert not retry["lifecycle"] and not retry["winner"]
 

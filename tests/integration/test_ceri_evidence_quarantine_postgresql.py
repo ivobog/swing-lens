@@ -75,6 +75,16 @@ def test_append_only_quarantine_is_idempotent_concurrent_and_filters_run159_fixt
         eligible = filter_eligible_snapshots(db, all_rows)
         assert len(eligible) == 175
         assert all(row.id not in range(11226, 11408) for row in eligible)
+        market_cutoff = SimpleNamespace(
+            context_id=1,
+            cutoff_at=datetime(2026, 9, 13, 20, tzinfo=UTC),
+            exchange_timezone="America/New_York",
+            latest_completed_session=date(2026, 9, 13),
+            daily_bar_ready_at=datetime(2026, 9, 13, 20, tzinfo=UTC),
+            calendar_version="test",
+            bar_readiness_version="test",
+            cutoff_reason="test",
+        )
         handoff = _build_decision_handoff_payload(
             db,
             plan=SimpleNamespace(
@@ -83,16 +93,8 @@ def test_append_only_quarantine_is_idempotent_concurrent_and_filters_run159_fixt
                 pipeline_run_id=1,
                 run_start_anchor_fingerprint="anchor",
             ),
-            market_cutoff=SimpleNamespace(
-                context_id=1,
-                cutoff_at=datetime(2026, 9, 13, 20, tzinfo=UTC),
-                exchange_timezone="America/New_York",
-                latest_completed_session=date(2026, 9, 13),
-                daily_bar_ready_at=datetime(2026, 9, 13, 20, tzinfo=UTC),
-                calendar_version="test",
-                bar_readiness_version="test",
-                cutoff_reason="test",
-            ),
+            market_cutoff=market_cutoff,
+            ceri_market_cutoff=market_cutoff,
             built_rows=[],
             decision_manifests={},
         )

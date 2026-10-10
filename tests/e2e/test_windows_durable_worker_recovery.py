@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -36,6 +37,7 @@ def test_windows_worker_kill_self_heals_repeatedly(
 ) -> None:
     _migrate(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
+    app_port, worker_metrics_port, supervisor_metrics_port = _free_loopback_ports(3)
     env = {
         **os.environ,
         "DATABASE_URL": disposable_postgres_database,
@@ -43,6 +45,9 @@ def test_windows_worker_kill_self_heals_repeatedly(
         "SWINGLENS_LIFECYCLE_OPERATION_ID": f"windows-recovery-{cycle}-{uuid4().hex}",
         "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": f"disposable-{uuid4().hex}",
         "SWINGLENS_SUPERVISOR_STATE_PATH": str(tmp_path / "supervisor-state.json"),
+        "APP_PORT": str(app_port),
+        "OBSERVABILITY_WORKER_METRICS_PORT": str(worker_metrics_port),
+        "OBSERVABILITY_SUPERVISOR_METRICS_PORT": str(supervisor_metrics_port),
         "JOB_WORKER_ENABLED": "false",
         "JOB_WORKER_ID": "windows-recovery-worker",
         "JOB_POLL_INTERVAL_SECONDS": "0.1",
@@ -60,6 +65,9 @@ def test_windows_worker_kill_self_heals_repeatedly(
         _env_file=None,
         database_url=disposable_postgres_database,
         process_role="SUPERVISOR",
+        app_port=app_port,
+        observability_worker_metrics_port=worker_metrics_port,
+        observability_supervisor_metrics_port=supervisor_metrics_port,
         job_worker_id="windows-recovery-worker",
         job_poll_interval_seconds=0.1,
         job_worker_heartbeat_interval_seconds=0.2,
@@ -156,22 +164,25 @@ def test_windows_worker_kill_self_heals_repeatedly(
             )
             db.commit()
             final_job_id = final_job.id
-        assert _wait_for_status(
-            engine, final_job_id, JobStatus.COMPLETED, timeout=20
-        ).result_json["completed"] == 3
+        assert (
+            _wait_for_status(engine, final_job_id, JobStatus.COMPLETED, timeout=20).result_json[
+                "completed"
+            ]
+            == 3
+        )
         with Session(engine) as db:
             assert has_live_worker_for_job(
                 db,
                 job_type="FULL_PIPELINE",
                 heartbeat_timeout_seconds=5,
             )
-        core = _wait_for_core_ready(timeout=60)
+        core = _wait_for_core_ready(app_port, timeout=60)
         assert core["status"] == "ok"
         assert core["check_states"]["supervisor"] == "ok"
         assert core["check_states"]["web"] == "ok"
         assert core["check_states"]["worker"] == "ok"
         assert core["check_states"]["topology"] == "ok"
-        old_web_pid = _listener_pid(8000)
+        old_web_pid = _listener_pid(app_port)
         assert supervisor_state.process_id in {
             parent.pid for parent in psutil.Process(old_web_pid).parents()
         }
@@ -181,16 +192,17 @@ def test_windows_worker_kill_self_heals_repeatedly(
             capture_output=True,
             text=True,
         )
-        new_web_pid = _wait_for_replacement_web(old_web_pid, timeout=60)
+        new_web_pid = _wait_for_replacement_web(app_port, old_web_pid, timeout=60)
         assert new_web_pid != old_web_pid
-        assert _wait_for_core_ready(timeout=60)["status"] == "ok"
+        assert _wait_for_core_ready(app_port, timeout=60)["status"] == "ok"
         supervisor_state_payload = json.loads(
             (tmp_path / "supervisor-state.json").read_text(encoding="utf-8")
         )
         assert supervisor_state_payload["runtime_instance_id"] == launch.runtime_instance_id
-        assert supervisor_state_payload["runtime_config_fingerprint"] == env[
-            "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT"
-        ]
+        assert (
+            supervisor_state_payload["runtime_config_fingerprint"]
+            == env["SWINGLENS_RUNTIME_CONFIG_FINGERPRINT"]
+        )
         assert supervisor_state_payload["restart"]["web"]["restart_count"] >= 1
         assert supervisor_state_payload["restart"]["web"]["state"] != "CRASH_LOOP"
         assert supervisor_state_payload["restart"]["worker"]["restart_count"] >= 1
@@ -268,12 +280,25 @@ def _wait_for_fresh_worker(engine, timeout: float = 20) -> BackgroundWorker:
     raise AssertionError("worker did not register with a process instance")
 
 
-def _wait_for_core_ready(timeout: float) -> dict:
+def _free_loopback_ports(count: int) -> tuple[int, ...]:
+    probes: list[socket.socket] = []
+    try:
+        for _ in range(count):
+            probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            probe.bind(("127.0.0.1", 0))
+            probes.append(probe)
+        return tuple(int(probe.getsockname()[1]) for probe in probes)
+    finally:
+        for probe in probes:
+            probe.close()
+
+
+def _wait_for_core_ready(port: int, timeout: float) -> dict:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(  # noqa: S310 - loopback disposable test
-                "http://127.0.0.1:8000/ready/core", timeout=3
+                f"http://127.0.0.1:{port}/ready/core", timeout=3
             ) as response:
                 payload = json.load(response)
                 if response.status == 200 and payload.get("status") == "ok":
@@ -294,11 +319,11 @@ def _listener_pid(port: int) -> int:
     return int(matches[0])
 
 
-def _wait_for_replacement_web(previous_pid: int, timeout: float) -> int:
+def _wait_for_replacement_web(port: int, previous_pid: int, timeout: float) -> int:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            current = _listener_pid(8000)
+            current = _listener_pid(port)
             if current != previous_pid:
                 return current
         except AssertionError:
@@ -334,9 +359,7 @@ def _wait_for_progress(engine, job_id: int, minimum: int) -> BackgroundJob:
     raise AssertionError(f"job {job_id} did not reach progress {minimum}")
 
 
-def _wait_for_status(
-    engine, job_id: int, status: str, *, timeout: float
-) -> BackgroundJob:
+def _wait_for_status(engine, job_id: int, status: str, *, timeout: float) -> BackgroundJob:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         with Session(engine) as db:

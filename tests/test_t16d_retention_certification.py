@@ -10,6 +10,7 @@ from app.services.historical_authority_retention import (
     FINDING_BOUNDARIES,
     RETENTION_REQUIREMENTS,
 )
+from scripts.qa.committed_source_identity import current_committed_source_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "docs/remediation/calculation-lineage"
@@ -81,7 +82,9 @@ def _csv(name: str) -> list[dict[str, str]]:
 
 def test_t16a_t16b_and_t16c_inputs_remain_byte_identical() -> None:
     actual = {
-        name: hashlib.sha256((ARTIFACTS / name).read_bytes()).hexdigest()
+        name: hashlib.sha256(
+            current_committed_source_bytes(ROOT, f"docs/remediation/calculation-lineage/{name}")
+        ).hexdigest()
         for name in EXPECTED_INPUT_HASHES
     }
     assert actual == EXPECTED_INPUT_HASHES
