@@ -33,7 +33,9 @@ def _stub_worker_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.background_worker.register_worker",
-        lambda *_args, **_kwargs: None,
+        lambda *_args, **kwargs: SimpleNamespace(
+            instance_id=kwargs.get("instance_id") or "registered-instance"
+        ),
     )
     monkeypatch.setattr(
         "app.services.background_worker.heartbeat_worker",
@@ -66,7 +68,7 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     class Db:
         def scalar(self, _statement):
-            return "0089_pipeline_execution_authority"
+            return "0091_readiness_constraints"
 
     settings = Settings(
         _env_file=None,

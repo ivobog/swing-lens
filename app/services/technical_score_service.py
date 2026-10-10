@@ -24,13 +24,17 @@ from app.services.combined_ranking_identity import (
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     declare_core_evidence_mutation,
-    persist_core_evidence,
+    persist_core_evidence_batch,
 )
 from app.services.core_effective_configuration import (
     CoreEffectiveConfiguration,
     resolve_technical_configuration,
 )
-from app.services.core_mutation_authority import core_writer_transaction
+from app.services.core_mutation_authority import (
+    TechnicalSourceManifestValidation,
+    core_writer_transaction,
+)
+from app.services.domain_mutation import DomainMutationContext
 from app.services.ib_fetch_executor import TickerReadyEvent
 from app.services.leadership_v5 import rank_leadership_v5
 from app.services.market_calculation_context_service import (
@@ -214,6 +218,7 @@ def score_run_technicals(
             market_cutoff=market_cutoff,
             should_cancel=should_cancel,
             checkpoint_callback=checkpoint_callback,
+            commit_artifact_batches=pipeline_run_id is not None,
         )
     elif (
         settings.technical_pure_boundary_enabled
@@ -237,6 +242,7 @@ def score_run_technicals(
             market_cutoff=market_cutoff,
             should_cancel=should_cancel,
             checkpoint_callback=checkpoint_callback,
+            commit_artifact_batches=pipeline_run_id is not None,
         )
     else:
         score_results = _score_tickers_legacy(
@@ -380,7 +386,6 @@ def preview_run_technicals(
     )
 
 
-@core_writer_transaction
 def finalize_technical_scores(
     db: Session,
     run_id: int,
@@ -623,15 +628,17 @@ def finalize_technical_scores(
                 policy="TECHNICAL_SCORE_PRODUCER",
             )
             technical_identity = identity
-    source_manifest_row = None
-    if persist and source_manifest_payload is not None and source_manifest_digest is not None:
-        source_manifest_row = db.scalar(
-            select(TechnicalSourceManifest).where(
-                TechnicalSourceManifest.manifest_digest == source_manifest_digest
-            )
-        )
-        if source_manifest_row is None:
-            source_manifest_row = TechnicalSourceManifest(
+    if persist:
+        evidence_mutation_contexts = None
+        if isinstance(db, Session):
+            if (
+                source_manifest_payload is None
+                or source_manifest_digest is None
+                or pipeline_run_id is None
+                or market_cutoff is None
+            ):
+                raise ValueError("TECHNICAL_SOURCE_MANIFEST_AUTHORITY_REQUIRED")
+            provisional_source_manifest = TechnicalSourceManifest(
                 run_id=run_id,
                 pipeline_run_id=pipeline_run_id,
                 calculation_context_id=market_cutoff.context_id,
@@ -640,57 +647,288 @@ def finalize_technical_scores(
                 source_count=source_manifest_payload["source_count"],
                 state_count=source_manifest_payload["state_count"],
             )
-            db.add(source_manifest_row)
-            db.flush()
-        for score in scores:
-            score.source_manifest_id = source_manifest_row.id
-        from app.services.core_mutation_authority import validate_technical_source_manifest
-
-        validate_technical_source_manifest(
-            db,
-            source_manifest_row,
-            technical_identity,
-            checkpoint_callback=checkpoint_callback,
-            should_cancel=should_cancel,
-        )
-    if persist and symbols:
-        db.execute(
-            delete(TechnicalScore).where(
-                TechnicalScore.run_id == run_id,
-                TechnicalScore.ticker.in_(symbols),
-            )
-        )
-    if persist:
-        db.add_all(scores)
-        db.flush()
-        if isinstance(db, Session):
+            if (
+                CanonicalEvidenceSerializer.fingerprint(provisional_source_manifest.manifest_json)
+                != provisional_source_manifest.manifest_digest
+            ):
+                raise ValueError("TECHNICAL_SOURCE_MANIFEST_DIGEST_MISMATCH")
+            evidence_mutation_contexts = []
             for index, score in enumerate(scores, start=1):
-                persist_core_evidence(
-                    db,
-                    kind=CoreEvidenceKind.TECHNICAL,
-                    current_row=score,
-                    effective_configuration=effective_configuration.snapshot
-                    if pipeline_run_id is not None
-                    else None,
-                    mutation_context=declare_core_evidence_mutation(
+                evidence_mutation_contexts.append(
+                    declare_core_evidence_mutation(
                         db,
                         kind=CoreEvidenceKind.TECHNICAL,
                         current_row=score,
                         effective_configuration=effective_configuration.snapshot
                         if pipeline_run_id is not None
                         else None,
-                    ),
+                        technical_source_manifest=provisional_source_manifest,
+                        technical_source_manifest_verified_digest=source_manifest_digest,
+                    )
                 )
                 if index % 10 == 0 or index == len(scores):
                     _technical_checkpoint(
                         checkpoint_callback,
                         should_cancel,
-                        phase="PERSISTING_EVIDENCE",
+                        phase="DECLARING_EVIDENCE",
                         processed=index,
                         total=len(scores),
                         last_completed_item=score.ticker,
                     )
+        _persist_finalized_technical_scores(
+            db,
+            scores=scores,
+            symbols=symbols,
+            run_id=run_id,
+            pipeline_run_id=pipeline_run_id,
+            market_cutoff=market_cutoff,
+            source_manifest_payload=source_manifest_payload,
+            source_manifest_digest=source_manifest_digest,
+            technical_identity=technical_identity,
+            effective_configuration=effective_configuration,
+            evidence_mutation_contexts=evidence_mutation_contexts,
+            checkpoint_callback=checkpoint_callback,
+            should_cancel=should_cancel,
+        )
     return scores
+
+
+def _persist_finalized_technical_scores(
+    db: Session,
+    *,
+    scores: list[TechnicalScore],
+    symbols: list[str],
+    run_id: int,
+    pipeline_run_id: int | None,
+    market_cutoff: MarketCalculationCutoff | None,
+    source_manifest_payload: dict[str, Any] | None,
+    source_manifest_digest: str | None,
+    technical_identity: CalculationIdentity | None,
+    effective_configuration: CoreEffectiveConfiguration | None,
+    evidence_mutation_contexts: list[DomainMutationContext] | None,
+    checkpoint_callback: Callable[..., None] | None,
+    should_cancel: Callable[[], bool],
+) -> None:
+    """Validate the shared source basis, then publish bounded ticker batches."""
+
+    if not isinstance(db, Session):
+        _persist_finalized_technical_score_batch(
+            db,
+            scores=scores,
+            symbols=symbols,
+            run_id=run_id,
+            pipeline_run_id=pipeline_run_id,
+            source_manifest_row=None,
+            source_manifest_validation=None,
+            effective_configuration=effective_configuration,
+            evidence_mutation_contexts=evidence_mutation_contexts,
+            checkpoint_callback=checkpoint_callback,
+            should_cancel=should_cancel,
+            batch_offset=0,
+            cohort_total=len(scores),
+        )
+        return
+    if (
+        source_manifest_payload is None
+        or source_manifest_digest is None
+        or pipeline_run_id is None
+        or market_cutoff is None
+        or technical_identity is None
+        or effective_configuration is None
+    ):
+        raise ValueError("TECHNICAL_SOURCE_MANIFEST_AUTHORITY_REQUIRED")
+    if evidence_mutation_contexts is None or len(evidence_mutation_contexts) != len(scores):
+        raise ValueError("TECHNICAL_EVIDENCE_MUTATION_CONTEXT_COUNT_MISMATCH")
+    source_manifest_row, validation = _persist_validated_technical_source_manifest(
+        db,
+        run_id=run_id,
+        pipeline_run_id=pipeline_run_id,
+        market_cutoff=market_cutoff,
+        source_manifest_payload=source_manifest_payload,
+        source_manifest_digest=source_manifest_digest,
+        technical_identity=technical_identity,
+        checkpoint_callback=checkpoint_callback,
+        should_cancel=should_cancel,
+    )
+    _technical_checkpoint(
+        checkpoint_callback,
+        should_cancel,
+        phase="SOURCE_MANIFEST_PERSISTED",
+        processed=0,
+        total=len(scores),
+    )
+    for start in range(0, len(scores), 10):
+        batch = scores[start : start + 10]
+        _persist_finalized_technical_score_batch(
+            db,
+            scores=batch,
+            run_id=run_id,
+            pipeline_run_id=pipeline_run_id,
+            source_manifest_row=source_manifest_row,
+            source_manifest_validation=validation,
+            effective_configuration=effective_configuration,
+            evidence_mutation_contexts=evidence_mutation_contexts[start : start + 10],
+            checkpoint_callback=checkpoint_callback,
+            should_cancel=should_cancel,
+            batch_offset=start,
+            cohort_total=len(scores),
+        )
+        _technical_checkpoint(
+            checkpoint_callback,
+            should_cancel,
+            phase="BATCH_PERSISTED",
+            processed=start + len(batch),
+            total=len(scores),
+            last_completed_item=batch[-1].ticker,
+        )
+    missing_symbols = sorted(set(symbols) - {score.ticker.upper() for score in scores})
+    for start in range(0, len(missing_symbols), 10):
+        stale_batch = missing_symbols[start : start + 10]
+        _persist_finalized_technical_score_batch(
+            db,
+            run_id=run_id,
+            scores=[],
+            symbols=stale_batch,
+            pipeline_run_id=pipeline_run_id,
+            source_manifest_row=source_manifest_row,
+            source_manifest_validation=validation,
+            effective_configuration=effective_configuration,
+            evidence_mutation_contexts=[],
+            checkpoint_callback=checkpoint_callback,
+            should_cancel=should_cancel,
+            batch_offset=len(scores) + start,
+            cohort_total=len(scores) + len(missing_symbols),
+        )
+        _technical_checkpoint(
+            checkpoint_callback,
+            should_cancel,
+            phase="BATCH_PERSISTED",
+            processed=len(scores) + min(start + 10, len(missing_symbols)),
+            total=len(scores) + len(missing_symbols),
+            last_completed_item=missing_symbols[min(start + 9, len(missing_symbols) - 1)],
+        )
+
+
+@core_writer_transaction
+def _persist_validated_technical_source_manifest(
+    db: Session,
+    *,
+    run_id: int,
+    pipeline_run_id: int,
+    market_cutoff: MarketCalculationCutoff,
+    source_manifest_payload: dict[str, Any],
+    source_manifest_digest: str,
+    technical_identity: CalculationIdentity,
+    checkpoint_callback: Callable[..., None] | None,
+    should_cancel: Callable[[], bool],
+) -> tuple[TechnicalSourceManifest, TechnicalSourceManifestValidation]:
+    source_manifest_row = db.scalar(
+        select(TechnicalSourceManifest).where(
+            TechnicalSourceManifest.manifest_digest == source_manifest_digest
+        )
+    )
+    if source_manifest_row is None:
+        source_manifest_row = TechnicalSourceManifest(
+            run_id=run_id,
+            pipeline_run_id=pipeline_run_id,
+            calculation_context_id=market_cutoff.context_id,
+            manifest_digest=source_manifest_digest,
+            manifest_json=source_manifest_payload,
+            source_count=source_manifest_payload["source_count"],
+            state_count=source_manifest_payload["state_count"],
+        )
+        db.add(source_manifest_row)
+        db.flush()
+    if (
+        source_manifest_row.run_id != run_id
+        or source_manifest_row.pipeline_run_id != pipeline_run_id
+        or source_manifest_row.calculation_context_id != market_cutoff.context_id
+    ):
+        raise ValueError("TECHNICAL_SOURCE_MANIFEST_OWNER_MISMATCH")
+    from app.services.core_mutation_authority import validate_technical_source_manifest
+
+    validation = validate_technical_source_manifest(
+        db,
+        source_manifest_row,
+        technical_identity,
+        checkpoint_callback=checkpoint_callback,
+        should_cancel=should_cancel,
+    )
+    return source_manifest_row, validation
+
+
+@core_writer_transaction
+def _persist_finalized_technical_score_batch(
+    db: Session,
+    *,
+    scores: list[TechnicalScore],
+    run_id: int,
+    pipeline_run_id: int | None,
+    source_manifest_row: TechnicalSourceManifest | None,
+    source_manifest_validation: TechnicalSourceManifestValidation | None,
+    effective_configuration: CoreEffectiveConfiguration | None,
+    evidence_mutation_contexts: list[DomainMutationContext] | None,
+    checkpoint_callback: Callable[..., None] | None,
+    should_cancel: Callable[[], bool],
+    batch_offset: int,
+    cohort_total: int,
+    symbols: list[str] | None = None,
+) -> None:
+    batch_tickers = symbols or [score.ticker.upper() for score in scores]
+    if not isinstance(db, Session):
+        db.execute(
+            delete(TechnicalScore).where(
+                TechnicalScore.run_id == run_id,
+                TechnicalScore.ticker.in_(batch_tickers),
+            )
+        )
+        db.add_all(scores)
+        db.flush()
+        return
+    if (
+        source_manifest_row is None
+        or source_manifest_validation is None
+        or effective_configuration is None
+        or evidence_mutation_contexts is None
+    ):
+        raise ValueError("TECHNICAL_BATCH_AUTHORITY_REQUIRED")
+    if len(evidence_mutation_contexts) != len(scores):
+        raise ValueError("TECHNICAL_EVIDENCE_MUTATION_CONTEXT_COUNT_MISMATCH")
+    db.execute(
+        delete(TechnicalScore).where(
+            TechnicalScore.run_id == run_id,
+            TechnicalScore.ticker.in_(batch_tickers),
+        )
+    )
+    for score in scores:
+        score.source_manifest_id = source_manifest_row.id
+    db.add_all(scores)
+    db.flush()
+    persist_core_evidence_batch(
+        db,
+        requests=[
+            {
+                "kind": CoreEvidenceKind.TECHNICAL,
+                "current_row": score,
+                "effective_configuration": effective_configuration.snapshot,
+                "mutation_context": mutation_context,
+                "technical_source_manifest_validation": source_manifest_validation,
+            }
+            for score, mutation_context in zip(
+                scores,
+                evidence_mutation_contexts,
+                strict=True,
+            )
+        ],
+        progress_callback=lambda *, index, total, request: _technical_checkpoint(
+            checkpoint_callback,
+            should_cancel,
+            phase="PERSISTING_EVIDENCE",
+            processed=batch_offset + index,
+            total=cohort_total,
+            last_completed_item=request["current_row"].ticker,
+        ),
+    )
 
 
 def _canonical_technical_source_manifest(
@@ -1268,6 +1506,7 @@ def _score_tickers_pure_sequential(
     market_cutoff: MarketCalculationCutoff,
     should_cancel: Callable[[], bool] | None = None,
     checkpoint_callback: Callable[..., None] | None = None,
+    commit_artifact_batches: bool = False,
 ) -> list[PineReplicaScore | TechnicalScore]:
     results: list[PineReplicaScore | TechnicalScore] = []
     should_cancel = should_cancel or (lambda: False)
@@ -1358,6 +1597,10 @@ def _score_tickers_pure_sequential(
                 unavailable_technical_score(run_id, ticker, str(exc), v4_params=v4_params)
             )
         if (index + 1) % 10 == 0 or index + 1 == len(symbols):
+            _commit_independent_technical_artifacts(
+                db,
+                enabled=commit_artifact_batches,
+            )
             _technical_checkpoint(
                 checkpoint_callback,
                 should_cancel,
@@ -1390,6 +1633,7 @@ def _score_tickers_process_pool(
     market_cutoff: MarketCalculationCutoff | None = None,
     should_cancel: Callable[[], bool] | None = None,
     checkpoint_callback: Callable[..., None] | None = None,
+    commit_artifact_batches: bool = False,
 ) -> list[PineReplicaScore | TechnicalScore]:
     market_cutoff = market_cutoff or standalone_market_context(
         reason="STANDALONE_TECHNICAL_PROCESS_POOL"
@@ -1453,6 +1697,15 @@ def _score_tickers_process_pool(
                 run_id, ticker, str(exc), v4_params=v4_params
             )
 
+    _technical_checkpoint(
+        checkpoint_callback,
+        should_cancel,
+        phase="INPUTS_LOADED",
+        processed=len(symbols),
+        total=len(symbols),
+        last_completed_item=symbols[-1] if symbols else None,
+    )
+
     try:
         workers = _technical_worker_count(settings)
         in_flight_limit = min(settings.technical_max_in_flight, workers * 2)
@@ -1500,6 +1753,10 @@ def _score_tickers_process_pool(
                         )
                     completed_count += 1
                     if completed_count % 10 == 0 or completed_count == len(items):
+                        _commit_independent_technical_artifacts(
+                            db,
+                            enabled=commit_artifact_batches,
+                        )
                         _technical_checkpoint(
                             checkpoint_callback,
                             should_cancel,
@@ -1538,6 +1795,7 @@ def _score_tickers_process_pool(
             market_cutoff=market_cutoff,
             should_cancel=should_cancel,
             checkpoint_callback=checkpoint_callback,
+            commit_artifact_batches=commit_artifact_batches,
         )
 
     operational_metrics.increment(
@@ -1556,6 +1814,15 @@ def _score_tickers_process_pool(
         )
         for index, result in enumerate(results)
     ]
+
+
+def _commit_independent_technical_artifacts(db: Session, *, enabled: bool) -> bool:
+    """Bound cache/shadow writes without splitting authoritative score publication."""
+
+    if not enabled or not isinstance(db, Session) or not db.in_transaction():
+        return False
+    db.commit()
+    return True
 
 
 def _technical_checkpoint(

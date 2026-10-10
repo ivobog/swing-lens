@@ -326,7 +326,12 @@ def test_worker_does_not_finalize_success_after_fenced_handler_commit(
     job = _job()
     completed: list[int] = []
 
-    monkeypatch.setattr("app.services.background_worker.register_worker", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        "app.services.background_worker.register_worker",
+        lambda *_args, **kwargs: SimpleNamespace(
+            instance_id=kwargs.get("instance_id") or "registered-instance"
+        ),
+    )
     monkeypatch.setattr(
         "app.services.background_worker.heartbeat_worker_control_loop", lambda *_a, **_k: None
     )

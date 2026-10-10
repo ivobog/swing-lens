@@ -886,6 +886,14 @@ def build_run_context_snapshots(
     )
     built_rows: list[tuple[TickerSourceContext, BuiltSnapshot]] = []
     total = len(run_context.tickers)
+    if checkpoint_callback is not None:
+        checkpoint_callback(
+            phase="SOURCE_HISTORY_LOADED",
+            processed=0,
+            total=total,
+            current_item=None,
+            last_completed_item=None,
+        )
     for index, ticker_context in enumerate(run_context.tickers, start=1):
         try:
             build_kwargs = {
@@ -908,7 +916,7 @@ def build_run_context_snapshots(
             if errors_by_ticker is None:
                 raise
             errors_by_ticker[ticker_context.ticker] = str(exc)
-        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+        if checkpoint_callback is not None and (index % 10 == 0 or index == total):
             checkpoint_callback(
                 phase="SETUP_INPUTS_BUILT",
                 processed=index,
@@ -997,12 +1005,23 @@ class SetupLifecycleSnapshotCaptureService:
         low_confidence = 0
 
         try:
+
+            def build_checkpoint(**progress) -> None:
+                if progress_callback is not None:
+                    progress_callback(
+                        progress.get("current_item") or "-",
+                        int(progress.get("processed") or 0),
+                        int(progress.get("total") or 0),
+                        phase=str(progress.get("phase") or "BUILDING"),
+                    )
+
             built_rows = build_run_context_snapshots(
                 db,
                 run_context,
                 builder=self.builder,
                 repository=self.repository,
                 errors_by_ticker=errors_by_ticker,
+                checkpoint_callback=(build_checkpoint if progress_callback is not None else None),
             )
             if should_cancel is not None and should_cancel():
                 raise SetupLifecycleCaptureCancelled("SETUP_CAPTURE_CANCELLED")
@@ -1071,16 +1090,47 @@ class SetupLifecycleSnapshotCaptureService:
         if batch_upsert is not None:
             try:
                 parameters = signature(batch_upsert).parameters
-                optional = {}
-                if "progress_callback" in parameters:
-                    optional["progress_callback"] = progress_callback
-                if "should_cancel" in parameters:
-                    optional["should_cancel"] = should_cancel
-                persisted = batch_upsert(
-                    db,
-                    [dto for _context, _built, dto in prepared_rows],
-                    **optional,
-                )
+                persisted = []
+                batch_size = 10
+                total_rows = len(prepared_rows)
+                for offset in range(0, total_rows, batch_size):
+                    batch = prepared_rows[offset : offset + batch_size]
+                    optional = {}
+                    if "progress_callback" in parameters and progress_callback is not None:
+
+                        def batch_progress(
+                            current_item,
+                            processed,
+                            _total,
+                            *,
+                            phase="EVIDENCE",
+                            _offset=offset,
+                        ):
+                            progress_callback(
+                                current_item,
+                                _offset + processed,
+                                total_rows,
+                                phase=phase,
+                            )
+
+                        optional["progress_callback"] = batch_progress
+                    if "should_cancel" in parameters:
+                        optional["should_cancel"] = should_cancel
+                    persisted.extend(
+                        batch_upsert(
+                            db,
+                            [dto for _context, _built, dto in batch],
+                            **optional,
+                        )
+                    )
+                    if progress_callback is not None:
+                        processed = offset + len(batch)
+                        progress_callback(
+                            batch[-1][0].ticker,
+                            processed,
+                            total_rows,
+                            phase="EVIDENCE_BATCH_PERSISTED",
+                        )
             except Exception:
                 if evaluation_run is not None:
                     self.repository.complete_evaluation_run(

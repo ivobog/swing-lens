@@ -1,17 +1,23 @@
 from dataclasses import asdict
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import Session
 
-from app.services import technical_score_service
+from app.services import core_calculation_evidence, technical_score_service
+from app.services.core_effective_configuration import resolve_technical_configuration
 from app.services.ib_fetch_executor import TickerReadyEvent
+from app.services.market_calculation_context_service import standalone_market_context
 from app.services.operational_metrics import operational_metrics
 from app.services.technical_artifact_cache import build_local_artifact_key
 from app.services.technical_indicators import load_pine_defaults
 from app.services.technical_score_service import TechnicalScoringOverlapCoordinator
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
+from app.services.technical_scoring_v5_config import load_technical_scoring_v5_config
 from app.services.technical_work import (
     build_technical_work_item,
     execute_technical_work_item,
@@ -284,6 +290,103 @@ def test_process_pool_mode_returns_scores_in_input_order(monkeypatch) -> None:
             line for line in prometheus.splitlines() if line.startswith(f"{metric_name}_count ")
         )
         assert float(count_line.split()[-1]) > 0
+
+
+def test_independent_technical_artifact_checkpoint_closes_transaction() -> None:
+    engine = create_engine("sqlite://")
+    with Session(engine) as db:
+        db.execute(text("SELECT 1"))
+
+        assert technical_score_service._commit_independent_technical_artifacts(
+            db,
+            enabled=True,
+        )
+        assert db.in_transaction() is False
+
+
+def test_independent_technical_artifact_checkpoint_is_pipeline_opt_in() -> None:
+    engine = create_engine("sqlite://")
+    with Session(engine) as db:
+        db.execute(text("SELECT 1"))
+
+        assert not technical_score_service._commit_independent_technical_artifacts(
+            db,
+            enabled=False,
+        )
+        assert db.in_transaction() is True
+
+
+def test_technical_finalization_opens_transaction_only_for_atomic_publish(monkeypatch) -> None:
+    settings = Settings(
+        _env_file=None,
+        technical_v5_enabled=False,
+        technical_v5_shadow_compare_enabled=False,
+    )
+    configuration = resolve_technical_configuration(
+        pine=load_pine_defaults(),
+        v4=load_technical_scoring_v4_config(),
+        v5=load_technical_scoring_v5_config(),
+        settings=settings,
+    )
+    transaction_states = []
+    monkeypatch.setattr(
+        technical_score_service,
+        "_persist_finalized_technical_scores",
+        lambda db, **_kwargs: transaction_states.append(db.in_transaction()),
+    )
+
+    with Session(create_engine("sqlite://")) as db:
+        scores = technical_score_service.finalize_technical_scores(
+            db,
+            7,
+            [],
+            symbols=[],
+            settings=settings,
+            market_cutoff=standalone_market_context(reason="TEST_TRANSACTION_BOUNDARY"),
+            pipeline_run_id=11,
+            effective_configuration=configuration,
+        )
+
+    assert scores == []
+    assert transaction_states == [False]
+
+
+def test_technical_evidence_batch_uses_one_semantic_savepoint(monkeypatch) -> None:
+    engine = create_engine("sqlite://")
+    statements = []
+    progress = []
+    event.listen(
+        engine,
+        "before_cursor_execute",
+        lambda _connection, _cursor, statement, *_args: statements.append(statement.upper()),
+    )
+
+    def persist_in_batch(db, *, current_row, _reuse_semantic_transaction, **_kwargs):
+        assert db.in_nested_transaction()
+        assert _reuse_semantic_transaction is True
+        db.execute(text("SELECT 1"))
+        return SimpleNamespace(id=current_row.id)
+
+    monkeypatch.setattr(
+        core_calculation_evidence.persist_core_evidence,
+        "__wrapped__",
+        persist_in_batch,
+    )
+    rows = [SimpleNamespace(id=index, evidence_id=None) for index in range(25)]
+    requests = [{"current_row": row} for row in rows]
+
+    with Session(engine) as db:
+        evidence_rows = core_calculation_evidence.persist_core_evidence_batch(
+            db,
+            requests=requests,
+            progress_callback=lambda **values: progress.append((values["index"], values["total"])),
+        )
+
+    assert [evidence.id for evidence in evidence_rows] == list(range(25))
+    assert [row.evidence_id for row in rows] == list(range(25))
+    assert progress == [(10, 25), (20, 25), (25, 25)]
+    assert sum(statement.startswith("SAVEPOINT ") for statement in statements) == 1
+    assert sum(statement.startswith("RELEASE SAVEPOINT ") for statement in statements) == 1
 
 
 def test_artifact_write_mode_persists_local_work_result(monkeypatch) -> None:

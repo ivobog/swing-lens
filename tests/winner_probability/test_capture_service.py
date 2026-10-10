@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from _phase3_helpers import FakeWinnerRepository, build_run_context
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 from app.models.tables import (
     EntryDataStatus,
@@ -20,9 +22,19 @@ from app.services.process_memory import WorkerMemoryCritical
 from app.services.winner_probability.capture_service import (
     WinnerPredictionCaptureCancelled,
     WinnerPredictionCaptureService,
+    _release_capture_read_transaction,
 )
 from app.services.winner_probability.config import load_winner_probability_config
 from app.services.winner_probability.feature_extractor import WinnerFeatureExtractor
+
+
+def test_capture_read_checkpoint_releases_clean_parent_transaction() -> None:
+    with Session(create_engine("sqlite://")) as db:
+        db.execute(text("select 1"))
+        assert db.in_transaction() is True
+
+        assert _release_capture_read_transaction(db) is True
+        assert db.in_transaction() is False
 
 
 def test_completed_run_creates_snapshot_pending_outcomes_and_decision_estimate() -> None:

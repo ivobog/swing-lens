@@ -7,6 +7,7 @@ the identity, configuration, exact sources and manifest that it is writing.
 from __future__ import annotations
 
 from contextvars import ContextVar
+from dataclasses import dataclass
 from functools import wraps
 from inspect import signature
 
@@ -36,6 +37,15 @@ from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.producer_readiness import readiness_from_evidence
 
 _active_writers = ContextVar("core_mutation_semantic_transactions", default=())
+
+
+@dataclass(frozen=True)
+class TechnicalSourceManifestValidation:
+    manifest_id: int
+    manifest_digest: str
+    run_id: int
+    pipeline_run_id: int
+    calculation_context_id: int
 
 
 def require_semantic_writer(db, owners):
@@ -201,8 +211,9 @@ def validate_core_mutation_authority(
             if job is None:
                 job = (
                     db.execute(
-                        select(BackgroundJob.related_run_id, BackgroundJob.payload_json)
-                        .where(BackgroundJob.id == context.execution.job_id)
+                        select(BackgroundJob.related_run_id, BackgroundJob.payload_json).where(
+                            BackgroundJob.id == context.execution.job_id
+                        )
                     )
                     .one()
                     ._mapping
@@ -451,7 +462,7 @@ def validate_source_configuration(db, identity, evidence, execution=None, cache=
             raise ValueError("MUTATION_SOURCE_RETAINED_CONFIGURATION_MISMATCH")
 
 
-def validate_source_values(source, evidence, *, db=None):
+def validate_source_values(source, evidence, *, db=None, locked_source_rows=None):
     """Consumed values must agree with the exact sealed producer target."""
     from decimal import Decimal
 
@@ -472,10 +483,12 @@ def validate_source_values(source, evidence, *, db=None):
         primary_key = state.mapper.primary_key
         if len(primary_key) != 1 or getattr(source, "id", None) is None:
             raise ValueError("MUTATION_SOURCE_ROW_ADDRESS_REQUIRED")
-        with db.no_autoflush:
-            stored = db.scalar(
-                select(type(source)).where(primary_key[0] == source.id).with_for_update()
-            )
+        stored = (locked_source_rows or {}).get((type(source), source.id))
+        if stored is None:
+            with db.no_autoflush:
+                stored = db.scalar(
+                    select(type(source)).where(primary_key[0] == source.id).with_for_update()
+                )
         if stored is None or stored.evidence_id != evidence.id:
             raise ValueError("MUTATION_SOURCE_ROW_EVIDENCE_MISMATCH")
     supplied_fields = set(state.dict) if state.transient or state.detached else None
@@ -742,6 +755,9 @@ def artifact_mutation_context(
     declaration_only=False,
     checkpoint_callback=None,
     checkpoint_phase=None,
+    technical_source_manifest=None,
+    technical_source_manifest_verified_digest=None,
+    technical_source_manifest_validation=None,
 ):
     """Native artifact adapter. Every named manifest is independently checked."""
     from app.models.tables import RawCompanyRow
@@ -775,6 +791,8 @@ def artifact_mutation_context(
     if domain is MutationDomain.SETUP:
         debug = getattr(current_row, "source_lineage_json", None) or {}
     manifest = {}
+    sector_evidence_rows = None
+    sector_locked_source_rows = None
     if domain is MutationDomain.SETUP:
         from app.services.decision_mutation_authority import validate_setup_inputs
 
@@ -835,18 +853,40 @@ def artifact_mutation_context(
             for r in references
         ):
             raise ValueError("MUTATION_TECHNICAL_INPUT_ENVELOPE_MISMATCH")
-        source_manifest = db.get(TechnicalSourceManifest, current_row.source_manifest_id)
+        provisional_source_manifest = technical_source_manifest is not None
+        if provisional_source_manifest:
+            if not declaration_only:
+                raise ValueError("MUTATION_PROVISIONAL_TECHNICAL_MANIFEST_NOT_ALLOWED")
+            source_manifest = technical_source_manifest
+        else:
+            source_manifest = db.get(TechnicalSourceManifest, current_row.source_manifest_id)
+        retained_validation = _technical_source_validation_matches(
+            technical_source_manifest_validation,
+            source_manifest,
+        )
         if (
             source_manifest is None
             or source_manifest.run_id != current_row.run_id
             or source_manifest.pipeline_run_id != identity.ownership.pipeline_id.value
             or source_manifest.calculation_context_id != current_row.calculation_context_id
             or source_manifest.manifest_digest != source_reference.get("digest")
-            or Canonical.fingerprint(source_manifest.manifest_json)
-            != source_manifest.manifest_digest
+            or (
+                technical_source_manifest_verified_digest != source_manifest.manifest_digest
+                and not retained_validation
+                and not _technical_source_manifest_validated_in_transaction(
+                    db, source_manifest.manifest_digest
+                )
+                and Canonical.fingerprint(source_manifest.manifest_json)
+                != source_manifest.manifest_digest
+            )
         ):
             raise ValueError("MUTATION_TECHNICAL_CANONICAL_MANIFEST_MISMATCH")
-        validate_technical_source_manifest(db, source_manifest, identity)
+        # A provisional declaration cannot lock a row that has not been persisted yet.
+        # The atomic Technical writer validates the persisted manifest immediately
+        # before publishing scores and evidence; declarations only prove that their
+        # immutable manifest reference is structurally and cryptographically exact.
+        if not provisional_source_manifest and not retained_validation:
+            validate_technical_source_manifest(db, source_manifest, identity)
     elif domain is MutationDomain.REGIME:
         require_payload_reference(
             identity,
@@ -896,6 +936,10 @@ def artifact_mutation_context(
         if not found:
             raise ValueError("MUTATION_REGIME_PIT_MANIFEST_REQUIRED")
     elif domain is MutationDomain.SECTOR:
+        from sqlalchemy import select
+
+        from app.models.tables import RankingResult
+
         envelope = debug.get("native_input_envelope")
         if not isinstance(envelope, dict):
             raise ValueError("MUTATION_SECTOR_NATIVE_INPUT_ENVELOPE_REQUIRED")
@@ -907,6 +951,31 @@ def artifact_mutation_context(
             checkpoint_callback=checkpoint_callback,
             checkpoint_phase=checkpoint_phase,
         )
+        source_evidence_ids = {
+            source.evidence_id for source in sources.values() if source.evidence_id is not None
+        }
+        sector_evidence_rows = {
+            row.id: row
+            for row in db.scalars(
+                select(CoreCalculationEvidence).where(
+                    CoreCalculationEvidence.id.in_(tuple(source_evidence_ids))
+                )
+            )
+        }
+        if not declaration_only:
+            ranking_ids = {
+                source.id
+                for role, source in sources.items()
+                if role.startswith("ranking:") and source.id is not None
+            }
+            sector_locked_source_rows = {
+                (RankingResult, row.id): row
+                for row in db.scalars(
+                    select(RankingResult)
+                    .where(RankingResult.id.in_(tuple(ranking_ids)))
+                    .with_for_update()
+                )
+            }
         manifest["universe_manifest"] = {
             "native_input_envelope": envelope,
             "source_evidence": {
@@ -935,8 +1004,13 @@ def artifact_mutation_context(
     )
     native_sources = {role: source for role, source in sources.items() if role in allowed}
     permissions = []
+    source_configuration_cache = {}
     for role, source in sources.items():
-        evidence = db.get(CoreCalculationEvidence, source.evidence_id)
+        evidence = (
+            sector_evidence_rows.get(source.evidence_id)
+            if sector_evidence_rows is not None
+            else db.get(CoreCalculationEvidence, source.evidence_id)
+        )
         if evidence is None:
             raise ValueError("MUTATION_SOURCE_EVIDENCE_MISSING")
         if not declaration_only and role not in allowed:
@@ -945,8 +1019,19 @@ def artifact_mutation_context(
             # population references are validated here because they are outside
             # the policy's ordinary source roles.
             _validate_evidence(evidence)
-            validate_source_values(source, evidence, db=db)
-            validate_source_configuration(db, identity, evidence, current_domain_write_ownership())
+            validate_source_values(
+                source,
+                evidence,
+                db=db,
+                locked_source_rows=sector_locked_source_rows,
+            )
+            validate_source_configuration(
+                db,
+                identity,
+                evidence,
+                current_domain_write_ownership(),
+                cache=source_configuration_cache,
+            )
         expected_kind = (
             "RANKING"
             if role.startswith("ranking:")
@@ -1096,9 +1181,7 @@ def validate_sector_manifest(
     raw_rows = {
         row.id: row
         for row in db.scalars(
-            select(RawCompanyRow)
-            .where(RawCompanyRow.id.in_(tuple(raw_pins)))
-            .with_for_update()
+            select(RawCompanyRow).where(RawCompanyRow.id.in_(tuple(raw_pins))).with_for_update()
         )
     }
     etf_sources = [
@@ -1353,11 +1436,7 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
         for row in rows
     ):
         raise ValueError("MUTATION_PRICE_MANIFEST_SCOPE_MISMATCH")
-    baseline = [
-        row
-        for row in rows
-        if row.first_seen_at <= cutoff and row.created_at <= cutoff
-    ]
+    baseline = [row for row in rows if row.first_seen_at <= cutoff and row.created_at <= cutoff]
     acquired = [row for row in rows if row not in baseline]
     projected = project_price_bar_rows_as_of(db, baseline, as_of=cutoff)
     if acquired:
@@ -1383,9 +1462,7 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
             for row in acquired
         ):
             raise ValueError("MUTATION_PRICE_ACQUISITION_SCOPE_MISMATCH")
-        projected.extend(
-            project_price_bar_rows_as_of(db, acquired, as_of=resolved.completed_at)
-        )
+        projected.extend(project_price_bar_rows_as_of(db, acquired, as_of=resolved.completed_at))
     expected = {state["id"]: state["fingerprint"] for state in states}
     if len(projected) != len(ids) or any(
         price_bar_pit_manifest_hash(db, row) != expected[row.id] for row in projected
@@ -1410,6 +1487,7 @@ def validate_technical_source_manifest(
         or payload.get("pipeline_run_id") != identity.ownership.pipeline_id.value
         or payload.get("calculation_context_id")
         != identity.calculation_context.market_calculation_context_id.value
+        or Canonical.fingerprint(payload) != source_manifest.manifest_digest
     ):
         raise ValueError("MUTATION_TECHNICAL_CANONICAL_MANIFEST_SCOPE_MISMATCH")
     transaction = db.get_transaction()
@@ -1417,37 +1495,183 @@ def validate_technical_source_manifest(
     if cache.get("transaction") is transaction and source_manifest.manifest_digest in cache.get(
         "digests", set()
     ):
-        return
+        return _technical_source_validation(source_manifest)
     sources = payload.get("sources")
     if not isinstance(sources, list) or not sources:
         raise ValueError("MUTATION_EXACT_PIT_PRICE_MANIFEST_REQUIRED")
     should_cancel = should_cancel or (lambda: False)
-    for index, item in enumerate(sources, start=1):
+    manifests = []
+    for item in sources:
         native = item.get("manifest") if isinstance(item, dict) else None
-        if (
-            not isinstance(native, dict)
-            or item.get("digest") != Canonical.fingerprint(native)
-        ):
+        if not isinstance(native, dict) or item.get("digest") != Canonical.fingerprint(native):
             raise ValueError("MUTATION_TECHNICAL_SOURCE_DIGEST_MISMATCH")
-        validate_price_source_manifest(
-            db,
-            native,
-            identity.temporal.calculation_cutoff.value,
-            identity.temporal.as_of_session.value,
+        manifests.append(native)
+    _validate_technical_price_source_manifests(
+        db,
+        manifests,
+        cutoff=identity.temporal.calculation_cutoff.value,
+        session=identity.temporal.as_of_session.value,
+        checkpoint_callback=checkpoint_callback,
+        should_cancel=should_cancel,
+        source_items=sources,
+    )
+    cache["transaction"] = transaction
+    cache["digests"] = {source_manifest.manifest_digest}
+    return _technical_source_validation(source_manifest)
+
+
+def _technical_source_validation(source_manifest):
+    return TechnicalSourceManifestValidation(
+        manifest_id=int(source_manifest.id),
+        manifest_digest=str(source_manifest.manifest_digest),
+        run_id=int(source_manifest.run_id),
+        pipeline_run_id=int(source_manifest.pipeline_run_id),
+        calculation_context_id=int(source_manifest.calculation_context_id),
+    )
+
+
+def _technical_source_validation_matches(validation, source_manifest):
+    return (
+        isinstance(validation, TechnicalSourceManifestValidation)
+        and source_manifest is not None
+        and validation.manifest_id == source_manifest.id
+        and validation.manifest_digest == source_manifest.manifest_digest
+        and validation.run_id == source_manifest.run_id
+        and validation.pipeline_run_id == source_manifest.pipeline_run_id
+        and validation.calculation_context_id == source_manifest.calculation_context_id
+    )
+
+
+def _technical_source_manifest_validated_in_transaction(db, manifest_digest):
+    cache = db.info.get("validated_technical_source_manifests", {})
+    return cache.get("transaction") is db.get_transaction() and manifest_digest in cache.get(
+        "digests", set()
+    )
+
+
+def _validate_technical_price_source_manifests(
+    db,
+    manifests,
+    *,
+    cutoff,
+    session,
+    checkpoint_callback,
+    should_cancel,
+    source_items,
+):
+    """Validate a Technical cohort against one locked, exact source snapshot."""
+
+    from datetime import date, datetime
+
+    from sqlalchemy import select
+
+    from app.models.tables import PriceBar
+    from app.services.price_bar_repository import (
+        _pipeline_acquisition_visibilities,
+        price_bar_pit_manifest_hash,
+        project_price_bar_rows_as_of,
+    )
+
+    prepared = []
+    all_ids: set[int] = set()
+    acquisition_keys: dict[int, set[tuple[str, str, str]]] = {}
+    for manifest in manifests:
+        if (
+            datetime.fromisoformat(manifest["as_of"]) != cutoff
+            or date.fromisoformat(manifest["max_session"]) != session
+        ):
+            raise ValueError("MUTATION_PRICE_MANIFEST_TEMPORAL_MISMATCH")
+        states = manifest["states"]
+        ids = [state["id"] for state in states]
+        if len(ids) != len(set(ids)) or any(
+            type(source_id) is not int or source_id <= 0 for source_id in ids
+        ):
+            raise ValueError("MUTATION_PRICE_MANIFEST_ADDRESS_INVALID")
+        expected = {state["id"]: state["fingerprint"] for state in states}
+        prepared.append((manifest, ids, expected))
+        all_ids.update(ids)
+        authority = manifest.get("acquisition_authority")
+        if isinstance(authority, dict):
+            context_id = int(authority["calculation_context_id"])
+            acquisition_keys[context_id] = acquisition_keys.get(context_id, set()) | {
+                (manifest["ticker"], manifest["what_to_show"], manifest["timeframe"])
+            }
+
+    rows_by_id = {}
+    ordered_ids = sorted(all_ids)
+    for start in range(0, len(ordered_ids), 5_000):
+        rows = db.scalars(
+            select(PriceBar)
+            .where(PriceBar.id.in_(ordered_ids[start : start + 5_000]))
+            .with_for_update()
         )
-        if index % 10 == 0 or index == len(sources):
+        rows_by_id.update((row.id, row) for row in rows)
+
+    visibilities = {}
+    for context_id, keys in acquisition_keys.items():
+        visibilities[context_id] = _pipeline_acquisition_visibilities(
+            db,
+            calculation_context_id=context_id,
+            tickers=tuple(sorted({key[0] for key in keys})),
+            what_to_show=tuple(sorted({key[1] for key in keys})),
+            timeframes=tuple(sorted({key[2] for key in keys})),
+        )
+
+    for index, ((manifest, ids, expected), item) in enumerate(
+        zip(prepared, source_items, strict=True),
+        start=1,
+    ):
+        rows = [rows_by_id[source_id] for source_id in ids if source_id in rows_by_id]
+        if len(rows) != len(ids) or any(
+            row.ticker != manifest["ticker"]
+            or row.what_to_show != manifest["what_to_show"]
+            or row.timeframe != manifest["timeframe"]
+            or row.bar_date > session
+            or row.first_seen_at is None
+            for row in rows
+        ):
+            raise ValueError("MUTATION_PRICE_MANIFEST_SCOPE_MISMATCH")
+        baseline = [row for row in rows if row.first_seen_at <= cutoff and row.created_at <= cutoff]
+        acquired = [row for row in rows if row not in baseline]
+        projected = project_price_bar_rows_as_of(db, baseline, as_of=cutoff)
+        if acquired:
+            authority = manifest.get("acquisition_authority")
+            if not isinstance(authority, dict):
+                raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_REQUIRED")
+            context_id = int(authority["calculation_context_id"])
+            resolved = visibilities.get(context_id, {}).get(
+                (manifest["ticker"].upper(), manifest["what_to_show"], manifest["timeframe"])
+            )
+            if resolved is None or Canonical.canonicalize(authority) != Canonical.canonicalize(
+                resolved.__dict__
+            ):
+                raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_MISMATCH")
+            if any(
+                row.first_fetch_run_id != resolved.fetch_run_id
+                or row.first_fetch_item_id != resolved.fetch_item_id
+                or row.created_at > resolved.completed_at
+                or row.first_seen_at > resolved.completed_at
+                for row in acquired
+            ):
+                raise ValueError("MUTATION_PRICE_ACQUISITION_SCOPE_MISMATCH")
+            projected.extend(
+                project_price_bar_rows_as_of(db, acquired, as_of=resolved.completed_at)
+            )
+        if len(projected) != len(ids) or any(
+            price_bar_pit_manifest_hash(db, row) != expected[row.id] for row in projected
+        ):
+            raise ValueError("MUTATION_PRICE_MANIFEST_PIT_FINGERPRINT_MISMATCH")
+        if index % 10 == 0 or index == len(manifests):
             if checkpoint_callback is not None:
                 checkpoint_callback(
                     phase="VALIDATING_EVIDENCE",
                     processed=index,
-                    total=len(sources),
+                    total=len(manifests),
                     current_item=item.get("digest"),
                     last_completed_item=item.get("digest"),
                 )
             if should_cancel():
                 raise ValueError("TECHNICAL_CANCELLED_DURING_EVIDENCE_VALIDATION")
-    cache["transaction"] = transaction
-    cache["digests"] = {source_manifest.manifest_digest}
 
 
 def projection_mutation_context(evidence):

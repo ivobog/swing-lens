@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -44,13 +45,14 @@ from app.services.contextual_consumer_eligibility import (
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     declare_core_evidence_mutation,
-    persist_core_evidence,
+    persist_core_evidence_batch,
 )
 from app.services.core_effective_configuration import (
     CoreEffectiveConfiguration,
     resolve_combined_configuration,
 )
 from app.services.core_mutation_authority import core_writer_transaction
+from app.services.domain_mutation import DomainMutationContext
 from app.services.earnings_date_parser import MISSING_EARNINGS_DATE_VALUES
 from app.services.earnings_risk_service import (
     EarningsRiskResult,
@@ -133,7 +135,6 @@ class CombinedDecision:
     debug_evidence: dict[str, Any]
 
 
-@core_writer_transaction
 def refresh_combined_results(
     db: Session,
     run_id: int,
@@ -143,6 +144,7 @@ def refresh_combined_results(
     effective_configuration: CoreEffectiveConfiguration | None = None,
     expected_calculation_identity: CalculationIdentity | None = None,
     source_evidence: dict[str, dict[str, int]] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> list[CombinedResult]:
     if isinstance(db, Session) and (
         market_cutoff is None
@@ -155,21 +157,35 @@ def refresh_combined_results(
     if isinstance(db, Session):
         fundamentals = {}
         technicals = {}
-        for ticker, pins in source_evidence.items():
-            for role, model, target in (
-                ("fundamental", FundamentalScore, fundamentals),
-                ("technical", TechnicalScore, technicals),
-            ):
-                source = db.scalar(
-                    select(model).where(
-                        model.evidence_id == pins.get(role),
-                        model.run_id == run_id,
-                        model.ticker == ticker.upper(),
-                    )
+        for role, model, target in (
+            ("fundamental", FundamentalScore, fundamentals),
+            ("technical", TechnicalScore, technicals),
+        ):
+            expected = {ticker.upper(): pins.get(role) for ticker, pins in source_evidence.items()}
+            sources = db.scalars(
+                select(model).where(
+                    model.run_id == run_id,
+                    model.evidence_id.in_(
+                        [
+                            evidence_id
+                            for evidence_id in expected.values()
+                            if evidence_id is not None
+                        ]
+                    ),
                 )
-                if source is None:
-                    raise ValueError("COMBINED_EXACT_SOURCE_ADDRESS_REQUIRED: " + role)
-                target[ticker.upper()] = source
+            )
+            target.update((source.ticker.upper(), source) for source in sources)
+            if any(
+                (source := target.get(ticker)) is None or source.evidence_id != evidence_id
+                for ticker, evidence_id in expected.items()
+            ):
+                raise ValueError("COMBINED_EXACT_SOURCE_ADDRESS_REQUIRED: " + role)
+        _report_combined_progress(
+            checkpoint_callback,
+            phase="INPUTS_LOADED",
+            processed=len(rows),
+            total=len(rows),
+        )
     else:
         fundamentals = {score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)}
         technicals = {score.ticker.upper(): score for score in _technicals_for_run(db, run_id)}
@@ -268,38 +284,176 @@ def refresh_combined_results(
         )
         for index, (decision, identity) in enumerate(decisions_with_identity, start=1)
     ]
-    db.execute(
-        update(WinnerPredictionSnapshot)
-        .where(WinnerPredictionSnapshot.run_id == run_id)
-        .where(WinnerPredictionSnapshot.combined_result_id.is_not(None))
-        .values(combined_result_id=None)
-    )
-    db.execute(delete(CombinedResult).where(CombinedResult.run_id == run_id))
-    db.add_all(results)
-    db.flush()
     if isinstance(db, Session):
-        for result in results:
-            persist_core_evidence(
+        evidence_mutation_contexts = {}
+        total = len(results)
+        for index, result in enumerate(results, start=1):
+            sources = {
+                "fundamental": fundamentals[result.ticker.upper()],
+                "technical": technicals[result.ticker.upper()],
+            }
+            evidence_mutation_contexts[result.ticker.upper()] = declare_core_evidence_mutation(
                 db,
                 kind=CoreEvidenceKind.COMBINED,
                 current_row=result,
                 effective_configuration=effective_configuration.snapshot,
-                sources={
-                    "fundamental": fundamentals[result.ticker.upper()],
-                    "technical": technicals[result.ticker.upper()],
-                },
-                mutation_context=declare_core_evidence_mutation(
-                    db,
-                    kind=CoreEvidenceKind.COMBINED,
-                    current_row=result,
-                    effective_configuration=effective_configuration.snapshot,
-                    sources={
-                        "fundamental": fundamentals[result.ticker.upper()],
-                        "technical": technicals[result.ticker.upper()],
-                    },
-                ),
+                sources=sources,
             )
+            if index % 10 == 0 or index == total:
+                _report_combined_progress(
+                    checkpoint_callback,
+                    phase="DECLARING_EVIDENCE",
+                    processed=index,
+                    total=total,
+                    current_item=result.ticker,
+                    last_completed_item=result.ticker,
+                )
+        desired_tickers = tuple(result.ticker.upper() for result in results)
+        if not results:
+            _persist_combined_batch(
+                db,
+                run_id=run_id,
+                results=[],
+                desired_tickers=(),
+                remove_stale=True,
+                fundamentals=fundamentals,
+                technicals=technicals,
+                effective_configuration=effective_configuration,
+                evidence_mutation_contexts=evidence_mutation_contexts,
+                checkpoint_callback=checkpoint_callback,
+            )
+        for start in range(0, total, 10):
+            batch = results[start : start + 10]
+            _persist_combined_batch(
+                db,
+                run_id=run_id,
+                results=batch,
+                desired_tickers=desired_tickers,
+                remove_stale=start == 0,
+                fundamentals=fundamentals,
+                technicals=technicals,
+                effective_configuration=effective_configuration,
+                evidence_mutation_contexts=evidence_mutation_contexts,
+                checkpoint_callback=checkpoint_callback,
+            )
+            _report_combined_progress(
+                checkpoint_callback,
+                phase="BATCH_PERSISTED",
+                processed=min(start + len(batch), total),
+                total=total,
+                current_item=batch[-1].ticker if batch else None,
+                last_completed_item=batch[-1].ticker if batch else None,
+            )
+    else:
+        _persist_combined_batch(
+            db,
+            run_id=run_id,
+            results=results,
+            desired_tickers=tuple(result.ticker.upper() for result in results),
+            remove_stale=True,
+        )
     return results
+
+
+@core_writer_transaction
+def _persist_combined_batch(
+    db: Session,
+    *,
+    run_id: int,
+    results: list[CombinedResult],
+    desired_tickers: tuple[str, ...],
+    remove_stale: bool,
+    fundamentals: dict[str, FundamentalScore] | None = None,
+    technicals: dict[str, TechnicalScore] | None = None,
+    effective_configuration: CoreEffectiveConfiguration | None = None,
+    evidence_mutation_contexts: dict[str, DomainMutationContext] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
+) -> None:
+    """Atomically replace one bounded ticker batch and its immutable evidence."""
+
+    batch_tickers = tuple(result.ticker.upper() for result in results)
+    if not isinstance(db, Session):
+        db.execute(
+            update(WinnerPredictionSnapshot)
+            .where(WinnerPredictionSnapshot.run_id == run_id)
+            .where(WinnerPredictionSnapshot.combined_result_id.is_not(None))
+            .values(combined_result_id=None)
+        )
+        db.execute(delete(CombinedResult).where(CombinedResult.run_id == run_id))
+        db.add_all(results)
+        db.flush()
+        return
+
+    replacement = select(CombinedResult.id).where(
+        CombinedResult.run_id == run_id,
+        CombinedResult.ticker.in_(batch_tickers),
+    )
+    stale = select(CombinedResult.id).where(
+        CombinedResult.run_id == run_id,
+        CombinedResult.ticker.not_in(desired_tickers),
+    )
+    affected_ids = list(db.scalars(replacement))
+    if remove_stale:
+        affected_ids.extend(db.scalars(stale))
+    if affected_ids:
+        db.execute(
+            update(WinnerPredictionSnapshot)
+            .where(WinnerPredictionSnapshot.run_id == run_id)
+            .where(WinnerPredictionSnapshot.combined_result_id.in_(affected_ids))
+            .values(combined_result_id=None)
+        )
+        db.execute(delete(CombinedResult).where(CombinedResult.id.in_(affected_ids)))
+    db.add_all(results)
+    db.flush()
+    evidence_requests = []
+    for result in results:
+        ticker = result.ticker.upper()
+        mutation_context = (evidence_mutation_contexts or {}).get(ticker)
+        if mutation_context is None:
+            raise ValueError("COMBINED_EVIDENCE_MUTATION_CONTEXT_MISSING")
+        evidence_requests.append(
+            {
+                "kind": CoreEvidenceKind.COMBINED,
+                "current_row": result,
+                "effective_configuration": effective_configuration.snapshot,
+                "sources": {
+                    "fundamental": (fundamentals or {})[ticker],
+                    "technical": (technicals or {})[ticker],
+                },
+                "mutation_context": mutation_context,
+            }
+        )
+    persist_core_evidence_batch(
+        db,
+        requests=evidence_requests,
+        progress_callback=lambda *, index, total, request: _report_combined_progress(
+            checkpoint_callback,
+            phase="PERSISTING_EVIDENCE",
+            processed=index,
+            total=total,
+            current_item=request["current_row"].ticker,
+            last_completed_item=request["current_row"].ticker,
+        ),
+    )
+
+
+def _report_combined_progress(
+    callback: Callable[..., None] | None,
+    *,
+    phase: str,
+    processed: int,
+    total: int,
+    current_item: str | None = None,
+    last_completed_item: str | None = None,
+) -> None:
+    if callback is not None:
+        callback(
+            phase=phase,
+            processed=processed,
+            total=total,
+            current_item=current_item,
+            last_completed_item=last_completed_item,
+        )
 
 
 def combine_row_decision(

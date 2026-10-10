@@ -32,6 +32,7 @@ from app.services.setup_lifecycle.snapshot_builder import (
     SetupLifecycleSnapshotBuilder,
     SetupLifecycleSnapshotCaptureService,
     _trigger_distance_pct,
+    build_run_context_snapshots,
 )
 from app.services.setup_lifecycle.source_loader import (
     RunSourceContext,
@@ -375,6 +376,33 @@ def test_capture_service_persists_one_snapshot_per_ticker_and_retries_idempotent
     assert len(repository.snapshots_by_key) == 2
 
 
+def test_input_build_checkpoints_are_bounded_to_ten_tickers() -> None:
+    run_context = RunSourceContext(
+        upload_run=_upload_run(),
+        market_regime_snapshot=_market_snapshot(),
+        sector_rotation_snapshot=_sector_snapshot(),
+        tickers=tuple(_ticker_context(ticker=f"T{index:02d}") for index in range(21)),
+    )
+    checkpoints: list[dict[str, object]] = []
+
+    built = build_run_context_snapshots(
+        object(),
+        run_context,
+        builder=SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config()),
+        repository=FakeRepository(),
+        checkpoint_callback=lambda **progress: checkpoints.append(progress),
+    )
+
+    assert len(built) == 21
+    assert [item["processed"] for item in checkpoints] == [0, 10, 20, 21]
+    assert [item["phase"] for item in checkpoints] == [
+        "SOURCE_HISTORY_LOADED",
+        "SETUP_INPUTS_BUILT",
+        "SETUP_INPUTS_BUILT",
+        "SETUP_INPUTS_BUILT",
+    ]
+
+
 def test_capture_service_has_one_batch_persistence_owner() -> None:
     repository = FakeBatchRepository()
     loader = FakeLoader(
@@ -396,6 +424,41 @@ def test_capture_service_has_one_batch_persistence_owner() -> None:
     assert result.captured == 2
     assert repository.batch_calls == 1
     assert repository.single_calls == 0
+
+
+def test_capture_service_persists_large_population_in_durable_ten_row_batches() -> None:
+    repository = FakeBatchRepository()
+    loader = FakeLoader(
+        RunSourceContext(
+            upload_run=_upload_run(),
+            market_regime_snapshot=_market_snapshot(),
+            sector_rotation_snapshot=_sector_snapshot(),
+            tickers=tuple(_ticker_context(ticker=f"T{index:02d}") for index in range(21)),
+        )
+    )
+    service = SetupLifecycleSnapshotCaptureService(
+        loader=loader,
+        repository=repository,
+        config=load_setup_lifecycle_config(),
+    )
+    progress = []
+
+    result = service.capture_snapshots_for_run(
+        db=object(),
+        run_id=7,
+        progress_callback=lambda current_item, processed, total, **values: progress.append(
+            (current_item, processed, total, values["phase"])
+        ),
+    )
+
+    assert result.captured == 21
+    assert repository.batch_calls == 3
+    assert repository.single_calls == 0
+    assert [item[1:] for item in progress if item[3] == "EVIDENCE_BATCH_PERSISTED"] == [
+        (10, 21, "EVIDENCE_BATCH_PERSISTED"),
+        (20, 21, "EVIDENCE_BATCH_PERSISTED"),
+        (21, 21, "EVIDENCE_BATCH_PERSISTED"),
+    ]
 
 
 def test_capture_service_honors_cancellation_before_persistence() -> None:

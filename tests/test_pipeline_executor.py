@@ -4,6 +4,8 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 import app.services.pipeline_executor as pipeline_executor
 from app.models.ceri_tables import CeriCompany
@@ -25,6 +27,8 @@ from app.services.pipeline_executor import (
     PipelineExecutionDependencies,
     _capture_ceri_snapshot,
     _schedule_ceri_provider_ingest,
+    close_pipeline_read_transaction,
+    commit_pipeline_mutation_checkpoint,
     execute_full_pipeline,
 )
 from app.services.pipeline_prerequisites import (
@@ -36,6 +40,192 @@ from app.services.pipeline_prerequisites import (
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
 from app.services.ranking_profile_service import RankingPipelineResult
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
+
+
+def test_close_pipeline_read_transaction_releases_clean_read() -> None:
+    engine = create_engine("sqlite://")
+    UploadRun.__table__.create(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            UploadRun.__table__.insert(),
+            {"id": 7, "filename": "frozen.csv", "status": "COMPLETED"},
+        )
+    with Session(engine) as db:
+        frozen = db.get(UploadRun, 7)
+        assert frozen is not None
+
+        assert close_pipeline_read_transaction(db) is True
+        assert db.in_transaction() is False
+        assert db.expire_on_commit is True
+        assert frozen.filename == "frozen.csv"
+
+
+def test_close_pipeline_read_transaction_rejects_pending_domain_mutation() -> None:
+    engine = create_engine("sqlite://")
+    with Session(engine) as db:
+        db.add(UploadRun(filename="pending.csv", status="PROCESSING"))
+
+        with pytest.raises(
+            RuntimeError,
+            match="PIPELINE_READ_CHECKPOINT_REQUIRES_CLEAN_SESSION",
+        ):
+            close_pipeline_read_transaction(db)
+
+
+def test_commit_pipeline_mutation_checkpoint_commits_only_flushed_batch() -> None:
+    engine = create_engine("sqlite://")
+    UploadRun.__table__.create(engine)
+    with Session(engine) as db:
+        row = UploadRun(id=7, filename="durable.csv", status="PROCESSING")
+        db.add(row)
+        db.flush()
+
+        assert commit_pipeline_mutation_checkpoint(db) is True
+        assert db.in_transaction() is False
+        assert row.filename == "durable.csv"
+
+
+def test_commit_pipeline_mutation_checkpoint_rejects_pending_state() -> None:
+    with Session(create_engine("sqlite://")) as db:
+        db.add(UploadRun(filename="pending.csv", status="PROCESSING"))
+
+        with pytest.raises(
+            RuntimeError,
+            match="PIPELINE_MUTATION_CHECKPOINT_REQUIRES_FLUSHED_BATCH",
+        ):
+            commit_pipeline_mutation_checkpoint(db)
+
+
+def test_setup_capture_distinguishes_read_and_durable_mutation_checkpoints() -> None:
+    progress: list[dict[str, object]] = []
+    checkpoint = pipeline_executor._setup_capture_checkpoint_callback(
+        object(),
+        should_cancel=lambda: False,
+        progress_callback=lambda _db, **values: progress.append(values),
+    )
+
+    checkpoint("SOURCE_CONTEXT", 0, 100, phase="PREPARING")
+    checkpoint("-", 0, 100, phase="SOURCE_HISTORY_LOADED")
+    checkpoint("MSFT", 25, 100, phase="SETUP_INPUTS_BUILT")
+    checkpoint("MSFT", 10, 100, phase="DECISION_MANIFESTS_RECONSTRUCTED")
+    checkpoint("MSFT", 10, 100, phase="TEMPORAL_LINEAGE_VALIDATED")
+    checkpoint("MSFT", 10, 100, phase="ARTIFACT_LINEAGE_SERIALIZED")
+    checkpoint("MSFT", 1, 100, phase="EVIDENCE")
+    checkpoint("MSFT", 10, 100, phase="EVIDENCE_BATCH_PERSISTED")
+
+    assert [item["close_read_transaction"] for item in progress] == [
+        True,
+        True,
+        True,
+        True,
+        True,
+        True,
+        False,
+        False,
+    ]
+    assert [item["commit_mutation_transaction"] for item in progress] == [
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        True,
+    ]
+
+
+def test_setup_evaluation_commits_each_completed_preparation_batch() -> None:
+    progress: list[dict[str, object]] = []
+    checkpoint = pipeline_executor._setup_evaluation_checkpoint_callback(
+        object(),
+        should_cancel=lambda: False,
+        progress_callback=lambda _db, **values: progress.append(values),
+    )
+    durable_phases = (
+        "INPUTS_LOADED",
+        "CANDIDATES_SELECTED",
+        "EVIDENCE_VALIDATION_BATCH_COMPLETED",
+        "EVIDENCE_AUTHORITY_VALIDATION_COMPLETED",
+        "CHANGE_DETECTION_COMPLETED",
+        "CHANGE_ALERT_EVALUATION_COMPLETED",
+        "LIFECYCLE_INPUTS_LOADED",
+        "RECONCILIATION_BATCH_COMPLETED",
+        "LIFECYCLE_EVALUATION_STARTED",
+    )
+
+    for phase in durable_phases:
+        checkpoint(
+            phase=phase,
+            processed=25,
+            total=100,
+            current_item="MSFT",
+            last_completed_item="MSFT",
+        )
+
+    assert [item["commit_mutation_transaction"] for item in progress] == [True] * len(
+        durable_phases
+    )
+
+
+def test_technical_progress_closes_only_prepublication_read_transactions() -> None:
+    progress: list[dict[str, object]] = []
+
+    for phase in (
+        "LOADING_INPUTS",
+        "INPUTS_LOADED",
+        "CALCULATING",
+        "DECLARING_EVIDENCE",
+        "PERSISTING_EVIDENCE",
+    ):
+        pipeline_executor._technical_job_checkpoint(
+            object(),
+            progress_callback=lambda _db, **values: progress.append(values),
+            lease_guard=None,
+            phase=phase,
+            processed=10,
+            total=100,
+        )
+
+    assert [item["close_read_transaction"] for item in progress] == [
+        True,
+        True,
+        False,
+        True,
+        False,
+    ]
+
+
+def test_ranking_progress_closes_only_prepublication_read_transactions() -> None:
+    progress: list[dict[str, object]] = []
+
+    for phase in (
+        "INPUTS_LOADED",
+        "DECLARING_EVIDENCE",
+        "PERSISTING_EVIDENCE",
+        "PROFILE_PERSISTED",
+    ):
+        pipeline_executor._ranking_job_checkpoint(
+            object(),
+            progress_callback=lambda _db, **values: progress.append(values),
+            lease_guard=None,
+            phase=phase,
+            processed=10,
+            total=100,
+        )
+
+    assert [item["close_read_transaction"] for item in progress] == [
+        True,
+        True,
+        False,
+        False,
+    ]
+    assert [item["commit_mutation_transaction"] for item in progress] == [
+        False,
+        False,
+        False,
+        True,
+    ]
 
 
 @pytest.fixture(autouse=True)
@@ -251,9 +441,7 @@ def test_repaired_initial_preflight_restarts_same_pipeline_from_validation() -> 
     assert "ceri_schedule" in calls
     assert "winner_capture" not in calls
     assert db.steps[0].retry_count == 1
-    provider_step = next(
-        step for step in db.steps if step.step_name == "CERI_PROVIDER_INGEST"
-    )
+    provider_step = next(step for step in db.steps if step.step_name == "CERI_PROVIDER_INGEST")
     assert provider_step.status == PipelineStepStatus.WAITING_DEPENDENCY
     assert provider_step.completed_at is None
 
@@ -376,9 +564,7 @@ def test_sector_resume_rejects_cross_run_source_authority(
 
     wrong_identity = SimpleNamespace(
         ownership=SimpleNamespace(run_id=dimension(999), pipeline_id=dimension(3)),
-        calculation_context=SimpleNamespace(
-            market_calculation_context_id=dimension(17)
-        ),
+        calculation_context=SimpleNamespace(market_calculation_context_id=dimension(17)),
         temporal=SimpleNamespace(
             calculation_cutoff=dimension(expected_cutoff),
             as_of_session=dimension(date(2026, 10, 2)),
@@ -544,9 +730,7 @@ def test_resume_from_setup_capture_skips_completed_tail_and_cache_fallback_winne
         setup_lifecycle_enabled=True,
     )
     capture_index = next(
-        index
-        for index, step in enumerate(db.steps)
-        if step.step_name == "CAPTURING_SETUP_SIGNALS"
+        index for index, step in enumerate(db.steps) if step.step_name == "CAPTURING_SETUP_SIGNALS"
     )
     for step in db.steps[:capture_index]:
         step.status = PipelineStepStatus.COMPLETED
@@ -875,6 +1059,13 @@ def test_setup_evaluation_progress_is_adapted_to_job_progress_contract() -> None
             current_item="NVDA",
             last_completed_item="NVDA",
         )
+        progress_callback(
+            phase="PRIMARY_STATUS_REFRESH_BATCH_COMPLETED",
+            processed=51,
+            total=51,
+            current_item="NVDA",
+            last_completed_item="NVDA",
+        )
         return expected
 
     cutoff = SimpleNamespace(context_id=41)
@@ -894,26 +1085,34 @@ def test_setup_evaluation_progress_is_adapted_to_job_progress_contract() -> None
         "pipeline_run_id": 24,
         "progress_callback": checkpoint,
     }
-    assert [event["sequence"] for event in forwarded] == [1, 2, 3]
+    assert [event["sequence"] for event in forwarded] == [1, 2, 3, 4]
     assert [event["stage"] for event in forwarded] == [
         "EVALUATING_SETUP_LIFECYCLES",
         "EVALUATING_SETUP_LIFECYCLES",
         "EVALUATING_SETUP_LIFECYCLES",
+        "EVALUATING_SETUP_LIFECYCLES",
     ]
-    assert [event["processed"] for event in forwarded] == [51, 25, 51]
+    assert [event["processed"] for event in forwarded] == [51, 25, 51, 51]
+    assert [event["commit_mutation_transaction"] for event in forwarded] == [
+        True,
+        True,
+        True,
+        True,
+    ]
     assert [event["checkpoint_version"] for event in forwarded] == [
         "setup-evaluation-v1:LIFECYCLE_INPUTS_LOADED:51",
         "setup-evaluation-v1:LIFECYCLE_EVALUATION_BATCH_COMPLETED:25",
         "setup-evaluation-v1:LIFECYCLE_EVALUATION_BATCH_COMPLETED:51",
+        "setup-evaluation-v1:PRIMARY_STATUS_REFRESH_BATCH_COMPLETED:51",
     ]
     assert forwarded[-1]["operational_metadata_patch"] == {
         "setup_lifecycle_evaluation_progress": {
-            "phase": "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+            "phase": "PRIMARY_STATUS_REFRESH_BATCH_COMPLETED",
             "processed": 51,
             "total": 51,
         }
     }
-    assert cancellations == [1, 2, 3]
+    assert cancellations == [1, 2, 3, 4]
 
 
 def test_replay_interrupts_stale_running_step_and_preserves_attempt_history() -> None:
@@ -1720,12 +1919,8 @@ def test_readiness_unresolved_blocker_stops_technical_and_handoff_progression(
     assert db.pipeline.status == PipelineStatus.BLOCKED
     fetch_step = next(step for step in db.steps if step.step_name == "FETCHING_MARKET_DATA")
     assert fetch_step.result_json["blockers"] == ["BLOCKED"]
-    assert fetch_step.result_json["tickers"]["BLOCKED"]["reason_code"] == (
-        "IB_RETRYABLE_FAILURE"
-    )
-    technical_step = next(
-        step for step in db.steps if step.step_name == "SCORING_TECHNICALS"
-    )
+    assert fetch_step.result_json["tickers"]["BLOCKED"]["reason_code"] == ("IB_RETRYABLE_FAILURE")
+    technical_step = next(step for step in db.steps if step.step_name == "SCORING_TECHNICALS")
     assert technical_step.status == PipelineStepStatus.PENDING
 
 

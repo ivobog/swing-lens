@@ -21,6 +21,7 @@ from app.services.core_mutation_authority import (
     artifact_mutation_context,
     core_writer_transaction,
     projection_mutation_context,
+    require_semantic_writer,
     validate_core_mutation_authority,
     validate_projection_mutation,
 )
@@ -74,6 +75,8 @@ def declare_core_evidence_mutation(
     calculation_identity: CalculationIdentity | None = None,
     effective_configuration: EffectiveConfigurationSnapshot | None = None,
     checkpoint_callback=None,
+    technical_source_manifest=None,
+    technical_source_manifest_verified_digest: str | None = None,
 ) -> DomainMutationContext:
     """Native callers declare exact arguments; the writer revalidates storage."""
     identity = calculation_identity or calculation_identity_from_debug(
@@ -92,6 +95,8 @@ def declare_core_evidence_mutation(
             declaration_only=True,
             checkpoint_callback=checkpoint_callback,
             checkpoint_phase="DECLARATION_VALIDATION",
+            technical_source_manifest=technical_source_manifest,
+            technical_source_manifest_verified_digest=(technical_source_manifest_verified_digest),
         )
     return declaration
 
@@ -110,6 +115,9 @@ def persist_core_evidence(
     effective_configuration: EffectiveConfigurationSnapshot | None = None,
     mutation_context: DomainMutationContext | None = None,
     checkpoint_callback=None,
+    technical_source_manifest_validation=None,
+    _reuse_semantic_transaction: bool = False,
+    _defer_current_row_link: bool = False,
 ) -> CoreCalculationEvidence | None:
     """Persist/reuse immutable evidence and advance its independent current pointer.
 
@@ -182,6 +190,7 @@ def persist_core_evidence(
             payload=payload or {},
             checkpoint_callback=checkpoint_callback,
             checkpoint_phase="PERSISTENCE_VALIDATION",
+            technical_source_manifest_validation=technical_source_manifest_validation,
         )
         validate_core_mutation_authority(
             db,
@@ -272,11 +281,25 @@ def persist_core_evidence(
         if source_ids:
             db.flush()
 
-    current_row.evidence_id = evidence.id
-    if hasattr(type(current_row), "calculation_evidence"):
-        # A same-session recalculation must advance the loaded exact source too.
-        set_committed_value(current_row, "calculation_evidence", evidence)
-    projection = _advance_current_projection(
+    if not _defer_current_row_link:
+        current_row.evidence_id = evidence.id
+        if hasattr(type(current_row), "calculation_evidence"):
+            # A same-session recalculation must advance the loaded exact source too.
+            set_committed_value(current_row, "calculation_evidence", evidence)
+    if _reuse_semantic_transaction:
+        require_semantic_writer(
+            db,
+            (
+                "app.services.core_calculation_evidence:persist_core_evidence",
+                "app.services.core_calculation_evidence:persist_core_evidence_batch",
+            ),
+        )
+    projection_writer = (
+        _advance_current_projection.__wrapped__
+        if _reuse_semantic_transaction
+        else _advance_current_projection
+    )
+    projection = projection_writer(
         db,
         evidence,
         mutation_context=projection_mutation_context(evidence),
@@ -304,6 +327,38 @@ def persist_core_evidence(
         readiness.readiness_policy_version,
     )
     return evidence
+
+
+@core_writer_transaction
+def persist_core_evidence_batch(
+    db: Session,
+    *,
+    requests: list[dict[str, Any]],
+    progress_callback=None,
+) -> list[CoreCalculationEvidence | None]:
+    """Persist an authority-validated cohort under one semantic savepoint."""
+
+    evidence_rows = []
+    total = len(requests)
+    for index, request in enumerate(requests, start=1):
+        evidence = persist_core_evidence.__wrapped__(
+            db,
+            **request,
+            _reuse_semantic_transaction=True,
+            _defer_current_row_link=True,
+        )
+        evidence_rows.append(evidence)
+        if progress_callback is not None and (index % 10 == 0 or index == total):
+            progress_callback(index=index, total=total, request=request)
+    for request, evidence in zip(requests, evidence_rows, strict=True):
+        if evidence is None:
+            continue
+        current_row = request["current_row"]
+        current_row.evidence_id = evidence.id
+        if hasattr(type(current_row), "calculation_evidence"):
+            set_committed_value(current_row, "calculation_evidence", evidence)
+    db.flush()
+    return evidence_rows
 
 
 def normalize_configuration_business_payload(payload, *, namespace, source_ids):

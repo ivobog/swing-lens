@@ -380,16 +380,29 @@ def verify_transition_decision_manifests_before_mutation(
     """Compare post-upstream artifacts with the persisted handoff contract."""
 
     plan = db.scalar(
-        select(TransitionPreflightPlan)
-        .where(
+        select(TransitionPreflightPlan).where(
             TransitionPreflightPlan.market_calculation_context_id == market_cutoff.context_id,
             TransitionPreflightPlan.upload_run_id == upload_run_id,
             TransitionPreflightPlan.status == "CONSUMED",
         )
-        .with_for_update()
     )
     if plan is None:
         return
+
+    handoff = db.scalar(
+        select(TransitionDecisionHandoffManifest).where(
+            TransitionDecisionHandoffManifest.preflight_plan_id == plan.id
+        )
+    )
+    if handoff is None:
+        raise _rejection(
+            plan,
+            code="MALFORMED_DECISION_MANIFEST",
+            category="decision_handoff",
+            message="post-upstream decision handoff manifest was not persisted",
+        )
+    expected_plan_authority = _transition_plan_verification_authority(plan)
+    expected_handoff_authority = _transition_handoff_verification_authority(handoff)
 
     expected_tickers = set(plan.tickers_json or ())
     actual = reconstruct_transition_decision_manifests(
@@ -400,18 +413,6 @@ def verify_transition_decision_manifests_before_mutation(
         tickers=expected_tickers,
         checkpoint_callback=checkpoint_callback,
     )
-    handoff = db.scalar(
-        select(TransitionDecisionHandoffManifest)
-        .where(TransitionDecisionHandoffManifest.preflight_plan_id == plan.id)
-        .with_for_update()
-    )
-    if handoff is None:
-        raise _rejection(
-            plan,
-            code="MALFORMED_DECISION_MANIFEST",
-            category="decision_handoff",
-            message="post-upstream decision handoff manifest was not persisted",
-        )
     ceri_market_cutoff = _decision_ceri_context(db, plan, market_cutoff)
     _validate_handoff_temporal_lineage(
         db,
@@ -452,6 +453,13 @@ def verify_transition_decision_manifests_before_mutation(
         checkpoint_callback=checkpoint_callback,
     )
     observed_fingerprint = CanonicalEvidenceSerializer.fingerprint(observed)
+    plan, handoff = _lock_transition_verification_authority(
+        db,
+        plan_id=plan.id,
+        handoff_id=handoff.id,
+        expected_plan_authority=expected_plan_authority,
+        expected_handoff_authority=expected_handoff_authority,
+    )
     if (
         set(actual) != expected_tickers
         or observed != handoff.manifest_json
@@ -475,6 +483,67 @@ def verify_transition_decision_manifests_before_mutation(
             expected_fingerprint=handoff.manifest_fingerprint,
             actual_fingerprint=observed_fingerprint,
         )
+
+
+def _transition_plan_verification_authority(plan: TransitionPreflightPlan) -> dict:
+    return CanonicalEvidenceSerializer.canonicalize(
+        {
+            column.name: getattr(plan, column.name)
+            for column in TransitionPreflightPlan.__table__.columns
+        }
+    )
+
+
+def _transition_handoff_verification_authority(
+    handoff: TransitionDecisionHandoffManifest,
+) -> dict:
+    return CanonicalEvidenceSerializer.canonicalize(
+        {
+            column.name: getattr(handoff, column.name)
+            for column in TransitionDecisionHandoffManifest.__table__.columns
+        }
+    )
+
+
+def _lock_transition_verification_authority(
+    db: Session,
+    *,
+    plan_id: int,
+    handoff_id: int,
+    expected_plan_authority: dict,
+    expected_handoff_authority: dict,
+) -> tuple[TransitionPreflightPlan, TransitionDecisionHandoffManifest]:
+    """Re-lock unchanged authority only after expensive read-only reconstruction."""
+
+    with db.no_autoflush:
+        plan = db.scalar(
+            select(TransitionPreflightPlan)
+            .where(TransitionPreflightPlan.id == plan_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        handoff = db.scalar(
+            select(TransitionDecisionHandoffManifest)
+            .where(TransitionDecisionHandoffManifest.id == handoff_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    if plan is None or handoff is None:
+        raise TransitionPreflightError(
+            "DECISION_MANIFEST_MISMATCH",
+            "decision handoff authority disappeared during read-only reconstruction",
+        )
+    if (
+        _transition_plan_verification_authority(plan) != expected_plan_authority
+        or _transition_handoff_verification_authority(handoff) != expected_handoff_authority
+    ):
+        raise _rejection(
+            plan,
+            code="DECISION_MANIFEST_MISMATCH",
+            category="verification_authority",
+            message="decision handoff authority changed during read-only reconstruction",
+        )
+    return plan, handoff
 
 
 def freeze_transition_decision_handoff_manifest(
@@ -869,7 +938,7 @@ def reconstruct_transition_decision_manifests(
             "decision_manifest": manifest.as_dict(),
             "decision_manifest_fingerprint": manifest.fingerprint,
         }
-        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+        if checkpoint_callback is not None and (index % 10 == 0 or index == total):
             checkpoint_callback(
                 phase="DECISION_MANIFESTS_RECONSTRUCTED",
                 processed=index,
@@ -1073,7 +1142,7 @@ def _build_decision_handoff_payload(
             ],
             "setup_signal_input_hash": built.source_data_hash,
         }
-        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+        if checkpoint_callback is not None and (index % 10 == 0 or index == total):
             checkpoint_callback(
                 phase="ARTIFACT_LINEAGE_SERIALIZED",
                 processed=index,
@@ -1276,7 +1345,7 @@ def _validate_handoff_temporal_lineage(
         ):
             failures.append(f"{ticker}:sector_row_parent")
         price_bars.extend(context.price_bars)
-        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+        if checkpoint_callback is not None and (index % 10 == 0 or index == total):
             checkpoint_callback(
                 phase="TEMPORAL_LINEAGE_VALIDATED",
                 processed=index,

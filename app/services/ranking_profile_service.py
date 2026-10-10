@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -40,13 +41,14 @@ from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
     declare_core_evidence_mutation,
-    persist_core_evidence,
+    persist_core_evidence_batch,
 )
 from app.services.core_effective_configuration import (
     CoreEffectiveConfiguration,
     resolve_ranking_configuration,
 )
 from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
+from app.services.domain_mutation import DomainMutationContext
 from app.services.ib_market_intelligence.config import (
     load_ib_market_intelligence_config,
 )
@@ -99,6 +101,7 @@ def execute_ranking_pipeline_step(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
     pipeline_run_id: int | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> RankingPipelineResult:
     profiles = load_ranking_profiles()
     if not profiles:
@@ -111,7 +114,12 @@ def execute_ranking_pipeline_step(
         )
     rows = _raw_rows_for_run(db, run_id)
     if market_cutoff is None and pipeline_run_id is None:
-        results = refresh_all_ranking_profiles(db, run_id, resolved_profiles=profiles)
+        results = refresh_all_ranking_profiles(
+            db,
+            run_id,
+            resolved_profiles=profiles,
+            checkpoint_callback=checkpoint_callback,
+        )
     else:
         results = refresh_all_ranking_profiles(
             db,
@@ -119,6 +127,7 @@ def execute_ranking_pipeline_step(
             market_cutoff=market_cutoff,
             pipeline_run_id=pipeline_run_id,
             resolved_profiles=profiles,
+            checkpoint_callback=checkpoint_callback,
         )
     if rows and not results:
         raise RuntimeError(
@@ -142,6 +151,7 @@ def refresh_all_ranking_profiles(
     pipeline_run_id: int | None = None,
     effective_configurations: tuple[CoreEffectiveConfiguration, ...] | None = None,
     resolved_profiles: list[RankingProfileConfig] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> list[RankingResult]:
     _require_run(db, run_id)
     profiles = (
@@ -171,6 +181,12 @@ def refresh_all_ranking_profiles(
         db,
         liquidity_features,
         validated=validated,
+    )
+    _report_ranking_progress(
+        checkpoint_callback,
+        phase="INPUTS_LOADED",
+        processed=len(validated),
+        total=len(validated),
     )
 
     desired: list[RankingResult] = []
@@ -221,6 +237,14 @@ def refresh_all_ranking_profiles(
             )
         desired.extend(models)
 
+    evidence_mutation_contexts = _declare_ranking_evidence_contexts(
+        db,
+        desired=desired,
+        source_rows=validated,
+        ibmi_sources=ranking_ibmi_sources,
+        effective_configurations=configurations,
+        checkpoint_callback=checkpoint_callback,
+    )
     return _persist_rankings(
         db,
         run_id=run_id,
@@ -228,6 +252,8 @@ def refresh_all_ranking_profiles(
         source_rows=validated,
         ibmi_sources=ranking_ibmi_sources,
         effective_configurations=configurations,
+        evidence_mutation_contexts=evidence_mutation_contexts,
+        checkpoint_callback=checkpoint_callback,
     )
 
 
@@ -241,6 +267,7 @@ def refresh_ranking_profile(
     pipeline_run_id: int | None = None,
     effective_configuration: CoreEffectiveConfiguration | None = None,
     expected_calculation_identity: CalculationIdentity | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> list[RankingResult]:
     _require_run(db, run_id)
     profile = (
@@ -273,6 +300,12 @@ def refresh_ranking_profile(
         db,
         liquidity_features,
         validated=validated,
+    )
+    _report_ranking_progress(
+        checkpoint_callback,
+        phase="INPUTS_LOADED",
+        processed=len(validated),
+        total=len(validated),
     )
     profile_liquidity = safe_liquidity if profile.tradeability_overlay.enabled else {}
 
@@ -312,19 +345,30 @@ def refresh_ranking_profile(
             ),
         )
         models.append(_to_ranking_model(run_id, decision, effective_configuration.bind(identity)))
+    ranking_ibmi_sources = {
+        (profile.name, ticker.upper()): feature for ticker, feature in profile_liquidity.items()
+    }
+    configurations = {profile.name: effective_configuration}
+    evidence_mutation_contexts = _declare_ranking_evidence_contexts(
+        db,
+        desired=models,
+        source_rows=validated,
+        ibmi_sources=ranking_ibmi_sources,
+        effective_configurations=configurations,
+        checkpoint_callback=checkpoint_callback,
+    )
     return _persist_rankings(
         db,
         run_id=run_id,
         desired=models,
         source_rows=validated,
-        ibmi_sources={
-            (profile.name, ticker.upper()): feature for ticker, feature in profile_liquidity.items()
-        },
-        effective_configurations={profile.name: effective_configuration},
+        ibmi_sources=ranking_ibmi_sources,
+        effective_configurations=configurations,
+        evidence_mutation_contexts=evidence_mutation_contexts,
+        checkpoint_callback=checkpoint_callback,
     )
 
 
-@core_writer_transaction
 def _persist_rankings(
     db: Session,
     *,
@@ -333,7 +377,63 @@ def _persist_rankings(
     source_rows: dict[str, _ValidatedRankingSources] | None = None,
     ibmi_sources: dict[tuple[str, str], IBIntelligenceFeature] | None = None,
     effective_configurations: dict[str, CoreEffectiveConfiguration] | None = None,
+    evidence_mutation_contexts: dict[tuple[str, str], DomainMutationContext] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> list[RankingResult]:
+    if not isinstance(db, Session):
+        return _persist_ranking_profile_batch(
+            db,
+            run_id=run_id,
+            desired=desired,
+            source_rows=source_rows,
+            ibmi_sources=ibmi_sources,
+            effective_configurations=effective_configurations,
+            evidence_mutation_contexts=evidence_mutation_contexts,
+            checkpoint_callback=checkpoint_callback,
+        )
+    persisted: list[RankingResult] = []
+    profile_names = list(dict.fromkeys(result.ranking_profile for result in desired))
+    total = len(desired)
+    for profile_name in profile_names:
+        profile_desired = [result for result in desired if result.ranking_profile == profile_name]
+        persisted.extend(
+            _persist_ranking_profile_batch(
+                db,
+                run_id=run_id,
+                desired=profile_desired,
+                source_rows=source_rows,
+                ibmi_sources=ibmi_sources,
+                effective_configurations=effective_configurations,
+                evidence_mutation_contexts=evidence_mutation_contexts,
+                checkpoint_callback=checkpoint_callback,
+            )
+        )
+        _report_ranking_progress(
+            checkpoint_callback,
+            phase="PROFILE_PERSISTED",
+            processed=len(persisted),
+            total=total,
+            current_item=profile_name,
+            last_completed_item=profile_name,
+        )
+    return persisted
+
+
+@core_writer_transaction
+def _persist_ranking_profile_batch(
+    db: Session,
+    *,
+    run_id: int,
+    desired: list[RankingResult],
+    source_rows: dict[str, _ValidatedRankingSources] | None = None,
+    ibmi_sources: dict[tuple[str, str], IBIntelligenceFeature] | None = None,
+    effective_configurations: dict[str, CoreEffectiveConfiguration] | None = None,
+    evidence_mutation_contexts: dict[tuple[str, str], DomainMutationContext] | None = None,
+    checkpoint_callback: Callable[..., None] | None = None,
+) -> list[RankingResult]:
+    profile_names = {result.ranking_profile for result in desired}
+    if isinstance(db, Session) and len(profile_names) > 1:
+        raise ValueError("RANKING_PROFILE_BATCH_MUST_BE_PROFILE_ATOMIC")
     existing = {
         (row.ranking_profile, row.ticker.upper()): row for row in _existing_rankings(db, run_id)
     }
@@ -360,6 +460,7 @@ def _persist_rankings(
         db.add_all(added)
     db.flush()
     if isinstance(db, Session):
+        evidence_requests: list[dict[str, Any]] = []
         for result in persisted:
             item = (source_rows or {}).get(result.ticker.upper())
             if item is None:
@@ -373,25 +474,100 @@ def _persist_rankings(
             ibmi = (ibmi_sources or {}).get((result.ranking_profile, result.ticker.upper()))
             if ibmi is not None and ibmi.evidence_id is not None:
                 evidence_sources["ibmi_liquidity"] = ibmi
-            persist_core_evidence(
-                db,
-                kind=CoreEvidenceKind.RANKING,
-                current_row=result,
-                sources=evidence_sources,
-                effective_configuration=(effective_configurations or {})[
-                    result.ranking_profile
-                ].snapshot,
-                mutation_context=declare_core_evidence_mutation(
-                    db,
-                    kind=CoreEvidenceKind.RANKING,
-                    current_row=result,
-                    sources=evidence_sources,
-                    effective_configuration=(effective_configurations or {})[
+            key = (result.ranking_profile, result.ticker.upper())
+            mutation_context = (evidence_mutation_contexts or {}).get(key)
+            if mutation_context is None:
+                raise ValueError("RANKING_EVIDENCE_MUTATION_CONTEXT_MISSING")
+            evidence_requests.append(
+                {
+                    "kind": CoreEvidenceKind.RANKING,
+                    "current_row": result,
+                    "sources": evidence_sources,
+                    "effective_configuration": (effective_configurations or {})[
                         result.ranking_profile
                     ].snapshot,
-                ),
+                    "mutation_context": mutation_context,
+                }
             )
+        persist_core_evidence_batch(
+            db,
+            requests=evidence_requests,
+            progress_callback=lambda *, index, total, request: _report_ranking_progress(
+                checkpoint_callback,
+                phase="PERSISTING_EVIDENCE",
+                processed=index,
+                total=total,
+                current_item=request["current_row"].ticker,
+                last_completed_item=request["current_row"].ticker,
+            ),
+        )
     return persisted
+
+
+def _declare_ranking_evidence_contexts(
+    db: Session,
+    *,
+    desired: list[RankingResult],
+    source_rows: dict[str, _ValidatedRankingSources],
+    ibmi_sources: dict[tuple[str, str], IBIntelligenceFeature],
+    effective_configurations: dict[str, CoreEffectiveConfiguration],
+    checkpoint_callback: Callable[..., None] | None,
+) -> dict[tuple[str, str], DomainMutationContext]:
+    if not isinstance(db, Session):
+        return {}
+    contexts: dict[tuple[str, str], DomainMutationContext] = {}
+    total = len(desired)
+    for index, result in enumerate(desired, start=1):
+        item = source_rows.get(result.ticker.upper())
+        if item is None:
+            raise ValueError(
+                f"EVIDENCE_UNAVAILABLE: Ranking source rows missing for {result.ticker}"
+            )
+        evidence_sources: dict[str, Any] = {
+            "fundamental": item.fundamental,
+            "technical": item.technical,
+        }
+        key = (result.ranking_profile, result.ticker.upper())
+        ibmi = ibmi_sources.get(key)
+        if ibmi is not None and ibmi.evidence_id is not None:
+            evidence_sources["ibmi_liquidity"] = ibmi
+        contexts[key] = declare_core_evidence_mutation(
+            db,
+            kind=CoreEvidenceKind.RANKING,
+            current_row=result,
+            sources=evidence_sources,
+            effective_configuration=effective_configurations[result.ranking_profile].snapshot,
+        )
+        if index % 10 == 0 or index == total:
+            _report_ranking_progress(
+                checkpoint_callback,
+                phase="DECLARING_EVIDENCE",
+                processed=index,
+                total=total,
+                current_item=result.ticker,
+                last_completed_item=result.ticker,
+            )
+    return contexts
+
+
+def _report_ranking_progress(
+    callback: Callable[..., None] | None,
+    *,
+    phase: str,
+    processed: int,
+    total: int,
+    current_item: str | None = None,
+    last_completed_item: str | None = None,
+) -> None:
+    if callback is None:
+        return
+    callback(
+        phase=phase,
+        processed=processed,
+        total=total,
+        current_item=current_item,
+        last_completed_item=last_completed_item,
+    )
 
 
 def _preflight_ranking_persistence(
@@ -413,7 +589,7 @@ def _preflight_ranking_persistence(
             continue
 
 
-@core_writer_member("app.services.ranking_profile_service:_persist_rankings")
+@core_writer_member("app.services.ranking_profile_service:_persist_ranking_profile_batch")
 def _replace_legacy_ranking(
     db: Session,
     *,
@@ -442,7 +618,7 @@ def _existing_rankings(db: Session, run_id: int) -> list[RankingResult]:
     ]
 
 
-@core_writer_member("app.services.ranking_profile_service:_persist_rankings")
+@core_writer_member("app.services.ranking_profile_service:_persist_ranking_profile_batch")
 def _copy_ranking_values(target: RankingResult, source: RankingResult) -> None:
     immutable = {
         "id",

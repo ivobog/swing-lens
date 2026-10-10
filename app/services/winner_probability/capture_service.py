@@ -248,6 +248,7 @@ class WinnerPredictionCaptureService:
                     config=config,
                     lease_guard=lease_guard,
                 )
+                _release_capture_read_transaction(db)
 
             for item_index, ticker_context in enumerate(ticker_contexts, start=1):
                 ticker = _ticker_name(ticker_context)
@@ -369,6 +370,9 @@ class WinnerPredictionCaptureService:
                             "elapsed_seconds": round(perf_counter() - ticker_started, 6),
                         },
                     )
+                finally:
+                    if use_item_sessions:
+                        _release_capture_read_transaction(db)
 
             evidence_metrics = metrics_reader() if callable(metrics_reader) else {}
             return totals.to_result(
@@ -938,6 +942,22 @@ def _commit_if_supported(db: Any) -> None:
     commit = getattr(db, "commit", None)
     if callable(commit):
         commit()
+
+
+def _release_capture_read_transaction(db: Any) -> bool:
+    """Release parent-session reads while ticker writes use bounded child sessions."""
+
+    if not isinstance(db, Session) or not db.in_transaction():
+        return False
+    if db.in_nested_transaction() or db.new or db.dirty or db.deleted:
+        raise RuntimeError("WINNER_CAPTURE_READ_CHECKPOINT_REQUIRES_CLEAN_SESSION")
+    expire_on_commit = db.expire_on_commit
+    db.expire_on_commit = False
+    try:
+        db.commit()
+    finally:
+        db.expire_on_commit = expire_on_commit
+    return True
 
 
 def _first_present(*values):

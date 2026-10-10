@@ -1306,6 +1306,8 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
         PipelineCancelled,
         PipelineContinuationSuppressed,
         PipelineExecutionDependencies,
+        close_pipeline_read_transaction,
+        commit_pipeline_mutation_checkpoint,
         execute_full_pipeline,
     )
 
@@ -1359,6 +1361,10 @@ def _execute_full_pipeline_job(db: Session, job: BackgroundJob) -> dict[str, Any
             return requested
 
     def progress_callback(progress_db: Session, **progress: Any) -> None:
+        if progress.pop("commit_mutation_transaction", False):
+            commit_pipeline_mutation_checkpoint(progress_db)
+        if progress.pop("close_read_transaction", False):
+            close_pipeline_read_transaction(progress_db)
         if control_factory is None:
             record_job_progress(
                 progress_db,

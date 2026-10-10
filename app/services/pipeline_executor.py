@@ -135,6 +135,48 @@ class PipelineCancelled(Exception):
     pass
 
 
+def close_pipeline_read_transaction(db: Session) -> bool:
+    """Release a completed read phase before long CPU-only pipeline work.
+
+    Frozen source rows must remain resident after the commit, so expiration is
+    disabled only for this boundary. Refuse to checkpoint across pending domain
+    mutations or a writer savepoint; those remain owned by their stage.
+    """
+
+    if not isinstance(db, Session) or not db.in_transaction():
+        return False
+    if db.in_nested_transaction() or db.new or db.dirty or db.deleted:
+        raise RuntimeError("PIPELINE_READ_CHECKPOINT_REQUIRES_CLEAN_SESSION")
+    expire_on_commit = db.expire_on_commit
+    db.expire_on_commit = False
+    try:
+        db.commit()
+    finally:
+        db.expire_on_commit = expire_on_commit
+    return True
+
+
+def commit_pipeline_mutation_checkpoint(db: Session) -> bool:
+    """Commit one completed, authority-validated pipeline mutation batch.
+
+    Callers must invoke this only after the semantic writer has returned and
+    flushed its complete batch.  Pending ORM state or a live writer savepoint
+    means the batch is not a safe durable checkpoint and is rejected.
+    """
+
+    if not isinstance(db, Session) or not db.in_transaction():
+        return False
+    if db.in_nested_transaction() or db.new or db.dirty or db.deleted:
+        raise RuntimeError("PIPELINE_MUTATION_CHECKPOINT_REQUIRES_FLUSHED_BATCH")
+    expire_on_commit = db.expire_on_commit
+    db.expire_on_commit = False
+    try:
+        db.commit()
+    finally:
+        db.expire_on_commit = expire_on_commit
+    return True
+
+
 class PipelineContinuationSuppressed(Exception):
     """A durable continuation lost authority before its resume transition."""
 
@@ -423,7 +465,11 @@ def execute_full_pipeline(
         _raise_if_cancelled(should_cancel)
 
         with _pipeline_step(
-            db, pipeline, "VALIDATING_RUN", lease_guard=lease_guard, performance=performance
+            db,
+            pipeline,
+            "VALIDATING_RUN",
+            lease_guard=lease_guard,
+            performance=performance,
         ):
             tickers = _pipeline_scope_tickers(db, pipeline)
             if not tickers:
@@ -444,7 +490,11 @@ def execute_full_pipeline(
             progress_callback=progress_callback,
         )
         with _pipeline_step(
-            db, pipeline, "SCORING_FUNDAMENTALS", lease_guard=lease_guard, performance=performance
+            db,
+            pipeline,
+            "SCORING_FUNDAMENTALS",
+            lease_guard=lease_guard,
+            performance=performance,
         ):
             fundamental_scores = _call_market_sensitive(
                 dependencies.recalculate_fundamentals,
@@ -457,7 +507,11 @@ def execute_full_pipeline(
 
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
-            db, pipeline, "FETCHING_MARKET_DATA", lease_guard=lease_guard, performance=performance
+            db,
+            pipeline,
+            "FETCHING_MARKET_DATA",
+            lease_guard=lease_guard,
+            performance=performance,
         ):
             ib_health = dependencies.check_ib_gateway()
             _apply_ib_execution_status(result, ib_health)
@@ -685,7 +739,11 @@ def execute_full_pipeline(
 
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
-            db, pipeline, "SCORING_TECHNICALS", lease_guard=lease_guard, performance=performance
+            db,
+            pipeline,
+            "SCORING_TECHNICALS",
+            lease_guard=lease_guard,
+            performance=performance,
         ):
             if overlap_coordinator is not None:
                 try:
@@ -815,7 +873,11 @@ def execute_full_pipeline(
 
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
-            db, pipeline, "COMBINING_RESULTS", lease_guard=lease_guard, performance=performance
+            db,
+            pipeline,
+            "COMBINING_RESULTS",
+            lease_guard=lease_guard,
+            performance=performance,
         ):
             combined_results = _call_market_sensitive(
                 dependencies.refresh_combined,
@@ -823,6 +885,12 @@ def execute_full_pipeline(
                 upload_run.id,
                 market_cutoff,
                 pipeline_run_id=pipeline.id,
+                checkpoint_callback=lambda **progress: _combined_job_checkpoint(
+                    db,
+                    progress_callback=progress_callback,
+                    lease_guard=lease_guard,
+                    **progress,
+                ),
             )
             result["combined_results"] = len(combined_results)
             result["incomplete_rows"] = sum(not row.is_complete for row in combined_results)
@@ -842,6 +910,12 @@ def execute_full_pipeline(
                 upload_run.id,
                 market_cutoff,
                 pipeline_run_id=pipeline.id,
+                checkpoint_callback=lambda **progress: _ranking_job_checkpoint(
+                    db,
+                    progress_callback=progress_callback,
+                    lease_guard=lease_guard,
+                    **progress,
+                ),
             )
             result["ranking_profiles"] = ranking.profile_count
             result["ranking_results"] = ranking.result_count
@@ -969,6 +1043,7 @@ def execute_full_pipeline(
         _record_performance_metrics(db, PipelineStatus.FAILED, result["performance"])
         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
         raise
+
 
 def _continue_after_sector_snapshot(
     db: Session,
@@ -1567,9 +1642,7 @@ def _execute_resumed_pipeline(
         ) as winner_step:
             if result.get("market_data_mode") == "CACHE_FALLBACK":
                 result["winner_prediction_capture_skipped"] = 1
-                result["winner_prediction_capture_skip_reason"] = (
-                    "CACHE_FALLBACK_MARKET_DATA"
-                )
+                result["winner_prediction_capture_skip_reason"] = "CACHE_FALLBACK_MARKET_DATA"
             elif _winner_probability_capture_enabled(dependencies):
                 capture = dependencies.capture_winner_predictions or _capture_winner_predictions
                 winner_result = _invoke_winner_capture(
@@ -1830,9 +1903,7 @@ def _validate_sector_resume_checkpoint(
         ),
     }
     distinct_counts = {
-        kind.value.lower() + "_tickers": len(
-            {str(row.ticker).strip().upper() for row in rows}
-        )
+        kind.value.lower() + "_tickers": len({str(row.ticker).strip().upper() for row in rows})
         for kind, rows in rows_by_kind.items()
     }
     if any(count != expected for count in distinct_counts.values()):
@@ -1853,9 +1924,9 @@ def _validate_sector_resume_checkpoint(
     if market_snapshot is None:
         raise ValueError("Sector resume checkpoint has no pipeline-owned market regime snapshot.")
 
-    all_sources = [
-        (kind, row) for kind, rows in rows_by_kind.items() for row in rows
-    ] + [(CoreEvidenceKind.REGIME, market_snapshot)]
+    all_sources = [(kind, row) for kind, rows in rows_by_kind.items() for row in rows] + [
+        (CoreEvidenceKind.REGIME, market_snapshot)
+    ]
     total = len(all_sources)
     certified_ids = set()
     for index, (kind, row) in enumerate(all_sources, start=1):
@@ -1909,17 +1980,12 @@ def _validate_sector_resume_checkpoint(
             "combined_results": len(rows_by_kind[CoreEvidenceKind.COMBINED]),
             "ranking_results": len(rows_by_kind[CoreEvidenceKind.RANKING]),
             "ranking_profiles": len(
-                {
-                    row.ranking_profile
-                    for row in rows_by_kind[CoreEvidenceKind.RANKING]
-                }
+                {row.ranking_profile for row in rows_by_kind[CoreEvidenceKind.RANKING]}
             ),
             "incomplete_rows": sum(
                 not row.is_complete for row in rows_by_kind[CoreEvidenceKind.COMBINED]
             ),
-            "warning_rows": sum(
-                row.has_warning for row in rows_by_kind[CoreEvidenceKind.COMBINED]
-            ),
+            "warning_rows": sum(row.has_warning for row in rows_by_kind[CoreEvidenceKind.COMBINED]),
             "technical_error_count": _technical_error_count(
                 rows_by_kind[CoreEvidenceKind.TECHNICAL]
             ),
@@ -1952,9 +2018,7 @@ def _require_sector_resume_source_authority(
     pipeline_run_id: int,
     market_cutoff: MarketCalculationCutoff,
 ) -> None:
-    source_identity = CalculationIdentity.from_canonical_payload(
-        evidence.calculation_identity_json
-    )
+    source_identity = CalculationIdentity.from_canonical_payload(evidence.calculation_identity_json)
     dimensions = {
         "run_id": (source_identity.ownership.run_id, upload_run_id),
         "pipeline_id": (source_identity.ownership.pipeline_id, pipeline_run_id),
@@ -2630,7 +2694,11 @@ def _interrupt_superseded_running_steps(
         step.error_message = None
 
 
-def _report_job_stage_progress(db: Session, pipeline: PipelineRun, stage: str) -> None:
+def _report_job_stage_progress(
+    db: Session,
+    pipeline: PipelineRun,
+    stage: str,
+) -> None:
     callback = getattr(pipeline, "_job_progress_callback", None)
     if callable(callback):
         callback(db, stage=stage, current_item=None)
@@ -2654,12 +2722,77 @@ def _technical_job_checkpoint(
             current_item=f"{phase}:{current_item or '-'}",
             last_completed_item=(
                 last_completed_item
-                if phase in {"LOADING_INPUTS", "CALCULATING", "CALCULATED", "PUBLISHED"}
+                if phase
+                in {
+                    "LOADING_INPUTS",
+                    "CALCULATING",
+                    "CALCULATED",
+                    "DECLARING_EVIDENCE",
+                    "BATCH_PERSISTED",
+                    "PUBLISHED",
+                }
                 else None
             ),
             processed=(processed if phase != "VALIDATING_EVIDENCE" else None),
             total=(total if phase != "VALIDATING_EVIDENCE" else None),
             checkpoint_version="technical-recovery-v1",
+            close_read_transaction=phase
+            in {"LOADING_INPUTS", "INPUTS_LOADED", "DECLARING_EVIDENCE"},
+            commit_mutation_transaction=phase in {"SOURCE_MANIFEST_PERSISTED", "BATCH_PERSISTED"},
+        )
+    elif lease_guard is not None:
+        lease_guard()
+
+
+def _combined_job_checkpoint(
+    db: Session,
+    *,
+    progress_callback: Callable[..., None] | None,
+    lease_guard: Callable[[], None] | None,
+    phase: str,
+    processed: int,
+    total: int,
+    current_item: str | None = None,
+    last_completed_item: str | None = None,
+) -> None:
+    if progress_callback is not None:
+        progress_callback(
+            db,
+            stage="COMBINING_RESULTS",
+            current_item=f"{phase}:{current_item or '-'}",
+            last_completed_item=last_completed_item,
+            processed=processed,
+            total=total,
+            checkpoint_version=f"combined-recovery-v1:{phase}:{processed}",
+            close_read_transaction=phase in {"INPUTS_LOADED", "DECLARING_EVIDENCE"},
+            commit_mutation_transaction=phase == "BATCH_PERSISTED",
+        )
+    elif lease_guard is not None:
+        lease_guard()
+
+
+def _ranking_job_checkpoint(
+    db: Session,
+    *,
+    progress_callback: Callable[..., None] | None,
+    lease_guard: Callable[[], None] | None,
+    phase: str,
+    processed: int,
+    total: int,
+    current_item: str | None = None,
+    last_completed_item: str | None = None,
+) -> None:
+    if progress_callback is not None:
+        progress_callback(
+            db,
+            stage="RANKING_PROFILES",
+            current_item=f"{phase}:{current_item or '-'}",
+            last_completed_item=last_completed_item,
+            processed=processed,
+            total=total,
+            checkpoint_version=f"ranking-recovery-v1:{phase}:{processed}",
+            close_read_transaction=phase in {"INPUTS_LOADED", "DECLARING_EVIDENCE"},
+            commit_mutation_transaction=phase == "PROFILE_PERSISTED",
         )
     elif lease_guard is not None:
         lease_guard()
@@ -3073,6 +3206,16 @@ def _setup_capture_checkpoint_callback(
                 total=total,
                 checkpoint_version=f"setup-capture-v1:{phase}:{processed}",
                 only_if_advanced=False,
+                close_read_transaction=phase
+                in {
+                    "PREPARING",
+                    "SOURCE_HISTORY_LOADED",
+                    "SETUP_INPUTS_BUILT",
+                    "DECISION_MANIFESTS_RECONSTRUCTED",
+                    "TEMPORAL_LINEAGE_VALIDATED",
+                    "ARTIFACT_LINEAGE_SERIALIZED",
+                },
+                commit_mutation_transaction=phase == "EVIDENCE_BATCH_PERSISTED",
             )
 
     return checkpoint
@@ -3110,6 +3253,21 @@ def _setup_evaluation_checkpoint_callback(
                         "total": total,
                     }
                 },
+                commit_mutation_transaction=phase
+                in {
+                    "INPUTS_LOADED",
+                    "CANDIDATES_SELECTED",
+                    "EVIDENCE_VALIDATION_BATCH_COMPLETED",
+                    "EVIDENCE_AUTHORITY_VALIDATION_COMPLETED",
+                    "CHANGE_DETECTION_COMPLETED",
+                    "CHANGE_ALERT_EVALUATION_COMPLETED",
+                    "LIFECYCLE_INPUTS_LOADED",
+                    "RECONCILIATION_BATCH_COMPLETED",
+                    "LIFECYCLE_EVALUATION_STARTED",
+                    "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+                    "PRIMARY_STATUS_REFRESH_BATCH_COMPLETED",
+                    "STATE_TRANSITION_EVALUATION_COMPLETED",
+                },
             )
 
     return checkpoint
@@ -3133,6 +3291,8 @@ def _sector_checkpoint_callback(
         metrics: dict[str, int] | None = None,
     ) -> None:
         _raise_if_cancelled(should_cancel)
+        if phase in {"INPUTS_LOADED", "SOURCE_MANIFEST_PREPARED"}:
+            close_pipeline_read_transaction(db)
         if metrics is not None:
             validation_metrics[phase] = dict(metrics)
         if progress_callback is not None:

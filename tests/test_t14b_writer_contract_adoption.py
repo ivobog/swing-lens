@@ -28,11 +28,23 @@ def native_owner(address):
     return owner
 
 
+CURRENT_NATIVE_BOUNDARIES = {
+    "WF_COMBINED_REFRESH": ("app/services/combined_decision.py:_persist_combined_batch"),
+    "WF_RANKING_PERSISTENCE": (
+        "app/services/ranking_profile_service.py:_persist_ranking_profile_batch"
+    ),
+    "WF_TECHNICAL_FINALIZATION": (
+        "app/services/technical_score_service.py:_persist_finalized_technical_score_batch"
+    ),
+}
+
+
 @pytest.mark.parametrize("family", HANDOFF["writer_families"], ids=lambda f: f["writer_family_id"])
 def test_each_exact_assigned_writer_has_a_reviewable_native_boundary(family):
-    owner = native_owner(family["canonical_owner"])
     fid = family["writer_family_id"]
+    owner = native_owner(CURRENT_NATIVE_BOUNDARIES.get(fid, family["canonical_owner"]))
     distinct = {
+        "WF_CERI_CONSENSUS_ATTACH",
         "WF_UPLOAD_INITIALIZATION",
         "WF_TECHNICAL_FEATURE_CACHE",
         "WF_REGIME_DERIVED_DELETE",
@@ -40,6 +52,9 @@ def test_each_exact_assigned_writer_has_a_reviewable_native_boundary(family):
     if fid in distinct:
         source = inspect.getsource(owner)
         required = {
+            "WF_CERI_CONSENSUS_ATTACH": (
+                "Calculate context-owned evidence without mutating normalized source rows."
+            ),
             "WF_UPLOAD_INITIALIZATION": "LEGACY_SERVING_ONLY",
             "WF_TECHNICAL_FEATURE_CACHE": "TECHNICAL_CACHE_KEY_FINGERPRINT_MISMATCH",
             "WF_REGIME_DERIVED_DELETE": "REGIME_CERTIFIED_ARTIFACT_DELETE_FORBIDDEN",

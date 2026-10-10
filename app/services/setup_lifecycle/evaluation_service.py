@@ -229,9 +229,7 @@ class SetupLifecycleEvaluationService:
                 current_item="canonical-setup-candidates",
                 last_completed_item="canonical-setup-candidates",
             )
-            selected_snapshots = self.repository.get_snapshots_by_ids(
-                db, selected_snapshot_ids
-            )
+            selected_snapshots = self.repository.get_snapshots_by_ids(db, selected_snapshot_ids)
             for index, snapshot in enumerate(selected_snapshots, start=1):
                 if snapshot.evidence_id is None:
                     persist_setup_evidence(db, snapshot)
@@ -241,10 +239,7 @@ class SetupLifecycleEvaluationService:
                     )
 
                     validate_setup_projection(db, snapshot)
-                if (
-                    index % _LIFECYCLE_PROGRESS_BATCH_SIZE == 0
-                    or index == selected_total
-                ):
+                if index % _LIFECYCLE_PROGRESS_BATCH_SIZE == 0 or index == selected_total:
                     _report_lifecycle_progress(
                         progress_callback,
                         phase="EVIDENCE_VALIDATION_BATCH_COMPLETED",
@@ -608,16 +603,30 @@ class SetupLifecycleEvaluationService:
                     last_completed_item=snapshot.ticker,
                 )
         if use_preloaded_episodes:
-            self.episode_service.refresh_primary_statuses(
-                db,
-                keys=episode_keys,
-                market_cutoffs={
-                    (snapshot.ticker, snapshot.timeframe): self.episode_service._snapshot_cutoff(
-                        db, snapshot
-                    )
-                    for snapshot in snapshots
-                },
-            )
+            snapshots_by_key = {
+                (snapshot.ticker, snapshot.timeframe): snapshot for snapshot in snapshots
+            }
+            ordered_keys = sorted(episode_keys)
+            primary_total = len(ordered_keys)
+            for offset in range(0, primary_total, _LIFECYCLE_PROGRESS_BATCH_SIZE):
+                batch_keys = ordered_keys[offset : offset + _LIFECYCLE_PROGRESS_BATCH_SIZE]
+                self.episode_service.refresh_primary_statuses(
+                    db,
+                    keys=batch_keys,
+                    market_cutoffs={
+                        key: self.episode_service._snapshot_cutoff(db, snapshots_by_key[key])
+                        for key in batch_keys
+                    },
+                )
+                processed = offset + len(batch_keys)
+                _report_lifecycle_progress(
+                    progress_callback,
+                    phase="PRIMARY_STATUS_REFRESH_BATCH_COMPLETED",
+                    processed=processed,
+                    total=primary_total,
+                    current_item=batch_keys[-1][0],
+                    last_completed_item=batch_keys[-1][0],
+                )
         _report_lifecycle_progress(
             progress_callback,
             phase="STATE_TRANSITION_EVALUATION_COMPLETED",
