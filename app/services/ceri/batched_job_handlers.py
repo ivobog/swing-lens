@@ -19,7 +19,9 @@ from app.services.background_job_service import (
     JobStatus,
     enqueue_job,
     is_cancel_requested,
+    job_result_status,
     record_job_progress,
+    set_job_result_status,
 )
 from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.ceri.artifact_lineage import CeriArtifactOwnership
@@ -283,7 +285,7 @@ def execute_normalize_batch_job(
     require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
     return {
         "job_type": CERI_NORMALIZE_BATCH,
-        "status": "PARTIAL" if job.status == JobStatus.PARTIAL else "COMPLETED",
+        "status": job_result_status(job) or JobStatus.COMPLETED,
         "provider": provider,
         "dataset": dataset.value,
         "processed_tickers": len(completed),
@@ -626,7 +628,7 @@ def execute_feature_batch_job(
         job.operational_metadata_json = metadata
     return {
         "job_type": CERI_FEATURE_BATCH,
-        "status": "PARTIAL" if job.status == JobStatus.PARTIAL else "COMPLETED",
+        "status": job_result_status(job) or JobStatus.COMPLETED,
         "processed_tickers": len(completed),
         "features": sum(int(value.get("features") or 0) for value in results.values()),
         "failed": failed,
@@ -805,10 +807,7 @@ def _checkpoint_state(job: BackgroundJob) -> tuple[set[str], dict[str, dict[str,
 
 
 def _set_job_outcome_status(job: BackgroundJob, status: str) -> None:
-    if callable(getattr(job, "_control_plane_progress", None)):
-        set_committed_value(job, "status", status)
-    else:
-        job.status = status
+    set_job_result_status(job, status)
 
 
 def _save_checkpoint(

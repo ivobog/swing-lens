@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 import pytest
 
 from app.models.tables import BackgroundJob, WinnerProcessingRun
-from app.services.background_job_service import JobStatus
+from app.services.background_job_service import (
+    JobStatus,
+    job_result_status,
+    run_post_terminalization_actions,
+)
 from app.services.background_worker import CancelRequested, JobDeferred, default_job_handlers
 from app.services.operational_metrics import operational_metrics
 from app.services.winner_probability.capture_service import (
@@ -91,7 +95,8 @@ def test_capture_job_marks_partial_when_ticker_failures_are_reported() -> None:
     result = execute_prediction_capture_job(db, job, capture_service=service)
 
     assert result["status"] == JobStatus.PARTIAL
-    assert job.status == JobStatus.PARTIAL
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.PARTIAL
     assert db.processing_runs[0].status == JobStatus.PARTIAL
 
 
@@ -239,7 +244,42 @@ def test_zero_progress_retry_deferred_slice_never_enqueues_immediate_child(monke
     assert operational_metrics.total("winner_maturation_retry_deferred") == 4227
 
 
-def test_partial_with_progress_enqueues_exactly_one_child_with_stable_lineage(monkeypatch) -> None:
+def test_acquisition_only_wait_is_partial_without_child_or_claim_retry(monkeypatch) -> None:
+    db = JobHandlerFakeDb()
+    job = _job(job_type=WINNER_OUTCOME_MATURATION)
+    service = FakeOrchestrationService(
+        _drain_result(
+            due_total=68,
+            retry_eligible_now=0,
+            retry_deferred=0,
+            processed_h5=0,
+            pending_h5_after_cycle=68,
+            unvisited_h5_after_cycle=0,
+            unvisited_total=68,
+            eligible_remaining=0,
+            acquisition_pending=68,
+            maturation_ready=0,
+        )
+    )
+    queued = []
+    monkeypatch.setattr(
+        "app.services.winner_probability.job_handlers.enqueue_job",
+        lambda *args, **kwargs: queued.append((args, kwargs)),
+    )
+
+    result = execute_outcome_maturation_job(db, job, orchestration_service=service)
+
+    assert result["status"] == JobStatus.PARTIAL
+    assert result["continuation_decision"] == "WAIT_FOR_ACQUISITION"
+    assert result["continuation_reason"] == "WAITING_FOR_ACQUISITION"
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.PARTIAL
+    assert queued == []
+
+
+def test_partial_with_progress_enqueues_child_only_after_owner_fenced_terminalization(
+    monkeypatch,
+) -> None:
     db = JobHandlerFakeDb()
     job = _job(job_type=WINNER_OUTCOME_MATURATION)
     job.root_job_id = job.id
@@ -265,6 +305,8 @@ def test_partial_with_progress_enqueues_exactly_one_child_with_stable_lineage(mo
 
     result = execute_outcome_maturation_job(db, job, orchestration_service=service)
 
+    assert queued == []
+    _terminalize_partial_for_test(db, job)
     maturation_children = [item for item in queued if item[0][1] == WINNER_OUTCOME_MATURATION]
     assert len(maturation_children) == 1
     _, kwargs = maturation_children[0]
@@ -329,8 +371,44 @@ def test_processed_but_zero_matured_is_real_progress_and_can_continue(monkeypatc
 
     result = execute_outcome_maturation_job(db, job, orchestration_service=service)
 
+    assert queued == []
+    _terminalize_partial_for_test(db, job)
     assert len([item for item in queued if item[0][1] == WINNER_OUTCOME_MATURATION]) == 1
     assert result["continuation_decision"] == "ENQUEUE_CONTINUATION"
+
+
+def test_progress_followed_only_by_acquisition_wait_terminates_partial_without_child(
+    monkeypatch,
+) -> None:
+    db = JobHandlerFakeDb()
+    job = _job(job_type=WINNER_OUTCOME_MATURATION)
+    service = FakeOrchestrationService(
+        _drain_result(
+            due_total=2,
+            retry_eligible_now=1,
+            processed_h5=1,
+            matured_h5=1,
+            pending_h5_after_cycle=1,
+            unvisited_h5_after_cycle=0,
+            unvisited_total=1,
+            eligible_remaining=0,
+            acquisition_pending=1,
+            maturation_ready=1,
+        )
+    )
+    queued = []
+    monkeypatch.setattr(
+        "app.services.winner_probability.job_handlers.enqueue_job",
+        lambda *args, **kwargs: queued.append((args, kwargs)),
+    )
+
+    result = execute_outcome_maturation_job(db, job, orchestration_service=service)
+
+    assert result["status"] == JobStatus.PARTIAL
+    assert result["continuation_decision"] == "WAIT_FOR_ACQUISITION"
+    assert result["continuation_reason"] == "WAITING_FOR_ACQUISITION"
+    assert job_result_status(job) == JobStatus.PARTIAL
+    assert queued == []
 
 
 def test_continuation_depth_circuit_breaker_stops_child(monkeypatch) -> None:
@@ -493,6 +571,16 @@ def _job(
         execution_token="token-1",
         lease_owner="worker-a",
     )
+
+
+def _terminalize_partial_for_test(db: JobHandlerFakeDb, job: BackgroundJob) -> None:
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.PARTIAL
+    job.status = JobStatus.PARTIAL
+    job.execution_token = None
+    job.worker_id = None
+    job.lease_owner = None
+    run_post_terminalization_actions(db, job)
 
 
 def _drain_result(**overrides) -> H5DrainResult:

@@ -29,6 +29,12 @@ def test_unvisited_or_failed_maturation_is_partial() -> None:
         classify_maturation_status({"failed_h5": 1, "unvisited_h5_after_cycle": 0})
         == JobStatus.PARTIAL
     )
+    assert (
+        classify_maturation_status(
+            {"acquisition_pending": 1, "unvisited_h5_after_cycle": 0}
+        )
+        == JobStatus.PARTIAL
+    )
 
 
 def test_latest_rescore_requires_a_bounded_explicit_scope() -> None:

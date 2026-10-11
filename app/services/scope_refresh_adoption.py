@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob, WorkScopeMember
+from app.services.background_job_service import JobStatus, set_job_result_status
 from app.services.work_scope_identity import (
     AcquisitionPlanRevisionReason,
     AcquisitionPlanSnapshot,
@@ -193,14 +194,20 @@ def record_zero_progress(
     if not remaining:
         raise SemanticAuthorityError("ZERO_PROGRESS_REQUIRES_REMAINING_WORK")
     metadata = dict(job.operational_metadata_json or {})
-    metadata["semantic_zero_progress"] = {
+    zero_progress = {
         "reason": reason,
         "remaining": [member.as_dict() for member in remaining],
         "remaining_count": len(remaining),
         "scope_id": require_semantic_authority(job).scope_id,
     }
+    metadata["semantic_zero_progress"] = zero_progress
     job.operational_metadata_json = metadata
-    job.status = "BLOCKED"
+    set_job_result_status(
+        job,
+        JobStatus.BLOCKED,
+        reason_code=reason,
+        diagnostics=zero_progress,
+    )
 
 
 def required_child_counts(db: Session, scope_id: str) -> dict[str, int]:

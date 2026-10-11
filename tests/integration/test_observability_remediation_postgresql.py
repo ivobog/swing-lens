@@ -536,6 +536,42 @@ def test_winner_every_edge_status_and_two_pollers_have_zero_idle_evidence_delta(
     assert failures == []
 
 
+def test_winner_historical_status_suppression_is_session_scoped(
+    remediated_postgres,
+) -> None:
+    observed = datetime(2026, 9, 8, 23, 0, tzinfo=UTC)
+    historical_key = "winner:h5-next-open:session:2026-09-04"
+    expected_key = (
+        f"winner:h5-next-open:session:{latest_completed_session(observed).isoformat()}"
+    )
+    expectations = (
+        (JobStatus.QUEUED, True),
+        (JobStatus.RUNNING, True),
+        (JobStatus.RECOVERING, True),
+        (JobStatus.STALLED, True),
+        (JobStatus.COMPLETED, False),
+        (JobStatus.PARTIAL, False),
+        (JobStatus.BLOCKED, False),
+        (JobStatus.FAILED, False),
+        (JobStatus.CANCELLED, False),
+        (JobStatus.STALE, False),
+    )
+    for status, suppresses_future_session in expectations:
+        with Session(remediated_postgres) as session:
+            historical = _job(WINNER_OUTCOME_MATURATION, historical_key, status)
+            session.add(historical)
+            session.flush()
+
+            scheduled = schedule_primary_h5_maturation(session, now=observed)
+
+            if suppresses_future_session:
+                assert scheduled.id == historical.id
+            else:
+                assert scheduled.id != historical.id
+                assert scheduled.request_key == expected_key
+            session.rollback()
+
+
 def test_per_root_fanout_counts_created_coalesced_and_depth(remediated_postgres) -> None:
     with Session(remediated_postgres) as session:
         for index in range(100):

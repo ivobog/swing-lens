@@ -26,6 +26,7 @@ from app.services.background_job_service import (
     heartbeat_job,
     is_cancel_requested,
     record_job_progress,
+    set_job_result_status,
 )
 from app.services.background_worker import CancelRequested
 from app.services.ceri.alert_service import CeriAlertService
@@ -1413,10 +1414,7 @@ def _safe_job_error(exc: Exception) -> str:
 
 
 def _set_job_outcome_status(job: BackgroundJob, status: str) -> None:
-    if callable(getattr(job, "_control_plane_progress", None)):
-        set_committed_value(job, "status", status)
-    else:
-        job.status = status
+    set_job_result_status(job, status)
 
 
 def _heartbeat_and_check_cancel(db: Session, job: BackgroundJob) -> bool:

@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import (
     EntryModel,
-    OutcomeStatus,
     WinnerForwardOutcome,
     WinnerPredictionSnapshot,
 )
@@ -18,8 +17,12 @@ from app.services.winner_probability.outcome_service import (
     OutcomeMaturationCancelled,
     OutcomeMaturationService,
     WinnerOutcomeRepository,
+    apply_due_pending_outcome_scope,
+    h5_acquisition_waiting_condition,
+    h5_terminally_unprocessable_condition,
+    outcome_acquisition_ready_condition,
+    outcome_retry_ready_condition,
 )
-from app.services.winner_probability.temporal_eligibility import temporal_eligibility_sql
 from app.services.winner_probability.trading_session_service import latest_completed_session
 
 
@@ -48,6 +51,9 @@ class H5DrainResult:
     unvisited_total: int = 0
     eligible_remaining: int = 0
     earliest_retry_not_before: str | None = None
+    acquisition_pending: int = 0
+    terminally_unprocessable: int = 0
+    maturation_ready: int = 0
 
     def as_dict(self) -> dict[str, object]:
         payload = self.__dict__.copy()
@@ -63,6 +69,9 @@ class H5QueueState:
     retry_deferred: int
     oldest_due_session: date | None
     earliest_retry_not_before: datetime | None
+    acquisition_pending: int = 0
+    terminally_unprocessable: int = 0
+    maturation_ready: int = 0
 
 
 class H5NextOpenOrchestrationService:
@@ -153,20 +162,28 @@ class H5NextOpenOrchestrationService:
             if lease_guard is not None:
                 lease_guard()
 
-        after = self._queue_state(
-            db,
-            completed_on=completed_on,
-            retry_as_of=now,
-            prediction_ids=prediction_ids,
-        )
-        unvisited = self._queue_state(
-            db,
-            completed_on=completed_on,
-            retry_as_of=now,
-            exclude_ids=tuple(processed_ids),
-            prediction_ids=prediction_ids,
-        )
-        scan_completed = unvisited.due_total == 0
+        if processed_ids:
+            after = self._queue_state(
+                db,
+                completed_on=completed_on,
+                retry_as_of=now,
+                prediction_ids=prediction_ids,
+            )
+            unvisited = self._queue_state(
+                db,
+                completed_on=completed_on,
+                retry_as_of=now,
+                exclude_ids=tuple(processed_ids),
+                prediction_ids=prediction_ids,
+            )
+        else:
+            # No domain row was visited or mutated, so the pre-scan snapshot is
+            # also the exact post-scan/unvisited state. Reusing it keeps large
+            # acquisition-waiting or retry-deferred queues bounded to one
+            # canonical accounting query per terminal poll.
+            after = before
+            unvisited = before
+        scan_completed = unvisited.maturation_ready == 0
         full_scan_at = now.isoformat() if scan_completed else None
         zero_due_at = now.isoformat() if after.due_total == 0 else None
         return H5DrainResult(
@@ -183,7 +200,7 @@ class H5NextOpenOrchestrationService:
             excluded_h5=excluded,
             failed_h5=failed,
             target_stop_matured=target_stop_matured,
-            unvisited_h5_after_cycle=unvisited.due_total,
+            unvisited_h5_after_cycle=unvisited.maturation_ready,
             last_successful_full_drain_at=zero_due_at,
             deferred_pending_h5=deferred,
             scan_completed=scan_completed,
@@ -195,12 +212,15 @@ class H5NextOpenOrchestrationService:
             retry_eligible_now=before.retry_eligible_now,
             retry_deferred=after.retry_deferred,
             unvisited_total=unvisited.due_total,
-            eligible_remaining=unvisited.retry_eligible_now,
+            eligible_remaining=unvisited.maturation_ready,
             earliest_retry_not_before=(
                 after.earliest_retry_not_before.isoformat()
                 if after.earliest_retry_not_before is not None
                 else None
             ),
+            acquisition_pending=after.acquisition_pending,
+            terminally_unprocessable=after.terminally_unprocessable,
+            maturation_ready=before.maturation_ready,
         )
 
     def queue_state(
@@ -215,6 +235,38 @@ class H5NextOpenOrchestrationService:
             latest_completed_session(now), due_session or latest_completed_session(now)
         )
         return self._queue_state(db, completed_on=completed_on, retry_as_of=now)
+
+    def maturation_ready_outcome_ids(
+        self,
+        db: Session,
+        *,
+        now: datetime | None = None,
+        due_session: date | None = None,
+    ) -> tuple[int, ...]:
+        """Return the exact rows the H5 selector can process now."""
+
+        now = now or datetime.now(UTC)
+        completed_on = min(
+            latest_completed_session(now), due_session or latest_completed_session(now)
+        )
+        statement = apply_due_pending_outcome_scope(
+            select(WinnerForwardOutcome.id).join(
+                WinnerPredictionSnapshot,
+                WinnerPredictionSnapshot.id == WinnerForwardOutcome.prediction_id,
+            ),
+            completed_on=completed_on,
+            retry_as_of=now,
+            prediction_ids=None,
+            require_acquisition_ready=True,
+            require_retry_ready=True,
+        ).where(
+            WinnerForwardOutcome.entry_model == EntryModel.NEXT_OPEN,
+            WinnerForwardOutcome.horizon_sessions == 5,
+        )
+        return tuple(
+            int(value)
+            for value in db.scalars(statement.order_by(WinnerForwardOutcome.id))
+        )
 
     def _queue_state(
         self,
@@ -239,35 +291,42 @@ class H5NextOpenOrchestrationService:
                 return value
             return H5QueueState(**value)
 
-        eligible = (WinnerForwardOutcome.retry_not_before_at.is_(None)) | (
-            WinnerForwardOutcome.retry_not_before_at <= retry_as_of
-        )
-        deferred = WinnerForwardOutcome.retry_not_before_at > retry_as_of
-        statement = (
+        retry_ready = outcome_retry_ready_condition(retry_as_of)
+        acquisition_ready = outcome_acquisition_ready_condition()
+        maturation_ready = acquisition_ready & retry_ready
+        deferred = acquisition_ready & (WinnerForwardOutcome.retry_not_before_at > retry_as_of)
+        statement = apply_due_pending_outcome_scope(
             select(
                 func.count(WinnerForwardOutcome.id),
-                func.count(WinnerForwardOutcome.id).filter(eligible),
+                func.count(WinnerForwardOutcome.id).filter(maturation_ready),
                 func.count(WinnerForwardOutcome.id).filter(deferred),
                 func.min(WinnerForwardOutcome.due_session),
                 func.min(WinnerForwardOutcome.retry_not_before_at).filter(deferred),
+                func.count(WinnerForwardOutcome.id).filter(
+                    h5_acquisition_waiting_condition()
+                ),
+                func.count(WinnerForwardOutcome.id).filter(
+                    h5_terminally_unprocessable_condition()
+                ),
             )
             .join(
                 WinnerPredictionSnapshot,
                 WinnerPredictionSnapshot.id == WinnerForwardOutcome.prediction_id,
             )
-            .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
-            .where(WinnerForwardOutcome.is_current_revision.is_(True))
-            .where(WinnerForwardOutcome.entry_model == EntryModel.NEXT_OPEN)
-            .where(WinnerForwardOutcome.horizon_sessions == 5)
-            .where(WinnerForwardOutcome.due_session <= completed_on)
-            .where(temporal_eligibility_sql(WinnerPredictionSnapshot))
+            .where(
+                WinnerForwardOutcome.entry_model == EntryModel.NEXT_OPEN,
+                WinnerForwardOutcome.horizon_sessions == 5,
+            ),
+            completed_on=completed_on,
+            retry_as_of=retry_as_of,
+            prediction_ids=prediction_ids,
+            require_acquisition_ready=False,
+            require_retry_ready=False,
         )
         if exclude_ids:
             statement = statement.where(WinnerForwardOutcome.id.not_in(exclude_ids))
-        if prediction_ids is not None:
-            if not prediction_ids:
-                return H5QueueState(0, 0, 0, None, None)
-            statement = statement.where(WinnerForwardOutcome.prediction_id.in_(prediction_ids))
+        if prediction_ids is not None and not prediction_ids:
+            return H5QueueState(0, 0, 0, None, None)
         row = db.execute(statement).one()
         return H5QueueState(
             due_total=int(row[0] or 0),
@@ -275,4 +334,7 @@ class H5NextOpenOrchestrationService:
             retry_deferred=int(row[2] or 0),
             oldest_due_session=row[3],
             earliest_retry_not_before=row[4],
+            acquisition_pending=int(row[5] or 0),
+            terminally_unprocessable=int(row[6] or 0),
+            maturation_ready=int(row[1] or 0),
         )

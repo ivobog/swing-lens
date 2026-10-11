@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.models.tables import BackgroundJob
-from app.services.background_job_service import JobStatus
+from app.services.background_job_service import JobStatus, job_result_status
 from app.services.ib_fetch_plan_service import (
     FetchAction,
     FetchPlan,
@@ -122,7 +122,8 @@ def test_zero_progress_blocks_same_semantic_job_and_retains_reason() -> None:
         reason="WAITING_FOR_EXTERNAL_REQUIREMENT",
     )
 
-    assert job.status == JobStatus.BLOCKED
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.BLOCKED
     assert job.operational_metadata_json["semantic_zero_progress"] == {
         "reason": "WAITING_FOR_EXTERNAL_REQUIREMENT",
         "remaining": [

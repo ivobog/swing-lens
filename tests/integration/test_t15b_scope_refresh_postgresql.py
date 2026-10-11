@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from alembic import command
 from app.models.ceri_tables import CeriIngestionRun, CeriProcessingRun, CeriSourceRecord
 from app.models.tables import BackgroundJob, PipelineRun, UploadRun, WorkScopeRecord
+from app.services.background_job_service import JobStatus, job_result_status
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
 from app.services.ceri.provider_registry import CeriProviderRegistry
@@ -160,7 +161,9 @@ def test_t15b_postgresql_scope_refresh_and_acquisition_certification(
                 remaining_members=no_progress_remaining,
                 reason="WAITING_FOR_EXTERNAL_REQUIREMENT",
             )
-            assert blocked_child.status == "BLOCKED"
+            assert blocked_child.status == JobStatus.RUNNING
+            assert job_result_status(blocked_child) == JobStatus.BLOCKED
+            blocked_child.status = JobStatus.BLOCKED
             assert require_children_terminal(db, r1.scope_id)["failed"] == 1
 
             # A reclaim changes only execution ownership, never semantic authority.

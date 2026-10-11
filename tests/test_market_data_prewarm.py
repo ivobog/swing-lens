@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.models.tables import BackgroundJob
-from app.services.background_job_service import JobStatus
+from app.services.background_job_service import JobStatus, job_result_status
 from app.services.ib_fetch_plan_service import FetchAction
 from app.services.market_data_prewarm_service import (
     MARKET_DATA_PREWARM,
@@ -160,7 +160,8 @@ def test_prewarm_persists_fetch_failures_and_coverage_summary(
     assert result["coverage_ratio"] == 0.5
     assert result["failure_count"] == 1
     assert result["failures"][0]["ticker"] == "AAPL"
-    assert job.status == JobStatus.PARTIAL
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.PARTIAL
     assert heartbeats == 1
 
 

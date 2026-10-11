@@ -17,6 +17,7 @@ from app.services.background_job_service import (
     fence_stalled_jobs,
     heartbeat_job,
     is_cancel_requested,
+    job_result_status,
     mark_job_cancelled,
     mark_job_completed,
     mark_job_deferred,
@@ -27,6 +28,8 @@ from app.services.background_job_service import (
     recover_stale_jobs,
     request_job_cancel,
     requeue_stalled_jobs,
+    run_post_terminalization_actions,
+    set_job_result_status,
 )
 from app.services.market_calculation_context_service import CeriContextIntegrityError
 from app.services.runtime_mutation_authority import (
@@ -309,6 +312,32 @@ def test_mark_job_partial_finishes_with_partial_status() -> None:
     assert job.status == JobStatus.PARTIAL
     assert job.result_json == {"failed_tickers": 2}
     assert job.completed_at is not None
+
+
+def test_partial_result_signal_preserves_running_ownership_until_terminalization() -> None:
+    job = _running_job()
+    actions: list[int] = []
+
+    set_job_result_status(
+        job,
+        JobStatus.PARTIAL,
+        after_terminalization=lambda _db, terminal_job: actions.append(terminal_job.id),
+    )
+
+    assert job.status == JobStatus.RUNNING
+    assert job.execution_token is not None
+    assert job_result_status(job) == JobStatus.PARTIAL
+
+    with pytest.raises(ValueError, match="terminal durable job"):
+        run_post_terminalization_actions(FakeDb(existing=job), job)
+
+    job.status = JobStatus.PARTIAL
+    job.execution_token = None
+    job.worker_id = None
+    job.lease_owner = None
+    run_post_terminalization_actions(FakeDb(existing=job), job)
+
+    assert actions == [job.id]
 
 
 def test_mark_job_cancelled_finishes_and_records_cancel_request() -> None:

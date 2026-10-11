@@ -48,7 +48,16 @@ class _FrozenRepository:
             and row.id not in excluded
             and (retained is None or row.prediction_id in retained)
         ]
-        return H5QueueState(len(rows), len(rows), 0, date(2026, 8, 7) if rows else None, None)
+        return H5QueueState(
+            due_total=len(rows),
+            retry_eligible_now=len(rows),
+            retry_deferred=0,
+            oldest_due_session=date(2026, 8, 7) if rows else None,
+            earliest_retry_not_before=None,
+            acquisition_pending=0,
+            terminally_unprocessable=0,
+            maturation_ready=len(rows),
+        )
 
 
 class _Maturer:

@@ -18,7 +18,7 @@ from app.models.tables import (
     WinnerProcessingRun,
     WinnerTargetStopOutcome,
 )
-from app.services.background_job_service import JobStatus
+from app.services.background_job_service import JobStatus, job_result_status
 from app.services.winner_probability.backfill import (
     BackfillExecutionResult,
     BackfillPlan,
@@ -131,7 +131,8 @@ def test_historical_backfill_job_records_processing_run_and_counts() -> None:
     assert result["job_type"] == WINNER_HISTORICAL_BACKFILL
     assert result["status"] == JobStatus.PARTIAL
     assert result["captured_runs"] == 1
-    assert job.status == JobStatus.PARTIAL
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.PARTIAL
     assert db.processing_runs[0].process_type == WINNER_HISTORICAL_BACKFILL
     assert db.processing_runs[0].status == JobStatus.PARTIAL
     assert db.processing_runs[0].counts_json["skipped_runs"] == 1

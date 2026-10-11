@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, func, insert, select, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 import app.routers.winner_probability_routes as winner_routes
 import app.services.winner_probability.api_service as winner_api_service
@@ -50,11 +50,12 @@ from app.services.background_job_service import (
     JobStatus,
     claim_next_job,
     enqueue_job,
+    fence_job_execution,
     heartbeat_job,
     mark_job_deferred,
     recover_stale_jobs,
 )
-from app.services.background_worker import JobDeferred
+from app.services.background_worker import JobDeferred, run_worker_once
 from app.services.bar_cache_service import cache_bars
 from app.services.calculation_identity import (
     AlgorithmIdentity,
@@ -113,10 +114,13 @@ from app.services.winner_probability.job_handlers import (
 )
 from app.services.winner_probability.market_data_obligation_service import (
     EMPTY_PRICE_WATERMARK,
+    MarketDataObligationService,
+    required_outcome_sessions,
 )
 from app.services.winner_probability.outcome_authority import outcome_body
 from app.services.winner_probability.outcome_orchestration_service import (
     H5DrainResult,
+    H5NextOpenOrchestrationService,
 )
 from app.services.winner_probability.outcome_service import (
     OutcomeMaturationService,
@@ -126,6 +130,7 @@ from app.services.winner_probability.prediction_authority import seal_capture
 from app.services.winner_probability.probability_estimator import ProbabilityEstimator
 from app.services.winner_probability.reproduction_service import ReproductionService
 from app.services.winner_probability.scheduler import schedule_primary_h5_maturation
+from app.services.winner_probability.trading_session_service import latest_completed_session
 from app.settings import Settings
 
 
@@ -958,7 +963,7 @@ def test_manual_race_with_continuation_has_one_active_workflow(
     engine.dispose()
 
 
-def test_useful_slice_persists_one_child_with_root_parent_and_depth(
+def test_incident_968_partial_result_terminalizes_once_and_enqueues_one_child(
     disposable_postgres_database: str,
 ) -> None:
     _upgrade(disposable_postgres_database)
@@ -990,15 +995,31 @@ def test_useful_slice_persists_one_child_with_root_parent_and_depth(
         unvisited_total=700,
         eligible_remaining=700,
     )
-    with Session(engine) as db:
-        job = _claim_registered_job(db, "useful-slice-worker")
-        assert job is not None and job.id == root_id
-        db.commit()
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+
+    def maturation_handler(db: Session, job: BackgroundJob) -> dict[str, object] | None:
         response = execute_outcome_maturation_job(
-            db, job, orchestration_service=_StaticDrain(result), now=observed
+            db,
+            job,
+            orchestration_service=_StaticDrain(result),
+            now=observed,
         )
-        db.commit()
-        assert response["continuation_decision"] == "ENQUEUE_CONTINUATION"
+        # This is the production lifecycle boundary that job 968 violated:
+        # successful handler return must leave its durable ownership valid for
+        # the worker's remaining owner-fenced mutations and terminalization.
+        fence_job_execution(db, job)
+        return response
+
+    assert run_worker_once(
+        worker_id="incident-968-worker",
+        worker_instance_id="incident-968-instance",
+        included_job_types=(WINNER_OUTCOME_MATURATION,),
+        stale_after_seconds=300,
+        heartbeat_timeout_seconds=30,
+        session_factory=factory,
+        handlers={WINNER_OUTCOME_MATURATION: maturation_handler},
+        schedule_winner_probability=False,
+    )
 
     with Session(engine) as db:
         jobs = list(
@@ -1010,13 +1031,314 @@ def test_useful_slice_persists_one_child_with_root_parent_and_depth(
         )
         assert len(jobs) == 2
         parent, child = jobs
+        assert parent.id == root_id
         assert parent.status == JobStatus.PARTIAL
+        assert parent.retry_count == 0
+        assert parent.recovery_count == 0
+        assert parent.worker_id is None
+        assert parent.worker_instance_id is None
+        assert parent.lease_owner is None
+        assert parent.execution_token is None
+        assert parent.lease_expires_at is None
+        assert parent.completed_at is not None
+        assert parent.result_json["continuation_decision"] == "ENQUEUE_CONTINUATION"
+        assert parent.operational_metadata_json["attempt_count"] == 1
+        assert parent.operational_metadata_json["last_attempt"]["status"] == JobStatus.PARTIAL
         assert child.status == JobStatus.QUEUED
         assert child.workflow_key == parent.workflow_key == WINNER_MATURATION_WORKFLOW_KEY
         assert child.root_job_id == parent.id
         assert child.parent_job_id == parent.id
         assert child.continuation_depth == 1
         assert child.trigger_source == "CONTINUATION"
+        assert db.scalar(
+            select(func.count(WinnerProcessingRun.id)).where(
+                WinnerProcessingRun.background_job_id == parent.id
+            )
+        ) == 1
+    engine.dispose()
+
+
+def test_incident_968_zero_progress_blocks_after_owner_fenced_terminalization(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    observed = datetime(2026, 9, 5, 11, 0, tzinfo=UTC)
+    with Session(engine) as db:
+        _seed_retry_deferred_outcomes(db, observed=observed, retry_at=observed, row_count=1)
+        root = enqueue_outcome_maturation_workflow(
+            db,
+            payload={"limit": 500},
+            trigger_source="MANUAL",
+        )
+        db.commit()
+        root_id = root.id
+
+    result = H5DrainResult(
+        due_h5_next_open=1,
+        oldest_due_h5_session=date(2026, 8, 7),
+        oldest_due_h5_age=20,
+        processed_h5=0,
+        matured_h5=0,
+        pending_h5_after_cycle=1,
+        excluded_h5=0,
+        failed_h5=0,
+        target_stop_matured=0,
+        unvisited_h5_after_cycle=1,
+        last_successful_full_drain_at=None,
+        due_total=1,
+        retry_eligible_now=1,
+        retry_deferred=0,
+        unvisited_total=1,
+        eligible_remaining=1,
+    )
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+
+    def maturation_handler(db: Session, job: BackgroundJob) -> dict[str, object] | None:
+        response = execute_outcome_maturation_job(
+            db,
+            job,
+            orchestration_service=_StaticDrain(result),
+            now=observed,
+        )
+        fence_job_execution(db, job)
+        return response
+
+    assert run_worker_once(
+        worker_id="incident-968-zero-progress-worker",
+        worker_instance_id="incident-968-zero-progress-instance",
+        included_job_types=(WINNER_OUTCOME_MATURATION,),
+        stale_after_seconds=300,
+        heartbeat_timeout_seconds=30,
+        session_factory=factory,
+        handlers={WINNER_OUTCOME_MATURATION: maturation_handler},
+        schedule_winner_probability=False,
+    )
+
+    with Session(engine) as db:
+        job = db.get(BackgroundJob, root_id)
+        assert job is not None
+        assert job.status == JobStatus.BLOCKED
+        assert job.retry_count == 0
+        assert job.recovery_count == 0
+        assert job.worker_id is None
+        assert job.worker_instance_id is None
+        assert job.lease_owner is None
+        assert job.execution_token is None
+        assert job.completed_at is not None
+        assert job.result_json["reason_code"] == "ZERO_PROGRESS_BLOCKED"
+        assert job.operational_metadata_json["attempt_count"] == 1
+        assert job.operational_metadata_json["last_attempt"]["status"] == JobStatus.BLOCKED
+        assert db.scalar(
+            select(func.count(WinnerProcessingRun.id)).where(
+                WinnerProcessingRun.background_job_id == root_id
+            )
+        ) == 1
+        assert db.scalar(
+            select(func.count(BackgroundJob.id)).where(BackgroundJob.parent_job_id == root_id)
+        ) == 0
+    engine.dispose()
+
+
+def test_acquisition_wait_rediscovered_by_future_session_and_matures_exactly_once(
+    disposable_postgres_database: str,
+) -> None:
+    """Certify the complete job-968-shaped wait-to-maturation lifecycle."""
+
+    from native_winner_support import native_pending_prediction
+
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    waiting_at = datetime(2027, 1, 15, 22, 0, tzinfo=UTC)
+    future_at = datetime(2027, 1, 19, 22, 0, tzinfo=UTC)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+
+    with Session(engine) as db:
+        prediction, outcome = native_pending_prediction(db)
+        outcome_id = int(outcome.id)
+        prediction_id = int(prediction.id)
+        original_forward_count = db.scalar(select(func.count(WinnerForwardOutcome.id)))
+        original_target_count = db.scalar(select(func.count(WinnerTargetStopOutcome.id)))
+        acquisition_job_count = db.scalar(
+            select(func.count(BackgroundJob.id)).where(
+                BackgroundJob.job_type.in_(("MARKET_DATA_PREWARM", "IB_FETCH"))
+            )
+        )
+        assert {
+            row.status
+            for row in db.scalars(
+                select(WinnerMarketDataObligation).where(
+                    WinnerMarketDataObligation.forward_outcome_id == outcome_id
+                )
+            )
+        } == {"FETCH_REQUIRED"}
+        selector_rows = WinnerOutcomeRepository().get_due_pending_forward_outcomes(
+            db,
+            completed_on=latest_completed_session(waiting_at),
+            retry_as_of=waiting_at,
+            limit=10,
+            entry_model="NEXT_OPEN",
+            horizon_sessions=5,
+        )
+        queue_state = H5NextOpenOrchestrationService().queue_state(db, now=waiting_at)
+        assert selector_rows == []
+        assert queue_state.due_total == queue_state.acquisition_pending == 1
+        assert queue_state.maturation_ready == len(selector_rows) == 0
+        root = schedule_primary_h5_maturation(db, now=waiting_at)
+        db.commit()
+        waiting_job_id = int(root.id)
+
+    def maturation_handler(db: Session, job: BackgroundJob) -> dict[str, object] | None:
+        response = execute_outcome_maturation_job(db, job)
+        fence_job_execution(db, job)
+        return response
+
+    assert run_worker_once(
+        worker_id="winner-acquisition-wait-worker",
+        worker_instance_id="winner-acquisition-wait-instance",
+        included_job_types=(WINNER_OUTCOME_MATURATION,),
+        stale_after_seconds=300,
+        heartbeat_timeout_seconds=30,
+        session_factory=factory,
+        handlers={WINNER_OUTCOME_MATURATION: maturation_handler},
+        schedule_winner_probability=False,
+    )
+
+    with Session(engine) as db:
+        waiting_job = db.get(BackgroundJob, waiting_job_id)
+        assert waiting_job.status == JobStatus.PARTIAL
+        assert waiting_job.result_json["continuation_reason"] == "WAITING_FOR_ACQUISITION"
+        assert waiting_job.result_json["acquisition_pending"] == 1
+        assert waiting_job.result_json["maturation_ready"] == 0
+        assert waiting_job.operational_metadata_json["attempt_count"] == 1
+        assert db.scalar(
+            select(func.count(BackgroundJob.id)).where(
+                BackgroundJob.parent_job_id == waiting_job_id
+            )
+        ) == 0
+        assert db.get(WinnerForwardOutcome, outcome_id).status == "PENDING"
+
+        outcome = db.get(WinnerForwardOutcome, outcome_id)
+        prediction = db.get(WinnerPredictionSnapshot, prediction_id)
+        sessions = required_outcome_sessions(outcome.entry_session, 5)
+        reference = prediction.lineage_json["outcome_reference_policy"]
+        reference_tickers = {
+            str(value).upper()
+            for value in (reference["benchmark_ticker"], reference.get("sector_proxy"))
+            if value
+        }
+        bars = []
+        for ticker, bases in (
+            (prediction.ticker, ("ADJUSTED_LAST", "TRADES")),
+            *((ticker, ("ADJUSTED_LAST",)) for ticker in sorted(reference_tickers)),
+        ):
+            for basis in bases:
+                bars.extend(
+                    HistoricalBar(
+                        ticker=ticker,
+                        bar_date=session,
+                        timeframe="1 day",
+                        what_to_show=basis,
+                        adjustment_type=None,
+                        source="TEST",
+                        open=Decimal("100"),
+                        high=Decimal("104"),
+                        low=Decimal("99"),
+                        close=Decimal("103"),
+                        volume=Decimal("1000"),
+                    )
+                    for session in sessions
+                )
+        cache_bars(db, bars)
+        obligations = list(
+            db.scalars(
+                select(WinnerMarketDataObligation).where(
+                    WinnerMarketDataObligation.forward_outcome_id == outcome_id
+                )
+            )
+        )
+        acquisition = MarketDataObligationService().evaluate(
+            db,
+            obligations=obligations,
+            now=future_at,
+        )
+        assert acquisition.satisfied == 2
+        assert {row.status for row in obligations} == {"SATISFIED"}
+        db.commit()
+
+    with Session(engine) as db:
+        selector_rows = WinnerOutcomeRepository().get_due_pending_forward_outcomes(
+            db,
+            completed_on=latest_completed_session(future_at),
+            retry_as_of=future_at,
+            limit=10,
+            entry_model="NEXT_OPEN",
+            horizon_sessions=5,
+        )
+        queue_state = H5NextOpenOrchestrationService().queue_state(db, now=future_at)
+        ready = H5NextOpenOrchestrationService().maturation_ready_outcome_ids(
+            db,
+            now=future_at,
+            due_session=latest_completed_session(future_at),
+        )
+        assert [row.id for row in selector_rows] == [outcome_id]
+        assert queue_state.maturation_ready == len(selector_rows) == 1
+        assert queue_state.acquisition_pending == 0
+        assert ready == (outcome_id,)
+        future_job = schedule_primary_h5_maturation(db, now=future_at)
+        assert future_job.id != waiting_job_id
+        assert future_job.request_key.startswith(
+            f"winner:h5-next-open:session:{latest_completed_session(future_at).isoformat()}"
+        )
+        db.commit()
+        future_job_id = int(future_job.id)
+
+    assert run_worker_once(
+        worker_id="winner-acquisition-ready-worker",
+        worker_instance_id="winner-acquisition-ready-instance",
+        included_job_types=(WINNER_OUTCOME_MATURATION,),
+        stale_after_seconds=300,
+        heartbeat_timeout_seconds=30,
+        session_factory=factory,
+        handlers={WINNER_OUTCOME_MATURATION: maturation_handler},
+        schedule_winner_probability=False,
+    )
+
+    with Session(engine) as db:
+        future_job = db.get(BackgroundJob, future_job_id)
+        outcome = db.get(WinnerForwardOutcome, outcome_id)
+        assert future_job.status == JobStatus.COMPLETED
+        assert future_job.result_json["matured_h5"] == 1
+        assert outcome.status == "MATURED"
+        assert outcome.source_bar_lineage_hash
+        assert db.scalar(select(func.count(WinnerForwardOutcome.id))) == original_forward_count
+        assert db.scalar(select(func.count(WinnerTargetStopOutcome.id))) == original_target_count
+        assert db.scalar(
+            select(func.count(BackgroundJob.id)).where(
+                BackgroundJob.job_type.in_(("MARKET_DATA_PREWARM", "IB_FETCH"))
+            )
+        ) == acquisition_job_count
+        first_lineage = outcome.source_bar_lineage_hash
+
+    with Session(engine) as db:
+        repeated = schedule_primary_h5_maturation(db, now=future_at)
+        assert repeated.id == future_job_id
+        db.commit()
+    assert not run_worker_once(
+        worker_id="winner-acquisition-idempotency-worker",
+        worker_instance_id="winner-acquisition-idempotency-instance",
+        included_job_types=(WINNER_OUTCOME_MATURATION,),
+        stale_after_seconds=300,
+        heartbeat_timeout_seconds=30,
+        session_factory=factory,
+        handlers={WINNER_OUTCOME_MATURATION: maturation_handler},
+        schedule_winner_probability=False,
+    )
+    with Session(engine) as db:
+        outcome = db.get(WinnerForwardOutcome, outcome_id)
+        assert outcome.source_bar_lineage_hash == first_lineage
+        assert db.scalar(select(func.count(WinnerForwardOutcome.id))) == original_forward_count
+        assert db.scalar(select(func.count(WinnerTargetStopOutcome.id))) == original_target_count
     engine.dispose()
 
 
@@ -2405,24 +2727,56 @@ def _seed_retry_deferred_outcomes(
             prediction_values,
         )
     )
+    forward_rows = list(
+        db.execute(
+            insert(WinnerForwardOutcome).returning(
+                WinnerForwardOutcome.id,
+                WinnerForwardOutcome.prediction_id,
+            ),
+            [
+                {
+                    "prediction_id": prediction_id,
+                    "entry_model": "NEXT_OPEN",
+                    "horizon_sessions": 5,
+                    "entry_session": date(2026, 8, 3),
+                    "due_session": date(2026, 8, 7),
+                    "status": "PENDING",
+                    "revision": 1,
+                    "is_current_revision": True,
+                    "pending_reason_code": "MISSING_HORIZON_BAR",
+                    "last_attempted_at": observed,
+                    "retry_not_before_at": retry_at,
+                    "metadata_json": {"pending_reason": "missing_horizon_bar"},
+                }
+                for prediction_id in prediction_ids
+            ],
+        )
+    )
     db.execute(
-        insert(WinnerForwardOutcome),
+        insert(WinnerMarketDataObligation),
         [
             {
                 "prediction_id": prediction_id,
-                "entry_model": "NEXT_OPEN",
-                "horizon_sessions": 5,
+                "forward_outcome_id": forward_id,
+                "ticker_snapshot": f"R{index:05d}",
                 "entry_session": date(2026, 8, 3),
-                "due_session": date(2026, 8, 7),
-                "status": "PENDING",
-                "revision": 1,
-                "is_current_revision": True,
-                "pending_reason_code": "MISSING_HORIZON_BAR",
-                "last_attempted_at": observed,
-                "retry_not_before_at": retry_at,
-                "metadata_json": {"pending_reason": "missing_horizon_bar"},
+                "required_through_session": date(2026, 8, 7),
+                "required_sessions_json": [
+                    "2026-08-03",
+                    "2026-08-04",
+                    "2026-08-05",
+                    "2026-08-06",
+                    "2026-08-07",
+                ],
+                "timeframe": "1 day",
+                "what_to_show": "ADJUSTED_LAST",
+                "status": "SATISFIED",
+                "price_series_watermark": f"retry-ready-{index}",
+                "last_checked_at": observed,
+                "fulfilled_at": observed,
+                "metadata_json": {"fixture": "retry-deferred-acquisition-ready"},
             }
-            for prediction_id in prediction_ids
+            for index, (forward_id, prediction_id) in enumerate(forward_rows)
         ],
     )
     db.flush()

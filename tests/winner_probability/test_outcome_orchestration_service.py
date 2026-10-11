@@ -234,6 +234,9 @@ class FakeDrainRepository:
             "earliest_retry_not_before": min(
                 (row.retry_not_before_at for row in deferred), default=None
             ),
+            "acquisition_pending": 0,
+            "terminally_unprocessable": 0,
+            "maturation_ready": len(eligible),
         }
 
 

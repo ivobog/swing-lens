@@ -9,7 +9,7 @@ from sqlalchemy import inspect
 
 from app.models.ceri_tables import CeriCompany, CeriIngestionRun, CeriSecSyncState
 from app.models.tables import BackgroundJob
-from app.services.background_job_service import JobStatus, enqueue_job
+from app.services.background_job_service import JobStatus, enqueue_job, job_result_status
 from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.ceri import batched_job_handlers
 from app.services.ceri.batched_job_handlers import (
@@ -313,7 +313,8 @@ def test_provider_batch_continues_after_partial_ticker_failure(monkeypatch) -> N
     assert result["processed_tickers"] == 3
     assert result["failed"] == 1
     assert result["results"]["T1"]["status"] == "PARTIAL"
-    assert job.status == JobStatus.PARTIAL
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.PARTIAL
 
 
 def test_ceri_checkpoint_updates_durable_progress_fields_monotonically(monkeypatch) -> None:

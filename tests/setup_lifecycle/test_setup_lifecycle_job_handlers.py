@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.models.tables import BackgroundJob
-from app.services.background_job_service import JobStatus
+from app.services.background_job_service import JobStatus, job_result_status
 from app.services.background_worker import CancelRequested, default_job_handlers
 from app.services.setup_lifecycle.evaluation_service import (
     SetupLifecycleEvaluationCancelled,
@@ -66,7 +66,8 @@ def test_execute_evaluate_run_job_marks_partial_when_result_has_failures() -> No
 
     execute_evaluate_run_job(db=object(), job=job, evaluation_service=service)
 
-    assert job.status == JobStatus.PARTIAL
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.PARTIAL
 
 
 def test_execute_evaluate_run_job_translates_cancellation() -> None:

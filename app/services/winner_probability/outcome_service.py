@@ -40,6 +40,114 @@ from app.services.winner_probability.trading_session_service import (
 BENCHMARK_TICKER = "SPY"
 
 
+def outcome_acquisition_ready_condition():
+    """Return the selector's canonical acquisition-readiness predicate.
+
+    Native H5/NEXT_OPEN outcomes require at least one complete, satisfied price
+    basis. Other outcome families retain their pre-obligation behavior.
+    """
+
+    return (
+        (WinnerForwardOutcome.entry_model != EntryModel.NEXT_OPEN)
+        | (WinnerForwardOutcome.horizon_sessions != 5)
+        | select(WinnerMarketDataObligation.id)
+        .where(
+            WinnerMarketDataObligation.forward_outcome_id == WinnerForwardOutcome.id,
+            WinnerMarketDataObligation.status == "SATISFIED",
+        )
+        .exists()
+    )
+
+
+def outcome_retry_ready_condition(retry_as_of: datetime):
+    """Return work whose maturation retry cooldown has elapsed."""
+
+    return (WinnerForwardOutcome.retry_not_before_at.is_(None)) | (
+        WinnerForwardOutcome.retry_not_before_at <= retry_as_of
+    )
+
+
+def h5_acquisition_waiting_condition():
+    """Return due-H5 work that can become ready after normal acquisition."""
+
+    satisfied = (
+        select(WinnerMarketDataObligation.id)
+        .where(
+            WinnerMarketDataObligation.forward_outcome_id == WinnerForwardOutcome.id,
+            WinnerMarketDataObligation.status == "SATISFIED",
+        )
+        .exists()
+    )
+    any_obligation = (
+        select(WinnerMarketDataObligation.id)
+        .where(WinnerMarketDataObligation.forward_outcome_id == WinnerForwardOutcome.id)
+        .exists()
+    )
+    fetch_required = (
+        select(WinnerMarketDataObligation.id)
+        .where(
+            WinnerMarketDataObligation.forward_outcome_id == WinnerForwardOutcome.id,
+            WinnerMarketDataObligation.status == "FETCH_REQUIRED",
+        )
+        .exists()
+    )
+    return ~satisfied & (~any_obligation | fetch_required)
+
+
+def h5_terminally_unprocessable_condition():
+    """Return due-H5 work whose installed obligations cannot become ready normally."""
+
+    satisfied = (
+        select(WinnerMarketDataObligation.id)
+        .where(
+            WinnerMarketDataObligation.forward_outcome_id == WinnerForwardOutcome.id,
+            WinnerMarketDataObligation.status == "SATISFIED",
+        )
+        .exists()
+    )
+    any_obligation = (
+        select(WinnerMarketDataObligation.id)
+        .where(WinnerMarketDataObligation.forward_outcome_id == WinnerForwardOutcome.id)
+        .exists()
+    )
+    fetch_required = (
+        select(WinnerMarketDataObligation.id)
+        .where(
+            WinnerMarketDataObligation.forward_outcome_id == WinnerForwardOutcome.id,
+            WinnerMarketDataObligation.status == "FETCH_REQUIRED",
+        )
+        .exists()
+    )
+    return ~satisfied & any_obligation & ~fetch_required
+
+
+def apply_due_pending_outcome_scope(
+    statement,
+    *,
+    completed_on: date,
+    retry_as_of: datetime,
+    prediction_ids: tuple[int, ...] | None,
+    require_acquisition_ready: bool,
+    require_retry_ready: bool,
+):
+    """Apply the shared due/pending scope used by selection and queue accounting."""
+
+    statement = (
+        statement.where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
+        .where(WinnerForwardOutcome.is_current_revision.is_(True))
+        .where(WinnerForwardOutcome.due_session <= completed_on)
+    )
+    if require_acquisition_ready:
+        statement = statement.where(outcome_acquisition_ready_condition())
+    if require_retry_ready:
+        statement = statement.where(outcome_retry_ready_condition(retry_as_of))
+    if prediction_ids is None:
+        statement = statement.where(temporal_eligibility_sql(WinnerPredictionSnapshot))
+    else:
+        statement = statement.where(WinnerForwardOutcome.prediction_id.in_(prediction_ids))
+    return statement
+
+
 class OutcomeMaturationCancelled(RuntimeError):
     pass
 
@@ -627,54 +735,36 @@ class WinnerOutcomeRepository:
         prediction_ids: tuple[int, ...] | None = None,
     ) -> list[WinnerForwardOutcome]:
         retry_as_of = retry_as_of or _utcnow()
-        statement = (
-            select(WinnerForwardOutcome)
-            .join(
+        statement = apply_due_pending_outcome_scope(
+            select(WinnerForwardOutcome).join(
                 WinnerPredictionSnapshot,
                 WinnerPredictionSnapshot.id == WinnerForwardOutcome.prediction_id,
-            )
-            .where(WinnerForwardOutcome.status == OutcomeStatus.PENDING)
-            .where(WinnerForwardOutcome.is_current_revision.is_(True))
-            .where(WinnerForwardOutcome.due_session <= completed_on)
-            .where(
-                (WinnerForwardOutcome.entry_model != "NEXT_OPEN")
-                | (WinnerForwardOutcome.horizon_sessions != 5)
-                | select(WinnerMarketDataObligation.id)
-                .where(
-                    WinnerMarketDataObligation.forward_outcome_id == WinnerForwardOutcome.id,
-                    WinnerMarketDataObligation.status == "SATISFIED",
-                )
-                .exists()
-            )
-            .where(
-                (WinnerForwardOutcome.retry_not_before_at.is_(None))
-                | (WinnerForwardOutcome.retry_not_before_at <= retry_as_of)
-            )
+            ),
+            completed_on=completed_on,
+            retry_as_of=retry_as_of,
+            prediction_ids=prediction_ids,
+            require_acquisition_ready=True,
+            require_retry_ready=True,
+        ).order_by(
             # Try never-attempted outcomes before retrying rows already
             # blocked by missing bars. Otherwise the same old missing rows
             # consume most of every bounded batch and starve later horizons.
-            .order_by(
-                case(
-                    (
-                        WinnerForwardOutcome.metadata_json["pending_reason"].as_string().is_(None),
-                        0,
-                    ),
-                    else_=1,
+            case(
+                (
+                    WinnerForwardOutcome.metadata_json["pending_reason"].as_string().is_(None),
+                    0,
                 ),
-                WinnerForwardOutcome.due_session,
-                WinnerForwardOutcome.id,
-            )
-            .limit(limit)
+                else_=1,
+            ),
+            WinnerForwardOutcome.due_session,
+            WinnerForwardOutcome.id,
         )
+        statement = statement.limit(limit)
         # A pre-admitted T15C maturation population is authoritative. Its
         # immutable prediction membership must not be re-evaluated against a
         # later current-state eligibility projection.
-        if prediction_ids is None:
-            statement = statement.where(temporal_eligibility_sql(WinnerPredictionSnapshot))
-        else:
-            if not prediction_ids:
-                return []
-            statement = statement.where(WinnerForwardOutcome.prediction_id.in_(prediction_ids))
+        if prediction_ids is not None and not prediction_ids:
+            return []
         if entry_model is not None:
             statement = statement.where(WinnerForwardOutcome.entry_model == entry_model)
         if horizon_sessions is not None:

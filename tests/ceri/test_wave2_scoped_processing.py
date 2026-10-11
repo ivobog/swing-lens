@@ -16,6 +16,7 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.models.tables import BackgroundJob
+from app.services.background_job_service import JobStatus, job_result_status
 from app.services.ceri import backfill_service as backfill_module
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.capture_service import _catalyst_features_for_company
@@ -380,12 +381,18 @@ def test_partial_backfill_marks_background_job_partial(monkeypatch) -> None:
     from app.services.ceri import job_handlers
 
     monkeypatch.setattr(job_handlers, "ceri_flags", lambda: SimpleNamespace(backfill=True))
-    job = BackgroundJob(id=12, job_type="CERI_BACKFILL", payload_json={})
+    job = BackgroundJob(
+        id=12,
+        job_type="CERI_BACKFILL",
+        status=JobStatus.RUNNING,
+        payload_json={},
+    )
 
     result = execute_backfill_job(object(), job, backfill_service=PartialBackfill())
 
     assert result["status"] == "PARTIAL"
-    assert job.status == "PARTIAL"
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.PARTIAL
 
 
 class CatalystFeatureStub:

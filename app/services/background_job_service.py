@@ -116,6 +116,76 @@ class JobStatus:
     RECOVERING = "RECOVERING"
 
 
+JobPostTerminalizationAction = Callable[[Session, BackgroundJob], None]
+
+
+def set_job_result_status(
+    job: BackgroundJob,
+    status: str,
+    *,
+    reason_code: str | None = None,
+    diagnostics: Mapping[str, Any] | None = None,
+    after_terminalization: JobPostTerminalizationAction | None = None,
+) -> None:
+    """Record a handler result without mutating durable execution ownership.
+
+    ``BackgroundJob.status`` remains ``RUNNING`` until the worker performs its
+    owner-fenced terminal update. Domain handlers may report a terminal
+    business result here and, when necessary, register work that can only run
+    after the active single-flight row has been terminalized.
+    """
+
+    if status not in {JobStatus.COMPLETED, JobStatus.PARTIAL, JobStatus.BLOCKED}:
+        raise ValueError(f"Unsupported successful job result status: {status}")
+    if status == JobStatus.BLOCKED and not reason_code:
+        raise ValueError("A blocked job result requires a reason code.")
+    if job.status != JobStatus.RUNNING:
+        raise ValueError(
+            "A job result may only be recorded while durable status remains RUNNING."
+        )
+    current = getattr(job, "_result_status", None)
+    if current is not None and current != status:
+        raise ValueError(f"Conflicting job result statuses: {current} and {status}")
+    job._result_status = status
+    if reason_code is not None:
+        job._result_reason_code = str(reason_code)
+    if diagnostics is not None:
+        job._result_diagnostics = dict(diagnostics)
+    if after_terminalization is not None:
+        actions = list(getattr(job, "_post_terminalization_actions", ()))
+        actions.append(after_terminalization)
+        job._post_terminalization_actions = tuple(actions)
+
+
+def job_result_status(job: BackgroundJob) -> str | None:
+    status = getattr(job, "_result_status", None)
+    return str(status) if status is not None else None
+
+
+def job_result_reason_code(job: BackgroundJob) -> str | None:
+    reason_code = getattr(job, "_result_reason_code", None)
+    return str(reason_code) if reason_code is not None else None
+
+
+def job_result_diagnostics(job: BackgroundJob) -> dict[str, Any]:
+    return dict(getattr(job, "_result_diagnostics", {}) or {})
+
+
+def run_post_terminalization_actions(db: Session, job: BackgroundJob) -> None:
+    """Run actions only after the durable job is terminal and unowned."""
+
+    actions = tuple(getattr(job, "_post_terminalization_actions", ()))
+    if not actions:
+        return
+    if job.status not in TERMINAL_JOB_STATUSES:
+        raise ValueError("Post-terminalization actions require a terminal durable job.")
+    if job.execution_token is not None or job.worker_id is not None or job.lease_owner is not None:
+        raise ValueError("Post-terminalization actions require released durable ownership.")
+    for action in actions:
+        action(db, job)
+    delattr(job, "_post_terminalization_actions")
+
+
 @dataclass(frozen=True)
 class WorkerJobReconciliation:
     """Per-job outcomes after a worker process is proven lost."""

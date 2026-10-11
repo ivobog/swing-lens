@@ -6,7 +6,11 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob
-from app.services.background_job_service import JobStatus, is_cancel_requested
+from app.services.background_job_service import (
+    JobStatus,
+    is_cancel_requested,
+    set_job_result_status,
+)
 from app.services.background_worker import CancelRequested
 from app.services.configuration_delivery import anchored_job_configuration
 from app.services.setup_lifecycle.caller_authority import setup_run_cutoff
@@ -67,7 +71,7 @@ def execute_evaluate_run_job(
 
     values = result.as_dict()
     if values.get("failed", 0):
-        job.status = JobStatus.PARTIAL
+        set_job_result_status(job, JobStatus.PARTIAL)
     return {
         "job_type": SETUP_LIFECYCLE_EVALUATE_RUN,
         "run_id": run_id,
@@ -140,7 +144,7 @@ def execute_daily_maintenance_job(
         evaluation_run_id=_optional_int(payload, "evaluation_run_id"),
     )
     if result.status == "SKIPPED":
-        job.status = JobStatus.PARTIAL
+        set_job_result_status(job, JobStatus.PARTIAL)
     return {"job_type": SETUP_LIFECYCLE_DAILY_MAINTENANCE, **result.as_dict()}
 
 

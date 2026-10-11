@@ -28,6 +28,7 @@ from app.services.background_job_service import (
     enqueue_job,
     is_cancel_requested,
     record_coalesced_enqueue_attempt,
+    set_job_result_status,
 )
 from app.services.background_worker import CancelRequested, JobDeferred
 from app.services.configuration_delivery import anchored_job_configuration
@@ -509,7 +510,7 @@ def execute_prediction_capture_job(
     counts = result.as_dict()
     status = JobStatus.PARTIAL if counts.get("failed", 0) else JobStatus.COMPLETED
     if status == JobStatus.PARTIAL:
-        job.status = JobStatus.PARTIAL
+        set_job_result_status(job, JobStatus.PARTIAL)
     _finish_processing_run(
         db,
         processing_run,
@@ -609,6 +610,8 @@ def execute_outcome_maturation_job(
     processed = int(counts.get("processed_h5", counts.get("processed", 0)) or 0)
     eligible_remaining = int(counts.get("eligible_remaining", 0) or 0)
     retry_deferred = int(counts.get("retry_deferred", 0) or 0)
+    acquisition_pending = int(counts.get("acquisition_pending", 0) or 0)
+    terminally_unprocessable = int(counts.get("terminally_unprocessable", 0) or 0)
     pending_after = int(counts.get("pending_h5_after_cycle", 0) or 0)
     depth = int(job.continuation_depth or 0)
     root_job_id = job.root_job_id or job.id
@@ -625,7 +628,13 @@ def execute_outcome_maturation_job(
             continuation_decision = "DEFER_SAME_JOB"
             continuation_reason = "RETRY_DEFERRED"
             defer_until = _parse_optional_datetime(counts.get("earliest_retry_not_before"))
-        elif eligible_remaining > 0 or pending_after > 0:
+        elif eligible_remaining > 0 or terminally_unprocessable > 0:
+            continuation_decision = "STOP_ZERO_PROGRESS"
+            continuation_reason = "ZERO_PROGRESS_BLOCKED"
+        elif acquisition_pending > 0:
+            continuation_decision = "WAIT_FOR_ACQUISITION"
+            continuation_reason = "WAITING_FOR_ACQUISITION"
+        elif pending_after > 0:
             continuation_decision = "STOP_ZERO_PROGRESS"
             continuation_reason = "ZERO_PROGRESS_BLOCKED"
     elif eligible_remaining > 0:
@@ -639,6 +648,12 @@ def execute_outcome_maturation_job(
         continuation_decision = "DEFER_SAME_JOB"
         continuation_reason = "RETRY_DEFERRED"
         defer_until = _parse_optional_datetime(counts.get("earliest_retry_not_before"))
+    elif terminally_unprocessable > 0:
+        continuation_decision = "STOP_TERMINALLY_UNPROCESSABLE"
+        continuation_reason = "TERMINALLY_UNPROCESSABLE"
+    elif acquisition_pending > 0:
+        continuation_decision = "WAIT_FOR_ACQUISITION"
+        continuation_reason = "WAITING_FOR_ACQUISITION"
     elif pending_after > 0:
         continuation_decision = "STOP_NO_ELIGIBLE_WORK"
         continuation_reason = "NO_RETRY_ELIGIBLE_ROWS"
@@ -673,6 +688,8 @@ def execute_outcome_maturation_job(
         ("winner_maturation_due", "due_total"),
         ("winner_maturation_retry_eligible", "retry_eligible_now"),
         ("winner_maturation_retry_deferred", "retry_deferred"),
+        ("winner_maturation_acquisition_pending", "acquisition_pending"),
+        ("winner_maturation_ready", "maturation_ready"),
     ):
         publish_after_commit(
             db,
@@ -720,51 +737,70 @@ def execute_outcome_maturation_job(
             ),
         )
     elif counts.get("target_stop_matured", 0):
-        continuation = enqueue_job(
+        enqueue_job(
             db,
             WINNER_COHORT_REFRESH,
             {"outcome_definition_id": definition_id},
             request_key=f"winner:cohort-refresh:{definition_id}",
         )
+    after_terminalization = None
+    if continuation_decision == "ENQUEUE_CONTINUATION":
+        lineage_request_key = (
+            f"winner:h5-next-open:session:{payload['due_session']}"
+            if payload.get("due_session")
+            else job.request_key or "winner:h5-next-open:continuation"
+        )
+        continuation_request_key = f"{lineage_request_key}:continuation:{processing_run.id}"
+
+        def enqueue_continuation_after_terminalization(
+            terminal_db: Session,
+            terminal_job: BackgroundJob,
+        ) -> None:
+            continuation = enqueue_job(
+                terminal_db,
+                WINNER_OUTCOME_MATURATION,
+                {
+                    **payload,
+                    "limit": limit,
+                    "max_batches": max_batches,
+                    "continuation": True,
+                },
+                request_key=continuation_request_key,
+                workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
+                single_flight_workflow=True,
+                root_job_id=root_job_id,
+                parent_job_id=terminal_job.id,
+                continuation_depth=depth + 1,
+                trigger_source="CONTINUATION",
+                # The owner-fenced parent terminalization and child enqueue
+                # commit atomically, while the active-workflow index observes
+                # exactly one active owner throughout the handoff.
+                coalesce=False,
+            )
+            if authority is not None:
+                bind_semantic_authority(
+                    continuation,
+                    authority,
+                    required_for_parent_completion=True,
+                )
+                terminal_db.flush()
+            publish_after_commit(
+                terminal_db,
+                "increment",
+                "winner_maturation_continuations_total",
+            )
+
+        after_terminalization = enqueue_continuation_after_terminalization
+
     if (
         continuation_decision not in {"DEFER_SAME_JOB", "STOP_ZERO_PROGRESS"}
         and status == JobStatus.PARTIAL
     ):
-        job.status = JobStatus.PARTIAL
-
-    if continuation_decision == "ENQUEUE_CONTINUATION":
-        continuation = enqueue_job(
-            db,
-            WINNER_OUTCOME_MATURATION,
-            {
-                **payload,
-                "limit": limit,
-                "max_batches": max_batches,
-                "continuation": True,
-            },
-            request_key=f"winner:h5-next-open:continuation:{processing_run.id}",
-            workflow_key=WINNER_MATURATION_WORKFLOW_KEY,
-            single_flight_workflow=True,
-            root_job_id=root_job_id,
-            parent_job_id=job.id,
-            continuation_depth=depth + 1,
-            trigger_source="CONTINUATION",
-            # The leased parent is transitioned to PARTIAL in this same
-            # transaction so the workflow unique index can hand ownership to
-            # its child.  A savepoint release is not a durable commit, but the
-            # domain fence deliberately rejects it after that lease transition.
-            # The continuation request key is derived from this unique
-            # processing run, so no same-attempt coalescing window exists.
-            coalesce=False,
+        set_job_result_status(
+            job,
+            JobStatus.PARTIAL,
+            after_terminalization=after_terminalization,
         )
-        if authority is not None:
-            bind_semantic_authority(
-                continuation,
-                authority,
-                required_for_parent_completion=True,
-            )
-            db.flush()
-        publish_after_commit(db, "increment", "winner_maturation_continuations_total")
 
     logger.info(
         "winner.maturation.continuation_decision",
@@ -778,6 +814,8 @@ def execute_outcome_maturation_job(
             "due_total": counts.get("due_total"),
             "retry_eligible_now": counts.get("retry_eligible_now"),
             "retry_deferred": retry_deferred,
+            "acquisition_pending": acquisition_pending,
+            "terminally_unprocessable": terminally_unprocessable,
             "processed_h5": processed,
             "matured_h5": counts.get("matured_h5", counts.get("matured")),
             "eligible_remaining": eligible_remaining,
@@ -976,7 +1014,7 @@ def execute_cohort_refresh_job(
     processing_run.cohort_generation_id = result.generation_id
     status = JobStatus.PARTIAL if counts.get("failed", 0) else JobStatus.COMPLETED
     if status == JobStatus.PARTIAL:
-        job.status = JobStatus.PARTIAL
+        set_job_result_status(job, JobStatus.PARTIAL)
     _finish_processing_run(
         db,
         processing_run,
@@ -1240,7 +1278,7 @@ def execute_historical_backfill_job(
         JobStatus.PARTIAL if result.skipped_runs or counts.get("failed", 0) else JobStatus.COMPLETED
     )
     if status == JobStatus.PARTIAL:
-        job.status = JobStatus.PARTIAL
+        set_job_result_status(job, JobStatus.PARTIAL)
     _finish_processing_run(
         db,
         processing_run,
@@ -1532,6 +1570,8 @@ def classify_maturation_status(counts: dict[str, Any]) -> str:
         if counts.get("failed", 0)
         or counts.get("failed_h5", 0)
         or counts.get("unvisited_h5_after_cycle", 0)
+        or counts.get("acquisition_pending", 0)
+        or counts.get("terminally_unprocessable", 0)
         else JobStatus.COMPLETED
     )
 

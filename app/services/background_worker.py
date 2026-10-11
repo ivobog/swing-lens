@@ -26,6 +26,9 @@ from app.services.background_job_service import (
     claim_next_job,
     heartbeat_job,
     is_cancel_requested,
+    job_result_diagnostics,
+    job_result_reason_code,
+    job_result_status,
     mark_job_blocked,
     mark_job_cancelled,
     mark_job_completed,
@@ -35,6 +38,7 @@ from app.services.background_job_service import (
     record_job_progress,
     recover_abandoned_jobs_for_worker,
     recover_stale_jobs,
+    run_post_terminalization_actions,
 )
 from app.services.background_queue import (
     WorkerClaimState,
@@ -926,11 +930,34 @@ def run_worker_once(
                     control_heartbeat_stop.set()
                 if control_heartbeat_thread is not None:
                     control_heartbeat_thread.join(timeout=max(1.0, heartbeat_interval_seconds * 2))
-            if job.status == JobStatus.PARTIAL:
+            result_status = job_result_status(job)
+            if job.status != JobStatus.RUNNING:
+                raise RuntimeError(
+                    "DURABLE_JOB_STATUS_MUTATED_BEFORE_OWNER_FENCED_TERMINALIZATION"
+                )
+            if result_status == JobStatus.BLOCKED:
+                reason_code = job_result_reason_code(job) or "JOB_RESULT_BLOCKED"
+                mark_job_blocked(
+                    db,
+                    job,
+                    RuntimeError(reason_code),
+                    reason_code=reason_code,
+                    diagnostics=job_result_diagnostics(job),
+                    execution_token=execution_token,
+                )
+            elif result_status == JobStatus.PARTIAL:
                 mark_job_partial(db, job, result, execution_token=execution_token)
             else:
                 mark_job_completed(db, job, result, execution_token=execution_token)
-            logger.info("job.completed", extra={"job_id": job.id, "job_type": job.job_type})
+            run_post_terminalization_actions(db, job)
+            logger.info(
+                "job.blocked" if result_status == JobStatus.BLOCKED else "job.completed",
+                extra={
+                    "job_id": job.id,
+                    "job_type": job.job_type,
+                    "reason_code": job_result_reason_code(job),
+                },
+            )
         except JobDeferred as exc:
             mark_job_deferred(
                 db,

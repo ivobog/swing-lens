@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.ceri_tables import CeriIngestionRun, CeriProcessingRun, CeriSourceRecord
 from app.models.tables import BackgroundJob
-from app.services.background_job_service import JobStatus
+from app.services.background_job_service import JobStatus, job_result_status
 from app.services.background_worker import default_job_handlers
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.feature_flags import CeriFeatureFlags
@@ -144,7 +144,8 @@ def test_provider_ingest_job_marks_partial_when_ingestion_has_failures(
     assert result["status"] == "PARTIAL"
     assert result["quarantined"] == 1
     assert result["normalize_job_id"] is not None
-    assert job.status == JobStatus.PARTIAL
+    assert job.status == JobStatus.RUNNING
+    assert job_result_status(job) == JobStatus.PARTIAL
     normalize_jobs = [
         row
         for row in db.added

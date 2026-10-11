@@ -21,6 +21,7 @@ from app.services.background_job_service import (
     JobStatus,
     enqueue_job,
     is_cancel_requested,
+    set_job_result_status,
 )
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.ib_fetch_executor import execute_fetch_plan
@@ -378,7 +379,7 @@ def execute_market_data_prewarm(
         "completed_at": datetime.now(UTC).isoformat(),
     }
     if status == "PARTIAL":
-        job.status = "PARTIAL"
+        set_job_result_status(job, JobStatus.PARTIAL)
     return result
 
 

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 import app.services.pipeline_executor as pipeline_executor
 from app.models.tables import BackgroundJob
-from app.services.background_job_service import JobStatus
+from app.services.background_job_service import JobStatus, set_job_result_status
 from app.services.background_worker import (
     CancelRequested,
     JobDeferred,
@@ -381,6 +381,59 @@ def test_worker_attaches_detached_progress_callback_to_long_financial_jobs(
     )
     assert callback_seen == [True]
     assert not hasattr(job, "_control_plane_progress")
+
+
+def test_worker_terminalizes_transient_partial_result_after_handler_returns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = BackgroundJob(
+        id=61,
+        job_type="TEST_PARTIAL",
+        status=JobStatus.RUNNING,
+        execution_token="token-61",
+    )
+    db = FakeWorkerDb()
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.claim_next_job",
+        lambda *_args, **_kwargs: job,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_job",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.mark_job_completed",
+        lambda *_args, **_kwargs: pytest.fail("partial result was marked completed"),
+    )
+
+    def mark_partial(_db, owned_job, _result, *, execution_token):
+        assert owned_job.status == JobStatus.RUNNING
+        assert execution_token == "token-61"
+        calls.append("terminalized-partial")
+
+    monkeypatch.setattr("app.services.background_worker.mark_job_partial", mark_partial)
+    monkeypatch.setattr(
+        "app.services.background_worker.run_post_terminalization_actions",
+        lambda *_args, **_kwargs: calls.append("post-terminal"),
+    )
+
+    def handler(_db, owned_job):
+        assert owned_job.status == JobStatus.RUNNING
+        set_job_result_status(owned_job, JobStatus.PARTIAL)
+        return {"status": JobStatus.PARTIAL, "failed": 1}
+
+    assert run_worker_once(
+        worker_id="worker-a",
+        stale_after_seconds=60,
+        session_factory=lambda: db,
+        handlers={"TEST_PARTIAL": handler},
+    )
+    assert calls == ["terminalized-partial", "post-terminal"]
 
 
 def test_ceri_job_renews_control_heartbeat_without_progress_callbacks(

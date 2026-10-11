@@ -1258,6 +1258,7 @@
     {
       "job_type": "WINNER_OUTCOME_MATURATION",
       "creators": [
+        "app/services/winner_probability/job_handlers.py:enqueue_continuation_after_terminalization",
         "app/services/winner_probability/job_handlers.py:enqueue_outcome_maturation_workflow",
         "app/services/winner_probability/job_handlers.py:execute_outcome_maturation_job"
       ],
@@ -4623,34 +4624,6 @@
     },
     {
       "path": "app/services/ceri/batched_job_handlers.py",
-      "function": "_set_job_outcome_status",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/batched_job_handlers.py",
       "function": "execute_feature_batch_job",
       "kind": "add",
       "writer_ids": [
@@ -5190,34 +5163,6 @@
         "WRITE-034"
       ],
       "reason": "Evidence-backed provider identity reconciliation writes only the locked canonical company provider map and its exact-provenance provider alias."
-    },
-    {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "_set_job_outcome_status",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
       "path": "app/services/ceri/job_handlers.py",
@@ -7936,32 +7881,6 @@
     },
     {
       "path": "app/services/market_data_prewarm_service.py",
-      "function": "execute_market_data_prewarm",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/market_data_prewarm_service.py",
       "function": "request_active_prewarm_preemption",
       "kind": "state_assignment",
       "writer_ids": [
@@ -8826,32 +8745,6 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
-      "path": "app/services/scope_refresh_adoption.py",
-      "function": "record_zero_progress",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
       "path": "app/services/score_card_view_service.py",
       "function": "_unique_text",
       "kind": "add",
@@ -9256,58 +9149,6 @@
     {
       "path": "app/services/setup_lifecycle/episode_service.py",
       "function": "_retire_legacy_active_episodes",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/setup_lifecycle/job_handlers.py",
-      "function": "execute_daily_maintenance_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/setup_lifecycle/job_handlers.py",
-      "function": "execute_evaluate_run_job",
       "kind": "state_assignment",
       "writer_ids": [
         "WRITE-001",
@@ -10962,82 +10803,6 @@
       "kind": "state_assignment",
       "writer_ids": [
         "WRITE-065"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/winner_probability/job_handlers.py",
-      "function": "execute_cohort_refresh_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-060",
-        "WRITE-061",
-        "WRITE-062",
-        "WRITE-063",
-        "WRITE-064",
-        "WRITE-065",
-        "WRITE-066",
-        "WRITE-067",
-        "WRITE-068",
-        "WRITE-069",
-        "WRITE-070"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/winner_probability/job_handlers.py",
-      "function": "execute_historical_backfill_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-060",
-        "WRITE-061",
-        "WRITE-062",
-        "WRITE-063",
-        "WRITE-064",
-        "WRITE-065",
-        "WRITE-066",
-        "WRITE-067",
-        "WRITE-068",
-        "WRITE-069",
-        "WRITE-070"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/winner_probability/job_handlers.py",
-      "function": "execute_outcome_maturation_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-060",
-        "WRITE-061",
-        "WRITE-062",
-        "WRITE-063",
-        "WRITE-064",
-        "WRITE-065",
-        "WRITE-066",
-        "WRITE-067",
-        "WRITE-068",
-        "WRITE-069",
-        "WRITE-070"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/winner_probability/job_handlers.py",
-      "function": "execute_prediction_capture_job",
-      "kind": "state_assignment",
-      "writer_ids": [
-        "WRITE-060",
-        "WRITE-061",
-        "WRITE-062",
-        "WRITE-063",
-        "WRITE-064",
-        "WRITE-065",
-        "WRITE-066",
-        "WRITE-067",
-        "WRITE-068",
-        "WRITE-069",
-        "WRITE-070"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
     },
@@ -14568,6 +14333,13 @@
     },
     {
       "path": "app/services/winner_probability/job_handlers.py",
+      "function": "enqueue_continuation_after_terminalization",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/winner_probability/job_handlers.py",
       "function": "enqueue_outcome_maturation_workflow",
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -16586,6 +16358,15 @@
     },
     {
       "path": "app/services/winner_probability/job_handlers.py",
+      "function": "enqueue_continuation_after_terminalization",
+      "callee": "enqueue_job",
+      "trigger_ids": [
+        "AUTO-STATIC-CENSUS"
+      ],
+      "reason": "Exact autonomous-control callsite reviewed at R3."
+    },
+    {
+      "path": "app/services/winner_probability/job_handlers.py",
       "function": "enqueue_outcome_maturation_workflow",
       "callee": "enqueue_job",
       "trigger_ids": [
@@ -17384,10 +17165,6 @@
     },
     {
       "path": "app/services/ceri/batched_job_handlers.py",
-      "function": "_set_job_outcome_status"
-    },
-    {
-      "path": "app/services/ceri/batched_job_handlers.py",
       "function": "execute_feature_batch_job"
     },
     {
@@ -17401,10 +17178,6 @@
     {
       "path": "app/services/ceri/feature_certification_workflow.py",
       "function": "execute_ceri_feature_certification_job"
-    },
-    {
-      "path": "app/services/ceri/job_handlers.py",
-      "function": "_set_job_outcome_status"
     },
     {
       "path": "app/services/ceri/normalization_service.py",
@@ -17511,10 +17284,6 @@
       "function": "execute_scanner_run"
     },
     {
-      "path": "app/services/market_data_prewarm_service.py",
-      "function": "execute_market_data_prewarm"
-    },
-    {
       "path": "app/services/pipeline_executor.py",
       "function": "__init__"
     },
@@ -17571,24 +17340,12 @@
       "function": "transition_pipeline_step"
     },
     {
-      "path": "app/services/scope_refresh_adoption.py",
-      "function": "record_zero_progress"
-    },
-    {
       "path": "app/services/setup_lifecycle/episode_service.py",
       "function": "_close_episode"
     },
     {
       "path": "app/services/setup_lifecycle/episode_service.py",
       "function": "_retire_legacy_active_episodes"
-    },
-    {
-      "path": "app/services/setup_lifecycle/job_handlers.py",
-      "function": "execute_daily_maintenance_job"
-    },
-    {
-      "path": "app/services/setup_lifecycle/job_handlers.py",
-      "function": "execute_evaluate_run_job"
     },
     {
       "path": "app/services/setup_lifecycle/repository.py",
@@ -17645,22 +17402,6 @@
     {
       "path": "app/services/winner_probability/job_handlers.py",
       "function": "_start_processing_run"
-    },
-    {
-      "path": "app/services/winner_probability/job_handlers.py",
-      "function": "execute_cohort_refresh_job"
-    },
-    {
-      "path": "app/services/winner_probability/job_handlers.py",
-      "function": "execute_historical_backfill_job"
-    },
-    {
-      "path": "app/services/winner_probability/job_handlers.py",
-      "function": "execute_outcome_maturation_job"
-    },
-    {
-      "path": "app/services/winner_probability/job_handlers.py",
-      "function": "execute_prediction_capture_job"
     },
     {
       "path": "app/services/winner_probability/market_data_obligation_service.py",
