@@ -164,6 +164,64 @@ def test_402_ticker_plan_is_deterministic_bounded_and_under_sanity_target() -> N
     assert sum(spec.job_type == CERI_RUN_FINALIZE for spec in plan.jobs) == 1
 
 
+def test_single_worker_claims_later_provider_before_normalization_barrier() -> None:
+    plan = build_ceri_batched_workflow_plan(
+        run_id=95,
+        tickers=["MSFT"],
+        config_hash="config-a",
+        settings=Settings(
+            _env_file=None,
+            ceri_provider_batch_size=1,
+            ceri_normalization_batch_size=1,
+            ceri_feature_batch_size=1,
+        ),
+        provider_datasets={
+            "eodhd": (CeriDataset.ESTIMATES,),
+            "sec": (CeriDataset.GUIDANCE,),
+        },
+    )
+    pending = list(plan.jobs)
+
+    def claim_next():
+        claimed = min(pending, key=lambda spec: (spec.priority, spec.request_key))
+        pending.remove(claimed)
+        return claimed
+
+    first_provider = claim_next()
+    later_provider = claim_next()
+    first_normalization = claim_next()
+
+    assert first_provider.job_type == CERI_PROVIDER_INGEST_BATCH
+    assert first_provider.priority == 80
+    assert later_provider.job_type == CERI_PROVIDER_INGEST_BATCH
+    assert later_provider.priority == 120
+    assert first_normalization.job_type == CERI_NORMALIZE_BATCH
+    assert first_normalization.priority == 121
+
+    terminal_providers = [
+        BackgroundJob(
+            id=index,
+            job_type=spec.job_type,
+            workflow_key=plan.workflow_key,
+            request_key=spec.request_key,
+            status=JobStatus.COMPLETED,
+            payload_json=spec.payload,
+        )
+        for index, spec in enumerate((first_provider, later_provider), start=1)
+    ]
+
+    class BarrierDb:
+        def scalars(self, _statement):
+            return FakeScalarRows(terminal_providers)
+
+    _require_terminal_stage(
+        BarrierDb(),
+        plan.workflow_key,
+        CERI_PROVIDER_INGEST_BATCH,
+        expected=2,
+    )
+
+
 def test_provider_ticker_scope_excludes_sec_not_applicable_symbols() -> None:
     plan = build_ceri_batched_workflow_plan(
         run_id=95,
