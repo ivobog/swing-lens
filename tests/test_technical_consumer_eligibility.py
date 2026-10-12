@@ -3,6 +3,7 @@ from dataclasses import replace
 from decimal import Decimal
 
 import pytest
+from core_readiness_helpers import seal_core
 from readiness_helpers import seal_technical
 from setup_lifecycle.test_snapshot_builder import _ticker_context
 from test_combined_decision import _config
@@ -127,6 +128,40 @@ def test_positive_numerics_are_excluded_across_all_three_consumers(status):
     assert technical.dual_score == Decimal("8.0")  # diagnostics survive
     for consumer in (combined.debug_evidence, ranking.debug, built.dto.source_lineage):
         assert consumer[TECHNICAL_ELIGIBILITY_KEY]["decision"]["status"] != "ELIGIBLE"
+
+
+def test_combined_accepts_advisory_technical_warning_but_rejects_insufficient_history():
+    ready = _context(ReadinessStatus.READY)
+    ready.technical_score.warning_flags_json = ["distribution_risk"]
+    seal_technical(ready.technical_score)
+    ready.fundamental_score.data_coverage_score = Decimal("10")
+    seal_core(ready.fundamental_score)
+
+    combined = combine_row_decision(
+        ready.raw_row,
+        ready.fundamental_score,
+        ready.technical_score,
+        config=_config(),
+    )
+
+    assert combined.is_complete is combined.has_technical is True
+    assert "distribution_risk" in combined.warning_flags
+    permission = combined.debug_evidence[TECHNICAL_ELIGIBILITY_KEY]
+    assert permission["decision"]["status"] == "ELIGIBLE"
+    assert permission["producer_readiness"]["status"] == "READY"
+
+    blocked = _context(ReadinessStatus.INSUFFICIENT_EVIDENCE)
+    incomplete = combine_row_decision(
+        blocked.raw_row,
+        ready.fundamental_score,
+        blocked.technical_score,
+        config=_config(),
+    )
+
+    assert incomplete.is_complete is incomplete.has_technical is False
+    assert incomplete.debug_evidence[TECHNICAL_ELIGIBILITY_KEY]["decision"]["status"] == (
+        "INELIGIBLE"
+    )
 
 
 def _normalized(context):

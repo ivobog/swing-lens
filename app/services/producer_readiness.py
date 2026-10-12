@@ -13,6 +13,37 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canon
 READINESS_POLICY_VERSION = "producer-readiness-v1"
 READINESS_PAYLOAD_KEY = "producer_readiness"
 
+_ADVISORY_WARNING_FLAGS_BY_PRODUCER = {
+    "FUNDAMENTAL": frozenset(
+        {
+            "earnings_quality_risk",
+            "poor_cash_conversion",
+            "high_accrual_risk",
+            "capital_efficiency_deterioration",
+            "asset_growth_without_returns",
+            "balance_sheet_stress",
+            "liquidity_buffer_weak",
+            "forward_quality_weak",
+            "dividend_payout_risk",
+        }
+    ),
+    "TECHNICAL": frozenset(
+        {
+            "failed_breakout",
+            "distribution_risk",
+            "blowoff_top",
+            "box_failure",
+            "liquidity_warning",
+            "market_risk_off",
+            "climax_reversal_risk",
+            "late_stage_extension",
+            "stage_gate_blocked",
+            "stage_3_distribution",
+            "stage_4_downtrend",
+        }
+    ),
+}
+
 
 class ReadinessStatus(Enum):
     # Deliberately not StrEnum: LifecycleState.READY must not compare equal.
@@ -489,7 +520,11 @@ def normalize_producer_readiness(
     elif producer == "LIFECYCLE" and output.get("missing_observation_sessions", 0) > 0:
         warnings.append(ReadinessReason.LIFECYCLE_OBSERVATION_GAP)
     # Lifecycle trading state and Winner consumer exclusions are never readiness inputs.
-    if warnings and status is ReadinessStatus.READY:
+    if (
+        warnings
+        and status is ReadinessStatus.READY
+        and not _advisory_business_risk_warnings_only(producer, output, warnings)
+    ):
         status = ReadinessStatus.DEGRADED
     if status is ReadinessStatus.UNKNOWN:
         warnings.append(ReadinessReason.SIGNALS_UNAVAILABLE)
@@ -512,6 +547,36 @@ def normalize_producer_readiness(
             else READINESS_POLICY_VERSION
         ),
     )
+
+
+def _advisory_business_risk_warnings_only(
+    producer: str,
+    output: dict[str, Any],
+    warnings: list[ReadinessReason],
+) -> bool:
+    allowed = _ADVISORY_WARNING_FLAGS_BY_PRODUCER.get(producer)
+    if allowed is None or any(
+        reason is not ReadinessReason.PRODUCER_WARNING for reason in warnings
+    ):
+        return False
+
+    flags: list[str] = []
+    for key in ("warning_flags_json", "warnings_json", "warning_flags", "warnings"):
+        raw = output.get(key)
+        if not raw:
+            continue
+        if not isinstance(raw, (list, tuple)):
+            return False
+        flags.extend(str(value).strip().lower() for value in raw)
+    if producer == "FUNDAMENTAL":
+        raw_v2 = output.get("v2_warning_flags_json") or {}
+        if not isinstance(raw_v2, dict):
+            return False
+        values = raw_v2.get("flags") or []
+        if not isinstance(values, (list, tuple)):
+            return False
+        flags.extend(str(value).strip().lower() for value in values)
+    return bool(flags) and all(flag in allowed for flag in flags)
 
 
 def readiness_from_evidence(evidence: Any) -> ProducerReadinessEnvelope:

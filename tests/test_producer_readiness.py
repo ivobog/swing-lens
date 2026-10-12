@@ -196,6 +196,53 @@ def test_sparse_fundamental_warning_does_not_invent_coverage_gate():
     )
 
 
+@pytest.mark.parametrize(
+    "producer,payload,signal_key",
+    [
+        (
+            "FUNDAMENTAL",
+            {
+                "data_coverage_score": Decimal("10"),
+                "missing_data_penalty": 0,
+                "v2_warning_flags_json": {"flags": ["balance_sheet_stress"]},
+            },
+            "v2_warning_flags_json",
+        ),
+        (
+            "TECHNICAL",
+            {
+                "dual_score": 7.5,
+                "insufficient_data": False,
+                "technical_confidence": "high",
+                "warning_flags_json": ["distribution_risk"],
+            },
+            "warning_flags_json",
+        ),
+    ],
+)
+def test_advisory_business_risk_warning_remains_ready_and_visible(producer, payload, signal_key):
+    result = normalize(producer, payload)
+
+    assert result.status is ReadinessStatus.READY
+    assert result.warning_reasons == (ReadinessReason.PRODUCER_WARNING,)
+    assert result.native_signals.canonical_payload()[signal_key] == payload[signal_key]
+
+
+def test_unknown_warning_remains_fail_closed():
+    result = normalize(
+        "TECHNICAL",
+        {
+            "dual_score": 7.5,
+            "insufficient_data": False,
+            "technical_confidence": "high",
+            "warning_flags_json": ["unknown_data_quality_warning"],
+        },
+    )
+
+    assert result.status is ReadinessStatus.DEGRADED
+    assert result.warning_reasons == (ReadinessReason.PRODUCER_WARNING,)
+
+
 def test_legacy_numeric_evidence_stays_uncertified():
     evidence = SimpleNamespace(
         id=1,

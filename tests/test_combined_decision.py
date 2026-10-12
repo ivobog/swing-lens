@@ -156,7 +156,7 @@ def test_combined_position_size_risk_boundary_is_inclusive() -> None:
     assert half.position_size_hint == "Half starter"
 
 
-def test_combined_decision_carries_v4_warning_flags_to_cockpit_payload() -> None:
+def test_combined_decision_keeps_advisory_v4_warning_flags_without_excluding_input() -> None:
     technical = _technical("SHOP", "Tight base breakout", "8.6", risk_score="2.5")
     technical.warning_flags_json = ["market_risk_off", "stage_4_downtrend"]
     seal_technical(technical)
@@ -171,9 +171,10 @@ def test_combined_decision_carries_v4_warning_flags_to_cockpit_payload() -> None
     assert "market_risk_off" in decision.warning_flags
     assert "stage_4_downtrend" in decision.warning_flags
     assert decision.has_warning is True
-    assert decision.has_technical is False
+    assert decision.has_technical is True
+    assert decision.is_complete is True
     eligibility = decision.debug_evidence["technical_consumer_eligibility"]["decision"]
-    assert eligibility["status"] == "POLICY_UNDECIDED"
+    assert eligibility["status"] == "ELIGIBLE"
 
 
 def test_v5_shadow_display_does_not_change_combined_decision_semantics() -> None:

@@ -3,6 +3,7 @@ from dataclasses import asdict, replace
 
 import pytest
 from contextual_readiness_helpers import ibmi_feature, seal_contextual
+from core_readiness_helpers import certified_fundamental
 from setup_lifecycle.test_snapshot_builder import (
     _market_snapshot,
     _sector_row,
@@ -16,6 +17,7 @@ from app.models.tables import SetupLifecycleEvent, SetupSignalSnapshot
 from app.services.ceri.event_risk_service import CeriEventRiskService
 from app.services.contextual_consumer_eligibility import (
     CONTEXTUAL_ELIGIBILITY_KEY,
+    FUNDAMENTAL_TO_COMBINED,
     IBMI_LIQUIDITY_TO_RANKING,
     IBMI_SHORT_PRESSURE_TO_CERI,
     IBMI_VOLATILITY_TO_CERI,
@@ -47,6 +49,34 @@ POLICIES = (
     REGIME_TO_SETUP,
     SECTOR_TO_SETUP,
 )
+
+
+def test_fundamental_advisory_warning_is_eligible_but_missing_data_is_excluded():
+    advisory = certified_fundamental(
+        ticker="MSFT",
+        fundamental_score=8,
+        missing_data_penalty=0,
+        v2_warning_flags_json={"flags": ["balance_sheet_stress"]},
+    )
+    projected, permission = contextual_decision_input(advisory, FUNDAMENTAL_TO_COMBINED)
+
+    assert projected is not None
+    assert permission["included"] is True
+    assert permission["producer_readiness"]["status"] == "READY"
+    assert permission["producer_readiness"]["warning_reasons"] == ["PRODUCER_WARNING"]
+    assert projected.v2_warning_flags_json == {"flags": ["balance_sheet_stress"]}
+
+    incomplete = certified_fundamental(
+        ticker="AAPL",
+        fundamental_score=8,
+        missing_data_penalty=0.2,
+        v2_warning_flags_json={"flags": ["sparse_fundamental_data"]},
+    )
+    excluded, blocked = contextual_decision_input(incomplete, FUNDAMENTAL_TO_COMBINED)
+
+    assert excluded is None
+    assert blocked["included"] is False
+    assert blocked["producer_readiness"]["status"] == "DEGRADED"
 
 
 @pytest.mark.parametrize("policy", POLICIES, ids=lambda item: item.policy_version)

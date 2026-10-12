@@ -92,6 +92,25 @@ def test_ceri_provider_schedule_prioritizes_score_inputs_before_sec_guidance(
     assert added[0].current_provider_ids_json == {"eodhd": "MSFT.US"}
 
 
+def test_advisory_warning_rows_do_not_make_successful_pipeline_partial() -> None:
+    result = {
+        "combined_results": 1,
+        "incomplete_rows": 0,
+        "warning_rows": 1,
+        "ib_failure_count": 0,
+        "technical_error_count": 0,
+        "fetch_failed": 0,
+        "market_regime_low_confidence": 0,
+        "ceri_failed": 0,
+        "setup_lifecycle_failed": 0,
+        "winner_prediction_failed": 0,
+    }
+
+    assert pipeline_executor._final_pipeline_status(result) == PipelineStatus.COMPLETED
+    result["incomplete_rows"] = 1
+    assert pipeline_executor._final_pipeline_status(result) == PipelineStatus.PARTIAL
+
+
 def test_ceri_provider_schedule_routes_exclusively_to_batched_workflow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

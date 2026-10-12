@@ -3256,7 +3256,6 @@ def _final_pipeline_status(result: dict[str, Any]) -> str:
         return PipelineStatus.FAILED
     if (
         result["incomplete_rows"]
-        or result["warning_rows"]
         or result["ib_failure_count"]
         or result["technical_error_count"]
         or result["fetch_failed"]
