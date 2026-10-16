@@ -244,6 +244,30 @@ def test_advisory_business_risk_warning_remains_ready_and_visible(producer, payl
     assert result.native_signals.canonical_payload()[signal_key] == payload[signal_key]
 
 
+def test_run_35_shaped_regime_distribution_warning_remains_ready_and_visible():
+    payload = {
+        "confidence": "normal",
+        "warnings": ["qqq_distribution", "market_risk_off"],
+        "input_symbols": {
+            "primary_market": "SPY",
+            "risk_proxy": "QQQ",
+            "use_risk_proxy": True,
+        },
+        "debug": {
+            "market_inputs": {
+                "SPY": {"missing": False, "insufficient_data": False},
+                "QQQ": {"missing": False, "insufficient_data": False},
+            }
+        },
+    }
+
+    result = normalize("REGIME", payload)
+
+    assert result.status is ReadinessStatus.READY
+    assert result.warning_reasons == (ReadinessReason.PRODUCER_WARNING,)
+    assert result.native_signals.canonical_payload()["warnings"] == payload["warnings"]
+
+
 def test_unknown_warning_remains_fail_closed():
     result = normalize(
         "TECHNICAL",

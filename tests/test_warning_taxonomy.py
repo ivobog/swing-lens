@@ -29,10 +29,43 @@ def test_investment_and_strategy_warnings_preserve_integrity_readiness() -> None
         WarningCategory.STRATEGY_RESTRICTION,
         WarningCategory.INVESTMENT_RISK,
     ]
-    assert warnings_preserve_integrity_readiness(
-        ["value_trap_risk", "stage_gate_blocked"]
-    )
+    assert warnings_preserve_integrity_readiness(["value_trap_risk", "stage_gate_blocked"])
     assert {item.catalog_version for item in values} == {WARNING_TAXONOMY_VERSION}
+
+
+def test_market_distribution_warnings_are_visible_nonblocking_strategy_restrictions() -> None:
+    values = classify_warnings(["spy_distribution", "qqq_distribution"])
+
+    assert WARNING_TAXONOMY_VERSION == "warning-taxonomy-v2"
+    assert {item.original_code for item in values} == {
+        "spy_distribution",
+        "qqq_distribution",
+    }
+    assert all(item.category is WarningCategory.STRATEGY_RESTRICTION for item in values)
+    assert all(item.blocks_integrity_readiness is False for item in values)
+    assert warnings_preserve_integrity_readiness(
+        ["spy_distribution", "qqq_distribution", "market_risk_off"]
+    )
+
+
+def test_market_regime_warning_vocabulary_is_explicitly_classified() -> None:
+    emitted_codes = {
+        "market_risk_off",
+        "low_market_confidence",
+        "mixed_benchmark_sessions",
+        "missing_qqq_market_data",
+        "missing_spy_market_data",
+        "qqq_distribution",
+        "severely_stale_market_data",
+        "spy_distribution",
+        "stale_market_data",
+        "stale_qqq_market_data",
+        "stale_spy_market_data",
+    }
+
+    assert all(classify_warning(code).classified for code in emitted_codes)
+    assert classify_warning("missing_qqq_market_data").blocks_integrity_readiness is True
+    assert classify_warning("stale_qqq_market_data").blocks_integrity_readiness is True
 
 
 def test_unknown_warning_is_retained_and_fails_closed() -> None:

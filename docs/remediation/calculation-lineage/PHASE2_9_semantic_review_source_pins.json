@@ -128,7 +128,7 @@
     "app/services/technical_artifact_cache.py": "22050fa48b45010d72cfb7f67d005094e77777e18c06261dc1100da97c01b890",
     "app/services/technical_indicators.py": "8f52d47b46581488864cd88c3b1e834a585341368ef7501bc330a71d31755ddf",
     "app/services/technical_score_service.py": "7da21d1d861c38d4a82644fdc216b671cb9d0530d46b14afb38c18b70dd5d8c9",
-    "app/services/transition_preflight_plan_service.py": "ed6ee5ebf09d95aee2fc8de65196d442d8ec54b8b21af385cc937282afac8576",
+    "app/services/transition_preflight_plan_service.py": "496dc3a0df700b990e52b2bcb805e945d19135b19e645ad0bed416ddeb0bc949",
     "app/services/upload_service.py": "1298ecfd315c73159370192d818ebdfb7ff0a06b80308e70475c6c9a9a9a40e1",
     "app/services/winner_probability/api_service.py": "dda9f921b6af72b688c2638ee85a31b16c56bd24e276523e0ce67158e066d977",
     "app/services/winner_probability/backfill.py": "a4156b5f3747b778ef7991f6d8fa49d7a6971ec26763bdb129c4c2990c9fe82a",

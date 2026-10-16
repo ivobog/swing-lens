@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriScoreSnapshot, CeriSourceRecord
 from app.models.tables import (
+    CoreCalculationEvidenceSource,
     MarketCalculationContext,
     MarketDataSessionDisposition,
     MarketRegimeSnapshot,
@@ -1370,6 +1371,7 @@ def _validate_handoff_temporal_lineage(
     price_bars = []
     calculation_context = db.get(MarketCalculationContext, market_cutoff.context_id)
     pipeline_run_id = getattr(calculation_context, "pipeline_run_id", None)
+    sector_market_lineage_cache: dict[tuple[int | None, int | None], bool] = {}
     total = len(built_rows)
     for index, (context, _built) in enumerate(built_rows, start=1):
         ticker = context.ticker
@@ -1464,7 +1466,16 @@ def _validate_handoff_temporal_lineage(
             except RequiredHandoffArtifactError as exc:
                 failures.append(str(exc))
         if sector is not None and market is not None:
-            if sector.market_regime_snapshot_id != market.id:
+            lineage_key = (getattr(market, "id", None), getattr(sector, "id", None))
+            lineage_valid = sector_market_lineage_cache.get(lineage_key)
+            if lineage_valid is None:
+                lineage_valid = _sector_market_handoff_lineage_is_valid(
+                    db,
+                    market=market,
+                    sector=sector,
+                )
+                sector_market_lineage_cache[lineage_key] = lineage_valid
+            if not lineage_valid:
                 failures.append(f"{ticker}:sector_market_parent")
         if context.sector_rotation_row is not None and (
             sector is None or context.sector_rotation_row.snapshot_id != sector.id
@@ -1525,6 +1536,91 @@ def _validate_handoff_temporal_lineage(
         )
 
 
+def _sector_market_handoff_lineage_is_valid(
+    db: Session,
+    *,
+    market: MarketRegimeSnapshot,
+    sector: SectorRotationSnapshot,
+) -> bool:
+    """Validate an included or explicitly excluded Regime -> Sector edge."""
+
+    from app.services.contextual_calculation_identity import artifact_identity
+    from app.services.contextual_consumer_eligibility import (
+        CONTEXTUAL_ELIGIBILITY_KEY,
+        REGIME_TO_SECTOR,
+    )
+    from app.services.core_calculation_evidence import (
+        CoreEvidenceKind,
+        get_certified_evidence_for_row,
+    )
+    from app.services.core_mutation_authority import mutation_eligibility
+
+    try:
+        market_evidence = get_certified_evidence_for_row(
+            db,
+            kind=CoreEvidenceKind.REGIME,
+            current_row=market,
+        )
+        sector_evidence = get_certified_evidence_for_row(
+            db,
+            kind=CoreEvidenceKind.SECTOR,
+            current_row=sector,
+        )
+        if (
+            str(artifact_identity(market).fingerprint())
+            != market_evidence.calculation_identity_fingerprint
+            or str(artifact_identity(sector).fingerprint())
+            != sector_evidence.calculation_identity_fingerprint
+        ):
+            return False
+        if (
+            market_evidence.run_id != market.run_id
+            or sector_evidence.run_id != sector.run_id
+            or (sector_evidence.source_evidence_ids_json or {}).get("regime") != market_evidence.id
+            or (sector_evidence.payload_json or {}).get("market_regime_snapshot_id")
+            != sector.market_regime_snapshot_id
+        ):
+            return False
+
+        graph_edges = tuple(
+            db.scalars(
+                select(CoreCalculationEvidenceSource).where(
+                    CoreCalculationEvidenceSource.evidence_id == sector_evidence.id,
+                    CoreCalculationEvidenceSource.source_role == "regime",
+                )
+            )
+        )
+        if len(graph_edges) != 1 or graph_edges[0].source_evidence_id != market_evidence.id:
+            return False
+
+        projection_permission = (
+            (sector.debug_json or {}).get(CONTEXTUAL_ELIGIBILITY_KEY) or {}
+        ).get("regime")
+        evidence_debug = (sector_evidence.payload_json or {}).get("debug") or {}
+        evidence_permission = (evidence_debug.get(CONTEXTUAL_ELIGIBILITY_KEY) or {}).get("regime")
+        if not isinstance(projection_permission, dict) or not isinstance(evidence_permission, dict):
+            return False
+        if projection_permission != evidence_permission:
+            return False
+        if evidence_permission.get("source_feature_id") != market.id:
+            return False
+        decision = evidence_permission.get("decision") or {}
+        if decision.get("producer_evidence_id") != market_evidence.id:
+            return False
+
+        permission = mutation_eligibility("regime", market_evidence, evidence_permission)
+        if REGIME_TO_SECTOR.evaluate(permission.readiness) != permission.decision:
+            return False
+        included = evidence_permission.get("included")
+        if not isinstance(included, bool) or included is not permission.included:
+            return False
+        if included:
+            return sector.market_regime_snapshot_id == market.id
+        return sector.market_regime_snapshot_id is None
+    except (AttributeError, KeyError, LookupError, TypeError, ValueError):
+        return False
+
+
 def _temporal_artifact_matches(
     row: TechnicalScore | MarketRegimeSnapshot | SectorRotationSnapshot,
     market_cutoff: MarketCalculationCutoff,
@@ -1542,9 +1638,7 @@ def _temporal_artifact_matches(
 def _verification_checkpoint_due(index: int, total: int) -> bool:
     """Bound database-backed verification batches below the transaction ceiling."""
 
-    return bool(
-        index == total or index % TRANSITION_VERIFICATION_CHECKPOINT_INTERVAL == 0
-    )
+    return bool(index == total or index % TRANSITION_VERIFICATION_CHECKPOINT_INTERVAL == 0)
 
 
 def _market_context_payload(market_cutoff: MarketCalculationCutoff) -> dict[str, Any]:

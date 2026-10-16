@@ -118,7 +118,7 @@ admission remains blocked until a numerical/component threshold is certified.
 ## Versioning and tests
 
 - Policy family: `orthogonal-consumer-eligibility-v1`.
-- Warning catalog: `warning-taxonomy-v1`.
+- Warning catalog: `warning-taxonomy-v2`.
 - Pipeline summary: `pipeline-outcome-summary-v1`.
 - CERI actionability: `ceri-actionability-v1`.
 - Winner acquisition ledger: `winner-acquisition-v1`.

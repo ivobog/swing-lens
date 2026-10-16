@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 
-WARNING_TAXONOMY_VERSION = "warning-taxonomy-v1"
+WARNING_TAXONOMY_VERSION = "warning-taxonomy-v2"
 
 
 class WarningCategory(StrEnum):
@@ -110,6 +110,8 @@ _CATALOG_ROWS = [
             "heavy_distribution",
             "late_stage_extension",
             "market_risk_off",
+            "qqq_distribution",
+            "spy_distribution",
             "stage_3_distribution",
             "stage_4_downtrend",
             "stage_gate_blocked",
@@ -129,6 +131,8 @@ _CATALOG_ROWS = [
             "missing_benchmark_data",
             "missing_fundamental",
             "missing_market_data",
+            "missing_qqq_market_data",
+            "missing_spy_market_data",
             "missing_technical",
             "opportunity_component_coverage_insufficient",
             "price_response_unavailable",
@@ -147,8 +151,10 @@ _CATALOG_ROWS = [
             "dataset_freshness_unavailable",
             "estimate_coverage_low",
             "guidance_rows_rejected",
+            "low_market_confidence",
             "low_data_quality",
             "low_technical_confidence",
+            "mixed_benchmark_sessions",
             "revision_component_coverage_low",
         ),
         blocking=True,
@@ -160,6 +166,8 @@ _CATALOG_ROWS = [
             "data_stale",
             "estimate_data_stale",
             "severely_stale_market_data",
+            "stale_qqq_market_data",
+            "stale_spy_market_data",
             "stale_market_data",
         ),
         blocking=True,
@@ -215,9 +223,7 @@ def classify_warning(code: object) -> ClassifiedWarning:
 
 def classify_warnings(codes: Iterable[object]) -> tuple[ClassifiedWarning, ...]:
     values = {
-        normalize_warning_code(code): classify_warning(code)
-        for code in codes
-        if str(code).strip()
+        normalize_warning_code(code): classify_warning(code) for code in codes if str(code).strip()
     }
     return tuple(values[key] for key in sorted(values))
 

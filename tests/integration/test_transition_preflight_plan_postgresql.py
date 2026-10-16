@@ -755,6 +755,12 @@ def test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempot
     disposable_postgres_database: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # This fixture predates immutable Regime/Sector evidence and exercises the
+    # two-phase manifest lifecycle, not contextual source certification.
+    monkeypatch.setattr(
+        "app.services.transition_preflight_plan_service._sector_market_handoff_lineage_is_valid",
+        lambda *_args, **_kwargs: True,
+    )
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     with Session(engine, expire_on_commit=False) as db:
@@ -949,6 +955,12 @@ def test_historical_v1_anchor_is_verified_without_rewrite_and_fails_closed(
     disposable_postgres_database: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # This retained-v1 fixture has compatibility rows only; contextual source
+    # certification is covered by the native Run-35 regression tests.
+    monkeypatch.setattr(
+        "app.services.transition_preflight_plan_service._sector_market_handoff_lineage_is_valid",
+        lambda *_args, **_kwargs: True,
+    )
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     with Session(engine, expire_on_commit=False) as db:
@@ -1151,7 +1163,13 @@ def test_historical_v1_anchor_is_verified_without_rewrite_and_fails_closed(
 
 def test_handoff_rejects_later_market_bar(
     disposable_postgres_database: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Keep this legacy compatibility-row fixture focused on price-bar PIT rules.
+    monkeypatch.setattr(
+        "app.services.transition_preflight_plan_service._sector_market_handoff_lineage_is_valid",
+        lambda *_args, **_kwargs: True,
+    )
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
     with Session(engine) as db:
