@@ -23,6 +23,7 @@ from app.services.calculation_identity import (
     CalculationIdentity,
     CalculationIdentityCompatibilityValidator,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.combined_ranking_identity import (
     COMBINED_INPUT_COMPATIBILITY,
@@ -39,6 +40,7 @@ from app.services.configuration_source_values import SourcedConfigurationValues,
 from app.services.contextual_consumer_eligibility import (
     CONTEXTUAL_ELIGIBILITY_KEY,
     FUNDAMENTAL_TO_COMBINED,
+    FundamentalAdmissionEvidenceContractError,
     contextual_decision_input,
     record_fundamental_admission,
 )
@@ -154,23 +156,7 @@ def refresh_combined_results(
         raise ValueError("COMBINED_MUTATION_AUTHORITY_REQUIRED")
     rows = _rows_for_run(db, run_id)
     if isinstance(db, Session):
-        fundamentals = {}
-        technicals = {}
-        for ticker, pins in source_evidence.items():
-            for role, model, target in (
-                ("fundamental", FundamentalScore, fundamentals),
-                ("technical", TechnicalScore, technicals),
-            ):
-                source = db.scalar(
-                    select(model).where(
-                        model.evidence_id == pins.get(role),
-                        model.run_id == run_id,
-                        model.ticker == ticker.upper(),
-                    )
-                )
-                if source is None:
-                    raise ValueError("COMBINED_EXACT_SOURCE_ADDRESS_REQUIRED: " + role)
-                target[ticker.upper()] = source
+        fundamentals, technicals = _exact_sources_for_run(db, run_id, source_evidence)
     else:
         fundamentals = {score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)}
         technicals = {score.ticker.upper(): score for score in _technicals_for_run(db, run_id)}
@@ -565,6 +551,7 @@ def _to_model(
             calculation_identity,
             policy=COMBINED_INPUT_COMPATIBILITY.name,
         )
+    debug_json = Canonical.canonicalize(debug_json)
     return CombinedResult(
         run_id=run_id,
         ticker=decision.ticker,
@@ -684,6 +671,52 @@ def _fundamentals_for_run(db: Session, run_id: int) -> list[FundamentalScore]:
             .where(FundamentalScore.run_id == run_id)
         )
     )
+
+
+def _exact_sources_for_run(
+    db: Session,
+    run_id: int,
+    source_evidence: dict[str, dict[str, int]],
+) -> tuple[dict[str, FundamentalScore], dict[str, TechnicalScore]]:
+    """Bulk-load exact producer rows and their evidence for the combine boundary."""
+
+    available_fundamentals = {
+        score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)
+    }
+    available_technicals = {
+        score.ticker.upper(): score for score in _technicals_for_run(db, run_id)
+    }
+    fundamentals: dict[str, FundamentalScore] = {}
+    technicals: dict[str, TechnicalScore] = {}
+    for ticker, pins in source_evidence.items():
+        normalized_ticker = ticker.upper()
+        for role, available, target in (
+            ("fundamental", available_fundamentals, fundamentals),
+            ("technical", available_technicals, technicals),
+        ):
+            pinned_evidence_id = pins.get(role)
+            source = available.get(normalized_ticker)
+            if (
+                type(pinned_evidence_id) is not int
+                or pinned_evidence_id <= 0
+                or source is None
+                or source.evidence_id != pinned_evidence_id
+            ):
+                if role == "fundamental":
+                    raise FundamentalAdmissionEvidenceContractError(
+                        "combined exact-source address does not match the persisted score pointer",
+                        diagnostics={
+                            "contract": "fundamental-admission-evidence-v1",
+                            "consumer": "COMBINED",
+                            "run_id": run_id,
+                            "ticker": normalized_ticker,
+                            "evidence_id": pinned_evidence_id,
+                            "persisted_evidence_id": getattr(source, "evidence_id", None),
+                        },
+                    )
+                raise ValueError("COMBINED_EXACT_SOURCE_ADDRESS_REQUIRED: " + role)
+            target[normalized_ticker] = source
+    return fundamentals, technicals
 
 
 def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:

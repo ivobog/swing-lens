@@ -21,6 +21,7 @@ from app.services.calculation_identity import (
     CalculationIdentityCompatibilityValidator,
     IdentityState,
 )
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.combined_decision import _load_scoring_config
 from app.services.combined_ranking_identity import (
     RANKING_IBMI_COMPATIBILITY,
@@ -610,6 +611,7 @@ def _to_ranking_model(
             calculation_identity,
             policy=RANKING_INPUT_COMPATIBILITY.name,
         )
+    debug_json = Canonical.canonicalize(debug_json)
     return RankingResult(
         run_id=run_id,
         raw_row_id=decision.raw_row_id,

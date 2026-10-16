@@ -22,13 +22,14 @@ from app.services.certification_runtime import (
     effective_runtime_configuration,
     require_enqueue_authorized,
 )
-from app.settings import ProcessRole, RuntimeMode, Settings
+from app.settings import FundamentalAdmissionMode, ProcessRole, RuntimeMode, Settings
 
 
 def certification_settings(**overrides) -> Settings:
     values = {
         "_env_file": None,
         "runtime_mode": RuntimeMode.CERTIFICATION,
+        "fundamental_admission_mode": FundamentalAdmissionMode.ACTIVE,
         "process_role": ProcessRole.DURABLE_WORKER,
         "use_durable_pipeline": True,
         "durable_worker_process_enabled": True,
@@ -45,6 +46,7 @@ def test_certification_profile_exposes_effective_isolation() -> None:
     summary = effective_runtime_configuration(certification_settings())
 
     assert summary["runtime_mode"] == "CERTIFICATION"
+    assert summary["fundamental_admission_mode"] == "ACTIVE"
     assert summary["certification_isolation_active"] is True
     assert summary["authorized_root_job_type"] == "FULL_PIPELINE"
     assert summary["certification_session_id"] == "cert-session-current"

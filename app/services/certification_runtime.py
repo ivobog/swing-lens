@@ -328,6 +328,7 @@ def effective_runtime_configuration(settings: Settings) -> dict[str, Any]:
     return {
         "runtime_mode": settings.runtime_mode.value,
         "process_role": settings.process_role.value,
+        "fundamental_admission_mode": settings.fundamental_admission_mode.value,
         "durable_worker_process_enabled": settings.durable_worker_process_enabled,
         "embedded_job_worker_enabled": settings.embedded_job_worker_enabled,
         "certification_isolation_active": certification,

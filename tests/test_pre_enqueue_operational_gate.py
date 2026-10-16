@@ -18,7 +18,7 @@ from app.services.pre_enqueue_operational_gate import (
     validate_pre_enqueue_operational_gate,
 )
 from app.services.transition_preflight_plan_service import TransitionPreflightError
-from app.settings import ProcessRole, RuntimeMode, Settings
+from app.settings import FundamentalAdmissionMode, ProcessRole, RuntimeMode, Settings
 
 NOW = datetime(2026, 9, 10, 14, 0, tzinfo=UTC)
 
@@ -27,6 +27,7 @@ def _settings() -> Settings:
     return Settings(
         _env_file=None,
         runtime_mode=RuntimeMode.CERTIFICATION,
+        fundamental_admission_mode=FundamentalAdmissionMode.ACTIVE,
         process_role=ProcessRole.WEB,
         use_durable_pipeline=True,
         durable_worker_process_enabled=True,
@@ -109,6 +110,22 @@ def _green_dependencies(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         lambda *_args, **_kwargs: ("0072_ceri_artifact_context_lineage",),
     )
     monkeypatch.setattr(
+        "app.services.pre_enqueue_operational_gate.current_deployment_identity",
+        lambda **_kwargs: {
+            "git_sha": "a" * 40,
+            "git_dirty": False,
+            "schema_revision": "0072_ceri_artifact_context_lineage",
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.pre_enqueue_operational_gate.certify_fundamental_admission_orm_contract",
+        lambda *_args, **kwargs: {
+            "status": "PASSED",
+            "mode": kwargs["expected_mode"],
+            "relationship_initially_loaded": False,
+        },
+    )
+    monkeypatch.setattr(
         "app.services.pre_enqueue_operational_gate.verify_transition_preflight_for_enqueue",
         lambda *_args, **_kwargs: verified,
     )
@@ -134,7 +151,68 @@ def test_all_green_gate_returns_authoritative_observability(
     assert result.to_dict()["passed"] is True
     assert result.to_dict()["worker_count"] == 1
     assert result.to_dict()["queue_isolation"]["unrelated_runnable_jobs"] == 0
+    assert result.to_dict()["fundamental_admission_orm_contract"]["status"] == "PASSED"
     assert gate_db.added == []
+
+
+def test_dirty_worktree_blocks_certification_admission(
+    monkeypatch: pytest.MonkeyPatch,
+    gate_db,
+) -> None:
+    _green_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        "app.services.pre_enqueue_operational_gate.current_deployment_identity",
+        lambda **_kwargs: {"git_sha": "a" * 40, "git_dirty": True},
+    )
+
+    with pytest.raises(PreEnqueueOperationalGateError) as caught:
+        validate_pre_enqueue_operational_gate(
+            gate_db,
+            upload_run_id=154,
+            plan_id=3,
+            settings=_settings(),
+            health_probe=lambda **_kwargs: _ib_status(),
+            now=NOW,
+        )
+
+    assert caught.value.code == "UNVERIFIED_DEPLOYMENT_WORKTREE"
+    assert caught.value.details["deployment_git_dirty"] is True
+
+
+def test_orm_contract_failure_blocks_pipeline_admission(
+    monkeypatch: pytest.MonkeyPatch,
+    gate_db,
+) -> None:
+    from app.services.contextual_consumer_eligibility import (
+        FundamentalAdmissionEvidenceContractError,
+    )
+
+    _green_dependencies(monkeypatch)
+    monkeypatch.setattr(
+        "app.services.pre_enqueue_operational_gate.certify_fundamental_admission_orm_contract",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            FundamentalAdmissionEvidenceContractError(
+                "unloaded relationship reached lazy='raise'",
+                diagnostics={"score_id": 42, "evidence_id": 84},
+            )
+        ),
+    )
+
+    with pytest.raises(PreEnqueueOperationalGateError) as caught:
+        validate_pre_enqueue_operational_gate(
+            gate_db,
+            upload_run_id=154,
+            plan_id=3,
+            settings=_settings(),
+            health_probe=lambda **_kwargs: _ib_status(),
+            now=NOW,
+        )
+
+    assert caught.value.code == "FUNDAMENTAL_ADMISSION_EVIDENCE_CONTRACT"
+    assert caught.value.details["admission_contract"] == {
+        "score_id": 42,
+        "evidence_id": 84,
+    }
 
 
 def test_degraded_worker_blocks_pipeline_admission_until_recovered(

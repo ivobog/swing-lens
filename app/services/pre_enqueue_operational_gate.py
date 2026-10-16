@@ -13,12 +13,20 @@ from sqlalchemy.orm import Session
 from app.models.tables import MarketCalculationContext, TransitionPreflightPlan
 from app.services.alembic_heads import repository_alembic_heads
 from app.services.background_queue import job_queue_class
+from app.services.ceri.deployment_identity import (
+    DeploymentSchemaMismatch,
+    current_deployment_identity,
+)
 from app.services.ceri.sec.processor_capability import evaluate_sec_processor_capability
 from app.services.certification_runtime import (
     QueueIsolationStatus,
     effective_runtime_configuration,
     is_certification_mode,
     queue_isolation_status,
+)
+from app.services.contextual_consumer_eligibility import (
+    FundamentalAdmissionEvidenceContractError,
+    certify_fundamental_admission_orm_contract,
 )
 from app.services.ib_gateway_health_service import (
     IBGatewayHealthState,
@@ -81,6 +89,8 @@ class PreEnqueueOperationalGateResult:
     worker_count: int
     worker_id: str
     schema_head: str
+    deployment_identity: dict[str, Any]
+    fundamental_admission_orm_contract: dict[str, Any]
     checked_at: datetime
 
     def to_dict(self) -> dict[str, Any]:
@@ -92,6 +102,8 @@ class PreEnqueueOperationalGateResult:
             "queue_isolation": self.queue_status.to_dict(),
             "ib": self.ib_status.to_dict(),
             "schema_head": self.schema_head,
+            "deployment_identity": self.deployment_identity,
+            "fundamental_admission_orm_contract": self.fundamental_admission_orm_contract,
             "checked_at": self.checked_at.isoformat(),
             "plan_id": self.verified_preflight.plan.id,
             "context_id": self.verified_preflight.plan.market_calculation_context_id,
@@ -195,6 +207,46 @@ def validate_pre_enqueue_operational_gate(
             details={"expected_heads": list(expected_heads), "actual_head": actual_head},
         )
 
+    try:
+        deployment_identity = current_deployment_identity(
+            config_hash=None,
+            calculation_version=None,
+            database_schema_revision=actual_head,
+            repo_root=repo_root,
+        )
+    except DeploymentSchemaMismatch as exc:
+        _reject(
+            "UNVERIFIED_DEPLOYMENT_IDENTITY",
+            str(exc),
+            plan_id=plan_id,
+            context_id=context_id,
+        )
+    if deployment_identity.get("git_dirty") is not False:
+        _reject(
+            "UNVERIFIED_DEPLOYMENT_WORKTREE",
+            "Certification requires a clean, identifiable Git deployment.",
+            plan_id=plan_id,
+            context_id=context_id,
+            details={
+                "deployment_git_sha": deployment_identity.get("git_sha"),
+                "deployment_git_dirty": deployment_identity.get("git_dirty"),
+            },
+        )
+
+    try:
+        admission_contract = certify_fundamental_admission_orm_contract(
+            db,
+            expected_mode=settings.fundamental_admission_mode.value,
+        )
+    except FundamentalAdmissionEvidenceContractError as exc:
+        _reject(
+            exc.code,
+            str(exc),
+            plan_id=plan_id,
+            context_id=context_id,
+            details={"admission_contract": exc.diagnostics},
+        )
+
     ib_status = (health_probe or check_status)(settings=settings)
     ib_decision_at = now if now is not None else datetime.now(UTC)
     if (
@@ -236,6 +288,8 @@ def validate_pre_enqueue_operational_gate(
         worker_count=1,
         worker_id=str(capable_workers[0].worker_id),
         schema_head=actual_head,
+        deployment_identity=deployment_identity,
+        fundamental_admission_orm_contract=admission_contract,
         checked_at=ib_decision_at,
     )
     logger.info("pre_enqueue_operational_gate_passed %s", result.to_dict())

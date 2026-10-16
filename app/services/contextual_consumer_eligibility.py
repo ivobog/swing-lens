@@ -5,12 +5,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Date, DateTime, Numeric, inspect
+from sqlalchemy import Date, DateTime, Numeric, inspect, select
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import Session, object_session
 from sqlalchemy.orm.attributes import NO_VALUE
 
 from app.models.tables import (
     CoreCalculationEvidence,
+    FundamentalScore,
     SectorRotationRow,
     SectorRotationSnapshot,
 )
@@ -31,6 +33,17 @@ from app.services.producer_readiness import (
 )
 
 CONTEXTUAL_ELIGIBILITY_KEY = "contextual_consumer_eligibility"
+FUNDAMENTAL_ADMISSION_EVIDENCE_CONTRACT = "FUNDAMENTAL_ADMISSION_EVIDENCE_CONTRACT"
+
+
+class FundamentalAdmissionEvidenceContractError(EvidenceUnavailableError):
+    """A deterministic mismatch between a score and its persisted admission evidence."""
+
+    code = FUNDAMENTAL_ADMISSION_EVIDENCE_CONTRACT
+
+    def __init__(self, message: str, *, diagnostics: dict[str, Any] | None = None) -> None:
+        self.diagnostics = diagnostics or {}
+        super().__init__(f"{self.code}: {message}")
 
 
 @dataclass(frozen=True)
@@ -143,49 +156,8 @@ def contextual_decision_input(
     row: Any | None,
     policy: ContextualConsumerPolicy,
 ) -> tuple[Any | None, dict[str, Any]]:
-    evidence = None
-    if row is not None and getattr(row, "evidence_id", None) is not None:
-        loaded = inspect(row).attrs.calculation_evidence.loaded_value
-        if loaded is NO_VALUE:
-            db = object_session(row)
-            if db is None:
-                raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: detached context not loaded")
-            with db.no_autoflush:
-                evidence = db.get(CoreCalculationEvidence, row.evidence_id)
-        else:
-            evidence = loaded
-        if evidence is None or evidence.id != row.evidence_id:
-            raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: contextual pointer unresolved")
-        if evidence.artifact_kind != policy.producer:
-            raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: contextual producer mismatch")
-        if policy.producer == "IBMI":
-            identity = build_ibmi_feature_identity(row)
-            if (
-                row.module != policy.module
-                or evidence.ranking_profile != policy.module
-                or evidence.ticker != row.ticker.upper()
-            ):
-                raise EvidenceUnavailableError(
-                    "EVIDENCE_UNAVAILABLE: contextual module/scope mismatch"
-                )
-        else:
-            identity = artifact_identity(row)
-            if evidence.run_id != row.run_id:
-                raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: contextual owner mismatch")
-            if (
-                policy.producer in {"FUNDAMENTAL", "COMBINED", "TECHNICAL"}
-                and evidence.ticker != row.ticker.upper()
-            ):
-                raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: contextual ticker mismatch")
-            if policy.producer == "RANKING" and (
-                evidence.ticker != row.ticker.upper()
-                or evidence.ranking_profile != row.ranking_profile
-            ):
-                raise EvidenceUnavailableError(
-                    "EVIDENCE_UNAVAILABLE: Ranking ticker/profile mismatch"
-                )
-        if str(identity.fingerprint()) != evidence.calculation_identity_fingerprint:
-            raise EvidenceUnavailableError("EVIDENCE_UNAVAILABLE: contextual identity mismatch")
+    evidence = _resolve_contextual_evidence(row, policy)
+    if evidence is not None:
         readiness = readiness_from_evidence(evidence)
     else:
         readiness = legacy_readiness(policy.producer)
@@ -262,7 +234,10 @@ def record_fundamental_admission(
         raise ValueError("Fundamental admission recording is limited to score-native edges")
     if object_session(row) is not db:
         raise ValueError("Fundamental admission recording requires the attached transaction")
-    evidence = row.calculation_evidence
+    evidence = _resolve_contextual_evidence(row, policy)
+    if evidence is None:
+        _raise_evidence_contract(row, policy, "persisted evidence pointer is absent")
+    _validate_admission_permission_binding(row, policy, permission, evidence)
     from app.services.consumer_eligibility_ledger import (
         EligibilityShadowEvaluation,
         persist_consumer_decision,
@@ -311,6 +286,179 @@ def record_fundamental_admission(
         pipeline_run_id=pipeline_run_id,
         upload_run_id=evidence.run_id,
     )
+
+
+def certify_fundamental_admission_orm_contract(
+    db: Session,
+    *,
+    expected_mode: str,
+) -> dict[str, Any]:
+    """Exercise the real admission boundary on an unloaded row without retaining writes."""
+
+    if expected_mode == "LEGACY":
+        return {"status": "SKIPPED_LEGACY", "relationship_initially_loaded": None}
+    if not isinstance(db, Session):
+        raise TypeError("Fundamental admission ORM certification requires a real Session")
+    with Session(bind=db.get_bind()) as verification_db:
+        row = verification_db.scalar(
+            select(FundamentalScore)
+            .where(FundamentalScore.evidence_id.is_not(None))
+            .order_by(FundamentalScore.id.desc())
+            .limit(1)
+        )
+        if row is None:
+            raise FundamentalAdmissionEvidenceContractError(
+                "deployment certification requires a persisted representative score",
+                diagnostics={"contract": "fundamental-admission-evidence-v1"},
+            )
+        initially_loaded = (
+            inspect(row).attrs.calculation_evidence.loaded_value is not NO_VALUE
+        )
+        if initially_loaded:
+            raise FundamentalAdmissionEvidenceContractError(
+                "deployment certification probe did not start with unloaded evidence",
+                diagnostics={
+                    "contract": "fundamental-admission-evidence-v1",
+                    "score_id": row.id,
+                    "run_id": row.run_id,
+                    "ticker": row.ticker.upper(),
+                    "evidence_id": row.evidence_id,
+                },
+            )
+        try:
+            _projected, permission = contextual_decision_input(row, FUNDAMENTAL_TO_COMBINED)
+            if permission.get("fundamental_admission_mode") != expected_mode:
+                raise FundamentalAdmissionEvidenceContractError(
+                    "runtime admission mode does not match the certification request",
+                    diagnostics={
+                        "contract": "fundamental-admission-evidence-v1",
+                        "expected_mode": expected_mode,
+                        "observed_mode": permission.get("fundamental_admission_mode", "LEGACY"),
+                    },
+                )
+            rollback_only = verification_db.begin_nested()
+            try:
+                record_fundamental_admission(
+                    verification_db,
+                    row=row,
+                    policy=FUNDAMENTAL_TO_COMBINED,
+                    permission=permission,
+                    pipeline_run_id=None,
+                )
+                verification_db.flush()
+            finally:
+                rollback_only.rollback()
+        except InvalidRequestError as exc:
+            raise FundamentalAdmissionEvidenceContractError(
+                "unloaded relationship reached an ORM access forbidden by lazy='raise'",
+                diagnostics={
+                    "contract": "fundamental-admission-evidence-v1",
+                    "score_id": row.id,
+                    "run_id": row.run_id,
+                    "ticker": row.ticker.upper(),
+                    "evidence_id": row.evidence_id,
+                    "orm_error_type": exc.__class__.__name__,
+                },
+            ) from exc
+        finally:
+            verification_db.rollback()
+        return {
+            "status": "PASSED",
+            "mode": expected_mode,
+            "relationship_initially_loaded": initially_loaded,
+            "sample_score_id": row.id,
+            "sample_evidence_id": row.evidence_id,
+        }
+
+
+def _resolve_contextual_evidence(
+    row: Any | None,
+    policy: ContextualConsumerPolicy,
+) -> CoreCalculationEvidence | None:
+    """Resolve and validate an exact evidence pointer without requiring relationship state."""
+
+    if row is None or getattr(row, "evidence_id", None) is None:
+        return None
+    loaded = inspect(row).attrs.calculation_evidence.loaded_value
+    if loaded is NO_VALUE:
+        db = object_session(row)
+        if db is None:
+            _raise_evidence_contract(row, policy, "detached context not loaded")
+        with db.no_autoflush:
+            evidence = db.get(CoreCalculationEvidence, row.evidence_id)
+    else:
+        evidence = loaded
+    if evidence is None or evidence.id != row.evidence_id:
+        _raise_evidence_contract(row, policy, "contextual pointer unresolved")
+    if evidence.artifact_kind != policy.producer:
+        _raise_evidence_contract(row, policy, "contextual producer mismatch")
+    if policy.producer == "IBMI":
+        identity = build_ibmi_feature_identity(row)
+        if (
+            row.module != policy.module
+            or evidence.ranking_profile != policy.module
+            or evidence.ticker != row.ticker.upper()
+        ):
+            _raise_evidence_contract(row, policy, "contextual module/scope mismatch")
+    else:
+        identity = artifact_identity(row)
+        if evidence.run_id != row.run_id:
+            _raise_evidence_contract(row, policy, "contextual owner mismatch")
+        if (
+            policy.producer in {"FUNDAMENTAL", "COMBINED", "TECHNICAL"}
+            and evidence.ticker != row.ticker.upper()
+        ):
+            _raise_evidence_contract(row, policy, "contextual ticker mismatch")
+        if policy.producer == "RANKING" and (
+            evidence.ticker != row.ticker.upper()
+            or evidence.ranking_profile != row.ranking_profile
+        ):
+            _raise_evidence_contract(row, policy, "Ranking ticker/profile mismatch")
+    if str(identity.fingerprint()) != evidence.calculation_identity_fingerprint:
+        _raise_evidence_contract(row, policy, "contextual identity mismatch")
+    return evidence
+
+
+def _validate_admission_permission_binding(
+    row: Any,
+    policy: ContextualConsumerPolicy,
+    permission: dict[str, Any],
+    evidence: CoreCalculationEvidence,
+) -> None:
+    if permission.get("source_feature_id") != row.id:
+        _raise_evidence_contract(row, policy, "permission source score does not match")
+    bound_evidence_ids = (
+        (permission.get("producer_readiness") or {}).get("evidence_id"),
+        (permission.get("decision") or {}).get("producer_evidence_id"),
+        (permission.get("orthogonal_decision") or {}).get("source_evidence_id"),
+    )
+    if any(evidence_id != evidence.id for evidence_id in bound_evidence_ids):
+        _raise_evidence_contract(row, policy, "permission evidence pointer does not match")
+    orthogonal = permission.get("orthogonal_decision") or {}
+    if orthogonal.get("source_identity_fingerprint") != evidence.calculation_identity_fingerprint:
+        _raise_evidence_contract(row, policy, "permission evidence identity does not match")
+    if orthogonal.get("consumer_edge") != f"FUNDAMENTAL_TO_{policy.consumer}":
+        _raise_evidence_contract(row, policy, "permission consumer edge does not match")
+
+
+def _raise_evidence_contract(
+    row: Any,
+    policy: ContextualConsumerPolicy,
+    message: str,
+) -> None:
+    if policy in {FUNDAMENTAL_TO_COMBINED, FUNDAMENTAL_TO_RANKING}:
+        raise FundamentalAdmissionEvidenceContractError(
+            message,
+            diagnostics={
+                "contract": "fundamental-admission-evidence-v1",
+                "consumer": policy.consumer,
+                "score_id": getattr(row, "id", None),
+                "run_id": getattr(row, "run_id", None),
+                "ticker": str(getattr(row, "ticker", "")).upper() or None,
+                "evidence_id": getattr(row, "evidence_id", None),
+            },
+        )
+    raise EvidenceUnavailableError(f"EVIDENCE_UNAVAILABLE: {message}")
 
 
 def _fundamental_frozen_input(evidence: CoreCalculationEvidence) -> dict[str, Any]:

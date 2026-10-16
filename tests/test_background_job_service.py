@@ -28,6 +28,9 @@ from app.services.background_job_service import (
     request_job_cancel,
     requeue_stalled_jobs,
 )
+from app.services.contextual_consumer_eligibility import (
+    FundamentalAdmissionEvidenceContractError,
+)
 from app.services.market_calculation_context_service import CeriContextIntegrityError
 from app.services.runtime_mutation_authority import (
     RecoveryAuthority,
@@ -391,6 +394,79 @@ def test_transient_infrastructure_failure_remains_retryable(error: Exception) ->
 
     assert failure["kind"] == JobFailureKind.TRANSIENT.value
     assert failure["retryable"] is True
+
+
+def test_fundamental_admission_contract_failure_is_deterministic_with_diagnostics() -> None:
+    error = FundamentalAdmissionEvidenceContractError(
+        "contextual pointer unresolved",
+        diagnostics={
+            "contract": "fundamental-admission-evidence-v1",
+            "run_id": 37,
+            "ticker": "ACME",
+            "evidence_id": 9001,
+        },
+    )
+
+    assert classify_job_failure(error) == {
+        "kind": JobFailureKind.DETERMINISTIC.value,
+        "retryable": False,
+        "code": "FUNDAMENTAL_ADMISSION_EVIDENCE_CONTRACT",
+        "diagnostics": {
+            "contract": "fundamental-admission-evidence-v1",
+            "run_id": 37,
+            "ticker": "ACME",
+            "evidence_id": 9001,
+        },
+    }
+
+
+def test_fundamental_admission_contract_failure_terminates_job_without_retry() -> None:
+    job = _running_job(retry_count=0, max_retries=3)
+    db = FakeDb(existing=job)
+    error = FundamentalAdmissionEvidenceContractError(
+        "permission evidence pointer does not match",
+        diagnostics={"run_id": 37, "ticker": "ACME", "evidence_id": 9001},
+    )
+
+    mark_job_failed_or_retry(db, job, error, execution_token=job.execution_token)
+
+    assert job.status == JobStatus.FAILED
+    assert job.retry_count == 1
+    assert job.run_after is None
+    assert job.completed_at is not None
+    assert job.result_json["failure_classification"] == (
+        job.operational_metadata_json["failure_classification"]
+    )
+    assert job.result_json["failure_classification"] == {
+        "kind": JobFailureKind.DETERMINISTIC.value,
+        "retryable": False,
+        "code": "FUNDAMENTAL_ADMISSION_EVIDENCE_CONTRACT",
+        "diagnostics": {"run_id": 37, "ticker": "ACME", "evidence_id": 9001},
+    }
+
+
+def test_transient_database_failure_keeps_retry_status_and_classification_aligned() -> None:
+    job = _running_job(retry_count=0, max_retries=3)
+    db = FakeDb(existing=job)
+    error = OperationalError("SELECT 1", {}, OSError("database connection unavailable"))
+
+    mark_job_failed_or_retry(
+        db,
+        job,
+        error,
+        retry_delay=lambda _retry_count: timedelta(seconds=1),
+        execution_token=job.execution_token,
+    )
+
+    assert job.status == JobStatus.QUEUED
+    assert job.retry_count == 1
+    assert job.run_after is not None
+    assert job.result_json is None
+    assert job.operational_metadata_json["failure_classification"] == {
+        "kind": JobFailureKind.TRANSIENT.value,
+        "retryable": True,
+        "code": "e3q8",
+    }
 
 
 def test_dangling_ceri_context_is_deterministic_and_preserves_safe_diagnostics() -> None:
