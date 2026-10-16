@@ -13,6 +13,8 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+from sqlalchemy.engine import make_url
+
 from app.services.us_market_calendar import (
     latest_completed_us_trading_day,
     previous_us_trading_day,
@@ -114,8 +116,7 @@ def _bars_for_ticker(ticker: str) -> list[SimpleNamespace]:
 
 
 def _install_deterministic_fetch_dependency() -> None:
-    from app.services import background_worker
-    from app.services.background_job_service import is_cancel_requested
+    from app.services import background_worker, pipeline_executor
     from app.services.ceri.artifact_lineage import CeriArtifactOwnership
     from app.services.ceri.feature_rebuild_service import (
         CeriFeatureRebuildRequest,
@@ -129,11 +130,7 @@ def _install_deterministic_fetch_dependency() -> None:
     from app.services.market_calculation_context_service import (
         validate_pipeline_job_market_context,
     )
-    from app.services.pipeline_executor import (
-        PipelineCancelled,
-        PipelineExecutionDependencies,
-        execute_full_pipeline,
-    )
+    from app.services.pipeline_executor import PipelineExecutionDependencies
 
     def deterministic_execute_fetch_plan(**kwargs):
         return real_execute_fetch_plan(
@@ -147,16 +144,27 @@ def _install_deterministic_fetch_dependency() -> None:
     def deterministic_check_historical_capability():
         return real_check_historical_data_capability(ib_factory=DeterministicReadOnlyIB)
 
+    def deterministic_pipeline_dependencies(*args, **kwargs):
+        kwargs.setdefault("execute_fetch_plan", deterministic_execute_fetch_plan)
+        kwargs.setdefault("check_ib_gateway", deterministic_check_status)
+        kwargs.setdefault(
+            "check_ib_historical_capability",
+            deterministic_check_historical_capability,
+        )
+        return PipelineExecutionDependencies(*args, **kwargs)
+
+    production_execute_full_pipeline_job = background_worker._execute_full_pipeline_job
+
     def execute_full_pipeline_job(db, job):
         pipeline_run_id = job.payload_json.get("pipeline_run_id")
         if pipeline_run_id is None:
             raise ValueError("FULL_PIPELINE job payload is missing pipeline_run_id.")
-        market_cutoff = validate_pipeline_job_market_context(
-            db,
-            pipeline_run_id=int(pipeline_run_id),
-            payload=job.payload_json,
-        )
         if os.environ.get("CERTIFICATION_FROZEN_CERI_PROVIDERS") != "true":
+            market_cutoff = validate_pipeline_job_market_context(
+                db,
+                pipeline_run_id=int(pipeline_run_id),
+                payload=job.payload_json,
+            )
             feature_result = CeriFeatureRebuildService().rebuild(
                 db,
                 CeriFeatureRebuildRequest(
@@ -174,33 +182,9 @@ def _install_deterministic_fetch_dependency() -> None:
                     f"{feature_result.errors}"
                 )
 
-        def lease_guard() -> None:
-            heartbeat = getattr(job, "_heartbeat", None)
-            if callable(heartbeat):
-                heartbeat()
+        return production_execute_full_pipeline_job(db, job)
 
-        def should_cancel() -> bool:
-            lease_guard()
-            return is_cancel_requested(db, job.id)
-
-        try:
-            result = execute_full_pipeline(
-                db=db,
-                pipeline_run_id=int(pipeline_run_id),
-                should_cancel=should_cancel,
-                lease_guard=lease_guard,
-                resume_from_step=job.payload_json.get("resume_from_step"),
-                dependencies=PipelineExecutionDependencies(
-                    execute_fetch_plan=deterministic_execute_fetch_plan,
-                    check_ib_gateway=deterministic_check_status,
-                    check_ib_historical_capability=(deterministic_check_historical_capability),
-                    market_cutoff=market_cutoff,
-                ),
-            )
-        except PipelineCancelled as exc:
-            raise background_worker.CancelRequested(str(exc)) from exc
-        return result.__dict__
-
+    pipeline_executor.PipelineExecutionDependencies = deterministic_pipeline_dependencies
     background_worker._execute_full_pipeline_job = execute_full_pipeline_job
 
 
@@ -335,6 +319,7 @@ _install_deterministic_fetch_dependency()
 _install_deterministic_outcome_clock()
 _install_pipeline_profiler()
 
+from app.db import engine as application_engine  # noqa: E402
 from app.main import app  # noqa: E402  (environment and dependency must be installed first)
 from app.routers import ib_gateway_admin_routes, run_routes  # noqa: E402
 from app.services import pre_enqueue_operational_gate  # noqa: E402
@@ -348,6 +333,140 @@ def _deterministic_route_check_status(*, settings=None):
 run_routes.check_status = _deterministic_route_check_status
 ib_gateway_admin_routes.check_status = _deterministic_route_check_status
 pre_enqueue_operational_gate.check_status = _deterministic_route_check_status
+
+trace_installed = False
+intercept_installed = False
+admission_mode = os.environ.get("CERTIFICATION_ADMISSION_MODE", "normal")
+if (
+    os.environ.get("CERTIFICATION_TRANSACTION_TRACE_DIR")
+    and os.environ.get("PROCESS_ROLE") == "WEB"
+):
+    from transaction_ownership import (  # noqa: E402
+        install_transaction_ownership_trace,
+        record_admission_boundary,
+        record_trace_event,
+    )
+
+    trace_installed = install_transaction_ownership_trace(application_engine)
+
+    import time  # noqa: E402
+
+    from app.services.setup_lifecycle import (  # noqa: E402
+        transition_candidate_service as candidate_service,
+    )
+
+    def _timed(stage, function, result_size):
+        def wrapped(*args, **kwargs):
+            started_at = time.perf_counter()
+            try:
+                result = function(*args, **kwargs)
+                return result
+            finally:
+                record_trace_event(
+                    "admission_stage_timing",
+                    stage=stage,
+                    seconds=round(time.perf_counter() - started_at, 6),
+                    result_size=result_size(locals().get("result")),
+                )
+
+        return wrapped
+
+    candidate_service.SetupLifecycleSourceLoader.load_run_context = _timed(
+        "source_loading",
+        candidate_service.SetupLifecycleSourceLoader.load_run_context,
+        lambda result: len(result.tickers) if result is not None else None,
+    )
+    candidate_service.preview_run_technicals = _timed(
+        "technical_reconstruction",
+        candidate_service.preview_run_technicals,
+        lambda result: len(result) if result is not None else None,
+    )
+    candidate_service.build_run_context_snapshots = _timed(
+        "candidate_construction",
+        candidate_service.build_run_context_snapshots,
+        lambda result: len(result) if result is not None else None,
+    )
+    candidate_service.TransitionCandidateDiscoveryService.discover_for_run = _timed(
+        "candidate_discovery_total",
+        candidate_service.TransitionCandidateDiscoveryService.discover_for_run,
+        lambda result: len(result) if result is not None else None,
+    )
+
+    if admission_mode == "intercept_before_enqueue" and os.environ.get("PROCESS_ROLE") == "WEB":
+        from fastapi import HTTPException  # noqa: E402
+
+        database_name = make_url(os.environ["DATABASE_URL"]).database or ""
+        if (
+            os.environ.get("RUNTIME_MODE") != "CERTIFICATION"
+            or os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT") != "DISPOSABLE_TEST"
+            or not database_name.startswith("swinglens_pytest_cert_")
+            or not trace_installed
+        ):
+            raise RuntimeError("UNSAFE_CERTIFICATION_ADMISSION_INTERCEPT_CONFIGURATION")
+
+        class _AdmissionInterceptReached(RuntimeError):
+            pass
+
+        production_start_pipeline = run_routes.start_pipeline
+
+        def _intercept_after_verification(db, verified_preflight):
+            record_admission_boundary(
+                db,
+                phase="AFTER_INDEPENDENT_VERIFICATION_BEFORE_ADMISSION_MUTATION",
+                plan_id=(
+                    int(verified_preflight.plan.id) if verified_preflight is not None else None
+                ),
+            )
+            raise _AdmissionInterceptReached
+
+        def _start_pipeline_with_intercept(db, *args, **kwargs):
+            kwargs["before_admission_mutation"] = _intercept_after_verification
+            try:
+                return production_start_pipeline(db, *args, **kwargs)
+            except _AdmissionInterceptReached as exc:
+                db.rollback()
+                record_admission_boundary(
+                    db,
+                    phase="AFTER_INTERCEPT_ROLLBACK",
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "CERTIFICATION_PREFLIGHT_BOUNDARY_REACHED"},
+                ) from exc
+
+        run_routes.start_pipeline = _start_pipeline_with_intercept
+        intercept_installed = True
+        record_trace_event("admission_intercept_installed", admission_mode=admission_mode)
+
+
+def _write_adapter_status() -> None:
+    status_root = os.environ.get("CERTIFICATION_ADAPTER_STATUS_DIR")
+    if not status_root:
+        return
+    status_dir = Path(status_root).resolve()
+    status_dir.mkdir(parents=True, exist_ok=True)
+    probe = status_dir / f".adapter-write-probe-{os.getpid()}"
+    probe.write_text("writable", encoding="utf-8")
+    probe.unlink()
+    status = {
+        "adapter_module": __name__,
+        "process_id": os.getpid(),
+        "process_role": os.environ.get("PROCESS_ROLE", "UNKNOWN"),
+        "execution_id": os.environ.get("SWINGLENS_RUNTIME_INSTANCE_ID"),
+        "runtime_mode": os.environ.get("RUNTIME_MODE"),
+        "database_safety_context": os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT"),
+        "database_name": application_engine.url.database,
+        "trace_installed": trace_installed,
+        "trace_directory": str(Path(os.environ["CERTIFICATION_TRANSACTION_TRACE_DIR"]).resolve()),
+        "trace_directory_writable": True,
+        "admission_mode": admission_mode,
+        "intercept_installed": intercept_installed,
+    }
+    target = status_dir / f"adapter-status-{os.getpid()}.json"
+    target.write_text(json.dumps(status, indent=2, sort_keys=True), encoding="utf-8")
+
+
+_write_adapter_status()
 
 __all__ = ["app"]
 

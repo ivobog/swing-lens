@@ -1890,3 +1890,7 @@ td a {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* Native and scripted disclosure states must share one authoritative rule. */
+[hidden] {
+  display: none !important;
+}

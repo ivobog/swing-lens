@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="76.832" timestamp="2026-10-14T10:56:19.880972+02:00" hostname="NewLaptop"><testcase classname="tests.integration.test_phase4_configuration_certification_postgresql" name="test_public_upload_enqueue_process_restart_native_worker_and_frozen_history[decision-graph]" time="76.214"><failure message="AssertionError: [{'attempts': {'attempt_count': 2, 'last_attempt': {'attempt_number': 2, 'execution_duration_ms': 28493.712, 'finished...2abc00cb75085f08268b1', 'fingerprint': '9967113278629e3e9709698bb6b761aebf27ad2f201a9e163a828bcf37e22851'}}, ...}, ...]&#10;assert False&#10; +  where False = all(&lt;generator object test_public_upload_enqueue_process_restart_native_worker_and_frozen_history.&lt;locals&gt;.&lt;genexpr&gt; at 0x00000164B58FA740&gt;)">disposable_postgres_database = 'postgresql+psycopg://postgres:B0g0evsk%21@127.0.0.1:5432/swinglens_pytest_eb571cbe2ff6'
+tmp_path = WindowsPath('C:/Users/Ivica/AppData/Local/Temp/pytest-of-Ivica/pytest-2689/test_public_upload_enqueue_pro0')
+full_graph = True
+
+    @pytest.mark.parametrize("full_graph", [False, True], ids=["core-context", "decision-graph"])
+    def test_public_upload_enqueue_process_restart_native_worker_and_frozen_history(
+        disposable_postgres_database,
+        tmp_path,
+        full_graph,
+    ):
+        config = Config("alembic.ini")
+        config.attributes["database_url"] = disposable_postgres_database
+        command.upgrade(config, "head")
+        command.check(config)
+        shutil.copytree(REPO / "config", tmp_path / "config")
+        shutil.copytree(REPO / "app/static", tmp_path / "app/static")
+        shutil.copytree(REPO / "app/templates", tmp_path / "app/templates")
+        overrides = {}
+        if full_graph:
+            import yaml
+    
+            for name in ("setup_lifecycle", "winner_probability"):
+                path = tmp_path / "config" / f"{name}.yaml"
+                raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+                raw["engine"]["enabled"] = True
+                if name == "setup_lifecycle":
+                    raw["alerts"]["rules"]["T13E_EXPIRY"] = {
+                        "enabled": True,
+                        "severity": "RISK",
+                        "source": "lifecycle_transition",
+                        "to_state": "EXPIRED",
+                        "cooldown_sessions": 1,
+                        "minimum_confidence": 0,
+                    }
+                path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+            overrides = dict(
+                WINNER_PROBABILITY_ENABLED="true",
+                WINNER_PROBABILITY_CAPTURE_IN_PIPELINE="true",
+                SETUP_LIFECYCLE_PIPELINE_STEP_ENABLED="true",
+                SETUP_LIFECYCLE_ENABLED="true",
+                CERI_ENABLED="true",
+                CERI_RUN_CAPTURE_ENABLED="true",
+                T13E_READY_BOUNDARY="true",
+            )
+        queued = _process("enqueue", tmp_path, disposable_postgres_database, **overrides)
+        # The web process has exited. Replace every source file with invalid C2:
+        # persisted queue execution must not depend on any surviving parsed cache.
+        for path in (tmp_path / "config").rglob("*.yaml"):
+            path.write_text("invalid-current-C2: true\n", encoding="utf-8")
+        if full_graph:
+            prerequisites = _process("prerequisites", tmp_path, disposable_postgres_database)
+            assert all(
+                j["status"] == "COMPLETED" for j in prerequisites["jobs"] if j["id"] != queued["job_id"]
+            ), prerequisites["jobs"]
+            claimed = _process("claim", tmp_path, disposable_postgres_database)
+            abandoned = next(j for j in claimed["jobs"] if j["id"] == queued["job_id"])
+            assert abandoned["status"] == "RUNNING"
+            assert abandoned["payload"]["effective_configuration_anchor"] == queued["anchor"]
+        executed = _process(
+            "execute",
+            tmp_path,
+            disposable_postgres_database,
+            TECHNICAL_V5_ENABLED="true",
+            JOB_POLL_INTERVAL_SECONDS="7",
+            T13E_READY_BOUNDARY="true" if full_graph else "false",
+        )
+        assert executed["probe_process_instance_id"] != queued["probe_process_instance_id"]
+        job = next(j for j in executed["jobs"] if j["id"] == queued["job_id"])
+        assert job["status"] == "COMPLETED", job
+        assert job["payload"]["effective_configuration_anchor"] == queued["anchor"]
+        if full_graph:
+            assert job["token"] != abandoned["token"]
+        assert {e["kind"] for e in executed["evidence"]} &gt;= {
+            "FUNDAMENTAL",
+            "TECHNICAL",
+            "COMBINED",
+            "RANKING",
+            "REGIME",
+            "SECTOR",
+        }
+        if full_graph:
+            downstream = _process(
+                "queue-downstream",
+                tmp_path,
+                disposable_postgres_database,
+                T13E_PARENT_JOB_ID=str(queued["job_id"]),
+            )
+            assert all(
+                j["payload"]["effective_configuration_anchor"] == queued["anchor"]
+                for j in downstream["jobs"]
+            )
+            executed = _process("prerequisites", tmp_path, disposable_postgres_database)
+&gt;           assert all(j["status"] == "COMPLETED" for j in executed["jobs"]), executed["jobs"]
+E           AssertionError: [{'attempts': {'attempt_count': 2, 'last_attempt': {'attempt_number': 2, 'execution_duration_ms': 28493.712, 'finished...2abc00cb75085f08268b1', 'fingerprint': '9967113278629e3e9709698bb6b761aebf27ad2f201a9e163a828bcf37e22851'}}, ...}, ...]
+E           assert False
+E            +  where False = all(&lt;generator object test_public_upload_enqueue_process_restart_native_worker_and_frozen_history.&lt;locals&gt;.&lt;genexpr&gt; at 0x00000164B58FA740&gt;)
+
+tests\integration\test_phase4_configuration_certification_postgresql.py:158: AssertionError</failure></testcase></testsuite></testsuites>

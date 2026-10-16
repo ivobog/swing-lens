@@ -18,7 +18,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
-from app.database_safety import assert_disposable_database
+from app.database_safety import assert_disposable_database, resolve_test_postgres_admin_url
 from app.models.tables import BackgroundJob, BackgroundWorker, PipelineRun, UploadRun
 from app.services.background_job_service import (
     JobLeaseLost,
@@ -32,7 +32,6 @@ from app.services.runtime_mutation_authority import RecoveryAuthority
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_VERSIONS = REPO_ROOT / "alembic" / "versions"
-DEFAULT_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 LIVE_MODEL_IMPORT_RE = re.compile(r"^\s*(?:from|import)\s+app\.models(?:\.|\s)", re.MULTILINE)
 
 
@@ -44,7 +43,7 @@ class MigrationImportViolation:
 
 
 def _admin_database_url() -> str:
-    return os.environ.get("SWINGLENS_TEST_POSTGRES_ADMIN_URL", DEFAULT_ADMIN_URL)
+    return resolve_test_postgres_admin_url()
 
 
 def _database_url_for(clean_db_name: str) -> str:

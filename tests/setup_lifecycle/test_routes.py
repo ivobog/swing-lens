@@ -458,6 +458,8 @@ def test_operations_page_renders_replay_form(monkeypatch: pytest.MonkeyPatch) ->
     assert "Setup Lifecycle Operations" in response.text
     assert 'action="/api/setup-lifecycle/replay"' in response.text
     assert 'action="/api/setup-lifecycle/evaluations"' in response.text
+    assert response.text.count('data-csrf-token="') == 2
+    assert response.text.count("data-slse-operation-form") == 2
     assert "SINGLE_TICKER_RETRY" in response.text
     assert "slse-1.0.0" in response.text
 

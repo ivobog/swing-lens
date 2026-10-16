@@ -11,6 +11,7 @@ from time import perf_counter
 from typing import Any
 
 from sqlalchemy import distinct, func, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -83,9 +84,15 @@ from app.services.market_data_prewarm_service import (
     record_pipeline_prewarm_reuse,
     resolve_pipeline_prewarm_context,
 )
+from app.services.market_data_session_readiness import (
+    MarketDataDisposition,
+    evaluate_and_persist_session_readiness,
+    load_current_session_readiness,
+)
 from app.services.market_regime_command_center import MarketRegimeCommandCenterService
 from app.services.market_regime_dtos import MarketRegimeCommandCenterDto
 from app.services.operational_metrics import operational_metrics
+from app.services.pipeline_outcome import derive_pipeline_outcome
 from app.services.pipeline_performance import PipelinePerformanceTracker
 from app.services.pipeline_prerequisites import (
     CeriBootstrapRequiredError,
@@ -364,7 +371,7 @@ def execute_full_pipeline(
     market_cutoff = dependencies.market_cutoff or market_context_for_pipeline(db, pipeline)
     if dependencies.market_cutoff is None:
         dependencies = replace(dependencies, market_cutoff=market_cutoff)
-    pipeline._job_progress_callback = progress_callback
+    _bind_job_progress_callback(db, pipeline, progress_callback)
     upload_run = _require_upload_run(db, pipeline.upload_run_id)
     if resume_from_step is not None and resume_from_step != "VALIDATING_RUN":
         return _execute_resumed_pipeline(
@@ -558,35 +565,15 @@ def execute_full_pipeline(
                     cache_fallback = True
                     result["market_data_mode"] = "CACHE_FALLBACK"
                     result["degraded"] = True
-            overlap_callback_supported = _accepts_keyword(
-                dependencies.execute_fetch_plan,
-                "on_ticker_ready",
-            )
-            if _fetch_technical_overlap_enabled(dependencies) and overlap_callback_supported:
-                benchmark_tickers = sorted(
-                    {
-                        item.ticker
-                        for item in plan.items
-                        if {"BENCHMARK", "SECTOR"}.intersection(item.dependency_roles)
-                    }
-                )
-                overlap_coordinator = TechnicalScoringOverlapCoordinator(
-                    db,
-                    run_id=upload_run.id,
-                    tickers=tickers,
-                    should_cancel=should_cancel,
-                    lease_guard=lease_guard,
-                    required_market_tickers=benchmark_tickers,
-                    wait_for_market_events=bool(plan.estimated_request_count),
-                    market_cutoff=market_cutoff,
-                    pipeline_run_id=pipeline.id,
-                )
-            elif _fetch_technical_overlap_enabled(dependencies):
-                performance.add_fallback("technical_overlap_callback_unsupported")
+            if _fetch_technical_overlap_enabled(dependencies):
+                # Scoring may not begin from a per-ticker fetch callback. The
+                # complete requested universe must first receive a durable
+                # ticker/session disposition at the explicit readiness boundary.
+                performance.add_fallback("technical_overlap_readiness_boundary")
                 operational_metrics.increment(
                     "swinglens_pipeline_optimized_fallback_total",
                     component="technical_overlap",
-                    reason="callback_unsupported",
+                    reason="readiness_boundary",
                 )
             fetch_run = None
             if plan.estimated_request_count and not cache_fallback:
@@ -656,6 +643,48 @@ def execute_full_pipeline(
             if overlap_coordinator is not None:
                 overlap_coordinator.mark_fetch_complete()
 
+            if isinstance(db, Session):
+                readiness = evaluate_and_persist_session_readiness(
+                    db,
+                    pipeline_run_id=pipeline.id,
+                    upload_run_id=upload_run.id,
+                    tickers=tickers,
+                    market_cutoff=market_cutoff,
+                    fetch_run_id=fetch_run.id if fetch_run is not None else None,
+                )
+                result["market_data_session_readiness"] = readiness.as_dict()
+                step = _require_step(db, pipeline.id, "FETCHING_MARKET_DATA")
+                step.result_json = readiness.as_dict()
+                if readiness.accepted_inactive_tickers:
+                    step.message = "Accepted explicit terminal exclusions: " + ", ".join(
+                        readiness.accepted_inactive_tickers
+                    )
+                if readiness.blockers:
+                    diagnostics = readiness.as_dict()
+                    transient_only = all(
+                        row.disposition == MarketDataDisposition.TRANSIENT_FAILURE.value
+                        for row in readiness.blockers
+                    )
+                    reason_code = (
+                        "MARKET_DATA_TRANSIENT_UNRESOLVED"
+                        if transient_only
+                        else "MARKET_DATA_SESSION_READINESS_BLOCKED"
+                    )
+                    raise PipelineBlockedError(
+                        f"{reason_code}: "
+                        + ",".join(
+                            f"{row.ticker}={row.disposition}:{row.reason_code}"
+                            for row in readiness.blockers
+                        ),
+                        reason_code=reason_code,
+                        diagnostics=diagnostics,
+                    )
+                technical_tickers = readiness.technical_tickers
+                downstream_tickers = readiness.downstream_tickers
+            else:
+                technical_tickers = tuple(tickers)
+                downstream_tickers = tuple(tickers)
+
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
             db, pipeline, "SCORING_TECHNICALS", lease_guard=lease_guard, performance=performance
@@ -685,6 +714,7 @@ def execute_full_pipeline(
                         upload_run.id,
                         market_cutoff,
                         pipeline_run_id=pipeline.id,
+                        frozen_tickers=technical_tickers,
                         should_cancel=should_cancel,
                         checkpoint_callback=lambda **progress: _technical_job_checkpoint(
                             db,
@@ -879,7 +909,7 @@ def execute_full_pipeline(
             db,
             pipeline=pipeline,
             upload_run=upload_run,
-            tickers=tickers,
+            tickers=list(downstream_tickers),
             market_cutoff=market_cutoff,
             should_cancel=should_cancel,
             lease_guard=lease_guard,
@@ -942,6 +972,7 @@ def execute_full_pipeline(
         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
         raise
 
+
 def _continue_after_sector_snapshot(
     db: Session,
     *,
@@ -957,6 +988,38 @@ def _continue_after_sector_snapshot(
     progress_callback: Callable[..., None] | None,
     memory_probe: Callable[..., None] | None,
 ) -> PipelineExecutionResult:
+    if not tickers:
+        reason = "ALL_REQUESTED_TICKERS_TERMINAL_INACTIVE"
+        result["downstream_publication_skipped"] = 1
+        result["downstream_publication_skip_reason"] = reason
+        for step_name in (
+            CERI_PIPELINE_PROVIDER_INGEST_STEP,
+            CERI_PIPELINE_CAPTURE_STEP,
+            DECISION_HANDOFF_PIPELINE_STEP,
+            SLSE_PIPELINE_CAPTURE_STEP,
+            SLSE_PIPELINE_EVALUATION_STEP,
+            WINNER_CAPTURE_PIPELINE_STEP,
+        ):
+            if not _pipeline_has_step(db, pipeline.id, step_name):
+                continue
+            current = _require_step(db, pipeline.id, step_name)
+            if current.status in {PipelineStepStatus.COMPLETED, PipelineStepStatus.SKIPPED}:
+                continue
+            with _pipeline_step(
+                db,
+                pipeline,
+                step_name,
+                lease_guard=lease_guard,
+                performance=performance,
+            ) as skipped_step:
+                skipped_step.status = PipelineStepStatus.SKIPPED
+                skipped_step.message = reason
+        result["performance"] = performance.snapshot()
+        final_status = _final_pipeline_status(result)
+        _record_performance_metrics(db, final_status, result["performance"])
+        _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
+        return _to_execution_result(pipeline, result)
+
     provider_ingest_enabled = _ceri_provider_ingest_enabled(dependencies)
     if provider_ingest_enabled:
         _raise_if_cancelled(should_cancel)
@@ -1020,6 +1083,10 @@ def _continue_after_sector_snapshot(
 
     if _setup_lifecycle_pipeline_step_enabled(dependencies):
         _raise_if_cancelled(should_cancel)
+        # Capture the scalar before _pipeline_step commits and expires ORM
+        # state. Reading upload_run.id after that commit would silently open a
+        # parent transaction before Setup's bounded read-only work begins.
+        setup_upload_run_id = int(upload_run.id)
         setup_capture_checkpoint = _setup_capture_checkpoint_callback(
             db,
             should_cancel=should_cancel,
@@ -1036,7 +1103,7 @@ def _continue_after_sector_snapshot(
             capture_result = _call_market_sensitive(
                 capture,
                 db,
-                upload_run.id,
+                setup_upload_run_id,
                 market_cutoff,
                 frozen_tickers=tuple(tickers),
                 should_cancel=should_cancel,
@@ -1046,6 +1113,11 @@ def _continue_after_sector_snapshot(
                 result,
                 capture_result,
                 performance=performance,
+            )
+            _record_handoff_consumer_acceptance(
+                db,
+                pipeline,
+                consumer_step=SLSE_PIPELINE_CAPTURE_STEP,
             )
         _raise_if_cancelled(should_cancel)
         setup_evaluation_checkpoint = _setup_evaluation_checkpoint_callback(
@@ -1142,7 +1214,7 @@ def _freeze_pipeline_handoff(
         DECISION_HANDOFF_PIPELINE_STEP,
         lease_guard=lease_guard,
         performance=performance,
-    ):
+    ) as handoff_step:
         freeze_handoff = dependencies.freeze_decision_handoff
         if freeze_handoff is None:
             from app.services.transition_preflight_plan_service import (
@@ -1163,12 +1235,55 @@ def _freeze_pipeline_handoff(
         result["run_start_manifest_hash"] = handoff.run_start_anchor_fingerprint
         result["decision_handoff_manifest_id"] = handoff.id
         result["decision_handoff_manifest_hash"] = handoff.manifest_fingerprint
+        handoff_step.message = (
+            "Decision evidence committed and independently verified; awaiting "
+            "downstream pre-mutation acceptance."
+        )
+        handoff_step.result_json = {
+            **(handoff_step.result_json or {}),
+            "completion_semantics": "EVIDENCE_COMMITTED",
+            "authority_state": "FROZEN",
+            "continuation_state": "AWAITING_DOWNSTREAM_REVERIFICATION",
+            "preflight_plan_id": handoff.preflight_plan_id,
+            "run_start_anchor_fingerprint": handoff.run_start_anchor_fingerprint,
+            "decision_handoff_manifest_id": handoff.id,
+            "decision_handoff_manifest_fingerprint": handoff.manifest_fingerprint,
+            "downstream_consumer_acceptance": {},
+        }
     handoff_checkpoint(
         phase="MANIFEST_COMMITTED",
         processed=1,
         total=1,
         current_item=f"manifest:{handoff.id}",
         last_completed_item=f"manifest:{handoff.id}",
+    )
+
+
+def _record_handoff_consumer_acceptance(
+    db: Session,
+    pipeline: PipelineRun,
+    *,
+    consumer_step: str,
+) -> None:
+    """Record acceptance without changing evidence-completion semantics."""
+
+    handoff_step = db.scalar(
+        select(PipelineStep).where(
+            PipelineStep.pipeline_run_id == pipeline.id,
+            PipelineStep.step_name == DECISION_HANDOFF_PIPELINE_STEP,
+        )
+    )
+    if handoff_step is None:
+        return
+    acceptance = dict((handoff_step.result_json or {}).get("downstream_consumer_acceptance") or {})
+    acceptance[consumer_step] = "ACCEPTED"
+    handoff_step.result_json = {
+        **(handoff_step.result_json or {}),
+        "continuation_state": "ACCEPTED_BY_DOWNSTREAM_CONSUMER",
+        "downstream_consumer_acceptance": acceptance,
+    }
+    handoff_step.message = (
+        "Decision evidence committed; downstream pre-mutation re-verification accepted."
     )
 
 
@@ -1212,7 +1327,37 @@ def _execute_resumed_pipeline(
     )
     try:
         tickers = _pipeline_scope_tickers(db, pipeline)
+        resumed_readiness = (
+            load_current_session_readiness(db, pipeline_run_id=pipeline.id)
+            if isinstance(db, Session)
+            else None
+        )
+        if resumed_readiness is not None:
+            if resumed_readiness.blockers:
+                raise PipelineBlockedError(
+                    "MARKET_DATA_SESSION_READINESS_BLOCKED: resumed decision tail has blockers",
+                    reason_code="MARKET_DATA_SESSION_READINESS_BLOCKED",
+                    diagnostics=resumed_readiness.as_dict(),
+                )
+            tickers = list(resumed_readiness.downstream_tickers)
         _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
+        if not tickers and resume_from_step != "SECTOR_ROTATION_SNAPSHOT":
+            if dependencies.market_cutoff is None:
+                raise RuntimeError("resumed pipeline is missing its frozen market cutoff")
+            return _continue_after_sector_snapshot(
+                db,
+                pipeline=pipeline,
+                upload_run=upload_run,
+                tickers=[],
+                market_cutoff=dependencies.market_cutoff,
+                should_cancel=should_cancel,
+                lease_guard=lease_guard,
+                dependencies=dependencies,
+                result=result,
+                performance=performance,
+                progress_callback=progress_callback,
+                memory_probe=memory_probe,
+            )
         if resume_from_step == "SECTOR_ROTATION_SNAPSHOT":
             if dependencies.market_cutoff is None:
                 raise RuntimeError("resumed sector pipeline is missing its frozen market cutoff")
@@ -1403,6 +1548,10 @@ def _execute_resumed_pipeline(
         }
         if _setup_lifecycle_pipeline_step_enabled(dependencies) and run_setup_capture:
             _raise_if_cancelled(should_cancel)
+            # Capture before _pipeline_step commits and expires the resumed ORM
+            # graph; the expensive Setup verifier must begin with no parent
+            # transaction already open.
+            setup_upload_run_id = int(upload_run.id)
             setup_capture_checkpoint = _setup_capture_checkpoint_callback(
                 db,
                 should_cancel=should_cancel,
@@ -1421,7 +1570,7 @@ def _execute_resumed_pipeline(
                 capture_result = _call_market_sensitive(
                     capture,
                     db,
-                    upload_run.id,
+                    setup_upload_run_id,
                     dependencies.market_cutoff,
                     frozen_tickers=tuple(tickers),
                     should_cancel=should_cancel,
@@ -1431,6 +1580,11 @@ def _execute_resumed_pipeline(
                     result,
                     capture_result,
                     performance=performance,
+                )
+                _record_handoff_consumer_acceptance(
+                    db,
+                    pipeline,
+                    consumer_step=SLSE_PIPELINE_CAPTURE_STEP,
                 )
         if _setup_lifecycle_pipeline_step_enabled(dependencies) and run_setup_evaluation:
             _raise_if_cancelled(should_cancel)
@@ -1477,9 +1631,7 @@ def _execute_resumed_pipeline(
         ) as winner_step:
             if result.get("market_data_mode") == "CACHE_FALLBACK":
                 result["winner_prediction_capture_skipped"] = 1
-                result["winner_prediction_capture_skip_reason"] = (
-                    "CACHE_FALLBACK_MARKET_DATA"
-                )
+                result["winner_prediction_capture_skip_reason"] = "CACHE_FALLBACK_MARKET_DATA"
             elif _winner_probability_capture_enabled(dependencies):
                 capture = dependencies.capture_winner_predictions or _capture_winner_predictions
                 winner_result = _invoke_winner_capture(
@@ -1740,9 +1892,7 @@ def _validate_sector_resume_checkpoint(
         ),
     }
     distinct_counts = {
-        kind.value.lower() + "_tickers": len(
-            {str(row.ticker).strip().upper() for row in rows}
-        )
+        kind.value.lower() + "_tickers": len({str(row.ticker).strip().upper() for row in rows})
         for kind, rows in rows_by_kind.items()
     }
     if any(count != expected for count in distinct_counts.values()):
@@ -1763,9 +1913,9 @@ def _validate_sector_resume_checkpoint(
     if market_snapshot is None:
         raise ValueError("Sector resume checkpoint has no pipeline-owned market regime snapshot.")
 
-    all_sources = [
-        (kind, row) for kind, rows in rows_by_kind.items() for row in rows
-    ] + [(CoreEvidenceKind.REGIME, market_snapshot)]
+    all_sources = [(kind, row) for kind, rows in rows_by_kind.items() for row in rows] + [
+        (CoreEvidenceKind.REGIME, market_snapshot)
+    ]
     total = len(all_sources)
     certified_ids = set()
     for index, (kind, row) in enumerate(all_sources, start=1):
@@ -1819,17 +1969,12 @@ def _validate_sector_resume_checkpoint(
             "combined_results": len(rows_by_kind[CoreEvidenceKind.COMBINED]),
             "ranking_results": len(rows_by_kind[CoreEvidenceKind.RANKING]),
             "ranking_profiles": len(
-                {
-                    row.ranking_profile
-                    for row in rows_by_kind[CoreEvidenceKind.RANKING]
-                }
+                {row.ranking_profile for row in rows_by_kind[CoreEvidenceKind.RANKING]}
             ),
             "incomplete_rows": sum(
                 not row.is_complete for row in rows_by_kind[CoreEvidenceKind.COMBINED]
             ),
-            "warning_rows": sum(
-                row.has_warning for row in rows_by_kind[CoreEvidenceKind.COMBINED]
-            ),
+            "warning_rows": sum(row.has_warning for row in rows_by_kind[CoreEvidenceKind.COMBINED]),
             "technical_error_count": _technical_error_count(
                 rows_by_kind[CoreEvidenceKind.TECHNICAL]
             ),
@@ -1862,9 +2007,7 @@ def _require_sector_resume_source_authority(
     pipeline_run_id: int,
     market_cutoff: MarketCalculationCutoff,
 ) -> None:
-    source_identity = CalculationIdentity.from_canonical_payload(
-        evidence.calculation_identity_json
-    )
+    source_identity = CalculationIdentity.from_canonical_payload(evidence.calculation_identity_json)
     dimensions = {
         "run_id": (source_identity.ownership.run_id, upload_run_id),
         "pipeline_id": (source_identity.ownership.pipeline_id, pipeline_run_id),
@@ -2540,8 +2683,40 @@ def _interrupt_superseded_running_steps(
         step.error_message = None
 
 
+_JOB_PROGRESS_CALLBACK_BINDING = "swinglens_pipeline_job_progress_callback"
+
+
+def _bind_job_progress_callback(
+    db: Session,
+    pipeline: PipelineRun,
+    callback: Callable[..., None] | None,
+) -> None:
+    if isinstance(db, Session):
+        # SQLAlchemy expiration clears ad-hoc ORM-instance attributes on commit.
+        # Pipeline stages commit before reporting progress, so keep this
+        # execution-only callback on the Session, whose info survives commits.
+        db.info[_JOB_PROGRESS_CALLBACK_BINDING] = (int(pipeline.id), callback)
+        return
+    setattr(db, _JOB_PROGRESS_CALLBACK_BINDING, (int(pipeline.id), callback))
+
+
 def _report_job_stage_progress(db: Session, pipeline: PipelineRun, stage: str) -> None:
-    callback = getattr(pipeline, "_job_progress_callback", None)
+    if isinstance(db, Session):
+        pipeline_id, callback = db.info.get(
+            _JOB_PROGRESS_CALLBACK_BINDING,
+            (None, None),
+        )
+    else:
+        pipeline_id, callback = getattr(
+            db,
+            _JOB_PROGRESS_CALLBACK_BINDING,
+            (None, None),
+        )
+    state = sa_inspect(pipeline, raiseerr=False)
+    identity = getattr(state, "identity", None)
+    observed_pipeline_id = int(identity[0]) if identity else int(pipeline.id)
+    if pipeline_id != observed_pipeline_id:
+        callback = None
     if callable(callback):
         callback(db, stage=stage, current_item=None)
 
@@ -2786,6 +2961,12 @@ def _mark_pipeline_finished(
         authority = require_semantic_authority(pipeline)
         result["semantic_child_accounting"] = require_children_terminal(db, authority.scope_id)
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 0)
+    result["pipeline_outcome_summary"] = derive_pipeline_outcome(status, result)
+    _publish_pipeline_outcome(db, result["pipeline_outcome_summary"])
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        **_public_result(result),
+    }
     transition_pipeline(
         db,
         pipeline,
@@ -2794,10 +2975,6 @@ def _mark_pipeline_finished(
         clear_current_step=True,
         message=_completion_message(status, result),
     )
-    pipeline.result_json = {
-        **(pipeline.result_json or {}),
-        **_public_result(result),
-    }
     _save_progress(db, lease_guard=lease_guard)
 
 
@@ -2810,6 +2987,15 @@ def _mark_pipeline_cancelled(
 ) -> None:
     from app.services.pipeline_state_machine import transition_pipeline
 
+    terminal_result = dict(result or {})
+    terminal_result["pipeline_outcome_summary"] = derive_pipeline_outcome(
+        PipelineStatus.CANCELLED, terminal_result
+    )
+    _publish_pipeline_outcome(db, terminal_result["pipeline_outcome_summary"])
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        **_public_result(terminal_result),
+    }
     transition_pipeline(
         db,
         pipeline,
@@ -2817,11 +3003,6 @@ def _mark_pipeline_cancelled(
         actor="pipeline_orchestrator",
         message="Pipeline was cancelled.",
     )
-    if result is not None:
-        pipeline.result_json = {
-            **(pipeline.result_json or {}),
-            **_public_result(result),
-        }
     _cancel_unfinished_steps(db, pipeline.id)
     _save_progress(db, lease_guard=lease_guard)
 
@@ -2836,6 +3017,15 @@ def _mark_pipeline_failed(
 ) -> None:
     from app.services.pipeline_state_machine import transition_pipeline
 
+    terminal_result = dict(result or {})
+    terminal_result["pipeline_outcome_summary"] = derive_pipeline_outcome(
+        PipelineStatus.FAILED, terminal_result
+    )
+    _publish_pipeline_outcome(db, terminal_result["pipeline_outcome_summary"])
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        **_public_result(terminal_result),
+    }
     transition_pipeline(
         db,
         pipeline,
@@ -2844,11 +3034,6 @@ def _mark_pipeline_failed(
         message="Pipeline failed.",
         error_message=_safe_message(str(exc)),
     )
-    if result is not None:
-        pipeline.result_json = {
-            **(pipeline.result_json or {}),
-            **_public_result(result),
-        }
     _save_progress(db, lease_guard=lease_guard)
 
 
@@ -2862,6 +3047,19 @@ def _mark_pipeline_blocked(
 ) -> None:
     from app.services.pipeline_state_machine import transition_pipeline
 
+    terminal_result = {
+        **dict(result or {}),
+        "blocked_reason": exc.reason_code,
+        "blocked_diagnostics": exc.diagnostics,
+    }
+    terminal_result["pipeline_outcome_summary"] = derive_pipeline_outcome(
+        PipelineStatus.BLOCKED, terminal_result
+    )
+    _publish_pipeline_outcome(db, terminal_result["pipeline_outcome_summary"])
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        **_public_result(terminal_result),
+    }
     transition_pipeline(
         db,
         pipeline,
@@ -2870,13 +3068,17 @@ def _mark_pipeline_blocked(
         message="Pipeline blocked before execution.",
         error_message=_safe_message(str(exc)),
     )
-    pipeline.result_json = {
-        **(pipeline.result_json or {}),
-        **(_public_result(result) if result is not None else {}),
-        "blocked_reason": exc.reason_code,
-        "blocked_diagnostics": exc.diagnostics,
-    }
     _save_progress(db, lease_guard=lease_guard)
+
+
+def _publish_pipeline_outcome(db: Session, summary: dict[str, Any]) -> None:
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_pipeline_outcomes_total",
+        outcome=summary["execution_outcome"],
+        integrity=summary["integrity"]["status"],
+    )
 
 
 def _schedule_sec_prerequisite_repair(

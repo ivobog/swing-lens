@@ -17,10 +17,9 @@ from playwright.sync_api import Browser, Page, sync_playwright
 from psycopg import sql
 from sqlalchemy.engine import make_url
 
-from app.database_safety import assert_disposable_database
+from app.database_safety import assert_disposable_database, resolve_test_postgres_admin_url
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 _LIVE_SERVER_DATABASE_URL: str | None = None
 
 
@@ -57,7 +56,7 @@ def live_server_url(
 ) -> Iterator[str]:
     """Run a migrated SwingLens instance against a disposable PostgreSQL database."""
     database_name = f"swinglens_pytest_browser_{browser_name}_{uuid.uuid4().hex[:8]}"
-    admin_url = os.environ.get("SWINGLENS_TEST_POSTGRES_ADMIN_URL", POSTGRES_ADMIN_URL)
+    admin_url = resolve_test_postgres_admin_url()
     try:
         admin = psycopg.connect(admin_url, autocommit=True)
     except psycopg.Error as exc:

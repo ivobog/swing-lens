@@ -8,13 +8,13 @@ reviewed registry change. CI uses `--check` and never rewrites files.
 | --- | ---: |
 | Mutating HTTP registrations | 52 |
 | Durable job types | 35 |
-| SQLAlchemy tables | 121 |
-| Mutable tables | 120 |
-| Writer families | 75 |
+| SQLAlchemy tables | 128 |
+| Mutable tables | 127 |
+| Writer families | 82 |
 | Recovery paths | 22 |
 | Autonomous triggers | 18 |
-| Material transaction families | 28 |
-| High-risk tables | 72 |
+| Material transaction families | 26 |
+| High-risk tables | 74 |
 | Certified aggregate policies | 8 |
 | Deferred R4 aggregate scans | 0 |
 

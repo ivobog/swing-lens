@@ -36,6 +36,11 @@ from app.services.combined_ranking_identity import (
     technical_score_identity,
     validate_ibmi_liquidity_for_ranking,
 )
+from app.services.contextual_consumer_eligibility import (
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    FUNDAMENTAL_TO_RANKING,
+    record_fundamental_admission,
+)
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
@@ -189,6 +194,15 @@ def refresh_all_ranking_profiles(
             today=evaluation_date,
             liquidity_features=profile_liquidity,
         )
+        for decision in decisions:
+            source = validated[decision.ticker].fundamental
+            record_fundamental_admission(
+                db,
+                row=source,
+                policy=FUNDAMENTAL_TO_RANKING,
+                permission=decision.debug[CONTEXTUAL_ELIGIBILITY_KEY]["fundamental"],
+                pipeline_run_id=pipeline_run_id,
+            )
         cohort_identities = [
             identity
             for item in validated.values()
@@ -285,6 +299,15 @@ def refresh_ranking_profile(
         today=evaluation_date,
         liquidity_features=profile_liquidity,
     )
+    for decision in decisions:
+        source = validated[decision.ticker].fundamental
+        record_fundamental_admission(
+            db,
+            row=source,
+            policy=FUNDAMENTAL_TO_RANKING,
+            permission=decision.debug[CONTEXTUAL_ELIGIBILITY_KEY]["fundamental"],
+            pipeline_run_id=pipeline_run_id,
+        )
     cohort_identities = [
         identity
         for item in validated.values()

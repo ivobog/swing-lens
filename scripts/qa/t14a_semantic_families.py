@@ -91,6 +91,9 @@ def source_definitions(path):
 def normalize(inventory, review=None):
     if review is None:
         review = json.loads(REVIEW_FILE.read_text(encoding="utf-8"))
+    from scripts.qa.t14a_phase2_9_semantic_review import apply_phase2_9_review
+
+    review = apply_phase2_9_review(review, inventory)
     families = review["writer_families"]
     entries = review["entry_families"]
     sinks = review["sink_reviews"]
@@ -144,12 +147,21 @@ def normalize(inventory, review=None):
         )
 
     stale = []
+    phase2_9_pins = (
+        ROOT / "docs/remediation/calculation-lineage/PHASE2_9_semantic_review_source_pins.json"
+    )
+    if phase2_9_pins.exists():
+        from scripts.qa.t14a_phase2_9_source_pins import validate
+
+        stale = validate(ROOT)
     derivative_path = (
         ROOT / "docs/remediation/release/IB_HISTORICAL_TRADES_phase5_current_authority.json"
     )
     if not derivative_path.exists():
         derivative_path = ROOT / "docs/remediation/release/RELEASE_phase5_current_authority.json"
-    if derivative_path.exists():
+    if phase2_9_pins.exists():
+        pass
+    elif derivative_path.exists():
         from scripts.qa.reconcile_phase5_release import _worktree_blob_id
 
         derivative = json.loads(derivative_path.read_text(encoding="utf-8"))

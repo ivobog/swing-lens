@@ -295,6 +295,7 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
             extra_configurations=tuple(bundle.values()),
             cutoff_at=datetime(2026, 7, 31, 21, 30, tzinfo=UTC),
             raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+            include_decision_context=True,
         )
         pipeline_id = db.scalar(select(PipelineRun.id).where(PipelineRun.upload_run_id == 7))
         job = enqueue_job(

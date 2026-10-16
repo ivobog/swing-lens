@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="63.534" timestamp="2026-10-14T12:14:03.409800+02:00" hostname="NewLaptop"><testcase classname="tests.integration.test_phase4_configuration_certification_postgresql" name="test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier" time="62.884"><failure message="AssertionError: &#10;assert 'QUEUED' == 'COMPLETED'&#10;  &#10;  - COMPLETED&#10;  + QUEUED">tests\integration\test_phase4_configuration_certification_postgresql.py:399: in test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier
+    assert completed["jobs"][-1]["status"] == "COMPLETED", completed["jobs"][-1]["error"]
+E   AssertionError: 
+E   assert 'QUEUED' == 'COMPLETED'
+E     
+E     - COMPLETED
+E     + QUEUED</failure></testcase></testsuite></testsuites>

@@ -170,7 +170,7 @@
                 {% endif %}
               </td>
               <td><span class="badge badge-{{ 'warning' if estimate and estimate.evidence_grade == 'Insufficient' else 'success' if estimate and estimate.evidence_grade == 'High' else 'muted' }}">{{ estimate.evidence_grade if estimate else "Missing" }}</span></td>
-              <td>{{ estimate.model_version_label if estimate else "" }}<small>{{ estimate.model_status if estimate else "" }}</small></td>
+              <td>{{ estimate.model_version_label or "Unavailable" if estimate else "Unavailable" }}<small>{{ estimate.model_status or "Insufficient evidence" if estimate else "No estimate" }}</small></td>
               <td>{{ estimate.calibration_status if estimate else "" }}<small>{{ estimate.calibration_calculated_at if estimate and estimate.calibration_calculated_at else "" }}</small></td>
               <td>
                 {{ estimate.sample_n if estimate else "" }}

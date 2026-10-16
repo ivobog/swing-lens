@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="74.469" timestamp="2026-10-14T01:01:27.888937+02:00" hostname="NewLaptop"><testcase classname="tests.integration.test_t14d_ceri_end_to_end_performance_postgresql" name="test_capture_authority_scaling[pipeline-1]" time="10.323"><failure message="ValueError: CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:MISSING">tests\integration\test_t14d_ceri_end_to_end_performance_postgresql.py:167: in test_capture_authority_scaling
+    prepared = CeriFeatureRebuildService().rebuild(
+app\services\ceri\feature_rebuild_service.py:643: in rebuild
+    context = batch_context or self.prepare_batch(db, request)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\ceri\feature_rebuild_service.py:249: in prepare_batch
+    membership_authority = self._pipeline_membership_authority(db, request)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\ceri\feature_rebuild_service.py:1525: in _pipeline_membership_authority
+    raise ValueError("CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:MISSING")
+E   ValueError: CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:MISSING</failure></testcase><testcase classname="tests.integration.test_t14d_ceri_end_to_end_performance_postgresql" name="test_capture_authority_scaling[pipeline-50]" time="63.330"><failure message="ValueError: CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:MISSING">tests\integration\test_t14d_ceri_end_to_end_performance_postgresql.py:167: in test_capture_authority_scaling
+    prepared = CeriFeatureRebuildService().rebuild(
+app\services\ceri\feature_rebuild_service.py:643: in rebuild
+    context = batch_context or self.prepare_batch(db, request)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\ceri\feature_rebuild_service.py:249: in prepare_batch
+    membership_authority = self._pipeline_membership_authority(db, request)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\ceri\feature_rebuild_service.py:1525: in _pipeline_membership_authority
+    raise ValueError("CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:MISSING")
+E   ValueError: CERI_FEATURE_MEMBERSHIP_AUTHORITY_INVALID:MISSING</failure></testcase></testsuite></testsuites>

@@ -176,6 +176,15 @@
     {% for row in stale %}
       <div class="evidence-row"><strong>Stale {{ row.provider }} {{ row.dataset }}</strong><span>{{ row.stale_days }} days old - max {{ row.max_stale_days }}</span></div>
     {% else %}<p>No stale records.</p>{% endfor %}
+    {% if stale_page.total_items %}
+      <nav class="pagination" aria-label="Stale CERI records pages">
+        <span>Showing {{ stale_page.start_item }}-{{ stale_page.end_item }} of {{ stale_page.total_items }} stale records</span>
+        <div class="actions">
+          {% if stale_page.has_previous %}<a class="button-link secondary" href="{{ request.url.include_query_params(stale_offset=stale_page.previous_offset, stale_limit=stale_page.page_size) }}">Previous stale records</a>{% else %}<span class="button-link secondary" aria-disabled="true">Previous stale records</span>{% endif %}
+          {% if stale_page.has_next %}<a class="button-link secondary" href="{{ request.url.include_query_params(stale_offset=stale_page.next_offset, stale_limit=stale_page.page_size) }}">Next stale records</a>{% else %}<span class="button-link secondary" aria-disabled="true">Next stale records</span>{% endif %}
+        </div>
+      </nav>
+    {% endif %}
   </div>
 </section>
 {% endblock %}

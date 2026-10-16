@@ -11,6 +11,7 @@ from app.services.pipeline_service import (
     PipelineStatusDto,
     PipelineStepStatusDto,
 )
+from app.settings import RuntimeMode
 
 
 def _ready_ib_status() -> SimpleNamespace:
@@ -126,6 +127,55 @@ def test_full_pipeline_uses_durable_pipeline_when_feature_flag_enabled(monkeypat
     assert calls["run_id"] == 7
     assert calls["market_data_policy"] == "REQUIRE_IB"
     assert db.commits == 1
+    assert response.headers["location"] == "/runs/7/pipeline/99"
+
+
+def test_certification_route_commits_reserved_plan_before_independent_admission(
+    monkeypatch,
+) -> None:
+    calls = []
+    monkeypatch.setattr(
+        run_routes,
+        "get_settings",
+        lambda: SimpleNamespace(
+            use_durable_pipeline=True,
+            runtime_mode=RuntimeMode.CERTIFICATION,
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.certification_runtime.require_certification_session_id",
+        lambda _settings: "isolated-execution",
+    )
+    monkeypatch.setattr(
+        "app.services.transition_preflight_plan_service.create_transition_preflight_plan",
+        lambda _db, **kwargs: (
+            calls.append(("create", kwargs, _db.commits)) or SimpleNamespace(id=41)
+        ),
+    )
+    monkeypatch.setattr(
+        run_routes,
+        "start_pipeline",
+        lambda _db, run_id, **kwargs: (
+            calls.append(("admit", {"run_id": run_id, **kwargs}, _db.commits))
+            or SimpleNamespace(id=99)
+        ),
+    )
+    db = RouteFakeDb()
+
+    response = run_routes.run_full_pipeline_action(run_id=7, db=db)
+
+    assert calls[0] == (
+        "create",
+        {
+            "upload_run_id": 7,
+            "idempotency_key": "certification:isolated-execution:run:7",
+        },
+        0,
+    )
+    assert calls[1][0] == "admit"
+    assert calls[1][1]["transition_preflight_plan_id"] == 41
+    assert calls[1][2] == 1
+    assert db.commits == 2
     assert response.headers["location"] == "/runs/7/pipeline/99"
 
 
@@ -487,3 +537,32 @@ class FakeScalarResult:
 
     def __iter__(self):
         return iter(self.rows)
+
+
+def test_run_detail_defaults_to_canonical_active_pipeline(monkeypatch) -> None:
+    class PipelineLookupDb:
+        def scalar(self, statement):
+            sql = str(statement)
+            assert "pipeline_runs" in sql
+            assert "execution_authority_state" in sql
+            return 88
+
+    marker = object()
+    monkeypatch.setattr(
+        run_routes,
+        "_require_pipeline_for_run",
+        lambda _db, pipeline_id, run_id: marker if (pipeline_id, run_id) == (88, 7) else None,
+    )
+    monkeypatch.setattr(
+        run_routes,
+        "_pipeline_status_payload",
+        lambda _db, status: {"pipeline_run_id": 88} if status is marker else None,
+    )
+
+    payload = run_routes._pipeline_status_for_run(  # noqa: SLF001
+        PipelineLookupDb(),  # type: ignore[arg-type]
+        7,
+        None,
+    )
+
+    assert payload == {"pipeline_run_id": 88}

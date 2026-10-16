@@ -56,6 +56,7 @@ markers = [
   "live_provider: isolated production-runtime tests that call configured external providers",
   "security: input hardening, redaction, authorization, or safety-boundary checks",
   "performance: repeatable local performance and resource measurements",
+  "certification_harness(transaction_trace, admission_mode): explicit isolated subprocess configuration for certification tests",
 ]
 
 [tool.coverage.run]

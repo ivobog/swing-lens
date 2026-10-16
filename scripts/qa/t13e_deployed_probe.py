@@ -32,6 +32,7 @@ def main(mode: str) -> dict:
         EffectiveConfigurationRecord,
         ExecutionConfigurationAnchor,
         IBContract,
+        PipelineDependency,
         PipelineRun,
         PriceBar,
     )
@@ -61,6 +62,7 @@ def main(mode: str) -> dict:
         failure_category="external_boundary",
         message="T13E isolated offline acquisition boundary",
     )
+    duplicate_resume_proof = None
     if os.environ.get("T13E_READY_BOUNDARY") == "true":
         from dataclasses import replace
 
@@ -285,6 +287,8 @@ def main(mode: str) -> dict:
                 "job_id": job.id,
                 "pipeline_id": pipeline.id,
                 "run_id": run_id,
+                "job_status": job.status,
+                "pipeline_status": pipeline.status,
                 "anchor": reference,
                 "identities": {
                     key: value["identity"]
@@ -299,22 +303,11 @@ def main(mode: str) -> dict:
             db.commit()
     if mode == "queue-downstream":
         from app.services.background_job_service import enqueue_job
-        from app.services.scope_refresh_adoption import bind_semantic_authority
-        from app.services.winner_probability.scope_refresh import admit_prediction_capture
 
         with SessionLocal() as db:
             parent_id = int(os.environ["T13E_PARENT_JOB_ID"])
             parent = db.get(BackgroundJob, parent_id)
             run_id = parent.related_run_id
-            winner_authority = admit_prediction_capture(
-                db,
-                run_id=run_id,
-                cycle_key=f"t13e:winner-capture:{run_id}:{parent_id}",
-                cutoff=datetime.fromisoformat(parent.payload_json["market_cutoff_at"]),
-                configuration_identity=parent.payload_json["effective_configuration_anchor"][
-                    "fingerprint"
-                ],
-            )
             enqueue_job(
                 db,
                 "SETUP_LIFECYCLE_DAILY_MAINTENANCE",
@@ -329,6 +322,33 @@ def main(mode: str) -> dict:
                 related_run_id=run_id,
                 parent_job_id=parent_id,
                 priority=200,
+            )
+            db.commit()
+    if mode == "post-terminal-winner-fence":
+        from app.services.background_job_service import enqueue_job
+        from app.services.pipeline_execution_authority import (
+            claimable_pipeline_job_ids,
+            pipeline_execution_is_authorized,
+        )
+        from app.services.scope_refresh_adoption import bind_semantic_authority
+        from app.services.winner_probability.scope_refresh import admit_prediction_capture
+
+        parent_id = int(os.environ["T13E_PARENT_JOB_ID"])
+        with SessionLocal() as db:
+            from app.models.tables import WinnerPredictionSnapshot
+
+            parent = db.get(BackgroundJob, parent_id)
+            run_id = parent.related_run_id
+            pipeline = db.get(PipelineRun, parent.payload_json["pipeline_run_id"])
+            winner_count_before = len(db.scalars(select(WinnerPredictionSnapshot.id)).all())
+            winner_authority = admit_prediction_capture(
+                db,
+                run_id=run_id,
+                cycle_key=f"t13e:post-terminal-winner-fence:{run_id}:{parent_id}",
+                cutoff=datetime.fromisoformat(parent.payload_json["market_cutoff_at"]),
+                configuration_identity=parent.payload_json["effective_configuration_anchor"][
+                    "fingerprint"
+                ],
             )
             winner_job = enqueue_job(
                 db,
@@ -359,7 +379,28 @@ def main(mode: str) -> dict:
                 winner_authority,
                 required_for_parent_completion=True,
             )
-            db.commit()
+            db.flush()
+            candidate_id = int(winner_job.id)
+            claimable_ids = claimable_pipeline_job_ids(db, upload_run_id=run_id)
+            proof = {
+                "candidate_id": candidate_id,
+                "candidate_status": winner_job.status,
+                "claimable": candidate_id in claimable_ids,
+                "pipeline_status": pipeline.status,
+                "pipeline_execution_authority_state": pipeline.execution_authority_state,
+                "pipeline_execution_authorized": pipeline_execution_is_authorized(pipeline),
+                "winner_count_before": winner_count_before,
+                "winner_count_during": len(
+                    db.scalars(select(WinnerPredictionSnapshot.id)).all()
+                ),
+            }
+            db.rollback()
+        with SessionLocal() as db:
+            proof.update(
+                candidate_persisted=db.get(BackgroundJob, candidate_id) is not None,
+                winner_count_after=len(db.scalars(select(WinnerPredictionSnapshot.id)).all()),
+            )
+        return {"pid": os.getpid(), "post_terminal_winner": proof}
     if mode == "claim":
         from app.services.background_job_service import claim_next_job
         from app.services.worker_registry import register_worker
@@ -402,6 +443,50 @@ def main(mode: str) -> dict:
                 follow_redirects=False,
             )
             assert response.status_code == 303, response.text
+    if mode == "duplicate-resume":
+        from fastapi.testclient import TestClient
+
+        from app.main import create_app
+        from app.services.pipeline_execution_authority import claimable_pipeline_job_ids
+
+        with SessionLocal() as db:
+            parent = db.get(BackgroundJob, int(os.environ["T13E_PARENT_JOB_ID"]))
+            resume_run_id = parent.related_run_id
+            resume_pipeline_id = parent.payload_json["pipeline_run_id"]
+            pipeline = db.get(PipelineRun, resume_pipeline_id)
+            job_ids_before = list(
+                db.scalars(select(BackgroundJob.id).order_by(BackgroundJob.id)).all()
+            )
+            claimable_before = list(
+                claimable_pipeline_job_ids(db, upload_run_id=resume_run_id)
+            )
+            pipeline_status_before = pipeline.status
+
+        client = TestClient(create_app(get_settings()))
+        response = client.post(
+            f"/runs/{resume_run_id}/pipeline/{resume_pipeline_id}/resume",
+            follow_redirects=False,
+        )
+        assert response.status_code == 409, response.text
+
+        with SessionLocal() as db:
+            pipeline = db.get(PipelineRun, resume_pipeline_id)
+            job_ids_after = list(
+                db.scalars(select(BackgroundJob.id).order_by(BackgroundJob.id)).all()
+            )
+            claimable_after = list(
+                claimable_pipeline_job_ids(db, upload_run_id=resume_run_id)
+            )
+            duplicate_resume_proof = {
+                "status_code": response.status_code,
+                "detail": response.json()["detail"],
+                "job_ids_before": job_ids_before,
+                "job_ids_after": job_ids_after,
+                "claimable_job_ids_before": claimable_before,
+                "claimable_job_ids_after": claimable_after,
+                "pipeline_status_before": pipeline_status_before,
+                "pipeline_status_after": pipeline.status,
+            }
     if mode in {"execute", "prerequisites", "interrupt", "interrupt-early"}:
         from dataclasses import replace
 
@@ -421,9 +506,77 @@ def main(mode: str) -> dict:
                 changes["check_ib_gateway"] = transient_gateway_boundary
             if os.environ.get("T13E_SCHEDULER_BOUNDARY") == "true":
 
-                def scheduling_boundary(*_args, **_kwargs):
+                def scheduling_boundary(db, run_id, market_cutoff=None):
                     if mode == "interrupt":
                         raise RuntimeError("T13E transient acquisition scheduling boundary")
+                    from app.services.domain_write_fence import current_domain_write_ownership
+                    from app.services.pipeline_dependency_service import (
+                        CERI_WORKFLOW_DEPENDENCY,
+                        DEPENDENCY_ACTIVE_STATES,
+                        prepare_ceri_workflow_dependency,
+                    )
+
+                    ownership = current_domain_write_ownership()
+                    assert ownership is not None
+                    root_job = db.get(BackgroundJob, ownership.job_id)
+                    assert root_job is not None and root_job.job_type == "FULL_PIPELINE"
+                    assert root_job.related_run_id == run_id
+                    pipeline = db.get(PipelineRun, root_job.payload_json["pipeline_run_id"])
+                    assert pipeline is not None and pipeline.upload_run_id == run_id
+                    assert market_cutoff is not None
+                    assert root_job.payload_json["market_calculation_context_id"] == (
+                        market_cutoff.context_id
+                    )
+                    persisted_cutoff = root_job.payload_json.get("market_cutoff_at")
+                    if isinstance(persisted_cutoff, datetime):
+                        parsed_cutoff = persisted_cutoff
+                    elif isinstance(persisted_cutoff, str) and persisted_cutoff.strip():
+                        normalized_cutoff = persisted_cutoff.strip()
+                        if normalized_cutoff.upper().endswith("Z"):
+                            normalized_cutoff = normalized_cutoff[:-1] + "+00:00"
+                        try:
+                            parsed_cutoff = datetime.fromisoformat(normalized_cutoff)
+                        except ValueError as exc:
+                            raise AssertionError("invalid frozen market cutoff") from exc
+                    else:
+                        raise AssertionError("missing frozen market cutoff")
+                    if parsed_cutoff.tzinfo is None or parsed_cutoff.utcoffset() is None:
+                        raise AssertionError("frozen market cutoff must be timezone-aware")
+                    if (
+                        market_cutoff.cutoff_at.tzinfo is None
+                        or market_cutoff.cutoff_at.utcoffset() is None
+                    ):
+                        raise AssertionError("admitted market cutoff must be timezone-aware")
+                    assert parsed_cutoff.astimezone(UTC) == market_cutoff.cutoff_at.astimezone(UTC)
+                    workflow_key = pipeline_executor._ceri_provider_workflow_key(run_id, 0)
+                    dependency = prepare_ceri_workflow_dependency(
+                        db,
+                        pipeline=pipeline,
+                        workflow_key=workflow_key,
+                        resume_from_step=pipeline_executor.DECISION_HANDOFF_PIPELINE_STEP,
+                    )
+                    repeated = prepare_ceri_workflow_dependency(
+                        db,
+                        pipeline=pipeline,
+                        workflow_key=workflow_key,
+                        resume_from_step=pipeline_executor.DECISION_HANDOFF_PIPELINE_STEP,
+                    )
+                    matching = list(
+                        db.scalars(
+                            select(PipelineDependency).where(
+                                PipelineDependency.pipeline_run_id == pipeline.id,
+                                PipelineDependency.root_job_id == root_job.id,
+                                PipelineDependency.dependency_type == CERI_WORKFLOW_DEPENDENCY,
+                                PipelineDependency.state.in_(DEPENDENCY_ACTIVE_STATES),
+                            )
+                        )
+                    )
+                    assert repeated.id == dependency.id
+                    assert matching == [dependency]
+                    assert dependency.state == "RUNNING"
+                    assert dependency.child_job_id is None
+                    assert dependency.continuation_job_id is None
+                    assert dependency.result_json == {"workflow_key": workflow_key}
                     return 0
 
                 changes.update(
@@ -463,6 +616,10 @@ def main(mode: str) -> dict:
             select(CoreCalculationEvidence).order_by(CoreCalculationEvidence.id)
         ).all()
         jobs = db.scalars(select(BackgroundJob).order_by(BackgroundJob.id)).all()
+        pipelines = db.scalars(select(PipelineRun).order_by(PipelineRun.id)).all()
+        dependencies = db.scalars(
+            select(PipelineDependency).order_by(PipelineDependency.id)
+        ).all()
         records = db.scalars(select(EffectiveConfigurationRecord)).all()
         anchors = db.scalars(select(ExecutionConfigurationAnchor)).all()
         result = {
@@ -470,6 +627,7 @@ def main(mode: str) -> dict:
             "jobs": [
                 {
                     "id": j.id,
+                    "type": j.job_type,
                     "status": j.status,
                     "error": j.error_message,
                     "result": j.result_json,
@@ -490,7 +648,36 @@ def main(mode: str) -> dict:
             ],
             "records": [r.payload_json for r in records],
             "anchors": [a.payload_json for a in anchors],
+            "pipelines": [
+                {
+                    "id": pipeline.id,
+                    "status": pipeline.status,
+                    "current_step": pipeline.current_step,
+                    "message": pipeline.message,
+                    "error": pipeline.error_message,
+                }
+                for pipeline in pipelines
+            ],
+            "dependencies": [
+                {
+                    "id": dependency.id,
+                    "pipeline_run_id": dependency.pipeline_run_id,
+                    "dependency_type": dependency.dependency_type,
+                    "dependency_key": dependency.dependency_key,
+                    "state": dependency.state,
+                    "continuation_step": dependency.continuation_step,
+                    "continuation_identity": dependency.continuation_identity,
+                    "root_job_id": dependency.root_job_id,
+                    "root_worker_instance_id": dependency.root_worker_instance_id,
+                    "child_job_id": dependency.child_job_id,
+                    "continuation_job_id": dependency.continuation_job_id,
+                    "result": dependency.result_json,
+                }
+                for dependency in dependencies
+            ],
         }
+        if duplicate_resume_proof is not None:
+            result["duplicate_resume"] = duplicate_resume_proof
         from app.models.tables import (
             SetupLifecycleEvaluationEvidence,
             SetupLifecycleTransitionEvidence,

@@ -9,6 +9,13 @@ from scripts.qa.t14a_mutation_inventory import ROOT
 
 
 def review_source_status(root=ROOT):
+    phase2_9_pins = (
+        root / "docs/remediation/calculation-lineage/PHASE2_9_semantic_review_source_pins.json"
+    )
+    if phase2_9_pins.exists():
+        from scripts.qa.t14a_phase2_9_source_pins import validate
+
+        return validate(root)
     derivative = (
         root / "docs/remediation/release/IB_HISTORICAL_TRADES_phase5_current_authority.json"
     )

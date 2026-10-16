@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="Task 2.9.12j Chromium-100 certification" tests="1" errors="1" failures="0" skipped="0" time="320.480">
+  <testsuite name="certification safety harness" tests="1" errors="1" failures="0" skipped="0" time="320.480" timestamp="2026-10-14T23:04:48.0789376+02:00" hostname="redacted">
+    <properties>
+      <property name="native_pytest_junit_emitted" value="false" />
+      <property name="provenance" value="diagnostic XML created after mandatory safety abort; not native pytest JUnit" />
+      <property name="pytest_exit_code" value="-1" />
+      <property name="execution_id" value="20261014T210501Z-1236be96" />
+      <property name="pipeline_id" value="1" />
+      <property name="last_stage" value="SCORING_TECHNICALS" />
+    </properties>
+    <testcase classname="tests.e2e.single_run_certification.test_real_writer_cardinality" name="test_frozen_real_writer_cardinality[chromium-100]" time="320.480">
+      <error type="POSTGRES_TRANSACTION_AGE_EXCEEDED" message="pre-pipeline transaction age 127.729317s exceeded 120s">The certification harness observed PostgreSQL PID 40828 idle in transaction on a setup_signal_snapshots read before pipeline creation. The exact test-owned process tree was stopped after bounded diagnostics. Pytest did not finalize or emit native JUnit.</error>
+    </testcase>
+  </testsuite>
+</testsuites>
+

@@ -1,0 +1,355 @@
+- generic [active] [ref=f4e1]:
+  - link "Skip to main content" [ref=f4e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f4e3]:
+    - link "SwingLens" [ref=f4e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Primary navigation" [ref=f4e5]:
+      - link "Dashboard" [ref=f4e6] [cursor=pointer]:
+        - /url: /
+      - link "Runs" [ref=f4e7] [cursor=pointer]:
+        - /url: /runs
+      - link "Market Regime" [ref=f4e8] [cursor=pointer]:
+        - /url: /market-regime
+      - link "Market Changes" [ref=f4e9] [cursor=pointer]:
+        - /url: /setup-lifecycle
+      - link "Alerts" [ref=f4e10] [cursor=pointer]:
+        - /url: /setup-lifecycle/alerts
+      - link "CERI" [ref=f4e11] [cursor=pointer]:
+        - /url: /ceri
+      - link "CERI Ops" [ref=f4e12] [cursor=pointer]:
+        - /url: /ceri/operations
+      - link "History" [ref=f4e13] [cursor=pointer]:
+        - /url: /history
+      - link "Winner Evidence" [ref=f4e14] [cursor=pointer]:
+        - /url: /winner-probability/operations
+      - link "IB Gateway" [ref=f4e15] [cursor=pointer]:
+        - /url: /ib
+      - link "Scoring" [ref=f4e16] [cursor=pointer]:
+        - /url: /scoring
+      - link "Settings" [ref=f4e17] [cursor=pointer]:
+        - /url: /settings
+      - link "Operations" [ref=f4e18] [cursor=pointer]:
+        - /url: /system/operations
+      - link "Help" [ref=f4e19] [cursor=pointer]:
+        - /url: /help
+  - main [ref=f4e20]:
+    - generic [ref=f4e21]:
+      - generic [ref=f4e22]:
+        - generic [ref=f4e23]:
+          - heading "Pipeline 30" [level=1] [ref=f4e24]
+          - paragraph [ref=f4e25]: Run 30 - skimmer 2_2026-10-08.csv
+        - link "Run detail" [ref=f4e27] [cursor=pointer]:
+          - /url: /runs/30?pipeline_id=30
+      - generic [ref=f4e28]:
+        - generic [ref=f4e29]: PARTIAL
+        - generic [ref=f4e30]: Created 2026-10-08 11:59:24.282402+02:00
+        - generic [ref=f4e31]: Started 2026-10-08 11:59:29.067035+02:00
+        - generic [ref=f4e32]: Finished 2026-10-08 16:01:04.106499+02:00
+        - generic [ref=f4e33]: Current
+        - generic [ref=f4e34]: Job COMPLETED
+      - status [ref=f4e35]: "Pipeline completed partially with 209 combined rows, 181 incomplete rows, and 0 IB failures. Winner Evidence: 28 inserted, 181 excluded, 0 failed."
+      - generic [ref=f4e36]:
+        - progressbar "Pipeline progress" [ref=f4e37]
+        - strong [ref=f4e39]: 100.0%
+        - generic [ref=f4e40]: 13 / 13 steps
+      - generic [ref=f4e41]:
+        - generic [ref=f4e42]:
+          - generic [ref=f4e43]: Status
+          - strong [ref=f4e44]: PARTIAL
+        - generic [ref=f4e45]:
+          - generic [ref=f4e46]: Current
+          - strong [ref=f4e47]: None
+        - generic [ref=f4e48]:
+          - generic [ref=f4e49]: Job
+          - strong [ref=f4e50]: COMPLETED
+        - generic [ref=f4e51]:
+          - generic [ref=f4e52]: Cancel
+          - strong [ref=f4e53]: "No"
+        - generic [ref=f4e54]:
+          - generic [ref=f4e55]: Items
+          - strong [ref=f4e56]:
+            - generic [ref=f4e57]: "209"
+            - text: /
+            - generic [ref=f4e58]: "209"
+        - generic [ref=f4e59]:
+          - generic [ref=f4e60]: Current item
+          - strong [ref=f4e61]: None
+        - generic [ref=f4e62]:
+          - generic [ref=f4e63]: Last job stage
+          - strong [ref=f4e64]: CAPTURING_WINNER_PREDICTIONS
+        - generic [ref=f4e65]:
+          - generic [ref=f4e66]: Last completed item
+          - strong [ref=f4e67]: ECG
+        - generic [ref=f4e68]:
+          - generic [ref=f4e69]: Last progress
+          - strong [ref=f4e70]: 2026-10-08 16:01:04.018016+02:00
+        - generic [ref=f4e71]:
+          - generic [ref=f4e72]: Worker heartbeat
+          - strong [ref=f4e73]: None
+        - generic [ref=f4e74]:
+          - generic [ref=f4e75]: Lease renewed
+          - strong [ref=f4e76]: None
+        - generic [ref=f4e77]:
+          - generic [ref=f4e78]: Worker
+          - strong [ref=f4e79]: None
+        - generic [ref=f4e80]:
+          - generic [ref=f4e81]: Recoveries
+          - strong [ref=f4e82]: "0"
+        - generic [ref=f4e83]:
+          - generic [ref=f4e84]: Worker memory
+          - strong [ref=f4e85]: Unknown
+        - generic [ref=f4e86]:
+          - generic [ref=f4e87]: Ranking status
+          - strong [ref=f4e88]: COMPLETED
+        - generic [ref=f4e89]:
+          - generic [ref=f4e90]: Ranking profiles
+          - strong [ref=f4e91]: "5"
+        - generic [ref=f4e92]:
+          - generic [ref=f4e93]: Ranking results
+          - strong [ref=f4e94]: "1045"
+        - generic [ref=f4e95]:
+          - generic [ref=f4e96]: Market data policy
+          - strong [ref=f4e97]: REQUIRE_IB
+        - generic [ref=f4e98]:
+          - generic [ref=f4e99]: Market data mode
+          - strong [ref=f4e100]: IB_GATEWAY
+        - generic [ref=f4e101]:
+          - generic [ref=f4e102]: IB available at execution
+          - strong [ref=f4e103]: "True"
+        - generic [ref=f4e104]:
+          - generic [ref=f4e105]: Fresh fetches
+          - strong [ref=f4e106]: "268"
+        - generic [ref=f4e107]:
+          - generic [ref=f4e108]: Cached tickers
+          - strong [ref=f4e109]: "0"
+        - generic [ref=f4e110]:
+          - generic [ref=f4e111]: Expected session
+          - strong [ref=f4e112]: 2026-10-07
+        - generic [ref=f4e113]:
+          - generic [ref=f4e114]: Actual session
+          - strong [ref=f4e115]: 2026-09-30
+      - generic [ref=f4e116]:
+        - generic [ref=f4e118]:
+          - heading "CERI child workflow" [level=2] [ref=f4e119]
+          - paragraph [ref=f4e120]: "Dependency: COMPLETED"
+        - generic [ref=f4e121]:
+          - generic [ref=f4e122]:
+            - generic [ref=f4e123]: Provider Acquisition
+            - strong [ref=f4e124]: COMPLETED
+            - generic [ref=f4e125]:
+              - generic [ref=f4e126]: "36"
+              - text: /
+              - generic [ref=f4e127]: "36"
+              - text: jobs;
+              - generic [ref=f4e128]: "836"
+              - text: /
+              - generic [ref=f4e129]: "836"
+              - text: known-total items
+          - generic [ref=f4e130]:
+            - generic [ref=f4e131]: Normalization
+            - strong [ref=f4e132]: COMPLETED
+            - generic [ref=f4e133]:
+              - generic [ref=f4e134]: "20"
+              - text: /
+              - generic [ref=f4e135]: "20"
+              - text: jobs;
+              - generic [ref=f4e136]: "618"
+              - text: /
+              - generic [ref=f4e137]: "618"
+              - text: known-total items;
+              - generic [ref=f4e138]: "291"
+              - text: processed across
+              - generic [ref=f4e139]: "6"
+              - text: job(s) with unknown totals
+          - generic [ref=f4e140]:
+            - generic [ref=f4e141]: Feature Computation
+            - strong [ref=f4e142]: COMPLETED
+            - generic [ref=f4e143]:
+              - generic [ref=f4e144]: "5"
+              - text: /
+              - generic [ref=f4e145]: "5"
+              - text: jobs;
+              - generic [ref=f4e146]: "209"
+              - text: /
+              - generic [ref=f4e147]: "209"
+              - text: known-total items
+          - generic [ref=f4e148]:
+            - generic [ref=f4e149]: Capture
+            - strong [ref=f4e150]: COMPLETED
+            - generic [ref=f4e151]:
+              - generic [ref=f4e152]: "1"
+              - text: /
+              - generic [ref=f4e153]: "1"
+              - text: jobs;
+              - generic [ref=f4e154]: "209"
+              - text: /
+              - generic [ref=f4e155]: "209"
+              - text: known-total items
+          - generic [ref=f4e156]:
+            - generic [ref=f4e157]: Certification Barrier
+            - strong [ref=f4e158]: COMPLETED
+            - generic [ref=f4e159]:
+              - generic [ref=f4e160]: "3"
+              - text: /
+              - generic [ref=f4e161]: "3"
+              - text: jobs;
+              - generic [ref=f4e162]: "1"
+              - text: /
+              - generic [ref=f4e163]: "1"
+              - text: known-total items;
+              - generic [ref=f4e164]: "0"
+              - text: processed across
+              - generic [ref=f4e165]: "2"
+              - text: job(s) with unknown totals
+          - generic [ref=f4e166]:
+            - generic [ref=f4e167]: Continuation
+            - strong [ref=f4e168]: COMPLETED
+            - generic [ref=f4e169]:
+              - generic [ref=f4e170]: "1"
+              - text: /
+              - generic [ref=f4e171]: "1"
+              - text: jobs;
+              - generic [ref=f4e172]: "0"
+              - text: /
+              - generic [ref=f4e173]: "0"
+              - text: known-total items;
+              - generic [ref=f4e174]: "0"
+              - text: processed across
+              - generic [ref=f4e175]: "1"
+              - text: job(s) with unknown totals
+      - status [ref=f4e177]: "PARTIAL: 13 of 13 steps complete."
+    - generic [ref=f4e178]:
+      - generic [ref=f4e180]:
+        - heading "Pipeline Steps" [level=2] [ref=f4e181]
+        - paragraph [ref=f4e182]: Durable step state is persisted in PostgreSQL.
+      - table [ref=f4e184]:
+        - caption [ref=f4e185]: Pipeline steps and durable job status.
+        - rowgroup [ref=f4e186]:
+          - row [ref=f4e187]:
+            - columnheader "Order" [ref=f4e188]
+            - columnheader "Step" [ref=f4e189]
+            - columnheader "Status" [ref=f4e190]
+            - columnheader "Original started" [ref=f4e191]
+            - columnheader "Latest attempt" [ref=f4e192]
+            - columnheader "Latest finished" [ref=f4e193]
+            - columnheader "Message" [ref=f4e194]
+            - columnheader "Error" [ref=f4e195]
+        - rowgroup [ref=f4e196]:
+          - row [ref=f4e197]:
+            - cell "1" [ref=f4e198]
+            - cell "Validating Run" [ref=f4e199]
+            - cell "Completed" [ref=f4e200]
+            - cell "2026-10-08 12:01:41.845324+02:00" [ref=f4e202]
+            - cell "2026-10-08 12:01:41.845324+02:00" [ref=f4e203]
+            - cell "2026-10-08 12:01:41.987795+02:00" [ref=f4e204]
+            - cell [ref=f4e205]
+            - cell [ref=f4e206]
+          - row [ref=f4e207]:
+            - cell "2" [ref=f4e208]
+            - cell "Scoring Fundamentals" [ref=f4e209]
+            - cell "Completed" [ref=f4e210]
+            - cell "2026-10-08 12:01:42.121307+02:00" [ref=f4e212]
+            - cell "2026-10-08 12:01:42.121307+02:00" [ref=f4e213]
+            - cell "2026-10-08 12:02:36.034361+02:00" [ref=f4e214]
+            - cell [ref=f4e215]
+            - cell [ref=f4e216]
+          - row [ref=f4e217]:
+            - cell "3" [ref=f4e218]
+            - cell "Fetching Market Data" [ref=f4e219]
+            - cell "Completed" [ref=f4e220]
+            - cell "2026-10-08 12:02:36.297263+02:00" [ref=f4e222]
+            - cell "2026-10-08 12:02:36.297263+02:00" [ref=f4e223]
+            - cell "2026-10-08 12:16:35.572311+02:00" [ref=f4e224]
+            - cell [ref=f4e225]
+            - cell [ref=f4e226]
+          - row [ref=f4e227]:
+            - cell "4" [ref=f4e228]
+            - cell "Scoring Technicals" [ref=f4e229]
+            - cell "Completed" [ref=f4e230]
+            - cell "2026-10-08 12:16:36.139834+02:00" [ref=f4e232]
+            - cell "2026-10-08 12:16:36.139834+02:00" [ref=f4e233]
+            - cell "2026-10-08 12:29:34.987429+02:00" [ref=f4e234]
+            - cell [ref=f4e235]
+            - cell [ref=f4e236]
+          - row [ref=f4e237]:
+            - cell "5" [ref=f4e238]
+            - cell "Market Regime Snapshot" [ref=f4e239]
+            - cell "Completed" [ref=f4e240]
+            - cell "2026-10-08 12:29:35.107942+02:00" [ref=f4e242]
+            - cell "2026-10-08 12:29:35.107942+02:00" [ref=f4e243]
+            - cell "2026-10-08 12:29:39.830053+02:00" [ref=f4e244]
+            - cell [ref=f4e245]
+            - cell [ref=f4e246]
+          - row [ref=f4e247]:
+            - cell "6" [ref=f4e248]
+            - cell "Combining Results" [ref=f4e249]
+            - cell "Completed" [ref=f4e250]
+            - cell "2026-10-08 12:29:39.949018+02:00" [ref=f4e252]
+            - cell "2026-10-08 12:29:39.949018+02:00" [ref=f4e253]
+            - cell "2026-10-08 12:30:25.383697+02:00" [ref=f4e254]
+            - cell [ref=f4e255]
+            - cell [ref=f4e256]
+          - row [ref=f4e257]:
+            - cell "7" [ref=f4e258]
+            - cell "Ranking Profiles" [ref=f4e259]
+            - cell "Completed" [ref=f4e260]
+            - cell "2026-10-08 12:30:25.526506+02:00" [ref=f4e262]
+            - cell "2026-10-08 12:30:25.526506+02:00" [ref=f4e263]
+            - cell "2026-10-08 12:33:14.883845+02:00" [ref=f4e264]
+            - cell "Persisted 1045 ranking results across 5 profiles." [ref=f4e265]
+            - cell [ref=f4e266]
+          - row [ref=f4e267]:
+            - cell "8" [ref=f4e268]
+            - cell "Sector Rotation Snapshot" [ref=f4e269]
+            - cell "Completed" [ref=f4e270]
+            - cell "2026-10-08 12:33:15.449205+02:00" [ref=f4e272]
+            - cell "2026-10-08 12:33:15.449205+02:00" [ref=f4e273]
+            - cell "2026-10-08 12:35:55.349881+02:00" [ref=f4e274]
+            - cell [ref=f4e275]
+            - cell [ref=f4e276]
+          - row [ref=f4e277]:
+            - cell "9" [ref=f4e278]
+            - cell "Ceri Provider Ingest" [ref=f4e279]
+            - cell "Completed" [ref=f4e280]
+            - cell "2026-10-08 12:35:55.715651+02:00" [ref=f4e282]
+            - cell "2026-10-08 12:35:55.715651+02:00" [ref=f4e283]
+            - cell "2026-10-08 13:54:04.954279+02:00" [ref=f4e284]
+            - cell "Required CERI child workflow completed and certified." [ref=f4e285]
+            - cell [ref=f4e286]
+          - row [ref=f4e287]:
+            - cell "10" [ref=f4e288]
+            - cell "Freezing Decision Handoff Manifest" [ref=f4e289]
+            - cell "Completed" [ref=f4e290]
+            - cell "2026-10-08 13:54:06.144755+02:00" [ref=f4e292]
+            - cell "2026-10-08 13:54:06.144755+02:00" [ref=f4e293]
+            - cell "2026-10-08 14:04:12.683789+02:00" [ref=f4e294]
+            - cell [ref=f4e295]
+            - cell [ref=f4e296]
+          - row [ref=f4e297]:
+            - cell "11" [ref=f4e298]
+            - cell "Capturing Setup Signals" [ref=f4e299]
+            - cell "Completed" [ref=f4e300]
+            - cell "2026-10-08 14:17:13.715979+02:00" [ref=f4e302]
+            - cell "2026-10-08 14:17:13.715979+02:00" [ref=f4e303]
+            - cell "2026-10-08 15:05:45.336236+02:00" [ref=f4e304]
+            - cell [ref=f4e305]
+            - cell [ref=f4e306]
+          - row [ref=f4e307]:
+            - cell "12" [ref=f4e308]
+            - cell "Evaluating Setup Lifecycles" [ref=f4e309]
+            - cell "Completed" [ref=f4e310]
+            - cell "2026-10-08 15:05:45.514117+02:00" [ref=f4e312]
+            - cell "2026-10-08 15:05:45.514117+02:00" [ref=f4e313]
+            - cell "2026-10-08 15:41:17.312776+02:00" [ref=f4e314]
+            - cell [ref=f4e315]
+            - cell [ref=f4e316]
+          - row [ref=f4e317]:
+            - cell "13" [ref=f4e318]
+            - cell "Capturing Winner Predictions" [ref=f4e319]
+            - cell "Completed" [ref=f4e320]
+            - cell "2026-10-08 15:41:17.526512+02:00" [ref=f4e322]
+            - cell "2026-10-08 15:41:17.526512+02:00" [ref=f4e323]
+            - cell "2026-10-08 16:01:03.940546+02:00" [ref=f4e324]
+            - cell [ref=f4e325]
+            - cell [ref=f4e326]

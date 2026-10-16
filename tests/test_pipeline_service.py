@@ -583,7 +583,18 @@ def test_resume_pipeline_queues_checkpoint_job_without_rewriting_completed_steps
             retry_count=0,
         ),
     ]
-    db = FakeDb(pipeline_runs={3: pipeline}, pipeline_steps=steps)
+    predecessor = BackgroundJob(
+        id=10,
+        job_type=FULL_PIPELINE_JOB_TYPE,
+        related_run_id=7,
+        status=JobStatus.QUEUED,
+        payload_json={"pipeline_run_id": 3},
+    )
+    db = FakeDb(
+        pipeline_runs={3: pipeline},
+        pipeline_steps=steps,
+        background_jobs={10: predecessor},
+    )
 
     returned = resume_pipeline(db, 3)
 
@@ -591,11 +602,15 @@ def test_resume_pipeline_queues_checkpoint_job_without_rewriting_completed_steps
     assert returned.current_step == "CERI_PROVIDER_INGEST"
     assert steps[0].status == PipelineStepStatus.COMPLETED
     assert steps[0].retry_count == 0
-    job = next(iter(db.background_jobs.values()))
+    job = db.background_jobs[pipeline.result_json["background_job_id"]]
     assert job.payload_json["pipeline_run_id"] == 3
     assert job.payload_json["resume_from_step"] == "CERI_PROVIDER_INGEST"
     assert job.payload_json["market_cutoff_at"]
     assert job.payload_json["input_as_of_session"]
+    assert job.parent_job_id == predecessor.id
+    assert job.root_job_id == predecessor.id
+    assert job.continuation_depth == 1
+    assert job.trigger_source == "PIPELINE_OPERATOR_RESUME"
     assert pipeline.result_json["background_job_id"] == job.id
 
 

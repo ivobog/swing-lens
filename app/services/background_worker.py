@@ -684,7 +684,7 @@ def run_worker_once(
                 "job.restarted_worker_recovered",
                 extra={"count": abandoned_count, "worker_id": worker_id},
             )
-        register_worker(
+        worker_registration = register_worker(
             db,
             worker_id=worker_id,
             queues=queue_names,
@@ -693,6 +693,11 @@ def run_worker_once(
             process_id=process_id,
             instance_id=worker_instance_id,
         )
+        # ``run_worker_once`` is also a native worker entry point.  When its
+        # caller omits an instance id, registration creates (or retains) the
+        # durable generation identity; use that identity for the claim and
+        # every detached control-plane heartbeat in this execution.
+        worker_instance_id = worker_registration.instance_id
         recovered_count = (
             0
             if certification_mode

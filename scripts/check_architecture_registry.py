@@ -42,6 +42,42 @@ RECOVERY_PRIMITIVES = {
     "reconcile_jobs_for_worker_loss",
     "fence_jobs_for_worker",
 }
+TABLE_AUTHORITY_OVERRIDES = {
+    "ceri_feature_source_manifests": (
+        "FEATURE_BATCH_CALCULATION_CONTEXT_RETRY_AUTHORITY"
+    ),
+}
+WRITER_CANDIDATE_OVERRIDES = {
+    (
+        "app/services/pipeline_service.py",
+        "_block_queued_ceri_siblings",
+        "state_assignment",
+    ): {
+        "writer_ids": ["WRITE-006"],
+        "reason": (
+            "Exact queued sibling BackgroundJob status mutation under terminal pipeline "
+            "reconciliation authority."
+        ),
+    },
+    (
+        "app/services/source_mutation_authority.py",
+        "__init__",
+        "add",
+    ): {
+        "writer_ids": [],
+        "reason": "in-memory set.add while constructing source authority; no ORM mutation.",
+    },
+}
+TRANSACTION_SITE_REASON_OVERRIDES = {
+    (
+        "app/services/ceri/source_manifest_service.py",
+        "freeze_or_verify_feature_source_manifest",
+        "flush",
+    ): (
+        "TX-27 feature-batch manifest create-or-verify boundary under exact job, "
+        "calculation-context, configuration, and source-bundle authority."
+    ),
+}
 R4_AGGREGATE_POLICIES: tuple[dict[str, Any], ...] = (
     {
         "id": "READ-002",
@@ -693,6 +729,10 @@ def _default_coverage() -> dict[str, list[str]]:
             "ROUTES": ["tests/test_route_security.py"],
             "JOBS": ["tests/test_background_worker.py"],
             "DANGEROUS-READS": ["tests/test_architecture_registry.py"],
+            "STATE-071": [
+                "tests/integration/test_ceri_pipeline_completion_barrier.py",
+                "tests/test_ceri_architecture_registry.py",
+            ],
         }
     )
     for policy in R4_AGGREGATE_POLICIES:
@@ -740,6 +780,17 @@ def build_registry(*, root: Path = ROOT, bootstrap: bool = False) -> dict[str, A
             for policy_id in policy["writer_ids"]
         }
         return sorted(domain_ids) or ["WRITE-005"]
+
+    def reviewed_writer_candidate(row: dict[str, str]) -> dict[str, Any]:
+        key = (row["path"], row["function"], row["kind"])
+        override = WRITER_CANDIDATE_OVERRIDES.get(key)
+        if override is not None:
+            return {**row, **override}
+        return {
+            **row,
+            "writer_ids": candidate_writer_ids(row),
+            "reason": "Exact production AST mutation family reviewed at R3.",
+        }
 
     job_records = []
     for job_type, handler in handlers.items():
@@ -800,9 +851,12 @@ def build_registry(*, root: Path = ROOT, bootstrap: bool = False) -> dict[str, A
                 "domain": policy.get("domain", "UNCLASSIFIED"),
                 "classification": "READ_ONLY" if row["table"] == "engine_parameters" else "MUTABLE",
                 "writer_ids": policy.get("writer_ids", []),
-                "authority": "REGISTERED_WRITER_AUTHORITY"
-                if row["table"] != "engine_parameters"
-                else "NOT_APPLICABLE",
+                "authority": TABLE_AUTHORITY_OVERRIDES.get(
+                    row["table"],
+                    "REGISTERED_WRITER_AUTHORITY"
+                    if row["table"] != "engine_parameters"
+                    else "NOT_APPLICABLE",
+                ),
                 "transaction_family": "REGISTERED_WRITER_BOUNDARY"
                 if row["table"] != "engine_parameters"
                 else "NOT_APPLICABLE",
@@ -857,14 +911,7 @@ def build_registry(*, root: Path = ROOT, bootstrap: bool = False) -> dict[str, A
         "jobs": job_records,
         "tables": table_records,
         "writer_families": writers,
-        "writer_candidates": [
-            {
-                **row,
-                "writer_ids": candidate_writer_ids(row),
-                "reason": "Exact production AST mutation family reviewed at R3.",
-            }
-            for row in writer_candidates
-        ],
+        "writer_candidates": [reviewed_writer_candidate(row) for row in writer_candidates],
         "recovery_paths": recovery_paths,
         "recovery_primitives": sorted(RECOVERY_PRIMITIVES),
         "recovery_callers": recovery_callers,
@@ -874,7 +921,10 @@ def build_registry(*, root: Path = ROOT, bootstrap: bool = False) -> dict[str, A
             {
                 **row,
                 "classification": "MATERIAL_OR_REVIEWED_LEAF",
-                "reason": "Exact production transaction site reviewed at R3.",
+                "reason": TRANSACTION_SITE_REASON_OVERRIDES.get(
+                    (row["path"], row["function"], row["primitive"]),
+                    "Exact production transaction site reviewed at R3.",
+                ),
             }
             for row in transactions
         ],

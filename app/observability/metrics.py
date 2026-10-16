@@ -109,6 +109,9 @@ BOUNDED_LABEL_LIMITS: dict[str, int] = {
     "mode": 32,
     "module": 32,
     "outcome": 32,
+    "producer": 32,
+    "consumer": 32,
+    "integrity": 16,
     "path_class": 16,
     "query_type": 32,
     "request_family": 32,
@@ -328,6 +331,18 @@ DEFINITIONS: dict[str, MetricDefinition] = {
     ),
     "swinglens_pipelines_finished_total": _counter("Committed pipeline finishes.", ("status",)),
     "swinglens_pipeline_runs_total": _counter("Committed pipeline results.", ("status",)),
+    "swinglens_pipeline_outcomes_total": _counter(
+        "Versioned pipeline execution outcomes by integrity classification.",
+        ("outcome", "integrity"),
+    ),
+    "swinglens_consumer_eligibility_decisions_total": _counter(
+        "Persisted producer-to-consumer eligibility decisions.",
+        ("producer", "consumer", "outcome", "reason"),
+    ),
+    "swinglens_winner_acquisition_decisions_total": _counter(
+        "Persisted Winner source-acquisition decisions.",
+        ("outcome", "reason"),
+    ),
     "swinglens_pipeline_duration_seconds": _histogram(
         "Pipeline wall duration.", ("status",), PIPELINE_BUCKETS
     ),

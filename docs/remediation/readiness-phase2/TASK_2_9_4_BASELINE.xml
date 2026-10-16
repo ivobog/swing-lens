@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="39.706" timestamp="2026-10-14T10:55:12.587691+02:00" hostname="NewLaptop"><testcase classname="tests.integration.test_phase4_configuration_certification_postgresql" name="test_public_upload_enqueue_process_restart_native_worker_and_frozen_history[decision-graph]" time="38.918"><failure message="AssertionError: [{'attempts': {}, 'error': None, 'id': 1, 'payload': {'acquisition_plan_id': '5bf27330c9f5d87a04ce7381d7b7f25c87026eac...'as_of_session': '2026-10-13', 'calculation_context_id': 1, 'calendar_version': 'swinglens-us-equities-v1', ...}, ...}]&#10;assert False&#10; +  where False = all(&lt;generator object test_public_upload_enqueue_process_restart_native_worker_and_frozen_history.&lt;locals&gt;.&lt;genexpr&gt; at 0x000002C0EC38EEA0&gt;)">disposable_postgres_database = 'postgresql+psycopg://postgres:B0g0evsk%21@127.0.0.1:5432/swinglens_pytest_2e1f9d300413'
+tmp_path = WindowsPath('C:/Users/Ivica/AppData/Local/Temp/pytest-of-Ivica/pytest-2688/test_public_upload_enqueue_pro0')
+full_graph = True
+
+    @pytest.mark.parametrize("full_graph", [False, True], ids=["core-context", "decision-graph"])
+    def test_public_upload_enqueue_process_restart_native_worker_and_frozen_history(
+        disposable_postgres_database,
+        tmp_path,
+        full_graph,
+    ):
+        config = Config("alembic.ini")
+        config.attributes["database_url"] = disposable_postgres_database
+        command.upgrade(config, "head")
+        command.check(config)
+        shutil.copytree(REPO / "config", tmp_path / "config")
+        shutil.copytree(REPO / "app/static", tmp_path / "app/static")
+        shutil.copytree(REPO / "app/templates", tmp_path / "app/templates")
+        overrides = {}
+        if full_graph:
+            import yaml
+    
+            for name in ("setup_lifecycle", "winner_probability"):
+                path = tmp_path / "config" / f"{name}.yaml"
+                raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+                raw["engine"]["enabled"] = True
+                if name == "setup_lifecycle":
+                    raw["alerts"]["rules"]["T13E_EXPIRY"] = {
+                        "enabled": True,
+                        "severity": "RISK",
+                        "source": "lifecycle_transition",
+                        "to_state": "EXPIRED",
+                        "cooldown_sessions": 1,
+                        "minimum_confidence": 0,
+                    }
+                path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+            overrides = dict(
+                WINNER_PROBABILITY_ENABLED="true",
+                WINNER_PROBABILITY_CAPTURE_IN_PIPELINE="true",
+                SETUP_LIFECYCLE_PIPELINE_STEP_ENABLED="true",
+                SETUP_LIFECYCLE_ENABLED="true",
+                CERI_ENABLED="true",
+                CERI_RUN_CAPTURE_ENABLED="true",
+                T13E_READY_BOUNDARY="true",
+            )
+        queued = _process("enqueue", tmp_path, disposable_postgres_database, **overrides)
+        # The web process has exited. Replace every source file with invalid C2:
+        # persisted queue execution must not depend on any surviving parsed cache.
+        for path in (tmp_path / "config").rglob("*.yaml"):
+            path.write_text("invalid-current-C2: true\n", encoding="utf-8")
+        if full_graph:
+            prerequisites = _process("prerequisites", tmp_path, disposable_postgres_database)
+&gt;           assert all(
+                j["status"] == "COMPLETED" for j in prerequisites["jobs"] if j["id"] != queued["job_id"]
+            ), prerequisites["jobs"]
+E           AssertionError: [{'attempts': {}, 'error': None, 'id': 1, 'payload': {'acquisition_plan_id': '5bf27330c9f5d87a04ce7381d7b7f25c87026eac...'as_of_session': '2026-10-13', 'calculation_context_id': 1, 'calendar_version': 'swinglens-us-equities-v1', ...}, ...}]
+E           assert False
+E            +  where False = all(&lt;generator object test_public_upload_enqueue_process_restart_native_worker_and_frozen_history.&lt;locals&gt;.&lt;genexpr&gt; at 0x000002C0EC38EEA0&gt;)
+
+tests\integration\test_phase4_configuration_certification_postgresql.py:117: AssertionError</failure></testcase></testsuite></testsuites>

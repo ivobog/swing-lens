@@ -14,6 +14,7 @@ from app.models.ceri_tables import (
     CeriChangeEvent,
     CeriScoreSnapshot,
 )
+from app.services.ceri.actionability import CeriConsumer, evaluate_ceri_actionability
 from app.services.ceri.change_semantics import ComparisonState
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
@@ -200,19 +201,27 @@ class CeriAlertService:
         }
         if change_type not in opportunity_types | risk_types:
             return True
-        if change.from_snapshot_id is None or change.to_snapshot_id is None:
+        if change.to_snapshot_id is None:
             return False
         snapshot = _get_snapshot(db, change.to_snapshot_id)
         if snapshot is None:
             return False
         if change_type in opportunity_types:
             coverage = snapshot.opportunity_coverage_pct
-            return bool(
+            coverage_satisfied = bool(
                 snapshot.opportunity_score is not None
                 and coverage is not None
                 and coverage + 1e-9 >= self.config.revision.minimum_component_coverage_pct
-                and snapshot.data_confidence != "Insufficient"
             )
+            actionability = evaluate_ceri_actionability(
+                snapshot,
+                consumer=CeriConsumer.ALERT,
+                evidence_eligible=True,
+                require_opportunity=True,
+            )
+            return coverage_satisfied and actionability.allowed
+        if change.from_snapshot_id is None:
+            return False
         delta = change.delta_json or {}
         ledger = snapshot.event_risk_ledger_json or {}
         accepted = bool(
@@ -223,7 +232,14 @@ class CeriAlertService:
                 or ledger.get("selected_event_ids")
             )
         )
-        return bool(delta.get("prior_comparable") is True and accepted)
+        actionability = evaluate_ceri_actionability(
+            snapshot,
+            consumer=CeriConsumer.ALERT,
+            evidence_eligible=True,
+            require_risk_evidence=True,
+            risk_evidence_accepted=accepted,
+        )
+        return bool(delta.get("prior_comparable") is True and actionability.allowed)
 
     @anchored_decision_calculator
     @core_writer_transaction

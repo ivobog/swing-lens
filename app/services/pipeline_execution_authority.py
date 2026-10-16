@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import BigInteger, and_, cast, exists, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.models.tables import BackgroundJob, PipelineDependency, PipelineRun
 
@@ -70,6 +70,26 @@ def job_execution_authority_predicate() -> Any:
     payload_pipeline_id = cast(
         BackgroundJob.payload_json["pipeline_run_id"].as_string(), BigInteger
     )
+    replacement = aliased(BackgroundJob)
+    replacement_has_pipeline = replacement.payload_json.has_key(  # type: ignore[attr-defined]
+        "pipeline_run_id"
+    )
+    replacement_pipeline_id = cast(
+        replacement.payload_json["pipeline_run_id"].as_string(), BigInteger
+    )
+    superseded_pipeline_root = and_(
+        BackgroundJob.job_type == "FULL_PIPELINE",
+        payload_has_pipeline,
+        exists(
+            select(replacement.id).where(
+                replacement.job_type == "FULL_PIPELINE",
+                replacement.parent_job_id == BackgroundJob.id,
+                replacement.trigger_source == "PIPELINE_OPERATOR_RESUME",
+                replacement_has_pipeline,
+                replacement_pipeline_id == payload_pipeline_id,
+            )
+        ).correlate(BackgroundJob),
+    )
     payload_authorized = exists(
         select(PipelineRun.id).where(
             PipelineRun.id == payload_pipeline_id,
@@ -90,14 +110,17 @@ def job_execution_authority_predicate() -> Any:
         payload_has_pipeline,
         BackgroundJob.pipeline_dependency_id.is_not(None),
     )
-    return or_(
-        ~pipeline_owned,
-        and_(
-            or_(payload_authorized, dependency_authorized),
-            # If both bindings exist, a mismatched payload must never borrow
-            # authority from an unrelated dependency.
-            or_(~payload_has_pipeline, payload_authorized),
-            or_(BackgroundJob.pipeline_dependency_id.is_(None), dependency_authorized),
+    return and_(
+        ~superseded_pipeline_root,
+        or_(
+            ~pipeline_owned,
+            and_(
+                or_(payload_authorized, dependency_authorized),
+                # If both bindings exist, a mismatched payload must never borrow
+                # authority from an unrelated dependency.
+                or_(~payload_has_pipeline, payload_authorized),
+                or_(BackgroundJob.pipeline_dependency_id.is_(None), dependency_authorized),
+            ),
         ),
     )
 

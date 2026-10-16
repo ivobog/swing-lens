@@ -1,0 +1,21 @@
+{
+  "ages_increase": true,
+  "append_only_process_owner": 23520,
+  "flush": true,
+  "fsync": true,
+  "initial_sampling": true,
+  "isolation_level": "AUTOCOMMIT",
+  "log": "C:\\Users\\Ivica\\Documents\\SwingLens\\test-results\\single-run-certification\\task-2.9.12n\\observer-reliability.jsonl",
+  "native_junit_is_diagnostic": false,
+  "observer_open_transactions_after_sample": 0,
+  "repeated_sampling": true,
+  "samples": 3,
+  "sampling_gaps": 0,
+  "sequences": [
+    1,
+    2,
+    3
+  ],
+  "status": "PASS",
+  "supported_row_mapping": "sqlalchemy.mappings"
+}

@@ -298,6 +298,71 @@ def create_or_get_pipeline_ceri_context(
     return cutoff.with_context_id(row.id)
 
 
+def create_pipeline_ceri_certification_context(
+    db: Session,
+    pipeline: PipelineRun,
+    *,
+    cutoff_at: datetime,
+    clock: MarketClockService | None = None,
+) -> MarketCalculationCutoff:
+    """Freeze the explicit feature-certification CERI authority at admission.
+
+    A feature-only certification root does not run the normal post-acquisition
+    transition that freezes CERI authority.  It therefore needs a distinct,
+    unowned context row at its requested deterministic cutoff in addition to
+    the pipeline-owned market context.  Retaining that identity on the
+    pipeline keeps the normal resolver and retry integrity checks intact.
+    """
+
+    if pipeline.status != "CERI_FEATURE_CERTIFYING":
+        raise PipelineCalculationContextError(
+            "CERI_CERTIFICATION_CONTEXT_STATUS_INVALID:"
+            f"pipeline={pipeline.id}:status={pipeline.status}"
+        )
+    retained = dict(pipeline.result_json or {})
+    if retained.get("ceri_calculation_context_id") is not None:
+        raise PipelineCalculationContextError(
+            "CERI_CERTIFICATION_CONTEXT_ALREADY_RETAINED:"
+            f"pipeline={pipeline.id}"
+        )
+    cutoff = (clock or MarketClockService()).cutoff_for(
+        cutoff_at,
+        reason="CERI_FEATURE_CERTIFICATION_FROZEN_AT_ENQUEUE",
+    )
+    row = MarketCalculationContext(
+        pipeline_run_id=None,
+        upload_run_id=pipeline.upload_run_id,
+        cutoff_at=cutoff.cutoff_at,
+        exchange_timezone=cutoff.exchange_timezone,
+        latest_completed_session=cutoff.latest_completed_session,
+        daily_bar_ready_at=cutoff.daily_bar_ready_at,
+        calendar_version=cutoff.calendar_version,
+        bar_readiness_version=cutoff.bar_readiness_version,
+        cutoff_reason=cutoff.cutoff_reason,
+    )
+    db.add(row)
+    db.flush()
+    pipeline.result_json = {
+        **retained,
+        "ceri_calculation_context_id": row.id,
+        "ceri_calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(
+            cutoff.cutoff_at
+        ),
+        "ceri_calculation_as_of_session": cutoff.latest_completed_session.isoformat(),
+        "ceri_calculation_calendar_version": cutoff.calendar_version,
+        "ceri_calculation_bar_readiness_version": cutoff.bar_readiness_version,
+        "ceri_calculation_context_reason": cutoff.cutoff_reason,
+    }
+    db.flush()
+    publish_after_commit(
+        db,
+        "increment",
+        "swinglens_market_calculation_cutoffs_total",
+        scope="pipeline_ceri_feature_certification",
+    )
+    return cutoff.with_context_id(row.id)
+
+
 def resolve_pipeline_ceri_context(
     db: Session,
     *,

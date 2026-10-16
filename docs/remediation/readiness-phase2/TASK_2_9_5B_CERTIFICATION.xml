@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="66.268" timestamp="2026-10-14T12:04:47.807318+02:00" hostname="NewLaptop"><testcase classname="tests.integration.test_phase4_configuration_certification_postgresql" name="test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier" time="65.494"><failure message="AssertionError: assert 'FAILED' == 'WAITING_FOR_CERI_COMPLETION'&#10;  &#10;  - WAITING_FOR_CERI_COMPLETION&#10;  + FAILED">tests\integration\test_phase4_configuration_certification_postgresql.py:402: in test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier
+    assert completed["pipelines"][0]["status"] == "WAITING_FOR_CERI_COMPLETION"
+E   AssertionError: assert 'FAILED' == 'WAITING_FOR_CERI_COMPLETION'
+E     
+E     - WAITING_FOR_CERI_COMPLETION
+E     + FAILED</failure></testcase></testsuite></testsuites>

@@ -543,6 +543,7 @@ def _seed_native_ready_outcome(
         cutoff_at=cutoff_at,
         extra_configurations=configurations,
         raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+        include_decision_context=True,
     )
     handoff = freeze_transition_decision_handoff_manifest(
         db, upload_run_id=run_id, market_cutoff=cutoff

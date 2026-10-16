@@ -16,7 +16,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
-from app.database_safety import assert_disposable_database
+from app.database_safety import assert_disposable_database, resolve_test_postgres_admin_url
 from app.models.tables import (
     BackgroundJob,
     BackgroundWorker,
@@ -62,10 +62,7 @@ from app.settings import ProcessRole, RuntimeMode, Settings
 
 @pytest.fixture(scope="module")
 def authority_database_url() -> Iterator[str]:
-    admin_url = os.environ.get(
-        "SWINGLENS_TEST_POSTGRES_ADMIN_URL",
-        "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
-    )
+    admin_url = resolve_test_postgres_admin_url()
     name = f"swinglens_pytest_{uuid.uuid4().hex[:12]}"
     try:
         admin = psycopg.connect(admin_url, autocommit=True)
@@ -346,6 +343,75 @@ def test_12_supervisor_inspection_during_active_transaction_is_bounded(
         active.rollback()
     assert isinstance(findings, tuple)
     assert elapsed < 1.5
+    engine.dispose()
+
+
+def test_12b_transaction_policy_allows_progress_but_rejects_stall_and_cancellation(
+    authority_database_url: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, root_id = _seed_pipeline(engine, root_status=JobStatus.RUNNING)
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        now = datetime.now(UTC)
+        root.progress_stage = "CAPTURING_SETUP_SIGNALS"
+        root.progress_sequence = 1
+        root.progress_processed = 1
+        root.progress_total = 100
+        root.last_progress_at = now
+        db.add(
+            BackgroundWorker(
+                worker_id=root.worker_id,
+                instance_id=root.worker_instance_id,
+                generation=1,
+                queues_json=["interactive"],
+                heartbeat_at=now,
+                resource_collector_heartbeat_at=now,
+                control_loop_heartbeat_at=now,
+            )
+        )
+        db.commit()
+
+    def observe_active_transaction() -> set[str]:
+        with Session(engine) as active:
+            active.execute(text("select * from market_calculation_contexts limit 1"))
+            time.sleep(0.12)
+            with Session(engine) as observer:
+                observation = observe_certification_runtime(
+                    observer,
+                    pipeline_id=pipeline_id,
+                    transaction_age_seconds=0.05,
+                    transaction_progress_seconds=1.0,
+                    no_progress_seconds=5.0,
+                    control_heartbeat_seconds=1.0,
+                )
+            active.rollback()
+        return {failure.code for failure in observation.failures}
+
+    healthy_codes = observe_active_transaction()
+    assert "POSTGRES_TRANSACTION_STALLED" not in healthy_codes
+    assert "POSTGRES_IDLE_IN_TRANSACTION" not in healthy_codes
+
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        root.last_progress_at = datetime.now(UTC) - timedelta(seconds=5)
+        db.commit()
+    stalled_codes = observe_active_transaction()
+    assert "POSTGRES_TRANSACTION_STALLED" in stalled_codes
+    assert "POSTGRES_IDLE_IN_TRANSACTION" in stalled_codes
+
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        root.last_progress_at = datetime.now(UTC)
+        root.heartbeat_at = datetime.now(UTC)
+        root.requested_cancel = True
+        worker = db.get(BackgroundWorker, root.worker_id)
+        worker.heartbeat_at = datetime.now(UTC)
+        worker.control_loop_heartbeat_at = datetime.now(UTC)
+        db.commit()
+    cancelled_codes = observe_active_transaction()
+    assert "POSTGRES_TRANSACTION_STALLED" in cancelled_codes
+    assert "POSTGRES_IDLE_IN_TRANSACTION" in cancelled_codes
     engine.dispose()
 
 

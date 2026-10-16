@@ -22,6 +22,8 @@ from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.contextual_effective_configuration import resolve_ceri_configuration
 from app.services.market_calculation_context_service import create_pipeline_market_context
 from app.services.market_clock_service import MarketClockService
+from app.services.scope_refresh_adoption import admit_frozen_operation, bind_semantic_authority
+from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
 
 contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
@@ -154,8 +156,23 @@ def test_capture_authority_scaling(
                     "volatility": {"ceri_risk_max_contribution": 1.5},
                 },
             )
+            pipeline_authority = None
             if delivery == "pipeline":
+                pipeline_authority = admit_frozen_operation(
+                    db,
+                    operation_kind="full-pipeline-run",
+                    subject_kind="ticker",
+                    members=tuple(ScopeMember("TICKER", ticker) for ticker in tickers),
+                    cycle_key=f"t14d-capture-pipeline-scaling:{run.id}:{population}",
+                    business_cutoff=cutoff.cutoff_at,
+                    provider_source_class="CERI",
+                    request_type="FULL_PIPELINE",
+                    requirements=(AcquisitionRequirement("CERI_SOURCE_RECORDS"),),
+                    policy_identity="t14d-capture-pipeline-scaling-v1",
+                    scope_definition={"run_id": run.id, "tickers": list(tickers)},
+                )
                 pipeline = PipelineRun(upload_run_id=run.id, status="RUNNING")
+                bind_semantic_authority(pipeline, pipeline_authority)
                 db.add(pipeline)
                 db.flush()
                 cutoff = create_pipeline_market_context(db, pipeline, cutoff_at=cutoff.cutoff_at)
@@ -173,6 +190,7 @@ def test_capture_authority_scaling(
                     calculation_context_id=cutoff.context_id,
                     calendar_version=cutoff.calendar_version,
                     ownership_mode="PIPELINE" if delivery == "pipeline" else "STANDALONE",
+                    semantic_authority=pipeline_authority,
                 ),
             )
             assert prepared.failed == 0 and prepared.companies_rebuilt == population, (
@@ -195,6 +213,8 @@ def test_capture_authority_scaling(
                         "calendar_version": cutoff.calendar_version,
                     },
                 )
+                bind_semantic_authority(job, pipeline_authority)
+                db.flush()
             event.listen(contextual_engine, "before_cursor_execute", observe)
             event.listen(contextual_engine, "after_cursor_execute", observe_finished)
             event.listen(Session, "after_flush", observe_flush)
@@ -269,8 +289,38 @@ def test_capture_authority_scaling(
                 record_property("material_changes", len(material))
             capture_authority_measurements[delivery, population] = sum(authority.values())
             # One immutable configuration binding/anchor lookup is cached for
-            # the active transaction, removing two duplicate authority reads.
-            expected_authority_selects = {"capture": 27, "pipeline": 68, "material": 27}
+            # the active transaction. Capture also performs two fixed, exact-
+            # primary-key source-value reads so ordinary ORM writer inputs are
+            # compared with their durable bodies under a shared lock. These are
+            # safety checks, not population-proportional source lookups.
+            if delivery == "capture":
+                assert authority["_source_value"] == 2, dict(authority)
+            if delivery == "material":
+                assert authority == Counter(
+                    {
+                        "_eligible_source_backed_rows": 1,
+                        "_capture_earnings_rows": 1,
+                        "PrefetchedSourceBodies.load": 23,
+                        "_capture_source_bundle": 1,
+                        "_source_value": 2,
+                        "effective_disposition_by_snapshot": 1,
+                    }
+                ), dict(authority)
+            if delivery == "pipeline":
+                assert authority == Counter(
+                    {
+                        "assert_current_execution_ownership": 7,
+                        "load_configuration_delivery": 2,
+                        "resolve_pipeline_market_context": 2,
+                        "_eligible_source_backed_rows": 1,
+                        "_capture_earnings_rows": 1,
+                        "PrefetchedSourceBodies.load": 47,
+                        "_capture_source_bundle": 1,
+                        "_source_value": 2,
+                        "effective_disposition_by_snapshot": 1,
+                    }
+                ), dict(authority)
+            expected_authority_selects = {"capture": 29, "pipeline": 64, "material": 29}
             assert sum(authority.values()) == expected_authority_selects[delivery], dict(authority)
     finally:
         get_settings.cache_clear()

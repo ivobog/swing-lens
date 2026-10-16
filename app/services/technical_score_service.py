@@ -133,6 +133,7 @@ def score_run_technicals(
     expected_calculation_identity: CalculationIdentity | None = None,
     should_cancel: Callable[[], bool] | None = None,
     checkpoint_callback: Callable[..., None] | None = None,
+    frozen_tickers: tuple[str, ...] | None = None,
 ) -> list[TechnicalScore]:
     should_cancel = should_cancel or (lambda: False)
     _technical_checkpoint(
@@ -153,7 +154,11 @@ def score_run_technicals(
         or market_context_for_upload_run(db, run_id)
         or standalone_market_context(reason="STANDALONE_TECHNICAL_SCORING")
     )
-    symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
+    symbols = _normalize_tickers(
+        list(frozen_tickers)
+        if frozen_tickers is not None
+        else (tickers or _tickers_for_run(db, run_id))
+    )
     settings = deepcopy(get_settings())
     effective_configuration = effective_configuration or resolve_technical_configuration(
         pine=load_pine_defaults(),
@@ -209,6 +214,7 @@ def score_run_technicals(
             market_cutoff=market_cutoff,
             should_cancel=should_cancel,
             checkpoint_callback=checkpoint_callback,
+            close_read_transactions=pipeline_run_id is not None,
         )
     elif (
         settings.technical_pure_boundary_enabled
@@ -232,6 +238,7 @@ def score_run_technicals(
             market_cutoff=market_cutoff,
             should_cancel=should_cancel,
             checkpoint_callback=checkpoint_callback,
+            close_read_transactions=pipeline_run_id is not None,
         )
     else:
         score_results = _score_tickers_legacy(
@@ -1235,6 +1242,7 @@ def _score_tickers_pure_sequential(
     market_cutoff: MarketCalculationCutoff,
     should_cancel: Callable[[], bool] | None = None,
     checkpoint_callback: Callable[..., None] | None = None,
+    close_read_transactions: bool = False,
 ) -> list[PineReplicaScore | TechnicalScore]:
     results: list[PineReplicaScore | TechnicalScore] = []
     should_cancel = should_cancel or (lambda: False)
@@ -1284,6 +1292,12 @@ def _score_tickers_pure_sequential(
                 ),
                 market_cutoff=market_cutoff,
             )
+            # The work item is a complete immutable calculation input.  A
+            # pipeline must not retain its database read transaction while the
+            # CPU-only technical engine runs; publication remains a separate,
+            # fenced all-or-nothing transaction in finalize_technical_scores.
+            if close_read_transactions and isinstance(db, Session):
+                db.commit()
             pure_result = execute_technical_work_item(item)
             pure_score = _score_from_work_result(pure_result)
             if shadow_compare:
@@ -1319,8 +1333,15 @@ def _score_tickers_pure_sequential(
                 run_id=run_id,
                 enabled=settings.technical_artifact_cache_shadow_validation_enabled,
             )
+            # Local cache artifacts are explicitly independent of authoritative
+            # score publication.  Close their transaction before calculating the
+            # next ticker so the connection cannot become idle during CPU work.
+            if close_read_transactions and isinstance(db, Session):
+                db.commit()
             results.append(pure_score)
         except Exception as exc:
+            if close_read_transactions and isinstance(db, Session):
+                db.rollback()
             results.append(
                 unavailable_technical_score(run_id, ticker, str(exc), v4_params=v4_params)
             )
@@ -1357,6 +1378,7 @@ def _score_tickers_process_pool(
     market_cutoff: MarketCalculationCutoff | None = None,
     should_cancel: Callable[[], bool] | None = None,
     checkpoint_callback: Callable[..., None] | None = None,
+    close_read_transactions: bool = False,
 ) -> list[PineReplicaScore | TechnicalScore]:
     market_cutoff = market_cutoff or standalone_market_context(
         reason="STANDALONE_TECHNICAL_PROCESS_POOL"
@@ -1416,9 +1438,17 @@ def _score_tickers_process_pool(
                 )
             )
         except Exception as exc:
+            if close_read_transactions and isinstance(db, Session):
+                db.rollback()
             results[index] = unavailable_technical_score(
                 run_id, ticker, str(exc), v4_params=v4_params
             )
+
+    # Every child receives a fully materialized TechnicalWorkItem.  Release the
+    # pipeline read snapshot before waiting for CPU workers; no authoritative
+    # financial evidence has been written at this point.
+    if close_read_transactions and isinstance(db, Session):
+        db.commit()
 
     try:
         workers = _technical_worker_count(settings)
@@ -1458,7 +1488,11 @@ def _score_tickers_process_pool(
                             run_id=run_id,
                             enabled=(settings.technical_artifact_cache_shadow_validation_enabled),
                         )
+                        if close_read_transactions and isinstance(db, Session):
+                            db.commit()
                     except Exception as exc:
+                        if close_read_transactions and isinstance(db, Session):
+                            db.rollback()
                         results[index] = unavailable_technical_score(
                             run_id,
                             item.ticker,
@@ -1505,6 +1539,7 @@ def _score_tickers_process_pool(
             market_cutoff=market_cutoff,
             should_cancel=should_cancel,
             checkpoint_callback=checkpoint_callback,
+            close_read_transactions=close_read_transactions,
         )
 
     operational_metrics.increment(
@@ -1986,7 +2021,16 @@ def _score_ticker(
         )
 
     features = calculate_technical_features(
-        price, trades, ticker=ticker, params=pine_params, v4_params=v4_params
+        price,
+        trades,
+        ticker=ticker,
+        params=pine_params,
+        v4_params=v4_params,
+        expected_session=(
+            market_cutoff.latest_completed_session
+            if market_cutoff.context_id is not None
+            else None
+        ),
     )
     htf_features = (
         calculate_htf_trend_features(

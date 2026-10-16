@@ -20,11 +20,14 @@ def _docker_compose_commands() -> list[str]:
 
 def test_root_lifecycle_exposes_exact_canonical_actions() -> None:
     assert (
-        "ValidateSet('start', 'stop', 'restart', 'status', 'diagnose', 'recover-identity')"
+        "ValidateSet('start', 'stop', 'restart', 'status', 'diagnose', 'recover-identity', "
+        "'certify-runtime')"
         in LAUNCHER
     )
     assert "SwingLensLifecycle.psm1" in LAUNCHER
     assert "canonical lifecycle requires USE_DURABLE_PIPELINE=true" in MODULE
+    assert "production_runtime_certification.py" in LAUNCHER
+    assert "if ($LiveProviderCanary) { 'live' } else { 'deterministic' }" in LAUNCHER
 
 
 def test_normal_lifecycle_never_operates_docker_postgresql() -> None:

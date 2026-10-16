@@ -33,6 +33,7 @@ from app.models.ceri_tables import (
 )
 from app.models.tables import (
     BackgroundJob,
+    CoreCalculationEvidence,
     MarketCalculationContext,
     PipelineRun,
     PipelineStep,
@@ -530,6 +531,47 @@ def test_batched_workflow_outputs_match_legacy_workflow_in_postgresql(
     # A first snapshot establishes a baseline; it is never an upgrade or alert.
     assert len(batched["changes"]) == 0
     assert len(batched["alerts"]) == 0
+
+
+def test_ceri_authority_is_unchanged_by_downstream_operational_metadata(
+    disposable_postgres_database_factory: Callable[[], AbstractContextManager[str]],
+    monkeypatch,
+) -> None:
+    """Setup/GUI/pipeline metadata cannot alter identical frozen CERI output."""
+
+    enabled_settings = Settings(
+        _env_file=None,
+        ceri_enabled=True,
+        ceri_provider_ingest_enabled=True,
+        ceri_run_capture_enabled=True,
+        ceri_alerts_enabled=True,
+        ceri_legacy_pipeline_scheduling_enabled=False,
+        ceri_batched_workflow_enabled=True,
+    )
+    monkeypatch.setattr(
+        "app.services.ceri.feature_flags.get_settings",
+        lambda: enabled_settings,
+    )
+    monkeypatch.setattr("app.settings.get_settings", lambda: enabled_settings)
+    fixed_now = datetime(2026, 8, 12, 16, 30, tzinfo=UTC)
+    monkeypatch.setattr("app.services.ceri.capture_service._utcnow", lambda: fixed_now)
+    monkeypatch.setattr("app.services.ceri.feature_rebuild_service.date", _FixedDate)
+
+    with disposable_postgres_database_factory() as baseline_url:
+        with disposable_postgres_database_factory() as noisy_url:
+            _upgrade(baseline_url)
+            _upgrade(noisy_url)
+            baseline = _execute_batched_fixture(
+                baseline_url,
+                include_authority=True,
+            )
+            noisy = _execute_batched_fixture(
+                noisy_url,
+                downstream_operational_noise=True,
+                include_authority=True,
+            )
+
+    assert noisy == baseline
 
 
 def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
@@ -1328,7 +1370,12 @@ def _execute_legacy_fixture(database_url: str) -> dict:
     return fingerprint
 
 
-def _execute_batched_fixture(database_url: str) -> dict:
+def _execute_batched_fixture(
+    database_url: str,
+    *,
+    downstream_operational_noise: bool = False,
+    include_authority: bool = False,
+) -> dict:
     engine = create_engine(database_url)
     with Session(engine) as db:
         run_id, ingestion_run_id = _seed_fixture(
@@ -1344,6 +1391,15 @@ def _execute_batched_fixture(database_url: str) -> dict:
             db, pipeline, cutoff_at=datetime(2026, 9, 8, 17, 30, tzinfo=UTC)
         )
         ceri_context = _retain_fixture_ceri_context(db, pipeline, cutoff)
+        if downstream_operational_noise:
+            pipeline.result_json = {
+                **(pipeline.result_json or {}),
+                "setup_progress": {"phase": "PREPARING", "processed": 0, "total": 1},
+                "setup_transaction_boundary": "independent-control-session-v1",
+                "decision_manifest_diagnostics": {"status": "NOT_STARTED"},
+                "gui_progress": {"stage": "CAPTURING_SETUP_SIGNALS", "percent": 0},
+                "winner_publication": {"status": "PENDING"},
+            }
         workflow_key = f"ceri:pipeline:{pipeline.id}:fixture-config"
         ingestion = db.get(CeriIngestionRun, ingestion_run_id)
         ingestion.request_key = (
@@ -1388,6 +1444,11 @@ def _execute_batched_fixture(database_url: str) -> dict:
         )
         bind_semantic_authority(provider, authority)
         bind_semantic_authority(normalize, authority)
+        if downstream_operational_noise:
+            normalize.operational_metadata_json = {
+                "gui": {"message": "unrelated status metadata"},
+                "setup": {"checkpoint": "no-financial-authority"},
+            }
         db.add_all([provider, normalize])
         db.commit()
         _execute_handler(db, normalize, execute_normalize_batch_job)
@@ -1447,6 +1508,8 @@ def _execute_batched_fixture(database_url: str) -> dict:
         _execute_handler(db, alert, execute_alert_rebuild_job)
         assert _effect_counts(db) == effects_before_retry
         fingerprint = _parity_fingerprint(db)
+        if include_authority:
+            fingerprint["authority"] = _ceri_semantic_authority(db)
     engine.dispose()
     return fingerprint
 
@@ -1899,6 +1962,97 @@ def _parity_fingerprint(db: Session) -> dict:
                 row.evidence_json,
             )
             for row in alerts
+        ],
+    }
+
+
+def _ceri_semantic_authority(db: Session) -> dict:
+    """Stable CERI identities; excludes generated IDs and operational timestamps."""
+
+    contexts = list(
+        db.scalars(
+            select(MarketCalculationContext).order_by(
+                MarketCalculationContext.cutoff_reason,
+                MarketCalculationContext.latest_completed_session,
+            )
+        )
+    )
+    snapshots = list(db.scalars(select(CeriScoreSnapshot).order_by(CeriScoreSnapshot.ticker)))
+    snapshot_authority = []
+    for snapshot in snapshots:
+        evidence = db.get(CoreCalculationEvidence, snapshot.evidence_id)
+        assert evidence is not None
+        source_keys = []
+        for evidence_id in evidence.source_evidence_ids_json or ():
+            source = db.get(CoreCalculationEvidence, int(evidence_id))
+            assert source is not None
+            source_keys.append(source.evidence_key)
+        snapshot_authority.append(
+            {
+                "ticker": snapshot.ticker,
+                "as_of_session": snapshot.as_of_session.isoformat(),
+                "calculation_identity_fingerprint": evidence.calculation_identity_fingerprint,
+                "payload_fingerprint": evidence.payload_fingerprint,
+                "evidence_key": evidence.evidence_key,
+                "source_evidence_keys": sorted(source_keys),
+                "snapshot_evidence_hash": snapshot.evidence_hash,
+            }
+        )
+    jobs = list(
+        db.scalars(
+            select(BackgroundJob)
+            .where(
+                BackgroundJob.job_type.in_(
+                    (
+                        CERI_FEATURE_BATCH,
+                        CERI_RUN_FINALIZE,
+                        CERI_CAPTURE_RUN,
+                        CERI_CHANGE_DETECTION,
+                        CERI_ALERT_REBUILD,
+                    )
+                )
+            )
+            .order_by(BackgroundJob.job_type, BackgroundJob.request_key)
+        )
+    )
+    return {
+        "source_identities": [
+            (
+                row.provider,
+                row.dataset,
+                row.provider_record_id,
+                row.content_hash,
+                row.idempotency_key,
+            )
+            for row in db.scalars(
+                select(CeriSourceRecord).order_by(
+                    CeriSourceRecord.provider,
+                    CeriSourceRecord.dataset,
+                    CeriSourceRecord.provider_record_id,
+                )
+            )
+        ],
+        "contexts": [
+            (
+                context.cutoff_at.isoformat(),
+                context.latest_completed_session.isoformat(),
+                context.calendar_version,
+                context.bar_readiness_version,
+                context.cutoff_reason,
+            )
+            for context in contexts
+        ],
+        "certified_membership": [row.ticker for row in snapshots if row.evidence_id is not None],
+        "snapshots": snapshot_authority,
+        "continuation_bindings": [
+            (
+                job.job_type,
+                job.workflow_key,
+                job.related_run_id,
+                (job.payload_json or {}).get("calculation_context_id"),
+                (job.payload_json or {}).get("run_id"),
+            )
+            for job in jobs
         ],
     }
 

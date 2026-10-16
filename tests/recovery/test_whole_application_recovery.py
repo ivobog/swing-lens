@@ -300,6 +300,7 @@ def test_watchdog_reports_locked_candidate(recovery_engine, caplog):
 def test_deterministic_pipeline_10_25_100(
     disposable_postgres_database_factory,
     monkeypatch: pytest.MonkeyPatch,
+    record_property,
 ):
     """Production Technical/PG path plus deterministic downstream orchestration."""
 
@@ -318,7 +319,13 @@ def test_deterministic_pipeline_10_25_100(
         config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
         command.upgrade(config, "head")
         command.check(config)
-        engine = create_engine(database_url)
+        engine = create_engine(
+            database_url,
+            connect_args={
+                "connect_timeout": 10,
+                "options": "-c lock_timeout=10000 -c statement_timeout=300000",
+            },
+        )
         sessions = sessionmaker(bind=engine, expire_on_commit=False)
         metrics = []
         expected_classification = None
@@ -329,6 +336,9 @@ def test_deterministic_pipeline_10_25_100(
                 )
                 metrics.append(measurement)
                 print("RECOVERY_GATE=" + json.dumps(measurement, sort_keys=True))
+                record_property(
+                    f"population_{size}", json.dumps(measurement, sort_keys=True)
+                )
                 assert result.status == PipelineStatus.COMPLETED
                 assert measurement["requested"] == size
                 assert measurement["technical_scores"] == size
@@ -339,6 +349,11 @@ def test_deterministic_pipeline_10_25_100(
                 assert measurement["technical_seconds"] < 900
                 assert measurement["max_checkpoint_gap_seconds"] < 60
                 assert measurement["lease_expired"] is False
+                assert measurement["provider_calls"] == {
+                    "ib_gateway_health": 1,
+                    "ib_historical_capability": 0,
+                    "ib_fetch_execution": 0,
+                }
                 assert measurement["stages"] == [
                     "Fundamental",
                     "Market handoff",
@@ -436,6 +451,11 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
         ]
     stage_calls: list[str] = []
     checkpoint_times: list[float] = []
+    provider_calls = {
+        "ib_gateway_health": 0,
+        "ib_historical_capability": 0,
+        "ib_fetch_execution": 0,
+    }
     settings = app_settings.get_settings()
     cutoff_at = CUTOFF
     frame = _synthetic_frame()
@@ -774,12 +794,32 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
             debug={},
         )
 
+    def deterministic_ib_gateway_health():
+        provider_calls["ib_gateway_health"] += 1
+        return SimpleNamespace(
+            status="IB_API_READY",
+            api_connected=True,
+            api_ready=True,
+            checked_at=CUTOFF,
+            error_code=None,
+            message="Deterministic offline provider boundary.",
+        )
+
+    def reject_ib_historical_capability(*_args, **_kwargs):
+        provider_calls["ib_historical_capability"] += 1
+        raise AssertionError("offline recovery gate reached IB historical capability")
+
+    def reject_ib_fetch_execution(*_args, **_kwargs):
+        provider_calls["ib_fetch_execution"] += 1
+        raise AssertionError("offline recovery gate reached IB fetch execution")
+
     dependencies = PipelineExecutionDependencies(
         market_cutoff=cutoff,
         fetch_technical_overlap_enabled=False,
         validate_pipeline_preflight=lambda *_args: stage_calls.append("SEC") or {"complete": True},
         recalculate_fundamentals=fundamentals,
         build_fetch_plan=lambda **_kwargs: stage_calls.append("Market handoff") or plan,
+        execute_fetch_plan=reject_ib_fetch_execution,
         score_technicals=technicals,
         build_market_regime_snapshot=market_regime,
         refresh_combined=combined,
@@ -812,6 +852,8 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
         winner_probability_capture_enabled=(
             settings.winner_probability_enabled and settings.winner_probability_capture_in_pipeline
         ),
+        check_ib_gateway=deterministic_ib_gateway_health,
+        check_ib_historical_capability=reject_ib_historical_capability,
     )
     sql_metrics = {"queries": 0, "source_validation_queries": 0, "score_insert_seconds": 0.0}
     duration_before = {
@@ -854,6 +896,14 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
         event.remove(engine, "after_cursor_execute", after_sql)
 
     with sessions() as verify:
+        if technical_span["start"] is None or technical_span["end"] is None:
+            retained_pipeline = verify.get(PipelineRun, pipeline_id)
+            pytest.fail(
+                "technical stage was not reached: "
+                f"pipeline_status={result.status!s} "
+                f"failure_reason="
+                f"{(retained_pipeline.result_json or {}).get('failure_reason')!r}"
+            )
         duration_after = {
             name: operational_metrics.total(f"swinglens_technical_{name}_seconds")
             for name in ("input_load", "worker_span", "finalize")
@@ -944,6 +994,7 @@ def _run_deterministic_pipeline_gate(sessions, engine, *, run_id: int, size: int
                 "confidence_adjusted_score": str(scores[0].confidence_adjusted_score),
             },
             "stages": stage_calls,
+            "provider_calls": dict(provider_calls),
             "retry_score_count": None,
         }
     if size == 100:

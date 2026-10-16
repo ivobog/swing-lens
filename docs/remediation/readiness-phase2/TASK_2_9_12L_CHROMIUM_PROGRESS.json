@@ -1,0 +1,193 @@
+{
+  "database_dropped": false,
+  "database_name": "swinglens_pytest_cert_32102043ffa4",
+  "latest_job": null,
+  "latest_pipeline": null,
+  "latest_transaction_sample": [
+    {
+      "age_seconds": 120.035264,
+      "application_name": "swinglens-test",
+      "idle_in_transaction_count": 2,
+      "last_query": "SELECT setup_signal_snapshots.id, setup_signal_snapshots.evaluation_run_id, setup_signal_snapshots.run_id, setup_signal_snapshots.source_run_id_text, setup_signal_snapshots.raw_row_id, setup_signal_snapshots.fundamental_score_id, setup_signal_snapshots.technical_score_id, setup_signal_snapshots.comb",
+      "observed_at": "2026-10-14T23:23:33.249203+00:00",
+      "open_transaction_count": 3,
+      "phase": "PRE_PIPELINE_OR_ADMISSION",
+      "pid": 15932,
+      "state": "idle in transaction",
+      "wait_event": "ClientRead",
+      "wait_event_type": "Client"
+    },
+    {
+      "age_seconds": 0.015804,
+      "application_name": "swinglens-test",
+      "idle_in_transaction_count": 2,
+      "last_query": "SELECT background_jobs.job_type, CASE WHEN (background_jobs.status = $1::VARCHAR AND background_jobs.run_after <= $2::TIMESTAMP WITH TIME ZONE) THEN $3::VARCHAR WHEN (background_jobs.status = $4::VARCHAR) THEN $5::VARCHAR ELSE background_jobs.status END AS queue_state, count(background_jobs.id) AS c",
+      "observed_at": "2026-10-14T23:23:33.249203+00:00",
+      "open_transaction_count": 3,
+      "phase": "PRE_PIPELINE_OR_ADMISSION",
+      "pid": 30500,
+      "state": "active",
+      "wait_event": null,
+      "wait_event_type": null
+    },
+    {
+      "age_seconds": 0.01318,
+      "application_name": "swinglens-test",
+      "idle_in_transaction_count": 2,
+      "last_query": "UPDATE background_workers SET control_loop_heartbeat_at=$1::TIMESTAMP WITH TIME ZONE, heartbeat_at=$2::TIMESTAMP WITH TIME ZONE WHERE background_workers.worker_id = $3::VARCHAR",
+      "observed_at": "2026-10-14T23:23:33.249203+00:00",
+      "open_transaction_count": 3,
+      "phase": "PRE_PIPELINE_OR_ADMISSION",
+      "pid": 32196,
+      "state": "idle in transaction",
+      "wait_event": "ClientRead",
+      "wait_event_type": "Client"
+    }
+  ],
+  "maximum_idle_in_transaction_count": 4,
+  "maximum_idle_transaction": {
+    "age_seconds": 120.035264,
+    "application_name": "swinglens-test",
+    "idle_in_transaction_count": 2,
+    "last_query": "SELECT setup_signal_snapshots.id, setup_signal_snapshots.evaluation_run_id, setup_signal_snapshots.run_id, setup_signal_snapshots.source_run_id_text, setup_signal_snapshots.raw_row_id, setup_signal_snapshots.fundamental_score_id, setup_signal_snapshots.technical_score_id, setup_signal_snapshots.comb",
+    "observed_at": "2026-10-14T23:23:33.249203+00:00",
+    "open_transaction_count": 3,
+    "phase": "PRE_PIPELINE_OR_ADMISSION",
+    "pid": 15932,
+    "state": "idle in transaction",
+    "wait_event": "ClientRead",
+    "wait_event_type": "Client"
+  },
+  "maximum_idle_transaction_age_seconds": 120.035264,
+  "maximum_open_transaction_count": 4,
+  "maximum_transaction": {
+    "age_seconds": 120.035264,
+    "application_name": "swinglens-test",
+    "idle_in_transaction_count": 2,
+    "last_query": "SELECT setup_signal_snapshots.id, setup_signal_snapshots.evaluation_run_id, setup_signal_snapshots.run_id, setup_signal_snapshots.source_run_id_text, setup_signal_snapshots.raw_row_id, setup_signal_snapshots.fundamental_score_id, setup_signal_snapshots.technical_score_id, setup_signal_snapshots.comb",
+    "observed_at": "2026-10-14T23:23:33.249203+00:00",
+    "open_transaction_count": 3,
+    "phase": "PRE_PIPELINE_OR_ADMISSION",
+    "pid": 15932,
+    "state": "idle in transaction",
+    "wait_event": "ClientRead",
+    "wait_event_type": "Client"
+  },
+  "maximum_transaction_age_seconds": 120.035264,
+  "monitor_finished_at": "2026-10-14T23:23:33.250204+00:00",
+  "observer_application_name": "task-2.9.12l-chromium-autocommit-observer",
+  "observer_errors": [
+    "PermissionError: Windows denied one atomic progress-artifact replacement; monitor process restarted"
+  ],
+  "observer_initialization_events": [
+    {
+      "event": "observer persistence resumed after Windows atomic-replace PermissionError; Chromium pytest was not restarted",
+      "observed_at": "2026-10-14T23:22:31.889343+00:00"
+    }
+  ],
+  "observer_initialization_note": "first observer discovered the database but exited before its first sample due missing dict row_factory; this corrected observer started before pipeline admission",
+  "observer_isolation_level": "AUTOCOMMIT",
+  "observer_restart_count": 2,
+  "observer_started_at": "2026-10-14T23:20:39.231121+00:00",
+  "progress_events": [
+    {
+      "job_id": null,
+      "job_status": null,
+      "last_completed_item": null,
+      "observed_at": "2026-10-14T23:20:39.435147+00:00",
+      "phase": "PRE_PIPELINE_OR_ADMISSION",
+      "pipeline_status": null,
+      "pipeline_step": null,
+      "progress_processed": null,
+      "progress_sequence": null,
+      "progress_stage": null
+    },
+    {
+      "job_id": null,
+      "job_status": null,
+      "last_completed_item": null,
+      "observed_at": "2026-10-14T23:22:32.116344+00:00",
+      "phase": "PRE_PIPELINE_OR_ADMISSION",
+      "pipeline_status": null,
+      "pipeline_step": null,
+      "progress_processed": null,
+      "progress_sequence": null,
+      "progress_stage": null
+    }
+  ],
+  "safety_abort_reason": "POSTGRES_TRANSACTION_AGE_EXCEEDED",
+  "safety_abort_required": true,
+  "sample_count": 396,
+  "sample_interval_seconds": 0.25,
+  "stage_timeline": [],
+  "status": "SAFETY_ABORT_REQUIRED",
+  "task": "2.9.12l",
+  "transaction_age_limit_seconds": 120.0,
+  "terminal_snapshot_after_abort": {
+    "captured_before_cleanup": true,
+    "pipeline": {
+      "id": 1,
+      "upload_run_id": 3,
+      "status": "SCORING_FUNDAMENTALS",
+      "current_step": "SCORING_FUNDAMENTALS",
+      "started_at": "2026-10-15T01:23:40.776717+02:00",
+      "completed_at": null,
+      "error_message": null,
+      "execution_authority_state": "ACTIVE"
+    },
+    "root_job": {
+      "id": 1,
+      "job_type": "FULL_PIPELINE",
+      "status": "RUNNING",
+      "progress_stage": "SCORING_FUNDAMENTALS",
+      "progress_sequence": 4,
+      "progress_processed": 0,
+      "retry_count": 0,
+      "recovery_count": 0,
+      "stall_detected_at": null,
+      "worker_id": "certification-20261014T231952Z-578a22d6",
+      "worker_instance_id": "f77dc34a8b5545bdbe5389dd5da637a7"
+    },
+    "completed_stages": [
+      "VALIDATING_RUN"
+    ],
+    "running_stage": "SCORING_FUNDAMENTALS",
+    "decision_anchor": {
+      "plan_id": 1,
+      "status": "CONSUMED",
+      "anchor_contract": "transition-run-start-anchor-v2",
+      "pipeline_run_id": 1,
+      "decision_handoff_manifest_count": 0
+    },
+    "evidence_counts": {
+      "pipeline_runs": 1,
+      "background_jobs": 1,
+      "raw_company_rows": 101,
+      "price_bars": 69660,
+      "setup_signal_snapshots": 101,
+      "setup_signal_snapshot_current_selections": 101,
+      "winner_prediction_snapshots": 20,
+      "ceri_companies": 108,
+      "ceri_source_records": 437,
+      "ceri_ingestion_run_source_records": 437,
+      "ceri_estimate_snapshots": 418
+    },
+    "ungranted_lock_count": 0
+  },
+  "native_pytest": {
+    "exit_code": 1,
+    "interrupted_for_mandatory_safety_abort": true,
+    "native_junit_emitted": false
+  },
+  "cleanup": {
+    "database_name": "swinglens_pytest_cert_32102043ffa4",
+    "database_guard_verified": true,
+    "database_dropped": true,
+    "database_exists_after_cleanup": false,
+    "remaining_execution_owned_processes": 0,
+    "remaining_test_listener_count": 0,
+    "post_cleanup_disposable_database_count": 36,
+    "post_cleanup_disposable_database_digest": "905b872fc23587ba64b810b16948a092af69de64ed583308e8027b3e5b137b51",
+    "matches_preflight_inventory": true
+  }
+}

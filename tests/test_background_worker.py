@@ -33,7 +33,9 @@ def _stub_worker_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "app.services.background_worker.register_worker",
-        lambda *_args, **_kwargs: None,
+        lambda *_args, **kwargs: SimpleNamespace(
+            instance_id=kwargs.get("instance_id") or "generated-test-instance"
+        ),
     )
     monkeypatch.setattr(
         "app.services.background_worker.heartbeat_worker",
@@ -66,7 +68,7 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     class Db:
         def scalar(self, _statement):
-            return "0089_pipeline_execution_authority"
+            return "0092_phase2_eligibility_ledgers"
 
     settings = Settings(
         _env_file=None,
@@ -866,3 +868,42 @@ def test_successful_preclaim_interaction_clears_degraded_registration(
         is False
     )
     assert healthy_calls == [("worker-a", "instance-a")]
+
+
+def test_worker_once_adopts_instance_identity_created_by_registration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = FakeWorkerDb()
+    claim_instances: list[str | None] = []
+    control_instances: list[str | None] = []
+
+    monkeypatch.setattr(
+        "app.services.background_worker.register_worker",
+        lambda *_args, **_kwargs: SimpleNamespace(instance_id="generated-instance"),
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.recover_stale_jobs",
+        lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.background_worker.heartbeat_worker_control_loop",
+        lambda _db, _worker_id, *, instance_id: control_instances.append(instance_id),
+    )
+
+    def claim(_db, _worker_id, *, worker_instance_id, **_kwargs):
+        claim_instances.append(worker_instance_id)
+        return None
+
+    monkeypatch.setattr("app.services.background_worker.claim_next_job", claim)
+
+    assert (
+        run_worker_once(
+            worker_id="worker-a",
+            stale_after_seconds=60,
+            session_factory=lambda: db,
+            handlers={},
+        )
+        is False
+    )
+    assert claim_instances == ["generated-instance"]
+    assert control_instances == ["generated-instance"]

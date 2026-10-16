@@ -37,6 +37,18 @@ TABLES = (
     "ceri_source_records",
 )
 
+SCOPE_MEMBERSHIP_COLUMNS = (
+    "ceri_score_snapshots.company_id",
+    "ceri_score_snapshots.id",
+    "ceri_catalyst_events.company_id",
+    "ceri_catalyst_events.id",
+    "ceri_catalyst_event_revisions.catalyst_event_id",
+    "ceri_catalyst_event_revisions.id",
+    "ceri_guidance_events.company_id",
+    "ceri_guidance_events.id",
+    "ceri_source_records.id",
+)
+
 
 def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
     contextual_engine, monkeypatch, record_property
@@ -121,21 +133,39 @@ def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
         }
 
         query_counts = {table: sum(table in sql for sql, _params in captured) for table in TABLES}
-        max_parameters = max(_parameter_count(params) for _sql, params in captured)
+        maximum_sql, maximum_parameters = max(
+            captured, key=lambda item: _parameter_count(item[1])
+        )
+        max_parameters = _parameter_count(maximum_parameters)
+        membership_sql, membership_parameters = max(
+            captured, key=lambda item: _scope_membership_parameter_count(*item)
+        )
+        max_membership_parameters = _scope_membership_parameter_count(
+            membership_sql, membership_parameters
+        )
         record_property("unrelated_companies", unrelated_count)
         record_property("unrelated_source_records", unrelated_count * 2)
+        record_property("unrelated_snapshots_sharing_target_ticker", 1)
         record_property("scoped_companies", target_count)
         record_property("materialized_rows", dict(materialized))
         record_property("source_body_rows", len(loaded_source_ids))
         record_property("query_counts", query_counts)
         record_property("maximum_parameter_count", max_parameters)
+        record_property("maximum_parameter_names", _parameter_names(maximum_parameters))
+        record_property("maximum_parameter_types", _parameter_types(maximum_parameters))
+        record_property("maximum_parameter_sql", " ".join(maximum_sql.split()))
+        record_property("maximum_scope_membership_parameters", max_membership_parameters)
+        record_property(
+            "maximum_scope_membership_parameter_names",
+            _scope_membership_parameter_names(membership_sql),
+        )
         record_property("predicate_free_large_ceri_reads", 0)
 
         assert materialized["ceri_score_snapshots"] <= target_count * 2
         assert materialized["ceri_catalyst_events"] == target_count
         assert materialized["ceri_catalyst_event_revisions"] == target_count
         assert materialized["ceri_guidance_events"] == target_count
-        assert max_parameters <= 10
+        assert max_membership_parameters <= 10
 
 
 class RecordingDetector:
@@ -215,7 +245,7 @@ def _seed_population(db, *, target_count, unrelated_count, as_of, cutoff):
             CeriScoreSnapshot(
                 run_id=target_run.id if is_target else unrelated_run.id,
                 company_id=company.id,
-                ticker=company.ticker,
+                ticker="SCOPE0000" if index == target_count else company.ticker,
                 as_of_session=as_of,
                 cutoff_at=cutoff - timedelta(minutes=1),
                 opportunity_score=5,
@@ -270,3 +300,42 @@ def _parameter_count(parameters) -> int:
     if isinstance(parameters, (tuple, list)):
         return sum(_parameter_count(value) for value in parameters)
     return 1
+
+
+def _parameter_names(parameters) -> list[str]:
+    return (
+        sorted(str(name) for name in parameters) if isinstance(parameters, dict) else []
+    )
+
+
+def _parameter_types(parameters) -> dict[str, str]:
+    return (
+        {str(name): type(value).__name__ for name, value in parameters.items()}
+        if isinstance(parameters, dict)
+        else {}
+    )
+
+
+def _scope_membership_parameter_names(sql: str) -> list[str]:
+    names: set[str] = set()
+    sql_parameter_names = set(re.findall(r"%\(([^)]+)\)s", sql))
+    for column in SCOPE_MEMBERSHIP_COLUMNS:
+        if not re.search(rf"{re.escape(column)}\s+IN\s*\(", sql, re.IGNORECASE):
+            continue
+        parameter_base = column.rsplit(".", 1)[-1]
+        names.update(
+            name
+            for name in sql_parameter_names
+            if re.fullmatch(rf"{re.escape(parameter_base)}_\d+(?:_\d+)?", name)
+        )
+    return sorted(names)
+
+
+def _scope_membership_parameter_count(sql: str, parameters: object) -> int:
+    if not isinstance(parameters, dict):
+        return 0
+    return sum(
+        _parameter_count(parameters[name])
+        for name in _scope_membership_parameter_names(sql)
+        if name in parameters
+    )

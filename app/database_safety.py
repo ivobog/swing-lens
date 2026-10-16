@@ -19,6 +19,8 @@ DEFAULT_DISPOSABLE_PREFIXES = (
 )
 
 DATABASE_SAFETY_CONTEXT_ENV = "SWINGLENS_DATABASE_SAFETY_CONTEXT"
+TEST_POSTGRES_ADMIN_URL_ENV = "SWINGLENS_TEST_POSTGRES_ADMIN_URL"
+_LOCAL_POSTGRES_HOSTS = {"127.0.0.1", "::1", "localhost"}
 
 
 class DatabaseSafetyContext(StrEnum):
@@ -51,6 +53,36 @@ class DisposableDatabaseIdentity:
 def safe_database_url(database_url: str | URL) -> str:
     url = database_url if isinstance(database_url, URL) else make_url(database_url)
     return redact_text(url.render_as_string(hide_password=True))
+
+
+def resolve_test_postgres_admin_url(
+    *,
+    configured_database_url: str | URL | None = None,
+) -> str:
+    """Resolve test-admin credentials without embedding or logging a real password.
+
+    CI and dedicated test installations should provide
+    ``SWINGLENS_TEST_POSTGRES_ADMIN_URL``.  A developer checkout may reuse only
+    the credentials of its configured *local* SwingLens PostgreSQL server; the
+    database component is replaced with ``postgres`` so the application
+    database itself is never selected.  Every database created through this
+    connection must still pass :func:`assert_disposable_database` before use.
+    """
+    explicit = os.environ.get(TEST_POSTGRES_ADMIN_URL_ENV)
+    source = explicit or configured_database_url or get_settings().database_url
+    try:
+        url = source if isinstance(source, URL) else make_url(source)
+    except Exception as exc:
+        raise RuntimeError("PostgreSQL test-admin URL is malformed") from exc
+    if not url.drivername.startswith("postgresql"):
+        raise RuntimeError("PostgreSQL test-admin URL must use a PostgreSQL driver")
+    if not explicit and (url.host or "").lower() not in _LOCAL_POSTGRES_HOSTS:
+        raise RuntimeError(
+            f"{TEST_POSTGRES_ADMIN_URL_ENV} is required when the configured database "
+            "is not on a loopback host"
+        )
+    admin_url = url.set(drivername="postgresql", database="postgres")
+    return admin_url.render_as_string(hide_password=False)
 
 
 def assert_disposable_database(

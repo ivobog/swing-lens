@@ -41,6 +41,7 @@ from app.services.setup_lifecycle.repository import (
     SetupLifecycleRepository,
     current_canonical_snapshot_predicate,
 )
+from app.services.setup_lifecycle.run_summary import MEANINGFUL_LIFECYCLE_EVENT_TYPES
 from app.services.us_market_calendar import next_us_trading_day
 
 
@@ -129,9 +130,7 @@ class SetupLifecycleQueryService:
                 SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id,
             )
             .where(
-                SetupLifecycleEvent.event_type.in_(
-                    ("EPISODE_OPENED", "STATE_TRANSITION", "PHASE_TRANSITION")
-                )
+                SetupLifecycleEvent.event_type.in_(MEANINGFUL_LIFECYCLE_EVENT_TYPES)
             )
         )
         if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
@@ -236,9 +235,7 @@ class SetupLifecycleQueryService:
             select(SetupLifecycleEvent.id)
             .where(SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id)
             .where(
-                SetupLifecycleEvent.event_type.in_(
-                    ("EPISODE_OPENED", "STATE_TRANSITION", "PHASE_TRANSITION")
-                )
+                SetupLifecycleEvent.event_type.in_(MEANINGFUL_LIFECYCLE_EVENT_TYPES)
             )
             .exists()
         )

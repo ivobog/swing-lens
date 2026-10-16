@@ -30,7 +30,10 @@ function bindWinnerJsonForms() {
       try {
         const response = await fetch(form.action, {
           method: "POST",
-          headers: { Accept: "application/json" },
+          headers: {
+            Accept: "application/json",
+            "X-CSRF-Token": form.dataset.csrfToken || "",
+          },
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.detail?.message || payload.detail || `HTTP ${response.status}`);

@@ -83,6 +83,7 @@ def test_ceri_completion_barrier_is_restart_safe_and_exactly_once(
         assert pipeline.current_step == DECISION_HANDOFF_PIPELINE_STEP
         assert pipeline.result_json["ceri_completion_state"] == "CERTIFIED"
         assert pipeline.result_json["ceri_certified_capture_count"] == 1
+        assert pipeline.result_json["ceri_score_snapshots"] == 1
         assert continuations[0].payload_json["pipeline_run_id"] == pipeline_id
         assert continuations[0].payload_json["ceri_provider_workflow_key"] == workflow_key
         dependency = db.scalar(

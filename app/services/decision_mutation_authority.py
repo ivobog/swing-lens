@@ -148,7 +148,14 @@ def lifecycle_projection_after(snapshot, episode, decision, actionability, compl
 
 
 def validate_setup_inputs(
-    db, snapshot, identity, sources, *, configuration, declaration_only=False
+    db,
+    snapshot,
+    identity,
+    sources,
+    *,
+    configuration,
+    declaration_only=False,
+    prepared_validation=None,
 ):
     lineage = snapshot.source_lineage_json or {}
     pins = lineage.get("source_ids") or {}
@@ -225,9 +232,84 @@ def validate_setup_inputs(
         rows.append(row)
     if price_bar_immutable_evidence_set_hash(rows) != price_manifest.get("series_fingerprint"):
         raise ValueError("MUTATION_SETUP_PRICE_SET_MISMATCH")
-    if not declaration_only:
+    if not declaration_only and prepared_validation is None:
         validate_native_setup_output(db, snapshot, identity, rows, configuration)
+    elif not declaration_only:
+        _validate_prepared_setup_native_inputs(db, snapshot, identity)
     return price_manifest
+
+
+def _validate_prepared_setup_native_inputs(db, snapshot, identity) -> None:
+    """Revalidate non-evidence native inputs after bounded output preparation."""
+
+    from app.models.tables import (
+        RawCompanyRow,
+        SectorRotationRow,
+        SetupSignalSnapshot,
+        SetupSignalSnapshotCurrentSelection,
+    )
+
+    lineage = snapshot.source_lineage_json or {}
+    inputs = lineage.get("native_calculation_inputs")
+    pins = lineage.get("source_ids") or {}
+    if not isinstance(inputs, dict):
+        raise ValueError("MUTATION_SETUP_NATIVE_INPUTS_REQUIRED")
+    from app.services.setup_lifecycle.decision_evidence import (
+        _locked_setup_publication_row,
+    )
+
+    raw = _locked_setup_publication_row(db, RawCompanyRow, inputs.get("raw_row_id"))
+    if raw is None:
+        raw = db.scalar(
+            select(RawCompanyRow)
+            .where(RawCompanyRow.id == inputs.get("raw_row_id"))
+            .with_for_update()
+        )
+    if (
+        raw is None
+        or raw.id != pins.get("raw_row_id")
+        or raw.run_id != snapshot.run_id
+        or raw.ticker != snapshot.ticker
+        or Canonical.fingerprint(raw.raw_json) != inputs.get("raw_fingerprint")
+    ):
+        raise ValueError("MUTATION_SETUP_RAW_INPUT_MISMATCH")
+    sector_id = inputs.get("sector_row_id")
+    if sector_id is not None:
+        sector_row = _locked_setup_publication_row(db, SectorRotationRow, sector_id)
+        if sector_row is None:
+            sector_row = db.get(SectorRotationRow, sector_id)
+        if sector_row is None or sector_row.snapshot_id != pins.get("sector_rotation_snapshot_id"):
+            raise ValueError("MUTATION_SETUP_SECTOR_ROW_INPUT_MISMATCH")
+        from app.services.setup_lifecycle.source_loader import _sector_key
+
+        if _sector_key(sector_row.sector) != _sector_key(raw.sector_canonical or raw.sector):
+            raise ValueError("MUTATION_SETUP_SECTOR_ROW_TARGET_MISMATCH")
+    for pin in inputs.get("history", ()):
+        prior = _locked_setup_publication_row(db, SetupSignalSnapshot, pin["id"])
+        if prior is None:
+            prior = db.scalar(
+                select(SetupSignalSnapshot)
+                .where(SetupSignalSnapshot.id == pin["id"])
+                .with_for_update()
+            )
+        if (
+            prior is None
+            or prior.evidence_id != pin.get("evidence_id")
+            or prior.ticker != snapshot.ticker
+            or prior.timeframe != snapshot.timeframe
+            or prior.data_as_of_date >= snapshot.data_as_of_date
+            or prior.is_canonical != pin.get("is_canonical")
+        ):
+            raise ValueError("MUTATION_SETUP_HISTORY_INPUT_MISMATCH")
+        validate_setup_projection(db, prior)
+        if pin.get("is_canonical") and not db.scalar(
+            select(SetupSignalSnapshotCurrentSelection.id).where(
+                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == prior.id
+            )
+        ):
+            raise ValueError("MUTATION_SETUP_HISTORY_SELECTION_AUTHORITY_REQUIRED")
+    if identity.ownership.run_id.value != snapshot.run_id:
+        raise ValueError("MUTATION_SETUP_WRITE_SCOPE_MISMATCH")
 
 
 def validate_native_setup_output(db, snapshot, identity, price_rows, configuration):

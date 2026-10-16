@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="9.182" timestamp="2026-10-14T00:15:36.415850+02:00" hostname="NewLaptop"><testcase classname="tests.integration.test_ceri_feature_certification_postgresql" name="test_two_ticker_feature_certification_uses_scope_without_raw_rows_and_stops" time="8.254"><failure message="app.services.market_calculation_context_service.CeriContextIntegrityError: CERI_CONTEXT_IDENTITY_MISMATCH: source manifest calculation context identity does not match">db = &lt;sqlalchemy.orm.session.Session object at 0x00000257121A6780&gt;
+job = &lt;app.models.tables.BackgroundJob object at 0x00000257129A2750&gt;
+source_bodies = &lt;app.services.source_mutation_authority.PrefetchedSourceBodies object at 0x0000025712CDD730&gt;
+
+    def freeze_or_verify_feature_source_manifest(
+        db: Session,
+        *,
+        job: BackgroundJob,
+        source_bodies: PrefetchedSourceBodies,
+    ) -&gt; tuple[CeriFeatureSourceManifest, bool]:
+        """Create authority once, or verify a retry against the exact retained authority.
+    
+        Creation is flushed in the feature handler's current transaction. The handler
+        commits that transaction before it starts the first ticker, so a crash leaves
+        either no manifest and no feature output, or one durable immutable manifest.
+        """
+    
+        if job.id is None:
+            raise ValueError("CERI_SOURCE_MANIFEST_JOB_ID_REQUIRED")
+        payload = dict(job.payload_json or {})
+        authority = source_bodies.durable_manifest()
+        anchor = dict(payload.get("effective_configuration_anchor") or {})
+        retained_anchor = db.get(ExecutionConfigurationAnchor, anchor.get("anchor_id"))
+        if retained_anchor is None or retained_anchor.fingerprint != anchor.get("fingerprint"):
+            raise ValueError("CERI_SOURCE_MANIFEST_CONFIGURATION_MISMATCH")
+        existing = db.scalar(
+            select(CeriFeatureSourceManifest)
+            .where(CeriFeatureSourceManifest.background_job_id == job.id)
+            .with_for_update()
+        )
+        if existing is not None:
+            _verify_identity(existing, payload, authority)
+            source_bodies.verify_durable_manifest(existing.manifest_json)
+            return existing, False
+    
+        required = {
+            "run_id": payload.get("run_id") or job.related_run_id,
+            "pipeline_run_id": payload.get("pipeline_run_id"),
+            "calculation_context_id": payload.get("calculation_context_id"),
+            "cutoff_at": payload.get("cutoff_at"),
+            "as_of_session": payload.get("as_of_session"),
+            "calendar_version": payload.get("calendar_version"),
+            "configuration_anchor_id": anchor.get("anchor_id"),
+            "configuration_fingerprint": anchor.get("fingerprint"),
+        }
+        missing = [key for key, value in required.items() if value in (None, "")]
+        if missing:
+            raise ValueError("CERI_SOURCE_MANIFEST_AUTHORITY_REQUIRED: " + ", ".join(missing))
+        try:
+&gt;           resolve_pipeline_ceri_context(
+                db,
+                calculation_context_id=int(required["calculation_context_id"]),
+                upload_run_id=int(required["run_id"]),
+                pipeline_run_id=int(required["pipeline_run_id"]),
+                expected_cutoff_at=_datetime(required["cutoff_at"]),
+                expected_latest_completed_session=_date(required["as_of_session"]),
+                expected_calendar_version=str(required["calendar_version"]),
+            )
+
+app\services\ceri\source_manifest_service.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+db = &lt;sqlalchemy.orm.session.Session object at 0x00000257121A6780&gt;
+calculation_context_id = 1, upload_run_id = 1, pipeline_run_id = 1
+expected_cutoff_at = datetime.datetime(2026, 9, 25, 22, 0, tzinfo=datetime.timezone.utc)
+expected_latest_completed_session = datetime.date(2026, 9, 25)
+expected_calendar_version = 'swinglens-us-equities-v1'
+
+    def resolve_pipeline_ceri_context(
+        db: Session,
+        *,
+        calculation_context_id: int | None,
+        upload_run_id: int,
+        pipeline_run_id: int,
+        expected_cutoff_at: datetime | None = None,
+        expected_latest_completed_session: date | None = None,
+        expected_calendar_version: str | None = None,
+    ) -&gt; MarketCalculationCutoff:
+        """Resolve the separate post-acquisition CERI context retained by a pipeline."""
+    
+        if calculation_context_id is None:
+            raise PipelineCalculationContextError("Pipeline CERI context ID is required.")
+        pipeline = db.get(PipelineRun, int(pipeline_run_id))
+        if pipeline is None or int(pipeline.upload_run_id) != int(upload_run_id):
+            raise PipelineCalculationContextError("Pipeline CERI context owner mismatch.")
+        retained_id = (pipeline.result_json or {}).get("ceri_calculation_context_id")
+        if int(retained_id or 0) != int(calculation_context_id):
+&gt;           raise PipelineCalculationContextError(
+                "Supplied CERI calculation context is not retained by the pipeline."
+            )
+E           app.services.market_calculation_context_service.PipelineCalculationContextError: Supplied CERI calculation context is not retained by the pipeline.
+
+app\services\market_calculation_context_service.py:320: PipelineCalculationContextError
+
+The above exception was the direct cause of the following exception:
+
+disposable_postgres_database = 'postgresql+psycopg://postgres:B0g0evsk%21@127.0.0.1:5432/swinglens_pytest_86da57dbdbcd'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025711BBE7B0&gt;
+
+    def test_two_ticker_feature_certification_uses_scope_without_raw_rows_and_stops(
+        disposable_postgres_database: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -&gt; None:
+        _upgrade(disposable_postgres_database)
+        monkeypatch.setenv("RUNTIME_MODE", "CERTIFICATION")
+        monkeypatch.setenv("RUNTIME_INSTANCE_ID", "feature-certification-membership-test")
+        monkeypatch.setenv("MARKET_DATA_PREWARM_ENABLED", "false")
+        monkeypatch.setenv("WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED", "false")
+        monkeypatch.setenv("WINNER_PROBABILITY_AUTO_MATURATION_ENABLED", "false")
+        get_settings.cache_clear()
+        engine = create_engine(disposable_postgres_database)
+        try:
+            with Session(engine, expire_on_commit=False) as db:
+                crm = CeriCompany(ticker="CRM", exchange="US")
+                nvda = CeriCompany(
+                    ticker="NVDA",
+                    exchange="US",
+                    current_provider_ids_json={"eodhd": "NVDA.US"},
+                )
+                db.add_all([crm, nvda])
+                db.flush()
+                original_hashes = _seed_two_ticker_feature_sources(db)
+                repaired = reconcile_missing_provider_identity(
+                    db,
+                    company_id=int(crm.id),
+                    provider="eodhd",
+                )
+                assert repaired.status == "RECONCILED"
+                assert repaired.provider_identity == "CRM.US"
+                admitted = admit_ceri_feature_certification(
+                    db,
+                    CeriFeatureCertificationRequest(
+                        tickers=("NVDA", "CRM"),
+                        provider_datasets=("eodhd:earnings", "eodhd:estimates"),
+                        checkpoint_interval=1,
+                        cutoff_at=datetime(2026, 9, 25, 22, tzinfo=UTC),
+                        stop_boundary="FEATURE_ONLY",
+                        request_key="disposable-nvda-crm-membership-regression",
+                        requested_by="pytest",
+                    ),
+                )
+                root = db.get(BackgroundJob, admitted.root_job_id)
+                assert root is not None
+                root.status = JobStatus.RUNNING
+                db.flush()
+                with worker_job_scope(root), pytest.raises(JobDeferred):
+                    execute_ceri_feature_certification_job(db, root)
+    
+                assert (
+                    db.scalar(
+                        select(func.count())
+                        .select_from(RawCompanyRow)
+                        .where(RawCompanyRow.run_id == admitted.upload_run_id)
+                    )
+                    == 0
+                )
+                authority = SemanticWorkAuthority(
+                    scope_id=str(root.scope_id),
+                    refresh_cycle_id=str(root.refresh_cycle_id),
+                    acquisition_plan_id=str(root.acquisition_plan_id),
+                )
+                service = CeriFeatureRebuildService()
+                certification_request = CeriFeatureRebuildRequest(
+                    tickers=("CRM", "NVDA"),
+                    run_id=admitted.upload_run_id,
+                    cutoff_at=datetime(2026, 9, 25, 22, tzinfo=UTC),
+                    calculation_context_id=int(root.payload_json["calculation_context_id"]),
+                    calendar_version=str(root.payload_json["calendar_version"]),
+                    ownership_mode=CeriArtifactOwnership.PIPELINE.value,
+                    semantic_authority=authority,
+                )
+                membership_authority = service._pipeline_membership_authority(
+                    db, certification_request
+                )
+                assert membership_authority == CERI_CERTIFICATION_SCOPE_KIND
+                selected = service._companies(
+                    db,
+                    certification_request,
+                    membership_authority=membership_authority,
+                )
+                assert [company.ticker for company in selected] == ["CRM", "NVDA"]
+                prepared = service.prepare_batch(db, certification_request)
+                assert len(prepared.companies) == 2
+                children = list(
+                    db.scalars(
+                        select(BackgroundJob)
+                        .where(BackgroundJob.workflow_key == admitted.workflow_key)
+                        .where(BackgroundJob.id != root.id)
+                        .order_by(BackgroundJob.priority, BackgroundJob.id)
+                    )
+                )
+                feature = next(child for child in children if child.job_type == CERI_FEATURE_BATCH)
+                for child in children:
+                    if child is not feature:
+                        child.status = JobStatus.COMPLETED
+                db.commit()
+                _claim_feature_job(db, feature)
+    
+&gt;               result = execute_feature_batch_job(db, feature)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\integration\test_ceri_feature_certification_postgresql.py:534: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+app\services\configuration_delivery.py:117: in execute
+    return calculation(db, job, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\ceri\batched_job_handlers.py:373: in execute_feature_batch_job
+    manifest, _created = freeze_or_verify_feature_source_manifest(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+db = &lt;sqlalchemy.orm.session.Session object at 0x00000257121A6780&gt;
+job = &lt;app.models.tables.BackgroundJob object at 0x00000257129A2750&gt;
+source_bodies = &lt;app.services.source_mutation_authority.PrefetchedSourceBodies object at 0x0000025712CDD730&gt;
+
+    def freeze_or_verify_feature_source_manifest(
+        db: Session,
+        *,
+        job: BackgroundJob,
+        source_bodies: PrefetchedSourceBodies,
+    ) -&gt; tuple[CeriFeatureSourceManifest, bool]:
+        """Create authority once, or verify a retry against the exact retained authority.
+    
+        Creation is flushed in the feature handler's current transaction. The handler
+        commits that transaction before it starts the first ticker, so a crash leaves
+        either no manifest and no feature output, or one durable immutable manifest.
+        """
+    
+        if job.id is None:
+            raise ValueError("CERI_SOURCE_MANIFEST_JOB_ID_REQUIRED")
+        payload = dict(job.payload_json or {})
+        authority = source_bodies.durable_manifest()
+        anchor = dict(payload.get("effective_configuration_anchor") or {})
+        retained_anchor = db.get(ExecutionConfigurationAnchor, anchor.get("anchor_id"))
+        if retained_anchor is None or retained_anchor.fingerprint != anchor.get("fingerprint"):
+            raise ValueError("CERI_SOURCE_MANIFEST_CONFIGURATION_MISMATCH")
+        existing = db.scalar(
+            select(CeriFeatureSourceManifest)
+            .where(CeriFeatureSourceManifest.background_job_id == job.id)
+            .with_for_update()
+        )
+        if existing is not None:
+            _verify_identity(existing, payload, authority)
+            source_bodies.verify_durable_manifest(existing.manifest_json)
+            return existing, False
+    
+        required = {
+            "run_id": payload.get("run_id") or job.related_run_id,
+            "pipeline_run_id": payload.get("pipeline_run_id"),
+            "calculation_context_id": payload.get("calculation_context_id"),
+            "cutoff_at": payload.get("cutoff_at"),
+            "as_of_session": payload.get("as_of_session"),
+            "calendar_version": payload.get("calendar_version"),
+            "configuration_anchor_id": anchor.get("anchor_id"),
+            "configuration_fingerprint": anchor.get("fingerprint"),
+        }
+        missing = [key for key, value in required.items() if value in (None, "")]
+        if missing:
+            raise ValueError("CERI_SOURCE_MANIFEST_AUTHORITY_REQUIRED: " + ", ".join(missing))
+        try:
+            resolve_pipeline_ceri_context(
+                db,
+                calculation_context_id=int(required["calculation_context_id"]),
+                upload_run_id=int(required["run_id"]),
+                pipeline_run_id=int(required["pipeline_run_id"]),
+                expected_cutoff_at=_datetime(required["cutoff_at"]),
+                expected_latest_completed_session=_date(required["as_of_session"]),
+                expected_calendar_version=str(required["calendar_version"]),
+            )
+        except PipelineCalculationContextError as exc:
+            context_id = int(required["calculation_context_id"])
+            missing = db.get(MarketCalculationContext, context_id) is None
+&gt;           raise CeriContextIntegrityError(
+                "CERI_CONTEXT_DANGLING" if missing else "CERI_CONTEXT_IDENTITY_MISMATCH",
+                (
+                    "source manifest references a missing calculation context"
+                    if missing
+                    else "source manifest calculation context identity does not match"
+                ),
+                diagnostics={
+                    "job_id": job.id,
+                    "feature_batch": payload.get("batch_index"),
+                    "calculation_context_id": context_id,
+                    "pipeline_run_id": required["pipeline_run_id"],
+                    "upload_run_id": required["run_id"],
+                },
+            ) from exc
+E           app.services.market_calculation_context_service.CeriContextIntegrityError: CERI_CONTEXT_IDENTITY_MISMATCH: source manifest calculation context identity does not match
+
+app\services\ceri\source_manifest_service.py:87: CeriContextIntegrityError</failure></testcase></testsuite></testsuites>

@@ -79,7 +79,10 @@ def test_outcome_process_admin_endpoint_queues_maturation_job() -> None:
     )
     app.dependency_overrides[get_db] = lambda: db
 
-    response = TestClient(app).post("/api/winner-probability/outcomes/process?limit=25")
+    response = TestClient(app).post(
+        "/api/winner-probability/outcomes/process?limit=25",
+        headers={"x-csrf-token": app.state.local_admin_csrf_token},
+    )
 
     assert response.status_code == 200
     assert response.json() == {
@@ -112,7 +115,10 @@ def test_outcome_process_admin_endpoint_rejects_invalid_limit() -> None:
     )
     app.dependency_overrides[get_db] = lambda: db
 
-    response = TestClient(app).post("/api/winner-probability/outcomes/process?limit=0")
+    response = TestClient(app).post(
+        "/api/winner-probability/outcomes/process?limit=0",
+        headers={"x-csrf-token": app.state.local_admin_csrf_token},
+    )
 
     assert response.status_code == 422
     assert db.jobs == []
@@ -130,8 +136,9 @@ def test_outcome_process_double_click_returns_the_active_workflow() -> None:
     app.dependency_overrides[get_db] = lambda: db
     client = TestClient(app)
 
-    first = client.post("/api/winner-probability/outcomes/process?limit=25")
-    second = client.post("/api/winner-probability/outcomes/process?limit=25")
+    headers = {"x-csrf-token": app.state.local_admin_csrf_token}
+    first = client.post("/api/winner-probability/outcomes/process?limit=25", headers=headers)
+    second = client.post("/api/winner-probability/outcomes/process?limit=25", headers=headers)
 
     assert first.status_code == second.status_code == 200
     assert first.json()["job_id"] == second.json()["job_id"]

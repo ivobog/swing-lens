@@ -136,7 +136,7 @@
       <strong data-pipeline-current-item>{{ pipeline.current_item or "None" }}</strong>
     </div>
     <div class="metric">
-      <span>Active job stage</span>
+      <span data-pipeline-stage-label>{{ "Last job stage" if is_terminal else "Active job stage" }}</span>
       <strong data-pipeline-progress-stage>{{ pipeline.progress_stage or "None" }}</strong>
     </div>
     <div class="metric">
@@ -223,7 +223,7 @@
           <div class="metric" data-ceri-phase="{{ phase_name }}">
             <span>{{ phase_name|replace('_', ' ')|title }}</span>
             <strong data-ceri-phase-state>{{ phase.get('state') or 'PENDING' }}</strong>
-            <small><span data-ceri-phase-completed>{{ phase.get('completed_jobs') or 0 }}</span> / <span data-ceri-phase-jobs>{{ phase.get('job_count') or 0 }}</span> jobs; <span data-ceri-phase-processed>{{ phase.get('processed') or 0 }}</span> / <span data-ceri-phase-total>{{ phase.get('total') or 0 }}</span> items</small>
+            <small><span data-ceri-phase-completed>{{ phase.get('completed_jobs') or 0 }}</span> / <span data-ceri-phase-jobs>{{ phase.get('job_count') or 0 }}</span> jobs; <span data-ceri-phase-processed>{{ phase.get('processed') or 0 }}</span> / <span data-ceri-phase-total>{{ phase.get('total') or 0 }}</span> known-total items{% if phase.get('unknown_total_jobs') %}; <span data-ceri-phase-unknown-processed>{{ phase.get('unknown_total_processed') or 0 }}</span> processed across <span data-ceri-phase-unknown-jobs>{{ phase.get('unknown_total_jobs') }}</span> job(s) with unknown totals{% else %}<span data-ceri-phase-unknown-block hidden>; <span data-ceri-phase-unknown-processed>0</span> processed across <span data-ceri-phase-unknown-jobs>0</span> job(s) with unknown totals</span>{% endif %}</small>
           </div>
         {% endfor %}
       </div>

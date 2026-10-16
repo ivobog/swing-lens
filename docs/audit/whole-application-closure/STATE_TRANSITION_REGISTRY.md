@@ -103,6 +103,7 @@ There is no production transition from a terminal `COMPLETED`, `FAILED`, `BLOCKE
 | STATE-068 | worker active -> stopping/quiesced -> retired/resumed | worker registry + lifecycle quiesce + supervisor retirement |
 | STATE-069 | certification job unauthorized -> rejected (no transition) | `require_enqueue_authorized`, `claim_next_job` certification predicate |
 | STATE-070 | certification root/descendant -> normal job terminal states | common worker terminalizers | session marker is payload authority; supervisor recovery now scopes when supplied |
+| STATE-071 | CERI sibling `QUEUED/STALLED/RECOVERING -> BLOCKED` (feature-certification root -> `FAILED`) | `pipeline_service._block_queued_ceri_siblings` | locked exact workflow siblings after authoritative parent terminalization; `CERI_PARENT_PIPELINE_TERMINAL` or `CERI_FEATURE_CERTIFICATION_CHILD_FAILED` |
 
 ## Transition ownership finding
 

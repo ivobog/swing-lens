@@ -1,0 +1,56 @@
+{
+  "status": "PARTIAL_EXACT_SQLALCHEMY_SESSION_ID_UNRESOLVED",
+  "historical_incident": {
+    "execution_id": "20261014T231952Z-578a22d6",
+    "backend_pid": 15932,
+    "maximum_transaction_age_seconds": 120.035264,
+    "application_name": "swinglens-test",
+    "state": "idle in transaction",
+    "wait_event": "ClientRead",
+    "last_relation": "setup_signal_snapshots",
+    "evidence_limit": "The disposable database and original process no longer exist."
+  },
+  "retained_path_correlation": {
+    "web_process_id": 12044,
+    "request_interval_started_after": "2026-10-14T23:21:33.038835+00:00",
+    "pre_enqueue_gate_passed_at": "2026-10-14T23:23:38.695954+00:00",
+    "request_completed_at": "2026-10-14T23:23:40.019076+00:00",
+    "route": "POST /runs/3/pipeline",
+    "code_path": [
+      "app.routers.run_routes.run_full_pipeline_action",
+      "app.services.transition_preflight_plan_service.create_transition_preflight_plan",
+      "app.services.pipeline_service.start_pipeline",
+      "app.services.pre_enqueue_operational_gate.validate_pre_enqueue_operational_gate",
+      "app.services.transition_preflight_plan_service.verify_transition_preflight_for_enqueue"
+    ]
+  },
+  "focused_attempt": {
+    "execution_id": "20261014T235619Z-3230ee43",
+    "web_process_id": 40044,
+    "database_name": "swinglens_pytest_cert_a1081da9319d",
+    "observer_samples": 1164,
+    "maximum_open_transactions": 4,
+    "creation_backend": {
+      "pid": 25424,
+      "xact_start": "2026-10-15T01:57:57.253972+02:00",
+      "maximum_observed_age_seconds": 64.497914,
+      "setup_relation_samples": 59,
+      "first_sql_relation": "market_calculation_contexts"
+    },
+    "verification_backend": {
+      "pid": 21900,
+      "xact_start": "2026-10-15T01:59:01.865888+02:00",
+      "maximum_observed_age_seconds": 65.490093,
+      "setup_relation_samples": 57,
+      "last_observed_work": "INSERT INTO background_jobs"
+    },
+    "observed_boundary_effect": "The historical combined 120-second interval appeared as two separate approximately 65-second PostgreSQL transactions.",
+    "trace_files": [],
+    "trace_failure": "The imported fixture did not resolve the local opt-in trace/stop fixtures, so no SQLAlchemy Session event JSONL was installed in the web process.",
+    "exact_session_id": null,
+    "session_creation_stack": null,
+    "connection_checkout_stack": null
+  },
+  "classification": "API_DEPENDENCY_AND_ADMISSION_SERVICE_STRONGLY_LOCALIZED_BUT_NOT_FULLY_CERTIFIED",
+  "conclusion": "The request and service path are correlated, but the required Session-to-connection-to-backend event chain is incomplete. No exact Python Session identity may be claimed."
+}

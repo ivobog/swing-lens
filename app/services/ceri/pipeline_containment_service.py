@@ -19,8 +19,8 @@ from app.services.ceri.evidence_eligibility import (
     append_evidence_dispositions,
     eligible_snapshot_predicate,
 )
+from app.services.pipeline_outcome import pipeline_requires_ceri_containment
 
-UNSUCCESSFUL_PIPELINE_STATES = frozenset({"FAILED", "CANCELLED", "BLOCKED", "PARTIAL"})
 ACTIVE_PROCESSING_STATES = frozenset({"PENDING", "QUEUED", "RUNNING"})
 
 
@@ -32,7 +32,7 @@ def reconcile_unsuccessful_pipeline_ceri(
 ) -> dict[str, int]:
     """Idempotently contain CERI state owned by an unsuccessful pipeline."""
 
-    if pipeline.status not in UNSUCCESSFUL_PIPELINE_STATES:
+    if not pipeline_requires_ceri_containment(pipeline.status, pipeline.result_json):
         return {"excluded": 0, "projections_repaired": 0, "processing_terminalized": 0}
     snapshots = list(
         db.scalars(

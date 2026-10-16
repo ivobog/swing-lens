@@ -16,7 +16,12 @@ from app.models.tables import (
     UploadRun,
 )
 from app.routers.export_responses import attachment_response
-from app.security import ROUTE_CLASS_LOCAL_ADMIN, require_local_admin, unsafe_route
+from app.security import (
+    ROUTE_CLASS_LOCAL_ADMIN,
+    local_admin_csrf_token,
+    require_local_admin,
+    unsafe_route,
+)
 from app.services.background_job_service import enqueue_job
 from app.services.redaction import redact_text
 from app.services.resource_limits import (
@@ -239,6 +244,7 @@ def winner_probability_operations_page(request: Request, db: DbSession) -> HTMLR
             "active_nav": "winner-probability",
             "status": WinnerProbabilityOperationsService().status(db),
             "admin_enabled": _admin_enabled(request),
+            "csrf_token": local_admin_csrf_token(request),
         },
     )
 
@@ -635,13 +641,14 @@ def queue_winner_prediction_capture(
     mutation_capability=MutationCapability.NORMAL_ONLY,
     operation="http.winner.mature",
     local_admin_required=True,
+    csrf_required=True,
 )
 def queue_winner_outcome_maturation(
     request: Request,
     db: DbSession,
     limit: int = 500,
 ) -> dict:
-    _require_local_admin(request)
+    _require_local_admin(request, csrf_required=True)
     if limit <= 0 or limit > 5000:
         raise HTTPException(status_code=422, detail="limit must be between 1 and 5000.")
     try:
@@ -673,13 +680,14 @@ def queue_winner_outcome_maturation(
     mutation_capability=MutationCapability.NORMAL_ONLY,
     operation="http.winner.cohort_refresh",
     local_admin_required=True,
+    csrf_required=True,
 )
 def queue_winner_cohort_refresh(
     request: Request,
     db: DbSession,
     outcome_definition_id: str | None = None,
 ) -> dict:
-    _require_local_admin(request)
+    _require_local_admin(request, csrf_required=True)
     try:
         config = load_winner_probability_config()
         definition_key = outcome_definition_id or config.primary_outcome_definition.id
@@ -750,13 +758,16 @@ def retire_winner_probability_model(
     return payload
 
 
-def _require_local_admin(request: Request) -> None:
+def _require_local_admin(request: Request, *, csrf_required: bool = False) -> None:
     settings = getattr(request.app.state, "settings", None)
     require_local_admin(
         request,
         enabled=bool(settings and settings.winner_probability_admin_enabled),
         disabled_message="Winner probability admin is disabled.",
         local_only_message="Winner probability admin is local only.",
+        csrf_message="A valid winner probability CSRF token is required.",
+        structured_code="ADMIN_FORBIDDEN",
+        csrf_required=csrf_required,
     )
 
 

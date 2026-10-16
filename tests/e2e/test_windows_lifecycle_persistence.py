@@ -25,17 +25,18 @@ pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows lifecycle persistence gate"),
 ]
 ROOT = Path(__file__).resolve().parents[2]
-RUNTIME_STATE = ROOT / "data" / "cache" / "swinglens-lifecycle.json"
 
 
 def test_windows_runtime_survives_controller_exit_and_reuses_generation(
     disposable_postgres_database: str,
+    tmp_path,
 ) -> None:
-    assert not RUNTIME_STATE.exists(), "canonical runtime state must be absent before the gate"
     _migrate(disposable_postgres_database)
     worker_id = f"windows-persistence-{uuid4().hex}"
     evidence_path = ROOT / "test-results" / f"windows-lifecycle-{uuid4().hex}"
     evidence_path.mkdir(parents=True, exist_ok=False)
+    runtime_state = tmp_path / "swinglens-lifecycle.json"
+    assert not runtime_state.exists()
     ports: list[int] = []
     while len(ports) < 3:
         candidate = _free_port()
@@ -49,6 +50,7 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
         supervisor_metrics_port=ports[2],
         supervisor_state_path=evidence_path / "supervisor-state.json",
         persistence_test_path=evidence_path,
+        runtime_state_path=runtime_state,
     )
     log_path = ROOT / "logs" / "lifecycle" / "lifecycle.jsonl"
     log_offset = log_path.stat().st_size if log_path.exists() else 0
@@ -56,13 +58,13 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
     try:
         first = _controller("start", env)
         assert first.returncode == 0, _controller_failure(first)
-        first_state = json.loads(RUNTIME_STATE.read_text(encoding="utf-8"))
+        first_state = json.loads(runtime_state.read_text(encoding="utf-8"))
         first_registration = _registration_snapshot(disposable_postgres_database, worker_id)
         _wait_for_runtime_survival(first_state, ports, seconds=45)
 
         second = _controller("start", env)
         assert second.returncode == 0, _controller_failure(second)
-        second_state = json.loads(RUNTIME_STATE.read_text(encoding="utf-8"))
+        second_state = json.loads(runtime_state.read_text(encoding="utf-8"))
         second_registration = _registration_snapshot(disposable_postgres_database, worker_id)
 
         assert second_state["runtimeInstanceId"] == first_state["runtimeInstanceId"]
@@ -79,7 +81,7 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
 
         stopped = _controller("stop", env)
         assert stopped.returncode == 0, _controller_failure(stopped)
-        assert not RUNTIME_STATE.exists()
+        assert not runtime_state.exists()
         assert all(_listener_pid(port) is None for port in ports)
         assert _runtime_role_counts(str(first_state["runtimeInstanceId"]), worker_id) == {
             "supervisor": 0,
@@ -99,11 +101,11 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
         ):
             assert event in shutdown_evidence
     finally:
-        if first_state is None and RUNTIME_STATE.exists():
-            first_state = json.loads(RUNTIME_STATE.read_text(encoding="utf-8"))
+        if first_state is None and runtime_state.exists():
+            first_state = json.loads(runtime_state.read_text(encoding="utf-8"))
         if first_state is not None:
             _cleanup_runtime(str(first_state["runtimeInstanceId"]))
-        RUNTIME_STATE.unlink(missing_ok=True)
+        runtime_state.unlink(missing_ok=True)
 
 
 def _migrate(database_url: str) -> None:
@@ -133,6 +135,7 @@ def _lifecycle_environment(
     supervisor_metrics_port: int,
     supervisor_state_path: Path,
     persistence_test_path: Path,
+    runtime_state_path: Path,
 ) -> dict[str, str]:
     env = {
         **os.environ,
@@ -151,6 +154,7 @@ def _lifecycle_environment(
         "OBSERVABILITY_SUPERVISOR_METRICS_PORT": str(supervisor_metrics_port),
         "SWINGLENS_SUPERVISOR_STATE_PATH": str(supervisor_state_path),
         "SWINGLENS_PERSISTENCE_TEST_PATH": str(persistence_test_path),
+        "SWINGLENS_LIFECYCLE_STATE_PATH": str(runtime_state_path),
         "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": f"disposable-{uuid4().hex}",
         "JOB_WORKER_ID": worker_id,
         "JOB_POLL_INTERVAL_SECONDS": "0.1",
@@ -309,6 +313,11 @@ def _cleanup_runtime(runtime_instance_id: str) -> None:
 
 def _controller_main(action: str) -> None:
     test_path = Path(os.environ["SWINGLENS_PERSISTENCE_TEST_PATH"])
+    runtime_state = Path(os.environ["SWINGLENS_LIFECYCLE_STATE_PATH"])
+    # lifecycle_probe is the production-equivalent controller implementation,
+    # but this E2E subprocess must never read or replace the user's canonical
+    # repository state.  Point every probe operation at the task-owned file.
+    lifecycle_probe.RUNTIME_STATE = runtime_state
     if action == "start":
         listener_pid = _listener_pid(int(os.environ["APP_PORT"]))
         report = lifecycle_probe._runtime_state_report(listener_pid)
@@ -362,7 +371,7 @@ def _controller_main(action: str) -> None:
         return
     if action != "stop":
         raise ValueError(action)
-    state = json.loads(RUNTIME_STATE.read_text(encoding="utf-8"))
+    state = json.loads(runtime_state.read_text(encoding="utf-8"))
     web_pid = int(state["web"]["pid"])
     supervisor_pid = int(state["supervisor"]["pid"])
     result = lifecycle_probe._signal_break(web_pid, _listener_pid(int(os.environ["APP_PORT"])))
@@ -383,7 +392,7 @@ def _controller_main(action: str) -> None:
         time.sleep(0.25)
     if any(_listener_pid(port) for port in ports) or psutil.pid_exists(supervisor_pid):
         raise TimeoutError("runtime topology did not stop")
-    RUNTIME_STATE.unlink(missing_ok=True)
+    runtime_state.unlink(missing_ok=True)
     print(json.dumps({"result": "stopped", "shutdown": result}))
 
 

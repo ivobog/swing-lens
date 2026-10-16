@@ -35,6 +35,8 @@
   <div class="metric"><span>Retry Deferred</span><strong>{{ maturation_queue.retry_deferred|default(0) }}</strong></div>
   <div class="metric"><span>Bar Fetch Required</span><strong>{{ obligation_state.FETCH_REQUIRED|default(0) }}</strong></div>
   <div class="metric"><span>Bar Obligations Satisfied</span><strong>{{ obligation_state.SATISFIED|default(0) }}</strong></div>
+  <div class="metric"><span>Bar Data Unavailable</span><strong>{{ obligation_state.UNAVAILABLE|default(0) }}</strong></div>
+  <div class="metric"><span>Bar Fetch Failed</span><strong>{{ obligation_state.FAILED|default(0) }}</strong></div>
   <div class="metric"><span>Daily Bar Lag</span><strong>{{ daily_bar_freshness.lag_sessions|default(0) }}</strong></div>
   <div class="metric"><span>Failed Runs</span><strong>{{ status.failed_processing_runs }}</strong></div>
 </section>
@@ -63,11 +65,11 @@
   <section class="panel section-gap">
     <div class="panel-header compact-header"><div><h2>Local Admin</h2></div></div>
     <div class="actions">
-      <form method="post" action="/api/winner-probability/outcomes/process" data-winner-json-form>
+      <form method="post" action="/api/winner-probability/outcomes/process" data-winner-json-form data-csrf-token="{{ csrf_token }}">
         <button type="submit" data-loading-label="Queueing..." {% if status.active_maturation_workflow %}disabled aria-disabled="true" title="A maturation workflow is already active"{% endif %}>Process due outcomes</button>
         <output data-winner-form-output></output>
       </form>
-      <form method="post" action="/api/winner-probability/cohorts/refresh" data-winner-json-form>
+      <form method="post" action="/api/winner-probability/cohorts/refresh" data-winner-json-form data-csrf-token="{{ csrf_token }}">
         <button class="secondary" type="submit" data-loading-label="Queueing...">Refresh cohorts</button>
         <output data-winner-form-output></output>
       </form>

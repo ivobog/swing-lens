@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -167,6 +168,7 @@ def start_pipeline(
     ib_preflight_status: dict[str, Any] | None = None,
     transition_preflight_plan_id: int | None = None,
     transition_candidate_discovery: Any | None = None,
+    before_admission_mutation: Callable[[Session, Any], None] | None = None,
 ) -> PipelineRun:
     settings = get_settings()
     certification_mode = (
@@ -223,6 +225,12 @@ def start_pipeline(
             "Certification pipeline enqueue requires a reserved transition preflight plan.",
             plan_id=None,
         )
+
+    # The optional callback is an explicit seam for the isolated certification
+    # adapter. It runs only after independent pre-enqueue verification and
+    # before pipeline, job, market-context, or publication state is created.
+    if before_admission_mutation is not None:
+        before_admission_mutation(db, verified_transition_preflight)
 
     step_names = pipeline_step_names(
         ceri_run_capture_enabled=ceri_run_capture_enabled,
@@ -539,6 +547,8 @@ def _ceri_async_visibility(db: Session, pipeline: PipelineRun) -> dict[str, Any]
 
     def phase_view(types: set[str]) -> dict[str, Any]:
         members = [job for job in jobs if job.job_type in types]
+        known_total_members = [job for job in members if job.progress_total is not None]
+        unknown_total_members = [job for job in members if job.progress_total is None]
         statuses = {str(job.status) for job in members}
         if not members:
             state = "PENDING"
@@ -556,8 +566,12 @@ def _ceri_async_visibility(db: Session, pipeline: PipelineRun) -> dict[str, Any]
             "completed_jobs": sum(
                 job.status in {JobStatus.COMPLETED, JobStatus.PARTIAL} for job in members
             ),
-            "processed": sum(int(job.progress_processed or 0) for job in members),
-            "total": sum(int(job.progress_total or 0) for job in members),
+            "processed": sum(int(job.progress_processed or 0) for job in known_total_members),
+            "total": sum(int(job.progress_total or 0) for job in known_total_members),
+            "unknown_total_processed": sum(
+                int(job.progress_processed or 0) for job in unknown_total_members
+            ),
+            "unknown_total_jobs": len(unknown_total_members),
             "original_started_at": min(
                 (job.started_at for job in members if job.started_at is not None),
                 default=None,
@@ -736,6 +750,35 @@ def mark_pipeline_job_failure(db, job, failure):
     ):
         return
     if (pipeline.result_json or {}).get("background_job_id") != job.id:
+        return
+    if job.status == JobStatus.QUEUED:
+        if (
+            pipeline.status != PipelineStatus.FAILED
+            or pipeline.execution_authority_state != "ACTIVE"
+        ):
+            return
+        superseding_resume = db.scalar(
+            select(BackgroundJob.id)
+            .where(
+                BackgroundJob.job_type == FULL_PIPELINE_JOB_TYPE,
+                BackgroundJob.parent_job_id == job.id,
+                BackgroundJob.trigger_source == "PIPELINE_OPERATOR_RESUME",
+            )
+            .limit(1)
+        )
+        if superseding_resume is not None:
+            return
+        from app.services.pipeline_state_machine import transition_pipeline
+
+        transition_pipeline(
+            db,
+            pipeline,
+            PipelineStatus.QUEUED,
+            actor="retry",
+            current_step=pipeline.current_step,
+            message="Pipeline retry is queued under the original execution authority.",
+        )
+        db.flush()
         return
     view = _pipeline_job_failure_view(pipeline, job, failure)
     # The stage wrapper may already have marked FAILED before the durable job
@@ -989,7 +1032,11 @@ def resume_pipeline(
     *,
     resume_from_step: str | None = None,
 ) -> PipelineRun:
-    pipeline = db.get(PipelineRun, pipeline_run_id)
+    pipeline = (
+        db.scalar(select(PipelineRun).where(PipelineRun.id == pipeline_run_id).with_for_update())
+        if isinstance(db, Session)
+        else db.get(PipelineRun, pipeline_run_id)
+    )
     if pipeline is None:
         raise ValueError(f"Pipeline run {pipeline_run_id} was not found.")
     authority = require_semantic_authority(pipeline) if isinstance(db, Session) else None
@@ -1051,6 +1098,20 @@ def resume_pipeline(
     request_key = (
         f"resume-pipeline:{pipeline.id}:from:{target}:attempt:{target_step.retry_count + 1}"
     )
+    predecessor_id = (pipeline.result_json or {}).get("background_job_id")
+    predecessor = (
+        db.scalar(select(BackgroundJob).where(BackgroundJob.id == predecessor_id).with_for_update())
+        if isinstance(db, Session) and predecessor_id is not None
+        else db.get(BackgroundJob, predecessor_id)
+        if predecessor_id is not None
+        else None
+    )
+    predecessor_payload = predecessor.payload_json or {} if predecessor is not None else {}
+    if predecessor is not None and (
+        predecessor.job_type != FULL_PIPELINE_JOB_TYPE
+        or int(predecessor_payload.get("pipeline_run_id") or 0) != pipeline.id
+    ):
+        predecessor = None
     job = enqueue_job(
         db,
         job_type=FULL_PIPELINE_JOB_TYPE,
@@ -1063,6 +1124,14 @@ def resume_pipeline(
         priority=PIPELINE_JOB_PRIORITY,
         max_retries=PIPELINE_JOB_MAX_RETRIES,
         request_key=request_key,
+        root_job_id=(
+            int(predecessor.root_job_id or predecessor.id) if predecessor is not None else None
+        ),
+        parent_job_id=(int(predecessor.id) if predecessor is not None else None),
+        continuation_depth=(
+            int(predecessor.continuation_depth or 0) + 1 if predecessor is not None else None
+        ),
+        trigger_source="PIPELINE_OPERATOR_RESUME",
     )
     if authority is not None:
         bind_semantic_authority(job, authority)
@@ -1311,43 +1380,34 @@ def enqueue_pipeline_after_ceri_completion(
         .order_by(BackgroundJob.id)
         .limit(1)
     )
-    if existing is not None:
+    continuation = existing
+    created_continuation = False
+    if continuation is not None:
         expected_anchor = binding_reference(db, pipeline_run_id=pipeline.id)
-        if execution_configuration_reference(db, existing) != expected_anchor:
+        if execution_configuration_reference(db, continuation) != expected_anchor:
             raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
-        from app.services.pipeline_dependency_service import (
-            complete_ceri_workflow_dependency,
-        )
-
-        complete_ceri_workflow_dependency(
+    else:
+        authority = require_semantic_authority(pipeline)
+        continuation = enqueue_job(
             db,
-            pipeline=pipeline,
-            workflow_key=workflow_key,
-            trigger_job=trigger_job,
-            continuation=existing,
-            certified_count=certified,
+            job_type=FULL_PIPELINE_JOB_TYPE,
+            payload={
+                "pipeline_run_id": pipeline.id,
+                "resume_from_step": resume_from_step,
+                "ceri_provider_workflow_key": workflow_key,
+                **_pipeline_context_payload(db, pipeline),
+            },
+            related_run_id=pipeline.upload_run_id,
+            priority=PIPELINE_JOB_PRIORITY,
+            max_retries=PIPELINE_JOB_MAX_RETRIES,
+            request_key=request_key,
+            workflow_key=f"pipeline:{pipeline.id}:ceri-continuation",
+            parent_job_id=trigger_job.id,
+            trigger_source="CERI_COMPLETION_BARRIER",
         )
-        return existing
+        bind_semantic_authority(continuation, authority)
+        created_continuation = not getattr(continuation, "_coalesced", False)
 
-    authority = require_semantic_authority(pipeline)
-    continuation = enqueue_job(
-        db,
-        job_type=FULL_PIPELINE_JOB_TYPE,
-        payload={
-            "pipeline_run_id": pipeline.id,
-            "resume_from_step": resume_from_step,
-            "ceri_provider_workflow_key": workflow_key,
-            **_pipeline_context_payload(db, pipeline),
-        },
-        related_run_id=pipeline.upload_run_id,
-        priority=PIPELINE_JOB_PRIORITY,
-        max_retries=PIPELINE_JOB_MAX_RETRIES,
-        request_key=request_key,
-        workflow_key=f"pipeline:{pipeline.id}:ceri-continuation",
-        parent_job_id=trigger_job.id,
-        trigger_source="CERI_COMPLETION_BARRIER",
-    )
-    bind_semantic_authority(continuation, authority)
     from app.services.pipeline_dependency_service import complete_ceri_workflow_dependency
 
     complete_ceri_workflow_dependency(
@@ -1358,19 +1418,17 @@ def enqueue_pipeline_after_ceri_completion(
         continuation=continuation,
         certified_count=certified,
     )
-    if getattr(continuation, "_coalesced", False):
-        return continuation
+    if created_continuation:
+        from app.services.pipeline_state_machine import transition_pipeline
 
-    from app.services.pipeline_state_machine import transition_pipeline
-
-    transition_pipeline(
-        db,
-        pipeline,
-        PipelineStatus.PENDING,
-        actor="dependency",
-        current_step=resume_from_step,
-        message="Certified CERI workflow completed; downstream continuation queued.",
-    )
+        transition_pipeline(
+            db,
+            pipeline,
+            PipelineStatus.PENDING,
+            actor="dependency",
+            current_step=resume_from_step,
+            message="Certified CERI workflow completed; downstream continuation queued.",
+        )
     provider_step = db.scalar(
         select(PipelineStep).where(
             PipelineStep.pipeline_run_id == pipeline.id,
@@ -1388,6 +1446,10 @@ def enqueue_pipeline_after_ceri_completion(
         "ceri_completion_state": "CERTIFIED",
         "ceri_async_state": "CONTINUATION_QUEUED",
         "ceri_certified_capture_count": certified,
+        # The public pipeline counter and the completion barrier now expose the
+        # same certified population: distinct run/context tickers with immutable
+        # CERI evidence.  Do not retain the pre-provider zero from _empty_result.
+        "ceri_score_snapshots": certified,
         "ceri_continuation_request_key": request_key,
         "ceri_continuation_job_id": continuation.id,
     }

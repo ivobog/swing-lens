@@ -8,6 +8,7 @@ Create or update an ADR for high-risk design changes before merge.
 | ADR | Status | Decision |
 | --- | --- | --- |
 | 0000 | Template | ADR format |
+| 0013 | Accepted | Orthogonal readiness, eligibility, warning, and containment policy |
 
 ## Backlog
 

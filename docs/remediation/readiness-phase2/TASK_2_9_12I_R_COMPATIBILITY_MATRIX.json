@@ -1,0 +1,167 @@
+{
+  "task": "2.9.12i-R",
+  "verdict": "PASS",
+  "closure": "TASK 2.9.12I HISTORICAL ANCHOR COMPATIBILITY: CLOSED",
+  "prior_evidence": {
+    "task": "2.9.12i",
+    "verdict": "PARTIAL",
+    "artifact": "TASK_2_9_12I_COMPATIBILITY_MATRIX.json",
+    "certification_status": "COLLECTION_ERROR",
+    "database_reached": false,
+    "preserved": true
+  },
+  "environment": {
+    "interpreter": "C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe",
+    "dependency_preflight": "PASS",
+    "required_imports": [
+      "pytest",
+      "prometheus_client",
+      "sqlalchemy",
+      "alembic",
+      "psycopg"
+    ],
+    "packages_installed": false
+  },
+  "focused_certification": {
+    "status": "PASS",
+    "exit_code": 0,
+    "tests": 2,
+    "passed": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "pytest_duration_seconds": 17.54,
+    "junit_duration_seconds": 17.526,
+    "outer_process_wall_seconds": 26.0534417,
+    "junit": "TASK_2_9_12I_R_CERTIFICATION.xml",
+    "nodes": [
+      {
+        "name": "test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempotent",
+        "duration_seconds": 9.240,
+        "result": "PASS"
+      },
+      {
+        "name": "test_historical_v1_anchor_is_verified_without_rewrite_and_fails_closed",
+        "duration_seconds": 7.907,
+        "result": "PASS"
+      }
+    ]
+  },
+  "matrix": [
+    {
+      "case": "P1",
+      "stored_contract": "v2",
+      "lifecycle_drift": "legitimate",
+      "source_integrity": "valid",
+      "expected": "ACCEPT",
+      "executed": true,
+      "result": "PASS_ACCEPTED"
+    },
+    {
+      "case": "P2",
+      "stored_contract": "v1",
+      "lifecycle_drift": "legitimate_status_and_processed_at",
+      "source_integrity": "valid",
+      "expected": "ACCEPT_WITHOUT_REWRITE",
+      "executed": true,
+      "result": "PASS_ACCEPTED_ANCHOR_UNCHANGED"
+    },
+    {
+      "case": "N1_V1",
+      "stored_contract": "v1",
+      "lifecycle_drift": "legitimate",
+      "source_integrity": "raw_source_corrupted",
+      "expected": "REJECT_DECISION_MANIFEST_MISMATCH",
+      "executed": true,
+      "result": "PASS_REJECTED_NO_PUBLICATION"
+    },
+    {
+      "case": "N1_V2",
+      "stored_contract": "v2",
+      "lifecycle_drift": "legitimate",
+      "source_integrity": "raw_source_corrupted",
+      "expected": "REJECT_DECISION_MANIFEST_MISMATCH",
+      "executed": true,
+      "result": "PASS_REJECTED_NO_PUBLICATION"
+    },
+    {
+      "case": "N2",
+      "stored_contract": "v1",
+      "lifecycle_drift": "legitimate",
+      "source_integrity": "frozen_context_corrupted",
+      "expected": "REJECT_DECISION_MANIFEST_MISMATCH",
+      "executed": true,
+      "result": "PASS_REJECTED_ROLLED_BACK"
+    },
+    {
+      "case": "N3",
+      "stored_contract": "v1",
+      "lifecycle_drift": "any",
+      "source_integrity": "persisted_json_tampered_without_matching_fingerprint",
+      "expected": "REJECT_DECISION_MANIFEST_MISMATCH",
+      "executed": true,
+      "result": "PASS_REJECTED_ROLLED_BACK"
+    },
+    {
+      "case": "N4",
+      "stored_contract": "unknown",
+      "lifecycle_drift": "any",
+      "source_integrity": "any",
+      "expected": "REJECT_MALFORMED_DECISION_MANIFEST",
+      "executed": true,
+      "result": "PASS_REJECTED_ROLLED_BACK"
+    },
+    {
+      "case": "N5",
+      "stored_contract": "missing_or_malformed",
+      "lifecycle_drift": "any",
+      "source_integrity": "any",
+      "expected": "REJECT_MALFORMED_DECISION_MANIFEST",
+      "executed": true,
+      "result": "PASS_REJECTED_ROLLED_BACK"
+    },
+    {
+      "case": "N6",
+      "stored_contract": "valid_v1",
+      "lifecycle_drift": "any",
+      "source_integrity": "wrong_upload_run_binding",
+      "expected": "REJECT_STALE_PREFLIGHT",
+      "executed": true,
+      "result": "PASS_REJECTED_NO_PUBLICATION"
+    },
+    {
+      "case": "N7",
+      "stored_contract": "v1_label_with_v2_shape",
+      "lifecycle_drift": "any",
+      "source_integrity": "identity_confusion",
+      "expected": "REJECT_MALFORMED_DECISION_MANIFEST",
+      "executed": true,
+      "result": "PASS_REJECTED_ROLLED_BACK"
+    }
+  ],
+  "immutability": {
+    "historical_v1_json_unchanged": true,
+    "historical_v1_fingerprint_unchanged": true,
+    "handoff_reuse_idempotent": true,
+    "unauthorized_setup_publications": 0,
+    "historical_migration_performed": false
+  },
+  "t14": {
+    "validator": "scripts.qa.t14a_phase2_9_source_pins",
+    "stale": [],
+    "regeneration_performed": false
+  },
+  "cleanup": {
+    "fixture_teardown_errors": 0,
+    "task_owned_test_processes_remaining": 0,
+    "task_owned_listeners_remaining": 0,
+    "unattributed_disposable_named_databases_observed": 36,
+    "unattributed_databases_deleted": false
+  },
+  "release_scope": {
+    "chromium_100_executed": false,
+    "tasks_2_9_12a_d_e_closed": false,
+    "full_phase_2_9_release_certification_executed": false,
+    "recommended_next_task": "TASK 2.9.12J FINAL CHROMIUM-100 CERTIFICATION"
+  }
+}

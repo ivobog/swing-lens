@@ -8,6 +8,8 @@ import pytest
 from contextual_readiness_helpers import seal_contextual
 from core_readiness_helpers import certified_combined, certified_fundamental
 from readiness_helpers import certified_technical, seal_technical
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 from app.models.tables import (
     CombinedResult,
@@ -39,6 +41,242 @@ from app.services.setup_lifecycle.source_loader import (
 )
 
 _MISSING = object()
+
+
+def test_setup_capture_closes_isolated_read_transaction_before_build(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE setup_read_probe (id INTEGER PRIMARY KEY)"))
+        connection.execute(text("INSERT INTO setup_read_probe (id) VALUES (1)"))
+
+    parent = Session(engine)
+    observed: dict[str, object] = {}
+    builder = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config())
+
+    class Loader:
+        def load_run_context(self, read_db, _run_id, **_kwargs):
+            observed["read_db"] = read_db
+            assert read_db is not parent
+            assert read_db.scalar(text("SELECT count(*) FROM setup_read_probe")) == 1
+            assert read_db.in_transaction()
+            return SimpleNamespace(tickers=(SimpleNamespace(ticker="MSFT"),))
+
+    class Repository:
+        def canonical_snapshot_histories_before(self, read_db, **_kwargs):
+            assert read_db is observed["read_db"]
+            assert read_db.scalar(text("SELECT count(*) FROM setup_read_probe")) == 1
+            return {}
+
+    monkeypatch.setattr(builder, "_resolve_data_as_of_date", lambda _context: date(2026, 8, 1))
+
+    def observe_build(_context, **_kwargs):
+        read_db = observed["read_db"]
+        assert not read_db.in_transaction()
+        assert not parent.in_transaction()
+        with Session(engine) as observer:
+            assert observer.scalar(text("SELECT count(*) FROM setup_read_probe")) == 1
+        observed["built_without_transaction"] = True
+        return SimpleNamespace()
+
+    monkeypatch.setattr(builder, "build", observe_build)
+    cancellation_checks = iter((False, True))
+    service = SetupLifecycleSnapshotCaptureService(
+        loader=Loader(),
+        builder=builder,
+        repository=Repository(),
+    )
+    try:
+        with pytest.raises(SetupLifecycleCaptureCancelled, match="SETUP_CAPTURE_CANCELLED"):
+            service.capture_snapshots_for_run(
+                parent,
+                7,
+                market_cutoff=object(),
+                frozen_tickers=("MSFT",),
+                should_cancel=lambda: next(cancellation_checks),
+            )
+        assert observed["built_without_transaction"] is True
+        assert not parent.in_transaction()
+        assert not parent.new and not parent.dirty and not parent.deleted
+    finally:
+        parent.close()
+        engine.dispose()
+
+
+def test_setup_capture_closes_inherited_clean_parent_transaction_and_checkpoints_build(
+    monkeypatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE setup_build_probe (id INTEGER PRIMARY KEY)"))
+        connection.execute(text("INSERT INTO setup_build_probe (id) VALUES (1)"))
+
+    parent = Session(engine)
+    builder = SetupLifecycleSnapshotBuilder(load_setup_lifecycle_config())
+    tickers = tuple(SimpleNamespace(ticker=f"T{index:03d}") for index in range(1, 101))
+    checkpoints: list[tuple[str, int, int, str]] = []
+
+    class Loader:
+        def load_run_context(self, read_db, _run_id, **_kwargs):
+            assert read_db is not parent
+            return SimpleNamespace(tickers=tickers)
+
+    class Repository:
+        def canonical_snapshot_histories_before(self, _read_db, **_kwargs):
+            return {}
+
+    monkeypatch.setattr(builder, "_resolve_data_as_of_date", lambda _context: date(2026, 8, 1))
+
+    def observe_build(context, **_kwargs):
+        assert not parent.in_transaction()
+        return SimpleNamespace(ticker=context.ticker)
+
+    monkeypatch.setattr(builder, "build", observe_build)
+
+    def progress(current_item, processed, total, *, phase):
+        # Reproduce the historical inherited read-only parent transaction. The
+        # service must close it before and between CPU-only build segments.
+        assert parent.scalar(text("SELECT count(*) FROM setup_build_probe")) == 1
+        checkpoints.append((current_item, processed, total, phase))
+
+    cancellation_checks = iter((False, False, False, False, False, True))
+    service = SetupLifecycleSnapshotCaptureService(
+        loader=Loader(),
+        builder=builder,
+        repository=Repository(),
+    )
+    try:
+        with pytest.raises(SetupLifecycleCaptureCancelled, match="SETUP_CAPTURE_CANCELLED"):
+            service.capture_snapshots_for_run(
+                parent,
+                7,
+                market_cutoff=object(),
+                frozen_tickers=tuple(ticker.ticker for ticker in tickers),
+                should_cancel=lambda: next(cancellation_checks),
+                progress_callback=progress,
+            )
+        assert [(processed, phase) for _, processed, _, phase in checkpoints] == [
+            (0, "PREPARING"),
+            (25, "SETUP_INPUTS_BUILT"),
+            (50, "SETUP_INPUTS_BUILT"),
+            (75, "SETUP_INPUTS_BUILT"),
+            (100, "SETUP_INPUTS_BUILT"),
+        ]
+        assert all(total == 100 for _, _, total, _ in checkpoints)
+        assert not parent.in_transaction()
+        assert not parent.new and not parent.dirty and not parent.deleted
+    finally:
+        parent.close()
+        engine.dispose()
+
+
+def test_setup_build_boundary_refuses_pending_parent_financial_writes() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    parent = Session(engine)
+
+    class Loader:
+        def load_run_context(self, _read_db, _run_id, **_kwargs):
+            return SimpleNamespace(tickers=())
+
+    class Repository:
+        def canonical_snapshot_histories_before(self, _read_db, **_kwargs):
+            return {}
+
+    service = SetupLifecycleSnapshotCaptureService(loader=Loader(), repository=Repository())
+    parent.add(UploadRun(filename="pending-financial.csv", status="PENDING", row_count=0))
+    try:
+        with pytest.raises(RuntimeError, match="SETUP_BUILD_BOUNDARY_CONTAINS_PENDING_WRITES"):
+            service.capture_snapshots_for_run(
+                parent,
+                7,
+                market_cutoff=object(),
+                frozen_tickers=(),
+            )
+        assert parent.new
+    finally:
+        parent.rollback()
+        parent.close()
+        engine.dispose()
+
+
+def test_setup_capture_bounds_verification_and_confirms_on_publication_session(
+    monkeypatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE setup_verification_probe (id INTEGER PRIMARY KEY)"))
+        connection.execute(text("INSERT INTO setup_verification_probe (id) VALUES (1)"))
+
+    parent = Session(engine)
+    observed: dict[str, object] = {"closed_segments": 0}
+
+    class Loader:
+        def load_run_context(self, read_db, _run_id, **_kwargs):
+            assert read_db is not parent
+            return SimpleNamespace(tickers=())
+
+    class Repository:
+        def canonical_snapshot_histories_before(self, _read_db, **_kwargs):
+            return {}
+
+    class VerificationComplete(RuntimeError):
+        pass
+
+    certificate = SimpleNamespace(authority_fingerprint="verified")
+
+    def verify(verification_db, *, checkpoint_callback, **_kwargs):
+        assert verification_db is not parent
+        observed["verification_db"] = verification_db
+        checkpoint_count = 0
+        for index in range(5, 101, 5):
+            count = verification_db.scalar(text("SELECT count(*) FROM setup_verification_probe"))
+            assert count == 1
+            assert verification_db.in_transaction()
+            checkpoint_callback(
+                phase="TEST_VERIFICATION",
+                processed=index,
+                total=100,
+                current_item=str(index),
+            )
+            assert not verification_db.in_transaction()
+            checkpoint_count += 1
+            observed["closed_segments"] = checkpoint_count
+        return certificate
+
+    def confirm(confirm_db, *, verified):
+        assert confirm_db is parent
+        assert verified is certificate
+        assert not parent.in_transaction()
+        observed["confirmed"] = True
+        raise VerificationComplete
+
+    monkeypatch.setattr(
+        "app.services.transition_preflight_plan_service."
+        "verify_transition_decision_manifests_before_mutation",
+        verify,
+    )
+    monkeypatch.setattr(
+        "app.services.transition_preflight_plan_service."
+        "confirm_transition_decision_verification_before_mutation",
+        confirm,
+    )
+    service = SetupLifecycleSnapshotCaptureService(
+        loader=Loader(),
+        repository=Repository(),
+    )
+    try:
+        with pytest.raises(VerificationComplete):
+            service.capture_snapshots_for_run(
+                parent,
+                7,
+                market_cutoff=object(),
+                frozen_tickers=(),
+            )
+        assert observed["closed_segments"] == 20
+        assert observed["confirmed"] is True
+        assert not parent.in_transaction()
+    finally:
+        parent.close()
+        engine.dispose()
 
 
 def test_snapshot_builder_normalizes_promoted_fields_signals_and_source_ids() -> None:

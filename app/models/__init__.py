@@ -46,15 +46,19 @@ from app.models.ib_market_intelligence_tables import (
 )
 from app.models.tables import (
     CombinedResult,
+    ConsumerEligibilityDecisionRecord,
     CoreCalculationCurrentProjection,
     CoreCalculationEvidence,
     CoreCalculationEvidenceSource,
+    EligibilityShadowEvaluationRecord,
     EngineParameters,
     FundamentalScore,
     IBContract,
     IBFetchItem,
     IBFetchRun,
+    InstrumentLifecycleRecord,
     MarketCalculationContext,
+    MarketDataSessionDisposition,
     MarketRegimeSnapshot,
     PriceBar,
     PriceBarRevision,
@@ -69,6 +73,7 @@ from app.models.tables import (
     SignalChangeEvent,
     TechnicalScore,
     UploadRun,
+    WinnerAcquisitionDecisionRecord,
 )
 
 __all__ = [
@@ -98,10 +103,12 @@ __all__ = [
     "CeriSecSyncState",
     "CeriSourceRecord",
     "CombinedResult",
+    "ConsumerEligibilityDecisionRecord",
     "CoreCalculationCurrentProjection",
     "CoreCalculationEvidence",
     "CoreCalculationEvidenceSource",
     "EngineParameters",
+    "EligibilityShadowEvaluationRecord",
     "FundamentalScore",
     "IBContract",
     "IBExecutionFill",
@@ -121,6 +128,8 @@ __all__ = [
     "IBTradeResearchLink",
     "IBFetchItem",
     "IBFetchRun",
+    "InstrumentLifecycleRecord",
+    "MarketDataSessionDisposition",
     "MarketRegimeSnapshot",
     "MarketCalculationContext",
     "PriceBar",
@@ -136,4 +145,5 @@ __all__ = [
     "SignalChangeEvent",
     "TechnicalScore",
     "UploadRun",
+    "WinnerAcquisitionDecisionRecord",
 ]

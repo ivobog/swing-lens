@@ -1,0 +1,16 @@
+{
+  "schema": "swinglens.task-2.9.12q.financial-parity.v1",
+  "population": 100,
+  "comparison": "production-built Setup DTO projection before atomic publication versus persisted Setup snapshot projection after publication",
+  "excluded_fields": "only the existing non-financial Setup projection fields (current-pointer, canonicalization, lifecycle-derived, capture-time, and evidence-address columns)",
+  "prepared_financial_fingerprint": "7fe60a11e1cf527ce4bcbbff91175be6369689008d2b80906a40216054ea4bd9",
+  "published_financial_fingerprint": "7fe60a11e1cf527ce4bcbbff91175be6369689008d2b80906a40216054ea4bd9",
+  "equal": true,
+  "published_immutable_evidence_fingerprint": "0960cdcc67ee4ea5603608c490c3b97f12cfa62e0eb3741b269906d42b705cd9",
+  "authority_assertions_preserved": true,
+  "notes": [
+    "The full native financial recomputation executes in the bounded preparation Session.",
+    "The final transaction locks and revalidates exact native rows, PIT bars, immutable evidence, configuration, run/context, and decision handoff before mutation.",
+    "Raw cross-database evidence hashes from development runs are not compared because generated database IDs are intentionally nondeterministic."
+  ]
+}

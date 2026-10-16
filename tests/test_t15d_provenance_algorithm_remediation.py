@@ -162,6 +162,21 @@ def test_core_mixed_benchmark_effective_date_is_the_common_older_session() -> No
     assert service._snapshot_date(inputs, date(2026, 8, 4)) == date(2026, 8, 3)
 
 
+def test_bar_quality_marks_trailing_expected_session_missing() -> None:
+    frame = pd.DataFrame({"date": pd.to_datetime([date(2026, 10, 2), date(2026, 10, 5)])})
+
+    quality = _bar_quality_summary(
+        frame,
+        required_rows=2,
+        expected_session=date(2026, 10, 6),
+    )
+
+    assert quality["latest_observed_session"] == "2026-10-05"
+    assert quality["expected_session"] == "2026-10-06"
+    assert quality["missing_trading_sessions"] == ["2026-10-06"]
+    assert quality["session_complete"] is False
+
+
 def test_setup_capture_rejects_membership_drift_from_parent_frozen_scope() -> None:
     loader = SimpleNamespace(
         load_run_context=lambda *_args, **_kwargs: SimpleNamespace(

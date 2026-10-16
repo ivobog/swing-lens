@@ -252,6 +252,66 @@ def test_missing_security_definition_fails_once_with_typed_evidence(monkeypatch,
     assert item.decision_metadata_json["retryable"] is False
 
 
+def test_error_200_invalidates_cache_and_new_identity_requires_new_plan(monkeypatch) -> None:
+    invalidations = []
+    qualifications = []
+    monkeypatch.setattr(
+        executor,
+        "invalidate_cached_contract",
+        lambda _db, ticker, *, expected_conid, reason: (
+            invalidations.append((ticker, expected_conid, reason)) or True
+        ),
+    )
+
+    def requalify(_db, ticker, _ib, *, force_refresh=False):
+        qualifications.append((ticker, force_refresh))
+        return SimpleNamespace(contract=SimpleNamespace(conId=222, symbol=ticker))
+
+    monkeypatch.setattr(executor, "resolve_us_stock_contract", requalify)
+    fetch_item = IBFetchItem(
+        id=8,
+        fetch_run_id=3,
+        ticker="BLFS",
+        what_to_show="TRADES",
+        bar_size="1 day",
+        status="RUNNING",
+        decision_metadata_json={"provider_error_category": "CONTRACT_NOT_FOUND"},
+    )
+    attempts = set()
+
+    executor._invalidate_and_requalify_contract(
+        object(),
+        object(),
+        fetch_item,
+        _plan_item("BLFS", FetchAction.TOP_UP_RECENT, "10 D"),
+        failed_contract=SimpleNamespace(conId=111),
+        attempts=attempts,
+        provider_message="No security definition",
+    )
+
+    assert invalidations[0][:2] == ("BLFS", 111)
+    assert qualifications == [("BLFS", True)]
+    assert fetch_item.decision_metadata_json["contract_requalification"] == (
+        "NEW_IDENTITY_REQUIRES_NEW_PLAN"
+    )
+    assert fetch_item.decision_metadata_json["replacement_requires_new_acquisition_plan"] is True
+    assert fetch_item.decision_metadata_json["acquisition_plan_identity_retained"] is True
+
+    executor._invalidate_and_requalify_contract(
+        object(),
+        object(),
+        fetch_item,
+        _plan_item("BLFS", FetchAction.TOP_UP_RECENT, "10 D"),
+        failed_contract=SimpleNamespace(conId=111),
+        attempts=attempts,
+        provider_message="No security definition",
+    )
+    assert qualifications == [("BLFS", True)]
+    assert fetch_item.decision_metadata_json["contract_requalification"] == (
+        "BOUNDED_ALREADY_ATTEMPTED"
+    )
+
+
 def test_execute_fetch_plan_validates_scope_before_persisting(monkeypatch) -> None:
     db = FakeDb()
     fetch_kwargs = {}

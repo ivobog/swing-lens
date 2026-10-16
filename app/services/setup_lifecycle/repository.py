@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    CoreCalculationEvidence,
     SetupLifecycleAdministrativeAuditEvent,
     SetupLifecycleEpisode,
     SetupLifecycleEvaluationRun,
@@ -80,6 +81,55 @@ class PurgePreview:
     token: str
     counts: dict[str, int]
     target_ids: dict[str, tuple[int, ...]] = field(default_factory=dict)
+
+
+def _setup_source_evidence_ids(
+    dtos: list[SetupSignalSnapshotWrite] | tuple[SetupSignalSnapshotWrite, ...],
+) -> set[int]:
+    """Collect immutable evidence addresses consumed by one Setup batch."""
+
+    evidence_ids: set[int] = set()
+
+    def visit(value: Any, *, key: str | None = None) -> None:
+        if isinstance(value, dict):
+            for child_key, child in value.items():
+                visit(child, key=str(child_key))
+            return
+        if isinstance(value, (list, tuple)):
+            for child in value:
+                visit(child)
+            return
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and key is not None
+            and (key == "evidence_id" or key.endswith("_evidence_id"))
+        ):
+            evidence_ids.add(value)
+
+    for dto in dtos:
+        visit(dto.source_lineage)
+    return evidence_ids
+
+
+def _preallocate_setup_evidence_ids(db: Session, count: int) -> tuple[int | None, ...]:
+    """Reserve PostgreSQL identities so one Setup graph flush can stay atomic."""
+
+    if count <= 0:
+        return ()
+    if db.get_bind().dialect.name != "postgresql":
+        return (None,) * count
+    return tuple(
+        int(value)
+        for value in db.scalars(
+            text(
+                "select nextval(pg_get_serial_sequence("
+                "'core_calculation_evidence', 'id')) "
+                "from generate_series(1, :count)"
+            ),
+            {"count": count},
+        )
+    )
 
 
 def current_canonical_snapshot_predicate(snapshot_entity=SetupSignalSnapshot):
@@ -373,12 +423,32 @@ class SetupLifecycleRepository:
         *,
         progress_callback=None,
         should_cancel=None,
+        prepared_validations=None,
     ) -> list[SetupSignalSnapshot]:
         """Idempotently persist one capture batch without a lookup/savepoint per ticker."""
         if not dtos:
             return []
         for dto in dtos:
             self._validate_snapshot_write_scope(db, dto)
+
+        from app.services.setup_lifecycle.decision_evidence import (
+            lock_setup_publication_sources,
+        )
+
+        locked_publication_sources = lock_setup_publication_sources(db, dtos)
+
+        # Every writer below resolves the same immutable source envelopes by
+        # primary key. Retain one batch load strongly for the publication
+        # lifetime so SQLAlchemy's weak identity map cannot turn those exact
+        # validations into thousands of equivalent SELECTs at 100 members.
+        evidence_ids = _setup_source_evidence_ids(dtos)
+        prefetched_evidence = tuple(
+            db.scalars(
+                select(CoreCalculationEvidence)
+                .where(CoreCalculationEvidence.id.in_(tuple(evidence_ids)))
+                .with_for_update(read=True)
+            )
+        )
 
         run_ids = {dto.run_id for dto in dtos if dto.run_id is not None}
         includes_standalone = any(dto.run_id is None for dto in dtos)
@@ -452,19 +522,62 @@ class SetupLifecycleRepository:
         from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
 
         snapshots = list(by_identity.values())
-        for index, snapshot in enumerate(snapshots, start=1):
-            if should_cancel is not None and should_cancel():
-                from app.services.setup_lifecycle.snapshot_builder import (
-                    SetupLifecycleCaptureCancelled,
-                )
+        from app.services.core_mutation_authority import coalesced_core_writer_members
 
-                raise SetupLifecycleCaptureCancelled("SETUP_CAPTURE_CANCELLED")
-            if snapshot.evidence_id is None:
-                persist_setup_evidence(db, snapshot)
-            else:
-                validate_setup_projection(db, snapshot)
-            if progress_callback is not None:
-                progress_callback(snapshot.ticker, index, len(snapshots), phase="EVIDENCE")
+        prepared_by_ticker = {
+            ticker: validation for ticker, validation in (prepared_validations or ())
+        }
+        pending_evidence = [snapshot for snapshot in snapshots if snapshot.evidence_id is None]
+        preallocated_ids = _preallocate_setup_evidence_ids(db, len(pending_evidence))
+        preallocated_by_snapshot = {
+            id(snapshot): evidence_id
+            for snapshot, evidence_id in zip(pending_evidence, preallocated_ids, strict=True)
+        }
+        defer_graph_flush = bool(preallocated_ids) and all(
+            evidence_id is not None for evidence_id in preallocated_ids
+        )
+        deferred_projection_evidence = []
+        with db.no_autoflush, coalesced_core_writer_members(db):
+            for index, snapshot in enumerate(snapshots, start=1):
+                if should_cancel is not None and should_cancel():
+                    from app.services.setup_lifecycle.snapshot_builder import (
+                        SetupLifecycleCaptureCancelled,
+                    )
+
+                    raise SetupLifecycleCaptureCancelled("SETUP_CAPTURE_CANCELLED")
+                if snapshot.evidence_id is None:
+                    evidence = persist_setup_evidence(
+                        db,
+                        snapshot,
+                        prepared_validation=prepared_by_ticker.get(snapshot.ticker),
+                        preallocated_evidence_id=preallocated_by_snapshot.get(id(snapshot)),
+                        defer_graph_flush=defer_graph_flush,
+                    )
+                    if defer_graph_flush and evidence is not None:
+                        deferred_projection_evidence.append(evidence)
+                else:
+                    validate_setup_projection(db, snapshot)
+                if progress_callback is not None:
+                    progress_callback(snapshot.ticker, index, len(snapshots), phase="EVIDENCE")
+            if defer_graph_flush:
+                db.flush()
+                from app.services.core_calculation_evidence import _advance_current_projection
+                from app.services.core_mutation_authority import projection_mutation_context
+
+                for evidence in deferred_projection_evidence:
+                    _advance_current_projection(
+                        db,
+                        evidence,
+                        mutation_context=projection_mutation_context(evidence),
+                        defer_flush=True,
+                    )
+                db.flush()
+
+        # Keep the strong references alive through the final validation above.
+        # The expression also makes the intentional lifetime visible to static
+        # analyzers without changing persistence semantics.
+        _ = prefetched_evidence
+        _ = locked_publication_sources
 
         return [
             by_identity[

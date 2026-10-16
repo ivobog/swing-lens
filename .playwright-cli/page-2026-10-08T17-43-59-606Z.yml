@@ -1,0 +1,1044 @@
+- generic [active] [ref=f13e1]:
+  - link "Skip to main content" [ref=f13e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f13e3]:
+    - link "SwingLens" [ref=f13e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Primary navigation" [ref=f13e5]:
+      - link "Dashboard" [ref=f13e6] [cursor=pointer]:
+        - /url: /
+      - link "Runs" [ref=f13e7] [cursor=pointer]:
+        - /url: /runs
+      - link "Market Regime" [ref=f13e8] [cursor=pointer]:
+        - /url: /market-regime
+      - link "Market Changes" [ref=f13e9] [cursor=pointer]:
+        - /url: /setup-lifecycle
+      - link "Alerts" [ref=f13e10] [cursor=pointer]:
+        - /url: /setup-lifecycle/alerts
+      - link "CERI" [ref=f13e11] [cursor=pointer]:
+        - /url: /ceri
+      - link "CERI Ops" [ref=f13e12] [cursor=pointer]:
+        - /url: /ceri/operations
+      - link "History" [ref=f13e13] [cursor=pointer]:
+        - /url: /history
+      - link "Winner Evidence" [ref=f13e14] [cursor=pointer]:
+        - /url: /winner-probability/operations
+      - link "IB Gateway" [ref=f13e15] [cursor=pointer]:
+        - /url: /ib
+      - link "Scoring" [ref=f13e16] [cursor=pointer]:
+        - /url: /scoring
+      - link "Settings" [ref=f13e17] [cursor=pointer]:
+        - /url: /settings
+      - link "Operations" [ref=f13e18] [cursor=pointer]:
+        - /url: /system/operations
+      - link "Help" [ref=f13e19] [cursor=pointer]:
+        - /url: /help
+  - main [ref=f13e20]:
+    - generic [ref=f13e21]:
+      - generic [ref=f13e22]:
+        - generic [ref=f13e23]:
+          - heading "Winner Evidence - Run 30" [level=1] [ref=f13e24]
+          - paragraph [ref=f13e25]: Research-only probability evidence for the selected target-before-stop label. Stored rankings are not changed.
+        - generic [ref=f13e26]:
+          - link "Run detail" [ref=f13e27] [cursor=pointer]:
+            - /url: /runs/30
+          - link "CSV" [ref=f13e28] [cursor=pointer]:
+            - /url: /api/winner-probability/run/30/export.csv
+          - link "JSON" [ref=f13e29] [cursor=pointer]:
+            - /url: /api/winner-probability/run/30/export.json
+      - generic [ref=f13e30]:
+        - generic [ref=f13e31]: T2_5_S2_0_H5_NEXT_OPEN
+        - generic [ref=f13e32]: NEXT_OPEN
+        - generic [ref=f13e33]: 5 sessions, entry day is session 1
+        - generic [ref=f13e34]: DECISION_TIME
+      - note [ref=f13e35]:
+        - strong [ref=f13e36]: Research only.
+        - text: SwingLens surfaces winner probabilities, intervals, and model evidence evidence for local review; it does not place broker orders or provide execution instructions.
+      - generic "Evidence provenance" [ref=f13e37]:
+        - generic [ref=f13e38]: Evidence Decision Time
+        - generic [ref=f13e39]: Source cutoff row-level
+        - generic [ref=f13e40]: Freshness Model Calibrated
+        - generic [ref=f13e41]: Correction As Known
+        - generic [ref=f13e42]: Model row-level
+        - generic [ref=f13e43]: Confidence evidence_grade
+    - region "Winner evidence summary" [ref=f13e44]:
+      - generic [ref=f13e45]:
+        - generic [ref=f13e46]: Page rows
+        - strong [ref=f13e47]: "28"
+      - generic [ref=f13e48]:
+        - generic [ref=f13e49]: Filtered rows
+        - strong [ref=f13e50]: "28"
+      - generic [ref=f13e51]:
+        - generic [ref=f13e52]: Run rows
+        - strong [ref=f13e53]: "28"
+      - generic [ref=f13e54]:
+        - generic [ref=f13e55]: Estimates
+        - strong [ref=f13e56]: "28"
+      - generic [ref=f13e57]:
+        - generic [ref=f13e58]: Calibrated
+        - strong [ref=f13e59]: "0"
+      - generic [ref=f13e60]:
+        - generic [ref=f13e61]: Insufficient
+        - strong [ref=f13e62]: "28"
+      - generic [ref=f13e63]:
+        - generic [ref=f13e64]: Missing estimate
+        - strong [ref=f13e65]: "0"
+    - generic [ref=f13e66]:
+      - heading "Evidence Filters" [level=2] [ref=f13e69]
+      - generic [ref=f13e70]:
+        - generic [ref=f13e71]:
+          - generic [ref=f13e72]: Estimate view
+          - combobox "Estimate view" [ref=f13e73]:
+            - option "Decision time" [selected]
+            - option "Latest re-score"
+        - generic [ref=f13e74]:
+          - generic [ref=f13e75]: Sort
+          - combobox "Sort" [ref=f13e76]:
+            - option "Lower bound" [selected]
+            - option "Probability"
+            - option "Median return"
+            - option "Target-first rate"
+            - option "Ticker"
+        - generic [ref=f13e77]:
+          - generic [ref=f13e78]: Direction
+          - combobox "Direction" [ref=f13e79]:
+            - option "High to low" [selected]
+            - option "Low to high"
+        - generic [ref=f13e80]:
+          - generic [ref=f13e81]: Min probability
+          - spinbutton "Min probability" [ref=f13e82]
+        - generic [ref=f13e83]:
+          - generic [ref=f13e84]: Min lower bound
+          - spinbutton "Min lower bound" [ref=f13e85]
+        - generic [ref=f13e86]:
+          - generic [ref=f13e87]: Max interval
+          - spinbutton "Max interval" [ref=f13e88]
+        - generic [ref=f13e89]:
+          - generic [ref=f13e90]: Evidence grade
+          - combobox "Evidence grade" [ref=f13e91]:
+            - option "Any" [selected]
+            - option "High"
+            - option "Medium"
+            - option "Low"
+            - option "Insufficient"
+        - generic [ref=f13e92]:
+          - generic [ref=f13e93]: Min effective n
+          - spinbutton "Min effective n" [ref=f13e94]
+        - generic [ref=f13e95]:
+          - generic [ref=f13e96]: Min median return
+          - spinbutton "Min median return" [ref=f13e97]
+        - generic [ref=f13e98]:
+          - generic [ref=f13e99]: Min MFE
+          - spinbutton "Min MFE" [ref=f13e100]
+        - generic [ref=f13e101]:
+          - generic [ref=f13e102]: Max MAE
+          - spinbutton "Max MAE" [ref=f13e103]
+        - generic [ref=f13e104]:
+          - generic [ref=f13e105]: Min target-first
+          - spinbutton "Min target-first" [ref=f13e106]
+        - generic [ref=f13e107]:
+          - generic [ref=f13e108]: Earnings risk
+          - textbox "Earnings risk" [ref=f13e109]
+        - generic [ref=f13e110]:
+          - generic [ref=f13e111]: Market risk
+          - textbox "Market risk" [ref=f13e112]
+        - generic [ref=f13e113]:
+          - generic [ref=f13e114]: Sector state
+          - textbox "Sector state" [ref=f13e115]
+        - generic [ref=f13e116]:
+          - generic [ref=f13e117]: Data quality
+          - textbox "Data quality" [ref=f13e118]
+        - generic [ref=f13e119]:
+          - button "Apply" [ref=f13e120]
+          - link "Clear" [ref=f13e121] [cursor=pointer]:
+            - /url: /runs/30/winner-probability
+    - generic [ref=f13e122]:
+      - heading "Run Evidence" [level=2] [ref=f13e125]
+      - table [ref=f13e127]:
+        - caption [ref=f13e128]: Winner probability evidence for the selected run and estimate view.
+        - rowgroup [ref=f13e129]:
+          - row [ref=f13e130]:
+            - columnheader "Ticker" [ref=f13e131]
+            - columnheader "Rank / Score" [ref=f13e132]
+            - columnheader "Setup" [ref=f13e133]
+            - columnheader "Regime / Sector" [ref=f13e134]
+            - columnheader "Probability" [ref=f13e135]
+            - columnheader "Interval" [ref=f13e136]
+            - columnheader "Grade" [ref=f13e137]
+            - columnheader "Model" [ref=f13e138]
+            - columnheader "Calibration" [ref=f13e139]
+            - columnheader "n" [ref=f13e140]
+            - columnheader "Return" [ref=f13e141]
+            - columnheader "MFE / MAE" [ref=f13e142]
+            - columnheader "Target First" [ref=f13e143]
+            - columnheader "Training Cutoff" [ref=f13e144]
+            - columnheader "Evidence" [ref=f13e145]
+        - rowgroup [ref=f13e146]:
+          - row [ref=f13e147]:
+            - cell [ref=f13e148]:
+              - strong [ref=f13e149]: ADI
+            - cell "4 7.50" [ref=f13e150]:
+              - text: "4"
+              - generic [ref=f13e151]: "7.50"
+            - cell "Extended momentum" [ref=f13e152]
+            - cell "Bull trend sector unavailable" [ref=f13e153]:
+              - text: Bull trend
+              - generic [ref=f13e154]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e155]:
+              - strong [ref=f13e156]: Insufficient
+              - generic [ref=f13e157]: DECISION_TIME
+            - cell "Withheld" [ref=f13e158]
+            - cell "Insufficient" [ref=f13e160]
+            - cell "Unavailable Insufficient evidence" [ref=f13e162]:
+              - text: Unavailable
+              - generic [ref=f13e163]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e164]
+            - cell "0 eff 0" [ref=f13e165]:
+              - text: "0"
+              - generic [ref=f13e166]: eff 0
+            - cell [ref=f13e167]
+            - cell "/" [ref=f13e168]
+            - cell [ref=f13e169]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e170]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e171]:
+              - generic [ref=f13e172]: no_eligible_cohort
+              - generic [ref=f13e173]: missing_sector_rotation_context
+              - link "Open" [ref=f13e174] [cursor=pointer]:
+                - /url: /winner-probability/predictions/164
+          - row [ref=f13e175]:
+            - cell [ref=f13e176]:
+              - strong [ref=f13e177]: AME
+            - cell "12 7.81" [ref=f13e178]:
+              - text: "12"
+              - generic [ref=f13e179]: "7.81"
+            - cell "No trade" [ref=f13e180]
+            - cell "Bull trend sector unavailable" [ref=f13e181]:
+              - text: Bull trend
+              - generic [ref=f13e182]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e183]:
+              - strong [ref=f13e184]: Insufficient
+              - generic [ref=f13e185]: DECISION_TIME
+            - cell "Withheld" [ref=f13e186]
+            - cell "Insufficient" [ref=f13e188]
+            - cell "Unavailable Insufficient evidence" [ref=f13e190]:
+              - text: Unavailable
+              - generic [ref=f13e191]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e192]
+            - cell "0 eff 0" [ref=f13e193]:
+              - text: "0"
+              - generic [ref=f13e194]: eff 0
+            - cell [ref=f13e195]
+            - cell "/" [ref=f13e196]
+            - cell [ref=f13e197]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e198]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e199]:
+              - generic [ref=f13e200]: no_eligible_cohort
+              - generic [ref=f13e201]: missing_sector_rotation_context
+              - link "Open" [ref=f13e202] [cursor=pointer]:
+                - /url: /winner-probability/predictions/167
+          - row [ref=f13e203]:
+            - cell [ref=f13e204]:
+              - strong [ref=f13e205]: ASO
+            - cell "3 6.73" [ref=f13e206]:
+              - text: "3"
+              - generic [ref=f13e207]: "6.73"
+            - cell "Trend repair" [ref=f13e208]
+            - cell "Bull trend sector unavailable" [ref=f13e209]:
+              - text: Bull trend
+              - generic [ref=f13e210]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e211]:
+              - strong [ref=f13e212]: Insufficient
+              - generic [ref=f13e213]: DECISION_TIME
+            - cell "Withheld" [ref=f13e214]
+            - cell "Insufficient" [ref=f13e216]
+            - cell "Unavailable Insufficient evidence" [ref=f13e218]:
+              - text: Unavailable
+              - generic [ref=f13e219]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e220]
+            - cell "0 eff 0" [ref=f13e221]:
+              - text: "0"
+              - generic [ref=f13e222]: eff 0
+            - cell [ref=f13e223]
+            - cell "/" [ref=f13e224]
+            - cell [ref=f13e225]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e226]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e227]:
+              - generic [ref=f13e228]: no_eligible_cohort
+              - generic [ref=f13e229]: missing_sector_rotation_context
+              - link "Open" [ref=f13e230] [cursor=pointer]:
+                - /url: /winner-probability/predictions/151
+          - row [ref=f13e231]:
+            - cell [ref=f13e232]:
+              - strong [ref=f13e233]: BHE
+            - cell "18 6.88" [ref=f13e234]:
+              - text: "18"
+              - generic [ref=f13e235]: "6.88"
+            - cell "No trade" [ref=f13e236]
+            - cell "Bull trend sector unavailable" [ref=f13e237]:
+              - text: Bull trend
+              - generic [ref=f13e238]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e239]:
+              - strong [ref=f13e240]: Insufficient
+              - generic [ref=f13e241]: DECISION_TIME
+            - cell "Withheld" [ref=f13e242]
+            - cell "Insufficient" [ref=f13e244]
+            - cell "Unavailable Insufficient evidence" [ref=f13e246]:
+              - text: Unavailable
+              - generic [ref=f13e247]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e248]
+            - cell "0 eff 0" [ref=f13e249]:
+              - text: "0"
+              - generic [ref=f13e250]: eff 0
+            - cell [ref=f13e251]
+            - cell "/" [ref=f13e252]
+            - cell [ref=f13e253]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e254]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e255]:
+              - generic [ref=f13e256]: no_eligible_cohort
+              - generic [ref=f13e257]: missing_sector_rotation_context
+              - link "Open" [ref=f13e258] [cursor=pointer]:
+                - /url: /winner-probability/predictions/168
+          - row [ref=f13e259]:
+            - cell [ref=f13e260]:
+              - strong [ref=f13e261]: DT
+            - cell "12 7.17" [ref=f13e262]:
+              - text: "12"
+              - generic [ref=f13e263]: "7.17"
+            - cell "Extended momentum" [ref=f13e264]
+            - cell "Bull trend sector unavailable" [ref=f13e265]:
+              - text: Bull trend
+              - generic [ref=f13e266]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e267]:
+              - strong [ref=f13e268]: Insufficient
+              - generic [ref=f13e269]: DECISION_TIME
+            - cell "Withheld" [ref=f13e270]
+            - cell "Insufficient" [ref=f13e272]
+            - cell "Unavailable Insufficient evidence" [ref=f13e274]:
+              - text: Unavailable
+              - generic [ref=f13e275]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e276]
+            - cell "0 eff 0" [ref=f13e277]:
+              - text: "0"
+              - generic [ref=f13e278]: eff 0
+            - cell [ref=f13e279]
+            - cell "/" [ref=f13e280]
+            - cell [ref=f13e281]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e282]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e283]:
+              - generic [ref=f13e284]: no_eligible_cohort
+              - generic [ref=f13e285]: missing_sector_rotation_context
+              - link "Open" [ref=f13e286] [cursor=pointer]:
+                - /url: /winner-probability/predictions/157
+          - row [ref=f13e287]:
+            - cell [ref=f13e288]:
+              - strong [ref=f13e289]: ECG
+            - cell "14 7.71" [ref=f13e290]:
+              - text: "14"
+              - generic [ref=f13e291]: "7.71"
+            - cell "No trade" [ref=f13e292]
+            - cell "Bull trend sector unavailable" [ref=f13e293]:
+              - text: Bull trend
+              - generic [ref=f13e294]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e295]:
+              - strong [ref=f13e296]: Insufficient
+              - generic [ref=f13e297]: DECISION_TIME
+            - cell "Withheld" [ref=f13e298]
+            - cell "Insufficient" [ref=f13e300]
+            - cell "Unavailable Insufficient evidence" [ref=f13e302]:
+              - text: Unavailable
+              - generic [ref=f13e303]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e304]
+            - cell "0 eff 0" [ref=f13e305]:
+              - text: "0"
+              - generic [ref=f13e306]: eff 0
+            - cell [ref=f13e307]
+            - cell "/" [ref=f13e308]
+            - cell [ref=f13e309]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e310]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e311]:
+              - generic [ref=f13e312]: no_eligible_cohort
+              - generic [ref=f13e313]: missing_sector_rotation_context
+              - link "Open" [ref=f13e314] [cursor=pointer]:
+                - /url: /winner-probability/predictions/173
+          - row [ref=f13e315]:
+            - cell [ref=f13e316]:
+              - strong [ref=f13e317]: EME
+            - cell "18 7.48" [ref=f13e318]:
+              - text: "18"
+              - generic [ref=f13e319]: "7.48"
+            - cell "No trade" [ref=f13e320]
+            - cell "Bull trend sector unavailable" [ref=f13e321]:
+              - text: Bull trend
+              - generic [ref=f13e322]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e323]:
+              - strong [ref=f13e324]: Insufficient
+              - generic [ref=f13e325]: DECISION_TIME
+            - cell "Withheld" [ref=f13e326]
+            - cell "Insufficient" [ref=f13e328]
+            - cell "Unavailable Insufficient evidence" [ref=f13e330]:
+              - text: Unavailable
+              - generic [ref=f13e331]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e332]
+            - cell "0 eff 0" [ref=f13e333]:
+              - text: "0"
+              - generic [ref=f13e334]: eff 0
+            - cell [ref=f13e335]
+            - cell "/" [ref=f13e336]
+            - cell [ref=f13e337]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e338]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e339]:
+              - generic [ref=f13e340]: no_eligible_cohort
+              - generic [ref=f13e341]: missing_sector_rotation_context
+              - link "Open" [ref=f13e342] [cursor=pointer]:
+                - /url: /winner-probability/predictions/166
+          - row [ref=f13e343]:
+            - cell [ref=f13e344]:
+              - strong [ref=f13e345]: FLYW
+            - cell "17 7.50" [ref=f13e346]:
+              - text: "17"
+              - generic [ref=f13e347]: "7.50"
+            - cell "No trade" [ref=f13e348]
+            - cell "Bull trend sector unavailable" [ref=f13e349]:
+              - text: Bull trend
+              - generic [ref=f13e350]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e351]:
+              - strong [ref=f13e352]: Insufficient
+              - generic [ref=f13e353]: DECISION_TIME
+            - cell "Withheld" [ref=f13e354]
+            - cell "Insufficient" [ref=f13e356]
+            - cell "Unavailable Insufficient evidence" [ref=f13e358]:
+              - text: Unavailable
+              - generic [ref=f13e359]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e360]
+            - cell "0 eff 0" [ref=f13e361]:
+              - text: "0"
+              - generic [ref=f13e362]: eff 0
+            - cell [ref=f13e363]
+            - cell "/" [ref=f13e364]
+            - cell [ref=f13e365]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e366]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e367]:
+              - generic [ref=f13e368]: no_eligible_cohort
+              - generic [ref=f13e369]: missing_sector_rotation_context
+              - link "Open" [ref=f13e370] [cursor=pointer]:
+                - /url: /winner-probability/predictions/159
+          - row [ref=f13e371]:
+            - cell [ref=f13e372]:
+              - strong [ref=f13e373]: GAP
+            - cell "4 6.54" [ref=f13e374]:
+              - text: "4"
+              - generic [ref=f13e375]: "6.54"
+            - cell "Trend repair" [ref=f13e376]
+            - cell "Bull trend sector unavailable" [ref=f13e377]:
+              - text: Bull trend
+              - generic [ref=f13e378]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e379]:
+              - strong [ref=f13e380]: Insufficient
+              - generic [ref=f13e381]: DECISION_TIME
+            - cell "Withheld" [ref=f13e382]
+            - cell "Insufficient" [ref=f13e384]
+            - cell "Unavailable Insufficient evidence" [ref=f13e386]:
+              - text: Unavailable
+              - generic [ref=f13e387]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e388]
+            - cell "0 eff 0" [ref=f13e389]:
+              - text: "0"
+              - generic [ref=f13e390]: eff 0
+            - cell [ref=f13e391]
+            - cell "/" [ref=f13e392]
+            - cell [ref=f13e393]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e394]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e395]:
+              - generic [ref=f13e396]: no_eligible_cohort
+              - generic [ref=f13e397]: missing_sector_rotation_context
+              - link "Open" [ref=f13e398] [cursor=pointer]:
+                - /url: /winner-probability/predictions/150
+          - row [ref=f13e399]:
+            - cell [ref=f13e400]:
+              - strong [ref=f13e401]: GNRC
+            - cell "27 5.91" [ref=f13e402]:
+              - text: "27"
+              - generic [ref=f13e403]: "5.91"
+            - cell "Trend repair" [ref=f13e404]
+            - cell "Bull trend sector unavailable" [ref=f13e405]:
+              - text: Bull trend
+              - generic [ref=f13e406]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e407]:
+              - strong [ref=f13e408]: Insufficient
+              - generic [ref=f13e409]: DECISION_TIME
+            - cell "Withheld" [ref=f13e410]
+            - cell "Insufficient" [ref=f13e412]
+            - cell "Unavailable Insufficient evidence" [ref=f13e414]:
+              - text: Unavailable
+              - generic [ref=f13e415]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e416]
+            - cell "0 eff 0" [ref=f13e417]:
+              - text: "0"
+              - generic [ref=f13e418]: eff 0
+            - cell [ref=f13e419]
+            - cell "/" [ref=f13e420]
+            - cell [ref=f13e421]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e422]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e423]:
+              - generic [ref=f13e424]: no_eligible_cohort
+              - generic [ref=f13e425]: missing_sector_rotation_context
+              - link "Open" [ref=f13e426] [cursor=pointer]:
+                - /url: /winner-probability/predictions/162
+          - row [ref=f13e427]:
+            - cell [ref=f13e428]:
+              - strong [ref=f13e429]: KEX
+            - cell "24 7.33" [ref=f13e430]:
+              - text: "24"
+              - generic [ref=f13e431]: "7.33"
+            - cell "No trade" [ref=f13e432]
+            - cell "Bull trend sector unavailable" [ref=f13e433]:
+              - text: Bull trend
+              - generic [ref=f13e434]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e435]:
+              - strong [ref=f13e436]: Insufficient
+              - generic [ref=f13e437]: DECISION_TIME
+            - cell "Withheld" [ref=f13e438]
+            - cell "Insufficient" [ref=f13e440]
+            - cell "Unavailable Insufficient evidence" [ref=f13e442]:
+              - text: Unavailable
+              - generic [ref=f13e443]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e444]
+            - cell "0 eff 0" [ref=f13e445]:
+              - text: "0"
+              - generic [ref=f13e446]: eff 0
+            - cell [ref=f13e447]
+            - cell "/" [ref=f13e448]
+            - cell [ref=f13e449]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e450]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e451]:
+              - generic [ref=f13e452]: no_eligible_cohort
+              - generic [ref=f13e453]: missing_sector_rotation_context
+              - link "Open" [ref=f13e454] [cursor=pointer]:
+                - /url: /winner-probability/predictions/161
+          - row [ref=f13e455]:
+            - cell [ref=f13e456]:
+              - strong [ref=f13e457]: KN
+            - cell "22 7.23" [ref=f13e458]:
+              - text: "22"
+              - generic [ref=f13e459]: "7.23"
+            - cell "No trade" [ref=f13e460]
+            - cell "Bull trend sector unavailable" [ref=f13e461]:
+              - text: Bull trend
+              - generic [ref=f13e462]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e463]:
+              - strong [ref=f13e464]: Insufficient
+              - generic [ref=f13e465]: DECISION_TIME
+            - cell "Withheld" [ref=f13e466]
+            - cell "Insufficient" [ref=f13e468]
+            - cell "Unavailable Insufficient evidence" [ref=f13e470]:
+              - text: Unavailable
+              - generic [ref=f13e471]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e472]
+            - cell "0 eff 0" [ref=f13e473]:
+              - text: "0"
+              - generic [ref=f13e474]: eff 0
+            - cell [ref=f13e475]
+            - cell "/" [ref=f13e476]
+            - cell [ref=f13e477]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e478]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e479]:
+              - generic [ref=f13e480]: no_eligible_cohort
+              - generic [ref=f13e481]: missing_sector_rotation_context
+              - link "Open" [ref=f13e482] [cursor=pointer]:
+                - /url: /winner-probability/predictions/169
+          - row [ref=f13e483]:
+            - cell [ref=f13e484]:
+              - strong [ref=f13e485]: LSCC
+            - cell "21 6.35" [ref=f13e486]:
+              - text: "21"
+              - generic [ref=f13e487]: "6.35"
+            - cell "Trend repair" [ref=f13e488]
+            - cell "Bull trend sector unavailable" [ref=f13e489]:
+              - text: Bull trend
+              - generic [ref=f13e490]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e491]:
+              - strong [ref=f13e492]: Insufficient
+              - generic [ref=f13e493]: DECISION_TIME
+            - cell "Withheld" [ref=f13e494]
+            - cell "Insufficient" [ref=f13e496]
+            - cell "Unavailable Insufficient evidence" [ref=f13e498]:
+              - text: Unavailable
+              - generic [ref=f13e499]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e500]
+            - cell "0 eff 0" [ref=f13e501]:
+              - text: "0"
+              - generic [ref=f13e502]: eff 0
+            - cell [ref=f13e503]
+            - cell "/" [ref=f13e504]
+            - cell [ref=f13e505]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e506]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e507]:
+              - generic [ref=f13e508]: no_eligible_cohort
+              - generic [ref=f13e509]: missing_sector_rotation_context
+              - link "Open" [ref=f13e510] [cursor=pointer]:
+                - /url: /winner-probability/predictions/158
+          - row [ref=f13e511]:
+            - cell [ref=f13e512]:
+              - strong [ref=f13e513]: MPWR
+            - cell "10 6.22" [ref=f13e514]:
+              - text: "10"
+              - generic [ref=f13e515]: "6.22"
+            - cell "Trend repair" [ref=f13e516]
+            - cell "Bull trend sector unavailable" [ref=f13e517]:
+              - text: Bull trend
+              - generic [ref=f13e518]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e519]:
+              - strong [ref=f13e520]: Insufficient
+              - generic [ref=f13e521]: DECISION_TIME
+            - cell "Withheld" [ref=f13e522]
+            - cell "Insufficient" [ref=f13e524]
+            - cell "Unavailable Insufficient evidence" [ref=f13e526]:
+              - text: Unavailable
+              - generic [ref=f13e527]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e528]
+            - cell "0 eff 0" [ref=f13e529]:
+              - text: "0"
+              - generic [ref=f13e530]: eff 0
+            - cell [ref=f13e531]
+            - cell "/" [ref=f13e532]
+            - cell [ref=f13e533]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e534]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e535]:
+              - generic [ref=f13e536]: no_eligible_cohort
+              - generic [ref=f13e537]: missing_sector_rotation_context
+              - link "Open" [ref=f13e538] [cursor=pointer]:
+                - /url: /winner-probability/predictions/160
+          - row [ref=f13e539]:
+            - cell [ref=f13e540]:
+              - strong [ref=f13e541]: MSM
+            - cell "1 6.91" [ref=f13e542]:
+              - text: "1"
+              - generic [ref=f13e543]: "6.91"
+            - cell "Momentum continuation" [ref=f13e544]
+            - cell "Bull trend sector unavailable" [ref=f13e545]:
+              - text: Bull trend
+              - generic [ref=f13e546]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e547]:
+              - strong [ref=f13e548]: Insufficient
+              - generic [ref=f13e549]: DECISION_TIME
+            - cell "Withheld" [ref=f13e550]
+            - cell "Insufficient" [ref=f13e552]
+            - cell "Unavailable Insufficient evidence" [ref=f13e554]:
+              - text: Unavailable
+              - generic [ref=f13e555]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e556]
+            - cell "0 eff 0" [ref=f13e557]:
+              - text: "0"
+              - generic [ref=f13e558]: eff 0
+            - cell [ref=f13e559]
+            - cell "/" [ref=f13e560]
+            - cell [ref=f13e561]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e562]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e563]:
+              - generic [ref=f13e564]: no_eligible_cohort
+              - generic [ref=f13e565]: missing_sector_rotation_context
+              - link "Open" [ref=f13e566] [cursor=pointer]:
+                - /url: /winner-probability/predictions/163
+          - row [ref=f13e567]:
+            - cell [ref=f13e568]:
+              - strong [ref=f13e569]: NVT
+            - cell "10 7.88" [ref=f13e570]:
+              - text: "10"
+              - generic [ref=f13e571]: "7.88"
+            - cell "Filtered pullback" [ref=f13e572]
+            - cell "Bull trend sector unavailable" [ref=f13e573]:
+              - text: Bull trend
+              - generic [ref=f13e574]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e575]:
+              - strong [ref=f13e576]: Insufficient
+              - generic [ref=f13e577]: DECISION_TIME
+            - cell "Withheld" [ref=f13e578]
+            - cell "Insufficient" [ref=f13e580]
+            - cell "Unavailable Insufficient evidence" [ref=f13e582]:
+              - text: Unavailable
+              - generic [ref=f13e583]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e584]
+            - cell "0 eff 0" [ref=f13e585]:
+              - text: "0"
+              - generic [ref=f13e586]: eff 0
+            - cell [ref=f13e587]
+            - cell "/" [ref=f13e588]
+            - cell [ref=f13e589]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e590]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e591]:
+              - generic [ref=f13e592]: no_eligible_cohort
+              - generic [ref=f13e593]: missing_sector_rotation_context
+              - link "Open" [ref=f13e594] [cursor=pointer]:
+                - /url: /winner-probability/predictions/152
+          - row [ref=f13e595]:
+            - cell [ref=f13e596]:
+              - strong [ref=f13e597]: "ON"
+            - cell "23 7.21" [ref=f13e598]:
+              - text: "23"
+              - generic [ref=f13e599]: "7.21"
+            - cell "Trend repair" [ref=f13e600]
+            - cell "Bull trend sector unavailable" [ref=f13e601]:
+              - text: Bull trend
+              - generic [ref=f13e602]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e603]:
+              - strong [ref=f13e604]: Insufficient
+              - generic [ref=f13e605]: DECISION_TIME
+            - cell "Withheld" [ref=f13e606]
+            - cell "Insufficient" [ref=f13e608]
+            - cell "Unavailable Insufficient evidence" [ref=f13e610]:
+              - text: Unavailable
+              - generic [ref=f13e611]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e612]
+            - cell "0 eff 0" [ref=f13e613]:
+              - text: "0"
+              - generic [ref=f13e614]: eff 0
+            - cell [ref=f13e615]
+            - cell "/" [ref=f13e616]
+            - cell [ref=f13e617]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e618]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e619]:
+              - generic [ref=f13e620]: no_eligible_cohort
+              - generic [ref=f13e621]: missing_sector_rotation_context
+              - link "Open" [ref=f13e622] [cursor=pointer]:
+                - /url: /winner-probability/predictions/170
+          - row [ref=f13e623]:
+            - cell [ref=f13e624]:
+              - strong [ref=f13e625]: PGNY
+            - cell "16 7.64" [ref=f13e626]:
+              - text: "16"
+              - generic [ref=f13e627]: "7.64"
+            - cell "No trade" [ref=f13e628]
+            - cell "Bull trend sector unavailable" [ref=f13e629]:
+              - text: Bull trend
+              - generic [ref=f13e630]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e631]:
+              - strong [ref=f13e632]: Insufficient
+              - generic [ref=f13e633]: DECISION_TIME
+            - cell "Withheld" [ref=f13e634]
+            - cell "Insufficient" [ref=f13e636]
+            - cell "Unavailable Insufficient evidence" [ref=f13e638]:
+              - text: Unavailable
+              - generic [ref=f13e639]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e640]
+            - cell "0 eff 0" [ref=f13e641]:
+              - text: "0"
+              - generic [ref=f13e642]: eff 0
+            - cell [ref=f13e643]
+            - cell "/" [ref=f13e644]
+            - cell [ref=f13e645]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e646]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e647]:
+              - generic [ref=f13e648]: no_eligible_cohort
+              - generic [ref=f13e649]: missing_sector_rotation_context
+              - link "Open" [ref=f13e650] [cursor=pointer]:
+                - /url: /winner-probability/predictions/147
+          - row [ref=f13e651]:
+            - cell [ref=f13e652]:
+              - strong [ref=f13e653]: PSX
+            - cell "2 8.34" [ref=f13e654]:
+              - text: "2"
+              - generic [ref=f13e655]: "8.34"
+            - cell "Extended momentum" [ref=f13e656]
+            - cell "Bull trend sector unavailable" [ref=f13e657]:
+              - text: Bull trend
+              - generic [ref=f13e658]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e659]:
+              - strong [ref=f13e660]: Insufficient
+              - generic [ref=f13e661]: DECISION_TIME
+            - cell "Withheld" [ref=f13e662]
+            - cell "Insufficient" [ref=f13e664]
+            - cell "Unavailable Insufficient evidence" [ref=f13e666]:
+              - text: Unavailable
+              - generic [ref=f13e667]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e668]
+            - cell "0 eff 0" [ref=f13e669]:
+              - text: "0"
+              - generic [ref=f13e670]: eff 0
+            - cell [ref=f13e671]
+            - cell "/" [ref=f13e672]
+            - cell [ref=f13e673]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e674]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e675]:
+              - generic [ref=f13e676]: no_eligible_cohort
+              - generic [ref=f13e677]: missing_sector_rotation_context
+              - link "Open" [ref=f13e678] [cursor=pointer]:
+                - /url: /winner-probability/predictions/153
+          - row [ref=f13e679]:
+            - cell [ref=f13e680]:
+              - strong [ref=f13e681]: RMD
+            - cell "8 7.94" [ref=f13e682]:
+              - text: "8"
+              - generic [ref=f13e683]: "7.94"
+            - cell "No trade" [ref=f13e684]
+            - cell "Bull trend sector unavailable" [ref=f13e685]:
+              - text: Bull trend
+              - generic [ref=f13e686]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e687]:
+              - strong [ref=f13e688]: Insufficient
+              - generic [ref=f13e689]: DECISION_TIME
+            - cell "Withheld" [ref=f13e690]
+            - cell "Insufficient" [ref=f13e692]
+            - cell "Unavailable Insufficient evidence" [ref=f13e694]:
+              - text: Unavailable
+              - generic [ref=f13e695]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e696]
+            - cell "0 eff 0" [ref=f13e697]:
+              - text: "0"
+              - generic [ref=f13e698]: eff 0
+            - cell [ref=f13e699]
+            - cell "/" [ref=f13e700]
+            - cell [ref=f13e701]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e702]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e703]:
+              - generic [ref=f13e704]: no_eligible_cohort
+              - generic [ref=f13e705]: missing_sector_rotation_context
+              - link "Open" [ref=f13e706] [cursor=pointer]:
+                - /url: /winner-probability/predictions/148
+          - row [ref=f13e707]:
+            - cell [ref=f13e708]:
+              - strong [ref=f13e709]: SIG
+            - cell "5 6.51" [ref=f13e710]:
+              - text: "5"
+              - generic [ref=f13e711]: "6.51"
+            - cell "Momentum continuation" [ref=f13e712]
+            - cell "Bull trend sector unavailable" [ref=f13e713]:
+              - text: Bull trend
+              - generic [ref=f13e714]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e715]:
+              - strong [ref=f13e716]: Insufficient
+              - generic [ref=f13e717]: DECISION_TIME
+            - cell "Withheld" [ref=f13e718]
+            - cell "Insufficient" [ref=f13e720]
+            - cell "Unavailable Insufficient evidence" [ref=f13e722]:
+              - text: Unavailable
+              - generic [ref=f13e723]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e724]
+            - cell "0 eff 0" [ref=f13e725]:
+              - text: "0"
+              - generic [ref=f13e726]: eff 0
+            - cell [ref=f13e727]
+            - cell "/" [ref=f13e728]
+            - cell [ref=f13e729]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e730]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e731]:
+              - generic [ref=f13e732]: no_eligible_cohort
+              - generic [ref=f13e733]: missing_sector_rotation_context
+              - link "Open" [ref=f13e734] [cursor=pointer]:
+                - /url: /winner-probability/predictions/149
+          - row [ref=f13e735]:
+            - cell [ref=f13e736]:
+              - strong [ref=f13e737]: SN
+            - cell "2 8.37" [ref=f13e738]:
+              - text: "2"
+              - generic [ref=f13e739]: "8.37"
+            - cell "Momentum continuation" [ref=f13e740]
+            - cell "Bull trend sector unavailable" [ref=f13e741]:
+              - text: Bull trend
+              - generic [ref=f13e742]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e743]:
+              - strong [ref=f13e744]: Insufficient
+              - generic [ref=f13e745]: DECISION_TIME
+            - cell "Withheld" [ref=f13e746]
+            - cell "Insufficient" [ref=f13e748]
+            - cell "Unavailable Insufficient evidence" [ref=f13e750]:
+              - text: Unavailable
+              - generic [ref=f13e751]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e752]
+            - cell "0 eff 0" [ref=f13e753]:
+              - text: "0"
+              - generic [ref=f13e754]: eff 0
+            - cell [ref=f13e755]
+            - cell "/" [ref=f13e756]
+            - cell [ref=f13e757]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e758]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e759]:
+              - generic [ref=f13e760]: no_eligible_cohort
+              - generic [ref=f13e761]: missing_sector_rotation_context
+              - link "Open" [ref=f13e762] [cursor=pointer]:
+                - /url: /winner-probability/predictions/146
+          - row [ref=f13e763]:
+            - cell [ref=f13e764]:
+              - strong [ref=f13e765]: STNG
+            - cell "1 8.95" [ref=f13e766]:
+              - text: "1"
+              - generic [ref=f13e767]: "8.95"
+            - cell "No trade" [ref=f13e768]
+            - cell "Bull trend sector unavailable" [ref=f13e769]:
+              - text: Bull trend
+              - generic [ref=f13e770]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e771]:
+              - strong [ref=f13e772]: Insufficient
+              - generic [ref=f13e773]: DECISION_TIME
+            - cell "Withheld" [ref=f13e774]
+            - cell "Insufficient" [ref=f13e776]
+            - cell "Unavailable Insufficient evidence" [ref=f13e778]:
+              - text: Unavailable
+              - generic [ref=f13e779]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e780]
+            - cell "0 eff 0" [ref=f13e781]:
+              - text: "0"
+              - generic [ref=f13e782]: eff 0
+            - cell [ref=f13e783]
+            - cell "/" [ref=f13e784]
+            - cell [ref=f13e785]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e786]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e787]:
+              - generic [ref=f13e788]: no_eligible_cohort
+              - generic [ref=f13e789]: missing_sector_rotation_context
+              - link "Open" [ref=f13e790] [cursor=pointer]:
+                - /url: /winner-probability/predictions/172
+          - row [ref=f13e791]:
+            - cell [ref=f13e792]:
+              - strong [ref=f13e793]: TXN
+            - cell "5 8.07" [ref=f13e794]:
+              - text: "5"
+              - generic [ref=f13e795]: "8.07"
+            - cell "No trade" [ref=f13e796]
+            - cell "Bull trend sector unavailable" [ref=f13e797]:
+              - text: Bull trend
+              - generic [ref=f13e798]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e799]:
+              - strong [ref=f13e800]: Insufficient
+              - generic [ref=f13e801]: DECISION_TIME
+            - cell "Withheld" [ref=f13e802]
+            - cell "Insufficient" [ref=f13e804]
+            - cell "Unavailable Insufficient evidence" [ref=f13e806]:
+              - text: Unavailable
+              - generic [ref=f13e807]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e808]
+            - cell "0 eff 0" [ref=f13e809]:
+              - text: "0"
+              - generic [ref=f13e810]: eff 0
+            - cell [ref=f13e811]
+            - cell "/" [ref=f13e812]
+            - cell [ref=f13e813]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e814]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e815]:
+              - generic [ref=f13e816]: no_eligible_cohort
+              - generic [ref=f13e817]: missing_sector_rotation_context
+              - link "Open" [ref=f13e818] [cursor=pointer]:
+                - /url: /winner-probability/predictions/165
+          - row [ref=f13e819]:
+            - cell [ref=f13e820]:
+              - strong [ref=f13e821]: VEEV
+            - cell "4 8.22" [ref=f13e822]:
+              - text: "4"
+              - generic [ref=f13e823]: "8.22"
+            - cell "Extended momentum" [ref=f13e824]
+            - cell "Bull trend sector unavailable" [ref=f13e825]:
+              - text: Bull trend
+              - generic [ref=f13e826]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e827]:
+              - strong [ref=f13e828]: Insufficient
+              - generic [ref=f13e829]: DECISION_TIME
+            - cell "Withheld" [ref=f13e830]
+            - cell "Insufficient" [ref=f13e832]
+            - cell "Unavailable Insufficient evidence" [ref=f13e834]:
+              - text: Unavailable
+              - generic [ref=f13e835]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e836]
+            - cell "0 eff 0" [ref=f13e837]:
+              - text: "0"
+              - generic [ref=f13e838]: eff 0
+            - cell [ref=f13e839]
+            - cell "/" [ref=f13e840]
+            - cell [ref=f13e841]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e842]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e843]:
+              - generic [ref=f13e844]: no_eligible_cohort
+              - generic [ref=f13e845]: missing_sector_rotation_context
+              - link "Open" [ref=f13e846] [cursor=pointer]:
+                - /url: /winner-probability/predictions/156
+          - row [ref=f13e847]:
+            - cell [ref=f13e848]:
+              - strong [ref=f13e849]: WSM
+            - cell "3 8.34" [ref=f13e850]:
+              - text: "3"
+              - generic [ref=f13e851]: "8.34"
+            - cell "Filtered pullback" [ref=f13e852]
+            - cell "Bull trend sector unavailable" [ref=f13e853]:
+              - text: Bull trend
+              - generic [ref=f13e854]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e855]:
+              - strong [ref=f13e856]: Insufficient
+              - generic [ref=f13e857]: DECISION_TIME
+            - cell "Withheld" [ref=f13e858]
+            - cell "Insufficient" [ref=f13e860]
+            - cell "Unavailable Insufficient evidence" [ref=f13e862]:
+              - text: Unavailable
+              - generic [ref=f13e863]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e864]
+            - cell "0 eff 0" [ref=f13e865]:
+              - text: "0"
+              - generic [ref=f13e866]: eff 0
+            - cell [ref=f13e867]
+            - cell "/" [ref=f13e868]
+            - cell [ref=f13e869]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e870]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e871]:
+              - generic [ref=f13e872]: no_eligible_cohort
+              - generic [ref=f13e873]: missing_sector_rotation_context
+              - link "Open" [ref=f13e874] [cursor=pointer]:
+                - /url: /winner-probability/predictions/155
+          - row [ref=f13e875]:
+            - cell [ref=f13e876]:
+              - strong [ref=f13e877]: WST
+            - cell "5 8.06" [ref=f13e878]:
+              - text: "5"
+              - generic [ref=f13e879]: "8.06"
+            - cell "Filtered pullback" [ref=f13e880]
+            - cell "Bull trend sector unavailable" [ref=f13e881]:
+              - text: Bull trend
+              - generic [ref=f13e882]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e883]:
+              - strong [ref=f13e884]: Insufficient
+              - generic [ref=f13e885]: DECISION_TIME
+            - cell "Withheld" [ref=f13e886]
+            - cell "Insufficient" [ref=f13e888]
+            - cell "Unavailable Insufficient evidence" [ref=f13e890]:
+              - text: Unavailable
+              - generic [ref=f13e891]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e892]
+            - cell "0 eff 0" [ref=f13e893]:
+              - text: "0"
+              - generic [ref=f13e894]: eff 0
+            - cell [ref=f13e895]
+            - cell "/" [ref=f13e896]
+            - cell [ref=f13e897]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e898]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e899]:
+              - generic [ref=f13e900]: no_eligible_cohort
+              - generic [ref=f13e901]: missing_sector_rotation_context
+              - link "Open" [ref=f13e902] [cursor=pointer]:
+                - /url: /winner-probability/predictions/171
+          - row [ref=f13e903]:
+            - cell [ref=f13e904]:
+              - strong [ref=f13e905]: XOM
+            - cell "7 7.35" [ref=f13e906]:
+              - text: "7"
+              - generic [ref=f13e907]: "7.35"
+            - cell "Filtered pullback" [ref=f13e908]
+            - cell "Bull trend sector unavailable" [ref=f13e909]:
+              - text: Bull trend
+              - generic [ref=f13e910]: sector unavailable
+            - cell "Insufficient DECISION_TIME" [ref=f13e911]:
+              - strong [ref=f13e912]: Insufficient
+              - generic [ref=f13e913]: DECISION_TIME
+            - cell "Withheld" [ref=f13e914]
+            - cell "Insufficient" [ref=f13e916]
+            - cell "Unavailable Insufficient evidence" [ref=f13e918]:
+              - text: Unavailable
+              - generic [ref=f13e919]: Insufficient evidence
+            - cell "not_applicable" [ref=f13e920]
+            - cell "0 eff 0" [ref=f13e921]:
+              - text: "0"
+              - generic [ref=f13e922]: eff 0
+            - cell [ref=f13e923]
+            - cell "/" [ref=f13e924]
+            - cell [ref=f13e925]
+            - cell "2026-10-08T12:30:25.712222+02:00" [ref=f13e926]
+            - cell "no_eligible_cohort missing_sector_rotation_context Open" [ref=f13e927]:
+              - generic [ref=f13e928]: no_eligible_cohort
+              - generic [ref=f13e929]: missing_sector_rotation_context
+              - link "Open" [ref=f13e930] [cursor=pointer]:
+                - /url: /winner-probability/predictions/154

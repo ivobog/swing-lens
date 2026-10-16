@@ -1,0 +1,50 @@
+- generic [active] [ref=f7e1]:
+  - link "Skip to main content" [ref=f7e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f7e3]:
+    - link "SwingLens" [ref=f7e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Primary navigation" [ref=f7e5]:
+      - link "Dashboard" [ref=f7e6] [cursor=pointer]:
+        - /url: /
+      - link "Runs" [ref=f7e7] [cursor=pointer]:
+        - /url: /runs
+      - link "Market Regime" [ref=f7e8] [cursor=pointer]:
+        - /url: /market-regime
+      - link "Market Changes" [ref=f7e9] [cursor=pointer]:
+        - /url: /setup-lifecycle
+      - link "Alerts" [ref=f7e10] [cursor=pointer]:
+        - /url: /setup-lifecycle/alerts
+      - link "CERI" [ref=f7e11] [cursor=pointer]:
+        - /url: /ceri
+      - link "CERI Ops" [ref=f7e12] [cursor=pointer]:
+        - /url: /ceri/operations
+      - link "History" [ref=f7e13] [cursor=pointer]:
+        - /url: /history
+      - link "Winner Evidence" [ref=f7e14] [cursor=pointer]:
+        - /url: /winner-probability/operations
+      - link "IB Gateway" [ref=f7e15] [cursor=pointer]:
+        - /url: /ib
+      - link "Scoring" [ref=f7e16] [cursor=pointer]:
+        - /url: /scoring
+      - link "Settings" [ref=f7e17] [cursor=pointer]:
+        - /url: /settings
+      - link "Operations" [ref=f7e18] [cursor=pointer]:
+        - /url: /system/operations
+      - link "Help" [ref=f7e19] [cursor=pointer]:
+        - /url: /help
+  - main [ref=f7e20]:
+    - generic [ref=f7e21]:
+      - generic [ref=f7e22]:
+        - generic [ref=f7e23]:
+          - heading [level=1]
+          - paragraph [ref=f7e24]: Point-in-time catalyst, revision, confidence, and provenance detail. Structured evidence suggests what to inspect next.
+        - generic [ref=f7e25]:
+          - link "Dashboard" [ref=f7e26] [cursor=pointer]:
+            - /url: /ceri
+          - link "Changes" [ref=f7e27] [cursor=pointer]:
+            - /url: /ceri/changes?ticker=
+          - link "CSV" [ref=f7e28] [cursor=pointer]:
+            - /url: /ceri/export.csv?ticker=
+      - generic [ref=f7e29]: "TICKER_NOT_FOUND: CERI ticker was not found: SWINGLENS_NOT_REAL_404"
+    - strong [ref=f7e32]: No ticker detail could be loaded.

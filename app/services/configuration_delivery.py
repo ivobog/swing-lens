@@ -226,13 +226,28 @@ def validate_anchor(anchor):
         raise ValueError("CONFIGURATION_ANCHOR_INTEGRITY_MISMATCH")
 
 
-def load_configuration_delivery(db, anchor, *, expected_anchor=None, resolution_hash=None):
+def load_configuration_delivery(
+    db,
+    anchor,
+    *,
+    expected_anchor=None,
+    resolution_hash=None,
+    retain_for_transaction: bool = False,
+):
     if expected_anchor is not None and anchor != expected_anchor:
         raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
     reference = anchor
     if not isinstance(reference, dict) or set(reference) != {"anchor_id", "fingerprint"}:
         raise ValueError("MISSING_CONFIGURATION_ANCHOR")
-    retained = db.get(ExecutionConfigurationAnchor, reference["anchor_id"])
+    retained = (
+        db.scalar(
+            select(ExecutionConfigurationAnchor)
+            .where(ExecutionConfigurationAnchor.anchor_id == reference["anchor_id"])
+            .with_for_update(read=True)
+        )
+        if retain_for_transaction and isinstance(db, Session)
+        else db.get(ExecutionConfigurationAnchor, reference["anchor_id"])
+    )
     if retained is None or retained.fingerprint != reference["fingerprint"]:
         raise ValueError("MISSING_OR_MISMATCHED_CONFIGURATION_ANCHOR")
     anchor = retained.payload_json
@@ -257,11 +272,12 @@ def load_configuration_delivery(db, anchor, *, expected_anchor=None, resolution_
     record_ids = {ref["record"] for ref in references.values()}
     rows = prefetched_source_rows(db, EffectiveConfigurationRecord, record_ids)
     if rows is None:
-        rows = db.scalars(
-            select(EffectiveConfigurationRecord).where(
-                EffectiveConfigurationRecord.resolution_hash.in_(record_ids)
-            )
-        ).all()
+        statement = select(EffectiveConfigurationRecord).where(
+            EffectiveConfigurationRecord.resolution_hash.in_(record_ids)
+        )
+        if retain_for_transaction and isinstance(db, Session):
+            statement = statement.with_for_update(read=True)
+        rows = db.scalars(statement).all()
     by_hash = {row.resolution_hash: row for row in rows}
     configs = {}
     for namespace, ref in references.items():
@@ -291,7 +307,14 @@ def load_configuration_delivery(db, anchor, *, expected_anchor=None, resolution_
     return ConfigurationDelivery(Canonical.canonicalize(reference), MappingProxyType(configs))
 
 
-def binding_reference(db, *, job_id=None, pipeline_run_id=None, winner_cohort_generation_id=None):
+def binding_reference(
+    db,
+    *,
+    job_id=None,
+    pipeline_run_id=None,
+    winner_cohort_generation_id=None,
+    retain_for_transaction: bool = False,
+):
     if winner_cohort_generation_id is not None:
         key = "winner-generation:" + str(winner_cohort_generation_id)
     else:
@@ -299,18 +322,41 @@ def binding_reference(db, *, job_id=None, pipeline_run_id=None, winner_cohort_ge
     transaction = db.get_transaction() if isinstance(db, Session) else None
     cache = db.info.setdefault("configuration_binding_reference_cache", {}) if transaction else {}
     cached = cache.get(key)
-    if cached is not None and cached[0] is transaction:
+    cached_retained = bool(cached[2]) if cached is not None and len(cached) > 2 else False
+    if (
+        cached is not None
+        and cached[0] is transaction
+        and (cached_retained or not retain_for_transaction)
+    ):
         return dict(cached[1])
     from app.services.source_mutation_authority import prefetched_source_rows
 
     rows = prefetched_source_rows(db, ExecutionConfigurationBinding, [key])
-    binding = rows[0] if rows is not None else db.get(ExecutionConfigurationBinding, key)
+    binding = rows[0] if rows is not None else None
+    if binding is None:
+        binding = (
+            db.scalar(
+                select(ExecutionConfigurationBinding)
+                .where(ExecutionConfigurationBinding.binding_key == key)
+                .with_for_update(read=True)
+            )
+            if retain_for_transaction and isinstance(db, Session)
+            else db.get(ExecutionConfigurationBinding, key)
+        )
     if binding is None:
         raise ValueError("MISSING_CONFIGURATION_ANCHOR_BINDING")
     rows = prefetched_source_rows(db, ExecutionConfigurationAnchor, [binding.anchor_id])
-    anchor = (
-        rows[0] if rows is not None else db.get(ExecutionConfigurationAnchor, binding.anchor_id)
-    )
+    anchor = rows[0] if rows is not None else None
+    if anchor is None:
+        anchor = (
+            db.scalar(
+                select(ExecutionConfigurationAnchor)
+                .where(ExecutionConfigurationAnchor.anchor_id == binding.anchor_id)
+                .with_for_update(read=True)
+            )
+            if retain_for_transaction and isinstance(db, Session)
+            else db.get(ExecutionConfigurationAnchor, binding.anchor_id)
+        )
     if (
         anchor is None
         or binding.job_id != job_id
@@ -320,8 +366,57 @@ def binding_reference(db, *, job_id=None, pipeline_run_id=None, winner_cohort_ge
         raise ValueError("CONFIGURATION_ANCHOR_BINDING_MISMATCH")
     reference = {"anchor_id": anchor.anchor_id, "fingerprint": anchor.fingerprint}
     if transaction is not None:
-        cache[key] = (transaction, reference)
+        cache[key] = (transaction, reference, retain_for_transaction)
     return dict(reference)
+
+
+def retained_configuration_delivery(
+    db: Session,
+    *,
+    job_id=None,
+    pipeline_run_id=None,
+    winner_cohort_generation_id=None,
+    resolution_hash=None,
+) -> ConfigurationDelivery:
+    """Validate one frozen delivery once under transaction-retained row locks.
+
+    Financial writers commonly validate the same pipeline configuration for a
+    batch of members.  The binding, anchor and exact configuration record are
+    immutable authority, so one PostgreSQL ``FOR SHARE`` read per transaction
+    is equivalent to decoding the same rows for every member while also
+    preventing a concurrent authority rewrite before commit.
+    """
+
+    transaction = db.get_transaction()
+    if transaction is None:
+        raise ValueError("CONFIGURATION_VALIDATION_TRANSACTION_REQUIRED")
+    owner = (
+        ("winner_cohort_generation_id", winner_cohort_generation_id)
+        if winner_cohort_generation_id is not None
+        else ("job_id", job_id)
+        if job_id is not None
+        else ("pipeline_run_id", pipeline_run_id)
+    )
+    cache_key = (owner, resolution_hash)
+    cache = db.info.setdefault("retained_configuration_delivery_cache", {})
+    cached = cache.get(cache_key)
+    if cached is not None and cached[0] is transaction:
+        return cached[1]
+    reference = binding_reference(
+        db,
+        job_id=job_id,
+        pipeline_run_id=pipeline_run_id,
+        winner_cohort_generation_id=winner_cohort_generation_id,
+        retain_for_transaction=True,
+    )
+    delivery = load_configuration_delivery(
+        db,
+        reference,
+        resolution_hash=resolution_hash,
+        retain_for_transaction=True,
+    )
+    cache[cache_key] = (transaction, delivery)
+    return delivery
 
 
 def execution_configuration_reference(db, job, *, _seen=None):

@@ -1,0 +1,127 @@
+{
+  "task": "2.9.12h",
+  "verdict": "PASS",
+  "task_timing": {
+    "start": "2026-10-14T21:23:56.0033489+02:00",
+    "finish": "2026-10-14T21:29:57.1332593+02:00",
+    "elapsed_seconds": 361.1299104,
+    "budget_seconds": 1500,
+    "within_budget": true
+  },
+  "retained_failure": {
+    "task": "2.9.12g",
+    "assertion": "committed == 4",
+    "actual_normalized_memberships": 0,
+    "expected_normalized_memberships": 4,
+    "transaction_closed_before_observation": true,
+    "seeder_xact_start_was_null": true,
+    "seeder_idle_in_transaction": false
+  },
+  "root_cause": {
+    "classification": "FIXTURE_IDENTITY_PREREQUISITE_MISSING",
+    "production_defect": false,
+    "expected_four": [
+      "eodhd/estimates/<ticker>-eps-90d",
+      "eodhd/estimates/<ticker>-eps-30d",
+      "eodhd/estimates/<ticker>-eps-7d",
+      "eodhd/estimates/<ticker>-eps-current"
+    ],
+    "explanation": "The focused fixture persisted raw upload rows but no matching CeriCompany identities. CeriIdentityResolver therefore resolved no company, set identity_unresolved, and CeriNormalizationService moved each membership to terminal REJECTED without creating a CeriEstimateSnapshot. The previous helper asserted only failed == 0; identity rejection is counted as quarantined, so the partial normalization result was not rejected before CeriProcessingRunService.finish was called with COMPLETED.",
+    "normalization_states": [
+      "PENDING",
+      "NORMALIZED",
+      "REUSED",
+      "QUARANTINED",
+      "REJECTED"
+    ],
+    "normalized_evidence_table": "ceri_estimate_snapshots"
+  },
+  "correction": {
+    "scope": "fixture only",
+    "production_source_changed": false,
+    "company_identity": {
+      "exchange": "US",
+      "provider": "eodhd",
+      "provider_company_id_pattern": "<TICKER>.US"
+    },
+    "per_ticker_transaction_preserved": true,
+    "strict_normalization_assertions": {
+      "status": "COMPLETED",
+      "read": 4,
+      "normalized": 4,
+      "quarantined": 0,
+      "failed": 0
+    }
+  },
+  "focused_certification": {
+    "invocations": 1,
+    "node": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_retained_provider_history_closes_transactions_between_100_members",
+    "result": "PASS",
+    "pytest_reported_seconds": 52.14,
+    "junit_suite_seconds": 52.126,
+    "testcase_seconds": 51.751,
+    "members": 100,
+    "per_ticker_commits": 100,
+    "per_ticker_session_closures": 100,
+    "source_memberships": 400,
+    "normalized_memberships": 400,
+    "source_records": 400,
+    "estimate_snapshots": 400,
+    "completed_ingestion_runs": 100,
+    "completed_processing_runs": 100,
+    "ceri_companies": 100,
+    "duplicate_raw_tickers": 0,
+    "duplicate_memberships": 0,
+    "cross_ticker_memberships": 0,
+    "orphan_memberships": 0,
+    "orphan_estimates": 0,
+    "incomplete_processing_runs": 0,
+    "pipeline_runs": 0,
+    "market_calculation_contexts": 0,
+    "execution_configuration_anchors": 0,
+    "raw_fingerprint_matched": true,
+    "scope_membership_fingerprint_matched": true,
+    "source_identity_fingerprint_matched": true,
+    "source_membership_fingerprint_matched": true,
+    "transaction_age": {
+      "observed_for_every_ticker": true,
+      "maximum_asserted_strictly_below_seconds": 120,
+      "exact_maximum_exported": false,
+      "note": "The passing test measured PostgreSQL transaction age before every commit and asserted the maximum was below 120 seconds. The exact in-memory maximum was not emitted to JUnit."
+    },
+    "controlled_checkpoints": 100,
+    "open_seeder_transactions_at_checkpoints": 0,
+    "idle_in_transaction_violations": 0,
+    "next_ticker_preadmission_violations": 0,
+    "checked_out_seeder_connections_after_assertions": 0,
+    "checked_out_observer_connections_after_assertions": 0,
+    "junit": "docs/remediation/readiness-phase2/TASK_2_9_12H_CERTIFICATION.xml"
+  },
+  "invariant": {
+    "transaction_age_seconds": 120,
+    "changed": false
+  },
+  "source_pins": {
+    "result": {
+      "stale": []
+    },
+    "regenerated": false
+  },
+  "safety": {
+    "disposable_postgresql_only": true,
+    "browser_started": false,
+    "chromium_100_started": false,
+    "application_server_started": false,
+    "worker_started": false,
+    "pipeline_started": false,
+    "live_provider_contact": false,
+    "normal_database_accessed": false,
+    "historical_runs_accessed": false,
+    "working_tree_preserved": true
+  },
+  "remaining_blockers": [
+    "Historical v1/v2 run-start anchor compatibility policy",
+    "Chromium-100 terminal certification",
+    "Full Phase 2.9 release certification"
+  ]
+}

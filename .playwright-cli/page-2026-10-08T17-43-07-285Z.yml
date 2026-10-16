@@ -1,0 +1,433 @@
+- generic [active] [ref=f11e1]:
+  - link "Skip to main content" [ref=f11e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f11e3]:
+    - link "SwingLens" [ref=f11e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Primary navigation" [ref=f11e5]:
+      - link "Dashboard" [ref=f11e6] [cursor=pointer]:
+        - /url: /
+      - link "Runs" [ref=f11e7] [cursor=pointer]:
+        - /url: /runs
+      - link "Market Regime" [ref=f11e8] [cursor=pointer]:
+        - /url: /market-regime
+      - link "Market Changes" [ref=f11e9] [cursor=pointer]:
+        - /url: /setup-lifecycle
+      - link "Alerts" [ref=f11e10] [cursor=pointer]:
+        - /url: /setup-lifecycle/alerts
+      - link "CERI" [ref=f11e11] [cursor=pointer]:
+        - /url: /ceri
+      - link "CERI Ops" [ref=f11e12] [cursor=pointer]:
+        - /url: /ceri/operations
+      - link "History" [ref=f11e13] [cursor=pointer]:
+        - /url: /history
+      - link "Winner Evidence" [ref=f11e14] [cursor=pointer]:
+        - /url: /winner-probability/operations
+      - link "IB Gateway" [ref=f11e15] [cursor=pointer]:
+        - /url: /ib
+      - link "Scoring" [ref=f11e16] [cursor=pointer]:
+        - /url: /scoring
+      - link "Settings" [ref=f11e17] [cursor=pointer]:
+        - /url: /settings
+      - link "Operations" [ref=f11e18] [cursor=pointer]:
+        - /url: /system/operations
+      - link "Help" [ref=f11e19] [cursor=pointer]:
+        - /url: /help
+  - main [ref=f11e20]:
+    - generic [ref=f11e21]:
+      - generic [ref=f11e22]:
+        - generic [ref=f11e23]:
+          - heading "Setup Lifecycle Operations" [level=1] [ref=f11e24]
+          - paragraph [ref=f11e25]: Evaluation status, replay controls, counts, warnings, errors, and engine/config versions.
+        - generic [ref=f11e26]:
+          - link "Market Changes" [ref=f11e27] [cursor=pointer]:
+            - /url: /setup-lifecycle
+          - link "JSON" [ref=f11e28] [cursor=pointer]:
+            - /url: /api/setup-lifecycle/operations/export.json
+      - generic [ref=f11e29]:
+        - generic [ref=f11e30]: Latest canonical date 2026-10-07
+        - generic [ref=f11e31]: Active episodes 246
+        - generic [ref=f11e32]: Pending jobs 49
+        - generic [ref=f11e33]: Stale-system warning active
+    - generic [ref=f11e34]:
+      - generic [ref=f11e36]:
+        - heading "Scoped Evaluation" [level=2] [ref=f11e37]
+        - paragraph [ref=f11e38]: Queue an audited run, dry-run scope, or targeted retry.
+      - generic [ref=f11e39]:
+        - generic [ref=f11e40]:
+          - generic [ref=f11e41]: Scope
+          - combobox "Scope" [ref=f11e42]:
+            - option "RUN" [selected]
+            - option "TICKER"
+            - option "DATE_RANGE"
+            - option "ALL_ELIGIBLE"
+            - option "SINGLE_TICKER_RETRY"
+        - generic [ref=f11e43]:
+          - generic [ref=f11e44]: Run ID
+          - spinbutton "Run ID" [ref=f11e45]
+        - generic [ref=f11e46]:
+          - generic [ref=f11e47]: Ticker
+          - textbox "Ticker" [ref=f11e48]
+        - generic [ref=f11e49]:
+          - generic [ref=f11e50]: From
+          - textbox "From" [ref=f11e51]
+        - generic [ref=f11e52]:
+          - generic [ref=f11e53]: To
+          - textbox "To" [ref=f11e54]
+        - generic [ref=f11e55]:
+          - generic [ref=f11e56]: Retry as of
+          - textbox "Retry as of" [ref=f11e57]
+        - generic [ref=f11e58]:
+          - generic [ref=f11e59]: Requester
+          - textbox "Requester" [ref=f11e60]
+        - generic [ref=f11e61]:
+          - generic [ref=f11e62]: Reason
+          - textbox "Reason" [ref=f11e63]
+        - button "Queue scoped evaluation" [ref=f11e65]
+      - status
+    - generic [ref=f11e66]:
+      - heading "Replay" [level=2] [ref=f11e69]
+      - generic [ref=f11e70]:
+        - generic [ref=f11e71]:
+          - generic [ref=f11e72]: Ticker
+          - textbox "Ticker" [ref=f11e73]:
+            - /placeholder: Optional
+            - text: SWINGLENS_NOT_REAL
+        - generic [ref=f11e74]:
+          - generic [ref=f11e75]: From
+          - textbox "From" [ref=f11e76]: 2026-10-01
+        - generic [ref=f11e77]:
+          - generic [ref=f11e78]: To
+          - textbox "To" [ref=f11e79]: 2026-10-02
+        - generic [ref=f11e80]:
+          - generic [ref=f11e81]: Requester
+          - textbox "Requester" [ref=f11e82]:
+            - /placeholder: Required if persisted
+            - text: browser-certification
+        - generic [ref=f11e83]:
+          - generic [ref=f11e84]: Reason
+          - textbox "Reason" [ref=f11e85]:
+            - /placeholder: Required if persisted
+            - text: dry-run contract certification
+        - generic [ref=f11e86]:
+          - generic [ref=f11e87]: Confirmation
+          - textbox "Confirmation" [ref=f11e88]:
+            - /placeholder: PERSIST_SETUP_LIFECYCLE_REPLAY
+        - generic [ref=f11e89]:
+          - checkbox "Persist replay version" [ref=f11e90]
+          - text: Persist replay version
+        - button "Run replay" [ref=f11e92]
+      - status [ref=f11e384]: "Replay completed: 0 item(s) read."
+    - generic [ref=f11e93]:
+      - heading "Evaluation Runs" [level=2] [ref=f11e96]
+      - table [ref=f11e98]:
+        - caption [ref=f11e99]: Most recent setup lifecycle evaluation runs.
+        - rowgroup [ref=f11e100]:
+          - row [ref=f11e101]:
+            - columnheader "ID" [ref=f11e102]
+            - columnheader "Mode" [ref=f11e103]
+            - columnheader "Status" [ref=f11e104]
+            - columnheader "Counts" [ref=f11e105]
+            - columnheader "Version" [ref=f11e106]
+            - columnheader "Errors" [ref=f11e107]
+        - rowgroup [ref=f11e108]:
+          - row [ref=f11e109]:
+            - cell "43" [ref=f11e110]
+            - cell "LIVE" [ref=f11e111]
+            - cell "COMPLETED completed" [ref=f11e112]:
+              - generic [ref=f11e113]: COMPLETED
+              - generic [ref=f11e114]: completed
+            - cell "Read 209, canonical 209, changed 1194, transitioned 20, alerted 27" [ref=f11e115]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:30:config:a62083fbc575" [ref=f11e116]:
+              - text: slse-1.3.0
+              - generic [ref=f11e117]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e118]: slse-1.3.0:run:30:config:a62083fbc575
+            - cell "None" [ref=f11e119]
+          - row [ref=f11e120]:
+            - cell "42" [ref=f11e121]
+            - cell "LIVE" [ref=f11e122]
+            - cell "COMPLETED snapshot_capture" [ref=f11e123]:
+              - generic [ref=f11e124]: COMPLETED
+              - generic [ref=f11e125]: snapshot_capture
+            - cell "Read 209, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e126]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e127]:
+              - text: slse-1.3.0
+              - generic [ref=f11e128]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e129]: No output version
+            - cell "None" [ref=f11e130]
+          - row [ref=f11e131]:
+            - cell "41" [ref=f11e132]
+            - cell "LIVE" [ref=f11e133]
+            - cell "COMPLETED completed" [ref=f11e134]:
+              - generic [ref=f11e135]: COMPLETED
+              - generic [ref=f11e136]: completed
+            - cell "Read 112, canonical 112, changed 816, transitioned 56, alerted 19" [ref=f11e137]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:29:config:a62083fbc575" [ref=f11e138]:
+              - text: slse-1.3.0
+              - generic [ref=f11e139]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e140]: slse-1.3.0:run:29:config:a62083fbc575
+            - cell "None" [ref=f11e141]
+          - row [ref=f11e142]:
+            - cell "40" [ref=f11e143]
+            - cell "LIVE" [ref=f11e144]
+            - cell "COMPLETED snapshot_capture" [ref=f11e145]:
+              - generic [ref=f11e146]: COMPLETED
+              - generic [ref=f11e147]: snapshot_capture
+            - cell "Read 112, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e148]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e149]:
+              - text: slse-1.3.0
+              - generic [ref=f11e150]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e151]: No output version
+            - cell "None" [ref=f11e152]
+          - row [ref=f11e153]:
+            - cell "39" [ref=f11e154]
+            - cell "LIVE" [ref=f11e155]
+            - cell "COMPLETED completed" [ref=f11e156]:
+              - generic [ref=f11e157]: COMPLETED
+              - generic [ref=f11e158]: completed
+            - cell "Read 127, canonical 127, changed 694, transitioned 48, alerted 11" [ref=f11e159]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:27:config:a62083fbc575" [ref=f11e160]:
+              - text: slse-1.3.0
+              - generic [ref=f11e161]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e162]: slse-1.3.0:run:27:config:a62083fbc575
+            - cell "None" [ref=f11e163]
+          - row [ref=f11e164]:
+            - cell "38" [ref=f11e165]
+            - cell "LIVE" [ref=f11e166]
+            - cell "COMPLETED snapshot_capture" [ref=f11e167]:
+              - generic [ref=f11e168]: COMPLETED
+              - generic [ref=f11e169]: snapshot_capture
+            - cell "Read 127, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e170]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e171]:
+              - text: slse-1.3.0
+              - generic [ref=f11e172]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e173]: No output version
+            - cell "None" [ref=f11e174]
+          - row [ref=f11e175]:
+            - cell "37" [ref=f11e176]
+            - cell "LIVE" [ref=f11e177]
+            - cell "COMPLETED completed" [ref=f11e178]:
+              - generic [ref=f11e179]: COMPLETED
+              - generic [ref=f11e180]: completed
+            - cell "Read 189, canonical 189, changed 157, transitioned 0, alerted 0" [ref=f11e181]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:25:config:a62083fbc575" [ref=f11e182]:
+              - text: slse-1.3.0
+              - generic [ref=f11e183]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e184]: slse-1.3.0:run:25:config:a62083fbc575
+            - cell "None" [ref=f11e185]
+          - row [ref=f11e186]:
+            - cell "36" [ref=f11e187]
+            - cell "LIVE" [ref=f11e188]
+            - cell "COMPLETED snapshot_capture" [ref=f11e189]:
+              - generic [ref=f11e190]: COMPLETED
+              - generic [ref=f11e191]: snapshot_capture
+            - cell "Read 189, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e192]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e193]:
+              - text: slse-1.3.0
+              - generic [ref=f11e194]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e195]: No output version
+            - cell "None" [ref=f11e196]
+          - row [ref=f11e197]:
+            - cell "35" [ref=f11e198]
+            - cell "LIVE" [ref=f11e199]
+            - cell "COMPLETED completed" [ref=f11e200]:
+              - generic [ref=f11e201]: COMPLETED
+              - generic [ref=f11e202]: completed
+            - cell "Read 189, canonical 189, changed 157, transitioned 0, alerted 0" [ref=f11e203]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:24:config:a62083fbc575" [ref=f11e204]:
+              - text: slse-1.3.0
+              - generic [ref=f11e205]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e206]: slse-1.3.0:run:24:config:a62083fbc575
+            - cell "None" [ref=f11e207]
+          - row [ref=f11e208]:
+            - cell "34" [ref=f11e209]
+            - cell "LIVE" [ref=f11e210]
+            - cell "COMPLETED snapshot_capture" [ref=f11e211]:
+              - generic [ref=f11e212]: COMPLETED
+              - generic [ref=f11e213]: snapshot_capture
+            - cell "Read 189, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e214]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e215]:
+              - text: slse-1.3.0
+              - generic [ref=f11e216]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e217]: No output version
+            - cell "None" [ref=f11e218]
+          - row [ref=f11e219]:
+            - cell "33" [ref=f11e220]
+            - cell "LIVE" [ref=f11e221]
+            - cell "COMPLETED completed" [ref=f11e222]:
+              - generic [ref=f11e223]: COMPLETED
+              - generic [ref=f11e224]: completed
+            - cell "Read 110, canonical 110, changed 208, transitioned 4, alerted 3" [ref=f11e225]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:22:config:a62083fbc575" [ref=f11e226]:
+              - text: slse-1.3.0
+              - generic [ref=f11e227]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e228]: slse-1.3.0:run:22:config:a62083fbc575
+            - cell "None" [ref=f11e229]
+          - row [ref=f11e230]:
+            - cell "32" [ref=f11e231]
+            - cell "LIVE" [ref=f11e232]
+            - cell "COMPLETED snapshot_capture" [ref=f11e233]:
+              - generic [ref=f11e234]: COMPLETED
+              - generic [ref=f11e235]: snapshot_capture
+            - cell "Read 110, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e236]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e237]:
+              - text: slse-1.3.0
+              - generic [ref=f11e238]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e239]: No output version
+            - cell "None" [ref=f11e240]
+          - row [ref=f11e241]:
+            - cell "31" [ref=f11e242]
+            - cell "LIVE" [ref=f11e243]
+            - cell "COMPLETED completed" [ref=f11e244]:
+              - generic [ref=f11e245]: COMPLETED
+              - generic [ref=f11e246]: completed
+            - cell "Read 23, canonical 23, changed 89, transitioned 0, alerted 0" [ref=f11e247]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:19:config:a62083fbc575" [ref=f11e248]:
+              - text: slse-1.3.0
+              - generic [ref=f11e249]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e250]: slse-1.3.0:run:19:config:a62083fbc575
+            - cell "None" [ref=f11e251]
+          - row [ref=f11e252]:
+            - cell "30" [ref=f11e253]
+            - cell "LIVE" [ref=f11e254]
+            - cell "COMPLETED snapshot_capture" [ref=f11e255]:
+              - generic [ref=f11e256]: COMPLETED
+              - generic [ref=f11e257]: snapshot_capture
+            - cell "Read 23, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e258]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e259]:
+              - text: slse-1.3.0
+              - generic [ref=f11e260]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e261]: No output version
+            - cell "None" [ref=f11e262]
+          - row [ref=f11e263]:
+            - cell "28" [ref=f11e264]
+            - cell "LIVE" [ref=f11e265]
+            - cell "COMPLETED snapshot_capture" [ref=f11e266]:
+              - generic [ref=f11e267]: COMPLETED
+              - generic [ref=f11e268]: snapshot_capture
+            - cell "Read 23, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e269]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e270]:
+              - text: slse-1.3.0
+              - generic [ref=f11e271]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e272]: No output version
+            - cell "None" [ref=f11e273]
+          - row [ref=f11e274]:
+            - cell "27" [ref=f11e275]
+            - cell "LIVE" [ref=f11e276]
+            - cell "COMPLETED completed" [ref=f11e277]:
+              - generic [ref=f11e278]: COMPLETED
+              - generic [ref=f11e279]: completed
+            - cell "Read 94, canonical 94, changed 225, transitioned 11, alerted 0" [ref=f11e280]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:17:config:a62083fbc575" [ref=f11e281]:
+              - text: slse-1.3.0
+              - generic [ref=f11e282]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e283]: slse-1.3.0:run:17:config:a62083fbc575
+            - cell "None" [ref=f11e284]
+          - row [ref=f11e285]:
+            - cell "26" [ref=f11e286]
+            - cell "LIVE" [ref=f11e287]
+            - cell "COMPLETED snapshot_capture" [ref=f11e288]:
+              - generic [ref=f11e289]: COMPLETED
+              - generic [ref=f11e290]: snapshot_capture
+            - cell "Read 94, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e291]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e292]:
+              - text: slse-1.3.0
+              - generic [ref=f11e293]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e294]: No output version
+            - cell "None" [ref=f11e295]
+          - row [ref=f11e296]:
+            - cell "24" [ref=f11e297]
+            - cell "LIVE" [ref=f11e298]
+            - cell "COMPLETED snapshot_capture" [ref=f11e299]:
+              - generic [ref=f11e300]: COMPLETED
+              - generic [ref=f11e301]: snapshot_capture
+            - cell "Read 94, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e302]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e303]:
+              - text: slse-1.3.0
+              - generic [ref=f11e304]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e305]: No output version
+            - cell "None" [ref=f11e306]
+          - row [ref=f11e307]:
+            - cell "22" [ref=f11e308]
+            - cell "LIVE" [ref=f11e309]
+            - cell "COMPLETED snapshot_capture" [ref=f11e310]:
+              - generic [ref=f11e311]: COMPLETED
+              - generic [ref=f11e312]: snapshot_capture
+            - cell "Read 94, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e313]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e314]:
+              - text: slse-1.3.0
+              - generic [ref=f11e315]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e316]: No output version
+            - cell "None" [ref=f11e317]
+          - row [ref=f11e318]:
+            - cell "20" [ref=f11e319]
+            - cell "LIVE" [ref=f11e320]
+            - cell "COMPLETED snapshot_capture" [ref=f11e321]:
+              - generic [ref=f11e322]: COMPLETED
+              - generic [ref=f11e323]: snapshot_capture
+            - cell "Read 94, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e324]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e325]:
+              - text: slse-1.3.0
+              - generic [ref=f11e326]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e327]: No output version
+            - cell "None" [ref=f11e328]
+          - row [ref=f11e329]:
+            - cell "18" [ref=f11e330]
+            - cell "LIVE" [ref=f11e331]
+            - cell "COMPLETED snapshot_capture" [ref=f11e332]:
+              - generic [ref=f11e333]: COMPLETED
+              - generic [ref=f11e334]: snapshot_capture
+            - cell "Read 94, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e335]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e336]:
+              - text: slse-1.3.0
+              - generic [ref=f11e337]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e338]: No output version
+            - cell "None" [ref=f11e339]
+          - row [ref=f11e340]:
+            - cell "16" [ref=f11e341]
+            - cell "LIVE" [ref=f11e342]
+            - cell "COMPLETED snapshot_capture" [ref=f11e343]:
+              - generic [ref=f11e344]: COMPLETED
+              - generic [ref=f11e345]: snapshot_capture
+            - cell "Read 94, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e346]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e347]:
+              - text: slse-1.3.0
+              - generic [ref=f11e348]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e349]: No output version
+            - cell "None" [ref=f11e350]
+          - row [ref=f11e351]:
+            - cell "6" [ref=f11e352]
+            - cell "LIVE" [ref=f11e353]
+            - cell "COMPLETED completed" [ref=f11e354]:
+              - generic [ref=f11e355]: COMPLETED
+              - generic [ref=f11e356]: completed
+            - cell "Read 10, canonical 10, changed 0, transitioned 0, alerted 0" [ref=f11e357]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:5:config:a62083fbc575" [ref=f11e358]:
+              - text: slse-1.3.0
+              - generic [ref=f11e359]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e360]: slse-1.3.0:run:5:config:a62083fbc575
+            - cell "None" [ref=f11e361]
+          - row [ref=f11e362]:
+            - cell "5" [ref=f11e363]
+            - cell "LIVE" [ref=f11e364]
+            - cell "COMPLETED snapshot_capture" [ref=f11e365]:
+              - generic [ref=f11e366]: COMPLETED
+              - generic [ref=f11e367]: snapshot_capture
+            - cell "Read 10, canonical 0, changed 0, transitioned 0, alerted 0" [ref=f11e368]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance No output version" [ref=f11e369]:
+              - text: slse-1.3.0
+              - generic [ref=f11e370]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e371]: No output version
+            - cell "None" [ref=f11e372]
+          - row [ref=f11e373]:
+            - cell "4" [ref=f11e374]
+            - cell "LIVE" [ref=f11e375]
+            - cell "COMPLETED completed" [ref=f11e376]:
+              - generic [ref=f11e377]: COMPLETED
+              - generic [ref=f11e378]: completed
+            - cell "Read 10, canonical 10, changed 0, transitioned 0, alerted 0" [ref=f11e379]
+            - cell "slse-1.3.0 2026-08-14-velocity-trigger-distance slse-1.3.0:run:4:config:a62083fbc575" [ref=f11e380]:
+              - text: slse-1.3.0
+              - generic [ref=f11e381]: 2026-08-14-velocity-trigger-distance
+              - generic [ref=f11e382]: slse-1.3.0:run:4:config:a62083fbc575
+            - cell "None" [ref=f11e383]

@@ -1,0 +1,218 @@
+{
+  "task": "2.9.12j",
+  "verdict": "FAIL_NOT_CERTIFIED",
+  "failure_classification": "PRE_PIPELINE_TRANSACTION_LIFETIME",
+  "failure_code": "POSTGRES_TRANSACTION_AGE_EXCEEDED",
+  "threshold_seconds": 120,
+  "maximum_observed_pre_pipeline_transaction_age_seconds": 127.729317,
+  "execution": {
+    "execution_id": "20261014T210501Z-1236be96",
+    "branch": "codex/ceri-authority-remediation",
+    "head": "6656c55dd59c294c2ea471571863046e02bf7c35",
+    "provider_mode": "deterministic",
+    "fixture_version": "single-run-certification-1.0.0",
+    "database_name": "swinglens_pytest_cert_ec6754de37bf",
+    "pipeline_id": 1,
+    "run_id": 3,
+    "root_job_id": 1,
+    "pytest_exit_code": -1,
+    "native_junit_emitted": false,
+    "browser_process_started_at": "2026-10-14T23:04:48.0789376+02:00",
+    "browser_process_finished_at": "2026-10-14T23:10:08.5588191+02:00",
+    "wall_seconds": 320.48,
+    "outer_deadline_seconds": 2400,
+    "timed_out": false
+  },
+  "pre_pipeline_observations": [
+    {
+      "max_transaction_age_seconds": 0.126958,
+      "idle_in_transaction": 2,
+      "ungranted_locks": 0,
+      "pipeline_exists": false,
+      "ceri_source_records": 389,
+      "ceri_memberships": 389
+    },
+    {
+      "max_transaction_age_seconds": 38.628828,
+      "idle_in_transaction": 2,
+      "ungranted_locks": 0,
+      "pipeline_exists": false,
+      "raw_company_rows": 101,
+      "ceri_source_records": 437,
+      "ceri_memberships": 437,
+      "ceri_estimate_snapshots": 418
+    },
+    {
+      "max_transaction_age_seconds": 97.641897,
+      "idle_in_transaction": 1,
+      "ungranted_locks": 0,
+      "pipeline_exists": false
+    },
+    {
+      "max_transaction_age_seconds": 127.729317,
+      "backend_pid": 40828,
+      "state": "idle in transaction",
+      "wait_event_type": "Client",
+      "wait_event": "ClientRead",
+      "last_query_relation": "setup_signal_snapshots",
+      "ungranted_locks": 0,
+      "pipeline_exists": false,
+      "result": "VIOLATION"
+    }
+  ],
+  "pipeline": {
+    "status_at_final_snapshot": "SCORING_TECHNICALS",
+    "current_step": "SCORING_TECHNICALS",
+    "started_at": "2026-10-14T23:08:52.681940+02:00",
+    "completed_at": null,
+    "error_message": null,
+    "runtime_invariant_observations": 133,
+    "runtime_observer_failures_after_pipeline_creation": 0,
+    "ungranted_locks_at_final_snapshot": 0
+  },
+  "last_durable_progress": {
+    "job_type": "FULL_PIPELINE",
+    "job_status": "RUNNING",
+    "stage": "SCORING_TECHNICALS",
+    "progress_sequence": 31,
+    "processed": 100,
+    "total": 100,
+    "current_item": "VALIDATING_EVIDENCE:<safe-digest>",
+    "last_completed_item": "RDVT",
+    "last_progress_at": "2026-10-14T23:10:05.858318+02:00",
+    "heartbeat_at": "2026-10-14T23:10:05.872317+02:00",
+    "lease_expires_at": "2026-10-14T23:12:05.872317+02:00",
+    "retry_count": 0,
+    "recovery_count": 0,
+    "stall_detected_at": null,
+    "worker_id": "certification-20261014T210501Z-1236be96",
+    "worker_generation": 1,
+    "worker_instance_id": "8af45d89001a454fa0fe4e18edc756d7"
+  },
+  "stage_timeline": [
+    {
+      "order": 1,
+      "stage": "VALIDATING_RUN",
+      "started_at": "2026-10-14T23:08:52.744460+02:00",
+      "completed_at": "2026-10-14T23:08:52.923487+02:00",
+      "duration_seconds": 0.179027,
+      "status": "COMPLETED"
+    },
+    {
+      "order": 2,
+      "stage": "SCORING_FUNDAMENTALS",
+      "started_at": "2026-10-14T23:08:53.207055+02:00",
+      "completed_at": "2026-10-14T23:09:08.592949+02:00",
+      "duration_seconds": 15.385894,
+      "status": "COMPLETED"
+    },
+    {
+      "order": 3,
+      "stage": "FETCHING_MARKET_DATA",
+      "started_at": "2026-10-14T23:09:08.720948+02:00",
+      "completed_at": "2026-10-14T23:09:11.971362+02:00",
+      "duration_seconds": 3.250414,
+      "status": "COMPLETED"
+    },
+    {
+      "order": 4,
+      "stage": "SCORING_TECHNICALS",
+      "started_at": "2026-10-14T23:09:12.109364+02:00",
+      "completed_at": null,
+      "duration_through_last_progress_seconds": 53.748954,
+      "status": "RUNNING_AT_ABORT"
+    },
+    {
+      "order": 5,
+      "stage": "MARKET_REGIME_SNAPSHOT",
+      "status": "PENDING"
+    },
+    {
+      "order": 6,
+      "stage": "COMBINING_RESULTS",
+      "status": "PENDING"
+    },
+    {
+      "order": 7,
+      "stage": "RANKING_PROFILES",
+      "status": "PENDING"
+    },
+    {
+      "order": 8,
+      "stage": "SECTOR_ROTATION_SNAPSHOT",
+      "status": "PENDING"
+    },
+    {
+      "order": 9,
+      "stage": "CERI_PROVIDER_INGEST",
+      "status": "PENDING"
+    },
+    {
+      "order": 10,
+      "stage": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "status": "PENDING"
+    },
+    {
+      "order": 11,
+      "stage": "CAPTURING_SETUP_SIGNALS",
+      "status": "PENDING"
+    },
+    {
+      "order": 12,
+      "stage": "EVALUATING_SETUP_LIFECYCLES",
+      "status": "PENDING"
+    },
+    {
+      "order": 13,
+      "stage": "CAPTURING_WINNER_PREDICTIONS",
+      "status": "PENDING"
+    }
+  ],
+  "decision_anchor": {
+    "contract": "transition-run-start-anchor-v2",
+    "plan_status": "CONSUMED",
+    "pipeline_binding": 1,
+    "decision_handoff_count": 0,
+    "manifest_mismatch_observed": false
+  },
+  "counts_at_abort": {
+    "raw_company_rows": 101,
+    "fundamental_scores": 100,
+    "technical_scores": 0,
+    "combined_results": 0,
+    "ranking_results": 0,
+    "market_regime_snapshots": 0,
+    "sector_rotation_snapshots": 0,
+    "ceri_companies": 108,
+    "ceri_source_records": 437,
+    "ceri_ingestion_run_source_records": 437,
+    "ceri_estimate_snapshots": 418,
+    "ceri_score_snapshots": 1,
+    "setup_signal_snapshots": 101,
+    "winner_prediction_snapshots": 20,
+    "transition_preflight_plans": 1,
+    "transition_decision_handoff_manifests": 0
+  },
+  "browser": {
+    "terminal_pipeline_status_reached": false,
+    "original_gui_assertions_completed": false,
+    "terminal_screenshot_created": false,
+    "trace_created": false
+  },
+  "cleanup": {
+    "database_dropped": true,
+    "database_exists_after_cleanup": false,
+    "remaining_test_owned_processes": 0,
+    "remaining_test_owned_listeners": 0,
+    "post_cleanup_disposable_database_count": 36,
+    "post_cleanup_disposable_database_digest": "905b872fc23587ba64b810b16948a092af69de64ed583308e8027b3e5b137b51",
+    "matches_preflight_inventory": true,
+    "unattributed_databases_deleted": false
+  },
+  "t14": {
+    "preflight_stale": [],
+    "final_stale": []
+  },
+  "artifact_directory": "test-results/single-run-certification/20261014T210501Z-1236be96"
+}
+

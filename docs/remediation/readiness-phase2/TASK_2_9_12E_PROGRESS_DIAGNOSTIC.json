@@ -1,0 +1,338 @@
+{
+  "task": "2.9.12e",
+  "verdict": "FAIL",
+  "failure_classification": "DEPENDENCY_CONTINUATION_AUTHORITY_FAILURE",
+  "task_timing": {
+    "task_start": "2026-10-14T19:36:19.6100072+02:00",
+    "task_deadline": "2026-10-14T20:26:19.6100072+02:00",
+    "certification_start": "2026-10-14T19:38:20.033580+02:00",
+    "certification_end": "2026-10-14T19:54:40.776580+02:00",
+    "artifact_validation_checkpoint": "2026-10-14T19:58:26.7598260+02:00",
+    "total_task_elapsed_seconds_to_validation": 1327.149819,
+    "remaining_task_budget_seconds_at_validation": 1672.850181,
+    "outer_deadline": "2026-10-14T20:18:20.033580+02:00",
+    "pytest_seconds": 980.743,
+    "pytest_reported_seconds": 980.84,
+    "outer_timeout_seconds": 2400,
+    "outer_timeout_reached": false
+  },
+  "invocation": ".venv\\Scripts\\python.exe -m pytest 'tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-100]' --browser chromium -q --tb=short --junitxml=docs/remediation/readiness-phase2/TASK_2_9_12E_CERTIFICATION.xml",
+  "pytest": {
+    "exit_code": 1,
+    "tests": 1,
+    "failures": 1,
+    "errors": 0,
+    "node": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-100]",
+    "failure": "DECISION_MANIFEST_MISMATCH: run-start anchor no longer matches at decision handoff"
+  },
+  "repository": {
+    "branch": "codex/ceri-authority-remediation",
+    "head": "6656c55dd59c294c2ea471571863046e02bf7c35",
+    "working_tree_preserved": true,
+    "production_source_changed_by_task": false,
+    "source_pin_validator": {
+      "command": ".venv\\Scripts\\python.exe -m scripts.qa.t14a_phase2_9_source_pins",
+      "result": {
+        "stale": []
+      },
+      "regenerated": false
+    }
+  },
+  "previous_timeout": {
+    "classification": "INSUFFICIENT_PROGRESS_EVIDENCE",
+    "retained_runtime_observations": 1519,
+    "retained_invariant_failure_observations": 0,
+    "last_active_job_count": 1,
+    "last_pipeline_stage": "UNKNOWN",
+    "last_completed_stage": "UNKNOWN",
+    "last_progress_sequence": "UNKNOWN",
+    "heartbeat_advancing": "UNKNOWN",
+    "lease_valid": "UNKNOWN",
+    "processed_increasing": "UNKNOWN",
+    "current_item_changing": "UNKNOWN",
+    "child_jobs_advancing": "UNKNOWN",
+    "dependency_wait": "UNKNOWN",
+    "cpu_progress": "UNKNOWN",
+    "database_lock_blocking": "UNKNOWN",
+    "sufficient_to_distinguish_progress_from_liveness": false
+  },
+  "runtime": {
+    "execution_id": "20261014T173821Z-65dd66de",
+    "database_name": "swinglens_pytest_cert_ef48c5f55c83",
+    "provider_mode": "deterministic",
+    "pipeline_id": 1,
+    "upload_run_id": 3,
+    "pipeline_status": "FAILED",
+    "terminal_current_stage": "CAPTURING_SETUP_SIGNALS",
+    "last_completed_stage": "FREEZING_DECISION_HANDOFF_MANIFEST",
+    "terminal_step_count": "10/13 completed; step 11 failed",
+    "terminal_progress": {
+      "last_observed_sequence": 46,
+      "sequence_source": "supervisor watchdog log",
+      "last_progress_at": "2026-10-14T19:54:14.674563+02:00",
+      "processed": 0,
+      "total": 100,
+      "current_item": "PREPARING:SNAPSH... (browser-visible truncation)",
+      "last_completed_item": null,
+      "heartbeat": null,
+      "lease": null,
+      "worker": null,
+      "terminal_job_status": "FAILED"
+    },
+    "execution_authority_before_failure": {
+      "state": "ACTIVE",
+      "worker_generation": 1,
+      "worker_instance_stable": true,
+      "lease_valid_in_last_live_database_sample": true,
+      "retry_count": 0,
+      "recovery_count": 0,
+      "stall_detected": false
+    }
+  },
+  "stage_timeline": [
+    {
+      "stage": "VALIDATING_RUN",
+      "start": "2026-10-14T19:42:24.835781+02:00",
+      "end": "2026-10-14T19:42:24.991298+02:00",
+      "elapsed_seconds": 0.155517,
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "SCORING_FUNDAMENTALS",
+      "start": "2026-10-14T19:42:25.093298+02:00",
+      "end": "2026-10-14T19:42:41.753010+02:00",
+      "elapsed_seconds": 16.659712,
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "FETCHING_MARKET_DATA",
+      "start": "2026-10-14T19:42:41.883011+02:00",
+      "end": "2026-10-14T19:42:45.273186+02:00",
+      "elapsed_seconds": 3.390175,
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "SCORING_TECHNICALS",
+      "start": "2026-10-14T19:42:45.479187+02:00",
+      "end": "2026-10-14T19:44:46.603530+02:00",
+      "elapsed_seconds": 121.124343,
+      "checkpoint": "progress sequence 9/0 processed to sequence 51/100 processed; stage completed",
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "MARKET_REGIME_SNAPSHOT",
+      "start": "2026-10-14T19:44:46.737531+02:00",
+      "end": "2026-10-14T19:44:48.543051+02:00",
+      "elapsed_seconds": 1.80552,
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "COMBINING_RESULTS",
+      "start": "2026-10-14T19:44:48.656051+02:00",
+      "end": "2026-10-14T19:45:08.341966+02:00",
+      "elapsed_seconds": 19.685915,
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "RANKING_PROFILES",
+      "start": "2026-10-14T19:45:08.461964+02:00",
+      "end": "2026-10-14T19:46:25.999786+02:00",
+      "elapsed_seconds": 77.537822,
+      "checkpoint": "500 ranking results across 5 profiles",
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "SECTOR_ROTATION_SNAPSHOT",
+      "start": "2026-10-14T19:46:26.351783+02:00",
+      "end": "2026-10-14T19:47:24.194746+02:00",
+      "elapsed_seconds": 57.842963,
+      "checkpoint": "sequence 69, 100/900 observed; stage completed",
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "CERI_PROVIDER_INGEST",
+      "start": "2026-10-14T19:47:24.490743+02:00",
+      "end": "2026-10-14T19:52:52.899885+02:00",
+      "elapsed_seconds": 328.409142,
+      "checkpoint": "authorized CERI_WORKFLOW dependency; completed child count advanced 6 -> 14 -> 19 -> 21 -> 24 -> 26 -> 28 -> 31",
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "start": "2026-10-14T19:52:53.477919+02:00",
+      "end": "2026-10-14T19:53:31.017433+02:00",
+      "elapsed_seconds": 37.539514,
+      "checkpoint": "continuation sequence advanced 3 -> 41 while validating resume evidence",
+      "result": "COMPLETED"
+    },
+    {
+      "stage": "CAPTURING_SETUP_SIGNALS",
+      "start": "2026-10-14T19:54:07.342182+02:00",
+      "end": "2026-10-14T19:54:15.249565+02:00",
+      "elapsed_seconds": 7.907383,
+      "checkpoint": "sequence 45 -> 46; 0/100 processed",
+      "result": "FAILED",
+      "error": "DECISION_MANIFEST_MISMATCH: run-start anchor no longer matches at decision handoff"
+    }
+  ],
+  "meaningful_progress_observations": [
+    {
+      "observed_at": "2026-10-14T17:42:47.114275+00:00",
+      "stage": "SCORING_TECHNICALS",
+      "sequence": 9,
+      "processed": 0,
+      "total": 0,
+      "completed_jobs": 0,
+      "classification": "HEALTHY_PROGRESS"
+    },
+    {
+      "observed_at": "2026-10-14T17:43:35.927511+00:00",
+      "stage": "SCORING_TECHNICALS",
+      "sequence": 30,
+      "processed": 100,
+      "total": 100,
+      "classification": "HEALTHY_PROGRESS"
+    },
+    {
+      "observed_at": "2026-10-14T17:46:42.046852+00:00",
+      "stage": "SECTOR_ROTATION_SNAPSHOT",
+      "sequence": 69,
+      "processed": 100,
+      "total": 900,
+      "classification": "HEALTHY_PROGRESS"
+    },
+    {
+      "observed_at": "2026-10-14T17:48:08.192515+00:00",
+      "stage": "CERI_PROVIDER_INGEST",
+      "dependency": "CERI_WORKFLOW",
+      "active_child": "CERI_PROVIDER_INGEST_BATCH:10",
+      "child_progress": "22/25",
+      "completed_jobs": 6,
+      "queued_jobs": 21,
+      "classification": "WAITING_WITH_HEALTHY_CHILD_PROGRESS"
+    },
+    {
+      "observed_at": "2026-10-14T17:49:36.977420+00:00",
+      "stage": "CERI_PROVIDER_INGEST",
+      "dependency": "CERI_WORKFLOW",
+      "active_child": "CERI_NORMALIZE_BATCH:6",
+      "child_progress": "17/50",
+      "completed_jobs": 19,
+      "queued_jobs": 8,
+      "classification": "WAITING_WITH_HEALTHY_CHILD_PROGRESS"
+    },
+    {
+      "observed_at": "2026-10-14T17:51:47.248510+00:00",
+      "stage": "CERI_PROVIDER_INGEST",
+      "dependency": "CERI_WORKFLOW",
+      "active_child": "CERI_FEATURE_BATCH:27",
+      "child_progress": "36/50",
+      "completed_jobs": 26,
+      "queued_jobs": 1,
+      "classification": "WAITING_WITH_HEALTHY_CHILD_PROGRESS"
+    },
+    {
+      "observed_at": "2026-10-14T17:52:29.456963+00:00",
+      "stage": "CERI_PROVIDER_INGEST",
+      "dependency": "CERI_WORKFLOW",
+      "active_child": "CERI_CAPTURE_RUN:29",
+      "sequence": 213,
+      "child_progress": "99/100",
+      "completed_jobs": 28,
+      "queued_jobs": 0,
+      "classification": "WAITING_WITH_HEALTHY_CHILD_PROGRESS"
+    },
+    {
+      "observed_at": "2026-10-14T17:53:57.686304+00:00",
+      "stage": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "active_job": "FULL_PIPELINE:32",
+      "sequence": 39,
+      "watchdog_decision": "HEALTHY_PROGRESS_SEQUENCE_ADVANCED",
+      "classification": "HEALTHY_PROGRESS"
+    },
+    {
+      "observed_at": "2026-10-14T17:54:12.908976+00:00",
+      "stage": "CAPTURING_SETUP_SIGNALS",
+      "active_job": "FULL_PIPELINE:32",
+      "sequence": 46,
+      "watchdog_decision": "HEALTHY_PROGRESS_SEQUENCE_ADVANCED",
+      "classification": "HEALTHY_PROGRESS_BEFORE_AUTHORITY_REJECTION"
+    }
+  ],
+  "ceri": {
+    "completion_state": "CERTIFIED",
+    "dependency_status": "COMPLETED",
+    "provider_acquisition_jobs": "16/16",
+    "provider_acquisition_items": "400/400",
+    "normalization_jobs": "8/8",
+    "normalization_items": "400/400",
+    "feature_jobs": "2/2",
+    "feature_items": "100/100",
+    "capture_jobs": "1/1",
+    "capture_items": "100/100",
+    "capture_score_snapshots": 100,
+    "certification_barrier_jobs": "3/3",
+    "continuation_jobs": "0/1 successful",
+    "continuation_items": "0/100",
+    "pipeline_result_ceri_score_snapshots": 0,
+    "pipeline_result_note": "The pipeline failed before continuation handoff assimilated the certified CERI snapshots."
+  },
+  "transactions": {
+    "contract_seconds": 120,
+    "external_observation_count": 20,
+    "internal_runtime_observation_count": 1290,
+    "internal_runtime_observation_first": "2026-10-14T19:42:24.447780+02:00",
+    "internal_runtime_observation_last": "2026-10-14T19:54:18.065860+02:00",
+    "internal_invariant_failure_count": 0,
+    "max_internal_active_job_count": 28,
+    "max_observed_pipeline_transaction_seconds": 48.206691,
+    "max_observed_pre_pipeline_fixture_transaction_seconds": 131.806556,
+    "pre_pipeline_contract_exceeded": true,
+    "pre_pipeline_note": "Observed during 100-ticker retained-history/fixture preparation before any pipeline row existed; it was closed before pipeline execution. This is not evidence that the repaired Technical or Setup pipeline boundary recurred, but it fails the strict all-phases 120-second criterion and must remain visible.",
+    "blocked_session_count_max": 0,
+    "lock_wait_count_max": 0,
+    "technical_boundary_runtime_violation": false,
+    "setup_boundary_runtime_violation": false,
+    "setup_note": "Setup reached its capture stage but failed on the decision-manifest authority check after 7.907 seconds, before publication."
+  },
+  "resource_indicators": {
+    "test_process_cpu_advanced": true,
+    "observed_worker_cpu_seconds_first_pipeline_sample": 158.141,
+    "observed_worker_cpu_seconds_last_database_sample": 804.156,
+    "observed_worker_rss_bytes_last_database_sample": 547586048,
+    "maximum_queue_depth_observed": 21,
+    "completed_child_jobs_maximum": 31,
+    "blocked_postgres_sessions_maximum": 0,
+    "postgres_lock_waits_maximum": 0
+  },
+  "population_and_evidence": {
+    "requested_tickers": 100,
+    "pipeline_terminal": false,
+    "final_test_assertions_reached": false,
+    "fundamental_count": "UNOBSERVED_FINAL_ASSERTION",
+    "technical_count": "UNOBSERVED_FINAL_ASSERTION",
+    "combined_count": "UNOBSERVED_FINAL_ASSERTION",
+    "ceri_capture_score_snapshots": 100,
+    "setup_count": "NOT_REACHED",
+    "winner_count": "NOT_REACHED",
+    "duplicate_retry_check": "NOT_REACHED",
+    "cross_run_contamination_check": "NOT_REACHED",
+    "orphan_job_assertion": "NOT_REACHED"
+  },
+  "cleanup": {
+    "database_exists_after_test": false,
+    "known_test_processes_remaining": 0,
+    "known_test_listeners_remaining": 0,
+    "fixture_shutdown_completed": true,
+    "unrelated_processes_affected": false,
+    "historical_runs_accessed": false
+  },
+  "artifacts": {
+    "junit": "docs/remediation/readiness-phase2/TASK_2_9_12E_CERTIFICATION.xml",
+    "report": "docs/remediation/readiness-phase2/TASK_2_9_12E_PROGRESS_AWARE_CERTIFICATION.md",
+    "failure_diagnostic": "docs/remediation/readiness-phase2/TASK_2_9_12E_FAILURE_DIAGNOSTIC.log",
+    "raw_runtime_directory": "test-results/single-run-certification/20261014T173821Z-65dd66de",
+    "browser_screenshot": "test-results/single-run-certification/20261014T173821Z-65dd66de/screenshots/gui/020-pipeline-progress.png",
+    "runtime_invariants": "test-results/single-run-certification/20261014T173821Z-65dd66de/runtime-invariants.jsonl"
+  }
+}

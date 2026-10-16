@@ -1,0 +1,53 @@
+{
+  "artifact_directory": "test-results/single-run-certification/20261015T110819Z-6296edb7",
+  "browser": "chromium",
+  "ceri": {
+    "alert_rebuild_jobs_completed": 1,
+    "capture_score_snapshots": 100,
+    "capture_jobs_completed": 1,
+    "change_detection_jobs_completed": 1,
+    "feature_batches_completed": 2,
+    "feature_rows": 300,
+    "finalizer_jobs_completed": 1,
+    "normalization_batches_completed": 8,
+    "normalized_rows": 400,
+    "pipeline_completion_state": "CERTIFIED",
+    "provider_batches_completed": 16,
+    "provider_rows": 400
+  },
+  "cleanup": {
+    "database_dropped": true,
+    "database_name": "swinglens_pytest_cert_576bd8dd178c",
+    "execution_processes_remaining": 0
+  },
+  "execution_id": "20261015T110819Z-6296edb7",
+  "failed_invariant": {
+    "code": "DECISION_MANIFEST_MISMATCH",
+    "message": "run-start anchor no longer matches at decision handoff",
+    "stage": "FREEZING_DECISION_HANDOFF_MANIFEST"
+  },
+  "junit": {
+    "errors": 0,
+    "failures": 1,
+    "path": "docs/remediation/readiness-phase2/TASK_2_9_12N_CHROMIUM_CERTIFICATION.xml",
+    "skipped": 0,
+    "tests": 1,
+    "time_seconds": 974.7
+  },
+  "last_completed_pipeline_stage": "CERI_PROVIDER_INGEST",
+  "native_pytest_exit_code": 1,
+  "pipeline_status": "FAILED",
+  "population": 100,
+  "retry_started": false,
+  "runtime_observer": {
+    "failure_samples": 0,
+    "first_sample_at": "2026-10-15T11:12:03.095078+00:00",
+    "last_sample_at": "2026-10-15T11:24:12.486642+00:00",
+    "sample_count": 1313,
+    "transaction_age_threshold_seconds": 45,
+    "scope_note": "Sampling began after pipeline admission; fixture preparation and admission were certified separately in the targeted run."
+  },
+  "setup_lifecycle_executed": false,
+  "status": "FAIL",
+  "winner_publication_executed": false
+}

@@ -117,9 +117,9 @@ def test_legacy_estimate_without_possession_is_explicitly_ineligible() -> None:
 def test_deployment_identity_reports_current_database_head_and_separate_evidence_schema() -> None:
     identity = current_deployment_identity(config_hash="cfg", calculation_version="calc")
 
-    assert identity["schema_revision"] == "0086_ceri_feature_source_manifest"
-    assert identity["database_schema_revision"] == "0086_ceri_feature_source_manifest"
-    assert identity["repository_schema_revision"] == "0086_ceri_feature_source_manifest"
+    assert identity["schema_revision"] == "0092_phase2_eligibility_ledgers"
+    assert identity["database_schema_revision"] == "0092_phase2_eligibility_ledgers"
+    assert identity["repository_schema_revision"] == "0092_phase2_eligibility_ledgers"
     assert identity["schema_revision_match"] is True
     assert identity["ceri_evidence_schema_revision"] == CERI_EVIDENCE_SCHEMA_REVISION
 

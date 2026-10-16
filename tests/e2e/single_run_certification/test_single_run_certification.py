@@ -32,7 +32,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
-from app.database_safety import assert_disposable_database
+from app.database_safety import assert_disposable_database, resolve_test_postgres_admin_url
 from app.models.ceri_tables import CeriScoreSnapshot
 from app.models.tables import PriceBar
 from app.services.bar_cache_service import cache_bars
@@ -70,12 +70,43 @@ from single_run_certification.reporting import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 ALEMBIC_HEAD = ScriptDirectory.from_config(
     Config(str(REPO_ROOT / "alembic.ini"))
 ).get_current_head()
 TERMINAL_PIPELINE_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"}
 LIVE_CANARY_TICKERS = ("AAPL", "MSFT", "NVDA", "AMZN", "META")
+CERTIFICATION_ADMISSION_MODES = {"normal", "intercept_before_enqueue"}
+
+
+@dataclass(frozen=True)
+class CertificationHarnessOptions:
+    transaction_trace: bool = False
+    admission_mode: str = "normal"
+
+
+def _certification_harness_options(
+    request: pytest.FixtureRequest,
+) -> CertificationHarnessOptions:
+    marker = request.node.get_closest_marker("certification_harness")
+    if marker is None:
+        return CertificationHarnessOptions()
+    if marker.args:
+        pytest.fail("certification_harness accepts keyword arguments only")
+    unexpected = set(marker.kwargs) - {"transaction_trace", "admission_mode"}
+    if unexpected:
+        pytest.fail(f"Unsupported certification_harness options: {sorted(unexpected)}")
+    transaction_trace = marker.kwargs.get("transaction_trace", False)
+    admission_mode = marker.kwargs.get("admission_mode", "normal")
+    if not isinstance(transaction_trace, bool):
+        pytest.fail("certification_harness transaction_trace must be a bool")
+    if admission_mode not in CERTIFICATION_ADMISSION_MODES:
+        pytest.fail(f"Unsupported certification admission mode: {admission_mode!r}")
+    if admission_mode != "normal" and not transaction_trace:
+        pytest.fail("certification admission interception requires transaction tracing")
+    return CertificationHarnessOptions(
+        transaction_trace=transaction_trace,
+        admission_mode=admission_mode,
+    )
 
 
 @dataclass(frozen=True)
@@ -111,16 +142,18 @@ def certification_provider_mode() -> str:
 
 @pytest.fixture
 def certification_environment(
+    request: pytest.FixtureRequest,
     tmp_path_factory: pytest.TempPathFactory,
     certification_provider_ingest_enabled: bool,
     certification_provider_mode: str,
 ) -> Iterator[CertificationEnvironment]:
+    harness_options = _certification_harness_options(request)
     live_mode = certification_provider_mode == "live"
     execution_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     database_name = f"swinglens_pytest_cert_{uuid.uuid4().hex[:12]}"
     if not database_name.startswith("swinglens_pytest_cert_"):
         raise RuntimeError("unsafe certification database name")
-    admin_url = os.environ.get("SWINGLENS_TEST_POSTGRES_ADMIN_URL", POSTGRES_ADMIN_URL)
+    admin_url = resolve_test_postgres_admin_url()
     try:
         admin = psycopg.connect(admin_url, autocommit=True)
     except psycopg.Error as exc:
@@ -231,6 +264,13 @@ def certification_environment(
             [str(REPO_ROOT), str(REPO_ROOT / "tests" / "e2e" / "single_run_certification")]
         ),
     }
+    # pytest's current-test marker belongs to this controller process. Passing
+    # it to runtime children misclassifies WEB and DURABLE_WORKER as tests.
+    env.pop("PYTEST_CURRENT_TEST", None)
+    if harness_options.transaction_trace:
+        env["CERTIFICATION_TRANSACTION_TRACE_DIR"] = str(artifact_dir / "logs")
+        env["CERTIFICATION_ADAPTER_STATUS_DIR"] = str(artifact_dir / "logs")
+    env["CERTIFICATION_ADMISSION_MODE"] = harness_options.admission_mode
     if live_mode:
         # Only the provider boundary changes. The same supervisor, web
         # process, durable worker, queue, leases and observer remain active.
@@ -325,6 +365,10 @@ def certification_environment(
             "feature_flags": {key: value for key, value in env.items() if _is_feature_flag(key)},
             "canonical_tickers": list(certification_tickers),
             "provider_mode": certification_provider_mode,
+            "harness_configuration": {
+                "transaction_trace": harness_options.transaction_trace,
+                "admission_mode": harness_options.admission_mode,
+            },
             "decoy_run_id": seed.decoy_run_id,
             "decoy_ticker": DECOY_TICKER,
         }
@@ -904,6 +948,7 @@ def _run_pipeline_through_gui(
     absolute_deadline_seconds: int = 900,
     progress_deadline_seconds: int = 180,
 ) -> tuple[int, str]:
+    operation_deadline = time.monotonic() + absolute_deadline_seconds
     page.get_by_role("button", name="Run full pipeline").click()
     ib_preflight = page.locator("[data-ib-preflight-panel]")
     ib_preflight.wait_for(state="visible", timeout=30_000)
@@ -912,18 +957,25 @@ def _run_pipeline_through_gui(
     confirm = page.locator("[data-confirm-panel]")
     confirm.wait_for(state="visible", timeout=30_000)
     # Admission reconstructs and fingerprints the complete transition candidate
-    # set.  On a cold certification database that can legitimately outlive
-    # Playwright's 30-second action-navigation timeout even though the request
-    # is still making bounded progress.
+    # set.  Keep it inside the caller's finite end-to-end deadline instead of
+    # imposing a second, shorter wall-clock limit before the durable pipeline is
+    # observable.  This preserves one deadline for admission plus execution.
     confirm.locator("[data-confirm-continue]").click(no_wait_after=True)
-    page.wait_for_url(re.compile(rf"/runs/{run_id}/pipeline(?:/\d+)?$"), timeout=120_000)
+    navigation_timeout_ms = max(
+        1,
+        int((operation_deadline - time.monotonic()) * 1000),
+    )
+    page.wait_for_url(
+        re.compile(rf"/runs/{run_id}/pipeline(?:/\d+)?$"),
+        timeout=navigation_timeout_ms,
+    )
     if not re.search(rf"/runs/{run_id}/pipeline/\d+$", page.url):
         raise RuntimeError(
             "PIPELINE_ADMISSION_REJECTED: "
             + (page.locator("body").text_content() or "empty response body")
         )
     pipeline_id = int(page.url.rsplit("/", 1)[-1])
-    absolute_deadline = time.monotonic() + absolute_deadline_seconds
+    absolute_deadline = operation_deadline
     progress_deadline = time.monotonic() + progress_deadline_seconds
     previous_progress = None
     status = ""
@@ -938,6 +990,7 @@ def _run_pipeline_through_gui(
                     pipeline_id=pipeline_id,
                     lock_wait_seconds=5,
                     transaction_age_seconds=120,
+                    transaction_progress_seconds=30,
                     no_progress_seconds=progress_deadline_seconds,
                 )
             with observer_log.open("a", encoding="utf-8") as handle:
@@ -1169,7 +1222,18 @@ def _compare_run_detail(
 def _compare_expanded_evidence(
     page: Page, engine, recorder: CertificationRecorder, run_id: int
 ) -> None:
-    gui = page.locator("[data-cockpit-row]").evaluate_all(
+    cockpit_rows = page.locator("[data-cockpit-row]")
+    for index in range(cockpit_rows.count()):
+        row = cockpit_rows.nth(index)
+        row.locator("[data-detail-toggle]").click()
+        detail_content = row.locator("xpath=following-sibling::tr[1]").locator(
+            "[data-detail-content]"
+        )
+        detail_content.locator("[data-ticker-detail-fragment]").wait_for(
+            state="attached",
+            timeout=30_000,
+        )
+    gui = cockpit_rows.evaluate_all(
         """
         rows => rows.map(row => {
           const detail = row.nextElementSibling;
@@ -1221,8 +1285,8 @@ def _compare_expanded_evidence(
         "Valuation": "valuation_quality_score",
         "Forward": "forward_quality_score",
         "Shareholder": "shareholder_quality_score",
-        "Liquidity": "liquidity_risk_score",
-        "Penalty": "missing_data_penalty",
+        "Liquidity Risk": "liquidity_risk_score",
+        "Missing Penalty": "missing_data_penalty",
     }
     tech_map = {
         "Score": "dual_score",
@@ -1247,7 +1311,7 @@ def _compare_expanded_evidence(
                 continue
             for label, field in mapping.items():
                 expected = _display_value(db[field])
-                actual = values.get(label, "").splitlines()[0].strip()
+                actual = _first_display_line(values.get(label, ""))
                 recorder.check(
                     actual == expected,
                     f"{ticker} expanded {section_name} {label} GUI↔DB",
@@ -1341,7 +1405,7 @@ def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: i
             "Posture": str(db["posture"]),
         }
         for field, expected in comparisons.items():
-            actual = gui[field].splitlines()[0].strip()
+            actual = _first_display_line(gui[field])
             matches = actual.startswith(expected) if field == "Risk" else actual == expected
             recorder.check(
                 matches,
@@ -1545,7 +1609,7 @@ def _compare_winner(page: Page, engine, recorder: CertificationRecorder, run_id:
             else "Insufficient"
         )
         recorder.check(
-            gui["Probability"].splitlines()[0].strip() == probability,
+            _first_display_line(gui["Probability"]) == probability,
             f"Winner {ticker} probability GUI↔DB",
             area="Winner Evidence",
             expected=probability,
@@ -2741,14 +2805,20 @@ def _table_rows(page: Page, required_headers: set[str]) -> list[dict[str, str]]:
 
 def _ticker_from_cell(value: str, known_tickers) -> str:
     """Extract a ticker even when a badge is rendered without whitespace beside it."""
+    tokens = value.split()
     return next(
         (
             ticker
             for ticker in sorted(known_tickers, key=len, reverse=True)
             if value.startswith(ticker)
         ),
-        value.split()[0],
+        tokens[0] if tokens else "",
     )
+
+
+def _first_display_line(value: str) -> str:
+    lines = str(value or "").splitlines()
+    return lines[0].strip() if lines else ""
 
 
 def _display_value(value) -> str:

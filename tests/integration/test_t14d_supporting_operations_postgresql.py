@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,26 @@ from app.services.ceri.sec.identity_repair import resolve_and_persist_sec_identi
 
 contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
+
+
+def _local_admin_request() -> Request:
+    from app.main import app
+
+    token = app.state.local_admin_csrf_token
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/ceri/events/review",
+            "headers": [(b"x-csrf-token", token.encode("utf-8"))],
+            "app": app,
+            "router": app.router,
+            "scheme": "http",
+            "server": ("localhost", 80),
+            "client": ("127.0.0.1", 43210),
+            "query_string": b"",
+        }
+    )
 
 
 def test_source_override_missing_changed_and_superseded_authority_rolls_back(
@@ -74,15 +94,27 @@ def test_source_override_missing_changed_and_superseded_authority_rolls_back(
         assert retained.materiality == 1.0 and not retained.is_current
         assert db.get(CeriCatalystEventRevision, appended_id).materiality == 2.0
         assert db.scalar(select(func.count()).select_from(CeriManualReview)) == 1
-        first = ceri_routes.review_ceri_event(target_id, object(), db, None)
-        assert ceri_routes.review_ceri_event(target_id, object(), db, None)["id"] == first["id"]
+        first = ceri_routes.review_ceri_event(
+            target_id, _local_admin_request(), db, None
+        )
+        assert (
+            ceri_routes.review_ceri_event(
+                target_id, _local_admin_request(), db, None
+            )["id"]
+            == first["id"]
+        )
         with pytest.raises(HTTPException) as error:
             ceri_routes.review_ceri_event(
-                target_id, object(), db, {"new_value": {"review_state": "REJECTED"}}
+                target_id,
+                _local_admin_request(),
+                db,
+                {"new_value": {"review_state": "REJECTED"}},
             )
         assert error.value.status_code == 409
         with pytest.raises(HTTPException) as error:
-            ceri_routes.review_ceri_event(987654321, object(), db, None)
+            ceri_routes.review_ceri_event(
+                987654321, _local_admin_request(), db, None
+            )
         assert error.value.status_code == 404
 
 

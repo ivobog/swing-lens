@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="72.975" timestamp="2026-10-14T12:25:27.503793+02:00" hostname="NewLaptop"><testcase classname="tests.integration.test_phase4_configuration_certification_postgresql" name="test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier" time="71.949"><failure message="assert [1] == []&#10;  &#10;  Left contains one more item: 1&#10;  Use -v to get more diff">tests\integration\test_phase4_configuration_certification_postgresql.py:419: in test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier
+    assert proof["claimable_job_ids_before"] == []
+E   assert [1] == []
+E     
+E     Left contains one more item: 1
+E     Use -v to get more diff</failure></testcase></testsuite></testsuites>

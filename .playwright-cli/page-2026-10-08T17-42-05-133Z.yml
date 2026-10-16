@@ -1,0 +1,140 @@
+- generic [active] [ref=f10e1]:
+  - link "Skip to main content" [ref=f10e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f10e3]:
+    - link "SwingLens" [ref=f10e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Primary navigation" [ref=f10e5]:
+      - link "Dashboard" [ref=f10e6] [cursor=pointer]:
+        - /url: /
+      - link "Runs" [ref=f10e7] [cursor=pointer]:
+        - /url: /runs
+      - link "Market Regime" [ref=f10e8] [cursor=pointer]:
+        - /url: /market-regime
+      - link "Market Changes" [ref=f10e9] [cursor=pointer]:
+        - /url: /setup-lifecycle
+      - link "Alerts" [ref=f10e10] [cursor=pointer]:
+        - /url: /setup-lifecycle/alerts
+      - link "CERI" [ref=f10e11] [cursor=pointer]:
+        - /url: /ceri
+      - link "CERI Ops" [ref=f10e12] [cursor=pointer]:
+        - /url: /ceri/operations
+      - link "History" [ref=f10e13] [cursor=pointer]:
+        - /url: /history
+      - link "Winner Evidence" [ref=f10e14] [cursor=pointer]:
+        - /url: /winner-probability/operations
+      - link "IB Gateway" [ref=f10e15] [cursor=pointer]:
+        - /url: /ib
+      - link "Scoring" [ref=f10e16] [cursor=pointer]:
+        - /url: /scoring
+      - link "Settings" [ref=f10e17] [cursor=pointer]:
+        - /url: /settings
+      - link "Operations" [ref=f10e18] [cursor=pointer]:
+        - /url: /system/operations
+      - link "Help" [ref=f10e19] [cursor=pointer]:
+        - /url: /help
+  - main [ref=f10e20]:
+    - generic [ref=f10e21]:
+      - generic [ref=f10e22]:
+        - generic [ref=f10e23]:
+          - heading "Winner Probability Operations" [level=1] [ref=f10e24]
+          - paragraph [ref=f10e25]: Outcome state, processing health, and local administrative controls for the research evidence layer.
+        - generic [ref=f10e26]:
+          - link "Outcome Explorer" [ref=f10e27] [cursor=pointer]:
+            - /url: /winner-probability/outcomes
+          - link "Model Health" [ref=f10e28] [cursor=pointer]:
+            - /url: /winner-probability/models
+          - link "JSON" [ref=f10e29] [cursor=pointer]:
+            - /url: /api/winner-probability/operations/status
+      - generic [ref=f10e30]:
+        - generic [ref=f10e31]: Research only
+        - generic [ref=f10e32]: No broker order path
+        - generic [ref=f10e33]: Admin enabled
+    - region "Outcome operations summary" [ref=f10e34]:
+      - generic [ref=f10e35]:
+        - generic [ref=f10e36]: Pending
+        - strong [ref=f10e37]: "1730"
+      - generic [ref=f10e38]:
+        - generic [ref=f10e39]: Overdue
+        - strong [ref=f10e40]: "466"
+      - generic [ref=f10e41]:
+        - generic [ref=f10e42]: H5 Calendar Due
+        - strong [ref=f10e43]: "0"
+      - generic [ref=f10e44]:
+        - generic [ref=f10e45]: Retry Eligible Now
+        - strong [ref=f10e46]: "0"
+      - generic [ref=f10e47]:
+        - generic [ref=f10e48]: Retry Deferred
+        - strong [ref=f10e49]: "0"
+      - generic [ref=f10e50]:
+        - generic [ref=f10e51]: Bar Fetch Required
+        - strong [ref=f10e52]: "278"
+      - generic [ref=f10e53]:
+        - generic [ref=f10e54]: Bar Obligations Satisfied
+        - strong [ref=f10e55]: "0"
+      - generic [ref=f10e56]:
+        - generic [ref=f10e57]: Bar Data Unavailable
+        - strong [ref=f10e58]: "67"
+      - generic [ref=f10e59]:
+        - generic [ref=f10e60]: Bar Fetch Failed
+        - strong [ref=f10e61]: "1"
+      - generic [ref=f10e62]:
+        - generic [ref=f10e63]: Daily Bar Lag
+        - strong [ref=f10e64]: "0"
+      - generic [ref=f10e65]:
+        - generic [ref=f10e66]: Failed Runs
+        - strong [ref=f10e67]: "0"
+    - generic [ref=f10e68]:
+      - heading "Local Admin" [level=2] [ref=f10e71]
+      - generic [ref=f10e72]:
+        - generic [ref=f10e73]:
+          - button "Process due outcomes" [ref=f10e74]
+          - status
+        - generic [ref=f10e75]:
+          - button "Refresh cohorts" [ref=f10e76]
+          - status
+    - generic [ref=f10e77]:
+      - heading "Recent Processing Runs" [level=2] [ref=f10e80]
+      - table [ref=f10e82]:
+        - caption [ref=f10e83]: Recent winner probability processing runs and errors.
+        - rowgroup [ref=f10e84]:
+          - row [ref=f10e85]:
+            - columnheader "ID" [ref=f10e86]
+            - columnheader "Type" [ref=f10e87]
+            - columnheader "Status" [ref=f10e88]
+            - columnheader "Run" [ref=f10e89]
+            - columnheader "Started" [ref=f10e90]
+            - columnheader "Completed" [ref=f10e91]
+            - columnheader "Counts" [ref=f10e92]
+            - columnheader "Error" [ref=f10e93]
+        - rowgroup [ref=f10e94]:
+          - row [ref=f10e95]:
+            - cell "7" [ref=f10e96]
+            - cell "WINNER_OUTCOME_MATURATION" [ref=f10e97]
+            - cell "COMPLETED" [ref=f10e98]
+            - cell [ref=f10e100]
+            - cell "2026-10-07T22:15:04.960836+02:00" [ref=f10e101]
+            - cell "2026-10-07T22:15:04.987837+02:00" [ref=f10e102]
+            - cell [ref=f10e103]:
+              - code [ref=f10e104]: "{\"continuation_decision\": \"DRAIN_COMPLETE\", \"continuation_depth\": 0, \"continuation_reason\": \"NO_WORK_REMAINING\", \"deferred_pending_h5\": 0, \"due_h5_next_open\": 0, \"due_total\": 0, \"earliest_retry_not_before\": null, \"eligible_remaining\": 0, \"excluded_h5\": 0, \"failed_h5\": 0, \"last_full_scan_at\": \"2026-10-07T20:15:04.982836+00:00\", \"last_successful_full_drain_at\": \"2026-10-07T20:15:04.982836+00:00\", \"last_zero_due_backlog_at\": \"2026-10-07T20:15:04.982836+00:00\", \"material_evidence_changes\": 0, \"matured_h5\": 0, \"oldest_due_h5_age\": null, \"oldest_due_h5_session\": null, \"parent_job_id\": null, \"pending_h5_after_cycle\": 0, \"processed_h5\": 0, \"reason_counts\": {}, \"retry_deferred\": 0, \"retry_eligible_now\": 0, \"root_job_id\": 851, \"scan_completed\": true, \"target_stop_matured\": 0, \"trigger_source\": \"SCHEDULER\", \"unvisited_h5_after_cycle\": 0, \"unvisited_total\": 0, \"workflow_key\": \"winner:h5-next-open:maturation\"}"
+            - cell [ref=f10e105]
+          - row [ref=f10e106]:
+            - cell "6" [ref=f10e107]
+            - cell "WINNER_OUTCOME_MATURATION" [ref=f10e108]
+            - cell "COMPLETED" [ref=f10e109]
+            - cell [ref=f10e111]
+            - cell "2026-10-06T22:15:03.687028+02:00" [ref=f10e112]
+            - cell "2026-10-06T22:15:03.762318+02:00" [ref=f10e113]
+            - cell [ref=f10e114]:
+              - code [ref=f10e115]: "{\"continuation_decision\": \"DRAIN_COMPLETE\", \"continuation_depth\": 0, \"continuation_reason\": \"NO_WORK_REMAINING\", \"deferred_pending_h5\": 0, \"due_h5_next_open\": 0, \"due_total\": 0, \"earliest_retry_not_before\": null, \"eligible_remaining\": 0, \"excluded_h5\": 0, \"failed_h5\": 0, \"last_full_scan_at\": \"2026-10-06T20:15:03.749863+00:00\", \"last_successful_full_drain_at\": \"2026-10-06T20:15:03.749863+00:00\", \"last_zero_due_backlog_at\": \"2026-10-06T20:15:03.749863+00:00\", \"material_evidence_changes\": 0, \"matured_h5\": 0, \"oldest_due_h5_age\": null, \"oldest_due_h5_session\": null, \"parent_job_id\": null, \"pending_h5_after_cycle\": 0, \"processed_h5\": 0, \"reason_counts\": {}, \"retry_deferred\": 0, \"retry_eligible_now\": 0, \"root_job_id\": 689, \"scan_completed\": true, \"target_stop_matured\": 0, \"trigger_source\": \"SCHEDULER\", \"unvisited_h5_after_cycle\": 0, \"unvisited_total\": 0, \"workflow_key\": \"winner:h5-next-open:maturation\"}"
+            - cell [ref=f10e116]
+          - row [ref=f10e117]:
+            - cell "5" [ref=f10e118]
+            - cell "WINNER_OUTCOME_MATURATION" [ref=f10e119]
+            - cell "COMPLETED" [ref=f10e120]
+            - cell [ref=f10e122]
+            - cell "2026-10-05T22:15:01.513080+02:00" [ref=f10e123]
+            - cell "2026-10-05T22:15:01.556080+02:00" [ref=f10e124]
+            - cell [ref=f10e125]:
+              - code [ref=f10e126]: "{\"continuation_decision\": \"DRAIN_COMPLETE\", \"continuation_depth\": 0, \"continuation_reason\": \"NO_WORK_REMAINING\", \"deferred_pending_h5\": 0, \"due_h5_next_open\": 0, \"due_total\": 0, \"earliest_retry_not_before\": null, \"eligible_remaining\": 0, \"excluded_h5\": 0, \"failed_h5\": 0, \"last_full_scan_at\": \"2026-10-05T20:15:01.549080+00:00\", \"last_successful_full_drain_at\": \"2026-10-05T20:15:01.549080+00:00\", \"last_zero_due_backlog_at\": \"2026-10-05T20:15:01.549080+00:00\", \"material_evidence_changes\": 0, \"matured_h5\": 0, \"oldest_due_h5_age\": null, \"oldest_due_h5_session\": null, \"parent_job_id\": null, \"pending_h5_after_cycle\": 0, \"processed_h5\": 0, \"reason_counts\": {}, \"retry_deferred\": 0, \"retry_eligible_now\": 0, \"root_job_id\": 687, \"scan_completed\": true, \"target_stop_matured\": 0, \"trigger_source\": \"SCHEDULER\", \"unvisited_h5_after_cycle\": 0, \"unvisited_total\": 0, \"workflow_key\": \"winner:h5-next-open:maturation\"}"
+            - cell [ref=f10e127]

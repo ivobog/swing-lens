@@ -1,0 +1,100 @@
+{
+  "task": "2.9.12g",
+  "verdict": "PARTIAL",
+  "task_timing": {
+    "start": "2026-10-14T20:57:30.6265596+02:00",
+    "stop_decision": "2026-10-14T21:03:05.8655907+02:00",
+    "elapsed_seconds": 335.2390311,
+    "budget_seconds": 1800,
+    "within_budget": true
+  },
+  "retained_incident": {
+    "observed_transaction_age_seconds": 131.806556,
+    "maximum_permitted_seconds": 120,
+    "phase": "pre-pipeline retained-history fixture preparation",
+    "blocked_sessions_maximum": 0,
+    "lock_waits_maximum": 0,
+    "retained_database_available": false,
+    "retained_backend_pid_available": false,
+    "note": "The disposable database was already deleted and the retained runtime directory was absent. No reconnection was attempted."
+  },
+  "ownership": {
+    "classification": "A_FIXTURE_OWNED_LONG_TRANSACTION",
+    "session_creator": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::_seed_retained_provider_history",
+    "old_scope": "one SQLAlchemy Session and one caller-owned transaction across all 100 retained-history tickers",
+    "production_helpers": [
+      "CeriIngestionService.ingest",
+      "CeriNormalizationService.normalize",
+      "CeriProcessingRunService.create_or_get",
+      "CeriProcessingRunService.finish"
+    ],
+    "production_helper_contract": "use the caller-supplied Session, flush as required, and do not commit",
+    "transaction_start": "implicit SQLAlchemy begin on the first database operation in the first CeriIngestionService.ingest call",
+    "last_required_operation": "CeriProcessingRunService.finish flush for the final ticker, followed by the fixture's single commit",
+    "open_interval": "provider-result handling, per-record normalization work, and transitions between each of 100 ticker calls occurred while the outer fixture transaction remained open",
+    "pending_mutations": "ingestion, immutable source-membership, normalized estimate, processing-run, and semantic-scope writes accumulated until the final fixture commit",
+    "intentional_cross_ticker_atomicity": false,
+    "earliest_safe_boundary": "after ingestion, normalization, processing completion, and commit for each individual ticker",
+    "fixture_production_session_shared": true,
+    "retained_pid_correlation": "not recoverable from the surviving redacted evidence"
+  },
+  "correction": {
+    "file": "tests/e2e/single_run_certification/test_real_writer_cardinality.py",
+    "function": "_seed_retained_provider_history",
+    "production_source_changed": false,
+    "new_scope": "one short Session/transaction per independently authoritative ticker; Session closes before the next ticker or controlled boundary callback",
+    "threshold_seconds": 120,
+    "threshold_changed": false
+  },
+  "focused_certification": {
+    "invocation_count": 1,
+    "invocation_limit": 1,
+    "node": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_retained_provider_history_closes_transactions_between_100_members",
+    "browser_started": false,
+    "pipeline_started": false,
+    "database": "disposable PostgreSQL",
+    "live_provider_contact": false,
+    "pytest_exit_code": 1,
+    "pytest_reported_seconds": 7.87,
+    "junit_suite_seconds": 7.778,
+    "tests": 1,
+    "failures": 1,
+    "errors": 0,
+    "passed_before_failure": [
+      "the first ticker Session was closed before the callback",
+      "the independently observed seeder backend had null xact_start",
+      "the independently observed seeder backend was not idle in transaction"
+    ],
+    "failure": "At the first ticker boundary the independent query found 0 memberships with normalization_state=NORMALIZED; the test expected 4.",
+    "population_100_reached": false,
+    "fingerprints_reached": false,
+    "automatic_retry_performed": false,
+    "junit": "docs/remediation/readiness-phase2/TASK_2_9_12G_CERTIFICATION.xml"
+  },
+  "anchor_compatibility": {
+    "persisted_contract_field": true,
+    "current_contract": "transition-run-start-anchor-v2",
+    "stored_version_dispatch": false,
+    "v1_policy_observed": "strictly rejected by comparison against a newly reconstructed v2 payload",
+    "v1_rewritten": false,
+    "v1_silently_reinterpreted_as_v2": false,
+    "missing_anchor": "fails closed",
+    "unknown_contract": "fails structural equality/fingerprint comparison rather than an explicit version-aware branch",
+    "release_blocker": "Historical v1 resume compatibility has no version-aware verifier or separately documented migration/rejection policy; legitimate lifecycle changes can therefore make a historical v1 pipeline fail with DECISION_MANIFEST_MISMATCH."
+  },
+  "source_pins": {
+    "validator": "python -m scripts.qa.t14a_phase2_9_source_pins",
+    "result": {
+      "stale": []
+    },
+    "regenerated": false
+  },
+  "safety": {
+    "chromium_100_started": false,
+    "browser_or_e2e_process_started": false,
+    "full_suite_started": false,
+    "normal_database_accessed": false,
+    "historical_runs_accessed": false,
+    "working_tree_reset_stashed_merged_pushed_or_deployed": false
+  }
+}

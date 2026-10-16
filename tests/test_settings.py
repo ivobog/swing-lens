@@ -34,7 +34,12 @@ from app.services.setup_lifecycle.constants import (
     SLSE_RUN_DELETION_POLICY,
     SLSE_TRIGGER_AUTHORITY,
 )
-from app.settings import Settings, TechnicalArtifactCacheMode
+from app.settings import (
+    FundamentalAdmissionMode,
+    RuntimeMode,
+    Settings,
+    TechnicalArtifactCacheMode,
+)
 
 
 def test_numerical_library_threads_are_bounded_for_worker_processes() -> None:
@@ -50,6 +55,7 @@ def test_phase_0_durable_pipeline_settings_default_to_enabled_values() -> None:
     assert settings.app_host == "127.0.0.1"
     assert settings.database_connect_timeout_seconds == 3
     assert settings.use_durable_pipeline is True
+    assert settings.fundamental_admission_mode is FundamentalAdmissionMode.LEGACY
     assert settings.ib_health_timeout_seconds == 3.0
     assert settings.ib_gateway_auto_launch_enabled is False
     assert settings.ib_gateway_executable_path is None
@@ -126,6 +132,22 @@ def test_technical_artifact_cache_mode_maps_one_legacy_flag() -> None:
     assert settings.technical_artifact_cache_mode == TechnicalArtifactCacheMode.SHADOW_VALIDATE
     assert settings.technical_artifact_cache_shadow_validation_enabled is True
     assert settings.technical_artifact_cache_active_reads_enabled is False
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [FundamentalAdmissionMode.SHADOW, FundamentalAdmissionMode.ACTIVE],
+)
+def test_fundamental_admission_nonlegacy_modes_require_certification(mode) -> None:
+    with pytest.raises(ValidationError, match="requires RUNTIME_MODE=CERTIFICATION"):
+        Settings(_env_file=None, fundamental_admission_mode=mode)
+
+    settings = Settings(
+        _env_file=None,
+        runtime_mode=RuntimeMode.CERTIFICATION,
+        fundamental_admission_mode=mode,
+    )
+    assert settings.fundamental_admission_mode is mode
 
 
 def test_fetch_technical_overlap_requires_process_pool() -> None:

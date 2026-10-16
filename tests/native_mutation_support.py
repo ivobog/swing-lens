@@ -86,6 +86,7 @@ def seed_native_core(
     raw_values=None,
     ticker="ACME",
     price_frame=None,
+    include_decision_context=False,
 ):
     import pandas as pd
     from test_core_effective_configuration import core_configurations
@@ -130,8 +131,30 @@ def seed_native_core(
         v5=load_technical_scoring_v5_config(),
         settings=get_settings(),
     )
+    retained_configurations = [*configs, *extra_configurations]
+    decision_configurations = {}
+    if include_decision_context:
+        from app.services.contextual_effective_configuration import (
+            resolve_regime_configuration,
+            resolve_sector_configuration,
+        )
+
+        for default in (resolve_regime_configuration(), resolve_sector_configuration()):
+            namespace = default.snapshot.family.namespace
+            retained = next(
+                (
+                    config
+                    for config in reversed(retained_configurations)
+                    if config.snapshot.family.namespace == namespace
+                ),
+                None,
+            )
+            if retained is None:
+                retained = default
+                retained_configurations.append(retained)
+            decision_configurations[namespace] = retained
     cutoff, pipeline_id = bound_pipeline(
-        db, run_id, [*configs, *extra_configurations], cutoff_at=cutoff_at
+        db, run_id, retained_configurations, cutoff_at=cutoff_at
     )
     frame = _synthetic_frame() if price_frame is None else price_frame.copy()
     frame["date"] = pd.bdate_range(end=cutoff.latest_completed_session, periods=len(frame))
@@ -152,5 +175,30 @@ def seed_native_core(
     r = refresh_ranking_profile(
         db, run_id, "momentum_swing", **args, effective_configuration=configs[3]
     )[0]
+    regime = None
+    sector = None
+    if include_decision_context:
+        from app.services.market_regime_command_center import MarketRegimeCommandCenterService
+        from app.services.sector_rotation_service import SectorRotationService
+
+        regime = MarketRegimeCommandCenterService().build_snapshot(
+            db,
+            run_id=run_id,
+            market_cutoff=cutoff,
+            effective_configuration=decision_configurations["contextual.regime"],
+        )
+        sector = SectorRotationService().build_sector_rotation_snapshot(
+            db,
+            run_id,
+            market_cutoff=cutoff,
+            effective_configuration=decision_configurations["contextual.sector"],
+        )
     db.commit()
-    return cutoff, configs, {"fundamental": f, "technical": t, "combined": c, "ranking": r}
+    return cutoff, configs, {
+        "fundamental": f,
+        "technical": t,
+        "combined": c,
+        "ranking": r,
+        "regime": regime,
+        "sector": sector,
+    }

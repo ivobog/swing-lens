@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="7.778" timestamp="2026-10-14T21:02:26.249798+02:00" hostname="NewLaptop"><testcase classname="tests.e2e.single_run_certification.test_real_writer_cardinality" name="test_retained_provider_history_closes_transactions_between_100_members" time="6.757"><failure message="assert 0 == 4">tests\e2e\single_run_certification\test_real_writer_cardinality.py:517: in test_retained_provider_history_closes_transactions_between_100_members
+    _seed_retained_provider_history(
+tests\e2e\single_run_certification\test_real_writer_cardinality.py:413: in _seed_retained_provider_history
+    transaction_boundary_callback(completed, ticker)
+tests\e2e\single_run_certification\test_real_writer_cardinality.py:511: in assert_closed_boundary
+    assert committed == 4
+E   assert 0 == 4</failure></testcase></testsuite></testsuites>

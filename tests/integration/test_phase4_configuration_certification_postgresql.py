@@ -144,6 +144,7 @@ def test_public_upload_enqueue_process_restart_native_worker_and_frozen_history(
         "SECTOR",
     }
     if full_graph:
+        assert len(executed["winner"]) == 1
         downstream = _process(
             "queue-downstream",
             tmp_path,
@@ -154,9 +155,41 @@ def test_public_upload_enqueue_process_restart_native_worker_and_frozen_history(
             j["payload"]["effective_configuration_anchor"] == queued["anchor"]
             for j in downstream["jobs"]
         )
+        authorized_downstream = [
+            j
+            for j in downstream["jobs"]
+            if j["type"]
+            in {"SETUP_LIFECYCLE_DAILY_MAINTENANCE", "SETUP_ALERT_REBUILD"}
+        ]
+        assert {j["type"] for j in authorized_downstream} == {
+            "SETUP_LIFECYCLE_DAILY_MAINTENANCE",
+            "SETUP_ALERT_REBUILD",
+        }
+        assert all(j["status"] == "QUEUED" for j in authorized_downstream)
+        terminal_winner = _process(
+            "post-terminal-winner-fence",
+            tmp_path,
+            disposable_postgres_database,
+            T13E_PARENT_JOB_ID=str(queued["job_id"]),
+        )["post_terminal_winner"]
+        assert terminal_winner == {
+            "candidate_id": terminal_winner["candidate_id"],
+            "candidate_status": "QUEUED",
+            "claimable": False,
+            "pipeline_status": "COMPLETED",
+            # Terminal status is itself fail-closed even when the retained
+            # authority-state audit value remains ACTIVE.
+            "pipeline_execution_authority_state": "ACTIVE",
+            "pipeline_execution_authorized": False,
+            "winner_count_before": 1,
+            "winner_count_during": 1,
+            "candidate_persisted": False,
+            "winner_count_after": 1,
+        }
         executed = _process("prerequisites", tmp_path, disposable_postgres_database)
         assert all(j["status"] == "COMPLETED" for j in executed["jobs"]), executed["jobs"]
         assert executed["alerts"]
+        assert len(executed["winner"]) == 1
         performance = _process(
             "benchmark",
             tmp_path,
@@ -318,11 +351,22 @@ def test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri
         T13E_SCHEDULER_BOUNDARY="true",
     )
     queued = _process("enqueue", tmp_path, disposable_postgres_database, **flags)
+    assert queued["job_status"] == "QUEUED"
+    assert queued["pipeline_status"] == "PENDING"
     _process("prerequisites", tmp_path, disposable_postgres_database)
     interrupted = _process("interrupt", tmp_path, disposable_postgres_database, **flags)
     failed = next(j for j in interrupted["jobs"] if j["id"] == queued["job_id"])
     assert failed["status"] == "QUEUED", failed
     assert "transient acquisition scheduling boundary" in failed["error"]
+    assert interrupted["pipelines"] == [
+        {
+            "id": queued["pipeline_id"],
+            "status": "FAILED",
+            "current_step": "CERI_PROVIDER_INGEST",
+            "message": "Pipeline failed.",
+            "error": "T13E transient acquisition scheduling boundary",
+        }
+    ]
     assert {e["kind"] for e in interrupted["evidence"]} >= {
         "FUNDAMENTAL",
         "TECHNICAL",
@@ -337,8 +381,14 @@ def test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri
         "resume", tmp_path, disposable_postgres_database, T13E_PARENT_JOB_ID=str(queued["job_id"])
     )
     continuation = resumed["jobs"][-1]
+    assert continuation["id"] != queued["job_id"]
+    assert continuation["type"] == "FULL_PIPELINE"
+    assert continuation["status"] == "QUEUED"
+    assert continuation["attempts"].get("attempt_count", 0) == 0
     assert continuation["payload"]["resume_from_step"] == "CERI_PROVIDER_INGEST"
     assert continuation["payload"]["effective_configuration_anchor"] == queued["anchor"]
+    assert resumed["pipelines"][0]["status"] == "QUEUED"
+    assert resumed["pipelines"][0]["current_step"] == "CERI_PROVIDER_INGEST"
     completed = _process(
         "execute",
         tmp_path,
@@ -348,27 +398,37 @@ def test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri
     )
     assert completed["jobs"][-1]["status"] == "COMPLETED", completed["jobs"][-1]["error"]
     assert completed["jobs"][-1]["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
-    assert not completed["lifecycle"] and not completed["winner"]
-    _process(
-        "retry-ready",
+    assert completed["jobs"][-1]["attempts"]["attempt_count"] == 1
+    assert completed["pipelines"][0]["status"] == "WAITING_FOR_CERI_COMPLETION"
+    assert completed["pipelines"][0]["current_step"] == "CERI_PROVIDER_INGEST"
+    assert completed["evidence"] == interrupted["evidence"]
+    assert not completed["lifecycle"] and not completed["transitions"]
+    assert not completed["alerts"] and not completed["winner"]
+    duplicate = _process(
+        "duplicate-resume",
         tmp_path,
         disposable_postgres_database,
         T13E_PARENT_JOB_ID=str(queued["job_id"]),
     )
-    retry = _process(
-        "execute",
-        tmp_path,
-        disposable_postgres_database,
-        T13E_READY_BOUNDARY="true",
-        T13E_SCHEDULER_BOUNDARY="true",
-    )
-    retried = next(j for j in retry["jobs"] if j["id"] == queued["job_id"])
-    assert retried["status"] == "COMPLETED", retried
-    assert retried["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
-    assert retried["payload"]["effective_configuration_anchor"] == queued["anchor"]
-    assert retried["attempts"]["attempt_count"] >= 2
-    assert retry["evidence"][: len(interrupted["evidence"])] == interrupted["evidence"]
-    assert not retry["lifecycle"] and not retry["winner"]
+    proof = duplicate["duplicate_resume"]
+    assert proof["status_code"] == 409
+    assert proof["detail"] == "Only BLOCKED, FAILED, or PARTIAL pipelines can be resumed."
+    assert proof["pipeline_status_before"] == "WAITING_FOR_CERI_COMPLETION"
+    assert proof["pipeline_status_after"] == "WAITING_FOR_CERI_COMPLETION"
+    assert proof["job_ids_before"] == proof["job_ids_after"]
+    assert proof["claimable_job_ids_before"] == []
+    assert proof["claimable_job_ids_after"] == []
+    root_after = next(j for j in duplicate["jobs"] if j["id"] == queued["job_id"])
+    continuation_after = next(j for j in duplicate["jobs"] if j["id"] == continuation["id"])
+    assert root_after["status"] == "QUEUED"
+    assert root_after["attempts"]["attempt_count"] == 1
+    assert continuation_after["status"] == "COMPLETED"
+    assert continuation_after["result"]["status"] == "WAITING_FOR_CERI_COMPLETION"
+    assert continuation_after["attempts"]["attempt_count"] == 1
+    assert continuation_after["payload"]["effective_configuration_anchor"] == queued["anchor"]
+    assert duplicate["evidence"] == interrupted["evidence"]
+    assert not duplicate["lifecycle"] and not duplicate["transitions"]
+    assert not duplicate["alerts"] and not duplicate["winner"]
 
 
 def test_real_worker_retry_after_native_fundamental_commit_uses_c1(
@@ -519,7 +579,7 @@ def test_all_registered_business_handlers_reject_missing_binding_before_financia
     command.upgrade(config, "head")
     engine = create_engine(disposable_postgres_database)
     handlers = default_job_handlers()
-    assert len(handlers) == 34
+    assert len(handlers) == 35
     excluded = {name for name in handlers if not durable_business_job(name)}
     assert excluded == {
         "IB_FETCH",

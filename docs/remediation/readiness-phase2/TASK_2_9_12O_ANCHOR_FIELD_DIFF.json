@@ -1,0 +1,190 @@
+{
+  "schema": "task-2.9.12o-anchor-field-diff-v1",
+  "captured_from": {
+    "execution_id": "20261015T115830Z-9cc625da",
+    "junit": "docs/remediation/readiness-phase2/TASK_2_9_12O_ANCHOR_REPRODUCTION.xml",
+    "failure_evidence": "test-results/single-run-certification/20261015T115830Z-9cc625da/task-2.9.12o-failure-evidence/anchor-and-lineage.json"
+  },
+  "comparison": {
+    "diagnostic_contract": "transition-anchor-mismatch-diagnostic-v1",
+    "comparison_contract": "transition-run-start-anchor-v2",
+    "comparison_point": "SETUP_PRE_MUTATION_REVERIFICATION",
+    "frozen_cutoff": "2026-10-15T11:59:15.010669Z",
+    "source_identity": {
+      "upload_run_id": 3,
+      "pipeline_run_id": 1,
+      "preflight_plan_id": 1,
+      "market_calculation_context_id": 1
+    },
+    "expected_fingerprint": "df40df7a64096ffe403a701bc0caba3975057aa3d391d9a10f835e2d65feec65",
+    "actual_fingerprint": "080dcd29dadcb1663e4de40d5c6220e1a6c0e350965b2fa52bfc230c24b2f69b",
+    "expected_population_count": 10,
+    "actual_population_count": 0,
+    "missing_field_count": 20,
+    "unexpected_field_count": 0,
+    "changed_value_count": 0,
+    "ordering_change_count": 0,
+    "source_identity_change_count": 0,
+    "pit_eligibility_change_count": 0,
+    "configuration_identity_change_count": 0
+  },
+  "classification": {
+    "cause_class": "G_ASYNCHRONOUS_CONTINUATION_INCONSISTENCY",
+    "summary": "The bounded source Session closed before Setup reconstruction. RawCompanyRow.run was not eager-loaded, so ten detached relationship reads failed and the old consumer compared an empty reconstruction to the valid stored anchor.",
+    "source_mutation_observed": false,
+    "canonical_contract_changed": false,
+    "semantically_meaningful": true
+  },
+  "differences": [
+    {
+      "path": "$.immutable_source_lineage.ACMR",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "6844517389f37be8272beada916b170dc3fc2b4b76ea4028aadae254024bfe32"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "ACMR"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.immutable_source_lineage.AVT",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "e118553433fbde1c7793f65fe17944c8f086ce5c36f9dec825e93bf496fc4a44"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "AVT"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.immutable_source_lineage.BHE",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "10f03907d8286f9de141211122b1afe1e60a2904828be91ad15485c405bcc46f"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "BHE"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.immutable_source_lineage.BLLN",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "36c3263eaed65029e3a95a5f08f9e380d1ca2b36016f60d5d71a0f6a782c94a4"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "BLLN"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.immutable_source_lineage.DVN",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "2ac37c883543be4d595f35e053a64e7c187f3add053c4fd0a21a8ad13c9ef154"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "DVN"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.immutable_source_lineage.JNJ",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "b7e06c4601c09053d02a13f36af78fb3b2d70a821f4c25e3b1d4436d2344513e"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "JNJ"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.immutable_source_lineage.KLIC",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "497047f251cfa60fd35c96738d20022ab26c54a739dc26d9701db3c8d222ec43"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "KLIC"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.immutable_source_lineage.LSCC",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "17f8462ac8869c6e41ff8c49f7ea81a624ab013a5caf87f50e1dd9d4e5660274"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "LSCC"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.immutable_source_lineage.PDFS",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "f7e8b6bb0bdefab291797787de91128f62b10d49db90267d13dbb498e1c6503c"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "PDFS"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.immutable_source_lineage.RDVT",
+      "change": "removed",
+      "expected": {"present": true, "type": "dict", "item_count": 6, "digest": "fc3d0669d06ddd86ab87d735db5625ef1e5e42c9b60143617ee0467058da7b4e"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "run_start_anchor_json", "row_identity": {"preflight_plan_id": 1, "ticker": "RDVT"}, "upstream_tables": ["raw_company_rows", "price_bars"], "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest", "last_authorized_mutation": "preflight reservation creation", "expected_mutability": "IMMUTABLE"}
+    },
+    {
+      "path": "$.ticker_population[0]",
+      "change": "removed",
+      "logical_value": "ACMR",
+      "expected": {"present": true, "type": "str", "digest": "805c839be7cc9dcc9bcd98e2247835822188dc12dff68951bdfca5f4d6b85c99"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "ACMR"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    },
+    {
+      "path": "$.ticker_population[1]",
+      "change": "removed",
+      "logical_value": "AVT",
+      "expected": {"present": true, "type": "str", "digest": "0039e224a2b0b5e9947e8674af519d2227147a52cde8df499cbd362942cdf981"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "AVT"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    },
+    {
+      "path": "$.ticker_population[2]",
+      "change": "removed",
+      "logical_value": "BHE",
+      "expected": {"present": true, "type": "str", "digest": "7e7ab0ec2f931cec5e069b627770d6702df60ef9e822ff82d99cfef72743e017"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "BHE"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    },
+    {
+      "path": "$.ticker_population[3]",
+      "change": "removed",
+      "logical_value": "BLLN",
+      "expected": {"present": true, "type": "str", "digest": "372cfce39d3ea65cdb6118f7ee4ae4f8576ce97ca8632e27ad3bb5d1907fad67"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "BLLN"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    },
+    {
+      "path": "$.ticker_population[4]",
+      "change": "removed",
+      "logical_value": "DVN",
+      "expected": {"present": true, "type": "str", "digest": "4e8151b5448c617f4b1fb07691238aab3ea588c25e91a2a41bfff54fa779db16"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "DVN"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    },
+    {
+      "path": "$.ticker_population[5]",
+      "change": "removed",
+      "logical_value": "JNJ",
+      "expected": {"present": true, "type": "str", "digest": "21b4408a5a0cf0576b968c15a67a4137f46122c5caf9a44255ab645286a40e2d"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "JNJ"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    },
+    {
+      "path": "$.ticker_population[6]",
+      "change": "removed",
+      "logical_value": "KLIC",
+      "expected": {"present": true, "type": "str", "digest": "fad40bb565fa19f1ae453cd462fb7513f36585230257d07a2c59b0f5ef1dde06"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "KLIC"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    },
+    {
+      "path": "$.ticker_population[7]",
+      "change": "removed",
+      "logical_value": "LSCC",
+      "expected": {"present": true, "type": "str", "digest": "c7b09d2ba40f6bf74b62b7118963ac7ecb45406fb7403ef5c24bff1b6859b91d"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "LSCC"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    },
+    {
+      "path": "$.ticker_population[8]",
+      "change": "removed",
+      "logical_value": "PDFS",
+      "expected": {"present": true, "type": "str", "digest": "49b7e7864e7a1448e2101218281993d25ff96d9038c8d1edb79df8252274e3fd"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "PDFS"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    },
+    {
+      "path": "$.ticker_population[9]",
+      "change": "removed",
+      "logical_value": "RDVT",
+      "expected": {"present": true, "type": "str", "digest": "5a3b82efdcc14861cdf20bed47cff95fe96b4a0c5945cfe0d95dd0a56097ffdb"},
+      "actual": {"present": false},
+      "source": {"table": "transition_preflight_plans", "column": "tickers_json", "row_identity": {"preflight_plan_id": 1, "ticker": "RDVT"}, "producer": "transition candidate discovery", "last_authorized_mutation": "preflight admission", "expected_mutability": "IMMUTABLE_AFTER_ADMISSION"}
+    }
+  ]
+}

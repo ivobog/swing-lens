@@ -1,0 +1,106 @@
+{
+  "task": "2.9.12i",
+  "verdict": "PARTIAL",
+  "implementation": {
+    "default_write_contract": "transition-run-start-anchor-v2",
+    "supported_read_contracts": [
+      "transition-run-start-anchor-v1",
+      "transition-run-start-anchor-v2"
+    ],
+    "historical_rewrite": false,
+    "fallback_contract_selection": false,
+    "fingerprint_algorithm_changed": false,
+    "permitted_v1_drift": [
+      "run.status",
+      "run.processed_at"
+    ]
+  },
+  "focused_certification": {
+    "status": "COLLECTION_ERROR",
+    "exit_code": 1,
+    "elapsed_seconds": 7.9405,
+    "database_reached": false,
+    "error_type": "ModuleNotFoundError",
+    "error_module": "prometheus_client",
+    "replacement_invocation_started": false
+  },
+  "matrix": [
+    {
+      "stored_contract": "v2",
+      "lifecycle_drift": "legitimate",
+      "source_integrity": "valid",
+      "expected": "ACCEPT",
+      "task_2_9_12i_observed": "NOT_EXECUTED",
+      "retained_evidence": "PASS_TASK_2_9_12F"
+    },
+    {
+      "stored_contract": "v1",
+      "lifecycle_drift": "legitimate",
+      "source_integrity": "valid",
+      "expected": "ACCEPT",
+      "task_2_9_12i_observed": "NOT_EXECUTED"
+    },
+    {
+      "stored_contract": "v1",
+      "lifecycle_drift": "none",
+      "source_integrity": "corrupted",
+      "expected": "REJECT_DECISION_MANIFEST_MISMATCH",
+      "task_2_9_12i_observed": "NOT_EXECUTED"
+    },
+    {
+      "stored_contract": "v1",
+      "lifecycle_drift": "legitimate",
+      "source_integrity": "corrupted",
+      "expected": "REJECT_DECISION_MANIFEST_MISMATCH",
+      "task_2_9_12i_observed": "NOT_EXECUTED"
+    },
+    {
+      "stored_contract": "v2",
+      "lifecycle_drift": "legitimate",
+      "source_integrity": "corrupted",
+      "expected": "REJECT_DECISION_MANIFEST_MISMATCH",
+      "task_2_9_12i_observed": "NOT_EXECUTED",
+      "retained_evidence": "PASS_TASK_2_9_12F"
+    },
+    {
+      "stored_contract": "v1_or_v2",
+      "lifecycle_drift": "any",
+      "source_integrity": "forged_fingerprint",
+      "expected": "REJECT_DECISION_MANIFEST_MISMATCH",
+      "task_2_9_12i_observed": "NOT_EXECUTED"
+    },
+    {
+      "stored_contract": "unknown",
+      "lifecycle_drift": "any",
+      "source_integrity": "any",
+      "expected": "REJECT_MALFORMED_DECISION_MANIFEST",
+      "task_2_9_12i_observed": "NOT_EXECUTED"
+    },
+    {
+      "stored_contract": "missing_or_malformed",
+      "lifecycle_drift": "any",
+      "source_integrity": "any",
+      "expected": "REJECT_MALFORMED_DECISION_MANIFEST",
+      "task_2_9_12i_observed": "NOT_EXECUTED"
+    },
+    {
+      "stored_contract": "v1_label_with_v2_shape",
+      "lifecycle_drift": "any",
+      "source_integrity": "identity_confusion",
+      "expected": "REJECT_MALFORMED_DECISION_MANIFEST",
+      "task_2_9_12i_observed": "NOT_EXECUTED"
+    },
+    {
+      "stored_contract": "valid_v1_or_v2",
+      "lifecycle_drift": "any",
+      "source_integrity": "wrong_upload_run_binding",
+      "expected": "REJECT_STALE_PREFLIGHT",
+      "task_2_9_12i_observed": "NOT_EXECUTED"
+    }
+  ],
+  "t14": {
+    "validator": "scripts.qa.t14a_phase2_9_source_pins",
+    "stale": []
+  },
+  "full_phase_2_9_certified": false
+}

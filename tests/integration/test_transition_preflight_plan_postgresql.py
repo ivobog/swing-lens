@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -10,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from alembic.config import Config
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
 from alembic import command
@@ -32,6 +33,7 @@ from app.models.tables import (
     TechnicalScore,
     TransitionDecisionHandoffManifest,
     TransitionPreflightPlan,
+    UploadRun,
 )
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.market_calculation_context_service import (
@@ -47,8 +49,11 @@ from app.services.setup_lifecycle.transition_candidate_service import (
     TransitionCandidateResult,
 )
 from app.services.transition_preflight_plan_service import (
+    RUN_START_ANCHOR_V1_CONTRACT,
     TransitionPreflightError,
     _validate_handoff_temporal_lineage,
+    build_run_start_anchor_manifest,
+    confirm_transition_decision_verification_before_mutation,
     create_transition_preflight_plan,
     expire_abandoned_preflights,
     freeze_transition_decision_handoff_manifest,
@@ -773,6 +778,9 @@ def test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempot
             expires_in=timedelta(days=2),
             discovery=discovery,
         )
+        assert plan.run_start_anchor_json["contract"] == "transition-run-start-anchor-v2"
+        assert "status" not in plan.run_start_anchor_json["run"]
+        assert "processed_at" not in plan.run_start_anchor_json["run"]
         assert plan.run_start_anchor_json["ticker_population"] == ["MSFT"]
         anchor_ticker = plan.run_start_anchor_json["immutable_source_lineage"]["MSFT"]
         assert anchor_ticker["raw_row_id"] == raw.id
@@ -846,6 +854,7 @@ def test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempot
         db.commit()
         handoff_id = handoff.id
         handoff_hash = handoff.manifest_fingerprint
+        anchor_hash = plan.run_start_anchor_fingerprint
         assert handoff.pipeline_run_id == pipeline_id
         assert handoff.run_start_anchor_fingerprint == plan.run_start_anchor_fingerprint
         assert handoff.manifest_json["binding"]["run_start_anchor_fingerprint"] == (
@@ -860,12 +869,195 @@ def test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempot
         )
 
     with Session(engine, expire_on_commit=False) as db:
+        # Durable continuation bookkeeping may legitimately advance after the
+        # decision handoff. It is not decision-source evidence and must not
+        # invalidate the immutable anchor.
+        upload = db.get(UploadRun, run_id)
+        upload.status = "PROCESSING"
+        upload.processed_at = CUTOFF + timedelta(minutes=1)
+        db.commit()
+
+    with Session(engine, expire_on_commit=False) as db:
         plan = db.get(TransitionPreflightPlan, plan_id)
         cutoff = cutoff_from_row(
             db.get(MarketCalculationContext, plan.market_calculation_context_id)
         )
         repeated = freeze_transition_decision_handoff_manifest(
             db, upload_run_id=run_id, market_cutoff=cutoff
+        )
+        verified_handoff = verify_transition_decision_manifests_before_mutation(
+            db,
+            upload_run_id=run_id,
+            market_cutoff=cutoff,
+            built_rows=((context, built),),
+            repository=object(),
+        )
+        assert verified_handoff is not None
+        confirm_transition_decision_verification_before_mutation(
+            db,
+            verified=verified_handoff,
+        )
+        repeated.manifest_fingerprint = "0" * 64
+        db.flush()
+        with pytest.raises(TransitionPreflightError) as changed_authority:
+            confirm_transition_decision_verification_before_mutation(
+                db,
+                verified=verified_handoff,
+            )
+        assert changed_authority.value.code == "DECISION_VERIFICATION_AUTHORITY_CHANGED"
+        db.rollback()
+        assert repeated.id == handoff_id
+        assert repeated.manifest_fingerprint == handoff_hash
+        assert plan.run_start_anchor_fingerprint == anchor_hash
+        assert (
+            db.execute(
+                text("SELECT count(*) FROM transition_decision_handoff_manifests")
+            ).scalar_one()
+            == 1
+        )
+
+        # A real immutable source mutation must still fail closed before any
+        # Setup publication and without replacing the handoff.
+        raw = db.scalar(select(RawCompanyRow).where(RawCompanyRow.run_id == run_id))
+        original_raw_json = dict(raw.raw_json or {})
+        raw.raw_json = {**original_raw_json, "forged": True}
+        with pytest.raises(TransitionPreflightError) as caught:
+            verify_transition_decision_manifests_before_mutation(
+                db,
+                upload_run_id=run_id,
+                market_cutoff=cutoff,
+                built_rows=((context, built),),
+                repository=object(),
+            )
+        assert caught.value.code == "DECISION_MANIFEST_MISMATCH"
+        assert db.scalar(select(func.count()).select_from(SetupSignalSnapshot)) == 0
+        assert db.get(TransitionDecisionHandoffManifest, handoff_id).manifest_fingerprint == (
+            handoff_hash
+        )
+        raw.raw_json = original_raw_json
+        db.flush()
+
+        context.combined_result.final_score = Decimal("1")
+        with pytest.raises(TransitionPreflightError) as caught:
+            freeze_transition_decision_handoff_manifest(
+                db, upload_run_id=run_id, market_cutoff=cutoff
+            )
+        assert caught.value.code == "IMMUTABLE_EVIDENCE_MISMATCH"
+
+
+def test_historical_v1_anchor_is_verified_without_rewrite_and_fails_closed(
+    disposable_postgres_database: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine, expire_on_commit=False) as db:
+        run_id = _insert_upload(db)
+        wrong_run_id = _insert_upload(db)
+        raw = RawCompanyRow(
+            run_id=run_id,
+            row_number=1,
+            ticker="MSFT",
+            sector="Technology",
+            raw_json={"ticker": "MSFT"},
+        )
+        db.add(raw)
+        db.flush()
+        discovery = TwoPhaseDiscovery(raw.id)
+        plan = create_transition_preflight_plan(
+            db,
+            upload_run_id=run_id,
+            idempotency_key="historical-v1-anchor",
+            cutoff_at=CUTOFF,
+            tickers={"MSFT"},
+            expires_in=timedelta(days=2),
+            discovery=discovery,
+        )
+        cutoff = cutoff_from_row(
+            db.get(MarketCalculationContext, plan.market_calculation_context_id)
+        )
+        results = discovery.discover_for_run(
+            db,
+            run_id,
+            market_cutoff=cutoff,
+            tickers={"MSFT"},
+        )
+        historical_anchor = build_run_start_anchor_manifest(
+            db,
+            upload_run_id=run_id,
+            market_cutoff=cutoff,
+            results=results,
+            contract=RUN_START_ANCHOR_V1_CONTRACT,
+        )
+        historical_fingerprint = CanonicalEvidenceSerializer.fingerprint(historical_anchor)
+        plan.run_start_anchor_json = historical_anchor
+        plan.run_start_anchor_fingerprint = historical_fingerprint
+        db.commit()
+        plan_id = plan.id
+        context_id = plan.market_calculation_context_id
+        assert historical_anchor["contract"] == RUN_START_ANCHOR_V1_CONTRACT
+        assert historical_anchor["run"]["status"] == "COMPLETED"
+        assert "processed_at" in historical_anchor["run"]
+
+    with Session(engine, expire_on_commit=False) as db:
+        pipeline = start_pipeline(
+            db,
+            run_id,
+            transition_preflight_plan_id=plan_id,
+            transition_candidate_discovery=discovery,
+        )
+        db.commit()
+        pipeline_id = pipeline.id
+
+    with Session(engine, expire_on_commit=False) as db:
+        plan = db.get(TransitionPreflightPlan, plan_id)
+        cutoff = cutoff_from_row(db.get(MarketCalculationContext, context_id))
+        raw = db.scalar(select(RawCompanyRow).where(RawCompanyRow.run_id == run_id))
+        context, built, actual = _persist_valid_handoff_inputs(db, raw, cutoff)
+        db.commit()
+
+    monkeypatch.setattr(
+        "app.services.setup_lifecycle.source_loader.SetupLifecycleSourceLoader.load_run_context",
+        lambda *_args, **_kwargs: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        "app.services.setup_lifecycle.snapshot_builder.build_run_context_snapshots",
+        lambda *_args, **_kwargs: ((context, built),),
+    )
+    monkeypatch.setattr(
+        "app.services.transition_preflight_plan_service.reconstruct_transition_decision_manifests",
+        lambda *_args, **_kwargs: actual,
+    )
+
+    with Session(engine, expire_on_commit=False) as db:
+        plan = db.get(TransitionPreflightPlan, plan_id)
+        cutoff = cutoff_from_row(db.get(MarketCalculationContext, context_id))
+        handoff = freeze_transition_decision_handoff_manifest(
+            db,
+            upload_run_id=run_id,
+            market_cutoff=cutoff,
+        )
+        db.commit()
+        handoff_id = handoff.id
+        handoff_fingerprint = handoff.manifest_fingerprint
+        assert handoff.pipeline_run_id == pipeline_id
+        assert handoff.run_start_anchor_fingerprint == historical_fingerprint
+        assert plan.run_start_anchor_json == historical_anchor
+        assert plan.run_start_anchor_fingerprint == historical_fingerprint
+
+    with Session(engine) as db:
+        upload = db.get(UploadRun, run_id)
+        upload.status = "PROCESSING"
+        upload.processed_at = CUTOFF + timedelta(minutes=1)
+        db.commit()
+
+    with Session(engine, expire_on_commit=False) as db:
+        plan = db.get(TransitionPreflightPlan, plan_id)
+        cutoff = cutoff_from_row(db.get(MarketCalculationContext, context_id))
+        repeated = freeze_transition_decision_handoff_manifest(
+            db,
+            upload_run_id=run_id,
+            market_cutoff=cutoff,
         )
         verify_transition_decision_manifests_before_mutation(
             db,
@@ -875,20 +1067,86 @@ def test_two_phase_manifest_accepts_committed_run_local_artifacts_and_is_idempot
             repository=object(),
         )
         assert repeated.id == handoff_id
-        assert repeated.manifest_fingerprint == handoff_hash
-        assert (
-            db.execute(
-                text("SELECT count(*) FROM transition_decision_handoff_manifests")
-            ).scalar_one()
-            == 1
-        )
+        assert repeated.manifest_fingerprint == handoff_fingerprint
+        assert plan.run_start_anchor_json == historical_anchor
+        assert plan.run_start_anchor_fingerprint == historical_fingerprint
+        assert db.scalar(select(func.count()).select_from(SetupSignalSnapshot)) == 0
 
-        context.combined_result.final_score = Decimal("1")
-        with pytest.raises(TransitionPreflightError) as caught:
-            freeze_transition_decision_handoff_manifest(
-                db, upload_run_id=run_id, market_cutoff=cutoff
+    def assert_anchor_rejected(mutator, expected_code: str) -> None:
+        with Session(engine, expire_on_commit=False) as db:
+            plan = db.get(TransitionPreflightPlan, plan_id)
+            context_row = db.get(MarketCalculationContext, context_id)
+            mutator(db, plan, context_row)
+            cutoff = cutoff_from_row(context_row)
+            with pytest.raises(TransitionPreflightError) as caught:
+                verify_transition_decision_manifests_before_mutation(
+                    db,
+                    upload_run_id=run_id,
+                    market_cutoff=cutoff,
+                    built_rows=((context, built),),
+                    repository=object(),
+                )
+            assert caught.value.code == expected_code
+            assert db.scalar(select(func.count()).select_from(SetupSignalSnapshot)) == 0
+            assert db.get(TransitionDecisionHandoffManifest, handoff_id).manifest_fingerprint == (
+                handoff_fingerprint
             )
-        assert caught.value.code == "IMMUTABLE_EVIDENCE_MISMATCH"
+            db.rollback()
+        with Session(engine) as verification_db:
+            persisted = verification_db.get(TransitionPreflightPlan, plan_id)
+            assert persisted.run_start_anchor_json == historical_anchor
+            assert persisted.run_start_anchor_fingerprint == historical_fingerprint
+
+    def mutate_raw(db, _plan, _context_row) -> None:
+        row = db.scalar(select(RawCompanyRow).where(RawCompanyRow.run_id == run_id))
+        row.raw_json = {**dict(row.raw_json or {}), "forged": True}
+
+    assert_anchor_rejected(mutate_raw, "DECISION_MANIFEST_MISMATCH")
+    assert_anchor_rejected(
+        lambda _db, _plan, context_row: setattr(context_row, "cutoff_reason", "FORGED"),
+        "DECISION_MANIFEST_MISMATCH",
+    )
+
+    def tamper_without_fingerprint(_db, plan, _context_row) -> None:
+        tampered = deepcopy(plan.run_start_anchor_json)
+        tampered["run"]["filename"] = "tampered.csv"
+        plan.run_start_anchor_json = tampered
+
+    assert_anchor_rejected(tamper_without_fingerprint, "DECISION_MANIFEST_MISMATCH")
+
+    def replace_contract(_db, plan, _context_row) -> None:
+        unknown = deepcopy(plan.run_start_anchor_json)
+        unknown["contract"] = "transition-run-start-anchor-v999"
+        plan.run_start_anchor_json = unknown
+        plan.run_start_anchor_fingerprint = CanonicalEvidenceSerializer.fingerprint(unknown)
+
+    assert_anchor_rejected(replace_contract, "MALFORMED_DECISION_MANIFEST")
+
+    def remove_anchor(_db, plan, _context_row) -> None:
+        plan.run_start_anchor_json = None
+        plan.run_start_anchor_fingerprint = None
+
+    assert_anchor_rejected(remove_anchor, "MALFORMED_DECISION_MANIFEST")
+
+    def relabel_v2_as_v1(_db, plan, _context_row) -> None:
+        confused = deepcopy(plan.run_start_anchor_json)
+        confused["run"].pop("status")
+        confused["run"].pop("processed_at")
+        plan.run_start_anchor_json = confused
+        plan.run_start_anchor_fingerprint = CanonicalEvidenceSerializer.fingerprint(confused)
+
+    assert_anchor_rejected(relabel_v2_as_v1, "MALFORMED_DECISION_MANIFEST")
+
+    with Session(engine) as db:
+        with pytest.raises(TransitionPreflightError) as caught:
+            verify_transition_preflight_for_enqueue(
+                db,
+                plan_id=plan_id,
+                upload_run_id=wrong_run_id,
+                discovery=discovery,
+            )
+        assert caught.value.code == "STALE_PREFLIGHT"
+        assert db.scalar(select(func.count()).select_from(SetupSignalSnapshot)) == 0
 
 
 def test_handoff_rejects_later_market_bar(

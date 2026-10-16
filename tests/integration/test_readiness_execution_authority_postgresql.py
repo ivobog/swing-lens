@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.database_safety import run_guarded_alembic_upgrade
-from app.models.tables import BackgroundJob, PipelineRun, UploadRun
+from app.models.tables import BackgroundJob, PipelineDependency, PipelineRun, UploadRun
 from app.services.background_job_service import JobStatus, recover_stale_jobs
 from app.services.pipeline_execution_authority import claimable_pipeline_job_ids
 from app.services.pipeline_invariant_service import (
@@ -118,6 +118,95 @@ def test_active_authority_keeps_real_stale_and_old_queue_failures(
     service = _service(engine, tmp_path, now)
     assert service._jobs_check().message == "stale_running_jobs:1"
     assert service._queue_pressure_check().message.startswith("queue_oldest_critical:")
+    engine.dispose()
+
+
+def test_operator_resume_fences_only_superseded_root_authority(
+    disposable_postgres_database: str,
+) -> None:
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    old = datetime.now(UTC) - timedelta(days=2)
+    with Session(engine) as db:
+        upload = UploadRun(filename="superseded-root.csv", row_count=1, status="COMPLETED")
+        db.add(upload)
+        db.flush()
+        waiting = PipelineRun(
+            upload_run_id=upload.id,
+            status="WAITING_FOR_CERI_COMPLETION",
+            execution_authority_state="ACTIVE",
+        )
+        retrying = PipelineRun(
+            upload_run_id=upload.id,
+            status="RUNNING",
+            execution_authority_state="ACTIVE",
+        )
+        db.add_all((waiting, retrying))
+        db.flush()
+        original = BackgroundJob(
+            job_type="FULL_PIPELINE",
+            related_run_id=upload.id,
+            status=JobStatus.QUEUED,
+            payload_json={"pipeline_run_id": waiting.id},
+            run_after=old,
+            created_at=old,
+        )
+        retry = BackgroundJob(
+            job_type="FULL_PIPELINE",
+            related_run_id=upload.id,
+            status=JobStatus.QUEUED,
+            payload_json={"pipeline_run_id": retrying.id},
+            run_after=old,
+            created_at=old,
+        )
+        db.add_all((original, retry))
+        db.flush()
+        continuation = BackgroundJob(
+            job_type="FULL_PIPELINE",
+            related_run_id=upload.id,
+            status=JobStatus.COMPLETED,
+            payload_json={
+                "pipeline_run_id": waiting.id,
+                "resume_from_step": "CERI_PROVIDER_INGEST",
+            },
+            root_job_id=original.id,
+            parent_job_id=original.id,
+            continuation_depth=1,
+            trigger_source="PIPELINE_OPERATOR_RESUME",
+            run_after=old,
+            created_at=old,
+        )
+        db.add(continuation)
+        db.flush()
+        dependency = PipelineDependency(
+            pipeline_run_id=waiting.id,
+            dependency_type="CERI_WORKFLOW",
+            dependency_key=f"pipeline:{waiting.id}:ceri-workflow:test",
+            state="RUNNING",
+            required_subjects_json=[],
+            continuation_step="FREEZING_DECISION_HANDOFF_MANIFEST",
+            continuation_identity=f"pipeline:{waiting.id}:continuation:test",
+            root_job_id=continuation.id,
+        )
+        db.add(dependency)
+        db.flush()
+        ceri_work = BackgroundJob(
+            job_type="CERI_PROVIDER_INGEST_BATCH",
+            related_run_id=upload.id,
+            status=JobStatus.QUEUED,
+            payload_json={"pipeline_run_id": waiting.id},
+            pipeline_dependency_id=dependency.id,
+            run_after=old,
+            created_at=old,
+        )
+        db.add(ceri_work)
+        db.commit()
+
+        authorized = claimable_pipeline_job_ids(db, upload_run_id=upload.id)
+        assert original.id not in authorized
+        assert ceri_work.id in authorized
+        assert retry.id in authorized
+
     engine.dispose()
 
 

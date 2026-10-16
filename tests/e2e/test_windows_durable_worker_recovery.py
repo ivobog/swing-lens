@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -36,6 +37,8 @@ def test_windows_worker_kill_self_heals_repeatedly(
 ) -> None:
     _migrate(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
+    web_port = _free_port()
+    assert _listener_pid(web_port) is None
     env = {
         **os.environ,
         "DATABASE_URL": disposable_postgres_database,
@@ -43,6 +46,8 @@ def test_windows_worker_kill_self_heals_repeatedly(
         "SWINGLENS_LIFECYCLE_OPERATION_ID": f"windows-recovery-{cycle}-{uuid4().hex}",
         "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT": f"disposable-{uuid4().hex}",
         "SWINGLENS_SUPERVISOR_STATE_PATH": str(tmp_path / "supervisor-state.json"),
+        "APP_HOST": "127.0.0.1",
+        "APP_PORT": str(web_port),
         "JOB_WORKER_ENABLED": "false",
         "JOB_WORKER_ID": "windows-recovery-worker",
         "JOB_POLL_INTERVAL_SECONDS": "0.1",
@@ -60,6 +65,8 @@ def test_windows_worker_kill_self_heals_repeatedly(
         _env_file=None,
         database_url=disposable_postgres_database,
         process_role="SUPERVISOR",
+        app_host="127.0.0.1",
+        app_port=web_port,
         job_worker_id="windows-recovery-worker",
         job_poll_interval_seconds=0.1,
         job_worker_heartbeat_interval_seconds=0.2,
@@ -165,13 +172,14 @@ def test_windows_worker_kill_self_heals_repeatedly(
                 job_type="FULL_PIPELINE",
                 heartbeat_timeout_seconds=5,
             )
-        core = _wait_for_core_ready(timeout=60)
+        core = _wait_for_core_ready(web_port, timeout=60)
         assert core["status"] == "ok"
         assert core["check_states"]["supervisor"] == "ok"
         assert core["check_states"]["web"] == "ok"
         assert core["check_states"]["worker"] == "ok"
         assert core["check_states"]["topology"] == "ok"
-        old_web_pid = _listener_pid(8000)
+        old_web_pid = _listener_pid(web_port)
+        assert old_web_pid is not None
         assert supervisor_state.process_id in {
             parent.pid for parent in psutil.Process(old_web_pid).parents()
         }
@@ -181,9 +189,9 @@ def test_windows_worker_kill_self_heals_repeatedly(
             capture_output=True,
             text=True,
         )
-        new_web_pid = _wait_for_replacement_web(old_web_pid, timeout=60)
+        new_web_pid = _wait_for_replacement_web(web_port, old_web_pid, timeout=60)
         assert new_web_pid != old_web_pid
-        assert _wait_for_core_ready(timeout=60)["status"] == "ok"
+        assert _wait_for_core_ready(web_port, timeout=60)["status"] == "ok"
         supervisor_state_payload = json.loads(
             (tmp_path / "supervisor-state.json").read_text(encoding="utf-8")
         )
@@ -268,12 +276,12 @@ def _wait_for_fresh_worker(engine, timeout: float = 20) -> BackgroundWorker:
     raise AssertionError("worker did not register with a process instance")
 
 
-def _wait_for_core_ready(timeout: float) -> dict:
+def _wait_for_core_ready(port: int, timeout: float) -> dict:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(  # noqa: S310 - loopback disposable test
-                "http://127.0.0.1:8000/ready/core", timeout=3
+                f"http://127.0.0.1:{port}/ready/core", timeout=3
             ) as response:
                 payload = json.load(response)
                 if response.status == 200 and payload.get("status") == "ok":
@@ -284,22 +292,29 @@ def _wait_for_core_ready(timeout: float) -> dict:
     raise AssertionError("canonical web did not reach core readiness")
 
 
-def _listener_pid(port: int) -> int:
+def _listener_pid(port: int) -> int | None:
     matches = [
         row.pid
         for row in psutil.net_connections(kind="tcp")
         if row.status == psutil.CONN_LISTEN and row.laddr and row.laddr.port == port and row.pid
     ]
-    assert len(set(matches)) == 1
-    return int(matches[0])
+    unique = set(matches)
+    assert len(unique) <= 1
+    return int(next(iter(unique))) if unique else None
 
 
-def _wait_for_replacement_web(previous_pid: int, timeout: float) -> int:
+def _free_port() -> int:
+    with socket.socket() as candidate:
+        candidate.bind(("127.0.0.1", 0))
+        return int(candidate.getsockname()[1])
+
+
+def _wait_for_replacement_web(port: int, previous_pid: int, timeout: float) -> int:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            current = _listener_pid(8000)
-            if current != previous_pid:
+            current = _listener_pid(port)
+            if current is not None and current != previous_pid:
                 return current
         except AssertionError:
             pass

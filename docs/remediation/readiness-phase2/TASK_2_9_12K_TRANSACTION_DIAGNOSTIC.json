@@ -1,0 +1,119 @@
+{
+  "task": "2.9.12k",
+  "verdict": "FAIL_FOCUSED_CERTIFICATION",
+  "task_start": "2026-10-14T23:27:06.5007811+02:00",
+  "task_finish": "2026-10-14T23:38:38.4862047+02:00",
+  "elapsed_seconds": 691.9854236,
+  "absolute_deadline": "2026-10-15T01:02:06.5007811+02:00",
+  "historical_failure": {
+    "task": "2.9.12j",
+    "failure_code": "POSTGRES_TRANSACTION_AGE_EXCEEDED",
+    "transaction_age_seconds": 127.729317,
+    "threshold_seconds": 120,
+    "backend_pid": 40828,
+    "state": "idle in transaction",
+    "wait_event": "ClientRead",
+    "last_query_relation": "setup_signal_snapshots",
+    "pipeline_existed": false
+  },
+  "ownership": {
+    "classification": "B_BASELINE_WRITER_TRANSACTION",
+    "fixture_phase": "100-member real-writer pre-pipeline baseline",
+    "session_creator_before_fix": "test_frozen_real_writer_cardinality",
+    "first_sql_function": "_seed_retained_ceri_companies",
+    "transaction_start": "implicit SQLAlchemy begin on CeriCompany identity SELECT",
+    "last_required_sql_before_cpu_interval": "_seed_setup_lifecycle_baseline Setup snapshot/current-selection flush",
+    "retaining_function": "test_frozen_real_writer_cardinality",
+    "work_while_open": "_seed_price_bars trading-date calculation and approximately 64000 PriceBar ORM objects",
+    "pending_writes": true,
+    "ownership": "fixture",
+    "earliest_safe_boundary": "after the complete Setup/identity unit and before price-history construction"
+  },
+  "equivalent_path_probe": {
+    "database": "guarded disposable PostgreSQL",
+    "session_id": 1870808732528,
+    "backend_pid": 34796,
+    "state": "idle in transaction",
+    "wait_event_type": "Client",
+    "wait_event": "ClientRead",
+    "last_relation": "setup_signal_snapshot_current_selections",
+    "maximum_sampled_transaction_age_seconds": 19.406738,
+    "unsafe_python_interval_seconds": 18.882826100103557,
+    "pending_writes": true,
+    "temporary_instrumentation_removed": true,
+    "historical_pid_directly_traced": false
+  },
+  "correction": {
+    "file": "tests/e2e/single_run_certification/test_real_writer_cardinality.py",
+    "helper": "_prepare_real_writer_pre_pipeline_baseline",
+    "before": "one Session spans Setup/identity SQL and CPU-heavy price-history construction",
+    "after": "Setup/identity commits and closes before price history uses a fresh Session",
+    "production_source_changed": false,
+    "transaction_threshold_seconds": 120,
+    "threshold_changed": false
+  },
+  "focused_certification": {
+    "invocation_count": 1,
+    "node": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_pre_pipeline_preparation_closes_transactions_between_fixture_phases",
+    "pytest_exit_code": 1,
+    "tests": 1,
+    "failures": 1,
+    "errors": 0,
+    "suite_seconds": 77.322,
+    "testcase_seconds": 76.376,
+    "junit": "docs/remediation/readiness-phase2/TASK_2_9_12K_FOCUSED_CERTIFICATION.xml",
+    "first_failed_assertion": "Setup baseline fingerprint equality",
+    "failure_line": 1052,
+    "actual_fingerprint": "de20197073f4c90acb08fb541d604479e22cd558b15eb914fbfedf00cdc5e8c2",
+    "expected_fingerprint": "426cd833c04059f3aaf614ab0a9417ca42ffdd000a9188c1b2c0917efc1d3c7e",
+    "failure_classification": "ORDER_SENSITIVE_EXPECTED_VERSUS_PERSISTED_SETUP_SEQUENCE",
+    "controlled_boundary_count_passed": 102,
+    "corrected_fixture_boundary_count_passed": 2,
+    "retained_provider_boundary_count_passed": 100,
+    "maximum_observed_transaction_age_seconds": null,
+    "maximum_not_retained_reason": "failure occurred before final aggregate calculation and record_property emission",
+    "automatic_retry_performed": false
+  },
+  "verified_before_failure": {
+    "raw_total": 101,
+    "raw_current": 100,
+    "setup_exact": 100,
+    "setup_current_selections": 100,
+    "winner_baseline": 20,
+    "price_bars_exact": 64000,
+    "ib_contracts_exact": 100,
+    "ceri_companies_exact": 100,
+    "ceri_sources_exact": 400,
+    "ceri_memberships_exact": 400,
+    "ceri_estimates_exact": 400,
+    "duplicate_or_orphan_failures": 0,
+    "cross_run_setup_substitution": 0,
+    "pipeline_rows": 0,
+    "raw_population_fingerprint_passed": true,
+    "raw_evidence_fingerprint_passed": true
+  },
+  "chromium_admission": {
+    "status": "BLOCKED",
+    "chromium_started": false,
+    "reason": "focused PostgreSQL certification failed"
+  },
+  "static_checks": {
+    "python_compile": "PASS",
+    "ruff_lint": "PASS",
+    "ruff_format_check": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "source_pins": {
+    "stale": []
+  },
+  "cleanup": {
+    "focused_database": "swinglens_pytest_ca69ba78b43f",
+    "database_exists_after_cleanup": false,
+    "post_cleanup_disposable_database_count": 36,
+    "post_cleanup_disposable_database_digest": "905b872fc23587ba64b810b16948a092af69de64ed583308e8027b3e5b137b51",
+    "unrelated_databases_deleted": false,
+    "browser_process_started": false,
+    "pipeline_started": false
+  }
+}
+

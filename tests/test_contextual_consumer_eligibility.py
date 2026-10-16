@@ -1,5 +1,7 @@
 from copy import deepcopy
 from dataclasses import asdict, replace
+from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from contextual_readiness_helpers import ibmi_feature, seal_contextual
@@ -24,9 +26,11 @@ from app.services.contextual_consumer_eligibility import (
     REGIME_TO_SETUP,
     SECTOR_TO_SETUP,
     contextual_decision_input,
+    record_fundamental_admission,
     setup_with_contextual_permission,
 )
 from app.services.core_calculation_evidence import EvidenceUnavailableError
+from app.services.fundamental_admission_policy import FUNDAMENTAL_COMPONENTS
 from app.services.producer_readiness import (
     ConsumerEligibilityStatus,
     NativeReadinessMetrics,
@@ -41,6 +45,7 @@ from app.services.setup_lifecycle.alert_service import _event_market_regime
 from app.services.setup_lifecycle.episode_service import normalized_snapshot_from_row
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.snapshot_builder import SetupLifecycleSnapshotBuilder
+from app.settings import FundamentalAdmissionMode
 
 POLICIES = (
     IBMI_LIQUIDITY_TO_RANKING,
@@ -49,6 +54,34 @@ POLICIES = (
     REGIME_TO_SETUP,
     SECTOR_TO_SETUP,
 )
+
+
+def _bounded_partial_fundamental():
+    ratio = round(78 / 79, 4)
+    return certified_fundamental(
+        ticker="AAPL",
+        fundamental_score=8,
+        fundamental_label="High-quality quant",
+        scoring_model_version="fundamentals_v2.1",
+        missing_data_penalty=0.05,
+        debug_json={
+            "coverage": {
+                "available_scoring_fields": 78,
+                "total_scoring_fields": 79,
+                "coverage_ratio": ratio,
+                "data_coverage_score": round(ratio * 10, 4),
+                "missing_fields_by_priority": {
+                    "critical": [],
+                    "high": [],
+                    "medium": [],
+                    "low": ["capex_estimate_ntm"],
+                },
+            },
+            "component_coverage": dict.fromkeys(FUNDAMENTAL_COMPONENTS, 1.0),
+            "parse_diagnostics": {"failed_field_count": 0, "failed_fields": []},
+        },
+        v2_warning_flags_json={"flags": ["balance_sheet_stress"]},
+    )
 
 
 def test_fundamental_advisory_warning_is_eligible_but_missing_data_is_excluded():
@@ -77,6 +110,107 @@ def test_fundamental_advisory_warning_is_eligible_but_missing_data_is_excluded()
     assert excluded is None
     assert blocked["included"] is False
     assert blocked["producer_readiness"]["status"] == "DEGRADED"
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_included", "persist_name"),
+    [
+        (FundamentalAdmissionMode.SHADOW, False, "shadow"),
+        (FundamentalAdmissionMode.ACTIVE, True, "consumer"),
+    ],
+)
+def test_bounded_fundamental_switch_is_durable_and_legacy_compatible(
+    monkeypatch, mode, expected_included, persist_name
+):
+    fundamental = _bounded_partial_fundamental()
+    fundamental.calculation_evidence.calculated_at = datetime(
+        2026, 10, 13, 9, 30, tzinfo=UTC
+    )
+    transaction = object()
+    recorded = []
+    monkeypatch.setattr(
+        "app.services.contextual_consumer_eligibility.object_session",
+        lambda _row: transaction,
+    )
+    monkeypatch.setattr(
+        "app.settings.get_settings",
+        lambda: SimpleNamespace(fundamental_admission_mode=mode),
+    )
+    monkeypatch.setattr(
+        "app.services.consumer_eligibility_ledger.persist_shadow_evaluation",
+        lambda _db, evaluation: recorded.append(("shadow", evaluation)),
+    )
+    monkeypatch.setattr(
+        "app.services.consumer_eligibility_ledger.persist_consumer_decision",
+        lambda _db, **values: recorded.append(("consumer", values["decision"])),
+    )
+
+    projected, permission = contextual_decision_input(
+        fundamental,
+        FUNDAMENTAL_TO_COMBINED,
+    )
+    record_fundamental_admission(
+        transaction,
+        row=fundamental,
+        policy=FUNDAMENTAL_TO_COMBINED,
+        permission=permission,
+        pipeline_run_id=91,
+    )
+
+    assert (projected is not None) is expected_included
+    assert permission["included"] is expected_included
+    assert permission["decision"]["status"] == "POLICY_UNDECIDED"
+    assert permission["fundamental_admission_mode"] == mode.value
+    assert permission["orthogonal_decision"]["eligibility"] == "INCLUDED"
+    assert permission["orthogonal_decision"]["authoritative"] is expected_included
+    assert recorded[0][0] == persist_name
+
+
+def test_nonlegacy_fundamental_policy_requires_same_attached_transaction(monkeypatch):
+    fundamental = _bounded_partial_fundamental()
+    fundamental.calculation_evidence.calculated_at = datetime.now(UTC)
+    monkeypatch.setattr(
+        "app.settings.get_settings",
+        lambda: SimpleNamespace(
+            fundamental_admission_mode=FundamentalAdmissionMode.ACTIVE
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.contextual_consumer_eligibility.object_session",
+        lambda _row: object(),
+    )
+
+    _, permission = contextual_decision_input(fundamental, FUNDAMENTAL_TO_COMBINED)
+    with pytest.raises(ValueError, match="attached transaction"):
+        record_fundamental_admission(
+            object(),
+            row=fundamental,
+            policy=FUNDAMENTAL_TO_COMBINED,
+            permission=permission,
+            pipeline_run_id=91,
+        )
+
+
+def test_nonlegacy_fundamental_policy_rejects_uncertified_temporal_source(monkeypatch):
+    fundamental = _bounded_partial_fundamental()
+    fundamental.calculation_evidence.calculated_at = datetime(2026, 10, 13, 9, 30)
+    transaction = object()
+    monkeypatch.setattr(
+        "app.settings.get_settings",
+        lambda: SimpleNamespace(
+            fundamental_admission_mode=FundamentalAdmissionMode.ACTIVE
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.contextual_consumer_eligibility.object_session",
+        lambda _row: transaction,
+    )
+
+    with pytest.raises(EvidenceUnavailableError, match="cutoff is not certified"):
+        contextual_decision_input(
+            fundamental,
+            FUNDAMENTAL_TO_COMBINED,
+        )
 
 
 @pytest.mark.parametrize("policy", POLICIES, ids=lambda item: item.policy_version)

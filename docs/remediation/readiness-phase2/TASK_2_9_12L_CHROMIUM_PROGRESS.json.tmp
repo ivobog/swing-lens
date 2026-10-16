@@ -1,0 +1,78 @@
+{
+  "database_dropped": false,
+  "database_name": "swinglens_pytest_cert_32102043ffa4",
+  "latest_job": null,
+  "latest_pipeline": null,
+  "latest_transaction_sample": [
+    {
+      "age_seconds": 0.408841,
+      "application_name": "",
+      "idle_in_transaction_count": 1,
+      "last_query": "SELECT alembic_version.version_num \nFROM alembic_version",
+      "observed_at": "2026-10-14T23:21:18.500126+00:00",
+      "open_transaction_count": 1,
+      "phase": "PRE_PIPELINE_OR_ADMISSION",
+      "pid": 10700,
+      "state": "idle in transaction",
+      "wait_event": "ClientRead",
+      "wait_event_type": "Client"
+    }
+  ],
+  "maximum_idle_in_transaction_count": 2,
+  "maximum_idle_transaction": {
+    "age_seconds": 13.428967,
+    "application_name": "",
+    "idle_in_transaction_count": 2,
+    "last_query": "INSERT INTO price_bars (ticker, bar_date, timeframe, open, high, low, close, volume, source, what_to_show, adjustment_type, first_fetch_run_id, first_fetch_item_id, revised_at, revision_count, data_hash) SELECT p0::VARCHAR, p1::DATE, p2::VARCHAR, p3::NUMERIC, p4::NUMERIC, p5::NUMERIC, p6::NUMERIC, p",
+    "observed_at": "2026-10-14T23:20:46.332479+00:00",
+    "open_transaction_count": 2,
+    "phase": "PRE_PIPELINE_OR_ADMISSION",
+    "pid": 10700,
+    "state": "idle in transaction",
+    "wait_event": "ClientRead",
+    "wait_event_type": "Client"
+  },
+  "maximum_idle_transaction_age_seconds": 13.428967,
+  "maximum_open_transaction_count": 3,
+  "maximum_transaction": {
+    "age_seconds": 13.428967,
+    "application_name": "",
+    "idle_in_transaction_count": 2,
+    "last_query": "INSERT INTO price_bars (ticker, bar_date, timeframe, open, high, low, close, volume, source, what_to_show, adjustment_type, first_fetch_run_id, first_fetch_item_id, revised_at, revision_count, data_hash) SELECT p0::VARCHAR, p1::DATE, p2::VARCHAR, p3::NUMERIC, p4::NUMERIC, p5::NUMERIC, p6::NUMERIC, p",
+    "observed_at": "2026-10-14T23:20:46.332479+00:00",
+    "open_transaction_count": 2,
+    "phase": "PRE_PIPELINE_OR_ADMISSION",
+    "pid": 10700,
+    "state": "idle in transaction",
+    "wait_event": "ClientRead",
+    "wait_event_type": "Client"
+  },
+  "maximum_transaction_age_seconds": 13.428967,
+  "observer_application_name": "task-2.9.12l-chromium-autocommit-observer",
+  "observer_errors": [],
+  "observer_initialization_note": "first observer discovered the database but exited before its first sample due missing dict row_factory; this corrected observer started before pipeline admission",
+  "observer_isolation_level": "AUTOCOMMIT",
+  "observer_started_at": "2026-10-14T23:20:39.231121+00:00",
+  "progress_events": [
+    {
+      "job_id": null,
+      "job_status": null,
+      "last_completed_item": null,
+      "observed_at": "2026-10-14T23:20:39.435147+00:00",
+      "phase": "PRE_PIPELINE_OR_ADMISSION",
+      "pipeline_status": null,
+      "pipeline_step": null,
+      "progress_processed": null,
+      "progress_sequence": null,
+      "progress_stage": null
+    }
+  ],
+  "safety_abort_reason": null,
+  "safety_abort_required": false,
+  "sample_count": 154,
+  "sample_interval_seconds": 0.25,
+  "stage_timeline": [],
+  "status": "MONITORING",
+  "task": "2.9.12l",
+  "transaction_age_limit_seconds": 120.0
+}

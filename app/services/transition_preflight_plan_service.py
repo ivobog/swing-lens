@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriScoreSnapshot, CeriSourceRecord
 from app.models.tables import (
     MarketCalculationContext,
+    MarketDataSessionDisposition,
     MarketRegimeSnapshot,
     PipelineRun,
     RawCompanyRow,
@@ -36,6 +37,7 @@ from app.services.market_calculation_context_service import (
 )
 from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.price_bar_repository import invalid_price_bar_rows_for_context
+from app.services.redaction import redact_text
 from app.services.setup_lifecycle.decision_manifest import (
     build_transition_decision_manifest,
     candidate_type_for,
@@ -49,8 +51,11 @@ from app.services.setup_lifecycle.transition_candidate_service import (
 )
 
 DEFAULT_PREFLIGHT_TTL = timedelta(minutes=30)
-RUN_START_ANCHOR_CONTRACT = "transition-run-start-anchor-v1"
+RUN_START_ANCHOR_V1_CONTRACT = "transition-run-start-anchor-v1"
+RUN_START_ANCHOR_V2_CONTRACT = "transition-run-start-anchor-v2"
+RUN_START_ANCHOR_CONTRACT = RUN_START_ANCHOR_V2_CONTRACT
 DECISION_HANDOFF_CONTRACT = "transition-decision-handoff-v1"
+TRANSITION_VERIFICATION_CHECKPOINT_INTERVAL = 5
 logger = logging.getLogger(__name__)
 
 
@@ -71,9 +76,16 @@ PREFLIGHT_STATE_TRANSITIONS = {
 
 
 class TransitionPreflightError(ValueError):
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        diagnostics: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(f"{code}: {message}")
         self.code = code
+        self.diagnostics = diagnostics
 
 
 @dataclass(frozen=True)
@@ -81,6 +93,15 @@ class VerifiedTransitionPreflight:
     plan: TransitionPreflightPlan
     market_cutoff: MarketCalculationCutoff
     results: tuple[TransitionCandidateResult, ...]
+
+
+@dataclass(frozen=True)
+class VerifiedTransitionDecisionHandoff:
+    """Digest-only proof of the authority rows used by Setup verification."""
+
+    preflight_plan_id: int
+    handoff_manifest_id: int
+    authority_fingerprint: str
 
 
 def create_transition_preflight_plan(
@@ -283,32 +304,14 @@ def verify_transition_preflight_for_enqueue(
             expected_fingerprint=plan.technical_reconstruction_fingerprint,
             actual_fingerprint=observed_technical,
         )
-    if not plan.run_start_anchor_json or not plan.run_start_anchor_fingerprint:
-        raise _rejection(
-            plan,
-            code="MALFORMED_DECISION_MANIFEST",
-            category="run_start_anchor",
-            message="preflight is missing its immutable run-start anchor",
-        )
-    observed_anchor = build_run_start_anchor_manifest(
+    _verify_run_start_anchor_manifest(
         db,
+        plan=plan,
         upload_run_id=upload_run_id,
         market_cutoff=market_cutoff,
         results=results,
+        mismatch_message="immutable run-start anchor changed after preflight",
     )
-    observed_anchor_fingerprint = CanonicalEvidenceSerializer.fingerprint(observed_anchor)
-    if (
-        observed_anchor != plan.run_start_anchor_json
-        or observed_anchor_fingerprint != plan.run_start_anchor_fingerprint
-    ):
-        raise _rejection(
-            plan,
-            code="DECISION_MANIFEST_MISMATCH",
-            category="run_start_anchor",
-            message="immutable run-start anchor changed after preflight",
-            expected_fingerprint=plan.run_start_anchor_fingerprint,
-            actual_fingerprint=observed_anchor_fingerprint,
-        )
     if not results or not any(row.confidence == "HIGH" for row in results):
         candidate_diagnostics = [
             {
@@ -333,8 +336,7 @@ def verify_transition_preflight_for_enqueue(
         ]
         raise TransitionPreflightError(
             "STALE_PREFLIGHT",
-            "candidate set no longer contains a HIGH result; "
-            f"candidates={candidate_diagnostics}",
+            f"candidate set no longer contains a HIGH result; candidates={candidate_diagnostics}",
         )
     return VerifiedTransitionPreflight(plan, market_cutoff, tuple(results))
 
@@ -347,7 +349,8 @@ def verify_transition_decision_manifests_before_mutation(
     built_rows,
     repository,
     checkpoint_callback=None,
-) -> None:
+    reconstruction_errors: dict[str, str] | None = None,
+) -> VerifiedTransitionDecisionHandoff | None:
     """Compare post-upstream artifacts with the persisted handoff contract."""
 
     plan = db.scalar(
@@ -361,6 +364,33 @@ def verify_transition_decision_manifests_before_mutation(
     )
     if plan is None:
         return
+
+    if reconstruction_errors:
+        safe_errors = {
+            str(ticker): _safe_reconstruction_error(message)
+            for ticker, message in sorted(reconstruction_errors.items())
+        }
+        raise _rejection(
+            plan,
+            code="DECISION_MANIFEST_RECONSTRUCTION_FAILED",
+            category="decision_reconstruction",
+            message=(
+                "Setup could not reconstruct the frozen decision population; "
+                f"failed_tickers={','.join(safe_errors)}"
+            ),
+            diagnostics={
+                "diagnostic_contract": "transition-reconstruction-failure-v1",
+                "comparison_point": "SETUP_PRE_MUTATION_RECONSTRUCTION",
+                "source_identity": {
+                    "preflight_plan_id": plan.id,
+                    "upload_run_id": plan.upload_run_id,
+                    "pipeline_run_id": plan.pipeline_run_id,
+                    "market_calculation_context_id": plan.market_calculation_context_id,
+                },
+                "failed_tickers": list(safe_errors),
+                "errors": safe_errors,
+            },
+        )
 
     expected_tickers = set(plan.tickers_json or ())
     actual = reconstruct_transition_decision_manifests(
@@ -392,27 +422,14 @@ def verify_transition_decision_manifests_before_mutation(
         built_rows=built_rows,
         checkpoint_callback=checkpoint_callback,
     )
-    observed_anchor = build_run_start_anchor_manifest(
+    _verify_run_start_anchor_manifest(
         db,
+        plan=plan,
         upload_run_id=upload_run_id,
         market_cutoff=market_cutoff,
         decision_manifests=actual,
+        mismatch_message="run-start anchor no longer matches at decision handoff",
     )
-    observed_anchor_fingerprint = CanonicalEvidenceSerializer.fingerprint(observed_anchor)
-    if (
-        not plan.run_start_anchor_json
-        or not plan.run_start_anchor_fingerprint
-        or observed_anchor != plan.run_start_anchor_json
-        or observed_anchor_fingerprint != plan.run_start_anchor_fingerprint
-    ):
-        raise _rejection(
-            plan,
-            code="DECISION_MANIFEST_MISMATCH",
-            category="run_start_anchor",
-            message="run-start anchor no longer matches at decision handoff",
-            expected_fingerprint=plan.run_start_anchor_fingerprint,
-            actual_fingerprint=observed_anchor_fingerprint,
-        )
     observed = _build_decision_handoff_payload(
         db,
         plan=plan,
@@ -446,6 +463,97 @@ def verify_transition_decision_manifests_before_mutation(
             expected_fingerprint=handoff.manifest_fingerprint,
             actual_fingerprint=observed_fingerprint,
         )
+    return VerifiedTransitionDecisionHandoff(
+        preflight_plan_id=int(plan.id),
+        handoff_manifest_id=int(handoff.id),
+        authority_fingerprint=_transition_verification_authority_fingerprint(plan, handoff),
+    )
+
+
+def confirm_transition_decision_verification_before_mutation(
+    db: Session,
+    *,
+    verified: VerifiedTransitionDecisionHandoff,
+) -> None:
+    """Lock and confirm the verified authority pair immediately before writes.
+
+    Setup can perform the expensive read-only reconstruction in bounded
+    transactions.  This short parent-session boundary prevents either durable
+    authority row from changing between that reconstruction and publication.
+    """
+
+    plan = db.scalar(
+        select(TransitionPreflightPlan)
+        .where(TransitionPreflightPlan.id == verified.preflight_plan_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if plan is None:
+        raise TransitionPreflightError(
+            "DECISION_VERIFICATION_AUTHORITY_CHANGED",
+            "the verified transition preflight plan no longer exists",
+        )
+    handoff = db.scalar(
+        select(TransitionDecisionHandoffManifest)
+        .where(
+            TransitionDecisionHandoffManifest.id == verified.handoff_manifest_id,
+            TransitionDecisionHandoffManifest.preflight_plan_id == plan.id,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    observed_fingerprint = (
+        _transition_verification_authority_fingerprint(plan, handoff)
+        if handoff is not None
+        else None
+    )
+    if handoff is None or observed_fingerprint != verified.authority_fingerprint:
+        raise _rejection(
+            plan,
+            code="DECISION_VERIFICATION_AUTHORITY_CHANGED",
+            category="decision_verification_authority",
+            message="the transition authority changed after bounded verification",
+            expected_fingerprint=verified.authority_fingerprint,
+            actual_fingerprint=observed_fingerprint,
+        )
+
+
+def _transition_verification_authority_fingerprint(
+    plan: TransitionPreflightPlan,
+    handoff: TransitionDecisionHandoffManifest,
+) -> str:
+    """Bind the complete durable authority identity without retaining evidence."""
+
+    return CanonicalEvidenceSerializer.fingerprint(
+        {
+            "preflight_plan": {
+                "id": plan.id,
+                "market_calculation_context_id": plan.market_calculation_context_id,
+                "upload_run_id": plan.upload_run_id,
+                "pipeline_run_id": plan.pipeline_run_id,
+                "status": plan.status,
+                "tickers": sorted(plan.tickers_json or ()),
+                "run_start_anchor_fingerprint": plan.run_start_anchor_fingerprint,
+                "run_start_anchor_payload_fingerprint": (
+                    CanonicalEvidenceSerializer.fingerprint(plan.run_start_anchor_json)
+                    if plan.run_start_anchor_json is not None
+                    else None
+                ),
+            },
+            "handoff_manifest": {
+                "id": handoff.id,
+                "preflight_plan_id": handoff.preflight_plan_id,
+                "market_calculation_context_id": handoff.market_calculation_context_id,
+                "upload_run_id": handoff.upload_run_id,
+                "pipeline_run_id": handoff.pipeline_run_id,
+                "run_start_anchor_fingerprint": handoff.run_start_anchor_fingerprint,
+                "manifest_fingerprint": handoff.manifest_fingerprint,
+                "manifest_payload_fingerprint": CanonicalEvidenceSerializer.fingerprint(
+                    handoff.manifest_json
+                ),
+            },
+        }
+    )
 
 
 def freeze_transition_decision_handoff_manifest(
@@ -483,14 +591,6 @@ def freeze_transition_decision_handoff_manifest(
             market_cutoff=market_cutoff,
         )
     checkpoint("PLAN_LOADED", 1, 1, f"plan:{plan.id}")
-    if not plan.run_start_anchor_json or not plan.run_start_anchor_fingerprint:
-        raise _rejection(
-            plan,
-            code="MALFORMED_DECISION_MANIFEST",
-            category="run_start_anchor",
-            message="preflight is missing its immutable run-start anchor",
-        )
-
     from app.services.setup_lifecycle.repository import SetupLifecycleRepository
     from app.services.setup_lifecycle.snapshot_builder import (
         SetupLifecycleSnapshotBuilder,
@@ -538,25 +638,14 @@ def freeze_transition_decision_handoff_manifest(
         built_rows=built_rows,
         checkpoint_callback=checkpoint_callback,
     )
-    observed_anchor = build_run_start_anchor_manifest(
+    _verify_run_start_anchor_manifest(
         db,
+        plan=plan,
         upload_run_id=upload_run_id,
         market_cutoff=market_cutoff,
         decision_manifests=actual,
+        mismatch_message="run-start anchor changed before handoff",
     )
-    observed_anchor_fingerprint = CanonicalEvidenceSerializer.fingerprint(observed_anchor)
-    if (
-        observed_anchor != plan.run_start_anchor_json
-        or observed_anchor_fingerprint != plan.run_start_anchor_fingerprint
-    ):
-        raise _rejection(
-            plan,
-            code="DECISION_MANIFEST_MISMATCH",
-            category="run_start_anchor",
-            message="run-start anchor changed before handoff",
-            expected_fingerprint=plan.run_start_anchor_fingerprint,
-            actual_fingerprint=observed_anchor_fingerprint,
-        )
     checkpoint("RUN_START_ANCHOR_VERIFIED", ticker_total, ticker_total, "run-start-anchor")
 
     payload = _build_decision_handoff_payload(
@@ -635,10 +724,18 @@ def _create_pipeline_decision_handoff_plan(
     from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
 
     repository = SetupLifecycleRepository()
+    downstream_tickers = _pipeline_downstream_tickers(db, pipeline_run_id=context.pipeline_run_id)
+    if downstream_tickers == set():
+        raise TransitionPreflightError(
+            "NO_DOWNSTREAM_ELIGIBLE_TICKERS",
+            "all requested instruments have explicit terminal exclusions; "
+            "no decision handoff is eligible",
+        )
     run_context = SetupLifecycleSourceLoader().load_run_context(
         db,
         upload_run_id,
         market_cutoff=market_cutoff,
+        tickers=downstream_tickers,
     )
     built_rows = build_run_context_snapshots(
         db,
@@ -651,6 +748,7 @@ def _create_pipeline_decision_handoff_plan(
         market_cutoff=market_cutoff,
         built_rows=built_rows,
         repository=repository,
+        tickers=downstream_tickers,
     )
     if not decision_manifests:
         raise TransitionPreflightError(
@@ -749,6 +847,33 @@ def _create_pipeline_decision_handoff_plan(
     return plan
 
 
+def _pipeline_downstream_tickers(
+    db: Session,
+    *,
+    pipeline_run_id: int,
+) -> set[str] | None:
+    """Return the frozen admitted population, or None for legacy/preflight callers."""
+
+    rows = tuple(
+        db.scalars(
+            select(MarketDataSessionDisposition).where(
+                MarketDataSessionDisposition.pipeline_run_id == pipeline_run_id,
+                MarketDataSessionDisposition.is_current_revision.is_(True),
+            )
+        )
+    )
+    if not rows:
+        return None
+    blockers = [row for row in rows if row.disposition not in {"READY", "TERMINAL_INACTIVE"}]
+    if blockers:
+        raise TransitionPreflightError(
+            "MARKET_DATA_SESSION_READINESS_BLOCKED",
+            "decision handoff cannot bypass unresolved market-data dispositions: "
+            + ",".join(f"{row.ticker}={row.disposition}" for row in blockers),
+        )
+    return {row.ticker.upper() for row in rows if row.downstream_eligible}
+
+
 def reconstruct_transition_decision_manifests(
     db: Session,
     *,
@@ -762,9 +887,7 @@ def reconstruct_transition_decision_manifests(
 
     discovery = TransitionCandidateDiscoveryService(repository=repository)
     actual: dict[str, dict[str, object]] = {}
-    selected_rows = [
-        row for row in built_rows if tickers is None or row[0].ticker in tickers
-    ]
+    selected_rows = [row for row in built_rows if tickers is None or row[0].ticker in tickers]
     total = len(selected_rows)
     for index, (ticker_context, built) in enumerate(selected_rows, start=1):
         latest_pointer, exact_pointer, latest_revision, exact_revision = discovery._pointers(
@@ -806,7 +929,7 @@ def reconstruct_transition_decision_manifests(
             "decision_manifest": manifest.as_dict(),
             "decision_manifest_fingerprint": manifest.fingerprint,
         }
-        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+        if checkpoint_callback is not None and _verification_checkpoint_due(index, total):
             checkpoint_callback(
                 phase="DECISION_MANIFESTS_RECONSTRUCTED",
                 processed=index,
@@ -815,6 +938,23 @@ def reconstruct_transition_decision_manifests(
                 last_completed_item=ticker_context.ticker,
             )
     return actual
+
+
+def _safe_reconstruction_error(message: object) -> dict[str, str]:
+    """Classify reconstruction failures without persisting source-bearing text."""
+
+    redacted = redact_text(str(message)).replace("\n", " ").strip()[:500]
+    lowered = redacted.lower()
+    if "not bound to a session" in lowered and "lazy load" in lowered:
+        category = "DETACHED_ORM_RELATIONSHIP"
+    elif "historical_evidence_unavailable" in lowered:
+        category = "HISTORICAL_EVIDENCE_UNAVAILABLE"
+    else:
+        category = "SNAPSHOT_BUILD_EXCEPTION"
+    return {
+        "category": category,
+        "message_digest": CanonicalEvidenceSerializer.fingerprint(redacted),
+    }
 
 
 def consume_transition_preflight(
@@ -889,8 +1029,15 @@ def build_run_start_anchor_manifest(
     market_cutoff: MarketCalculationCutoff,
     results: list[TransitionCandidateResult] | None = None,
     decision_manifests: dict[str, dict[str, object]] | None = None,
+    contract: str = RUN_START_ANCHOR_CONTRACT,
 ) -> dict[str, Any]:
     """Build only facts that already exist and are immutable at run start."""
+
+    if contract not in {RUN_START_ANCHOR_V1_CONTRACT, RUN_START_ANCHOR_V2_CONTRACT}:
+        raise TransitionPreflightError(
+            "MALFORMED_DECISION_MANIFEST",
+            f"unsupported run-start anchor contract: {contract!r}",
+        )
 
     run = db.get(UploadRun, upload_run_id)
     if run is None:
@@ -929,20 +1076,22 @@ def build_run_start_anchor_manifest(
             },
         }
     raw_payloads = [_semantic_model_payload(row) for row in raw_rows]
+    run_payload = {
+        "id": run.id,
+        "filename": run.filename,
+        "uploaded_at": run.uploaded_at,
+        "row_count": run.row_count,
+        "pine_engine_version": run.pine_engine_version,
+        "python_engine_version": run.python_engine_version,
+        "raw_row_count": len(raw_payloads),
+        "raw_rows_fingerprint": CanonicalEvidenceSerializer.fingerprint(raw_payloads),
+    }
+    if contract == RUN_START_ANCHOR_V1_CONTRACT:
+        run_payload["processed_at"] = run.processed_at
+        run_payload["status"] = run.status
     payload = {
-        "contract": RUN_START_ANCHOR_CONTRACT,
-        "run": {
-            "id": run.id,
-            "filename": run.filename,
-            "uploaded_at": run.uploaded_at,
-            "processed_at": run.processed_at,
-            "row_count": run.row_count,
-            "status": run.status,
-            "pine_engine_version": run.pine_engine_version,
-            "python_engine_version": run.python_engine_version,
-            "raw_row_count": len(raw_payloads),
-            "raw_rows_fingerprint": CanonicalEvidenceSerializer.fingerprint(raw_payloads),
-        },
+        "contract": contract,
+        "run": run_payload,
         "ticker_population": sorted(per_ticker),
         "market_context": _market_context_payload(market_cutoff),
         "source_cutoffs": {
@@ -954,6 +1103,115 @@ def build_run_start_anchor_manifest(
         "immutable_source_lineage": per_ticker,
     }
     return CanonicalEvidenceSerializer.canonicalize(payload)
+
+
+def _verify_run_start_anchor_manifest(
+    db: Session,
+    *,
+    plan: TransitionPreflightPlan,
+    upload_run_id: int,
+    market_cutoff: MarketCalculationCutoff,
+    results: list[TransitionCandidateResult] | None = None,
+    decision_manifests: dict[str, dict[str, object]] | None = None,
+    mismatch_message: str,
+) -> None:
+    """Verify persisted v1/v2 evidence without rewriting or contract fallback."""
+
+    stored = plan.run_start_anchor_json
+    stored_fingerprint = plan.run_start_anchor_fingerprint
+    if not isinstance(stored, dict) or not stored or not stored_fingerprint:
+        raise _rejection(
+            plan,
+            code="MALFORMED_DECISION_MANIFEST",
+            category="run_start_anchor",
+            message="preflight is missing its immutable run-start anchor",
+        )
+
+    contract = stored.get("contract")
+    if contract not in {RUN_START_ANCHOR_V1_CONTRACT, RUN_START_ANCHOR_V2_CONTRACT}:
+        raise _rejection(
+            plan,
+            code="MALFORMED_DECISION_MANIFEST",
+            category="run_start_anchor_contract",
+            message=f"unsupported run-start anchor contract: {contract!r}",
+        )
+
+    exact_stored_fingerprint = CanonicalEvidenceSerializer.fingerprint(stored)
+    if exact_stored_fingerprint != stored_fingerprint:
+        raise _rejection(
+            plan,
+            code="DECISION_MANIFEST_MISMATCH",
+            category="run_start_anchor_fingerprint",
+            message="persisted run-start anchor does not match its immutable fingerprint",
+            expected_fingerprint=stored_fingerprint,
+            actual_fingerprint=exact_stored_fingerprint,
+        )
+
+    stored_run = stored.get("run")
+    if not isinstance(stored_run, dict):
+        raise _rejection(
+            plan,
+            code="MALFORMED_DECISION_MANIFEST",
+            category="run_start_anchor_contract",
+            message="run-start anchor run identity is malformed",
+        )
+    lifecycle_keys = {"status", "processed_at"}
+    if contract == RUN_START_ANCHOR_V1_CONTRACT and not lifecycle_keys.issubset(stored_run):
+        raise _rejection(
+            plan,
+            code="MALFORMED_DECISION_MANIFEST",
+            category="run_start_anchor_contract",
+            message="v1 run-start anchor is missing its historical lifecycle fields",
+        )
+    if contract == RUN_START_ANCHOR_V2_CONTRACT and lifecycle_keys.intersection(stored_run):
+        raise _rejection(
+            plan,
+            code="MALFORMED_DECISION_MANIFEST",
+            category="run_start_anchor_contract",
+            message="v2 run-start anchor contains forbidden lifecycle fields",
+        )
+
+    observed_v2 = build_run_start_anchor_manifest(
+        db,
+        upload_run_id=upload_run_id,
+        market_cutoff=market_cutoff,
+        results=results,
+        decision_manifests=decision_manifests,
+        contract=RUN_START_ANCHOR_V2_CONTRACT,
+    )
+    if contract == RUN_START_ANCHOR_V1_CONTRACT:
+        projected_run = {
+            key: value for key, value in stored_run.items() if key not in lifecycle_keys
+        }
+        stored_projection = {
+            **stored,
+            "contract": RUN_START_ANCHOR_V2_CONTRACT,
+            "run": projected_run,
+        }
+        stored_projection = CanonicalEvidenceSerializer.canonicalize(stored_projection)
+    else:
+        stored_projection = stored
+
+    expected_projection_fingerprint = CanonicalEvidenceSerializer.fingerprint(stored_projection)
+    observed_fingerprint = CanonicalEvidenceSerializer.fingerprint(observed_v2)
+    if stored_projection != observed_v2 or expected_projection_fingerprint != observed_fingerprint:
+        diagnostics = _run_start_anchor_mismatch_diagnostics(
+            plan=plan,
+            stored=stored_projection,
+            observed=observed_v2,
+            expected_fingerprint=expected_projection_fingerprint,
+            actual_fingerprint=observed_fingerprint,
+            mismatch_message=mismatch_message,
+        )
+        raise _rejection(
+            plan,
+            code="DECISION_MANIFEST_MISMATCH",
+            category="run_start_anchor",
+            message=mismatch_message,
+            expected_fingerprint=expected_projection_fingerprint,
+            actual_fingerprint=observed_fingerprint,
+            diagnostics=diagnostics,
+        )
 
 
 def _build_decision_handoff_payload(
@@ -1010,7 +1268,7 @@ def _build_decision_handoff_payload(
             ],
             "setup_signal_input_hash": built.source_data_hash,
         }
-        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+        if checkpoint_callback is not None and _verification_checkpoint_due(index, total):
             checkpoint_callback(
                 phase="ARTIFACT_LINEAGE_SERIALIZED",
                 processed=index,
@@ -1213,7 +1471,7 @@ def _validate_handoff_temporal_lineage(
         ):
             failures.append(f"{ticker}:sector_row_parent")
         price_bars.extend(context.price_bars)
-        if checkpoint_callback is not None and (index % 25 == 0 or index == total):
+        if checkpoint_callback is not None and _verification_checkpoint_due(index, total):
             checkpoint_callback(
                 phase="TEMPORAL_LINEAGE_VALIDATED",
                 processed=index,
@@ -1278,6 +1536,14 @@ def _temporal_artifact_matches(
         and _canonical_time(row.calculation_cutoff_at) == _canonical_time(market_cutoff.cutoff_at)
         and row.input_as_of_session == market_cutoff.latest_completed_session
         and row.calendar_version == market_cutoff.calendar_version
+    )
+
+
+def _verification_checkpoint_due(index: int, total: int) -> bool:
+    """Bound database-backed verification batches below the transaction ceiling."""
+
+    return bool(
+        index == total or index % TRANSITION_VERIFICATION_CHECKPOINT_INTERVAL == 0
     )
 
 
@@ -1352,11 +1618,12 @@ def _rejection(
     message: str,
     expected_fingerprint: str | None = None,
     actual_fingerprint: str | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> TransitionPreflightError:
     logger.warning(
         "transition_preflight_rejected code=%s category=%s plan_id=%s context_id=%s "
         "upload_run_id=%s pipeline_id=%s candidate_type=%s selection_keys=%s "
-        "expected_fingerprint=%s actual_fingerprint=%s",
+        "expected_fingerprint=%s actual_fingerprint=%s differing_paths=%s",
         code,
         category,
         plan.id,
@@ -1367,8 +1634,174 @@ def _rejection(
         ",".join(plan.selection_keys_json),
         expected_fingerprint,
         actual_fingerprint,
+        ",".join((diagnostics or {}).get("differing_paths") or ()),
     )
-    return TransitionPreflightError(code, message)
+    return TransitionPreflightError(code, message, diagnostics=diagnostics)
+
+
+def _run_start_anchor_mismatch_diagnostics(
+    *,
+    plan: TransitionPreflightPlan,
+    stored: dict[str, Any],
+    observed: dict[str, Any],
+    expected_fingerprint: str,
+    actual_fingerprint: str,
+    mismatch_message: str,
+) -> dict[str, Any]:
+    """Return bounded, digest-only evidence for a failed authoritative comparison."""
+
+    differences = _canonical_structural_differences(stored, observed)
+    cutoff = dict(observed.get("market_context") or {}).get("cutoff_at")
+    return {
+        "diagnostic_contract": "transition-anchor-mismatch-diagnostic-v1",
+        "comparison_contract": stored.get("contract"),
+        "comparison_point": _anchor_comparison_point(mismatch_message),
+        "expected_fingerprint": expected_fingerprint,
+        "actual_fingerprint": actual_fingerprint,
+        "differing_paths": [row["path"] for row in differences],
+        "differences": differences,
+        "frozen_cutoff": cutoff,
+        "producer": "transition_preflight_plan_service.build_run_start_anchor_manifest",
+        "consumer": "transition_preflight_plan_service._verify_run_start_anchor_manifest",
+        "source_identity": {
+            "preflight_plan_id": plan.id,
+            "upload_run_id": plan.upload_run_id,
+            "pipeline_run_id": plan.pipeline_run_id,
+            "market_calculation_context_id": plan.market_calculation_context_id,
+        },
+    }
+
+
+def _canonical_structural_differences(
+    expected: Any,
+    actual: Any,
+    *,
+    path: str = "$",
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Compare canonical JSON values without retaining sensitive scalar values."""
+
+    differences: list[dict[str, Any]] = []
+    missing = object()
+
+    def walk(left: Any, right: Any, current_path: str) -> None:
+        if len(differences) >= limit or left == right:
+            return
+        if isinstance(left, dict) and isinstance(right, dict):
+            for key in sorted(set(left) | set(right)):
+                child_path = CanonicalEvidenceSerializer._mapping_path(current_path, str(key))
+                walk(left.get(key, missing), right.get(key, missing), child_path)
+            return
+        if isinstance(left, list) and isinstance(right, list):
+            for index in range(max(len(left), len(right))):
+                left_item = left[index] if index < len(left) else missing
+                right_item = right[index] if index < len(right) else missing
+                walk(left_item, right_item, f"{current_path}[{index}]")
+            return
+        differences.append(
+            {
+                "path": current_path,
+                "change": (
+                    "added" if left is missing else "removed" if right is missing else "changed"
+                ),
+                "expected": _safe_evidence_descriptor(left, missing=missing),
+                "actual": _safe_evidence_descriptor(right, missing=missing),
+                "origin": _anchor_path_origin(current_path),
+            }
+        )
+
+    walk(expected, actual, path)
+    if len(differences) >= limit:
+        differences.append(
+            {
+                "path": "$",
+                "change": "truncated",
+                "expected": {"difference_limit": limit},
+                "actual": {"difference_limit": limit},
+                "origin": _anchor_path_origin("$"),
+            }
+        )
+    return differences
+
+
+def _safe_evidence_descriptor(value: Any, *, missing: object) -> dict[str, Any]:
+    if value is missing:
+        return {"present": False}
+    canonical = CanonicalEvidenceSerializer.canonicalize(value)
+    descriptor: dict[str, Any] = {
+        "present": True,
+        "type": type(canonical).__name__,
+        "digest": CanonicalEvidenceSerializer.fingerprint(canonical),
+    }
+    if isinstance(canonical, (dict, list)):
+        descriptor["item_count"] = len(canonical)
+    return descriptor
+
+
+def _anchor_comparison_point(message: str) -> str:
+    if "after preflight" in message:
+        return "PRE_ENQUEUE_REVERIFICATION"
+    if "before handoff" in message:
+        return "DECISION_HANDOFF_FREEZE"
+    if "at decision handoff" in message:
+        return "SETUP_PRE_MUTATION_REVERIFICATION"
+    return "RUN_START_ANCHOR_REVERIFICATION"
+
+
+def _anchor_path_origin(path: str) -> dict[str, Any]:
+    if path.startswith("$.run.raw_rows_fingerprint"):
+        return {
+            "source": "raw_company_rows.* semantic projection",
+            "producer": "upload/import",
+            "expected_mutability": "IMMUTABLE_AFTER_UPLOAD",
+        }
+    if path.startswith("$.run"):
+        return {
+            "source": "upload_runs",
+            "producer": "upload/import",
+            "expected_mutability": "STABLE_IDENTITY_ONLY",
+        }
+    if path.startswith("$.market_context") or path.startswith("$.source_cutoffs"):
+        return {
+            "source": "market_calculation_contexts",
+            "producer": "market_calculation_context_service",
+            "expected_mutability": "IMMUTABLE_AFTER_RESERVATION",
+        }
+    if path.startswith("$.ticker_population"):
+        return {
+            "source": "transition candidate membership",
+            "producer": "transition candidate discovery",
+            "expected_mutability": "IMMUTABLE_AFTER_ADMISSION",
+        }
+    if ".expected_pointer" in path:
+        return {
+            "source": "setup_signal_snapshot_current_selections / selection events",
+            "producer": "setup lifecycle canonicalizer",
+            "expected_mutability": "IMMUTABLE_UNTIL_AUTHORIZED_SETUP_PUBLICATION",
+        }
+    if ".eligible_price_bars" in path:
+        return {
+            "source": "price_bars",
+            "producer": "market data acquisition",
+            "expected_mutability": "FROZEN_BY_PIT_CUTOFF",
+        }
+    if ".producer_signatures" in path:
+        return {
+            "source": "setup lifecycle effective configuration",
+            "producer": "decision manifest builder",
+            "expected_mutability": "IMMUTABLE_FOR_EXECUTION",
+        }
+    if ".selection_key" in path or ".raw_row_id" in path:
+        return {
+            "source": "transition decision manifest",
+            "producer": "transition candidate discovery / decision manifest builder",
+            "expected_mutability": "IMMUTABLE_AFTER_ADMISSION",
+        }
+    return {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE",
+    }
 
 
 def _aware(value: datetime) -> datetime:

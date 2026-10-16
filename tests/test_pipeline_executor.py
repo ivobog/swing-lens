@@ -4,6 +4,8 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 import app.services.pipeline_executor as pipeline_executor
 from app.models.ceri_tables import CeriCompany
@@ -27,6 +29,60 @@ from app.services.pipeline_prerequisites import (
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus, pipeline_step_names
 from app.services.ranking_profile_service import RankingPipelineResult
 from app.services.sector_rotation_dtos import SectorRotationSnapshotDto
+
+
+def test_pipeline_progress_callback_binding_survives_session_commit() -> None:
+    progress: list[dict[str, object]] = []
+    pipeline = SimpleNamespace(id=17)
+
+    with Session() as db:
+        pipeline_executor._bind_job_progress_callback(
+            db,
+            pipeline,
+            lambda _db, **values: progress.append(values),
+        )
+        db.commit()
+        pipeline_executor._report_job_stage_progress(db, pipeline, "SCORING_FUNDAMENTALS")
+
+    assert progress == [{"stage": "SCORING_FUNDAMENTALS", "current_item": None}]
+
+
+def test_pipeline_progress_report_does_not_reopen_expired_parent_transaction() -> None:
+    class Base(DeclarativeBase):
+        pass
+
+    class ProgressPipeline(Base):
+        __tablename__ = "progress_pipeline_probe"
+
+        id: Mapped[int] = mapped_column(primary_key=True)
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    progress: list[dict[str, object]] = []
+    try:
+        with Session(engine, expire_on_commit=True) as db:
+            pipeline = ProgressPipeline(id=17)
+            db.add(pipeline)
+            db.commit()
+            pipeline_executor._bind_job_progress_callback(
+                db,
+                pipeline,
+                lambda _db, **values: progress.append(values),
+            )
+            db.commit()
+            assert not db.in_transaction()
+
+            pipeline_executor._report_job_stage_progress(
+                db,
+                pipeline,
+                "CAPTURING_SETUP_SIGNALS",
+            )
+
+            assert not db.in_transaction()
+    finally:
+        engine.dispose()
+
+    assert progress == [{"stage": "CAPTURING_SETUP_SIGNALS", "current_item": None}]
 
 
 @pytest.fixture(autouse=True)
@@ -261,9 +317,7 @@ def test_repaired_initial_preflight_restarts_same_pipeline_from_validation() -> 
     assert "ceri_schedule" in calls
     assert "winner_capture" not in calls
     assert db.steps[0].retry_count == 1
-    provider_step = next(
-        step for step in db.steps if step.step_name == "CERI_PROVIDER_INGEST"
-    )
+    provider_step = next(step for step in db.steps if step.step_name == "CERI_PROVIDER_INGEST")
     assert provider_step.status == PipelineStepStatus.WAITING_DEPENDENCY
     assert provider_step.completed_at is None
 
@@ -386,9 +440,7 @@ def test_sector_resume_rejects_cross_run_source_authority(
 
     wrong_identity = SimpleNamespace(
         ownership=SimpleNamespace(run_id=dimension(999), pipeline_id=dimension(3)),
-        calculation_context=SimpleNamespace(
-            market_calculation_context_id=dimension(17)
-        ),
+        calculation_context=SimpleNamespace(market_calculation_context_id=dimension(17)),
         temporal=SimpleNamespace(
             calculation_cutoff=dimension(expected_cutoff),
             as_of_session=dimension(date(2026, 10, 2)),
@@ -538,6 +590,16 @@ def test_post_ceri_continuation_runs_handoff_setup_and_winner_without_upstream_r
     assert result.status == PipelineStatus.COMPLETED, db.pipeline.error_message
     assert calls == ["setup_capture", "setup_evaluate", "winner_capture"]
     assert db.pipeline.result_json["decision_handoff_manifest_id"] == 91
+    assert handoff.status == PipelineStepStatus.COMPLETED
+    assert handoff.result_json["completion_semantics"] == "EVIDENCE_COMMITTED"
+    assert handoff.result_json["authority_state"] == "FROZEN"
+    assert handoff.result_json["continuation_state"] == ("ACCEPTED_BY_DOWNSTREAM_CONSUMER")
+    assert handoff.result_json["downstream_consumer_acceptance"] == {
+        "CAPTURING_SETUP_SIGNALS": "ACCEPTED"
+    }
+    assert handoff.message == (
+        "Decision evidence committed; downstream pre-mutation re-verification accepted."
+    )
     assert any(
         item["stage"] == "FREEZING_DECISION_HANDOFF_MANIFEST"
         and str(item["current_item"]).startswith("MANIFEST_COMMITTED:")
@@ -554,9 +616,7 @@ def test_resume_from_setup_capture_skips_completed_tail_and_cache_fallback_winne
         setup_lifecycle_enabled=True,
     )
     capture_index = next(
-        index
-        for index, step in enumerate(db.steps)
-        if step.step_name == "CAPTURING_SETUP_SIGNALS"
+        index for index, step in enumerate(db.steps) if step.step_name == "CAPTURING_SETUP_SIGNALS"
     )
     for step in db.steps[:capture_index]:
         step.status = PipelineStepStatus.COMPLETED

@@ -91,11 +91,61 @@ def test_run_summary_counts_only_serving_estimates() -> None:
             self.statements.append(statement)
             return 0
 
+        def execute(self, _statement):
+            return [
+                SimpleNamespace(
+                    acquisition_outcome="INSERTED", eligibility_reason=None, count=1
+                ),
+                SimpleNamespace(
+                    acquisition_outcome="EXCLUDED",
+                    eligibility_reason="winner_source_ineligible",
+                    count=2,
+                ),
+            ]
+
     db = Db()
-    _winner_probability_context(db, 1)
+    summary = _winner_probability_context(db, 1)
 
     assert len(db.statements) == 2
     for statement in db.statements:
         compiled = str(statement.compile(dialect=postgresql.dialect()))
         assert "winner_probability_estimates.lifecycle_status" in compiled
         assert "winner_cohort_generations.status" in compiled
+    assert summary["acquisition_attempted_count"] == 3
+    assert summary["acquisition_inserted_count"] == 1
+    assert summary["acquisition_excluded_count"] == 2
+    assert summary["acquisition_summary_source"] == "decision_ledger"
+    assert summary["acquisition_exclusion_reasons"] == [
+        {"reason": "winner_source_ineligible", "count": 2}
+    ]
+
+
+def test_run_summary_uses_frozen_pipeline_denominator_without_fabricating_ledger_rows() -> None:
+    class Db:
+        def scalars(self, _statement):
+            return []
+
+        def execute(self, _statement):
+            return []
+
+        def scalar(self, _statement):
+            return {
+                "winner_prediction_inserted": 14,
+                "winner_prediction_excluded": 104,
+                "winner_prediction_failed": 0,
+                "winner_prediction_exclusion_reasons": {
+                    "winner_readiness_undecided": 51,
+                    "winner_source_ineligible": 53,
+                },
+            }
+
+    summary = _winner_probability_context(Db(), 33)
+
+    assert summary["acquisition_attempted_count"] == 118
+    assert summary["acquisition_inserted_count"] == 14
+    assert summary["acquisition_excluded_count"] == 104
+    assert summary["acquisition_summary_source"] == "pipeline_result"
+    assert summary["acquisition_exclusion_reasons"] == [
+        {"reason": "winner_readiness_undecided", "count": 51},
+        {"reason": "winner_source_ineligible", "count": 53},
+    ]

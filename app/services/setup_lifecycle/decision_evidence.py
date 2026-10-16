@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from types import SimpleNamespace
 from typing import Any
@@ -55,6 +56,24 @@ _SETUP_PROJECTION_FIELDS = {
 }
 
 
+@dataclass(frozen=True)
+class PreparedSetupEvidenceValidation:
+    """Detached proof of an independently recomputed Setup output.
+
+    The proof carries no ORM authority.  Publication must still lock and
+    revalidate every exact source address before it may reuse the expensive
+    deterministic output comparison performed in the bounded preparation
+    Session.
+    """
+
+    snapshot_payload_fingerprint: str
+    calculation_identity_fingerprint: str
+    configuration_fingerprint: str
+    source_bindings: tuple[tuple[str, int, int], ...]
+    price_manifest_fingerprint: str
+    mutation_context: Any
+
+
 def get_lifecycle_readiness_for_episode(
     db,
     episode: SetupLifecycleEpisode,
@@ -69,7 +88,13 @@ def get_lifecycle_readiness_for_episode(
 
 @core_writer_transaction
 def persist_setup_evidence(
-    db, snapshot: SetupSignalSnapshot, *, mutation_context=None
+    db,
+    snapshot: SetupSignalSnapshot,
+    *,
+    mutation_context=None,
+    prepared_validation: PreparedSetupEvidenceValidation | None = None,
+    preallocated_evidence_id: int | None = None,
+    defer_graph_flush: bool = False,
 ) -> CoreCalculationEvidence | None:
     """Freeze Setup only from explicit, exact, retained native authority."""
 
@@ -78,6 +103,58 @@ def persist_setup_evidence(
         if not isinstance(db, Session):
             return None
         raise ValueError("MUTATION_SETUP_IDENTITY_REQUIRED")
+    sources = _setup_sources(db, snapshot)
+    payload = calculation_evidence_payload(snapshot, excluded_columns=_SETUP_PROJECTION_FIELDS)
+    frozen = getattr(snapshot, "_effective_configuration", None)
+    if frozen is None and getattr(snapshot, "evidence_id", None) is not None:
+        from app.services.core_effective_configuration import core_configuration_from_evidence
+
+        prior = get_setup_evidence(db, snapshot.evidence_id)
+        retained = core_configuration_from_evidence(prior)
+        frozen = retained.snapshot if retained is not None else None
+    if prepared_validation is not None:
+        _validate_prepared_setup_evidence(
+            snapshot,
+            identity=identity,
+            sources=sources,
+            payload=payload,
+            configuration=frozen,
+            prepared=prepared_validation,
+        )
+    return persist_core_evidence(
+        db,
+        kind=CoreEvidenceKind.SETUP,
+        current_row=snapshot,
+        sources=sources,
+        payload=payload,
+        calculation_identity=identity,
+        effective_configuration=frozen,
+        mutation_context=mutation_context
+        or (
+            prepared_validation.mutation_context
+            if prepared_validation is not None
+            else declare_core_evidence_mutation(
+                db,
+                kind=CoreEvidenceKind.SETUP,
+                current_row=snapshot,
+                sources=sources,
+                payload=payload,
+                calculation_identity=identity,
+                effective_configuration=frozen,
+            )
+        ),
+        prepared_setup_validation=prepared_validation,
+        preallocated_evidence_id=preallocated_evidence_id,
+        defer_graph_flush=defer_graph_flush,
+    )
+
+
+def _setup_sources(
+    db,
+    snapshot: SetupSignalSnapshot,
+    *,
+    lock_sources: bool = True,
+) -> dict[str, Any]:
     lineage_ids = dict((snapshot.source_lineage_json or {}).get("source_ids") or {})
     sources: dict[str, Any] = {}
     source_pairs = (
@@ -118,10 +195,17 @@ def persist_setup_evidence(
                 f"EVIDENCE_UNAVAILABLE: SETUP source role={role} evidence={evidence_id} missing"
             )
         if isinstance(db, Session):
-            native = db.scalar(
-                select(source_models[role])
-                .where(source_models[role].id == int(row_id))
-                .with_for_update()
+            retained = _locked_setup_publication_row(db, source_models[role], int(row_id))
+            native = (
+                retained
+                if retained is not None
+                else db.scalar(
+                    select(source_models[role])
+                    .where(source_models[role].id == int(row_id))
+                    .with_for_update()
+                )
+                if lock_sources
+                else db.get(source_models[role], int(row_id))
             )
             if native is None or native.evidence_id != int(evidence_id):
                 raise ValueError("MUTATION_SETUP_SOURCE_ROW_EVIDENCE_MISMATCH: " + role)
@@ -134,33 +218,216 @@ def persist_setup_evidence(
                 ticker=source.ticker,
             )
 
-    payload = calculation_evidence_payload(snapshot, excluded_columns=_SETUP_PROJECTION_FIELDS)
-    frozen = getattr(snapshot, "_effective_configuration", None)
-    if frozen is None and getattr(snapshot, "evidence_id", None) is not None:
-        from app.services.core_effective_configuration import core_configuration_from_evidence
+    return sources
 
-        prior = get_setup_evidence(db, snapshot.evidence_id)
-        retained = core_configuration_from_evidence(prior)
-        frozen = retained.snapshot if retained is not None else None
-    return persist_core_evidence(
+
+def _locked_setup_publication_row(db: Session, model, row_id: int):
+    retained = db.info.get("setup_publication_locked_rows")
+    if retained is None or retained[0] is not db.get_transaction():
+        return None
+    return retained[1].get((model, int(row_id)))
+
+
+def lock_setup_publication_sources(
+    db: Session,
+    dtos: list | tuple,
+) -> tuple[Any, ...]:
+    """Set-lock the exact native Setup graph for one atomic publication."""
+
+    from app.models.tables import (
+        CombinedResult,
+        FundamentalScore,
+        MarketRegimeSnapshot,
+        RankingResult,
+        RawCompanyRow,
+        SectorRotationRow,
+        SectorRotationSnapshot,
+        TechnicalScore,
+    )
+
+    model_keys = (
+        (RawCompanyRow, "raw_row_id", "native"),
+        (FundamentalScore, "fundamental_score_id", "source"),
+        (TechnicalScore, "technical_score_id", "source"),
+        (CombinedResult, "combined_result_id", "source"),
+        (RankingResult, "ranking_result_id", "source"),
+        (MarketRegimeSnapshot, "market_regime_snapshot_id", "source"),
+        (SectorRotationSnapshot, "sector_rotation_snapshot_id", "source"),
+        (SectorRotationRow, "sector_row_id", "native"),
+    )
+    ids_by_model: dict[Any, set[int]] = {model: set() for model, _key, _area in model_keys}
+    history_ids: set[int] = set()
+    for dto in dtos:
+        lineage = dto.source_lineage or {}
+        source_ids = lineage.get("source_ids") or {}
+        native = lineage.get("native_calculation_inputs") or {}
+        for model, key, area in model_keys:
+            value = (source_ids if area == "source" else native).get(key)
+            if value is not None:
+                ids_by_model[model].add(int(value))
+        history_ids.update(
+            int(item["id"]) for item in native.get("history", ()) if item.get("id") is not None
+        )
+    if history_ids:
+        ids_by_model[SetupSignalSnapshot] = history_ids
+    rows: list[Any] = []
+    by_address: dict[tuple[Any, int], Any] = {}
+    for model in sorted(ids_by_model, key=lambda item: item.__tablename__):
+        ids = ids_by_model[model]
+        if not ids:
+            continue
+        retained = list(
+            db.scalars(select(model).where(model.id.in_(tuple(sorted(ids)))).with_for_update())
+        )
+        if {int(row.id) for row in retained} != ids:
+            raise ValueError("MUTATION_SETUP_NATIVE_SOURCE_MISSING: " + model.__tablename__)
+        for row in retained:
+            row._setup_publication_lock_transaction = db.get_transaction()
+            by_address[(model, int(row.id))] = row
+        rows.extend(retained)
+    db.info["setup_publication_locked_rows"] = (db.get_transaction(), by_address)
+    return tuple(rows)
+
+
+def prepare_setup_evidence_validation(
+    db: Session,
+    snapshot: SetupSignalSnapshot,
+) -> PreparedSetupEvidenceValidation:
+    """Independently recompute one Setup output in a bounded read transaction."""
+
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+    from app.services.decision_mutation_authority import validate_setup_inputs
+
+    identity = calculation_identity_from_debug(snapshot.source_lineage_json)
+    if identity is None:
+        raise ValueError("MUTATION_SETUP_IDENTITY_REQUIRED")
+    configuration = getattr(snapshot, "_effective_configuration", None)
+    if configuration is None:
+        raise ValueError("MUTATION_SETUP_CONFIGURATION_REQUIRED")
+    sources = _setup_sources(db, snapshot, lock_sources=False)
+    payload = calculation_evidence_payload(snapshot, excluded_columns=_SETUP_PROJECTION_FIELDS)
+    mutation_context = declare_core_evidence_mutation(
         db,
         kind=CoreEvidenceKind.SETUP,
         current_row=snapshot,
         sources=sources,
         payload=payload,
         calculation_identity=identity,
-        effective_configuration=frozen,
-        mutation_context=mutation_context
-        or declare_core_evidence_mutation(
-            db,
-            kind=CoreEvidenceKind.SETUP,
-            current_row=snapshot,
-            sources=sources,
-            payload=payload,
-            calculation_identity=identity,
-            effective_configuration=frozen,
-        ),
+        effective_configuration=configuration,
     )
+    price_manifest = validate_setup_inputs(
+        db,
+        snapshot,
+        identity,
+        sources,
+        configuration=configuration,
+        declaration_only=False,
+    )
+    return PreparedSetupEvidenceValidation(
+        snapshot_payload_fingerprint=Canonical.fingerprint(payload),
+        calculation_identity_fingerprint=str(identity.fingerprint()),
+        configuration_fingerprint=Canonical.fingerprint(configuration.as_dict()),
+        source_bindings=tuple(
+            sorted(
+                (role, int(source.id), int(source.evidence_id)) for role, source in sources.items()
+            )
+        ),
+        price_manifest_fingerprint=Canonical.fingerprint(price_manifest),
+        mutation_context=mutation_context,
+    )
+
+
+def prefetch_setup_validation_sources(
+    db: Session,
+    snapshots: tuple[SetupSignalSnapshot, ...] | list[SetupSignalSnapshot],
+) -> tuple[Any, ...]:
+    """Strongly retain exact rows reused by bounded Setup recomputation."""
+
+    from app.models.tables import (
+        CombinedResult,
+        FundamentalScore,
+        MarketRegimeSnapshot,
+        RankingResult,
+        SectorRotationRow,
+        SectorRotationSnapshot,
+        TechnicalScore,
+    )
+
+    model_keys = (
+        (FundamentalScore, "fundamental_score_id"),
+        (TechnicalScore, "technical_score_id"),
+        (CombinedResult, "combined_result_id"),
+        (RankingResult, "ranking_result_id"),
+        (MarketRegimeSnapshot, "market_regime_snapshot_id"),
+        (SectorRotationSnapshot, "sector_rotation_snapshot_id"),
+    )
+    retained: list[Any] = []
+    evidence_ids: set[int] = set()
+    history_ids: set[int] = set()
+    sector_row_ids: set[int] = set()
+    for snapshot in snapshots:
+        lineage = snapshot.source_lineage_json or {}
+        source_ids = lineage.get("source_ids") or {}
+        native = lineage.get("native_calculation_inputs") or {}
+        for key, value in source_ids.items():
+            if value is not None and (key == "evidence_id" or key.endswith("_evidence_id")):
+                evidence_ids.add(int(value))
+        history_ids.update(
+            int(item["id"]) for item in native.get("history", ()) if item.get("id") is not None
+        )
+        if native.get("sector_row_id") is not None:
+            sector_row_ids.add(int(native["sector_row_id"]))
+    if evidence_ids:
+        retained.extend(
+            db.scalars(
+                select(CoreCalculationEvidence).where(
+                    CoreCalculationEvidence.id.in_(tuple(evidence_ids))
+                )
+            )
+        )
+    for model, key in model_keys:
+        ids = {
+            int((snapshot.source_lineage_json or {}).get("source_ids", {}).get(key))
+            for snapshot in snapshots
+            if (snapshot.source_lineage_json or {}).get("source_ids", {}).get(key) is not None
+        }
+        if ids:
+            retained.extend(db.scalars(select(model).where(model.id.in_(tuple(ids)))))
+    if sector_row_ids:
+        retained.extend(
+            db.scalars(select(SectorRotationRow).where(SectorRotationRow.id.in_(sector_row_ids)))
+        )
+    if history_ids:
+        retained.extend(
+            db.scalars(select(SetupSignalSnapshot).where(SetupSignalSnapshot.id.in_(history_ids)))
+        )
+    return tuple(retained)
+
+
+def _validate_prepared_setup_evidence(
+    snapshot: SetupSignalSnapshot,
+    *,
+    identity,
+    sources,
+    payload,
+    configuration,
+    prepared: PreparedSetupEvidenceValidation,
+) -> None:
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+
+    observed_bindings = tuple(
+        sorted((role, int(source.id), int(source.evidence_id)) for role, source in sources.items())
+    )
+    price_manifest = (snapshot.source_lineage_json or {}).get("pit_price_evidence")
+    if (
+        configuration is None
+        or prepared.snapshot_payload_fingerprint != Canonical.fingerprint(payload)
+        or prepared.calculation_identity_fingerprint != str(identity.fingerprint())
+        or prepared.configuration_fingerprint != Canonical.fingerprint(configuration.as_dict())
+        or prepared.source_bindings != observed_bindings
+        or prepared.price_manifest_fingerprint != Canonical.fingerprint(price_manifest)
+    ):
+        raise ValueError("MUTATION_SETUP_PREPARED_VALIDATION_MISMATCH")
 
 
 def get_setup_evidence(db, evidence_id: int) -> CoreCalculationEvidence:

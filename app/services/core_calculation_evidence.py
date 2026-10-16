@@ -110,6 +110,9 @@ def persist_core_evidence(
     effective_configuration: EffectiveConfigurationSnapshot | None = None,
     mutation_context: DomainMutationContext | None = None,
     checkpoint_callback=None,
+    prepared_setup_validation=None,
+    preallocated_evidence_id: int | None = None,
+    defer_graph_flush: bool = False,
 ) -> CoreCalculationEvidence | None:
     """Persist/reuse immutable evidence and advance its independent current pointer.
 
@@ -118,6 +121,8 @@ def persist_core_evidence(
     """
 
     identity = calculation_identity
+    if defer_graph_flush and kind is not CoreEvidenceKind.SETUP:
+        raise ValueError("DEFERRED_EVIDENCE_GRAPH_IS_SETUP_ONLY")
     if identity is None:
         identity_payload = getattr(current_row, "debug_json", None)
         if identity_payload is None:
@@ -182,6 +187,7 @@ def persist_core_evidence(
             payload=payload or {},
             checkpoint_callback=checkpoint_callback,
             checkpoint_phase="PERSISTENCE_VALIDATION",
+            prepared_setup_validation=prepared_setup_validation,
         )
         validate_core_mutation_authority(
             db,
@@ -247,6 +253,7 @@ def persist_core_evidence(
             else scope_profile
         )
         evidence = CoreCalculationEvidence(
+            id=preallocated_evidence_id,
             artifact_kind=kind.value,
             run_id=int(run_id) if run_id is not None else None,
             ticker=_normalized_ticker(ticker),
@@ -260,7 +267,10 @@ def persist_core_evidence(
             calculated_at=_calculated_at(identity),
         )
         db.add(evidence)
-        db.flush()
+        if not defer_graph_flush:
+            db.flush()
+        elif evidence.id is None:
+            raise ValueError("DEFERRED_EVIDENCE_FLUSH_REQUIRES_PREALLOCATED_ID")
         for role, source_evidence_id in source_ids.items():
             db.add(
                 CoreCalculationEvidenceSource(
@@ -269,19 +279,23 @@ def persist_core_evidence(
                     source_evidence_id=source_evidence_id,
                 )
             )
-        if source_ids:
+        if source_ids and not defer_graph_flush:
             db.flush()
 
     current_row.evidence_id = evidence.id
     if hasattr(type(current_row), "calculation_evidence"):
         # A same-session recalculation must advance the loaded exact source too.
         set_committed_value(current_row, "calculation_evidence", evidence)
-    projection = _advance_current_projection(
-        db,
-        evidence,
-        mutation_context=projection_mutation_context(evidence),
+    projection = (
+        None
+        if defer_graph_flush
+        else _advance_current_projection(
+            db,
+            evidence,
+            mutation_context=projection_mutation_context(evidence),
+        )
     )
-    if (
+    if projection is not None and (
         kind
         in {
             CoreEvidenceKind.FUNDAMENTAL,
@@ -498,6 +512,7 @@ def _advance_current_projection(
     evidence: CoreCalculationEvidence,
     *,
     mutation_context: DomainMutationContext | None = None,
+    defer_flush: bool = False,
 ) -> CoreCalculationCurrentProjection:
     if mutation_context is None:
         raise ValueError("DOMAIN_MUTATION_CONTEXT_REQUIRED: projection")
@@ -546,7 +561,8 @@ def _advance_current_projection(
             return projection
         projection.evidence_id = evidence.id
         projection.updated_at = datetime.now(UTC)
-    db.flush()
+    if not defer_flush:
+        db.flush()
     return projection
 
 

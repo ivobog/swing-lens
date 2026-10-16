@@ -34,7 +34,10 @@ from app.services.certification_runtime import (
     is_certification_mode,
     queue_isolation_status,
 )
-from app.services.market_calculation_context_service import create_pipeline_market_context
+from app.services.market_calculation_context_service import (
+    create_pipeline_ceri_certification_context,
+    create_pipeline_market_context,
+)
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus
 from app.services.scope_refresh_adoption import (
     admit_frozen_operation,
@@ -294,11 +297,16 @@ def admit_ceri_feature_certification(
         retry_count=0,
     )
     db.add(step)
-    cutoff = create_pipeline_market_context(
+    create_pipeline_market_context(
         db,
         pipeline,
         cutoff_at=cutoff_at,
         reason="CERI_FEATURE_CERTIFICATION_FROZEN_AT_ENQUEUE",
+    )
+    cutoff = create_pipeline_ceri_certification_context(
+        db,
+        pipeline,
+        cutoff_at=cutoff_at,
     )
     step.status = PipelineStepStatus.RUNNING
     step.started_at = pipeline.started_at
@@ -339,6 +347,7 @@ def admit_ceri_feature_certification(
     )
     bind_semantic_authority(root, authority)
     pipeline.result_json = {
+        **dict(pipeline.result_json or {}),
         "background_job_id": root.id,
         "feature_certification_root_job_id": root.id,
         "feature_certification_workflow_key": workflow_key,

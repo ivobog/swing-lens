@@ -863,27 +863,17 @@ def build_run_context_snapshots(
     errors_by_ticker: dict[str, str] | None = None,
     technical_preview: bool = False,
     checkpoint_callback=None,
+    histories: dict[tuple[str, str], list[SetupSignalSnapshot]] | None = None,
 ) -> tuple[tuple[TickerSourceContext, BuiltSnapshot], ...]:
     """Build lifecycle inputs through the one production history/query contract."""
 
-    cutoffs = {
-        (ticker_context.ticker, builder.config.engine.timeframe): builder._resolve_data_as_of_date(
-            ticker_context
+    if histories is None:
+        histories = _load_run_context_histories(
+            db,
+            run_context,
+            builder=builder,
+            repository=repository,
         )
-        for ticker_context in run_context.tickers
-    }
-    history_loader = getattr(repository, "canonical_snapshot_histories_before", None)
-    max_window = max(
-        (
-            window
-            for key in ("technical_score", "setup_score")
-            for window in builder.config.signal_registry.require(key).velocity_windows
-        ),
-        default=10,
-    )
-    histories = (
-        history_loader(db, cutoffs=cutoffs, limit=max_window) if history_loader is not None else {}
-    )
     built_rows: list[tuple[TickerSourceContext, BuiltSnapshot]] = []
     total = len(run_context.tickers)
     for index, ticker_context in enumerate(run_context.tickers, start=1):
@@ -917,6 +907,54 @@ def build_run_context_snapshots(
                 last_completed_item=ticker_context.ticker,
             )
     return tuple(built_rows)
+
+
+def _close_clean_parent_transaction_before_setup_build(db) -> None:
+    """End inherited read/control work before Setup's CPU-only construction.
+
+    The capture stage owns no financial mutation until handoff confirmation and
+    publication below. A transaction opened while admitting the stage must
+    therefore be clean at this boundary; committing it is safe, while silently
+    rolling back pending financial state is not.
+    """
+
+    from sqlalchemy.orm import Session
+
+    if not isinstance(db, Session):
+        return
+    if db.new or db.dirty or db.deleted:
+        raise RuntimeError("SETUP_BUILD_BOUNDARY_CONTAINS_PENDING_WRITES")
+    if db.in_transaction():
+        db.commit()
+    if db.in_transaction():
+        raise RuntimeError("SETUP_BUILD_PARENT_TRANSACTION_NOT_CLOSED")
+
+
+def _load_run_context_histories(
+    db,
+    run_context,
+    *,
+    builder: SetupLifecycleSnapshotBuilder,
+    repository: SetupLifecycleRepository,
+) -> dict[tuple[str, str], list[SetupSignalSnapshot]]:
+    cutoffs = {
+        (ticker_context.ticker, builder.config.engine.timeframe): builder._resolve_data_as_of_date(
+            ticker_context
+        )
+        for ticker_context in run_context.tickers
+    }
+    history_loader = getattr(repository, "canonical_snapshot_histories_before", None)
+    max_window = max(
+        (
+            window
+            for key in ("technical_score", "setup_score")
+            for window in builder.config.signal_registry.require(key).velocity_windows
+        ),
+        default=10,
+    )
+    return (
+        history_loader(db, cutoffs=cutoffs, limit=max_window) if history_loader is not None else {}
+    )
 
 
 class SetupLifecycleSnapshotCaptureService:
@@ -961,12 +999,36 @@ class SetupLifecycleSnapshotCaptureService:
                 "source selection cannot continue an existing calculation.",
             )
         try:
-            if market_cutoff is None:
-                run_context = self.loader.load_run_context(db, run_id)
+            load_kwargs = {}
+            if market_cutoff is not None:
+                load_kwargs["market_cutoff"] = market_cutoff
+            if frozen_tickers is not None:
+                load_kwargs["tickers"] = {ticker.upper() for ticker in frozen_tickers}
+
+            histories = None
+            if isinstance(db, Session) and market_cutoff is not None:
+                from app.services.domain_write_fence import bounded_domain_session
+
+                # Setup source/configuration acquisition is read-only. Keep it
+                # outside the caller's publication transaction, retain loaded
+                # scalar/eager values across the read commit, and close the
+                # child Session before the CPU-heavy per-ticker build begins.
+                # The handoff/source identities are revalidated below on the
+                # authoritative parent Session immediately before persistence.
+                with bounded_domain_session(db) as read_db:
+                    run_context = self.loader.load_run_context(read_db, run_id, **load_kwargs)
+                    histories = _load_run_context_histories(
+                        read_db,
+                        run_context,
+                        builder=self.builder,
+                        repository=self.repository,
+                    )
+                    if read_db.new or read_db.dirty or read_db.deleted:
+                        raise RuntimeError("SETUP_READ_TRANSACTION_CONTAINS_PENDING_WRITES")
+                    read_db.commit()
+                    if read_db.in_transaction():
+                        raise RuntimeError("SETUP_READ_TRANSACTION_NOT_CLOSED")
             else:
-                load_kwargs = {"market_cutoff": market_cutoff}
-                if frozen_tickers is not None:
-                    load_kwargs["tickers"] = {ticker.upper() for ticker in frozen_tickers}
                 run_context = self.loader.load_run_context(db, run_id, **load_kwargs)
             if frozen_tickers is not None:
                 expected = tuple(dict.fromkeys(ticker.upper() for ticker in frozen_tickers))
@@ -980,6 +1042,7 @@ class SetupLifecycleSnapshotCaptureService:
                 raise SetupLifecycleCaptureCancelled("SETUP_CAPTURE_CANCELLED")
             if progress_callback is not None:
                 progress_callback("SOURCE_CONTEXT", 0, len(run_context.tickers), phase="PREPARING")
+            _close_clean_parent_transaction_before_setup_build(db)
         except Exception:
             if evaluation_run is not None:
                 self.repository.complete_evaluation_run(
@@ -997,12 +1060,31 @@ class SetupLifecycleSnapshotCaptureService:
         low_confidence = 0
 
         try:
+
+            def build_checkpoint(**progress) -> None:
+                if should_cancel is not None and should_cancel():
+                    raise SetupLifecycleCaptureCancelled("SETUP_CAPTURE_CANCELLED")
+                if progress_callback is not None:
+                    progress_callback(
+                        progress.get("current_item") or "-",
+                        int(progress.get("processed") or 0),
+                        int(progress.get("total") or 0),
+                        phase=str(progress.get("phase") or "SETUP_INPUTS_BUILT"),
+                    )
+                # Production progress is persisted on the worker's independent
+                # control Session. Guard that contract at every 25-member CPU
+                # checkpoint so a callback cannot silently age the publication
+                # Session before financial writes begin.
+                _close_clean_parent_transaction_before_setup_build(db)
+
             built_rows = build_run_context_snapshots(
                 db,
                 run_context,
                 builder=self.builder,
                 repository=self.repository,
                 errors_by_ticker=errors_by_ticker,
+                histories=histories,
+                checkpoint_callback=build_checkpoint,
             )
             if should_cancel is not None and should_cancel():
                 raise SetupLifecycleCaptureCancelled("SETUP_CAPTURE_CANCELLED")
@@ -1027,8 +1109,10 @@ class SetupLifecycleSnapshotCaptureService:
         # A consumed transition plan is checked after all upstream production
         # stages and immediately before the first lifecycle write. The import is
         # local to keep the persistence service independent of preflight setup.
+        verified_handoff = None
         if market_cutoff is not None:
             from app.services.transition_preflight_plan_service import (
+                confirm_transition_decision_verification_before_mutation,
                 verify_transition_decision_manifests_before_mutation,
             )
 
@@ -1041,13 +1125,109 @@ class SetupLifecycleSnapshotCaptureService:
                         phase=str(progress.get("phase") or "VERIFYING_HANDOFF"),
                     )
 
-            verify_transition_decision_manifests_before_mutation(
+            if isinstance(db, Session):
+                from app.services.domain_write_fence import bounded_domain_session
+
+                # Decision reconstruction is read-only and can take longer than
+                # the PostgreSQL transaction-age ceiling for a 100-member run.
+                # Close its child read transaction at the existing 25-member
+                # progress boundaries, then lock and re-confirm the exact
+                # durable plan/handoff pair on the parent publication Session.
+                with bounded_domain_session(db) as verification_db:
+
+                    def bounded_verification_checkpoint(**progress) -> None:
+                        verification_checkpoint(**progress)
+                        if verification_db.new or verification_db.dirty or verification_db.deleted:
+                            raise RuntimeError(
+                                "SETUP_VERIFICATION_TRANSACTION_CONTAINS_PENDING_WRITES"
+                            )
+                        if verification_db.in_transaction():
+                            verification_db.commit()
+
+                    verified_handoff = verify_transition_decision_manifests_before_mutation(
+                        verification_db,
+                        upload_run_id=run_id,
+                        market_cutoff=market_cutoff,
+                        built_rows=built_rows,
+                        repository=self.repository,
+                        checkpoint_callback=bounded_verification_checkpoint,
+                        reconstruction_errors=errors_by_ticker,
+                    )
+                    if verification_db.new or verification_db.dirty or verification_db.deleted:
+                        raise RuntimeError("SETUP_VERIFICATION_TRANSACTION_CONTAINS_PENDING_WRITES")
+                    if verification_db.in_transaction():
+                        verification_db.commit()
+            else:
+                verify_transition_decision_manifests_before_mutation(
+                    db,
+                    upload_run_id=run_id,
+                    market_cutoff=market_cutoff,
+                    built_rows=built_rows,
+                    repository=self.repository,
+                    checkpoint_callback=verification_checkpoint,
+                    reconstruction_errors=errors_by_ticker,
+                )
+
+        prepared_validations = None
+        if isinstance(db, Session):
+            from app.services.domain_write_fence import bounded_domain_session
+            from app.services.setup_lifecycle.decision_evidence import (
+                prefetch_setup_validation_sources,
+                prepare_setup_evidence_validation,
+            )
+
+            # Independently recompute and validate each deterministic Setup
+            # output in bounded read transactions.  The final publication
+            # transaction still locks and revalidates every exact source; it
+            # need not repeat the CPU-heavy snapshot construction while those
+            # locks are held.
+            prepared_items = []
+            with bounded_domain_session(db) as preparation_db:
+                candidates = tuple(
+                    self.repository._snapshot_from_write(built.dto)
+                    for _ticker_context, built in built_rows
+                )
+                retained_preparation_sources = prefetch_setup_validation_sources(
+                    preparation_db,
+                    candidates,
+                )
+                total = len(built_rows)
+                for index, candidate in enumerate(candidates, start=1):
+                    prepared_items.append(
+                        (
+                            candidate.ticker,
+                            prepare_setup_evidence_validation(preparation_db, candidate),
+                        )
+                    )
+                    if progress_callback is not None and (index % 25 == 0 or index == total):
+                        progress_callback(
+                            candidate.ticker,
+                            index,
+                            total,
+                            phase="PREPARING_PUBLICATION",
+                        )
+                    if index % 25 == 0 and preparation_db.in_transaction():
+                        if preparation_db.new or preparation_db.dirty or preparation_db.deleted:
+                            raise RuntimeError(
+                                "SETUP_PREPARATION_TRANSACTION_CONTAINS_PENDING_WRITES"
+                            )
+                        preparation_db.commit()
+                if preparation_db.new or preparation_db.dirty or preparation_db.deleted:
+                    raise RuntimeError("SETUP_PREPARATION_TRANSACTION_CONTAINS_PENDING_WRITES")
+                if preparation_db.in_transaction():
+                    preparation_db.commit()
+                # Keep the bulk-loaded identity-map rows strongly referenced
+                # through every validation above.
+                _ = retained_preparation_sources
+            prepared_validations = tuple(prepared_items)
+
+        if verified_handoff is not None:
+            # This is deliberately the first parent-Session SQL after every
+            # expensive preparation step.  Its row locks remain held through
+            # the single atomic evidence/snapshot publication commit.
+            confirm_transition_decision_verification_before_mutation(
                 db,
-                upload_run_id=run_id,
-                market_cutoff=market_cutoff,
-                built_rows=built_rows,
-                repository=self.repository,
-                checkpoint_callback=verification_checkpoint,
+                verified=verified_handoff,
             )
 
         if evaluation_run is None:
@@ -1076,6 +1256,8 @@ class SetupLifecycleSnapshotCaptureService:
                     optional["progress_callback"] = progress_callback
                 if "should_cancel" in parameters:
                     optional["should_cancel"] = should_cancel
+                if "prepared_validations" in parameters:
+                    optional["prepared_validations"] = prepared_validations
                 persisted = batch_upsert(
                     db,
                     [dto for _context, _built, dto in prepared_rows],

@@ -1,0 +1,112 @@
+{
+  "schema": "swinglens.task-2.9.12f-anchor-comparison.v1",
+  "task": "2.9.12f",
+  "status": "CLOSED",
+  "timing": {
+    "started_at": "2026-10-14T20:12:09.7177885+02:00",
+    "completed_at": "2026-10-14T20:18:12.2778303+02:00",
+    "elapsed_seconds": 362.56,
+    "budget_seconds": 1800
+  },
+  "retained_incident": {
+    "source_task": "2.9.12e",
+    "runtime_id": "20261014T173821Z-65dd66de",
+    "pipeline_id": 1,
+    "continuation_job_id": 32,
+    "failure_code": "DECISION_MANIFEST_MISMATCH",
+    "failure_message": "run-start anchor no longer matches at decision handoff",
+    "comparison_function": "verify_transition_decision_manifests_before_mutation",
+    "comparison_category": "run_start_anchor",
+    "expected_fingerprint": null,
+    "actual_fingerprint": null,
+    "fingerprint_recovery": "UNAVAILABLE_RETAINED_EVIDENCE",
+    "fingerprint_recovery_reason": "The disposable 2.9.12e database was deleted by its required cleanup. Its structured JSON logger retained the rejection event but omitted the interpolation arguments containing expected_fingerprint and actual_fingerprint. No value is invented here."
+  },
+  "identity_chain": [
+    "certification UI admission creates TransitionPreflightPlan",
+    "TransitionPreflightPlan.run_start_anchor_json and run_start_anchor_fingerprint persist the admission anchor",
+    "durable CERI workflow and FULL_PIPELINE continuation advance run lifecycle bookkeeping",
+    "freeze_transition_decision_handoff_manifest verifies the source-evidence subset and persists TransitionDecisionHandoffManifest",
+    "Setup capture reconstructs decision manifests",
+    "verify_transition_decision_manifests_before_mutation rebuilds the run-start anchor immediately before the first Setup write"
+  ],
+  "comparison": {
+    "old_contract": "transition-run-start-anchor-v1",
+    "new_contract": "transition-run-start-anchor-v2",
+    "exact_mismatching_paths": [
+      "run.status",
+      "run.processed_at"
+    ],
+    "field_classification": "MUTABLE_RUN_LIFECYCLE_BOOKKEEPING",
+    "root_cause_classification": [
+      "A_OVERBROAD_MUTABLE_FIELD_IN_IMMUTABLE_ANCHOR",
+      "C_EXPECTED_DURABLE_CONTINUATION_STATE_TRANSITION"
+    ],
+    "not_decision_source_evidence": true,
+    "preserved_anchor_fields": [
+      "run.id",
+      "run.filename",
+      "run.uploaded_at",
+      "run.row_count",
+      "run.pine_engine_version",
+      "run.python_engine_version",
+      "run.raw_row_count",
+      "run.raw_rows_fingerprint",
+      "ticker_population",
+      "market_context",
+      "source_cutoffs",
+      "immutable_source_lineage.*.selection_key",
+      "immutable_source_lineage.*.raw_row_id",
+      "immutable_source_lineage.*.expected_pointer",
+      "immutable_source_lineage.*.eligible_price_bars",
+      "immutable_source_lineage.*.producer_signatures"
+    ]
+  },
+  "remediation": {
+    "production_file": "app/services/transition_preflight_plan_service.py",
+    "test_file": "tests/integration/test_transition_preflight_plan_postgresql.py",
+    "removed_from_anchor": [
+      "run.status",
+      "run.processed_at"
+    ],
+    "formula_changed": false,
+    "configuration_changed": false,
+    "cutoff_changed": false,
+    "source_identity_guard_weakened": false
+  },
+  "focused_certification": {
+    "database": "disposable PostgreSQL created by the test fixture",
+    "invocations": 1,
+    "tests": 1,
+    "passed": 1,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "pytest_seconds": 8.75,
+    "junit_seconds": 8.736,
+    "junit": "docs/remediation/readiness-phase2/TASK_2_9_12F_CERTIFICATION.xml",
+    "positive_proof": "Changing UploadRun.status and UploadRun.processed_at after handoff preserves the v2 anchor fingerprint, reuses the same handoff, and passes the pre-mutation verifier.",
+    "negative_proof": "Changing RawCompanyRow.raw_json changes run.raw_rows_fingerprint and is rejected with DECISION_MANIFEST_MISMATCH before any SetupSignalSnapshot is written; the persisted handoff fingerprint remains unchanged."
+  },
+  "source_pins": {
+    "generator": "python -m scripts.qa.t14a_phase2_9_source_pins --write",
+    "production_source_hash": "66070c71cacd57e09c023ac7bb21dd3cb219e16cc928c7eff3d8307fc77e6592",
+    "validator": {
+      "stale": []
+    }
+  },
+  "excluded": {
+    "chromium_100_run": false,
+    "browser_or_e2e_run": false,
+    "full_repository_suite": false,
+    "full_ceri_suite": false,
+    "full_setup_suite": false,
+    "full_pipeline_suite": false,
+    "second_repair_or_retest_loop": false
+  },
+  "retained_unresolved_observation": {
+    "pre_pipeline_fixture_transaction_seconds": 131.806556,
+    "remediated_by_this_task": false
+  },
+  "release_status": "FULL_RELEASE_UNCERTIFIED"
+}

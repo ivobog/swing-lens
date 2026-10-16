@@ -537,6 +537,31 @@ def test_manifest_mismatch_fails_job_without_automatic_pipeline_replay() -> None
     }
 
 
+def test_manifest_mismatch_retains_safe_structural_diagnostics() -> None:
+    job = _running_job(max_retries=3)
+    db = FakeDb(existing=job)
+    diagnostics = {
+        "diagnostic_contract": "transition-anchor-mismatch-diagnostic-v1",
+        "differing_paths": ["$.market_context.cutoff_reason"],
+        "expected_fingerprint": "a" * 64,
+        "actual_fingerprint": "b" * 64,
+    }
+
+    mark_job_failed_or_retry(
+        db,
+        job,
+        TransitionPreflightError(
+            "DECISION_MANIFEST_MISMATCH",
+            "immutable evidence changed",
+            diagnostics=diagnostics,
+        ),
+        execution_token=job.execution_token,
+    )
+
+    assert job.status == JobStatus.FAILED
+    assert job.result_json["failure_classification"]["diagnostics"] == diagnostics
+
+
 def test_failed_job_error_message_is_sanitized_and_truncated() -> None:
     job = _running_job(max_retries=0)
     db = FakeDb(existing=job)
@@ -1079,16 +1104,19 @@ def test_sector_progress_can_cross_bounded_timeout_without_false_fencing() -> No
     job.heartbeat_at = after_six_minutes
     db = FakeDb(stale_jobs=[job])
 
-    assert fence_stalled_jobs(
-        db,
-        authority=NORMAL_RECOVERY,
-        default_timeout_seconds=300,
-        market_data_timeout_seconds=360,
-        long_stage_timeout_seconds=1800,
-        now=after_six_minutes,
-        worker_id="worker-a",
-        worker_heartbeat_at=after_six_minutes,
-    ) == []
+    assert (
+        fence_stalled_jobs(
+            db,
+            authority=NORMAL_RECOVERY,
+            default_timeout_seconds=300,
+            market_data_timeout_seconds=360,
+            long_stage_timeout_seconds=1800,
+            now=after_six_minutes,
+            worker_id="worker-a",
+            worker_heartbeat_at=after_six_minutes,
+        )
+        == []
+    )
     assert job.status == JobStatus.RUNNING
 
 
@@ -1189,16 +1217,19 @@ def test_resume_boundary_sets_timeout_before_first_item_checkpoint() -> None:
     job.heartbeat_at = after_six_minutes
     db = FakeDb(stale_jobs=[job])
 
-    assert fence_stalled_jobs(
-        db,
-        authority=NORMAL_RECOVERY,
-        default_timeout_seconds=300,
-        market_data_timeout_seconds=300,
-        long_stage_timeout_seconds=1800,
-        now=after_six_minutes,
-        worker_id="worker-a",
-        worker_heartbeat_at=after_six_minutes,
-    ) == []
+    assert (
+        fence_stalled_jobs(
+            db,
+            authority=NORMAL_RECOVERY,
+            default_timeout_seconds=300,
+            market_data_timeout_seconds=300,
+            long_stage_timeout_seconds=1800,
+            now=after_six_minutes,
+            worker_id="worker-a",
+            worker_heartbeat_at=after_six_minutes,
+        )
+        == []
+    )
     assert job.status == JobStatus.RUNNING
 
 
@@ -1266,12 +1297,15 @@ def test_exhausted_sector_recovery_sets_truthful_terminal_step_status() -> None:
 
     db = RecoveryDb(stale_jobs=[job])
 
-    assert requeue_stalled_jobs(
-        db,
-        authority=NORMAL_RECOVERY,
-        job_ids=[job.id],
-        max_identical_recoveries=3,
-    ) == 0
+    assert (
+        requeue_stalled_jobs(
+            db,
+            authority=NORMAL_RECOVERY,
+            job_ids=[job.id],
+            max_identical_recoveries=3,
+        )
+        == 0
+    )
     assert job.status == JobStatus.BLOCKED
     assert pipeline.status == "BLOCKED"
     assert step.status == "BLOCKED"

@@ -24,7 +24,6 @@ from app.services.setup_lifecycle.source_loader import (
     SetupLifecycleSourceLoader,
     _latest_price_bar_history_statement,
     _latest_price_bars_statement,
-    _run_context_cutoff_date,
     _select_context_candidate,
     build_run_source_context,
     compare_latest_bar_selection,
@@ -100,6 +99,48 @@ def test_source_loader_preserves_resolved_market_context_in_run_context() -> Non
     assert context.tickers[0].market_cutoff == cutoff
 
 
+def test_global_context_uses_frozen_session_for_stale_and_no_bar_tickers() -> None:
+    cutoff = (
+        MarketClockService()
+        .cutoff_for(
+            datetime(2026, 10, 7, 10, 6, tzinfo=UTC),
+            reason="FULL_PIPELINE_FROZEN_AT_ENQUEUE",
+        )
+        .with_context_id(49)
+    )
+    assert cutoff.latest_completed_session == date(2026, 10, 6)
+    stale = _raw_row("STALE")
+    stale.id = 102
+    stale.row_number = 2
+    no_bar = _raw_row("NOBAR")
+    no_bar.id = 103
+    no_bar.row_number = 3
+    market = _market_snapshot()
+    market.id = 25
+    market.as_of_date = cutoff.latest_completed_session
+    sector = _sector_snapshot()
+    sector.id = 26
+    sector.as_of_date = cutoff.latest_completed_session
+    db = GlobalContextSourceLoaderDb(
+        raw_rows=(stale, no_bar),
+        market=market,
+        sector=sector,
+    )
+    loader = SetupLifecycleSourceLoader(latest_bar_projection_enabled=False)
+    loader._load_price_bars = lambda *_args, **_kwargs: (
+        _bar("STALE", date(2026, 10, 5), close=40),
+    )
+
+    context = loader.load_run_context(db, run_id=7, market_cutoff=cutoff)
+    by_ticker = {row.ticker: row for row in context.tickers}
+
+    assert by_ticker["STALE"].latest_completed_bar.bar_date == date(2026, 10, 5)
+    assert by_ticker["NOBAR"].latest_completed_bar is None
+    for ticker in ("STALE", "NOBAR"):
+        assert by_ticker[ticker].market_regime_snapshot.id == 25
+        assert by_ticker[ticker].sector_rotation_snapshot.id == 26
+
+
 def test_latest_completed_bar_prefers_latest_trade_bar() -> None:
     older = _bar("MSFT", date(2026, 7, 31), close=99, what_to_show="TRADES")
     adjusted = _bar("MSFT", date(2026, 8, 1), close=100, what_to_show="ADJUSTED_LAST")
@@ -162,23 +203,6 @@ def test_latest_bar_projection_shadow_comparison_detects_lineage_drift() -> None
         "MSFT: legacy=(1002, datetime.date(2026, 8, 1), 'TRADES'), "
         "projected=(1003, datetime.date(2026, 8, 1), 'TRADES')",
     )
-
-
-def test_run_context_cutoff_uses_earliest_ticker_source_date() -> None:
-    older = _raw_row("MSFT")
-    newer = _raw_row("AAPL")
-
-    cutoff = _run_context_cutoff_date(
-        upload_run=_upload_run(),
-        raw_rows=(older, newer),
-        technical_scores=(),
-        price_bars=(
-            _bar("MSFT", date(2026, 7, 29), close=101),
-            _bar("AAPL", date(2026, 8, 1), close=102),
-        ),
-    )
-
-    assert cutoff == date(2026, 7, 29)
 
 
 def test_point_in_time_context_is_selected_per_ticker_cutoff() -> None:
@@ -248,6 +272,35 @@ class SourceLoaderSession(Session):
     def scalars(self, statement):
         if "raw_company_rows" in str(statement):
             return iter((self.raw_row,))
+        return iter(())
+
+
+class GlobalContextSourceLoaderDb:
+    def __init__(
+        self,
+        *,
+        raw_rows: tuple[RawCompanyRow, ...],
+        market: MarketRegimeSnapshot,
+        sector: SectorRotationSnapshot,
+    ) -> None:
+        self.upload_run = _upload_run()
+        self.raw_rows = raw_rows
+        self.market = market
+        self.sector = sector
+
+    def get(self, model, identity):
+        if model is UploadRun and identity == 7:
+            return self.upload_run
+        return None
+
+    def scalars(self, statement):
+        rendered = str(statement)
+        if "raw_company_rows" in rendered:
+            return iter(self.raw_rows)
+        if "market_regime_snapshots" in rendered:
+            return iter((self.market,))
+        if "sector_rotation_snapshots" in rendered:
+            return iter((self.sector,))
         return iter(())
 
 

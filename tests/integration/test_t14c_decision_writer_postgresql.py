@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import (
     CoreCalculationEvidence,
+    RawCompanyRow,
     SetupLifecycleAdministrativeAuditEvent,
     SetupLifecycleEpisode,
     SetupLifecycleEvaluationEvidence,
@@ -29,6 +30,7 @@ from app.services.decision_mutation_authority import validate_setup_projection
 from app.services.setup_lifecycle.decision_evidence import (
     persist_alert_decision_evidence,
     persist_setup_evidence,
+    prepare_setup_evidence_validation,
 )
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.snapshot_builder import SetupLifecycleSnapshotBuilder
@@ -130,7 +132,7 @@ def test_native_handoff_uses_sealed_sources_and_writer_rechecks_after_declaratio
     from app.services.transition_preflight_plan_service import _validate_handoff_temporal_lineage
 
     with Session(contextual_engine) as db:
-        cutoff, configurations, sources = seed_native_core(db)
+        cutoff, configurations, sources = seed_native_core(db, include_decision_context=True)
         combined = sources["combined"]
         technical = sources["technical"]
         debug = deepcopy(combined.debug_json)
@@ -234,6 +236,67 @@ def test_native_setup_output_and_altered_retry_roll_back(contextual_engine, batc
             assert db.scalar(select(func.count()).select_from(SetupSignalSnapshot)) == 1
             validate_setup_projection(db, snapshot)
             db.commit()
+
+
+def test_prepared_setup_rejects_source_mutation_before_atomic_publication(contextual_engine):
+    """Bounded preparation and final publication both reject protected drift."""
+
+    config = resolve_setup_configuration()
+    repository = SetupLifecycleRepository(config.setup_config())
+    with Session(contextual_engine) as db:
+        cutoff, _, _ = seed_native_core(db, extra_configurations=(config,))
+        context = SetupLifecycleSourceLoader().load_run_context(db, 7, market_cutoff=cutoff)
+        dto = SetupLifecycleSnapshotBuilder(config.setup_config()).build(context.tickers[0]).dto
+        raw = db.scalar(select(RawCompanyRow).where(RawCompanyRow.run_id == 7))
+        assert raw is not None
+        raw_id = raw.id
+        original_payload = deepcopy(raw.raw_json)
+        db.commit()
+
+        # A source changed before/during bounded preparation cannot produce a
+        # reusable proof for the already-constructed financial output.
+        raw = db.get(RawCompanyRow, raw_id)
+        raw.raw_json = {**original_payload, "task_q_protected_mutation": "during-preparation"}
+        db.commit()
+        with Session(contextual_engine) as preparation_db:
+            candidate = repository._snapshot_from_write(dto)
+            with pytest.raises(ValueError, match="MUTATION_SETUP_RAW_INPUT_MISMATCH"):
+                prepare_setup_evidence_validation(preparation_db, candidate)
+            preparation_db.rollback()
+
+        raw = db.get(RawCompanyRow, raw_id)
+        raw.raw_json = original_payload
+        db.commit()
+        with Session(contextual_engine) as preparation_db:
+            candidate = repository._snapshot_from_write(dto)
+            prepared = prepare_setup_evidence_validation(preparation_db, candidate)
+            preparation_db.commit()
+
+        # A mutation committed after preparation is detected from the exact
+        # final locked source graph before any Setup evidence can be published.
+        raw = db.get(RawCompanyRow, raw_id)
+        raw.raw_json = {**original_payload, "task_q_protected_mutation": "before-publication"}
+        db.commit()
+        db.add(
+            UploadRun(id=995, filename="task-q-protected-source-mutation.csv", status="COMPLETED")
+        )
+        with pytest.raises(ValueError, match="MUTATION_SETUP_RAW_INPUT_MISMATCH"):
+            repository.upsert_snapshots(
+                db,
+                [dto],
+                prepared_validations=((dto.ticker, prepared),),
+            )
+        db.commit()
+        assert db.get(UploadRun, 995) is None
+        assert db.scalar(select(func.count()).select_from(SetupSignalSnapshot)) == 0
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(CoreCalculationEvidence)
+                .where(CoreCalculationEvidence.artifact_kind == "SETUP")
+            )
+            == 0
+        )
 
 
 def test_native_lifecycle_output_projection_and_primary_scope(contextual_engine):
@@ -359,21 +422,27 @@ def test_legacy_active_episode_crosses_audited_certification_boundary(contextual
             assert applied.episode.id != legacy_id
             validate_episode_projection(db, applied.episode)
         audit_count = db.scalar(
-            select(func.count()).select_from(SetupLifecycleAdministrativeAuditEvent).where(
-                SetupLifecycleAdministrativeAuditEvent.event_type
-                == "LEGACY_CERTIFICATION_BOUNDARY"
+            select(func.count())
+            .select_from(SetupLifecycleAdministrativeAuditEvent)
+            .where(
+                SetupLifecycleAdministrativeAuditEvent.event_type == "LEGACY_CERTIFICATION_BOUNDARY"
             )
         )
         assert audit_count == 1
 
         service.apply_snapshot(db, snapshot)
         db.commit()
-        assert db.scalar(
-            select(func.count()).select_from(SetupLifecycleAdministrativeAuditEvent).where(
-                SetupLifecycleAdministrativeAuditEvent.event_type
-                == "LEGACY_CERTIFICATION_BOUNDARY"
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(SetupLifecycleAdministrativeAuditEvent)
+                .where(
+                    SetupLifecycleAdministrativeAuditEvent.event_type
+                    == "LEGACY_CERTIFICATION_BOUNDARY"
+                )
             )
-        ) == audit_count
+            == audit_count
+        )
 
 
 def test_native_lifecycle_concurrent_advance_and_decision_reclaim(contextual_engine):
@@ -425,11 +494,14 @@ def test_native_lifecycle_concurrent_advance_and_decision_reclaim(contextual_eng
         token_a = first.execution_token
         first.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
         db.commit()
-        assert recover_stale_jobs(
-            db,
-            stale_after_seconds=1,
-            authority=RecoveryAuthority.normal("test.t14c.decision_recovery"),
-        ) == 1
+        assert (
+            recover_stale_jobs(
+                db,
+                stale_after_seconds=1,
+                authority=RecoveryAuthority.normal("test.t14c.decision_recovery"),
+            )
+            == 1
+        )
         db.commit()
         second = _claim_registered_job(db, "t14c-native-decision-B")
         assert second.id == queued.id and second.execution_token != token_a
@@ -1290,12 +1362,13 @@ def test_worker_heartbeat_uses_child_transaction_retaining_fence(contextual_engi
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
-    from app.models.tables import BackgroundJob
-    from app.services.background_job_service import enqueue_job
+    from app.models.tables import BackgroundJob, UploadRun
+    from app.services.background_job_service import JobLeaseLost, enqueue_job
     from app.services.background_worker import run_worker_once
     from app.services.domain_write_fence import (
         assert_current_execution_ownership,
         current_fenced_domain_session,
+        fence_domain_commits,
     )
 
     engine = create_engine(
@@ -1311,15 +1384,38 @@ def test_worker_heartbeat_uses_child_transaction_retaining_fence(contextual_engi
 
         def handler(parent, job):
             with factory() as child:
-                assert_current_execution_ownership(
-                    child, job_id=job.id, execution_token=job.execution_token
-                )
-                assert current_fenced_domain_session(job.id, job.execution_token) is child
-                job._heartbeat()
-                assert current_fenced_domain_session(job.id, job.execution_token) is child
-                assert child.get(BackgroundJob, job.id).heartbeat_at is not None
-                child.commit()
-                assert current_fenced_domain_session(job.id, job.execution_token) is None
+                with fence_domain_commits(
+                    child,
+                    job_id=job.id,
+                    execution_token=job.execution_token,
+                ):
+                    assert_current_execution_ownership(
+                        child, job_id=job.id, execution_token=job.execution_token
+                    )
+                    assert current_fenced_domain_session(job.id, job.execution_token) is child
+                    staged_run_id = 994_001
+                    child.add(
+                        UploadRun(
+                            id=staged_run_id,
+                            filename="uncommitted-child-heartbeat.csv",
+                            status="PENDING",
+                        )
+                    )
+                    child.flush()
+                    job._heartbeat()
+                    assert current_fenced_domain_session(job.id, job.execution_token) is child
+                    assert child.get(BackgroundJob, job.id).heartbeat_at is not None
+                    with factory() as observer:
+                        assert observer.get(UploadRun, staged_run_id) is None
+                    with factory() as stale:
+                        with pytest.raises(JobLeaseLost):
+                            assert_current_execution_ownership(
+                                stale,
+                                job_id=job.id,
+                                execution_token="stale-execution-token",
+                            )
+                    child.commit()
+                    assert current_fenced_domain_session(job.id, job.execution_token) is None
             return {"child_heartbeat": True}
 
         assert run_worker_once(
@@ -1333,6 +1429,7 @@ def test_worker_heartbeat_uses_child_transaction_retaining_fence(contextual_engi
             assert completed.status == "COMPLETED", completed.error_message
             assert completed.result_json == {"child_heartbeat": True}
             assert completed.execution_token is None
+            assert db.get(UploadRun, 994_001) is not None
     finally:
         engine.dispose()
 

@@ -16,16 +16,16 @@ from fastapi.testclient import TestClient
 from psycopg import sql
 from sqlalchemy.engine import make_url
 
-from app.database_safety import assert_disposable_database
+from app.database_safety import assert_disposable_database, resolve_test_postgres_admin_url
 from app.main import create_app
 from app.settings import Settings
 
-POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 DISPOSABLE_DATABASE_PREFIX = "swinglens_pytest_"
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     """Give every test an explicit QA lane without rewriting legacy modules."""
+    provider_mode = os.environ.get("SWINGLENS_CERTIFICATION_PROVIDER_MODE", "deterministic")
     for item in items:
         path = Path(str(item.path)).as_posix().lower()
         name = item.name.lower()
@@ -49,6 +49,15 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
             item.add_marker(pytest.mark.destructive)
         if any(token in path for token in ("security", "no_order", "redaction")):
             item.add_marker(pytest.mark.security)
+        if item.get_closest_marker("live_provider") and provider_mode == "deterministic":
+            item.add_marker(
+                pytest.mark.skip(
+                    reason=(
+                        "live-provider certification is opt-in; set "
+                        "SWINGLENS_CERTIFICATION_PROVIDER_MODE=live with separate authorization"
+                    )
+                )
+            )
 
 
 @dataclass(frozen=True)
@@ -249,7 +258,7 @@ def fake_ib_gateway_factory() -> Callable[..., ScriptedIBGateway]:
 @pytest.fixture
 def disposable_postgres_database_factory() -> Callable[[], AbstractContextManager[str]]:
     """Return a context manager that creates and safely drops disposable databases."""
-    admin_url = os.environ.get("SWINGLENS_TEST_POSTGRES_ADMIN_URL", POSTGRES_ADMIN_URL)
+    admin_url = resolve_test_postgres_admin_url()
     sqlalchemy_admin_url = make_url(admin_url.replace("postgresql://", "postgresql+psycopg://", 1))
 
     @contextmanager

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="82.118" timestamp="2026-10-14T11:36:24.733360+02:00" hostname="NewLaptop"><testcase classname="tests.integration.test_phase4_configuration_certification_postgresql" name="test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier" time="81.135"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;C:\Users\Ivica\Documents\SwingLens\scripts\qa\t13e_deployed_probe.py&quot;, line 556, in &lt;module&gt;&#10;      {**main(sys.argv[1]), &quot;probe_process_instance_id&quot;: PROBE_PROCESS_INSTANCE_ID},&#10;         ^^^^^^^^^^^^^^^^^&#10;    File &quot;C:\Users\Ivica\Documents\SwingLens\scripts\qa\t13e_deployed_probe.py&quot;, line 497, in main&#10;      assert worked&#10;  AssertionError&#10;  verified disposable database before Alembic: database=swinglens_pytest_798a96490209 server=127.0.0.1/32:5432 url=postgresql+psycopg://&lt;restricted:userinfo&gt;@127.0.0.1:5432/swinglens_pytest_798a96490209&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe', 'C:\\Users\\Ivica\\Docume...a\\Documents\\SwingLens\\scripts\\qa\\t13e_deployed_probe.py&quot;, line 497, in main\n    assert worked\nAssertionError\n').returncode">tests\integration\test_phase4_configuration_certification_postgresql.py:391: in test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier
+    retry = _process(
+tests\integration\test_phase4_configuration_certification_postgresql.py:55: in _process
+    assert completed.returncode == 0, completed.stderr + completed.stdout[-20000:]
+E   AssertionError: Traceback (most recent call last):
+E       File "C:\Users\Ivica\Documents\SwingLens\scripts\qa\t13e_deployed_probe.py", line 556, in &lt;module&gt;
+E         {**main(sys.argv[1]), "probe_process_instance_id": PROBE_PROCESS_INSTANCE_ID},
+E            ^^^^^^^^^^^^^^^^^
+E       File "C:\Users\Ivica\Documents\SwingLens\scripts\qa\t13e_deployed_probe.py", line 497, in main
+E         assert worked
+E     AssertionError
+E     verified disposable database before Alembic: database=swinglens_pytest_798a96490209 server=127.0.0.1/32:5432 url=postgresql+psycopg://&lt;restricted:userinfo&gt;@127.0.0.1:5432/swinglens_pytest_798a96490209
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['C:\\Users\\Ivica\\Documents\\SwingLens\\.venv\\Scripts\\python.exe', 'C:\\Users\\Ivica\\Docume...a\\Documents\\SwingLens\\scripts\\qa\\t13e_deployed_probe.py", line 497, in main\n    assert worked\nAssertionError\n').returncode</failure></testcase></testsuite></testsuites>

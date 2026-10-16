@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="15.915" timestamp="2026-10-14T11:43:18.255299+02:00" hostname="NewLaptop"><testcase classname="tests.integration.test_phase4_configuration_certification_postgresql" name="test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier" time="15.137"><failure message="AssertionError: assert 'PENDING' == 'QUEUED'&#10;  &#10;  - QUEUED&#10;  + PENDING">tests\integration\test_phase4_configuration_certification_postgresql.py:355: in test_public_resume_retains_c1_and_duplicate_completed_work_stays_behind_ceri_barrier
+    assert queued["pipeline_status"] == "QUEUED"
+E   AssertionError: assert 'PENDING' == 'QUEUED'
+E     
+E     - QUEUED
+E     + PENDING</failure></testcase></testsuite></testsuites>

@@ -36,6 +36,12 @@ class RuntimeMode(StrEnum):
     CERTIFICATION = "CERTIFICATION"
 
 
+class FundamentalAdmissionMode(StrEnum):
+    LEGACY = "LEGACY"
+    SHADOW = "SHADOW"
+    ACTIVE = "ACTIVE"
+
+
 class ProcessRole(StrEnum):
     SUPERVISOR = "SUPERVISOR"
     WEB = "WEB"
@@ -95,6 +101,7 @@ class Settings(BaseSettings):
     allow_public_bind: bool = False
     use_durable_pipeline: bool = True
     runtime_mode: RuntimeMode = RuntimeMode.NORMAL
+    fundamental_admission_mode: FundamentalAdmissionMode = FundamentalAdmissionMode.LEGACY
     process_role: ProcessRole = ProcessRole.CLI_OR_MAINTENANCE
     # The canonical lifecycle creates a fresh value for every runtime start and
     # propagates it to supervised children.  In CERTIFICATION mode it is also
@@ -417,6 +424,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_local_runtime_boundary(self) -> "Settings":
+        if (
+            self.fundamental_admission_mode is not FundamentalAdmissionMode.LEGACY
+            and self.runtime_mode is not RuntimeMode.CERTIFICATION
+        ):
+            raise ValueError(
+                "FUNDAMENTAL_ADMISSION_MODE SHADOW/ACTIVE requires "
+                "RUNTIME_MODE=CERTIFICATION"
+            )
         if self.job_worker_enabled and not self.durable_worker_process_enabled:
             if "durable_worker_process_enabled" in self.model_fields_set:
                 raise ValueError(

@@ -236,6 +236,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/runs/{run_id}/setup-lifecycle` | `run_setup_lifecycle` |
 | POST | `/runs/{run_id}/technicals/refresh` | `refresh_technicals_action` |
 | GET | `/runs/{run_id}/tickers/{ticker}/chart` | `ticker_chart_panel` |
+| GET | `/runs/{run_id}/tickers/{ticker}/details` | `ticker_detail_fragment` |
 | GET | `/runs/{run_id}/winner-probability` | `winner_probability_run_page` |
 | GET | `/scoring` | `scoring_page` |
 | GET | `/settings` | `settings_page` |

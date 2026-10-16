@@ -1,12 +1,12 @@
 """Contextual source permission, evaluated against exact frozen producer evidence."""
 
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import Date, DateTime, Numeric, inspect
-from sqlalchemy.orm import object_session
+from sqlalchemy.orm import Session, object_session
 from sqlalchemy.orm.attributes import NO_VALUE
 
 from app.models.tables import (
@@ -191,18 +191,148 @@ def contextual_decision_input(
         readiness = legacy_readiness(policy.producer)
     decision = policy.evaluate(readiness)
     included = decision.status is ConsumerEligibilityStatus.ELIGIBLE
+    orthogonal_decision = None
+    activation_mode = "LEGACY"
+    if evidence is not None and policy in {
+        FUNDAMENTAL_TO_COMBINED,
+        FUNDAMENTAL_TO_RANKING,
+    }:
+        from app.services.eligibility_policy import ConsumerEligibilityOutcome
+        from app.services.fundamental_admission_policy import (
+            evaluate_fundamental_admission,
+            fundamental_input_from_frozen_row,
+        )
+        from app.settings import FundamentalAdmissionMode, get_settings
+
+        mode = get_settings().fundamental_admission_mode
+        activation_mode = mode.value
+        if mode is not FundamentalAdmissionMode.LEGACY:
+            frozen_input = _fundamental_frozen_input(evidence)
+            policy_input = fundamental_input_from_frozen_row(
+                frozen_input,
+                consumer_edge=f"FUNDAMENTAL_TO_{policy.consumer}",
+            )
+            orthogonal_decision = evaluate_fundamental_admission(
+                policy_input,
+                authoritative=mode is FundamentalAdmissionMode.ACTIVE,
+            )
+            legacy_outcome = {
+                ConsumerEligibilityStatus.ELIGIBLE: ConsumerEligibilityOutcome.INCLUDED,
+                ConsumerEligibilityStatus.INELIGIBLE: ConsumerEligibilityOutcome.REJECTED_REQUIRED,
+                ConsumerEligibilityStatus.POLICY_UNDECIDED: ConsumerEligibilityOutcome.UNDECIDED,
+            }[decision.status]
+            if mode is FundamentalAdmissionMode.ACTIVE:
+                included = (
+                    orthogonal_decision.eligibility is ConsumerEligibilityOutcome.INCLUDED
+                )
     frozen = {
         "decision": decision.to_dto(),
         "producer_readiness": readiness.to_dto(),
         "included": included,
         "source_feature_id": getattr(row, "id", None),
     }
+    if activation_mode != "LEGACY":
+        frozen["fundamental_admission_mode"] = activation_mode
+    if orthogonal_decision is not None:
+        frozen["orthogonal_decision"] = orthogonal_decision.canonical_payload()
+        frozen["fundamental_admission_input"] = asdict(policy_input)
+        frozen["legacy_outcome"] = legacy_outcome.value
     if not included:
         return None, frozen
     payload = evidence.payload_json
     if policy.producer == "IBMI":
         payload = payload["derived_output"]
     return _project_frozen(row, payload, evidence.id, evidence=evidence), frozen
+
+
+def record_fundamental_admission(
+    db: Session,
+    *,
+    row: Any,
+    policy: ContextualConsumerPolicy,
+    permission: dict[str, Any],
+    pipeline_run_id: int | None,
+) -> None:
+    """Append the non-legacy decision produced at an actual consumer write boundary."""
+
+    mode = permission.get("fundamental_admission_mode", "LEGACY")
+    if mode == "LEGACY":
+        return
+    if policy not in {FUNDAMENTAL_TO_COMBINED, FUNDAMENTAL_TO_RANKING}:
+        raise ValueError("Fundamental admission recording is limited to score-native edges")
+    if object_session(row) is not db:
+        raise ValueError("Fundamental admission recording requires the attached transaction")
+    evidence = row.calculation_evidence
+    from app.services.consumer_eligibility_ledger import (
+        EligibilityShadowEvaluation,
+        persist_consumer_decision,
+        persist_shadow_evaluation,
+    )
+    from app.services.eligibility_policy import ConsumerEligibilityOutcome
+    from app.services.fundamental_admission_policy import (
+        FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
+        evaluate_fundamental_admission,
+        fundamental_input_from_frozen_row,
+    )
+    from app.settings import FundamentalAdmissionMode
+
+    activation = FundamentalAdmissionMode(mode)
+    policy_input = fundamental_input_from_frozen_row(
+        _fundamental_frozen_input(evidence),
+        consumer_edge=f"FUNDAMENTAL_TO_{policy.consumer}",
+    )
+    decision = evaluate_fundamental_admission(
+        policy_input,
+        authoritative=activation is FundamentalAdmissionMode.ACTIVE,
+    )
+    if decision.canonical_payload() != permission.get("orthogonal_decision"):
+        raise ValueError("Fundamental admission permission/evidence binding mismatch")
+    if activation is FundamentalAdmissionMode.SHADOW:
+        persist_shadow_evaluation(
+            db,
+            EligibilityShadowEvaluation(
+                pipeline_run_id=pipeline_run_id,
+                upload_run_id=evidence.run_id,
+                ticker=evidence.ticker,
+                consumer_edge=decision.consumer_edge,
+                policy_version=FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
+                source_identity_fingerprint=evidence.calculation_identity_fingerprint,
+                decision_cutoff=decision.decision_cutoff,
+                legacy_outcome=ConsumerEligibilityOutcome(permission["legacy_outcome"]),
+                proposed_decision=decision,
+                frozen_input=asdict(policy_input),
+            ),
+        )
+        return
+    persist_consumer_decision(
+        db,
+        decision=decision,
+        source_artifact_kind="FUNDAMENTAL",
+        pipeline_run_id=pipeline_run_id,
+        upload_run_id=evidence.run_id,
+    )
+
+
+def _fundamental_frozen_input(evidence: CoreCalculationEvidence) -> dict[str, Any]:
+    payload = evidence.payload_json
+    debug = payload.get("debug_json") or {}
+    cutoff = evidence.calculated_at
+    if cutoff is None or cutoff.tzinfo is None or cutoff.utcoffset() is None:
+        raise EvidenceUnavailableError(
+            "EVIDENCE_UNAVAILABLE: Fundamental calculation cutoff is not certified"
+        )
+    return {
+        "calculation_identity_fingerprint": evidence.calculation_identity_fingerprint,
+        "evidence_id": evidence.id,
+        "decision_cutoff": cutoff,
+        "fundamental_score": payload.get("fundamental_score"),
+        "fundamental_label": payload.get("fundamental_label"),
+        "scoring_model_version": payload.get("scoring_model_version"),
+        "coverage": debug.get("coverage") or {},
+        "component_coverage": debug.get("component_coverage") or {},
+        "parse_diagnostics": debug.get("parse_diagnostics") or {},
+        "v2_warning_flags_json": payload.get("v2_warning_flags_json") or {},
+    }
 
 
 def frozen_sector_row(snapshot: SectorRotationSnapshot | None, row: Any | None):

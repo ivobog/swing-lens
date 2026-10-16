@@ -1,0 +1,23 @@
+{
+  "status": "FAIL_NOT_CERTIFIED",
+  "focused_reliability_node": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_task_2_9_12m_observer_reliability",
+  "node_executed": false,
+  "reason": "The first selected browser-admission node failed and the task required stopping without a repair/retest loop.",
+  "browser_attempt_observations": {
+    "execution_id": "20261014T235619Z-3230ee43",
+    "samples_persisted": 1164,
+    "supported_row_mapping": "sqlalchemy.mappings",
+    "configured_isolation": "AUTOCOMMIT",
+    "output_mode": "single-process append-only JSONL",
+    "flush_per_record": true,
+    "fsync_per_record": true,
+    "windows_file_replacement_error": false,
+    "observer_errors_seen": 0
+  },
+  "uncertified_requirements": [
+    "independent observer node did not execute",
+    "post-sample observer backend state was not asserted by the selected node",
+    "gap-detection behavior was not certified",
+    "native JUnit distinction was not certified"
+  ]
+}

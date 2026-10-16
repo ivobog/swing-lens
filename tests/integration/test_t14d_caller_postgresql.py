@@ -41,6 +41,26 @@ contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
 
+def _local_admin_request() -> Request:
+    from app.main import app
+
+    token = app.state.local_admin_csrf_token
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/ceri/events/review",
+            "headers": [(b"x-csrf-token", token.encode("utf-8"))],
+            "app": app,
+            "router": app.router,
+            "scheme": "http",
+            "server": ("localhost", 80),
+            "client": ("127.0.0.1", 43210),
+            "query_string": b"",
+        }
+    )
+
+
 def test_all_regime_sector_missing_state_reads_have_no_dml_or_enqueue(contextual_engine):
     statements = []
 
@@ -497,7 +517,10 @@ def test_ceri_review_changes_metadata_and_override_appends_a_source_revision(
         db.commit()
         with pytest.raises(HTTPException) as error:
             ceri_routes.review_ceri_event(
-                event.id, object(), db, {"new_value": {"materiality": 99.0}}
+                event.id,
+                _local_admin_request(),
+                db,
+                {"new_value": {"materiality": 99.0}},
             )
         assert error.value.status_code == 422
         assert revision.materiality == 1.0
@@ -512,11 +535,15 @@ def test_ceri_review_changes_metadata_and_override_appends_a_source_revision(
 
         sql_events.listen(contextual_engine, "before_cursor_execute", count_selects)
         try:
-            first = ceri_routes.review_ceri_event(event_id, object(), db, None)
+            first = ceri_routes.review_ceri_event(
+                event_id, _local_admin_request(), db, None
+            )
         finally:
             sql_events.remove(contextual_engine, "before_cursor_execute", count_selects)
         assert len(statements) <= 12, len(statements)
-        second = ceri_routes.review_ceri_event(event.id, object(), db, None)
+        second = ceri_routes.review_ceri_event(
+            event.id, _local_admin_request(), db, None
+        )
         assert first["id"] == second["id"]
         assert revision.review_state == "REVIEWED"
         old_id = revision.id
@@ -606,6 +633,7 @@ def test_native_certified_outcome_is_unchanged_when_incident_canary_is_retired(c
             db,
             extra_configurations=configurations,
             raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+            include_decision_context=True,
         )
         db.commit()
         handoff = freeze_transition_decision_handoff_manifest(
@@ -703,12 +731,17 @@ def test_model_retirement_api_delivers_exact_new_governance_and_maps_rejections(
     contextual_engine, monkeypatch
 ):
     from datetime import timedelta
-    from types import SimpleNamespace
 
     from test_t14c_winner_writer_postgresql import _model_context
     from test_winner_maturation_canary_postgresql import _seed_native_ready_outcome
 
-    from app.models.tables import PipelineRun, WinnerModelVersion, WinnerOutcomeDefinition
+    from app.models.tables import (
+        PipelineRun,
+        WinnerModelLifecycleEvent,
+        WinnerModelVersion,
+        WinnerOutcomeDefinition,
+        WinnerProbabilityEstimate,
+    )
     from app.routers import winner_probability_routes
     from app.services.configuration_delivery import binding_reference, load_configuration_delivery
     from app.services.winner_probability.api_service import (
@@ -764,6 +797,30 @@ def test_model_retirement_api_delivers_exact_new_governance_and_maps_rejections(
         )
         db.commit()
         model_id = model.id
+        unrelated_models_before = tuple(
+            db.execute(
+                select(
+                    WinnerModelVersion.id,
+                    WinnerModelVersion.status,
+                    WinnerModelVersion.retired_at,
+                    WinnerModelVersion.artifact_hash,
+                )
+                .where(WinnerModelVersion.id != model_id)
+                .order_by(WinnerModelVersion.id)
+            ).all()
+        )
+        historical_evidence_before = tuple(
+            db.execute(
+                select(
+                    WinnerProbabilityEstimate.id,
+                    WinnerProbabilityEstimate.prediction_id,
+                    WinnerProbabilityEstimate.model_version_id,
+                    WinnerProbabilityEstimate.evidence_manifest_id,
+                    WinnerProbabilityEstimate.evidence_manifest_hash,
+                    WinnerProbabilityEstimate.lifecycle_status,
+                ).order_by(WinnerProbabilityEstimate.id)
+            ).all()
+        )
         # The governance operation is later than the persisted model birth.
         # A wall-clock sample taken before registration races PostgreSQL's
         # server-side created_at and can make this positive test fail.
@@ -806,12 +863,67 @@ def test_model_retirement_api_delivers_exact_new_governance_and_maps_rejections(
         )
         db.commit()
         assert result["model"]["status"] == "RETIRED"
+        first_event = db.get(WinnerModelLifecycleEvent, result["lifecycle_event_id"])
+        assert first_event.model_version_id == model_id
+        assert first_event.event_type == "RETIRED"
+        assert first_event.old_status == "SHADOW"
+        assert first_event.new_status == "RETIRED"
         monkeypatch.setattr(winner_probability_routes, "_require_local_admin", lambda *_: None)
-        request = SimpleNamespace(client=SimpleNamespace(host="native-test"))
+        request = _local_admin_request()
+        remote_scope = {**request.scope, "client": ("203.0.113.10", 43210)}
+        events_before_rejection = db.scalar(
+            select(func.count(WinnerModelLifecycleEvent.id)).where(
+                WinnerModelLifecycleEvent.model_version_id == model_id
+            )
+        )
+        with pytest.raises(HTTPException) as forbidden:
+            winner_probability_routes.retire_winner_probability_model(
+                Request(remote_scope), model_id, db, reason="Remote retirement attempt"
+            )
+        assert forbidden.value.status_code == 403
+        assert forbidden.value.detail["code"] == "ADMIN_FORBIDDEN"
+        assert db.get(WinnerModelVersion, model_id).status == "RETIRED"
+        assert (
+            db.scalar(
+                select(func.count(WinnerModelLifecycleEvent.id)).where(
+                    WinnerModelLifecycleEvent.model_version_id == model_id
+                )
+            )
+            == events_before_rejection
+        )
         delivered = winner_probability_routes.retire_winner_probability_model(
             request, model_id, db, reason="Explicit new API governance request"
         )
         assert delivered["model"]["status"] == "RETIRED"
+        repeated_event = db.get(WinnerModelLifecycleEvent, delivered["lifecycle_event_id"])
+        assert repeated_event.model_version_id == model_id
+        assert repeated_event.old_status == repeated_event.new_status == "RETIRED"
         with pytest.raises(HTTPException) as error:
             winner_probability_routes.retire_winner_probability_model(request, 987654321, db)
         assert error.value.status_code == 404
+        assert error.value.detail["code"] == "MODEL_NOT_FOUND"
+        assert db.get(WinnerModelVersion, model_id).status == "RETIRED"
+        assert tuple(
+            db.execute(
+                select(
+                    WinnerModelVersion.id,
+                    WinnerModelVersion.status,
+                    WinnerModelVersion.retired_at,
+                    WinnerModelVersion.artifact_hash,
+                )
+                .where(WinnerModelVersion.id != model_id)
+                .order_by(WinnerModelVersion.id)
+            ).all()
+        ) == unrelated_models_before
+        assert tuple(
+            db.execute(
+                select(
+                    WinnerProbabilityEstimate.id,
+                    WinnerProbabilityEstimate.prediction_id,
+                    WinnerProbabilityEstimate.model_version_id,
+                    WinnerProbabilityEstimate.evidence_manifest_id,
+                    WinnerProbabilityEstimate.evidence_manifest_hash,
+                    WinnerProbabilityEstimate.lifecycle_status,
+                ).order_by(WinnerProbabilityEstimate.id)
+            ).all()
+        ) == historical_evidence_before

@@ -211,13 +211,13 @@ def test_v4_technical_workflow_refreshes_cockpit_and_exports_fields() -> None:
     )
 
     assert combined[0].ticker == "NVDA"
-    # These producer warnings make v1 Technical readiness DEGRADED; its native
-    # consumer policy intentionally has no permissive degraded override. Keep
-    # diagnostic/export values visible while refusing financial consumption.
-    assert combined[0].technical_classification is None
-    assert combined[0].combined_decision == "Incomplete data"
-    assert combined[0].position_size_hint == "Wait"
-    assert combined[0].is_complete is False
+    # These are typed investment/strategy observations, not evidence-integrity
+    # failures. Preserve them while allowing the complete technical evidence to
+    # reach Combined, whose native policy still produces an Avoid decision.
+    assert combined[0].technical_classification == "Climax reversal risk"
+    assert combined[0].combined_decision == "Avoid"
+    assert combined[0].position_size_hint == "Avoid"
+    assert combined[0].is_complete is True
     assert combined[0].has_warning is True
     assert "climax_reversal_risk" in combined[0].warning_flags_json
     assert "market_risk_off" in combined[0].warning_flags_json
@@ -231,8 +231,8 @@ def test_v4_technical_workflow_refreshes_cockpit_and_exports_fields() -> None:
     technical_csv = export_run_csv(run, "technicals")
 
     assert "technical_stage" in combined_csv
-    assert "Climax reversal risk" not in combined_csv
-    assert "Incomplete data" in combined_csv
+    assert "Climax reversal risk" in combined_csv
+    assert "Avoid" in combined_csv
     assert "Climax reversal risk" in technical_csv
     assert "Stage 4" in technical_csv
     assert "Risk-off" in technical_csv

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="77.322" timestamp="2026-10-14T23:35:00.443722+02:00" hostname="NewLaptop"><testcase classname="tests.e2e.single_run_certification.test_real_writer_cardinality" name="test_pre_pipeline_preparation_closes_transactions_between_fixture_phases" time="76.376"><failure message="AssertionError: assert 'de20197073f4...edf00cdc5e8c2' == '426cd833c040...0917efc1d3c7e'&#10;  &#10;  - 426cd833c04059f3aaf614ab0a9417ca42ffdd000a9188c1b2c0917efc1d3c7e&#10;  + de20197073f4c90acb08fb541d604479e22cd558b15eb914fbfedf00cdc5e8c2">tests\e2e\single_run_certification\test_real_writer_cardinality.py:1052: in test_pre_pipeline_preparation_closes_transactions_between_fixture_phases
+    assert CanonicalEvidenceSerializer.fingerprint(
+E   AssertionError: assert 'de20197073f4...edf00cdc5e8c2' == '426cd833c040...0917efc1d3c7e'
+E     
+E     - 426cd833c04059f3aaf614ab0a9417ca42ffdd000a9188c1b2c0917efc1d3c7e
+E     + de20197073f4c90acb08fb541d604479e22cd558b15eb914fbfedf00cdc5e8c2</failure></testcase></testsuite></testsuites>

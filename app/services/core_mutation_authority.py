@@ -6,6 +6,7 @@ the identity, configuration, exact sources and manifest that it is writing.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
 from inspect import signature
@@ -36,6 +37,7 @@ from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.producer_readiness import readiness_from_evidence
 
 _active_writers = ContextVar("core_mutation_semantic_transactions", default=())
+_coalesced_writer_sessions = ContextVar("coalesced_core_writer_sessions", default=())
 
 
 def require_semantic_writer(db, owners):
@@ -201,8 +203,9 @@ def validate_core_mutation_authority(
             if job is None:
                 job = (
                     db.execute(
-                        select(BackgroundJob.related_run_id, BackgroundJob.payload_json)
-                        .where(BackgroundJob.id == context.execution.job_id)
+                        select(BackgroundJob.related_run_id, BackgroundJob.payload_json).where(
+                            BackgroundJob.id == context.execution.job_id
+                        )
                     )
                     .one()
                     ._mapping
@@ -297,7 +300,7 @@ def validate_core_mutation_authority(
 
 
 def _validate_configuration(db, context, configuration):
-    from app.services.configuration_delivery import binding_reference, load_configuration_delivery
+    from app.services.configuration_delivery import retained_configuration_delivery
     from app.services.contextual_effective_configuration import ContextualEffectiveConfiguration
     from app.services.core_effective_configuration import CoreEffectiveConfiguration
 
@@ -330,8 +333,10 @@ def _validate_configuration(db, context, configuration):
             else []
         ) + ([{"job_id": context.execution.job_id}] if context.execution is not None else [])
         for owner in owners:
-            delivery = load_configuration_delivery(
-                db, binding_reference(db, **owner), resolution_hash=configuration.resolution_hash
+            delivery = retained_configuration_delivery(
+                db,
+                **owner,
+                resolution_hash=configuration.resolution_hash,
             )
             frozen = [c.snapshot for c in delivery.configurations.values()]
             if not any(
@@ -423,11 +428,14 @@ def _validate_evidence(evidence):
 
 def validate_source_configuration(db, identity, evidence, execution=None, cache=None):
     """Compare pinned producers with the parent's retained slots, when present."""
-    from app.models.tables import ExecutionConfigurationAnchor
-    from app.services.configuration_delivery import binding_reference
+    from app.services.configuration_delivery import retained_configuration_delivery
 
     producer = CalculationIdentity.from_canonical_payload(evidence.calculation_identity_json)
     configuration = producer.configuration.effective_configuration.value
+    retained_configuration = evidence.payload_json.get("effective_configuration_at_creation") or {}
+    resolution_hash = retained_configuration.get("resolution_hash")
+    if not resolution_hash:
+        raise ValueError("MUTATION_SOURCE_RETAINED_CONFIGURATION_MISSING")
     key = configuration.namespace
     if evidence.artifact_kind == "RANKING":
         key += ":" + evidence.ranking_profile
@@ -440,14 +448,16 @@ def validate_source_configuration(db, identity, evidence, execution=None, cache=
         cache_key = (tuple(sorted(owner.items())), key)
         slot = cache.get(cache_key) if cache is not None else None
         if cache is None or cache_key not in cache:
-            reference = binding_reference(db, **owner)
-            if reference is None:
-                raise ValueError("MUTATION_SOURCE_PARENT_CONFIGURATION_BINDING_REQUIRED")
-            anchor = db.get(ExecutionConfigurationAnchor, reference["anchor_id"])
-            slot = anchor.payload_json["configurations"].get(key)
+            delivery = retained_configuration_delivery(
+                db,
+                **owner,
+                resolution_hash=resolution_hash,
+            )
+            retained = delivery.configurations.get(key)
+            slot = retained.snapshot.identity.as_dict() if retained is not None else None
             if cache is not None:
                 cache[cache_key] = slot
-        if slot is not None and Canonical.canonicalize(slot["identity"]) != configuration.as_dict():
+        if slot is not None and Canonical.canonicalize(slot) != configuration.as_dict():
             raise ValueError("MUTATION_SOURCE_RETAINED_CONFIGURATION_MISMATCH")
 
 
@@ -472,10 +482,14 @@ def validate_source_values(source, evidence, *, db=None):
         primary_key = state.mapper.primary_key
         if len(primary_key) != 1 or getattr(source, "id", None) is None:
             raise ValueError("MUTATION_SOURCE_ROW_ADDRESS_REQUIRED")
-        with db.no_autoflush:
-            stored = db.scalar(
-                select(type(source)).where(primary_key[0] == source.id).with_for_update()
-            )
+        locked_transaction = getattr(source, "_setup_publication_lock_transaction", None)
+        if object_session(source) is db and locked_transaction is db.get_transaction():
+            stored = source
+        else:
+            with db.no_autoflush:
+                stored = db.scalar(
+                    select(type(source)).where(primary_key[0] == source.id).with_for_update()
+                )
         if stored is None or stored.evidence_id != evidence.id:
             raise ValueError("MUTATION_SOURCE_ROW_EVIDENCE_MISMATCH")
     supplied_fields = set(state.dict) if state.transient or state.detached else None
@@ -652,6 +666,20 @@ def core_writer_transaction(writer):
         if not isinstance(db, Session):
             return writer(*args, **kwargs)
         owner = writer.__module__ + ":" + writer.__qualname__
+        if db in _coalesced_writer_sessions.get() and any(
+            active_db is db for active_db, _active_owner in _active_writers.get()
+        ):
+            # Setup publishes one all-or-nothing batch beneath an existing
+            # semantic savepoint.  Repeating a nested SAVEPOINT (and its
+            # mandatory pre-flush) for each member adds no rollback isolation:
+            # every rejection propagates to the owning batch and rolls back the
+            # caller transaction.  Preserve the active-writer proof without
+            # manufacturing hundreds of equivalent nested transactions.
+            token = _active_writers.set(_active_writers.get() + ((db, owner),))
+            try:
+                return writer(*args, **kwargs)
+            finally:
+                _active_writers.reset(token)
         token = None
         preserved_exception = None
         try:
@@ -692,6 +720,24 @@ def core_writer_transaction(writer):
                 _active_writers.reset(token)
 
     return transactional
+
+
+@contextmanager
+def coalesced_core_writer_members(db: Session):
+    """Reuse an already-active batch writer savepoint for nested members.
+
+    This scope is valid only when the caller does not catch member failures and
+    continue.  Its current production use is Setup's atomic batch publication,
+    whose outer ``core_writer_transaction`` owns rollback for every member.
+    """
+
+    if not any(active_db is db for active_db, _owner in _active_writers.get()):
+        raise RuntimeError("COALESCED_CORE_WRITER_REQUIRES_ACTIVE_BATCH")
+    token = _coalesced_writer_sessions.set(_coalesced_writer_sessions.get() + (db,))
+    try:
+        yield
+    finally:
+        _coalesced_writer_sessions.reset(token)
 
 
 def _validate_artifact_temporal_identity(current_row, identity) -> None:
@@ -742,6 +788,7 @@ def artifact_mutation_context(
     declaration_only=False,
     checkpoint_callback=None,
     checkpoint_phase=None,
+    prepared_setup_validation=None,
 ):
     """Native artifact adapter. Every named manifest is independently checked."""
     from app.models.tables import RawCompanyRow
@@ -785,6 +832,7 @@ def artifact_mutation_context(
             sources,
             configuration=configuration,
             declaration_only=declaration_only,
+            prepared_validation=prepared_setup_validation,
         )
     elif domain is MutationDomain.FUNDAMENTAL:
         references = (
@@ -1096,9 +1144,7 @@ def validate_sector_manifest(
     raw_rows = {
         row.id: row
         for row in db.scalars(
-            select(RawCompanyRow)
-            .where(RawCompanyRow.id.in_(tuple(raw_pins)))
-            .with_for_update()
+            select(RawCompanyRow).where(RawCompanyRow.id.in_(tuple(raw_pins))).with_for_update()
         )
     }
     etf_sources = [
@@ -1353,11 +1399,7 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
         for row in rows
     ):
         raise ValueError("MUTATION_PRICE_MANIFEST_SCOPE_MISMATCH")
-    baseline = [
-        row
-        for row in rows
-        if row.first_seen_at <= cutoff and row.created_at <= cutoff
-    ]
+    baseline = [row for row in rows if row.first_seen_at <= cutoff and row.created_at <= cutoff]
     acquired = [row for row in rows if row not in baseline]
     projected = project_price_bar_rows_as_of(db, baseline, as_of=cutoff)
     if acquired:
@@ -1383,9 +1425,7 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
             for row in acquired
         ):
             raise ValueError("MUTATION_PRICE_ACQUISITION_SCOPE_MISMATCH")
-        projected.extend(
-            project_price_bar_rows_as_of(db, acquired, as_of=resolved.completed_at)
-        )
+        projected.extend(project_price_bar_rows_as_of(db, acquired, as_of=resolved.completed_at))
     expected = {state["id"]: state["fingerprint"] for state in states}
     if len(projected) != len(ids) or any(
         price_bar_pit_manifest_hash(db, row) != expected[row.id] for row in projected
@@ -1424,10 +1464,7 @@ def validate_technical_source_manifest(
     should_cancel = should_cancel or (lambda: False)
     for index, item in enumerate(sources, start=1):
         native = item.get("manifest") if isinstance(item, dict) else None
-        if (
-            not isinstance(native, dict)
-            or item.get("digest") != Canonical.fingerprint(native)
-        ):
+        if not isinstance(native, dict) or item.get("digest") != Canonical.fingerprint(native):
             raise ValueError("MUTATION_TECHNICAL_SOURCE_DIGEST_MISMATCH")
         validate_price_source_manifest(
             db,

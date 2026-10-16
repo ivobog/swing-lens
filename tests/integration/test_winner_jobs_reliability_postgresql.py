@@ -331,7 +331,13 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
     api_settings = Settings(_env_file=None, winner_cohort_refresh_v2_enabled=True)
     monkeypatch.setattr(winner_api_service, "get_settings", lambda: api_settings)
     _upgrade(disposable_postgres_database)
-    engine = create_engine(disposable_postgres_database)
+    engine = create_engine(
+        disposable_postgres_database,
+        connect_args={
+            "connect_timeout": 10,
+            "options": "-c lock_timeout=10000 -c statement_timeout=60000",
+        },
+    )
     observed = datetime(2026, 10, 6, 12, 0, tzinfo=UTC)
     config = _enabled_winner_config()
     with Session(engine) as db:
@@ -564,10 +570,20 @@ def test_clean_estimate_publication_is_atomic_idempotent_and_never_resurrects_ol
         )
         assert latest.id == ids["clean_latest"]
         assert latest.point_probability is None
+        assert (
+            _serving_winner_estimate(
+                db,
+                prediction_id=ids["prediction"],
+                cutoff=latest.created_at - timedelta(microseconds=1),
+            )
+            is None
+        )
         journal = _serving_winner_estimate(
             db,
             prediction_id=ids["prediction"],
-            cutoff=observed + timedelta(seconds=30),
+            # The journal is point-in-time: a fixed business-observation cutoff
+            # can precede this test row's database-assigned creation time.
+            cutoff=latest.created_at + timedelta(microseconds=1),
         )
         assert journal.id == ids["clean_latest"]
         assert journal.point_probability is None
@@ -754,12 +770,18 @@ def test_two_concurrent_api_clients_receive_one_maturation_workflow(
     monkeypatch,
 ) -> None:
     _upgrade(disposable_postgres_database)
-    engine = create_engine(disposable_postgres_database)
+    engine = create_engine(
+        disposable_postgres_database,
+        connect_args={
+            "connect_timeout": 10,
+            "options": "-c lock_timeout=10000 -c statement_timeout=60000",
+        },
+    )
     barrier = Barrier(2)
     real_enqueue = winner_routes.enqueue_outcome_maturation_workflow
 
     def synchronized_enqueue(*args, **kwargs):
-        barrier.wait()
+        barrier.wait(timeout=30)
         return real_enqueue(*args, **kwargs)
 
     monkeypatch.setattr(winner_routes, "enqueue_outcome_maturation_workflow", synchronized_enqueue)
@@ -777,10 +799,14 @@ def test_two_concurrent_api_clients_receive_one_maturation_workflow(
             yield db
 
     app.dependency_overrides[get_db] = session_dependency
+    csrf_token = app.state.local_admin_csrf_token
 
     def post() -> dict:
         with TestClient(app) as client:
-            response = client.post("/api/winner-probability/outcomes/process?limit=500")
+            response = client.post(
+                "/api/winner-probability/outcomes/process?limit=500",
+                headers={"x-csrf-token": csrf_token},
+            )
             assert response.status_code == 200
             return response.json()
 
@@ -789,15 +815,29 @@ def test_two_concurrent_api_clients_receive_one_maturation_workflow(
 
     assert responses[0]["job_id"] == responses[1]["job_id"]
     assert sorted(response["coalesced"] for response in responses) == [False, True]
+    assert {response["status"] for response in responses} == {JobStatus.QUEUED}
+    assert {response["workflow_key"] for response in responses} == {
+        WINNER_MATURATION_WORKFLOW_KEY
+    }
+    assert all(response["root_job_id"] == response["job_id"] for response in responses)
     with Session(engine) as db:
-        assert (
-            db.scalar(
-                select(func.count(BackgroundJob.id)).where(
+        jobs = list(
+            db.scalars(
+                select(BackgroundJob).where(
                     BackgroundJob.job_type == WINNER_OUTCOME_MATURATION
                 )
             )
-            == 1
         )
+        assert len(jobs) == 1
+        assert jobs[0].id == responses[0]["job_id"]
+        assert jobs[0].workflow_key == WINNER_MATURATION_WORKFLOW_KEY
+        assert jobs[0].root_job_id == jobs[0].id
+        assert jobs[0].parent_job_id is None
+        assert jobs[0].continuation_depth == 0
+        assert jobs[0].trigger_source == "MANUAL"
+        assert db.scalar(select(func.count(WinnerProcessingRun.id))) == 0
+        assert db.scalar(select(func.count(WinnerForwardOutcome.id))) == 0
+        assert db.scalar(select(func.count(WinnerProbabilityEstimate.id))) == 0
     engine.dispose()
 
 
@@ -2613,6 +2653,7 @@ def _upgrade(database_url: str, revision: str = "head") -> None:
         env=env,
         capture_output=True,
         text=True,
+        timeout=120,
     )
 
 

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="Task 2.9.12d outer certification harness">
+  <testsuite name="pytest tests" errors="0" failures="1" skipped="0" tests="1" time="1380.141" timestamp="2026-10-14T18:35:56+02:00" hostname="NewLaptop">
+    <testcase classname="tests.e2e.single_run_certification.test_real_writer_cardinality" name="test_frozen_real_writer_cardinality[chromium-100]" time="1380.141">
+      <failure type="TimeoutError" message="The authorized Chromium-100 certification exceeded its 23-minute outer deadline before pytest produced a terminal result.">TASK_2_9_12D_OUTER_COMPLETED=False ELAPSED_SECONDS=1380.141
+
+The process tree was terminated by the required outer deadline. Pytest did not emit a traceback or terminal PASS/FAIL result, so the case is not certified. The retained runtime monitor recorded 1,519 observations from 2026-10-14T18:44:16.849178+02:00 through 2026-10-14T18:58:47.404118+02:00 with zero transaction-invariant failures. The final retained observation still had one active job. No population or terminal financial-evidence assertion was reached.</failure>
+      <system-out>Disposable database: swinglens_pytest_cert_f723ce91dd75 (removed during bounded cleanup)
+Provider mode: deterministic
+Runtime instance: 20261014T163556Z-8b930959 (all test-owned processes and listener removed)</system-out>
+    </testcase>
+  </testsuite>
+</testsuites>

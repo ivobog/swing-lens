@@ -218,6 +218,22 @@ def test_sparse_fundamental_warning_does_not_invent_coverage_gate():
             },
             "warning_flags_json",
         ),
+        (
+            "COMBINED",
+            {
+                "is_complete": True,
+                "warning_flags_json": ["high_leverage"],
+            },
+            "warning_flags_json",
+        ),
+        (
+            "RANKING",
+            {
+                "is_complete": True,
+                "warning_flags_json": ["earnings_blocked"],
+            },
+            "warning_flags_json",
+        ),
     ],
 )
 def test_advisory_business_risk_warning_remains_ready_and_visible(producer, payload, signal_key):
@@ -241,6 +257,21 @@ def test_unknown_warning_remains_fail_closed():
 
     assert result.status is ReadinessStatus.DEGRADED
     assert result.warning_reasons == (ReadinessReason.PRODUCER_WARNING,)
+
+
+def test_classified_quality_warning_and_incomplete_artifact_remain_blocked() -> None:
+    degraded = normalize(
+        "COMBINED",
+        {"is_complete": True, "warning_flags_json": ["low_technical_confidence"]},
+    )
+    incomplete = normalize(
+        "RANKING",
+        {"is_complete": False, "warning_flags_json": ["high_leverage"]},
+    )
+
+    assert degraded.status is ReadinessStatus.DEGRADED
+    assert incomplete.status is ReadinessStatus.INSUFFICIENT_EVIDENCE
+    assert incomplete.blocking_reasons == (ReadinessReason.RANKING_INCOMPLETE,)
 
 
 def test_legacy_numeric_evidence_stays_uncertified():

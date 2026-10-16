@@ -78,6 +78,9 @@ def test_run26_boundary_uses_authorized_acquisition_and_freezes_resumable_handof
         authorized_raw = _raw(db, run.id, 1, "AUTH")
         no_bar_raw = _raw(db, run.id, 2, "NOBAR")
         _baseline_bar(db, "AUTH", OLDER_SESSION, CUTOFF - timedelta(hours=1), close="90")
+        # Mirrors run 28's BLFS shape: this ticker ends one session before the
+        # global context, but must still inherit the frozen session-6 snapshots.
+        _baseline_bar(db, "NOBAR", OLDER_SESSION, CUTOFF - timedelta(hours=1), close="40")
         acquired = _acquired_bar(
             db,
             ticker="AUTH",
@@ -174,7 +177,7 @@ def test_run26_boundary_uses_authorized_acquisition_and_freezes_resumable_handof
         assert by_ticker["AUTH"].latest_completed_bar.close == Decimal("100")
         assert by_ticker["AUTH"].market_regime_snapshot.id == market.id
         assert by_ticker["AUTH"].sector_rotation_snapshot.id == sector.id
-        assert by_ticker["NOBAR"].latest_completed_bar is None
+        assert by_ticker["NOBAR"].latest_completed_bar.bar_date == OLDER_SESSION
         assert by_ticker["NOBAR"].market_regime_snapshot.id == market.id
         assert by_ticker["NOBAR"].sector_rotation_snapshot.id == sector.id
 

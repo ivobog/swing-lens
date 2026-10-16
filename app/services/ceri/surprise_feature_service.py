@@ -7,6 +7,8 @@ from decimal import Decimal
 from app.models.ceri_tables import CeriEarningsActual, CeriEstimateSnapshot
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.pit_eligibility import estimate_snapshot_historical_eligibility_at
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.source_mutation_authority import source_mutation_writer
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,11 @@ class CeriSurpriseFeatureService:
     def __init__(self, config: CeriConfig | None = None) -> None:
         self.config = config or load_ceri_config()
 
+    @source_mutation_writer(
+        MutationDomain.CERI_SOURCE,
+        "provider_source",
+        mode=MutationSemanticMode.MAINTENANCE,
+    )
     def attach_consensus_snapshot(
         self,
         earnings: CeriEarningsActual,

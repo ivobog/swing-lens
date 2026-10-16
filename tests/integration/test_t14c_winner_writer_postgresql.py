@@ -51,6 +51,7 @@ def test_native_winner_complete_capture_and_immutable_retry(contextual_engine):
             db,
             extra_configurations=configurations,
             raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+            include_decision_context=True,
         )
         db.commit()
         handoff = freeze_transition_decision_handoff_manifest(

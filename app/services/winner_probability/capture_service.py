@@ -18,6 +18,11 @@ from app.models.tables import (
 )
 from app.services.background_job_service import JobLeaseLost
 from app.services.combined_ranking_identity import calculation_identity_from_debug
+from app.services.consumer_eligibility_ledger import (
+    WinnerAcquisitionDecision,
+    WinnerAcquisitionOutcome,
+    persist_winner_acquisition_decision,
+)
 from app.services.contextual_calculation_identity import embed_identity
 from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
 from app.services.domain_write_fence import bounded_domain_session
@@ -25,6 +30,7 @@ from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.process_memory import WorkerMemoryCritical
 from app.services.redaction import redact_sensitive
 from app.services.us_market_calendar import us_market_session
+from app.services.warning_taxonomy import classify_warnings
 from app.services.winner_probability.calculation_identity import (
     WINNER_HANDOFF_COMPATIBILITY,
     WinnerCalculationIdentityError,
@@ -255,6 +261,7 @@ class WinnerPredictionCaptureService:
                 _assert_capture_control(should_cancel=should_cancel, lease_guard=lease_guard)
                 ticker_started = perf_counter()
                 ticker_counts = _MutableCaptureCounts()
+                acquisition = None
                 try:
                     acquisition = (
                         acquire_winner_sources(
@@ -331,15 +338,37 @@ class WinnerPredictionCaptureService:
                         "winner_prediction.readiness_rejected",
                         extra={"run_id": run_id, "ticker": ticker, "reason": exc.reason},
                     )
-                    _record_ticker_progress(
-                        progress_callback,
-                        db,
-                        run_id=run_id,
-                        ticker_contexts=ticker_contexts,
-                        item_index=item_index,
-                        ticker=ticker,
-                    )
-                    _commit_if_supported(db)
+                    if use_item_sessions:
+                        with bounded_domain_session(db) as exclusion_db:
+                            _persist_winner_attempt(
+                                exclusion_db,
+                                run_id=run_id,
+                                ticker_context=ticker_context,
+                                decision_at=decision_at,
+                                market_cutoff=market_cutoff,
+                                outcome=WinnerAcquisitionOutcome.EXCLUDED,
+                                reason=exc.reason,
+                                decisions=exc.decisions,
+                            )
+                            _record_ticker_progress(
+                                progress_callback,
+                                exclusion_db,
+                                run_id=run_id,
+                                ticker_contexts=ticker_contexts,
+                                item_index=item_index,
+                                ticker=ticker,
+                            )
+                            exclusion_db.commit()
+                    else:
+                        _record_ticker_progress(
+                            progress_callback,
+                            db,
+                            run_id=run_id,
+                            ticker_contexts=ticker_contexts,
+                            item_index=item_index,
+                            ticker=ticker,
+                        )
+                        _commit_if_supported(db)
                 except Exception as exc:
                     totals.record_failure(ticker, exc)
                     logger.exception(
@@ -348,6 +377,16 @@ class WinnerPredictionCaptureService:
                     )
                     if use_item_sessions:
                         with bounded_domain_session(db) as progress_db:
+                            _persist_winner_attempt(
+                                progress_db,
+                                run_id=run_id,
+                                ticker_context=ticker_context,
+                                decision_at=decision_at,
+                                market_cutoff=market_cutoff,
+                                outcome=WinnerAcquisitionOutcome.FAILED,
+                                reason=type(exc).__name__,
+                                acquisition=acquisition,
+                            )
                             _record_ticker_progress(
                                 progress_callback,
                                 progress_db,
@@ -526,6 +565,17 @@ class WinnerPredictionCaptureService:
                     f"{features.ticker}: active prediction hash conflict"
                 )
             totals.duplicate += 1
+            if isinstance(db, Session):
+                _persist_winner_attempt(
+                    db,
+                    run_id=run_id,
+                    ticker_context=ticker_context,
+                    decision_at=ticker_decision_at,
+                    outcome=WinnerAcquisitionOutcome.DUPLICATE,
+                    prediction_id=existing.id,
+                    acquisition=acquisition,
+                    warning_codes=features.warnings,
+                )
             temporal_decision = self.repository.get_current_temporal_decision(db, existing.id)
             if (
                 existing.eligibility_status == PredictionEligibility.ELIGIBLE
@@ -597,6 +647,22 @@ class WinnerPredictionCaptureService:
         else:
             totals.excluded += 1
             totals.record_exclusion(prediction.exclusion_reason)
+        if isinstance(db, Session):
+            _persist_winner_attempt(
+                db,
+                run_id=run_id,
+                ticker_context=ticker_context,
+                decision_at=ticker_decision_at,
+                outcome=(
+                    WinnerAcquisitionOutcome.INSERTED
+                    if prediction.eligibility_status == PredictionEligibility.ELIGIBLE
+                    else WinnerAcquisitionOutcome.EXCLUDED
+                ),
+                reason=prediction.exclusion_reason,
+                prediction_id=prediction.id,
+                acquisition=acquisition,
+                warning_codes=features.warnings,
+            )
 
     @core_writer_member(
         "app.services.winner_probability.capture_service:WinnerPredictionCaptureService._capture_ticker"
@@ -805,6 +871,86 @@ class WinnerPredictionCaptureService:
             .get(_prediction_sector(prediction))
         )
         return str(proxy).upper() if proxy else None
+
+
+def _persist_winner_attempt(
+    db: Session,
+    *,
+    run_id: int,
+    ticker_context: TickerCaptureContext,
+    decision_at: datetime | None,
+    outcome: WinnerAcquisitionOutcome,
+    reason: str | None = None,
+    prediction_id: int | None = None,
+    acquisition: WinnerSourceAcquisition | None = None,
+    decisions: Any | None = None,
+    warning_codes: tuple[str, ...] = (),
+    market_cutoff: MarketCalculationCutoff | None = None,
+) -> None:
+    # SQLite sessions are deterministic unit-test harnesses without the Alembic
+    # schema. Authoritative SwingLens persistence is PostgreSQL-only.
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    cutoff = decision_at or (market_cutoff.cutoff_at if market_cutoff is not None else None)
+    if cutoff is None:
+        raise ValueError("Winner acquisition ledger requires an explicit decision cutoff")
+    eligibility = decisions or (
+        acquisition.consumer_eligibility if acquisition is not None else None
+    )
+    eligibility_payload = eligibility.canonical_payload() if eligibility is not None else {}
+    source_decisions = tuple(
+        {"source": name, **item}
+        for name, item in sorted(eligibility_payload.items())
+        if isinstance(item, dict)
+    )
+    source_identities: dict[str, Any] = {}
+    if acquisition is not None:
+        for index, (kind, row, identity) in enumerate(acquisition.source_artifacts):
+            key = f"{str(kind).casefold()}:{index}"
+            source_identities[key] = {
+                "row_id": getattr(row, "id", None),
+                "evidence_id": getattr(row, "evidence_id", None),
+                "calculation_identity_fingerprint": str(identity.fingerprint()),
+            }
+    if not source_identities:
+        for name, item in sorted(eligibility_payload.items()):
+            if not isinstance(item, dict):
+                continue
+            readiness = item.get("producer_readiness") or {}
+            source_identities[name] = {
+                "row_id": item.get("source_id"),
+                "evidence_id": readiness.get("evidence_id"),
+                "calculation_identity_fingerprint": readiness.get(
+                    "calculation_identity_fingerprint"
+                ),
+            }
+    all_warning_codes = list(warning_codes)
+    for item in eligibility_payload.values():
+        if not isinstance(item, dict):
+            continue
+        readiness = item.get("producer_readiness") or {}
+        all_warning_codes.extend(readiness.get("warning_flags") or ())
+    pipeline_run_id = None
+    if acquisition is not None:
+        candidate = acquisition.decision_identity.ownership.pipeline_id.value
+        if isinstance(candidate, int):
+            pipeline_run_id = candidate
+    persist_winner_acquisition_decision(
+        db,
+        WinnerAcquisitionDecision(
+            pipeline_run_id=pipeline_run_id,
+            upload_run_id=run_id,
+            raw_row_id=getattr(ticker_context.raw_row, "id", None),
+            prediction_id=prediction_id,
+            ticker=_ticker_name(ticker_context),
+            decision_cutoff=_as_utc(cutoff),
+            outcome=outcome,
+            eligibility_reason=reason,
+            source_identities=source_identities,
+            source_decisions=source_decisions,
+            warning_classifications=classify_warnings(all_warning_codes),
+        ),
+    )
 
 
 @dataclass

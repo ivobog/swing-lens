@@ -110,7 +110,8 @@ def rank_single_row(
         IBMI_LIQUIDITY_TO_RANKING,
     )
     fundamental, fundamental_permission = contextual_decision_input(
-        fundamental, FUNDAMENTAL_TO_RANKING
+        fundamental,
+        FUNDAMENTAL_TO_RANKING,
     )
     fundamental_score = _float_or_none(fundamental.fundamental_score if fundamental else None)
     base_technical_score = _float_or_none(technical.dual_score if technical else None)

@@ -1,0 +1,18 @@
+<div class="detail-grid" data-ticker-detail-fragment>
+  {% for card in score_cards %}
+    <div>
+      <h3>{{ card["title"] }}</h3>
+      {% if card["badges"] %}
+        <div class="badge-list">
+          {% for badge in card["badges"] %}<span class="badge badge-{{ badge["tone"] }}">{{ badge["label"] }}</span>{% endfor %}
+        </div>
+      {% endif %}
+      <dl class="compact-dl">
+        {% for item in card["items"] %}
+          <dt>{{ item["label"] }}</dt>
+          <dd class="score-value {{ item["tone"] }}">{{ item["value"] }}</dd>
+        {% endfor %}
+      </dl>
+    </div>
+  {% endfor %}
+</div>

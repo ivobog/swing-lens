@@ -48,6 +48,10 @@ ISOLATED_SURFACES = {
     "scripts/certify_observability_cross_process.py": (
         "main creates swinglens_obs_cert_<uuid> database; migrations use guarded upgrade"
     ),
+    "scripts/certify_phase2_eligibility_migration.py": (
+        "main creates a random swinglens_qa_phase2_* database, verifies the connected "
+        "identity with assert_disposable_database, and drops it in finally"
+    ),
 }
 TEST_VALUE_SURFACES = {
     "scripts/qa/core_configuration_behavior_capture.py": (
@@ -94,6 +98,15 @@ PROJECTIONS = frozenset(
 # Exact reviewed exceptions to syntactic type inference. Generic repositories are
 # mechanisms: their semantic callers, separately inventoried, own domain meaning.
 OVERRIDES = {
+    "app/services/consumer_eligibility_ledger.py:persist_consumer_decision": [
+        "ConsumerEligibilityDecisionRecord"
+    ],
+    "app/services/consumer_eligibility_ledger.py:persist_winner_acquisition_decision": [
+        "WinnerAcquisitionDecisionRecord"
+    ],
+    "app/services/consumer_eligibility_ledger.py:persist_shadow_evaluation": [
+        "EligibilityShadowEvaluationRecord"
+    ],
     "app/services/winner_probability/model_registry.py:ModelRegistry.promote_model": [
         "WinnerModelVersion"
     ],
@@ -263,6 +276,10 @@ VALUE_ONLY_BOUNDARIES = {
     "scripts/forensics/preflight_selection_readiness_scan.py:main": (
         "PostgreSQL REPEATABLE READ, READ ONLY; prospective context/technical preview; "
         "rejects db.new/dirty/deleted and changed persisted counts; rollback"
+    ),
+    "scripts/forensics/run153_tbla_readonly_equivalence.py:main": (
+        "PostgreSQL REPEATABLE READ, READ ONLY is established before source loading; "
+        "the script emits an equivalence report and explicitly rolls back"
     ),
     "app/services/setup_lifecycle/transition_candidate_service.py:_transient_snapshot": (
         "new unbound SetupSignalSnapshot; _apply_snapshot_fields copies DTO only"
@@ -1001,9 +1018,14 @@ def build_inventory(root=ROOT):
             "mode_proof": "NAME_CANDIDATE_REQUIRES_SEMANTIC_REVIEW",
         }
         source_census.append(row)
-        if key == "scripts/verify_owpe_pre11_activation.py:main":
+        if key in {
+            "scripts/verify_owpe_pre11_activation.py:main",
+            "scripts/verify_ceri_p2_lock_modes.py:main",
+        }:
             row["classification"] = "ROLLBACK_ONLY_SQL_PROBE"
-            row["scope_proof"] = "_mutation_is_rejected rolls back on success and exception"
+            row["scope_proof"] = (
+                "Every candidate mutation is explicitly rolled back on success and exception"
+            )
         if material and row["classification"] not in {
             "TRANSIENT_BUILDER",
             "TEST_ONLY",

@@ -239,11 +239,28 @@ function bindCockpitTables() {
       const toggle = row.querySelector("[data-detail-toggle]");
       if (!toggle || !detailRow || !detailRow.matches("[data-detail-row]")) return;
 
-      toggle.addEventListener("click", () => {
+      toggle.addEventListener("click", async () => {
         const isHidden = detailRow.hidden;
         detailRow.hidden = !isHidden;
         toggle.setAttribute("aria-expanded", String(isHidden));
         toggle.textContent = isHidden ? "Hide" : "Details";
+        const content = detailRow.querySelector("[data-detail-content]");
+        if (!isHidden || !content || content.dataset.loaded === "true") return;
+        content.setAttribute("aria-busy", "true");
+        content.innerHTML = "<p>Loading score evidence...</p>";
+        try {
+          const response = await fetch(content.dataset.detailUrl, {
+            headers: { Accept: "text/html" },
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          content.innerHTML = await response.text();
+          content.dataset.loaded = "true";
+        } catch (_error) {
+          content.setAttribute("role", "alert");
+          content.innerHTML = "<p>Score evidence could not be loaded. Open the ticker chart and try again.</p>";
+        } finally {
+          content.removeAttribute("aria-busy");
+        }
       });
     });
 
@@ -713,6 +730,7 @@ function bindPipelineProgressPolling() {
 function updatePipelineProgress(root, data) {
   const current = data.current_step_label || "";
   const message = data.error_message || data.message || "";
+  const terminalStatuses = new Set((root.dataset.terminalStatuses || "").split(","));
 
   setText(root, "[data-pipeline-status]", data.status);
   setText(root, "[data-pipeline-status-metric]", data.status);
@@ -728,6 +746,11 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-items-total]", data.total_item_count || 0);
   setText(root, "[data-pipeline-current-item]", data.current_item || "None");
   setText(root, "[data-pipeline-progress-stage]", data.progress_stage || "None");
+  setText(
+    root,
+    "[data-pipeline-stage-label]",
+    terminalStatuses.has(data.status) ? "Last job stage" : "Active job stage",
+  );
   setText(
     root,
     "[data-pipeline-last-completed-item]",
@@ -820,6 +843,10 @@ function updatePipelineProgress(root, data) {
         setText(phaseRoot, "[data-ceri-phase-jobs]", phase.job_count || 0);
         setText(phaseRoot, "[data-ceri-phase-processed]", phase.processed || 0);
         setText(phaseRoot, "[data-ceri-phase-total]", phase.total || 0);
+        setText(phaseRoot, "[data-ceri-phase-unknown-processed]", phase.unknown_total_processed || 0);
+        setText(phaseRoot, "[data-ceri-phase-unknown-jobs]", phase.unknown_total_jobs || 0);
+        const unknownBlock = phaseRoot.querySelector("[data-ceri-phase-unknown-block]");
+        if (unknownBlock) unknownBlock.hidden = !(phase.unknown_total_jobs > 0);
       });
     }
   }

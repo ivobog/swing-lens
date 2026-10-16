@@ -230,7 +230,7 @@ def non_edges(callers, calls, proof):
 
 
 non_edges(
-    "app/observability/db_monitor.py:_git_metadata app/serve.py:_unix_listener app/serve.py:_windows_listener app/serve.py:_windows_process_name app/services/ceri/deployment_identity.py:_local_identity app/services/ib_gateway_health_service.py:is_gateway_process_running app/services/lifecycle_control.py:_git_sha app/worker_supervisor.py:_terminate_launcher app/worker_supervisor.py:_terminate_pid scripts/qa/scan_tracked_secrets.py:tracked_files",
+    "app/observability/db_monitor.py:_git_metadata app/serve.py:_unix_listener app/serve.py:_windows_listener app/serve.py:_windows_process_name app/services/certification_session_discovery.py:_repository_git_sha app/services/ceri/deployment_identity.py:_local_identity app/services/ib_gateway_health_service.py:is_gateway_process_running app/services/lifecycle_control.py:_git_sha app/worker_supervisor.py:_terminate_launcher app/worker_supervisor.py:_terminate_pid scripts/qa/scan_tracked_secrets.py:tracked_files",
     ("subprocess.run",),
     "Explicit subprocess module import and process/metadata command; receiver is stdlib subprocess, not a repository run() semantic writer.",
 )
@@ -312,6 +312,11 @@ non_edges(
     ("task.cancel",),
     "asyncio Task cancellation for socket proxy relay; no SEC document state service.",
 )
+non_edges(
+    "app/services/ib_market_intelligence/flex.py:IBFlexClient.get_statement app/services/ib_market_intelligence/flex.py:IBFlexClient.send_request app/services/ib_market_intelligence/flex.py:import_flex_report app/services/ib_market_intelligence/request_budget.py:WeightedWindowBudget.acquire app/services/setup_lifecycle/source_loader.py:SetupLifecycleSourceLoader._load_price_bars",
+    ("operational_metrics.observe",),
+    "Module-level operational_metrics is the PrometheusMetrics singleton; observe emits process telemetry and does not invoke a domain persistence service.",
+)
 for _caller, _call, _proof in (
     (
         "app/observability/db_monitor.py:JsonlTelemetryWriter._write_line",
@@ -385,6 +390,72 @@ def tables(names, domain, owner, classification, disposition, proof):
     for name in names.split():
         assert name not in TABLE_REVIEWS, name
         TABLE_REVIEWS[name] = TableReview(domain, owner, classification, disposition, proof)
+
+
+tables(
+    "ceri_feature_source_manifests",
+    "CERI_SOURCE",
+    "app/services/ceri/source_manifest_service.py:freeze_or_verify_feature_source_manifest",
+    "CONFIGURATION_AUTHORITY",
+    "T14B",
+    "Immutable source identities and calculation context are frozen for each CERI feature batch; retries must match the manifest rather than reselect current sources.",
+)
+tables(
+    "ceri_ingestion_run_source_records",
+    "CERI_SOURCE",
+    "app/services/ceri/source_record_service.py:_associate_source_record",
+    "DOMAIN_SUPPORTING_STATE",
+    "T14B",
+    "The append-only association records every ingestion run that selected a deduplicated provider fact; normalization and source ingestion share this membership contract.",
+)
+tables(
+    "consumer_eligibility_decisions",
+    "PIPELINE",
+    "app/services/consumer_eligibility_ledger.py:persist_consumer_decision",
+    "BUSINESS_SEMANTIC",
+    "T14D",
+    "Append-only policy-versioned decisions preserve producer-to-consumer admission, source identity, cutoff, orthogonal readiness axes, warnings, and authoritative status.",
+)
+tables(
+    "winner_acquisition_decisions",
+    "WINNER_PREDICTION",
+    "app/services/consumer_eligibility_ledger.py:persist_winner_acquisition_decision",
+    "BUSINESS_SEMANTIC",
+    "T14D",
+    "Append-only acquisition decisions preserve the exact Winner source identities, per-source decisions, cutoff, outcome, and policy version used before prediction capture.",
+)
+tables(
+    "eligibility_shadow_evaluations",
+    "PIPELINE",
+    "app/services/consumer_eligibility_ledger.py:persist_shadow_evaluation",
+    "AUDIT_ONLY",
+    "T14D",
+    "Non-authoritative shadow comparisons freeze legacy and proposed outcomes plus exact inputs; they cannot alter production consumer admission.",
+)
+tables(
+    "instrument_lifecycle_records",
+    "IBMI_SOURCE",
+    "app/services/instrument_lifecycle_service.py:record_instrument_lifecycle",
+    "DOMAIN_SUPPORTING_STATE",
+    "T14B",
+    "Provider-observed symbol lifecycle state is retained and can explicitly invalidate stale IB contract identity; it is source readiness rather than a financial score.",
+)
+tables(
+    "market_data_session_dispositions",
+    "PRICE",
+    "app/services/market_data_session_readiness.py:evaluate_and_persist_session_readiness",
+    "BUSINESS_SEMANTIC",
+    "T14B",
+    "Per-session readiness retains exchange-calendar expectations, observation evidence, lifecycle disposition, and policy outcome used by downstream price consumers.",
+)
+tables(
+    "pipeline_dependencies",
+    "PIPELINE",
+    "app/services/pipeline_dependency_service.py:prepare_ceri_workflow_dependency",
+    "DOMAIN_SUPPORTING_STATE",
+    "T14D",
+    "Durable dependency rows bind pipeline continuation to exact prerequisite jobs and terminal outcomes; reconciliation is constrained to the same pipeline owner.",
+)
 
 
 tables(

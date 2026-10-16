@@ -13,13 +13,15 @@ from sqlalchemy.orm import Session, aliased
 from app.models.ceri_tables import CeriEvidenceDisposition, CeriScoreSnapshot
 from app.models.tables import MarketCalculationContext, PipelineRun
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.pipeline_outcome import (
+    NO_INTEGRITY_HAZARD,
+    PIPELINE_OUTCOME_CONTRACT_VERSION,
+)
 from app.services.supporting_mutation_authority import supporting_mutation_operation
 
 ELIGIBLE = "ELIGIBLE"
 EXCLUDED = "EXCLUDED"
-UNSUCCESSFUL_PIPELINE_STATES = frozenset(
-    {"FAILED", "CANCELLED", "BLOCKED", "PARTIAL"}
-)
+HARD_UNSUCCESSFUL_PIPELINE_STATES = frozenset({"FAILED", "CANCELLED", "BLOCKED"})
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,7 @@ def effective_disposition_subquery(name: str | None = None) -> Any:
         select(
             CeriEvidenceDisposition.ceri_snapshot_id,
             CeriEvidenceDisposition.disposition,
+            CeriEvidenceDisposition.reason_code,
         )
         .distinct(CeriEvidenceDisposition.ceri_snapshot_id)
         .order_by(
@@ -114,7 +117,7 @@ def _owner_eligibility_predicate(snapshot: Any) -> Any:
     no_unsuccessful_upload_owner = ~exists(
         select(1).where(
             failed_owner.upload_run_id == snapshot.run_id,
-            failed_owner.status.in_(UNSUCCESSFUL_PIPELINE_STATES),
+            _owner_is_ineligible(failed_owner),
         )
     )
     context_owner_is_eligible = exists(
@@ -128,13 +131,32 @@ def _owner_eligibility_predicate(snapshot: Any) -> Any:
                     MarketCalculationContext.pipeline_run_id.is_(None),
                     no_unsuccessful_upload_owner,
                 ),
-                PipelineRun.status.not_in(UNSUCCESSFUL_PIPELINE_STATES),
+                ~_owner_is_ineligible(PipelineRun),
             ),
         )
     )
     return or_(
         and_(snapshot.calculation_context_id.is_(None), no_unsuccessful_upload_owner),
         context_owner_is_eligible,
+    )
+
+
+def _owner_is_ineligible(owner: Any) -> Any:
+    summary = owner.result_json["pipeline_outcome_summary"]
+    safe_partial = and_(
+        owner.status == "PARTIAL",
+        func.coalesce(
+            summary["contract_version"].astext == PIPELINE_OUTCOME_CONTRACT_VERSION,
+            False,
+        ),
+        func.coalesce(
+            summary["integrity"]["status"].astext == NO_INTEGRITY_HAZARD,
+            False,
+        ),
+    )
+    return or_(
+        owner.status.in_(HARD_UNSUCCESSFUL_PIPELINE_STATES),
+        and_(owner.status == "PARTIAL", ~safe_partial),
     )
 
 

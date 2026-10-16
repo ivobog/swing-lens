@@ -40,6 +40,7 @@ from app.services.contextual_consumer_eligibility import (
     CONTEXTUAL_ELIGIBILITY_KEY,
     FUNDAMENTAL_TO_COMBINED,
     contextual_decision_input,
+    record_fundamental_admission,
 )
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
@@ -247,6 +248,14 @@ def refresh_combined_results(
             config=config,
             today=technical_identity.temporal.as_of_session.value,
         )
+        if isinstance(db, Session):
+            record_fundamental_admission(
+                db,
+                row=fundamental,
+                policy=FUNDAMENTAL_TO_COMBINED,
+                permission=decision.debug_evidence[CONTEXTUAL_ELIGIBILITY_KEY]["fundamental"],
+                pipeline_run_id=pipeline_run_id,
+            )
         output_identity = build_combined_result_identity(
             fundamental_identity=fundamental_identity,
             technical_identity=technical_identity,
@@ -318,7 +327,8 @@ def combine_row_decision(
     technical, eligibility = technical_decision_input(technical, TECHNICAL_TO_COMBINED)
 
     fundamental, fundamental_permission = contextual_decision_input(
-        fundamental, FUNDAMENTAL_TO_COMBINED
+        fundamental,
+        FUNDAMENTAL_TO_COMBINED,
     )
     fundamental_score = _float_or_none(fundamental.fundamental_score if fundamental else None)
     dual_score = _float_or_none(technical.dual_score if technical else None)

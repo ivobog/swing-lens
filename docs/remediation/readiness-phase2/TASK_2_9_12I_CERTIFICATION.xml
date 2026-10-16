@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="Task 2.9.12i focused compatibility certification" tests="1" errors="1" failures="0" skipped="0" time="7.9405">
+  <testsuite name="pytest collection" tests="1" errors="1" failures="0" skipped="0" time="7.9405" timestamp="2026-10-14T21:49:00+02:00" hostname="redacted">
+    <properties>
+      <property name="result" value="COLLECTION_ERROR" />
+      <property name="database_reached" value="false" />
+      <property name="replacement_invocation_started" value="false" />
+      <property name="provenance" value="captured pytest console result; native JUnit was not emitted" />
+    </properties>
+    <testcase classname="pytest.collection" name="focused_v1_v2_compatibility_certification" time="7.9405">
+      <error type="ModuleNotFoundError" message="No module named 'prometheus_client'">Import stopped in tests/conftest.py while importing app.observability.metrics. No selected test was collected or executed.</error>
+    </testcase>
+  </testsuite>
+</testsuites>
+

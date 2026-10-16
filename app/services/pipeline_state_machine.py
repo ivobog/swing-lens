@@ -80,12 +80,14 @@ def transition_pipeline(
     elif target not in TERMINAL_PIPELINE_STATES:
         pipeline.completed_at = None
     db.flush()
-    if isinstance(db, Session) and target in {"FAILED", "CANCELLED", "BLOCKED", "PARTIAL"}:
+    if isinstance(db, Session):
         from app.services.ceri.pipeline_containment_service import (
             reconcile_unsuccessful_pipeline_ceri,
         )
+        from app.services.pipeline_outcome import pipeline_requires_ceri_containment
 
-        reconcile_unsuccessful_pipeline_ceri(db, pipeline)
+        if pipeline_requires_ceri_containment(target, pipeline.result_json):
+            reconcile_unsuccessful_pipeline_ceri(db, pipeline)
     publish_after_commit(
         db,
         "increment",
@@ -132,6 +134,8 @@ def _transition_allowed(
     if source == target:
         return True
     if source in TERMINAL_PIPELINE_STATES:
+        if actor == "retry":
+            return source == "FAILED" and target == "QUEUED"
         return bool(
             operator_resume
             and actor == "operator"

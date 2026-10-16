@@ -1,0 +1,3756 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=e3]:
+    - link "SwingLens" [ref=e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Primary navigation" [ref=e5]:
+      - link "Dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /
+      - link "Runs" [ref=e7] [cursor=pointer]:
+        - /url: /runs
+      - link "Market Regime" [ref=e8] [cursor=pointer]:
+        - /url: /market-regime
+      - link "Market Changes" [ref=e9] [cursor=pointer]:
+        - /url: /setup-lifecycle
+      - link "Alerts" [ref=e10] [cursor=pointer]:
+        - /url: /setup-lifecycle/alerts
+      - link "CERI" [ref=e11] [cursor=pointer]:
+        - /url: /ceri
+      - link "CERI Ops" [ref=e12] [cursor=pointer]:
+        - /url: /ceri/operations
+      - link "History" [ref=e13] [cursor=pointer]:
+        - /url: /history
+      - link "Winner Evidence" [ref=e14] [cursor=pointer]:
+        - /url: /winner-probability/operations
+      - link "IB Gateway" [ref=e15] [cursor=pointer]:
+        - /url: /ib
+      - link "Scoring" [ref=e16] [cursor=pointer]:
+        - /url: /scoring
+      - link "Settings" [ref=e17] [cursor=pointer]:
+        - /url: /settings
+      - link "Operations" [ref=e18] [cursor=pointer]:
+        - /url: /system/operations
+      - link "Help" [ref=e19] [cursor=pointer]:
+        - /url: /help
+  - main [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - heading "Run 30" [level=1] [ref=e24]
+          - paragraph [ref=e25]: skimmer 2_2026-10-08.csv
+        - generic [ref=e26]:
+          - button "Run full pipeline" [ref=e28]
+          - status [ref=e29]:
+            - generic [ref=e31]: Checking IB…
+          - button "Recalculate fundamentals" [disabled] [ref=e33]
+          - button "Refresh technicals" [disabled] [ref=e35]
+          - button "Refresh combined" [disabled] [ref=e37]
+          - button "Refresh rankings" [disabled] [ref=e39]
+          - link "Sector rotation" [ref=e40] [cursor=pointer]:
+            - /url: /runs/30/sector-rotation
+          - link "Market changes" [ref=e41] [cursor=pointer]:
+            - /url: /runs/30/setup-lifecycle
+          - link "CERI" [ref=e42] [cursor=pointer]:
+            - /url: /runs/30/ceri
+          - link "Winner evidence" [ref=e43] [cursor=pointer]:
+            - /url: /runs/30/winner-probability
+          - link "All runs" [ref=e44] [cursor=pointer]:
+            - /url: /runs
+      - generic [ref=e45]:
+        - generic [ref=e46]:
+          - text: Upload ingestion
+          - generic [ref=e47]: COMPLETED
+        - generic [ref=e48]:
+          - text: Pipeline execution
+          - link "PARTIAL" [ref=e49] [cursor=pointer]:
+            - /url: /runs/30/pipeline/
+        - generic [ref=e51]: Uploaded 2026-10-08 11:58:49.622632+02:00
+        - generic [ref=e52]: Processed 2026-10-08 11:58:51.183836+02:00
+        - generic [ref=e53]: CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.
+    - generic [ref=e54]:
+      - generic [ref=e55]:
+        - generic [ref=e56]:
+          - heading "CERI Evidence" [level=2] [ref=e57]
+          - paragraph [ref=e58]: Catalyst and estimate revision intelligence for this run. Structured evidence suggests opportunities and risks; it does not place orders.
+        - generic [ref=e59]:
+          - link "Open CERI" [ref=e60] [cursor=pointer]:
+            - /url: /runs/30/ceri
+          - link "Changes" [ref=e61] [cursor=pointer]:
+            - /url: /ceri/changes
+          - link "Operations" [ref=e62] [cursor=pointer]:
+            - /url: /ceri/operations
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - strong [ref=e65]: "209"
+          - text: captured
+        - generic [ref=e66]:
+          - strong [ref=e67]: "0"
+          - text: eligible/current
+        - generic [ref=e68]:
+          - strong [ref=e69]: "209"
+          - text: excluded
+        - generic [ref=e70]:
+          - strong [ref=e71]: "0"
+          - text: quarantined
+        - generic [ref=e72]:
+          - strong [ref=e73]: "0"
+          - text: high opportunity / low risk
+        - generic [ref=e74]:
+          - strong [ref=e75]: "0"
+          - text: low-confidence
+        - generic [ref=e76]:
+          - strong [ref=e77]: "0"
+          - text: warning flags
+        - generic [ref=e78]: CAPTURED_EXCLUDED
+      - paragraph [ref=e79]: "Excluded: Parent Pipeline Unsuccessful (209). Excluded evidence is retained for audit and is not current decision input."
+    - generic [ref=e80]:
+      - generic [ref=e81]:
+        - generic [ref=e82]:
+          - heading "Setup Lifecycle" [level=2] [ref=e83]
+          - paragraph [ref=e84]: Lifecycle state changes and alerts for this run. Evidence remains research-oriented and source-preserving.
+        - generic [ref=e85]:
+          - link "Open changes" [ref=e86] [cursor=pointer]:
+            - /url: /runs/30/setup-lifecycle
+          - link "Alerts" [ref=e87] [cursor=pointer]:
+            - /url: /setup-lifecycle/alerts
+          - link "Operations" [ref=e88] [cursor=pointer]:
+            - /url: /setup-lifecycle/operations
+      - generic [ref=e89]:
+        - generic [ref=e90]:
+          - strong [ref=e91]: "165"
+          - text: active episodes represented by this run's current snapshots
+        - generic [ref=e92]:
+          - strong [ref=e93]: "209"
+          - text: canonical revisions
+        - generic [ref=e94]:
+          - strong [ref=e95]: "96"
+          - text: lifecycle changes
+        - generic [ref=e96]:
+          - strong [ref=e97]: "1194"
+          - text: signal changes
+        - generic [ref=e98]:
+          - strong [ref=e99]: "1290"
+          - text: meaningful changes
+        - generic [ref=e100]: COMPLETED
+    - generic [ref=e101]:
+      - generic [ref=e102]:
+        - generic [ref=e103]:
+          - heading "Pipeline 30" [level=2] [ref=e104]
+          - paragraph [ref=e105]: "Pipeline completed partially with 209 combined rows, 181 incomplete rows, and 0 IB failures. Winner Evidence: 28 inserted, 181 excluded, 0 failed."
+        - link "Open progress" [ref=e107] [cursor=pointer]:
+          - /url: /runs/30/pipeline/30
+      - generic [ref=e108]:
+        - generic [ref=e109]: PARTIAL
+        - generic [ref=e110]: 13 / 13 steps
+        - generic [ref=e111]: Job COMPLETED
+    - generic "Run workflow" [ref=e113]:
+      - generic [ref=e116]:
+        - strong [ref=e117]: Uploaded
+        - generic [ref=e118]: Completed
+        - generic [ref=e119]: Raw rows are stored.
+      - generic [ref=e122]:
+        - strong [ref=e123]: Fundamentals scored
+        - generic [ref=e124]: Completed
+        - generic [ref=e125]: 209 score rows.
+      - generic [ref=e128]:
+        - strong [ref=e129]: Column mapping checked
+        - generic [ref=e130]: Completed
+        - generic [ref=e131]: Raw columns mapped to canonical scoring fields.
+      - generic [ref=e134]:
+        - strong [ref=e135]: IB fetch planned
+        - generic [ref=e136]: Completed
+        - generic [ref=e137]: Fetch plan can be previewed.
+      - generic [ref=e140]:
+        - strong [ref=e141]: OHLCV ready
+        - generic [ref=e142]: Warning
+        - generic [ref=e143]: 206 ready, 2 short, 0 stale, 0 missing.
+      - generic [ref=e146]:
+        - strong [ref=e147]: Technicals scored
+        - generic [ref=e148]: Warning
+        - generic [ref=e149]: 209 technical rows; 3 warnings.
+      - generic [ref=e152]:
+        - strong [ref=e153]: Cockpit ready
+        - generic [ref=e154]: Completed
+        - generic [ref=e155]: 209 combined rows.
+      - generic [ref=e158]:
+        - strong [ref=e159]: Export ready
+        - generic [ref=e160]: Completed
+        - generic [ref=e161]: CSV exports are ready.
+    - region "Run summary" [ref=e162]:
+      - generic [ref=e163]:
+        - generic [ref=e164]: Rows
+        - strong [ref=e165]: "209"
+      - generic [ref=e166]:
+        - generic [ref=e167]: Combined
+        - strong [ref=e168]: "209"
+      - generic [ref=e169]:
+        - generic [ref=e170]: Incomplete
+        - strong [ref=e171]: "181"
+      - generic [ref=e172]:
+        - generic [ref=e173]: Warnings
+        - strong [ref=e174]: "181"
+      - generic [ref=e175]:
+        - generic [ref=e176]: Strong
+        - strong [ref=e177]: "2"
+      - generic [ref=e178]:
+        - generic [ref=e179]: Earnings Blocked
+        - strong [ref=e180]: "0"
+      - generic [ref=e181]:
+        - generic [ref=e182]: Earnings High
+        - strong [ref=e183]: "0"
+      - generic [ref=e184]:
+        - generic [ref=e185]: Earnings Medium
+        - strong [ref=e186]: "1"
+      - generic [ref=e187]:
+        - generic [ref=e188]: Earnings Unknown
+        - strong [ref=e189]: "0"
+      - generic [ref=e190]:
+        - generic [ref=e191]: Top Complete
+        - strong [ref=e192]: SN
+        - generic [ref=e193]: "8.20"
+    - generic [ref=e194]:
+      - generic [ref=e195]:
+        - generic [ref=e196]:
+          - heading "Winner Evidence" [level=2] [ref=e197]
+          - paragraph [ref=e198]: Research-only target-before-stop evidence for this run. Existing ranks stay unchanged.
+        - generic [ref=e199]:
+          - link "Open evidence" [ref=e200] [cursor=pointer]:
+            - /url: /runs/30/winner-probability
+          - link "CSV" [ref=e201] [cursor=pointer]:
+            - /url: /api/winner-probability/run/30/export.csv
+          - link "Operations" [ref=e202] [cursor=pointer]:
+            - /url: /winner-probability/operations
+      - generic [ref=e203]:
+        - generic [ref=e204]:
+          - strong [ref=e205]: "28"
+          - text: snapshots
+        - generic [ref=e206]:
+          - strong [ref=e207]: "28"
+          - text: estimates
+        - generic [ref=e208]:
+          - strong [ref=e209]: "28"
+          - text: insufficient
+        - generic [ref=e210]: NEXT_OPEN and diagnostic evidence remain separate
+    - generic [ref=e211]:
+      - generic [ref=e212]:
+        - generic [ref=e213]:
+          - heading "Sector Rotation" [level=2] [ref=e214]
+          - paragraph [ref=e215]: Latest snapshot from 2026-10-07 with 10 sectors and 209 tickers.
+        - generic [ref=e216]:
+          - link "Open dashboard" [ref=e217] [cursor=pointer]:
+            - /url: /runs/30/sector-rotation
+          - link "CSV" [ref=e218] [cursor=pointer]:
+            - /url: /runs/30/sector-rotation/export.csv
+          - link "Brief" [ref=e219] [cursor=pointer]:
+            - /url: /runs/30/sector-rotation/brief.md
+      - generic [ref=e220]:
+        - generic [ref=e221]:
+          - strong [ref=e222]: Energy
+          - text: leading sector
+          - generic [ref=e223]: Universe Only
+        - generic [ref=e224]:
+          - strong [ref=e225]: Communication Services
+          - text: weakest sector
+          - generic [ref=e226]: momentum_swing
+        - generic [ref=e227]:
+          - strong [ref=e228]: Communication Services
+          - text: riskiest sector
+          - generic [ref=e229]: 4 warnings
+    - generic [ref=e230]:
+      - generic [ref=e231]:
+        - generic [ref=e232]:
+          - heading "Ranking Profiles" [level=2] [ref=e233]
+          - paragraph [ref=e234]: 1045 profile rows across 5 profiles.
+        - generic [ref=e235]:
+          - button "Refresh rankings" [disabled] [ref=e237]
+          - link "All profiles CSV" [ref=e238] [cursor=pointer]:
+            - /url: /runs/30/rankings/export.csv
+      - generic "Market policy for ranking profiles" [ref=e239]:
+        - generic [ref=e240]:
+          - strong [ref=e241]: Bull trend
+          - text: Green risk
+          - generic [ref=e242]: 2026-10-07
+        - generic [ref=e243]:
+          - strong [ref=e244]: 100%
+          - text: research size context
+          - generic [ref=e245]: normal confidence
+        - generic [ref=e246]:
+          - strong [ref=e247]: Preferred
+          - text: Momentum Swing, Quality Momentum
+        - link "Market detail" [ref=e248] [cursor=pointer]:
+          - /url: /runs/30/market-regime
+      - generic [ref=e249]:
+        - generic [ref=e250]:
+          - strong [ref=e251]: STNG
+          - text: Clean Compounder Pullback
+          - generic [ref=e252]: 8.95 - Strong candidate
+          - generic [ref=e253]: 209 rows - 24 candidates - 181 warnings
+          - link "CSV" [ref=e254] [cursor=pointer]:
+            - /url: /runs/30/rankings/clean_compounder_pullback/export.csv
+        - generic [ref=e255]:
+          - strong [ref=e256]: STNG
+          - text: Defensive Quality
+          - generic [ref=e257]: 8.86 - Strong candidate
+          - generic [ref=e258]: 209 rows - 27 candidates - 181 warnings
+          - link "CSV" [ref=e259] [cursor=pointer]:
+            - /url: /runs/30/rankings/defensive_quality/export.csv
+        - generic [ref=e260]:
+          - strong [ref=e261]: MSM
+          - text: Early Rocket
+          - generic [ref=e262]: 6.91 - Watchlist
+          - generic [ref=e263]: 209 rows - 0 candidates - 181 warnings
+          - link "CSV" [ref=e264] [cursor=pointer]:
+            - /url: /runs/30/rankings/early_rocket/export.csv
+        - generic [ref=e265]:
+          - strong [ref=e266]: STNG
+          - text: Momentum Swing
+          - generic [ref=e267]: 7.85 - Candidate
+          - generic [ref=e268]: 209 rows - 18 candidates - 181 warnings
+          - link "CSV" [ref=e269] [cursor=pointer]:
+            - /url: /runs/30/rankings/momentum_swing/export.csv
+        - generic [ref=e270]:
+          - strong [ref=e271]: STNG
+          - text: Quality Momentum
+          - generic [ref=e272]: 8.21 - Strong candidate
+          - generic [ref=e273]: 209 rows - 19 candidates - 181 warnings
+          - link "CSV" [ref=e274] [cursor=pointer]:
+            - /url: /runs/30/rankings/quality_momentum/export.csv
+    - generic [ref=e276]:
+      - generic [ref=e277]:
+        - heading "Actions" [level=2] [ref=e278]
+        - paragraph [ref=e279]: Refresh scores, export data, or move back through stored runs.
+      - generic [ref=e280]:
+        - link "Combined CSV" [ref=e281] [cursor=pointer]:
+          - /url: /runs/30/exports/combined.csv
+        - link "Fundamentals CSV" [ref=e282] [cursor=pointer]:
+          - /url: /runs/30/exports/fundamentals.csv
+        - link "Technicals CSV" [ref=e283] [cursor=pointer]:
+          - /url: /runs/30/exports/technicals.csv
+        - link "Raw CSV" [ref=e284] [cursor=pointer]:
+          - /url: /runs/30/exports/raw.csv
+        - link "IB Plan CSV" [ref=e285] [cursor=pointer]:
+          - /url: /runs/30/exports/ib-fetch-plan.csv
+        - link "IB Results CSV" [ref=e286] [cursor=pointer]:
+          - /url: /runs/30/exports/ib-fetch-results.csv
+        - link "Coverage CSV" [ref=e287] [cursor=pointer]:
+          - /url: /runs/30/exports/coverage.csv
+        - link "Mapping CSV" [ref=e288] [cursor=pointer]:
+          - /url: /runs/30/exports/mapping.csv
+        - link "Ranking Profiles CSV" [ref=e289] [cursor=pointer]:
+          - /url: /runs/30/rankings/export.csv
+        - link "Sector rotation" [ref=e290] [cursor=pointer]:
+          - /url: /runs/30/sector-rotation
+        - link "Coverage detail" [ref=e291] [cursor=pointer]:
+          - /url: /runs/30/coverage
+        - link "Column mapping" [ref=e292] [cursor=pointer]:
+          - /url: /runs/30/mapping
+    - generic [ref=e293]:
+      - generic [ref=e294]:
+        - generic [ref=e295]:
+          - heading "IB Gateway" [level=2] [ref=e296]
+          - paragraph [ref=e297]: Read-only market data fetch for uploaded tickers and benchmarks.
+        - button "Test connection" [ref=e299]
+      - generic [ref=e300]:
+        - generic [ref=e302]:
+          - term [ref=e303]: Host
+          - definition [ref=e304]: 127.0.0.1
+          - term [ref=e305]: Port
+          - definition [ref=e306]: "4002"
+          - term [ref=e307]: Client ID
+          - definition [ref=e308]: "21"
+          - term [ref=e309]: Read-only
+          - definition [ref=e310]: "Yes"
+          - term [ref=e311]: Full backfill
+          - definition [ref=e312]: 3 Y
+          - term [ref=e313]: Top-up
+          - definition [ref=e314]: 10 D
+          - term [ref=e315]: Refresh
+          - definition [ref=e316]: 60 D
+          - term [ref=e317]: Bar size
+          - definition [ref=e318]: 1 day
+          - term [ref=e319]: Rate limit
+          - definition [ref=e320]: 20/min, 3.0s gap
+          - term [ref=e321]: Benchmarks
+          - definition [ref=e322]: SPY, QQQ
+          - term [ref=e323]: Required bars
+          - definition [ref=e324]: "252"
+          - term [ref=e325]: Status
+          - definition [ref=e326]:
+            - generic [ref=e327]: Not tested
+        - generic [ref=e328]:
+          - generic [ref=e329]:
+            - generic [ref=e330]: Ticker subset
+            - textbox "Ticker subset" [ref=e331]:
+              - /placeholder: "Optional: MSFT, AAPL, NVDA"
+          - generic [ref=e332]:
+            - generic [ref=e333]:
+              - checkbox "Include SPY/QQQ" [checked] [ref=e334]
+              - text: Include SPY/QQQ
+            - generic [ref=e335]:
+              - checkbox "Adjusted" [checked] [ref=e336]
+              - text: Adjusted
+            - generic [ref=e337]:
+              - checkbox "Trades" [checked] [ref=e338]
+              - text: Trades
+            - generic [ref=e339]:
+              - checkbox "Force recent refresh" [ref=e340]
+              - text: Force recent refresh
+            - generic [ref=e341]:
+              - checkbox "Force full backfill" [ref=e342]
+              - text: Force full backfill
+          - generic [ref=e343]:
+            - button "Preview fetch plan" [ref=e344]
+            - button "Fetch IB bars" [ref=e345]
+      - generic [ref=e346]:
+        - generic [ref=e347]:
+          - strong [ref=e348]: "206"
+          - text: ready
+        - generic [ref=e349]:
+          - strong [ref=e350]: "2"
+          - text: insufficient
+        - generic [ref=e351]:
+          - strong [ref=e352]: "0"
+          - text: stale
+        - generic [ref=e353]:
+          - strong [ref=e354]: "0"
+          - text: missing volume
+        - generic [ref=e355]:
+          - strong [ref=e356]: "0"
+          - text: contract failed
+        - generic [ref=e357]:
+          - strong [ref=e358]: "0"
+          - text: missing
+        - generic [ref=e359]:
+          - strong [ref=e360]: "252"
+          - text: required bars
+        - generic [ref=e361]:
+          - strong [ref=e362]: SPY
+          - text: ready
+        - generic [ref=e363]:
+          - strong [ref=e364]: QQQ
+          - text: ready
+        - link "Open coverage" [ref=e365] [cursor=pointer]:
+          - /url: /runs/30/coverage
+        - link "Open mapping" [ref=e366] [cursor=pointer]:
+          - /url: /runs/30/mapping
+      - generic [ref=e367]:
+        - generic [ref=e368]:
+          - generic [ref=e369]:
+            - heading "Latest Fetch" [level=3] [ref=e370]
+            - paragraph [ref=e371]: COMPLETED · fetched 31506 · executed 268 / planned 268 · inserted 30366 · revised 67 · unchanged 1073 · failures 0
+          - generic [ref=e372]:
+            - link "Open progress" [ref=e373] [cursor=pointer]:
+              - /url: /runs/30/ib/fetches/16
+            - link "Results CSV" [ref=e374] [cursor=pointer]:
+              - /url: /runs/30/exports/ib-fetch-results.csv
+        - paragraph [ref=e375]: Executed 268 IB requests; skipped 154 items.
+        - group [ref=e376]:
+          - generic "Latest Fetch rows (first 50 of 422; open progress for all)" [ref=e377] [cursor=pointer]
+      - group [ref=e378]:
+        - generic "OHLCV coverage by ticker (first 50 of 209; open coverage for all)" [ref=e379] [cursor=pointer]
+    - generic [ref=e380]:
+      - generic [ref=e382]:
+        - heading "Decision Cockpit" [level=2] [ref=e383]
+        - paragraph [ref=e384]: Complete rows are ranked ahead of incomplete rows.
+      - note [ref=e385]:
+        - strong [ref=e386]: Research only.
+        - text: SwingLens surfaces combined decisions, gates, and research size hints evidence for local review; it does not place broker orders or provide execution instructions.
+      - generic "Evidence provenance" [ref=e387]:
+        - generic [ref=e388]: Evidence Decision Time
+        - generic [ref=e389]: Source cutoff 2026-10-08 11:58:51.183836+02:00
+        - generic [ref=e390]: Freshness Run Snapshot
+        - generic [ref=e391]: Correction As Known
+        - generic [ref=e392]: Confidence row_level
+      - generic [ref=e393]:
+        - generic [ref=e394]:
+          - strong [ref=e395]: "2"
+          - text: Strong candidate
+        - generic [ref=e396]:
+          - strong [ref=e397]: "19"
+          - text: Candidate
+        - generic [ref=e398]:
+          - strong [ref=e399]: "7"
+          - text: Watchlist
+        - generic [ref=e400]:
+          - strong [ref=e401]: "181"
+          - text: Incomplete data
+      - generic [ref=e402]:
+        - generic [ref=e403]:
+          - button "Top 10" [ref=e404]
+          - button "Top 20" [ref=e405]
+          - button "Strong only" [ref=e406]
+          - button "Candidate+" [ref=e407]
+          - button "Clean only" [ref=e408]
+          - button "Warnings only" [ref=e409]
+          - button "Incomplete only" [ref=e410]
+          - button "Hide avoid" [ref=e411]
+          - button "Hide earnings blocked" [ref=e412]
+          - button "Earnings risk" [ref=e413]
+          - button "Earnings clear" [ref=e414]
+        - generic [ref=e415]:
+          - button "Copy visible tickers" [ref=e416]
+          - button "Copy top 10" [ref=e417]
+          - button "Copy candidates" [ref=e418]
+          - button "Copy warnings" [ref=e419]
+          - button "Copy incomplete" [ref=e420]
+      - generic [ref=e421]:
+        - generic [ref=e422]:
+          - generic [ref=e423]: Search
+          - searchbox "Search" [ref=e424]
+        - generic [ref=e425]:
+          - generic [ref=e426]: Decision
+          - combobox "Decision" [ref=e427]:
+            - option "All" [selected]
+            - option "Candidate"
+            - option "Incomplete data"
+            - option "Strong candidate"
+            - option "Watchlist"
+        - generic [ref=e428]:
+          - generic [ref=e429]: Sector
+          - combobox "Sector" [ref=e430]:
+            - option "All" [selected]
+            - option "Commercial services"
+            - option "Communications"
+            - option "Consumer durables"
+            - option "Consumer non-durables"
+            - option "Consumer services"
+            - option "Distribution services"
+            - option "Electronic technology"
+            - option "Energy minerals"
+            - option "Finance"
+            - option "Health services"
+            - option "Health technology"
+            - option "Industrial services"
+            - option "Process industries"
+            - option "Producer manufacturing"
+            - option "Retail trade"
+            - option "Technology services"
+            - option "Transportation"
+            - option "Utilities"
+        - generic [ref=e431]:
+          - generic [ref=e432]: Min final
+          - spinbutton "Min final" [ref=e433]
+        - generic [ref=e434]:
+          - generic [ref=e435]: Min fundamental
+          - spinbutton "Min fundamental" [ref=e436]
+        - generic [ref=e437]:
+          - generic [ref=e438]: Min technical
+          - spinbutton "Min technical" [ref=e439]
+        - generic [ref=e440]:
+          - checkbox "Incomplete only" [ref=e441]
+          - generic [ref=e442]: Incomplete only
+        - generic [ref=e443]:
+          - checkbox "Warnings only" [ref=e444]
+          - generic [ref=e445]: Warnings only
+        - button "Clear filters" [ref=e446]
+      - table [ref=e448]:
+        - caption [ref=e449]: Combined decision cockpit ranked by completeness, score, warnings, and gates.
+        - rowgroup [ref=e450]:
+          - row [ref=e451]:
+            - columnheader [ref=e452]:
+              - button "Rank" [ref=e453]
+            - columnheader [ref=e454]:
+              - button "Ticker" [ref=e455]
+            - columnheader [ref=e456]:
+              - button "Sector" [ref=e457]
+            - columnheader [ref=e458]:
+              - button "Final" [ref=e459]
+            - columnheader [ref=e460]:
+              - button "Decision" [ref=e461]
+            - columnheader [ref=e462]:
+              - button "Warnings" [ref=e463]
+            - columnheader [ref=e464]:
+              - button "Earning Days" [ref=e465]
+            - columnheader [ref=e466]:
+              - button "Fundamental" [ref=e467]
+            - columnheader [ref=e468]:
+              - button "Technical" [ref=e469]
+            - columnheader "Actions" [ref=e470]
+        - rowgroup [ref=e471]:
+          - row [ref=e472] [cursor=pointer]:
+            - cell "1" [ref=e473]
+            - cell [ref=e474]:
+              - strong [ref=e475]: SN
+            - cell "Consumer durables" [ref=e476]
+            - cell "8.20" [ref=e477]
+            - cell "Strong candidate" [ref=e478]
+            - cell "Clean" [ref=e480]
+            - cell "29" [ref=e482]
+            - cell "8.36 Clean compounder" [ref=e483]:
+              - text: "8.36"
+              - generic [ref=e484]: Clean compounder
+            - cell "V4 ACTIVE 8.02 Momentum continuation Feeds Final / Decision V5 SHADOW 8.50 Δ +0.48 Momentum continuation S 8.3 / Q 8.5 / E 8.8" [ref=e485]:
+              - generic [ref=e486]:
+                - generic [ref=e487]:
+                  - generic [ref=e488]: V4 ACTIVE
+                  - strong [ref=e489]: "8.02"
+                  - generic [ref=e490]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e491]: Feeds Final / Decision
+                - generic [ref=e492]:
+                  - generic [ref=e493]: V5 SHADOW
+                  - generic [ref=e494]:
+                    - text: "8.50"
+                    - generic [ref=e495]: Δ +0.48
+                  - generic [ref=e496]: Momentum continuation
+                  - generic [ref=e497]: S 8.3 / Q 8.5 / E 8.8
+            - cell [ref=e498]:
+              - generic [ref=e499]:
+                - button "Details" [ref=e500]
+                - link "Evidence" [ref=e501]:
+                  - /url: /winner-probability/predictions/146
+                - link "TradingView" [ref=e502]:
+                  - /url: https://www.tradingview.com/chart/?symbol=SN
+          - row [ref=e503] [cursor=pointer]:
+            - cell "2" [ref=e504]
+            - cell [ref=e505]:
+              - strong [ref=e506]: STNG
+            - cell "Transportation" [ref=e507]
+            - cell "8.19" [ref=e508]
+            - cell "Strong candidate" [ref=e509]
+            - cell "Clean" [ref=e511]
+            - cell "27" [ref=e513]
+            - cell "9.12 Clean compounder" [ref=e514]:
+              - text: "9.12"
+              - generic [ref=e515]: Clean compounder
+            - cell "V4 ACTIVE 7.07 No trade Feeds Final / Decision V5 SHADOW 7.37 Δ +0.30 Volatility contraction setup S 7.1 / Q 7.5 / E 7.8" [ref=e516]:
+              - generic [ref=e517]:
+                - generic [ref=e518]:
+                  - generic [ref=e519]: V4 ACTIVE
+                  - strong [ref=e520]: "7.07"
+                  - generic [ref=e521]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e522]: Feeds Final / Decision
+                - generic [ref=e523]:
+                  - generic [ref=e524]: V5 SHADOW
+                  - generic [ref=e525]:
+                    - text: "7.37"
+                    - generic [ref=e526]: Δ +0.30
+                  - generic [ref=e527]: Volatility contraction setup
+                  - generic [ref=e528]: S 7.1 / Q 7.5 / E 7.8
+            - cell [ref=e529]:
+              - generic [ref=e530]:
+                - button "Details" [ref=e531]
+                - link "Evidence" [ref=e532]:
+                  - /url: /winner-probability/predictions/172
+                - link "TradingView" [ref=e533]:
+                  - /url: https://www.tradingview.com/chart/?symbol=STNG
+          - row [ref=e534] [cursor=pointer]:
+            - cell "3" [ref=e535]
+            - cell [ref=e536]:
+              - strong [ref=e537]: WSM
+            - cell "Retail trade" [ref=e538]
+            - cell "7.98" [ref=e539]
+            - cell "Candidate" [ref=e540]
+            - cell "Clean" [ref=e542]
+            - cell "36" [ref=e544]
+            - cell "8.22 Clean compounder" [ref=e545]:
+              - text: "8.22"
+              - generic [ref=e546]: Clean compounder
+            - cell "V4 ACTIVE 7.70 Filtered pullback Feeds Final / Decision V5 SHADOW 7.56 Δ -0.14 Volatility contraction setup S 7.2 / Q 7.6 / E 8.2" [ref=e547]:
+              - generic [ref=e548]:
+                - generic [ref=e549]:
+                  - generic [ref=e550]: V4 ACTIVE
+                  - strong [ref=e551]: "7.70"
+                  - generic [ref=e552]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e553]: Feeds Final / Decision
+                - generic [ref=e554]:
+                  - generic [ref=e555]: V5 SHADOW
+                  - generic [ref=e556]:
+                    - text: "7.56"
+                    - generic [ref=e557]: Δ -0.14
+                  - generic [ref=e558]: Volatility contraction setup
+                  - generic [ref=e559]: S 7.2 / Q 7.6 / E 8.2
+            - cell [ref=e560]:
+              - generic [ref=e561]:
+                - button "Details" [ref=e562]
+                - link "Evidence" [ref=e563]:
+                  - /url: /winner-probability/predictions/155
+                - link "TradingView" [ref=e564]:
+                  - /url: https://www.tradingview.com/chart/?symbol=WSM
+          - row [ref=e565] [cursor=pointer]:
+            - cell "4" [ref=e566]
+            - cell [ref=e567]:
+              - strong [ref=e568]: PSX
+            - cell "Energy minerals" [ref=e569]
+            - cell "7.97" [ref=e570]
+            - cell "Candidate" [ref=e571]
+            - cell "Clean" [ref=e573]
+            - cell "21" [ref=e575]
+            - cell "8.06 High-quality quant" [ref=e576]:
+              - text: "8.06"
+              - generic [ref=e577]: High-quality quant
+            - cell "V4 ACTIVE 7.85 Extended momentum Feeds Final / Decision V5 SHADOW 7.91 Δ +0.07 Volatility contraction setup S 8.2 / Q 7.9 / E 7.3" [ref=e578]:
+              - generic [ref=e579]:
+                - generic [ref=e580]:
+                  - generic [ref=e581]: V4 ACTIVE
+                  - strong [ref=e582]: "7.85"
+                  - generic [ref=e583]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e584]: Feeds Final / Decision
+                - generic [ref=e585]:
+                  - generic [ref=e586]: V5 SHADOW
+                  - generic [ref=e587]:
+                    - text: "7.91"
+                    - generic [ref=e588]: Δ +0.07
+                  - generic [ref=e589]: Volatility contraction setup
+                  - generic [ref=e590]: S 8.2 / Q 7.9 / E 7.3
+            - cell [ref=e591]:
+              - generic [ref=e592]:
+                - button "Details" [ref=e593]
+                - link "Evidence" [ref=e594]:
+                  - /url: /winner-probability/predictions/153
+                - link "TradingView" [ref=e595]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PSX
+          - row [ref=e596] [cursor=pointer]:
+            - cell "5" [ref=e597]
+            - cell [ref=e598]:
+              - strong [ref=e599]: ADI
+            - cell "Electronic technology" [ref=e600]
+            - cell "7.74" [ref=e601]
+            - cell "Candidate" [ref=e602]
+            - cell "Clean" [ref=e604]
+            - cell "55" [ref=e606]
+            - cell "7.67 Clean compounder" [ref=e607]:
+              - text: "7.67"
+              - generic [ref=e608]: Clean compounder
+            - cell "V4 ACTIVE 7.83 Extended momentum Feeds Final / Decision V5 SHADOW 7.73 Δ -0.10 Volatility contraction setup S 7.6 / Q 8.1 / E 7.3" [ref=e609]:
+              - generic [ref=e610]:
+                - generic [ref=e611]:
+                  - generic [ref=e612]: V4 ACTIVE
+                  - strong [ref=e613]: "7.83"
+                  - generic [ref=e614]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e615]: Feeds Final / Decision
+                - generic [ref=e616]:
+                  - generic [ref=e617]: V5 SHADOW
+                  - generic [ref=e618]:
+                    - text: "7.73"
+                    - generic [ref=e619]: Δ -0.10
+                  - generic [ref=e620]: Volatility contraction setup
+                  - generic [ref=e621]: S 7.6 / Q 8.1 / E 7.3
+            - cell [ref=e622]:
+              - generic [ref=e623]:
+                - button "Details" [ref=e624]
+                - link "Evidence" [ref=e625]:
+                  - /url: /winner-probability/predictions/164
+                - link "TradingView" [ref=e626]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ADI
+          - row [ref=e627] [cursor=pointer]:
+            - cell "6" [ref=e628]
+            - cell [ref=e629]:
+              - strong [ref=e630]: SIG
+            - cell "Retail trade" [ref=e631]
+            - cell "7.70" [ref=e632]
+            - cell "Candidate" [ref=e633]
+            - cell "Clean" [ref=e635]
+            - cell "62" [ref=e637]
+            - cell "7.69 High-quality quant" [ref=e638]:
+              - text: "7.69"
+              - generic [ref=e639]: High-quality quant
+            - cell "V4 ACTIVE 7.71 Momentum continuation Feeds Final / Decision V5 SHADOW 7.17 Δ -0.54 Clean bull pullback S 8.0 / Q 5.5 / E 8.3" [ref=e640]:
+              - generic [ref=e641]:
+                - generic [ref=e642]:
+                  - generic [ref=e643]: V4 ACTIVE
+                  - strong [ref=e644]: "7.71"
+                  - generic [ref=e645]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e646]: Feeds Final / Decision
+                - generic [ref=e647]:
+                  - generic [ref=e648]: V5 SHADOW
+                  - generic [ref=e649]:
+                    - text: "7.17"
+                    - generic [ref=e650]: Δ -0.54
+                  - generic [ref=e651]: Clean bull pullback
+                  - generic [ref=e652]: S 8.0 / Q 5.5 / E 8.3
+            - cell [ref=e653]:
+              - generic [ref=e654]:
+                - button "Details" [ref=e655]
+                - link "Evidence" [ref=e656]:
+                  - /url: /winner-probability/predictions/149
+                - link "TradingView" [ref=e657]:
+                  - /url: https://www.tradingview.com/chart/?symbol=SIG
+          - row [ref=e658] [cursor=pointer]:
+            - cell "7" [ref=e659]
+            - cell [ref=e660]:
+              - strong [ref=e661]: VEEV
+            - cell "Technology services" [ref=e662]
+            - cell "7.66" [ref=e663]
+            - cell "Candidate" [ref=e664]
+            - cell "Clean" [ref=e666]
+            - cell "63" [ref=e668]
+            - cell "7.99 Clean compounder" [ref=e669]:
+              - text: "7.99"
+              - generic [ref=e670]: Clean compounder
+            - cell "V4 ACTIVE 7.26 Extended momentum Feeds Final / Decision V5 SHADOW 6.71 Δ -0.54 Clean bull pullback S 7.5 / Q 4.9 / E 8.1" [ref=e671]:
+              - generic [ref=e672]:
+                - generic [ref=e673]:
+                  - generic [ref=e674]: V4 ACTIVE
+                  - strong [ref=e675]: "7.26"
+                  - generic [ref=e676]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e677]: Feeds Final / Decision
+                - generic [ref=e678]:
+                  - generic [ref=e679]: V5 SHADOW
+                  - generic [ref=e680]:
+                    - text: "6.71"
+                    - generic [ref=e681]: Δ -0.54
+                  - generic [ref=e682]: Clean bull pullback
+                  - generic [ref=e683]: S 7.5 / Q 4.9 / E 8.1
+            - cell [ref=e684]:
+              - generic [ref=e685]:
+                - button "Details" [ref=e686]
+                - link "Evidence" [ref=e687]:
+                  - /url: /winner-probability/predictions/156
+                - link "TradingView" [ref=e688]:
+                  - /url: https://www.tradingview.com/chart/?symbol=VEEV
+          - row [ref=e689] [cursor=pointer]:
+            - cell "8" [ref=e690]
+            - cell [ref=e691]:
+              - strong [ref=e692]: MSM
+            - cell "Distribution services" [ref=e693]
+            - cell "7.55" [ref=e694]
+            - cell "Candidate" [ref=e695]
+            - cell "Clean" [ref=e697]
+            - cell "15" [ref=e699]
+            - cell "6.86 High-quality quant" [ref=e700]:
+              - text: "6.86"
+              - generic [ref=e701]: High-quality quant
+            - cell "V4 ACTIVE 8.40 Momentum continuation Feeds Final / Decision V5 SHADOW 7.57 Δ -0.83 Clean bull pullback S 8.1 / Q 7.0 / E 7.2" [ref=e702]:
+              - generic [ref=e703]:
+                - generic [ref=e704]:
+                  - generic [ref=e705]: V4 ACTIVE
+                  - strong [ref=e706]: "8.40"
+                  - generic [ref=e707]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e708]: Feeds Final / Decision
+                - generic [ref=e709]:
+                  - generic [ref=e710]: V5 SHADOW
+                  - generic [ref=e711]:
+                    - text: "7.57"
+                    - generic [ref=e712]: Δ -0.83
+                  - generic [ref=e713]: Clean bull pullback
+                  - generic [ref=e714]: S 8.1 / Q 7.0 / E 7.2
+            - cell [ref=e715]:
+              - generic [ref=e716]:
+                - button "Details" [ref=e717]
+                - link "Evidence" [ref=e718]:
+                  - /url: /winner-probability/predictions/163
+                - link "TradingView" [ref=e719]:
+                  - /url: https://www.tradingview.com/chart/?symbol=MSM
+          - row [ref=e720] [cursor=pointer]:
+            - cell "9" [ref=e721]
+            - cell [ref=e722]:
+              - strong [ref=e723]: NVT
+            - cell "Electronic technology" [ref=e724]
+            - cell "7.50" [ref=e725]
+            - cell "Candidate" [ref=e726]
+            - cell "Clean" [ref=e728]
+            - cell "16" [ref=e730]
+            - cell "7.35 High-quality quant" [ref=e731]:
+              - text: "7.35"
+              - generic [ref=e732]: High-quality quant
+            - cell "V4 ACTIVE 7.69 Filtered pullback Feeds Final / Decision V5 SHADOW 7.53 Δ -0.16 Clean bull pullback S 7.2 / Q 7.2 / E 8.8" [ref=e733]:
+              - generic [ref=e734]:
+                - generic [ref=e735]:
+                  - generic [ref=e736]: V4 ACTIVE
+                  - strong [ref=e737]: "7.69"
+                  - generic [ref=e738]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e739]: Feeds Final / Decision
+                - generic [ref=e740]:
+                  - generic [ref=e741]: V5 SHADOW
+                  - generic [ref=e742]:
+                    - text: "7.53"
+                    - generic [ref=e743]: Δ -0.16
+                  - generic [ref=e744]: Clean bull pullback
+                  - generic [ref=e745]: S 7.2 / Q 7.2 / E 8.8
+            - cell [ref=e746]:
+              - generic [ref=e747]:
+                - button "Details" [ref=e748]
+                - link "Evidence" [ref=e749]:
+                  - /url: /winner-probability/predictions/152
+                - link "TradingView" [ref=e750]:
+                  - /url: https://www.tradingview.com/chart/?symbol=NVT
+          - row [ref=e751] [cursor=pointer]:
+            - cell "10" [ref=e752]
+            - cell [ref=e753]:
+              - strong [ref=e754]: WST
+            - cell "Health technology" [ref=e755]
+            - cell "7.46" [ref=e756]
+            - cell "Candidate" [ref=e757]
+            - cell "Clean" [ref=e759]
+            - cell "15" [ref=e761]
+            - cell "7.82 Clean compounder" [ref=e762]:
+              - text: "7.82"
+              - generic [ref=e763]: Clean compounder
+            - cell "V4 ACTIVE 7.03 Filtered pullback Feeds Final / Decision V5 SHADOW 7.18 Δ +0.14 Volatility contraction setup S 6.6 / Q 7.5 / E 7.9" [ref=e764]:
+              - generic [ref=e765]:
+                - generic [ref=e766]:
+                  - generic [ref=e767]: V4 ACTIVE
+                  - strong [ref=e768]: "7.03"
+                  - generic [ref=e769]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e770]: Feeds Final / Decision
+                - generic [ref=e771]:
+                  - generic [ref=e772]: V5 SHADOW
+                  - generic [ref=e773]:
+                    - text: "7.18"
+                    - generic [ref=e774]: Δ +0.14
+                  - generic [ref=e775]: Volatility contraction setup
+                  - generic [ref=e776]: S 6.6 / Q 7.5 / E 7.9
+            - cell [ref=e777]:
+              - generic [ref=e778]:
+                - button "Details" [ref=e779]
+                - link "Evidence" [ref=e780]:
+                  - /url: /winner-probability/predictions/171
+                - link "TradingView" [ref=e781]:
+                  - /url: https://www.tradingview.com/chart/?symbol=WST
+          - row [ref=e782] [cursor=pointer]:
+            - cell "11" [ref=e783]
+            - cell [ref=e784]:
+              - strong [ref=e785]: TXN
+            - cell "Electronic technology" [ref=e786]
+            - cell "7.46" [ref=e787]
+            - cell "Candidate" [ref=e788]
+            - cell "Clean" [ref=e790]
+            - cell "14" [ref=e792]
+            - cell "7.92 Clean compounder" [ref=e793]:
+              - text: "7.92"
+              - generic [ref=e794]: Clean compounder
+            - cell "V4 ACTIVE 6.89 No trade Feeds Final / Decision V5 SHADOW 6.72 Δ -0.18 Clean bull pullback S 6.6 / Q 5.8 / E 8.6" [ref=e795]:
+              - generic [ref=e796]:
+                - generic [ref=e797]:
+                  - generic [ref=e798]: V4 ACTIVE
+                  - strong [ref=e799]: "6.89"
+                  - generic [ref=e800]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e801]: Feeds Final / Decision
+                - generic [ref=e802]:
+                  - generic [ref=e803]: V5 SHADOW
+                  - generic [ref=e804]:
+                    - text: "6.72"
+                    - generic [ref=e805]: Δ -0.18
+                  - generic [ref=e806]: Clean bull pullback
+                  - generic [ref=e807]: S 6.6 / Q 5.8 / E 8.6
+            - cell [ref=e808]:
+              - generic [ref=e809]:
+                - button "Details" [ref=e810]
+                - link "Evidence" [ref=e811]:
+                  - /url: /winner-probability/predictions/165
+                - link "TradingView" [ref=e812]:
+                  - /url: https://www.tradingview.com/chart/?symbol=TXN
+          - row [ref=e813] [cursor=pointer]:
+            - cell "12" [ref=e814]
+            - cell [ref=e815]:
+              - strong [ref=e816]: XOM
+            - cell "Energy minerals" [ref=e817]
+            - cell "7.43" [ref=e818]
+            - cell "Candidate" [ref=e819]
+            - cell "Clean" [ref=e821]
+            - cell "16" [ref=e823]
+            - cell "7.45 High-quality quant" [ref=e824]:
+              - text: "7.45"
+              - generic [ref=e825]: High-quality quant
+            - cell "V4 ACTIVE 7.42 Filtered pullback Feeds Final / Decision V5 SHADOW 7.48 Δ +0.06 Volatility contraction setup S 7.0 / Q 8.1 / E 7.3" [ref=e826]:
+              - generic [ref=e827]:
+                - generic [ref=e828]:
+                  - generic [ref=e829]: V4 ACTIVE
+                  - strong [ref=e830]: "7.42"
+                  - generic [ref=e831]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e832]: Feeds Final / Decision
+                - generic [ref=e833]:
+                  - generic [ref=e834]: V5 SHADOW
+                  - generic [ref=e835]:
+                    - text: "7.48"
+                    - generic [ref=e836]: Δ +0.06
+                  - generic [ref=e837]: Volatility contraction setup
+                  - generic [ref=e838]: S 7.0 / Q 8.1 / E 7.3
+            - cell [ref=e839]:
+              - generic [ref=e840]:
+                - button "Details" [ref=e841]
+                - link "Evidence" [ref=e842]:
+                  - /url: /winner-probability/predictions/154
+                - link "TradingView" [ref=e843]:
+                  - /url: https://www.tradingview.com/chart/?symbol=XOM
+          - row [ref=e844] [cursor=pointer]:
+            - cell "13" [ref=e845]
+            - cell [ref=e846]:
+              - strong [ref=e847]: DT
+            - cell "Technology services" [ref=e848]
+            - cell "7.41" [ref=e849]
+            - cell "Candidate" [ref=e850]
+            - cell "Clean" [ref=e852]
+            - cell "28" [ref=e854]
+            - cell "6.54 Mixed but interesting" [ref=e855]:
+              - text: "6.54"
+              - generic [ref=e856]: Mixed but interesting
+            - cell "V4 ACTIVE 8.47 Extended momentum Feeds Final / Decision V5 SHADOW 8.14 Δ -0.33 Volatility contraction setup S 8.5 / Q 8.3 / E 7.1" [ref=e857]:
+              - generic [ref=e858]:
+                - generic [ref=e859]:
+                  - generic [ref=e860]: V4 ACTIVE
+                  - strong [ref=e861]: "8.47"
+                  - generic [ref=e862]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e863]: Feeds Final / Decision
+                - generic [ref=e864]:
+                  - generic [ref=e865]: V5 SHADOW
+                  - generic [ref=e866]:
+                    - text: "8.14"
+                    - generic [ref=e867]: Δ -0.33
+                  - generic [ref=e868]: Volatility contraction setup
+                  - generic [ref=e869]: S 8.5 / Q 8.3 / E 7.1
+            - cell [ref=e870]:
+              - generic [ref=e871]:
+                - button "Details" [ref=e872]
+                - link "Evidence" [ref=e873]:
+                  - /url: /winner-probability/predictions/157
+                - link "TradingView" [ref=e874]:
+                  - /url: https://www.tradingview.com/chart/?symbol=DT
+          - row [ref=e875] [cursor=pointer]:
+            - cell "14" [ref=e876]
+            - cell [ref=e877]:
+              - strong [ref=e878]: RMD
+            - cell "Health technology" [ref=e879]
+            - cell "7.36" [ref=e880]
+            - cell "Candidate" [ref=e881]
+            - cell "Clean" [ref=e883]
+            - cell "22" [ref=e885]
+            - cell "8.43 Clean compounder" [ref=e886]:
+              - text: "8.43"
+              - generic [ref=e887]: Clean compounder
+            - cell "V4 ACTIVE 6.06 No trade Feeds Final / Decision V5 SHADOW 6.17 Δ +0.11 Clean bull pullback S 4.3 / Q 7.6 / E 8.0" [ref=e888]:
+              - generic [ref=e889]:
+                - generic [ref=e890]:
+                  - generic [ref=e891]: V4 ACTIVE
+                  - strong [ref=e892]: "6.06"
+                  - generic [ref=e893]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e894]: Feeds Final / Decision
+                - generic [ref=e895]:
+                  - generic [ref=e896]: V5 SHADOW
+                  - generic [ref=e897]:
+                    - text: "6.17"
+                    - generic [ref=e898]: Δ +0.11
+                  - generic [ref=e899]: Clean bull pullback
+                  - generic [ref=e900]: S 4.3 / Q 7.6 / E 8.0
+            - cell [ref=e901]:
+              - generic [ref=e902]:
+                - button "Details" [ref=e903]
+                - link "Evidence" [ref=e904]:
+                  - /url: /winner-probability/predictions/148
+                - link "TradingView" [ref=e905]:
+                  - /url: https://www.tradingview.com/chart/?symbol=RMD
+          - row [ref=e906] [cursor=pointer]:
+            - cell "15" [ref=e907]
+            - cell [ref=e908]:
+              - strong [ref=e909]: AME
+            - cell "Producer manufacturing" [ref=e910]
+            - cell "7.36" [ref=e911]
+            - cell "Candidate" [ref=e912]
+            - cell "Clean" [ref=e914]
+            - cell "27" [ref=e916]
+            - cell "7.41 High-quality quant" [ref=e917]:
+              - text: "7.41"
+              - generic [ref=e918]: High-quality quant
+            - cell "V4 ACTIVE 7.30 No trade Feeds Final / Decision V5 SHADOW 7.32 Δ +0.02 Volatility contraction setup S 6.9 / Q 7.6 / E 7.9" [ref=e919]:
+              - generic [ref=e920]:
+                - generic [ref=e921]:
+                  - generic [ref=e922]: V4 ACTIVE
+                  - strong [ref=e923]: "7.30"
+                  - generic [ref=e924]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e925]: Feeds Final / Decision
+                - generic [ref=e926]:
+                  - generic [ref=e927]: V5 SHADOW
+                  - generic [ref=e928]:
+                    - text: "7.32"
+                    - generic [ref=e929]: Δ +0.02
+                  - generic [ref=e930]: Volatility contraction setup
+                  - generic [ref=e931]: S 6.9 / Q 7.6 / E 7.9
+            - cell [ref=e932]:
+              - generic [ref=e933]:
+                - button "Details" [ref=e934]
+                - link "Evidence" [ref=e935]:
+                  - /url: /winner-probability/predictions/167
+                - link "TradingView" [ref=e936]:
+                  - /url: https://www.tradingview.com/chart/?symbol=AME
+          - row [ref=e937] [cursor=pointer]:
+            - cell "16" [ref=e938]
+            - cell [ref=e939]:
+              - strong [ref=e940]: ASO
+            - cell "Retail trade" [ref=e941]
+            - cell "7.34" [ref=e942]
+            - cell "Candidate" [ref=e943]
+            - cell "Clean" [ref=e945]
+            - cell "57" [ref=e947]
+            - cell "7.63 High-quality quant" [ref=e948]:
+              - text: "7.63"
+              - generic [ref=e949]: High-quality quant
+            - cell "V4 ACTIVE 6.98 Trend repair Feeds Final / Decision V5 SHADOW 6.53 Δ -0.45 Volatility contraction setup S 6.1 / Q 7.2 / E 6.3" [ref=e950]:
+              - generic [ref=e951]:
+                - generic [ref=e952]:
+                  - generic [ref=e953]: V4 ACTIVE
+                  - strong [ref=e954]: "6.98"
+                  - generic [ref=e955]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e956]: Feeds Final / Decision
+                - generic [ref=e957]:
+                  - generic [ref=e958]: V5 SHADOW
+                  - generic [ref=e959]:
+                    - text: "6.53"
+                    - generic [ref=e960]: Δ -0.45
+                  - generic [ref=e961]: Volatility contraction setup
+                  - generic [ref=e962]: S 6.1 / Q 7.2 / E 6.3
+            - cell [ref=e963]:
+              - generic [ref=e964]:
+                - button "Details" [ref=e965]
+                - link "Evidence" [ref=e966]:
+                  - /url: /winner-probability/predictions/151
+                - link "TradingView" [ref=e967]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ASO
+          - row [ref=e968] [cursor=pointer]:
+            - cell "17" [ref=e969]
+            - cell [ref=e970]:
+              - strong [ref=e971]: GAP
+            - cell "Retail trade" [ref=e972]
+            - cell "7.17" [ref=e973]
+            - cell "Candidate" [ref=e974]
+            - cell "Clean" [ref=e976]
+            - cell "43" [ref=e978]
+            - cell "7.93 High-quality quant" [ref=e979]:
+              - text: "7.93"
+              - generic [ref=e980]: High-quality quant
+            - cell "V4 ACTIVE 6.23 Trend repair Feeds Final / Decision V5 SHADOW 5.47 Δ -0.77 Clean bull pullback S 5.5 / Q 4.7 / E 6.8" [ref=e981]:
+              - generic [ref=e982]:
+                - generic [ref=e983]:
+                  - generic [ref=e984]: V4 ACTIVE
+                  - strong [ref=e985]: "6.23"
+                  - generic [ref=e986]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e987]: Feeds Final / Decision
+                - generic [ref=e988]:
+                  - generic [ref=e989]: V5 SHADOW
+                  - generic [ref=e990]:
+                    - text: "5.47"
+                    - generic [ref=e991]: Δ -0.77
+                  - generic [ref=e992]: Clean bull pullback
+                  - generic [ref=e993]: S 5.5 / Q 4.7 / E 6.8
+            - cell [ref=e994]:
+              - generic [ref=e995]:
+                - button "Details" [ref=e996]
+                - link "Evidence" [ref=e997]:
+                  - /url: /winner-probability/predictions/150
+                - link "TradingView" [ref=e998]:
+                  - /url: https://www.tradingview.com/chart/?symbol=GAP
+          - row [ref=e999] [cursor=pointer]:
+            - cell "18" [ref=e1000]
+            - cell [ref=e1001]:
+              - strong [ref=e1002]: MPWR
+            - cell "Electronic technology" [ref=e1003]
+            - cell "7.14" [ref=e1004]
+            - cell "Candidate" [ref=e1005]
+            - cell "Clean" [ref=e1007]
+            - cell "28" [ref=e1009]
+            - cell "7.36 High-quality quant" [ref=e1010]:
+              - text: "7.36"
+              - generic [ref=e1011]: High-quality quant
+            - cell "V4 ACTIVE 6.88 Trend repair Feeds Final / Decision V5 SHADOW 6.81 Δ -0.06 Clean bull pullback S 6.3 / Q 6.7 / E 8.2" [ref=e1012]:
+              - generic [ref=e1013]:
+                - generic [ref=e1014]:
+                  - generic [ref=e1015]: V4 ACTIVE
+                  - strong [ref=e1016]: "6.88"
+                  - generic [ref=e1017]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1018]: Feeds Final / Decision
+                - generic [ref=e1019]:
+                  - generic [ref=e1020]: V5 SHADOW
+                  - generic [ref=e1021]:
+                    - text: "6.81"
+                    - generic [ref=e1022]: Δ -0.06
+                  - generic [ref=e1023]: Clean bull pullback
+                  - generic [ref=e1024]: S 6.3 / Q 6.7 / E 8.2
+            - cell [ref=e1025]:
+              - generic [ref=e1026]:
+                - button "Details" [ref=e1027]
+                - link "Evidence" [ref=e1028]:
+                  - /url: /winner-probability/predictions/160
+                - link "TradingView" [ref=e1029]:
+                  - /url: https://www.tradingview.com/chart/?symbol=MPWR
+          - row [ref=e1030] [cursor=pointer]:
+            - cell "19" [ref=e1031]
+            - cell [ref=e1032]:
+              - strong [ref=e1033]: BHE
+            - cell "Electronic technology" [ref=e1034]
+            - cell "7.12" [ref=e1035]
+            - cell "Candidate" [ref=e1036]
+            - cell "Clean" [ref=e1038]
+            - cell "21" [ref=e1040]
+            - cell "6.87 High-quality quant" [ref=e1041]:
+              - text: "6.87"
+              - generic [ref=e1042]: High-quality quant
+            - cell "V4 ACTIVE 7.42 No trade Feeds Final / Decision V5 SHADOW 7.34 Δ -0.08 Volatility contraction setup S 6.7 / Q 8.1 / E 7.5" [ref=e1043]:
+              - generic [ref=e1044]:
+                - generic [ref=e1045]:
+                  - generic [ref=e1046]: V4 ACTIVE
+                  - strong [ref=e1047]: "7.42"
+                  - generic [ref=e1048]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1049]: Feeds Final / Decision
+                - generic [ref=e1050]:
+                  - generic [ref=e1051]: V5 SHADOW
+                  - generic [ref=e1052]:
+                    - text: "7.34"
+                    - generic [ref=e1053]: Δ -0.08
+                  - generic [ref=e1054]: Volatility contraction setup
+                  - generic [ref=e1055]: S 6.7 / Q 8.1 / E 7.5
+            - cell [ref=e1056]:
+              - generic [ref=e1057]:
+                - button "Details" [ref=e1058]
+                - link "Evidence" [ref=e1059]:
+                  - /url: /winner-probability/predictions/168
+                - link "TradingView" [ref=e1060]:
+                  - /url: https://www.tradingview.com/chart/?symbol=BHE
+          - row [ref=e1061] [cursor=pointer]:
+            - cell "20" [ref=e1062]
+            - cell [ref=e1063]:
+              - strong [ref=e1064]: PGNY
+            - cell "Commercial services" [ref=e1065]
+            - cell "7.10" [ref=e1066]
+            - cell "Candidate" [ref=e1067]
+            - cell "Clean" [ref=e1069]
+            - cell "22" [ref=e1071]
+            - cell "8.09 High-quality quant" [ref=e1072]:
+              - text: "8.09"
+              - generic [ref=e1073]: High-quality quant
+            - cell "V4 ACTIVE 5.90 No trade Feeds Final / Decision V5 SHADOW 5.65 Δ -0.25 Clean bull pullback S 4.8 / Q 6.7 / E 5.7" [ref=e1074]:
+              - generic [ref=e1075]:
+                - generic [ref=e1076]:
+                  - generic [ref=e1077]: V4 ACTIVE
+                  - strong [ref=e1078]: "5.90"
+                  - generic [ref=e1079]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1080]: Feeds Final / Decision
+                - generic [ref=e1081]:
+                  - generic [ref=e1082]: V5 SHADOW
+                  - generic [ref=e1083]:
+                    - text: "5.65"
+                    - generic [ref=e1084]: Δ -0.25
+                  - generic [ref=e1085]: Clean bull pullback
+                  - generic [ref=e1086]: S 4.8 / Q 6.7 / E 5.7
+            - cell [ref=e1087]:
+              - generic [ref=e1088]:
+                - button "Details" [ref=e1089]
+                - link "Evidence" [ref=e1090]:
+                  - /url: /winner-probability/predictions/147
+                - link "TradingView" [ref=e1091]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PGNY
+          - row [ref=e1092] [cursor=pointer]:
+            - cell "21" [ref=e1093]
+            - cell [ref=e1094]:
+              - strong [ref=e1095]: ECG
+            - cell "Industrial services" [ref=e1096]
+            - cell "6.83" [ref=e1097]
+            - cell "Candidate" [ref=e1098]
+            - cell "Clean" [ref=e1100]
+            - cell "35" [ref=e1102]
+            - cell "8.22 High-quality quant" [ref=e1103]:
+              - text: "8.22"
+              - generic [ref=e1104]: High-quality quant
+            - cell "V4 ACTIVE 5.13 No trade Feeds Final / Decision V5 SHADOW 5.34 Δ +0.21 Clean bull pullback S 3.7 / Q 6.1 / E 7.8" [ref=e1105]:
+              - generic [ref=e1106]:
+                - generic [ref=e1107]:
+                  - generic [ref=e1108]: V4 ACTIVE
+                  - strong [ref=e1109]: "5.13"
+                  - generic [ref=e1110]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1111]: Feeds Final / Decision
+                - generic [ref=e1112]:
+                  - generic [ref=e1113]: V5 SHADOW
+                  - generic [ref=e1114]:
+                    - text: "5.34"
+                    - generic [ref=e1115]: Δ +0.21
+                  - generic [ref=e1116]: Clean bull pullback
+                  - generic [ref=e1117]: S 3.7 / Q 6.1 / E 7.8
+            - cell [ref=e1118]:
+              - generic [ref=e1119]:
+                - button "Details" [ref=e1120]
+                - link "Evidence" [ref=e1121]:
+                  - /url: /winner-probability/predictions/173
+                - link "TradingView" [ref=e1122]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ECG
+          - row [ref=e1123] [cursor=pointer]:
+            - cell "22" [ref=e1124]
+            - cell [ref=e1125]:
+              - strong [ref=e1126]: FLYW
+            - cell "Commercial services" [ref=e1127]
+            - cell "6.75" [ref=e1128]
+            - cell "Watchlist" [ref=e1129]
+            - cell "Clean" [ref=e1131]
+            - cell "34" [ref=e1133]
+            - cell "7.59 High-quality quant" [ref=e1134]:
+              - text: "7.59"
+              - generic [ref=e1135]: High-quality quant
+            - cell "V4 ACTIVE 5.72 No trade Feeds Final / Decision V5 SHADOW 5.94 Δ +0.22 Clean bull pullback S 4.9 / Q 6.2 / E 7.8" [ref=e1136]:
+              - generic [ref=e1137]:
+                - generic [ref=e1138]:
+                  - generic [ref=e1139]: V4 ACTIVE
+                  - strong [ref=e1140]: "5.72"
+                  - generic [ref=e1141]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1142]: Feeds Final / Decision
+                - generic [ref=e1143]:
+                  - generic [ref=e1144]: V5 SHADOW
+                  - generic [ref=e1145]:
+                    - text: "5.94"
+                    - generic [ref=e1146]: Δ +0.22
+                  - generic [ref=e1147]: Clean bull pullback
+                  - generic [ref=e1148]: S 4.9 / Q 6.2 / E 7.8
+            - cell [ref=e1149]:
+              - generic [ref=e1150]:
+                - button "Details" [ref=e1151]
+                - link "Evidence" [ref=e1152]:
+                  - /url: /winner-probability/predictions/159
+                - link "TradingView" [ref=e1153]:
+                  - /url: https://www.tradingview.com/chart/?symbol=FLYW
+          - row [ref=e1154] [cursor=pointer]:
+            - cell "23" [ref=e1155]
+            - cell [ref=e1156]:
+              - strong [ref=e1157]: KN
+            - cell "Electronic technology" [ref=e1158]
+            - cell "6.75" [ref=e1159]
+            - cell "Watchlist" [ref=e1160]
+            - cell "Clean" [ref=e1162]
+            - cell "15" [ref=e1164]
+            - cell "6.61 Mixed but interesting" [ref=e1165]:
+              - text: "6.61"
+              - generic [ref=e1166]: Mixed but interesting
+            - cell "V4 ACTIVE 6.91 No trade Feeds Final / Decision V5 SHADOW 6.77 Δ -0.14 Clean bull pullback S 6.8 / Q 5.8 / E 8.5" [ref=e1167]:
+              - generic [ref=e1168]:
+                - generic [ref=e1169]:
+                  - generic [ref=e1170]: V4 ACTIVE
+                  - strong [ref=e1171]: "6.91"
+                  - generic [ref=e1172]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1173]: Feeds Final / Decision
+                - generic [ref=e1174]:
+                  - generic [ref=e1175]: V5 SHADOW
+                  - generic [ref=e1176]:
+                    - text: "6.77"
+                    - generic [ref=e1177]: Δ -0.14
+                  - generic [ref=e1178]: Clean bull pullback
+                  - generic [ref=e1179]: S 6.8 / Q 5.8 / E 8.5
+            - cell [ref=e1180]:
+              - generic [ref=e1181]:
+                - button "Details" [ref=e1182]
+                - link "Evidence" [ref=e1183]:
+                  - /url: /winner-probability/predictions/169
+                - link "TradingView" [ref=e1184]:
+                  - /url: https://www.tradingview.com/chart/?symbol=KN
+          - row [ref=e1185] [cursor=pointer]:
+            - cell "24" [ref=e1186]
+            - cell [ref=e1187]:
+              - strong [ref=e1188]: "ON"
+            - cell "Electronic technology" [ref=e1189]
+            - cell "6.67" [ref=e1190]
+            - cell "Watchlist" [ref=e1191]
+            - cell "Clean" [ref=e1193]
+            - cell "26" [ref=e1195]
+            - cell "7.06 High-quality quant" [ref=e1196]:
+              - text: "7.06"
+              - generic [ref=e1197]: High-quality quant
+            - cell "V4 ACTIVE 6.19 Trend repair Feeds Final / Decision V5 SHADOW 5.85 Δ -0.33 Clean bull pullback S 5.0 / Q 5.7 / E 8.1" [ref=e1198]:
+              - generic [ref=e1199]:
+                - generic [ref=e1200]:
+                  - generic [ref=e1201]: V4 ACTIVE
+                  - strong [ref=e1202]: "6.19"
+                  - generic [ref=e1203]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1204]: Feeds Final / Decision
+                - generic [ref=e1205]:
+                  - generic [ref=e1206]: V5 SHADOW
+                  - generic [ref=e1207]:
+                    - text: "5.85"
+                    - generic [ref=e1208]: Δ -0.33
+                  - generic [ref=e1209]: Clean bull pullback
+                  - generic [ref=e1210]: S 5.0 / Q 5.7 / E 8.1
+            - cell [ref=e1211]:
+              - generic [ref=e1212]:
+                - button "Details" [ref=e1213]
+                - link "Evidence" [ref=e1214]:
+                  - /url: /winner-probability/predictions/170
+                - link "TradingView" [ref=e1215]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ON
+          - row [ref=e1216] [cursor=pointer]:
+            - cell "25" [ref=e1217]
+            - cell [ref=e1218]:
+              - strong [ref=e1219]: LSCC
+            - cell "Electronic technology" [ref=e1220]
+            - cell "6.64" [ref=e1221]
+            - cell "Watchlist" [ref=e1222]
+            - cell "Clean" [ref=e1224]
+            - cell "26" [ref=e1226]
+            - cell "6.68 Mixed but interesting" [ref=e1227]:
+              - text: "6.68"
+              - generic [ref=e1228]: Mixed but interesting
+            - cell "V4 ACTIVE 6.59 Trend repair Feeds Final / Decision V5 SHADOW 6.41 Δ -0.18 Clean bull pullback S 5.6 / Q 6.4 / E 8.2" [ref=e1229]:
+              - generic [ref=e1230]:
+                - generic [ref=e1231]:
+                  - generic [ref=e1232]: V4 ACTIVE
+                  - strong [ref=e1233]: "6.59"
+                  - generic [ref=e1234]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1235]: Feeds Final / Decision
+                - generic [ref=e1236]:
+                  - generic [ref=e1237]: V5 SHADOW
+                  - generic [ref=e1238]:
+                    - text: "6.41"
+                    - generic [ref=e1239]: Δ -0.18
+                  - generic [ref=e1240]: Clean bull pullback
+                  - generic [ref=e1241]: S 5.6 / Q 6.4 / E 8.2
+            - cell [ref=e1242]:
+              - generic [ref=e1243]:
+                - button "Details" [ref=e1244]
+                - link "Evidence" [ref=e1245]:
+                  - /url: /winner-probability/predictions/158
+                - link "TradingView" [ref=e1246]:
+                  - /url: https://www.tradingview.com/chart/?symbol=LSCC
+          - row [ref=e1247] [cursor=pointer]:
+            - cell "26" [ref=e1248]
+            - cell [ref=e1249]:
+              - strong [ref=e1250]: EME
+            - cell "Industrial services" [ref=e1251]
+            - cell "6.64" [ref=e1252]
+            - cell "Watchlist" [ref=e1253]
+            - cell "Clean" [ref=e1255]
+            - cell "15" [ref=e1257]
+            - cell "7.88 High-quality quant" [ref=e1258]:
+              - text: "7.88"
+              - generic [ref=e1259]: High-quality quant
+            - cell "V4 ACTIVE 5.11 No trade Feeds Final / Decision V5 SHADOW 5.27 Δ +0.16 Clean bull pullback S 3.9 / Q 5.5 / E 8.1" [ref=e1260]:
+              - generic [ref=e1261]:
+                - generic [ref=e1262]:
+                  - generic [ref=e1263]: V4 ACTIVE
+                  - strong [ref=e1264]: "5.11"
+                  - generic [ref=e1265]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1266]: Feeds Final / Decision
+                - generic [ref=e1267]:
+                  - generic [ref=e1268]: V5 SHADOW
+                  - generic [ref=e1269]:
+                    - text: "5.27"
+                    - generic [ref=e1270]: Δ +0.16
+                  - generic [ref=e1271]: Clean bull pullback
+                  - generic [ref=e1272]: S 3.9 / Q 5.5 / E 8.1
+            - cell [ref=e1273]:
+              - generic [ref=e1274]:
+                - button "Details" [ref=e1275]
+                - link "Evidence" [ref=e1276]:
+                  - /url: /winner-probability/predictions/166
+                - link "TradingView" [ref=e1277]:
+                  - /url: https://www.tradingview.com/chart/?symbol=EME
+          - row [ref=e1278] [cursor=pointer]:
+            - cell "27" [ref=e1279]
+            - cell [ref=e1280]:
+              - strong [ref=e1281]: KEX
+            - cell "Transportation" [ref=e1282]
+            - cell "6.43" [ref=e1283]
+            - cell "Watchlist" [ref=e1284]
+            - cell "Clean" [ref=e1286]
+            - cell "21" [ref=e1288]
+            - cell "7.55 High-quality quant" [ref=e1289]:
+              - text: "7.55"
+              - generic [ref=e1290]: High-quality quant
+            - cell "V4 ACTIVE 5.07 No trade Feeds Final / Decision V5 SHADOW 5.74 Δ +0.67 Clean bull pullback S 3.7 / Q 6.6 / E 8.7" [ref=e1291]:
+              - generic [ref=e1292]:
+                - generic [ref=e1293]:
+                  - generic [ref=e1294]: V4 ACTIVE
+                  - strong [ref=e1295]: "5.07"
+                  - generic [ref=e1296]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1297]: Feeds Final / Decision
+                - generic [ref=e1298]:
+                  - generic [ref=e1299]: V5 SHADOW
+                  - generic [ref=e1300]:
+                    - text: "5.74"
+                    - generic [ref=e1301]: Δ +0.67
+                  - generic [ref=e1302]: Clean bull pullback
+                  - generic [ref=e1303]: S 3.7 / Q 6.6 / E 8.7
+            - cell [ref=e1304]:
+              - generic [ref=e1305]:
+                - button "Details" [ref=e1306]
+                - link "Evidence" [ref=e1307]:
+                  - /url: /winner-probability/predictions/161
+                - link "TradingView" [ref=e1308]:
+                  - /url: https://www.tradingview.com/chart/?symbol=KEX
+          - row [ref=e1309] [cursor=pointer]:
+            - cell "28" [ref=e1310]
+            - cell [ref=e1311]:
+              - strong [ref=e1312]: GNRC
+            - cell "Producer manufacturing" [ref=e1313]
+            - cell "6.12" [ref=e1314]
+            - cell "Watchlist" [ref=e1315]
+            - cell "Clean" [ref=e1317]
+            - cell "28" [ref=e1319]
+            - cell "6.14 Mixed but interesting" [ref=e1320]:
+              - text: "6.14"
+              - generic [ref=e1321]: Mixed but interesting
+            - cell "V4 ACTIVE 6.08 Trend repair Feeds Final / Decision V5 SHADOW 6.21 Δ +0.12 Volatility contraction setup S 5.5 / Q 6.8 / E 6.8" [ref=e1322]:
+              - generic [ref=e1323]:
+                - generic [ref=e1324]:
+                  - generic [ref=e1325]: V4 ACTIVE
+                  - strong [ref=e1326]: "6.08"
+                  - generic [ref=e1327]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1328]: Feeds Final / Decision
+                - generic [ref=e1329]:
+                  - generic [ref=e1330]: V5 SHADOW
+                  - generic [ref=e1331]:
+                    - text: "6.21"
+                    - generic [ref=e1332]: Δ +0.12
+                  - generic [ref=e1333]: Volatility contraction setup
+                  - generic [ref=e1334]: S 5.5 / Q 6.8 / E 6.8
+            - cell [ref=e1335]:
+              - generic [ref=e1336]:
+                - button "Details" [ref=e1337]
+                - link "Evidence" [ref=e1338]:
+                  - /url: /winner-probability/predictions/162
+                - link "TradingView" [ref=e1339]:
+                  - /url: https://www.tradingview.com/chart/?symbol=GNRC
+          - row [ref=e1340] [cursor=pointer]:
+            - cell "29" [ref=e1341]
+            - cell [ref=e1342]:
+              - strong [ref=e1343]: ZBRA
+            - cell "Electronic technology" [ref=e1344]
+            - cell "8.25" [ref=e1345]
+            - cell "Incomplete data" [ref=e1346]
+            - cell "Incomplete No fundamentals" [ref=e1348]:
+              - generic [ref=e1349]:
+                - generic [ref=e1350]: Incomplete
+                - generic [ref=e1351]: No fundamentals
+            - cell "27" [ref=e1352]
+            - cell [ref=e1353]
+            - cell "V4 ACTIVE 9.25 Momentum continuation Feeds Final / Decision V5 SHADOW 9.09 Δ -0.16 Volatility contraction setup S 9.1 / Q 9.4 / E 8.5" [ref=e1354]:
+              - generic [ref=e1355]:
+                - generic [ref=e1356]:
+                  - generic [ref=e1357]: V4 ACTIVE
+                  - strong [ref=e1358]: "9.25"
+                  - generic [ref=e1359]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1360]: Feeds Final / Decision
+                - generic [ref=e1361]:
+                  - generic [ref=e1362]: V5 SHADOW
+                  - generic [ref=e1363]:
+                    - text: "9.09"
+                    - generic [ref=e1364]: Δ -0.16
+                  - generic [ref=e1365]: Volatility contraction setup
+                  - generic [ref=e1366]: S 9.1 / Q 9.4 / E 8.5
+            - cell [ref=e1367]:
+              - generic [ref=e1368]:
+                - button "Details" [ref=e1369]
+                - link "TradingView" [ref=e1370]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ZBRA
+          - row [ref=e1371] [cursor=pointer]:
+            - cell "30" [ref=e1372]
+            - cell [ref=e1373]:
+              - strong [ref=e1374]: GCT
+            - cell "Distribution services" [ref=e1375]
+            - cell "8.08" [ref=e1376]
+            - cell "Incomplete data" [ref=e1377]
+            - cell "Incomplete No fundamentals" [ref=e1379]:
+              - generic [ref=e1380]:
+                - generic [ref=e1381]: Incomplete
+                - generic [ref=e1382]: No fundamentals
+            - cell "50" [ref=e1383]
+            - cell [ref=e1384]
+            - cell "V4 ACTIVE 9.08 Momentum continuation Feeds Final / Decision V5 SHADOW 8.78 Δ -0.30 Tight base breakout S 9.2 / Q 8.2 / E 8.8" [ref=e1385]:
+              - generic [ref=e1386]:
+                - generic [ref=e1387]:
+                  - generic [ref=e1388]: V4 ACTIVE
+                  - strong [ref=e1389]: "9.08"
+                  - generic [ref=e1390]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1391]: Feeds Final / Decision
+                - generic [ref=e1392]:
+                  - generic [ref=e1393]: V5 SHADOW
+                  - generic [ref=e1394]:
+                    - text: "8.78"
+                    - generic [ref=e1395]: Δ -0.30
+                  - generic [ref=e1396]: Tight base breakout
+                  - generic [ref=e1397]: S 9.2 / Q 8.2 / E 8.8
+            - cell [ref=e1398]:
+              - generic [ref=e1399]:
+                - button "Details" [ref=e1400]
+                - link "TradingView" [ref=e1401]:
+                  - /url: https://www.tradingview.com/chart/?symbol=GCT
+          - row [ref=e1402] [cursor=pointer]:
+            - cell "31" [ref=e1403]
+            - cell [ref=e1404]:
+              - strong [ref=e1405]: ABBV
+            - cell "Health technology" [ref=e1406]
+            - cell "7.71" [ref=e1407]
+            - cell "Incomplete data" [ref=e1408]
+            - cell "Incomplete No fundamentals" [ref=e1410]:
+              - generic [ref=e1411]:
+                - generic [ref=e1412]: Incomplete
+                - generic [ref=e1413]: No fundamentals
+            - cell "23" [ref=e1414]
+            - cell [ref=e1415]
+            - cell "V4 ACTIVE 8.71 Momentum continuation Feeds Final / Decision V5 SHADOW 8.26 Δ -0.45 Clean bull pullback S 8.5 / Q 7.8 / E 8.5" [ref=e1416]:
+              - generic [ref=e1417]:
+                - generic [ref=e1418]:
+                  - generic [ref=e1419]: V4 ACTIVE
+                  - strong [ref=e1420]: "8.71"
+                  - generic [ref=e1421]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1422]: Feeds Final / Decision
+                - generic [ref=e1423]:
+                  - generic [ref=e1424]: V5 SHADOW
+                  - generic [ref=e1425]:
+                    - text: "8.26"
+                    - generic [ref=e1426]: Δ -0.45
+                  - generic [ref=e1427]: Clean bull pullback
+                  - generic [ref=e1428]: S 8.5 / Q 7.8 / E 8.5
+            - cell [ref=e1429]:
+              - generic [ref=e1430]:
+                - button "Details" [ref=e1431]
+                - link "TradingView" [ref=e1432]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ABBV
+          - row [ref=e1433] [cursor=pointer]:
+            - cell "32" [ref=e1434]
+            - cell [ref=e1435]:
+              - strong [ref=e1436]: ANF
+            - cell "Retail trade" [ref=e1437]
+            - cell "7.64" [ref=e1438]
+            - cell "Incomplete data" [ref=e1439]
+            - cell "Incomplete No technicals Stage Gate Blocked" [ref=e1441]:
+              - generic [ref=e1442]:
+                - generic [ref=e1443]: Incomplete
+                - generic [ref=e1444]: No technicals
+                - generic [ref=e1445]: Stage Gate Blocked
+            - cell "48" [ref=e1446]
+            - cell "8.64 Clean compounder" [ref=e1447]:
+              - text: "8.64"
+              - generic [ref=e1448]: Clean compounder
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 6.86 · No trade; retained but not used." [ref=e1449]:
+              - generic [ref=e1450]:
+                - generic [ref=e1451]: No technical decision input
+                - generic [ref=e1452]: Does not feed Final / Decision
+                - generic [ref=e1453]: Observed V4 6.86 · No trade; retained but not used.
+            - cell [ref=e1454]:
+              - generic [ref=e1455]:
+                - button "Details" [ref=e1456]
+                - link "TradingView" [ref=e1457]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ANF
+          - row [ref=e1458] [cursor=pointer]:
+            - cell "33" [ref=e1459]
+            - cell [ref=e1460]:
+              - strong [ref=e1461]: FIX
+            - cell "Industrial services" [ref=e1462]
+            - cell "7.55" [ref=e1463]
+            - cell "Incomplete data" [ref=e1464]
+            - cell "Incomplete No technicals Box Failure +1" [ref=e1466]:
+              - generic [ref=e1467]:
+                - generic [ref=e1468]: Incomplete
+                - generic [ref=e1469]: No technicals
+                - generic [ref=e1470]: Box Failure
+                - generic [ref=e1471]: "+1"
+            - cell "15" [ref=e1472]
+            - cell "8.55 Clean compounder" [ref=e1473]:
+              - text: "8.55"
+              - generic [ref=e1474]: Clean compounder
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 5.72 · No trade; retained but not used." [ref=e1475]:
+              - generic [ref=e1476]:
+                - generic [ref=e1477]: No technical decision input
+                - generic [ref=e1478]: Does not feed Final / Decision
+                - generic [ref=e1479]: Observed V4 5.72 · No trade; retained but not used.
+            - cell [ref=e1480]:
+              - generic [ref=e1481]:
+                - button "Details" [ref=e1482]
+                - link "TradingView" [ref=e1483]:
+                  - /url: https://www.tradingview.com/chart/?symbol=FIX
+          - row [ref=e1484] [cursor=pointer]:
+            - cell "34" [ref=e1485]
+            - cell [ref=e1486]:
+              - strong [ref=e1487]: ZETA
+            - cell "Technology services" [ref=e1488]
+            - cell "7.52" [ref=e1489]
+            - cell "Incomplete data" [ref=e1490]
+            - cell "Incomplete No fundamentals" [ref=e1492]:
+              - generic [ref=e1493]:
+                - generic [ref=e1494]: Incomplete
+                - generic [ref=e1495]: No fundamentals
+            - cell "34" [ref=e1496]
+            - cell [ref=e1497]
+            - cell "V4 ACTIVE 8.52 Momentum continuation Feeds Final / Decision V5 SHADOW 7.44 Δ -1.08 Clean bull pullback S 9.1 / Q 5.7 / E 6.6" [ref=e1498]:
+              - generic [ref=e1499]:
+                - generic [ref=e1500]:
+                  - generic [ref=e1501]: V4 ACTIVE
+                  - strong [ref=e1502]: "8.52"
+                  - generic [ref=e1503]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1504]: Feeds Final / Decision
+                - generic [ref=e1505]:
+                  - generic [ref=e1506]: V5 SHADOW
+                  - generic [ref=e1507]:
+                    - text: "7.44"
+                    - generic [ref=e1508]: Δ -1.08
+                  - generic [ref=e1509]: Clean bull pullback
+                  - generic [ref=e1510]: S 9.1 / Q 5.7 / E 6.6
+            - cell [ref=e1511]:
+              - generic [ref=e1512]:
+                - button "Details" [ref=e1513]
+                - link "TradingView" [ref=e1514]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ZETA
+          - row [ref=e1515] [cursor=pointer]:
+            - cell "35" [ref=e1516]
+            - cell [ref=e1517]:
+              - strong [ref=e1518]: TEL
+            - cell "Electronic technology" [ref=e1519]
+            - cell "7.50" [ref=e1520]
+            - cell "Incomplete data" [ref=e1521]
+            - cell "Incomplete No technicals Distribution Risk" [ref=e1523]:
+              - generic [ref=e1524]:
+                - generic [ref=e1525]: Incomplete
+                - generic [ref=e1526]: No technicals
+                - generic [ref=e1527]: Distribution Risk
+            - cell "28" [ref=e1528]
+            - cell "8.50 Clean compounder" [ref=e1529]:
+              - text: "8.50"
+              - generic [ref=e1530]: Clean compounder
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 6.18 · Distribution risk; retained but not used." [ref=e1531]:
+              - generic [ref=e1532]:
+                - generic [ref=e1533]: No technical decision input
+                - generic [ref=e1534]: Does not feed Final / Decision
+                - generic [ref=e1535]: Observed V4 6.18 · Distribution risk; retained but not used.
+            - cell [ref=e1536]:
+              - generic [ref=e1537]:
+                - button "Details" [ref=e1538]
+                - link "TradingView" [ref=e1539]:
+                  - /url: https://www.tradingview.com/chart/?symbol=TEL
+          - row [ref=e1540] [cursor=pointer]:
+            - cell "36" [ref=e1541]
+            - cell [ref=e1542]:
+              - strong [ref=e1543]: NSIT
+            - cell "Technology services" [ref=e1544]
+            - cell "7.47" [ref=e1545]
+            - cell "Incomplete data" [ref=e1546]
+            - cell "Incomplete No fundamentals" [ref=e1548]:
+              - generic [ref=e1549]:
+                - generic [ref=e1550]: Incomplete
+                - generic [ref=e1551]: No fundamentals
+            - cell "22" [ref=e1552]
+            - cell [ref=e1553]
+            - cell "V4 ACTIVE 8.47 Filtered pullback Feeds Final / Decision V5 SHADOW 8.33 Δ -0.14 Volatility contraction setup S 8.0 / Q 9.0 / E 8.0" [ref=e1554]:
+              - generic [ref=e1555]:
+                - generic [ref=e1556]:
+                  - generic [ref=e1557]: V4 ACTIVE
+                  - strong [ref=e1558]: "8.47"
+                  - generic [ref=e1559]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1560]: Feeds Final / Decision
+                - generic [ref=e1561]:
+                  - generic [ref=e1562]: V5 SHADOW
+                  - generic [ref=e1563]:
+                    - text: "8.33"
+                    - generic [ref=e1564]: Δ -0.14
+                  - generic [ref=e1565]: Volatility contraction setup
+                  - generic [ref=e1566]: S 8.0 / Q 9.0 / E 8.0
+            - cell [ref=e1567]:
+              - generic [ref=e1568]:
+                - button "Details" [ref=e1569]
+                - link "TradingView" [ref=e1570]:
+                  - /url: https://www.tradingview.com/chart/?symbol=NSIT
+          - row [ref=e1571] [cursor=pointer]:
+            - cell "37" [ref=e1572]
+            - cell [ref=e1573]:
+              - strong [ref=e1574]: AVGO
+            - cell "Electronic technology" [ref=e1575]
+            - cell "7.47" [ref=e1576]
+            - cell "Incomplete data" [ref=e1577]
+            - cell "Incomplete No technicals Distribution Risk +1" [ref=e1579]:
+              - generic [ref=e1580]:
+                - generic [ref=e1581]: Incomplete
+                - generic [ref=e1582]: No technicals
+                - generic [ref=e1583]: Distribution Risk
+                - generic [ref=e1584]: "+1"
+            - cell "64" [ref=e1585]
+            - cell "8.47 Clean compounder" [ref=e1586]:
+              - text: "8.47"
+              - generic [ref=e1587]: Clean compounder
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 5.41 · Distribution risk; retained but not used." [ref=e1588]:
+              - generic [ref=e1589]:
+                - generic [ref=e1590]: No technical decision input
+                - generic [ref=e1591]: Does not feed Final / Decision
+                - generic [ref=e1592]: Observed V4 5.41 · Distribution risk; retained but not used.
+            - cell [ref=e1593]:
+              - generic [ref=e1594]:
+                - button "Details" [ref=e1595]
+                - link "TradingView" [ref=e1596]:
+                  - /url: https://www.tradingview.com/chart/?symbol=AVGO
+          - row [ref=e1597] [cursor=pointer]:
+            - cell "38" [ref=e1598]
+            - cell [ref=e1599]:
+              - strong [ref=e1600]: ANET
+            - cell "Electronic technology" [ref=e1601]
+            - cell "7.46" [ref=e1602]
+            - cell "Incomplete data" [ref=e1603]
+            - cell "Incomplete No fundamentals" [ref=e1605]:
+              - generic [ref=e1606]:
+                - generic [ref=e1607]: Incomplete
+                - generic [ref=e1608]: No fundamentals
+            - cell "27" [ref=e1609]
+            - cell [ref=e1610]
+            - cell "V4 ACTIVE 8.46 Momentum continuation Feeds Final / Decision V5 SHADOW 8.45 Δ -0.01 Volatility contraction setup S 8.8 / Q 8.1 / E 8.3" [ref=e1611]:
+              - generic [ref=e1612]:
+                - generic [ref=e1613]:
+                  - generic [ref=e1614]: V4 ACTIVE
+                  - strong [ref=e1615]: "8.46"
+                  - generic [ref=e1616]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1617]: Feeds Final / Decision
+                - generic [ref=e1618]:
+                  - generic [ref=e1619]: V5 SHADOW
+                  - generic [ref=e1620]:
+                    - text: "8.45"
+                    - generic [ref=e1621]: Δ -0.01
+                  - generic [ref=e1622]: Volatility contraction setup
+                  - generic [ref=e1623]: S 8.8 / Q 8.1 / E 8.3
+            - cell [ref=e1624]:
+              - generic [ref=e1625]:
+                - button "Details" [ref=e1626]
+                - link "TradingView" [ref=e1627]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ANET
+          - row [ref=e1628] [cursor=pointer]:
+            - cell "39" [ref=e1629]
+            - cell [ref=e1630]:
+              - strong [ref=e1631]: TNK
+            - cell "Transportation" [ref=e1632]
+            - cell "7.46" [ref=e1633]
+            - cell "Incomplete data" [ref=e1634]
+            - cell "Incomplete No fundamentals" [ref=e1636]:
+              - generic [ref=e1637]:
+                - generic [ref=e1638]: Incomplete
+                - generic [ref=e1639]: No fundamentals
+            - cell "22" [ref=e1640]
+            - cell [ref=e1641]
+            - cell "V4 ACTIVE 8.46 Momentum continuation Feeds Final / Decision V5 SHADOW 8.54 Δ +0.08 Volatility contraction setup S 8.6 / Q 8.6 / E 8.2" [ref=e1642]:
+              - generic [ref=e1643]:
+                - generic [ref=e1644]:
+                  - generic [ref=e1645]: V4 ACTIVE
+                  - strong [ref=e1646]: "8.46"
+                  - generic [ref=e1647]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1648]: Feeds Final / Decision
+                - generic [ref=e1649]:
+                  - generic [ref=e1650]: V5 SHADOW
+                  - generic [ref=e1651]:
+                    - text: "8.54"
+                    - generic [ref=e1652]: Δ +0.08
+                  - generic [ref=e1653]: Volatility contraction setup
+                  - generic [ref=e1654]: S 8.6 / Q 8.6 / E 8.2
+            - cell [ref=e1655]:
+              - generic [ref=e1656]:
+                - button "Details" [ref=e1657]
+                - link "TradingView" [ref=e1658]:
+                  - /url: https://www.tradingview.com/chart/?symbol=TNK
+          - row [ref=e1659] [cursor=pointer]:
+            - cell "40" [ref=e1660]
+            - cell [ref=e1661]:
+              - strong [ref=e1662]: PANW
+            - cell "Technology services" [ref=e1663]
+            - cell "7.41" [ref=e1664]
+            - cell "Incomplete data" [ref=e1665]
+            - cell "Incomplete No fundamentals" [ref=e1667]:
+              - generic [ref=e1668]:
+                - generic [ref=e1669]: Incomplete
+                - generic [ref=e1670]: No fundamentals
+            - cell "36" [ref=e1671]
+            - cell [ref=e1672]
+            - cell "V4 ACTIVE 8.41 Extended momentum Feeds Final / Decision V5 SHADOW 8.02 Δ -0.40 Volatility contraction setup S 8.5 / Q 7.7 / E 7.6" [ref=e1673]:
+              - generic [ref=e1674]:
+                - generic [ref=e1675]:
+                  - generic [ref=e1676]: V4 ACTIVE
+                  - strong [ref=e1677]: "8.41"
+                  - generic [ref=e1678]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1679]: Feeds Final / Decision
+                - generic [ref=e1680]:
+                  - generic [ref=e1681]: V5 SHADOW
+                  - generic [ref=e1682]:
+                    - text: "8.02"
+                    - generic [ref=e1683]: Δ -0.40
+                  - generic [ref=e1684]: Volatility contraction setup
+                  - generic [ref=e1685]: S 8.5 / Q 7.7 / E 7.6
+            - cell [ref=e1686]:
+              - generic [ref=e1687]:
+                - button "Details" [ref=e1688]
+                - link "TradingView" [ref=e1689]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PANW
+          - row [ref=e1690] [cursor=pointer]:
+            - cell "41" [ref=e1691]
+            - cell [ref=e1692]:
+              - strong [ref=e1693]: MGNI
+            - cell "Technology services" [ref=e1694]
+            - cell "7.41" [ref=e1695]
+            - cell "Incomplete data" [ref=e1696]
+            - cell "Incomplete No fundamentals" [ref=e1698]:
+              - generic [ref=e1699]:
+                - generic [ref=e1700]: Incomplete
+                - generic [ref=e1701]: No fundamentals
+            - cell "28" [ref=e1702]
+            - cell [ref=e1703]
+            - cell "V4 ACTIVE 8.41 Momentum continuation Feeds Final / Decision V5 SHADOW 8.12 Δ -0.30 Volatility contraction setup S 8.1 / Q 8.2 / E 8.0" [ref=e1704]:
+              - generic [ref=e1705]:
+                - generic [ref=e1706]:
+                  - generic [ref=e1707]: V4 ACTIVE
+                  - strong [ref=e1708]: "8.41"
+                  - generic [ref=e1709]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1710]: Feeds Final / Decision
+                - generic [ref=e1711]:
+                  - generic [ref=e1712]: V5 SHADOW
+                  - generic [ref=e1713]:
+                    - text: "8.12"
+                    - generic [ref=e1714]: Δ -0.30
+                  - generic [ref=e1715]: Volatility contraction setup
+                  - generic [ref=e1716]: S 8.1 / Q 8.2 / E 8.0
+            - cell [ref=e1717]:
+              - generic [ref=e1718]:
+                - button "Details" [ref=e1719]
+                - link "TradingView" [ref=e1720]:
+                  - /url: https://www.tradingview.com/chart/?symbol=MGNI
+          - row [ref=e1721] [cursor=pointer]:
+            - cell "42" [ref=e1722]
+            - cell [ref=e1723]:
+              - strong [ref=e1724]: HPQ
+            - cell "Technology services" [ref=e1725]
+            - cell "7.28" [ref=e1726]
+            - cell "Incomplete data" [ref=e1727]
+            - cell "Incomplete No fundamentals" [ref=e1729]:
+              - generic [ref=e1730]:
+                - generic [ref=e1731]: Incomplete
+                - generic [ref=e1732]: No fundamentals
+            - cell "55" [ref=e1733]
+            - cell [ref=e1734]
+            - cell "V4 ACTIVE 8.28 Filtered pullback Feeds Final / Decision V5 SHADOW 7.93 Δ -0.36 Volatility contraction setup S 8.0 / Q 8.0 / E 7.7" [ref=e1735]:
+              - generic [ref=e1736]:
+                - generic [ref=e1737]:
+                  - generic [ref=e1738]: V4 ACTIVE
+                  - strong [ref=e1739]: "8.28"
+                  - generic [ref=e1740]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1741]: Feeds Final / Decision
+                - generic [ref=e1742]:
+                  - generic [ref=e1743]: V5 SHADOW
+                  - generic [ref=e1744]:
+                    - text: "7.93"
+                    - generic [ref=e1745]: Δ -0.36
+                  - generic [ref=e1746]: Volatility contraction setup
+                  - generic [ref=e1747]: S 8.0 / Q 8.0 / E 7.7
+            - cell [ref=e1748]:
+              - generic [ref=e1749]:
+                - button "Details" [ref=e1750]
+                - link "TradingView" [ref=e1751]:
+                  - /url: https://www.tradingview.com/chart/?symbol=HPQ
+          - row [ref=e1752] [cursor=pointer]:
+            - cell "43" [ref=e1753]
+            - cell [ref=e1754]:
+              - strong [ref=e1755]: APH
+            - cell "Electronic technology" [ref=e1756]
+            - cell "7.25" [ref=e1757]
+            - cell "Incomplete data" [ref=e1758]
+            - cell "Incomplete No fundamentals" [ref=e1760]:
+              - generic [ref=e1761]:
+                - generic [ref=e1762]: Incomplete
+                - generic [ref=e1763]: No fundamentals
+            - cell "21" [ref=e1764]
+            - cell [ref=e1765]
+            - cell "V4 ACTIVE 8.25 Clean bull pullback Feeds Final / Decision V5 SHADOW 8.11 Δ -0.14 Volatility contraction setup S 7.6 / Q 8.6 / E 8.4" [ref=e1766]:
+              - generic [ref=e1767]:
+                - generic [ref=e1768]:
+                  - generic [ref=e1769]: V4 ACTIVE
+                  - strong [ref=e1770]: "8.25"
+                  - generic [ref=e1771]: Clean bull pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1772]: Feeds Final / Decision
+                - generic [ref=e1773]:
+                  - generic [ref=e1774]: V5 SHADOW
+                  - generic [ref=e1775]:
+                    - text: "8.11"
+                    - generic [ref=e1776]: Δ -0.14
+                  - generic [ref=e1777]: Volatility contraction setup
+                  - generic [ref=e1778]: S 7.6 / Q 8.6 / E 8.4
+            - cell [ref=e1779]:
+              - generic [ref=e1780]:
+                - button "Details" [ref=e1781]
+                - link "TradingView" [ref=e1782]:
+                  - /url: https://www.tradingview.com/chart/?symbol=APH
+          - row [ref=e1783] [cursor=pointer]:
+            - cell "44" [ref=e1784]
+            - cell [ref=e1785]:
+              - strong [ref=e1786]: GTLB
+            - cell "Technology services" [ref=e1787]
+            - cell "7.19" [ref=e1788]
+            - cell "Incomplete data" [ref=e1789]
+            - cell "Incomplete No fundamentals" [ref=e1791]:
+              - generic [ref=e1792]:
+                - generic [ref=e1793]: Incomplete
+                - generic [ref=e1794]: No fundamentals
+            - cell "61" [ref=e1795]
+            - cell [ref=e1796]
+            - cell "V4 ACTIVE 8.19 Momentum continuation Feeds Final / Decision V5 SHADOW 7.08 Δ -1.11 Clean bull pullback S 8.3 / Q 5.8 / E 6.5" [ref=e1797]:
+              - generic [ref=e1798]:
+                - generic [ref=e1799]:
+                  - generic [ref=e1800]: V4 ACTIVE
+                  - strong [ref=e1801]: "8.19"
+                  - generic [ref=e1802]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1803]: Feeds Final / Decision
+                - generic [ref=e1804]:
+                  - generic [ref=e1805]: V5 SHADOW
+                  - generic [ref=e1806]:
+                    - text: "7.08"
+                    - generic [ref=e1807]: Δ -1.11
+                  - generic [ref=e1808]: Clean bull pullback
+                  - generic [ref=e1809]: S 8.3 / Q 5.8 / E 6.5
+            - cell [ref=e1810]:
+              - generic [ref=e1811]:
+                - button "Details" [ref=e1812]
+                - link "TradingView" [ref=e1813]:
+                  - /url: https://www.tradingview.com/chart/?symbol=GTLB
+          - row [ref=e1814] [cursor=pointer]:
+            - cell "45" [ref=e1815]
+            - cell [ref=e1816]:
+              - strong [ref=e1817]: CORT
+            - cell "Health technology" [ref=e1818]
+            - cell "7.17" [ref=e1819]
+            - cell "Incomplete data" [ref=e1820]
+            - cell "Incomplete No fundamentals" [ref=e1822]:
+              - generic [ref=e1823]:
+                - generic [ref=e1824]: Incomplete
+                - generic [ref=e1825]: No fundamentals
+            - cell "28" [ref=e1826]
+            - cell [ref=e1827]
+            - cell "V4 ACTIVE 8.17 Filtered pullback Feeds Final / Decision V5 SHADOW 8.07 Δ -0.10 Clean bull pullback S 8.1 / Q 7.6 / E 8.8" [ref=e1828]:
+              - generic [ref=e1829]:
+                - generic [ref=e1830]:
+                  - generic [ref=e1831]: V4 ACTIVE
+                  - strong [ref=e1832]: "8.17"
+                  - generic [ref=e1833]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1834]: Feeds Final / Decision
+                - generic [ref=e1835]:
+                  - generic [ref=e1836]: V5 SHADOW
+                  - generic [ref=e1837]:
+                    - text: "8.07"
+                    - generic [ref=e1838]: Δ -0.10
+                  - generic [ref=e1839]: Clean bull pullback
+                  - generic [ref=e1840]: S 8.1 / Q 7.6 / E 8.8
+            - cell [ref=e1841]:
+              - generic [ref=e1842]:
+                - button "Details" [ref=e1843]
+                - link "TradingView" [ref=e1844]:
+                  - /url: https://www.tradingview.com/chart/?symbol=CORT
+          - row [ref=e1845] [cursor=pointer]:
+            - cell "46" [ref=e1846]
+            - cell [ref=e1847]:
+              - strong [ref=e1848]: MSFT
+            - cell "Technology services" [ref=e1849]
+            - cell "7.17" [ref=e1850]
+            - cell "Incomplete data" [ref=e1851]
+            - cell "Incomplete No fundamentals" [ref=e1853]:
+              - generic [ref=e1854]:
+                - generic [ref=e1855]: Incomplete
+                - generic [ref=e1856]: No fundamentals
+            - cell "20" [ref=e1857]
+            - cell [ref=e1858]
+            - cell "V4 ACTIVE 8.17 Momentum continuation Feeds Final / Decision V5 SHADOW 8.30 Δ +0.13 Momentum continuation S 8.2 / Q 8.3 / E 8.4" [ref=e1859]:
+              - generic [ref=e1860]:
+                - generic [ref=e1861]:
+                  - generic [ref=e1862]: V4 ACTIVE
+                  - strong [ref=e1863]: "8.17"
+                  - generic [ref=e1864]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1865]: Feeds Final / Decision
+                - generic [ref=e1866]:
+                  - generic [ref=e1867]: V5 SHADOW
+                  - generic [ref=e1868]:
+                    - text: "8.30"
+                    - generic [ref=e1869]: Δ +0.13
+                  - generic [ref=e1870]: Momentum continuation
+                  - generic [ref=e1871]: S 8.2 / Q 8.3 / E 8.4
+            - cell [ref=e1872]:
+              - generic [ref=e1873]:
+                - button "Details" [ref=e1874]
+                - link "TradingView" [ref=e1875]:
+                  - /url: https://www.tradingview.com/chart/?symbol=MSFT
+          - row [ref=e1876] [cursor=pointer]:
+            - cell "47" [ref=e1877]
+            - cell [ref=e1878]:
+              - strong [ref=e1879]: RVTY
+            - cell "Health technology" [ref=e1880]
+            - cell "7.06" [ref=e1881]
+            - cell "Incomplete data" [ref=e1882]
+            - cell "Incomplete No fundamentals" [ref=e1884]:
+              - generic [ref=e1885]:
+                - generic [ref=e1886]: Incomplete
+                - generic [ref=e1887]: No fundamentals
+            - cell "27" [ref=e1888]
+            - cell [ref=e1889]
+            - cell "V4 ACTIVE 8.06 Momentum continuation Feeds Final / Decision V5 SHADOW 7.80 Δ -0.26 Clean bull pullback S 8.9 / Q 6.7 / E 7.4" [ref=e1890]:
+              - generic [ref=e1891]:
+                - generic [ref=e1892]:
+                  - generic [ref=e1893]: V4 ACTIVE
+                  - strong [ref=e1894]: "8.06"
+                  - generic [ref=e1895]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1896]: Feeds Final / Decision
+                - generic [ref=e1897]:
+                  - generic [ref=e1898]: V5 SHADOW
+                  - generic [ref=e1899]:
+                    - text: "7.80"
+                    - generic [ref=e1900]: Δ -0.26
+                  - generic [ref=e1901]: Clean bull pullback
+                  - generic [ref=e1902]: S 8.9 / Q 6.7 / E 7.4
+            - cell [ref=e1903]:
+              - generic [ref=e1904]:
+                - button "Details" [ref=e1905]
+                - link "TradingView" [ref=e1906]:
+                  - /url: https://www.tradingview.com/chart/?symbol=RVTY
+          - row [ref=e1907] [cursor=pointer]:
+            - cell "48" [ref=e1908]
+            - cell [ref=e1909]:
+              - strong [ref=e1910]: EXPD
+            - cell "Transportation" [ref=e1911]
+            - cell "7.00" [ref=e1912]
+            - cell "Incomplete data" [ref=e1913]
+            - cell "Incomplete No technicals Distribution Risk" [ref=e1915]:
+              - generic [ref=e1916]:
+                - generic [ref=e1917]: Incomplete
+                - generic [ref=e1918]: No technicals
+                - generic [ref=e1919]: Distribution Risk
+            - cell "27" [ref=e1920]
+            - cell "8.00 High-quality quant" [ref=e1921]:
+              - text: "8.00"
+              - generic [ref=e1922]: High-quality quant
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 6.84 · Distribution risk; retained but not used." [ref=e1923]:
+              - generic [ref=e1924]:
+                - generic [ref=e1925]: No technical decision input
+                - generic [ref=e1926]: Does not feed Final / Decision
+                - generic [ref=e1927]: Observed V4 6.84 · Distribution risk; retained but not used.
+            - cell [ref=e1928]:
+              - generic [ref=e1929]:
+                - button "Details" [ref=e1930]
+                - link "TradingView" [ref=e1931]:
+                  - /url: https://www.tradingview.com/chart/?symbol=EXPD
+          - row [ref=e1932] [cursor=pointer]:
+            - cell "49" [ref=e1933]
+            - cell [ref=e1934]:
+              - strong [ref=e1935]: DINO
+            - cell "Energy minerals" [ref=e1936]
+            - cell "6.99" [ref=e1937]
+            - cell "Incomplete data" [ref=e1938]
+            - cell "Incomplete No fundamentals" [ref=e1940]:
+              - generic [ref=e1941]:
+                - generic [ref=e1942]: Incomplete
+                - generic [ref=e1943]: No fundamentals
+            - cell "21" [ref=e1944]
+            - cell [ref=e1945]
+            - cell "V4 ACTIVE 7.99 Momentum continuation Feeds Final / Decision V5 SHADOW 8.04 Δ +0.05 Volatility contraction setup S 8.5 / Q 7.9 / E 7.3" [ref=e1946]:
+              - generic [ref=e1947]:
+                - generic [ref=e1948]:
+                  - generic [ref=e1949]: V4 ACTIVE
+                  - strong [ref=e1950]: "7.99"
+                  - generic [ref=e1951]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1952]: Feeds Final / Decision
+                - generic [ref=e1953]:
+                  - generic [ref=e1954]: V5 SHADOW
+                  - generic [ref=e1955]:
+                    - text: "8.04"
+                    - generic [ref=e1956]: Δ +0.05
+                  - generic [ref=e1957]: Volatility contraction setup
+                  - generic [ref=e1958]: S 8.5 / Q 7.9 / E 7.3
+            - cell [ref=e1959]:
+              - generic [ref=e1960]:
+                - button "Details" [ref=e1961]
+                - link "TradingView" [ref=e1962]:
+                  - /url: https://www.tradingview.com/chart/?symbol=DINO
+          - row [ref=e1963] [cursor=pointer]:
+            - cell "50" [ref=e1964]
+            - cell [ref=e1965]:
+              - strong [ref=e1966]: RNG
+            - cell "Technology services" [ref=e1967]
+            - cell "6.99" [ref=e1968]
+            - cell "Incomplete data" [ref=e1969]
+            - cell "Incomplete No fundamentals" [ref=e1971]:
+              - generic [ref=e1972]:
+                - generic [ref=e1973]: Incomplete
+                - generic [ref=e1974]: No fundamentals
+            - cell "33" [ref=e1975]
+            - cell [ref=e1976]
+            - cell "V4 ACTIVE 7.99 No trade Feeds Final / Decision V5 SHADOW 8.01 Δ +0.02 Volatility contraction setup S 8.0 / Q 8.4 / E 7.5" [ref=e1977]:
+              - generic [ref=e1978]:
+                - generic [ref=e1979]:
+                  - generic [ref=e1980]: V4 ACTIVE
+                  - strong [ref=e1981]: "7.99"
+                  - generic [ref=e1982]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e1983]: Feeds Final / Decision
+                - generic [ref=e1984]:
+                  - generic [ref=e1985]: V5 SHADOW
+                  - generic [ref=e1986]:
+                    - text: "8.01"
+                    - generic [ref=e1987]: Δ +0.02
+                  - generic [ref=e1988]: Volatility contraction setup
+                  - generic [ref=e1989]: S 8.0 / Q 8.4 / E 7.5
+            - cell [ref=e1990]:
+              - generic [ref=e1991]:
+                - button "Details" [ref=e1992]
+                - link "TradingView" [ref=e1993]:
+                  - /url: https://www.tradingview.com/chart/?symbol=RNG
+          - row [ref=e1994] [cursor=pointer]:
+            - cell "51" [ref=e1995]
+            - cell [ref=e1996]:
+              - strong [ref=e1997]: PAYC
+            - cell "Technology services" [ref=e1998]
+            - cell "6.98" [ref=e1999]
+            - cell "Incomplete data" [ref=e2000]
+            - cell "Incomplete No fundamentals" [ref=e2002]:
+              - generic [ref=e2003]:
+                - generic [ref=e2004]: Incomplete
+                - generic [ref=e2005]: No fundamentals
+            - cell "27" [ref=e2006]
+            - cell [ref=e2007]
+            - cell "V4 ACTIVE 7.98 Filtered pullback Feeds Final / Decision V5 SHADOW 7.79 Δ -0.19 Volatility contraction setup S 7.5 / Q 8.3 / E 7.5" [ref=e2008]:
+              - generic [ref=e2009]:
+                - generic [ref=e2010]:
+                  - generic [ref=e2011]: V4 ACTIVE
+                  - strong [ref=e2012]: "7.98"
+                  - generic [ref=e2013]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2014]: Feeds Final / Decision
+                - generic [ref=e2015]:
+                  - generic [ref=e2016]: V5 SHADOW
+                  - generic [ref=e2017]:
+                    - text: "7.79"
+                    - generic [ref=e2018]: Δ -0.19
+                  - generic [ref=e2019]: Volatility contraction setup
+                  - generic [ref=e2020]: S 7.5 / Q 8.3 / E 7.5
+            - cell [ref=e2021]:
+              - generic [ref=e2022]:
+                - button "Details" [ref=e2023]
+                - link "TradingView" [ref=e2024]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PAYC
+          - row [ref=e2025] [cursor=pointer]:
+            - cell "52" [ref=e2026]
+            - cell [ref=e2027]:
+              - strong [ref=e2028]: DOCS
+            - cell "Technology services" [ref=e2029]
+            - cell "6.94" [ref=e2030]
+            - cell "Incomplete data" [ref=e2031]
+            - cell "Incomplete No technicals Distribution Risk" [ref=e2033]:
+              - generic [ref=e2034]:
+                - generic [ref=e2035]: Incomplete
+                - generic [ref=e2036]: No technicals
+                - generic [ref=e2037]: Distribution Risk
+            - cell "29" [ref=e2038]
+            - cell "7.94 Clean compounder" [ref=e2039]:
+              - text: "7.94"
+              - generic [ref=e2040]: Clean compounder
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 6.75 · Distribution risk; retained but not used." [ref=e2041]:
+              - generic [ref=e2042]:
+                - generic [ref=e2043]: No technical decision input
+                - generic [ref=e2044]: Does not feed Final / Decision
+                - generic [ref=e2045]: Observed V4 6.75 · Distribution risk; retained but not used.
+            - cell [ref=e2046]:
+              - generic [ref=e2047]:
+                - button "Details" [ref=e2048]
+                - link "TradingView" [ref=e2049]:
+                  - /url: https://www.tradingview.com/chart/?symbol=DOCS
+          - row [ref=e2050] [cursor=pointer]:
+            - cell "53" [ref=e2051]
+            - cell [ref=e2052]:
+              - strong [ref=e2053]: HALO
+            - cell "Health technology" [ref=e2054]
+            - cell "6.93" [ref=e2055]
+            - cell "Incomplete data" [ref=e2056]
+            - cell "Incomplete No fundamentals" [ref=e2058]:
+              - generic [ref=e2059]:
+                - generic [ref=e2060]: Incomplete
+                - generic [ref=e2061]: No fundamentals
+            - cell "33" [ref=e2062]
+            - cell [ref=e2063]
+            - cell "V4 ACTIVE 7.93 Filtered pullback Feeds Final / Decision V5 SHADOW 7.68 Δ -0.24 Volatility contraction setup S 7.8 / Q 7.5 / E 7.6" [ref=e2064]:
+              - generic [ref=e2065]:
+                - generic [ref=e2066]:
+                  - generic [ref=e2067]: V4 ACTIVE
+                  - strong [ref=e2068]: "7.93"
+                  - generic [ref=e2069]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2070]: Feeds Final / Decision
+                - generic [ref=e2071]:
+                  - generic [ref=e2072]: V5 SHADOW
+                  - generic [ref=e2073]:
+                    - text: "7.68"
+                    - generic [ref=e2074]: Δ -0.24
+                  - generic [ref=e2075]: Volatility contraction setup
+                  - generic [ref=e2076]: S 7.8 / Q 7.5 / E 7.6
+            - cell [ref=e2077]:
+              - generic [ref=e2078]:
+                - button "Details" [ref=e2079]
+                - link "TradingView" [ref=e2080]:
+                  - /url: https://www.tradingview.com/chart/?symbol=HALO
+          - row [ref=e2081] [cursor=pointer]:
+            - cell "54" [ref=e2082]
+            - cell [ref=e2083]:
+              - strong [ref=e2084]: BOX
+            - cell "Technology services" [ref=e2085]
+            - cell "6.91" [ref=e2086]
+            - cell "Incomplete data" [ref=e2087]
+            - cell "Incomplete No fundamentals" [ref=e2089]:
+              - generic [ref=e2090]:
+                - generic [ref=e2091]: Incomplete
+                - generic [ref=e2092]: No fundamentals
+            - cell "62" [ref=e2093]
+            - cell [ref=e2094]
+            - cell "V4 ACTIVE 7.91 Extended momentum Feeds Final / Decision V5 SHADOW 8.18 Δ +0.27 Extended momentum S 8.1 / Q 7.9 / E 8.8" [ref=e2095]:
+              - generic [ref=e2096]:
+                - generic [ref=e2097]:
+                  - generic [ref=e2098]: V4 ACTIVE
+                  - strong [ref=e2099]: "7.91"
+                  - generic [ref=e2100]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2101]: Feeds Final / Decision
+                - generic [ref=e2102]:
+                  - generic [ref=e2103]: V5 SHADOW
+                  - generic [ref=e2104]:
+                    - text: "8.18"
+                    - generic [ref=e2105]: Δ +0.27
+                  - generic [ref=e2106]: Extended momentum
+                  - generic [ref=e2107]: S 8.1 / Q 7.9 / E 8.8
+            - cell [ref=e2108]:
+              - generic [ref=e2109]:
+                - button "Details" [ref=e2110]
+                - link "TradingView" [ref=e2111]:
+                  - /url: https://www.tradingview.com/chart/?symbol=BOX
+          - row [ref=e2112] [cursor=pointer]:
+            - cell "55" [ref=e2113]
+            - cell [ref=e2114]:
+              - strong [ref=e2115]: FFIV
+            - cell "Technology services" [ref=e2116]
+            - cell "6.89" [ref=e2117]
+            - cell "Incomplete data" [ref=e2118]
+            - cell "Incomplete No technicals Distribution Risk" [ref=e2120]:
+              - generic [ref=e2121]:
+                - generic [ref=e2122]: Incomplete
+                - generic [ref=e2123]: No technicals
+                - generic [ref=e2124]: Distribution Risk
+            - cell "26" [ref=e2125]
+            - cell "7.89 Clean compounder" [ref=e2126]:
+              - text: "7.89"
+              - generic [ref=e2127]: Clean compounder
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 7.33 · Distribution risk; retained but not used." [ref=e2128]:
+              - generic [ref=e2129]:
+                - generic [ref=e2130]: No technical decision input
+                - generic [ref=e2131]: Does not feed Final / Decision
+                - generic [ref=e2132]: Observed V4 7.33 · Distribution risk; retained but not used.
+            - cell [ref=e2133]:
+              - generic [ref=e2134]:
+                - button "Details" [ref=e2135]
+                - link "TradingView" [ref=e2136]:
+                  - /url: https://www.tradingview.com/chart/?symbol=FFIV
+          - row [ref=e2137] [cursor=pointer]:
+            - cell "56" [ref=e2138]
+            - cell [ref=e2139]:
+              - strong [ref=e2140]: TAL
+            - cell "Commercial services" [ref=e2141]
+            - cell "6.86" [ref=e2142]
+            - cell "Incomplete data" [ref=e2143]
+            - cell "Incomplete No fundamentals" [ref=e2145]:
+              - generic [ref=e2146]:
+                - generic [ref=e2147]: Incomplete
+                - generic [ref=e2148]: No fundamentals
+            - cell "15" [ref=e2149]
+            - cell [ref=e2150]
+            - cell "V4 ACTIVE 7.86 Momentum continuation Feeds Final / Decision V5 SHADOW 8.13 Δ +0.27 Momentum continuation S 7.7 / Q 8.3 / E 8.8" [ref=e2151]:
+              - generic [ref=e2152]:
+                - generic [ref=e2153]:
+                  - generic [ref=e2154]: V4 ACTIVE
+                  - strong [ref=e2155]: "7.86"
+                  - generic [ref=e2156]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2157]: Feeds Final / Decision
+                - generic [ref=e2158]:
+                  - generic [ref=e2159]: V5 SHADOW
+                  - generic [ref=e2160]:
+                    - text: "8.13"
+                    - generic [ref=e2161]: Δ +0.27
+                  - generic [ref=e2162]: Momentum continuation
+                  - generic [ref=e2163]: S 7.7 / Q 8.3 / E 8.8
+            - cell [ref=e2164]:
+              - generic [ref=e2165]:
+                - button "Details" [ref=e2166]
+                - link "TradingView" [ref=e2167]:
+                  - /url: https://www.tradingview.com/chart/?symbol=TAL
+          - row [ref=e2168] [cursor=pointer]:
+            - cell "57" [ref=e2169]
+            - cell [ref=e2170]:
+              - strong [ref=e2171]: PM
+            - cell "Consumer non-durables" [ref=e2172]
+            - cell "6.84" [ref=e2173]
+            - cell "Incomplete data" [ref=e2174]
+            - cell "Incomplete No fundamentals" [ref=e2176]:
+              - generic [ref=e2177]:
+                - generic [ref=e2178]: Incomplete
+                - generic [ref=e2179]: No fundamentals
+            - cell "13" [ref=e2180]
+            - cell [ref=e2181]
+            - cell "V4 ACTIVE 7.84 Filtered pullback Feeds Final / Decision V5 SHADOW 7.84 Δ +0.01 Volatility contraction setup S 7.3 / Q 8.4 / E 8.2" [ref=e2182]:
+              - generic [ref=e2183]:
+                - generic [ref=e2184]:
+                  - generic [ref=e2185]: V4 ACTIVE
+                  - strong [ref=e2186]: "7.84"
+                  - generic [ref=e2187]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2188]: Feeds Final / Decision
+                - generic [ref=e2189]:
+                  - generic [ref=e2190]: V5 SHADOW
+                  - generic [ref=e2191]:
+                    - text: "7.84"
+                    - generic [ref=e2192]: Δ +0.01
+                  - generic [ref=e2193]: Volatility contraction setup
+                  - generic [ref=e2194]: S 7.3 / Q 8.4 / E 8.2
+            - cell [ref=e2195]:
+              - generic [ref=e2196]:
+                - button "Details" [ref=e2197]
+                - link "TradingView" [ref=e2198]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PM
+          - row [ref=e2199] [cursor=pointer]:
+            - cell "58" [ref=e2200]
+            - cell [ref=e2201]:
+              - strong [ref=e2202]: CBRL
+            - cell "Consumer services" [ref=e2203]
+            - cell "6.80" [ref=e2204]
+            - cell "Incomplete data" [ref=e2205]
+            - cell "Incomplete No fundamentals" [ref=e2207]:
+              - generic [ref=e2208]:
+                - generic [ref=e2209]: Incomplete
+                - generic [ref=e2210]: No fundamentals
+            - cell "51" [ref=e2211]
+            - cell [ref=e2212]
+            - cell "V4 ACTIVE 7.80 Extended momentum Feeds Final / Decision V5 SHADOW 8.02 Δ +0.22 Extended momentum S 7.8 / Q 7.9 / E 8.7" [ref=e2213]:
+              - generic [ref=e2214]:
+                - generic [ref=e2215]:
+                  - generic [ref=e2216]: V4 ACTIVE
+                  - strong [ref=e2217]: "7.80"
+                  - generic [ref=e2218]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2219]: Feeds Final / Decision
+                - generic [ref=e2220]:
+                  - generic [ref=e2221]: V5 SHADOW
+                  - generic [ref=e2222]:
+                    - text: "8.02"
+                    - generic [ref=e2223]: Δ +0.22
+                  - generic [ref=e2224]: Extended momentum
+                  - generic [ref=e2225]: S 7.8 / Q 7.9 / E 8.7
+            - cell [ref=e2226]:
+              - generic [ref=e2227]:
+                - button "Details" [ref=e2228]
+                - link "TradingView" [ref=e2229]:
+                  - /url: https://www.tradingview.com/chart/?symbol=CBRL
+          - row [ref=e2230] [cursor=pointer]:
+            - cell "59" [ref=e2231]
+            - cell [ref=e2232]:
+              - strong [ref=e2233]: MTD
+            - cell "Health technology" [ref=e2234]
+            - cell "6.80" [ref=e2235]
+            - cell "Incomplete data" [ref=e2236]
+            - cell "Incomplete No fundamentals" [ref=e2238]:
+              - generic [ref=e2239]:
+                - generic [ref=e2240]: Incomplete
+                - generic [ref=e2241]: No fundamentals
+            - cell "29" [ref=e2242]
+            - cell [ref=e2243]
+            - cell "V4 ACTIVE 7.80 Momentum continuation Feeds Final / Decision V5 SHADOW 7.09 Δ -0.71 Clean bull pullback S 7.6 / Q 5.8 / E 8.2" [ref=e2244]:
+              - generic [ref=e2245]:
+                - generic [ref=e2246]:
+                  - generic [ref=e2247]: V4 ACTIVE
+                  - strong [ref=e2248]: "7.80"
+                  - generic [ref=e2249]: Momentum continuation
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2250]: Feeds Final / Decision
+                - generic [ref=e2251]:
+                  - generic [ref=e2252]: V5 SHADOW
+                  - generic [ref=e2253]:
+                    - text: "7.09"
+                    - generic [ref=e2254]: Δ -0.71
+                  - generic [ref=e2255]: Clean bull pullback
+                  - generic [ref=e2256]: S 7.6 / Q 5.8 / E 8.2
+            - cell [ref=e2257]:
+              - generic [ref=e2258]:
+                - button "Details" [ref=e2259]
+                - link "TradingView" [ref=e2260]:
+                  - /url: https://www.tradingview.com/chart/?symbol=MTD
+          - row [ref=e2261] [cursor=pointer]:
+            - cell "60" [ref=e2262]
+            - cell [ref=e2263]:
+              - strong [ref=e2264]: NVDA
+            - cell "Electronic technology" [ref=e2265]
+            - cell "6.79" [ref=e2266]
+            - cell "Incomplete data" [ref=e2267]
+            - cell "Incomplete No fundamentals" [ref=e2269]:
+              - generic [ref=e2270]:
+                - generic [ref=e2271]: Incomplete
+                - generic [ref=e2272]: No fundamentals
+            - cell "49" [ref=e2273]
+            - cell [ref=e2274]
+            - cell "V4 ACTIVE 7.79 No trade Feeds Final / Decision V5 SHADOW 5.17 Δ -2.63 No trade S 7.9 / Q 0.2 / E 7.7" [ref=e2275]:
+              - generic [ref=e2276]:
+                - generic [ref=e2277]:
+                  - generic [ref=e2278]: V4 ACTIVE
+                  - strong [ref=e2279]: "7.79"
+                  - generic [ref=e2280]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2281]: Feeds Final / Decision
+                - generic [ref=e2282]:
+                  - generic [ref=e2283]: V5 SHADOW
+                  - generic [ref=e2284]:
+                    - text: "5.17"
+                    - generic [ref=e2285]: Δ -2.63
+                  - generic [ref=e2286]: No trade
+                  - generic [ref=e2287]: S 7.9 / Q 0.2 / E 7.7
+            - cell [ref=e2288]:
+              - generic [ref=e2289]:
+                - button "Details" [ref=e2290]
+                - link "TradingView" [ref=e2291]:
+                  - /url: https://www.tradingview.com/chart/?symbol=NVDA
+          - row [ref=e2292] [cursor=pointer]:
+            - cell "61" [ref=e2293]
+            - cell [ref=e2294]:
+              - strong [ref=e2295]: FTNT
+            - cell "Technology services" [ref=e2296]
+            - cell "6.78" [ref=e2297]
+            - cell "Incomplete data" [ref=e2298]
+            - cell "Incomplete No fundamentals" [ref=e2300]:
+              - generic [ref=e2301]:
+                - generic [ref=e2302]: Incomplete
+                - generic [ref=e2303]: No fundamentals
+            - cell "21" [ref=e2304]
+            - cell [ref=e2305]
+            - cell "V4 ACTIVE 7.78 Extended momentum Feeds Final / Decision V5 SHADOW 8.03 Δ +0.25 Extended momentum S 8.4 / Q 7.6 / E 7.8" [ref=e2306]:
+              - generic [ref=e2307]:
+                - generic [ref=e2308]:
+                  - generic [ref=e2309]: V4 ACTIVE
+                  - strong [ref=e2310]: "7.78"
+                  - generic [ref=e2311]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2312]: Feeds Final / Decision
+                - generic [ref=e2313]:
+                  - generic [ref=e2314]: V5 SHADOW
+                  - generic [ref=e2315]:
+                    - text: "8.03"
+                    - generic [ref=e2316]: Δ +0.25
+                  - generic [ref=e2317]: Extended momentum
+                  - generic [ref=e2318]: S 8.4 / Q 7.6 / E 7.8
+            - cell [ref=e2319]:
+              - generic [ref=e2320]:
+                - button "Details" [ref=e2321]
+                - link "TradingView" [ref=e2322]:
+                  - /url: https://www.tradingview.com/chart/?symbol=FTNT
+          - row [ref=e2323] [cursor=pointer]:
+            - cell "62" [ref=e2324]
+            - cell [ref=e2325]:
+              - strong [ref=e2326]: HNGE
+            - cell "Technology services" [ref=e2327]
+            - cell "6.78" [ref=e2328]
+            - cell "Incomplete data" [ref=e2329]
+            - cell "Incomplete No fundamentals" [ref=e2331]:
+              - generic [ref=e2332]:
+                - generic [ref=e2333]: Incomplete
+                - generic [ref=e2334]: No fundamentals
+            - cell "26" [ref=e2335]
+            - cell [ref=e2336]
+            - cell "V4 ACTIVE 7.78 Extended momentum Feeds Final / Decision V5 SHADOW 7.09 Δ -0.68 Clean bull pullback S 7.9 / Q 5.6 / E 7.8" [ref=e2337]:
+              - generic [ref=e2338]:
+                - generic [ref=e2339]:
+                  - generic [ref=e2340]: V4 ACTIVE
+                  - strong [ref=e2341]: "7.78"
+                  - generic [ref=e2342]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2343]: Feeds Final / Decision
+                - generic [ref=e2344]:
+                  - generic [ref=e2345]: V5 SHADOW
+                  - generic [ref=e2346]:
+                    - text: "7.09"
+                    - generic [ref=e2347]: Δ -0.68
+                  - generic [ref=e2348]: Clean bull pullback
+                  - generic [ref=e2349]: S 7.9 / Q 5.6 / E 7.8
+            - cell [ref=e2350]:
+              - generic [ref=e2351]:
+                - button "Details" [ref=e2352]
+                - link "TradingView" [ref=e2353]:
+                  - /url: https://www.tradingview.com/chart/?symbol=HNGE
+          - row [ref=e2354] [cursor=pointer]:
+            - cell "63" [ref=e2355]
+            - cell [ref=e2356]:
+              - strong [ref=e2357]: SLDE
+            - cell "Technology services" [ref=e2358]
+            - cell "6.75" [ref=e2359]
+            - cell "Incomplete data" [ref=e2360]
+            - cell "Incomplete No fundamentals" [ref=e2362]:
+              - generic [ref=e2363]:
+                - generic [ref=e2364]: Incomplete
+                - generic [ref=e2365]: No fundamentals
+            - cell "20" [ref=e2366]
+            - cell [ref=e2367]
+            - cell "V4 ACTIVE 7.75 Filtered pullback Feeds Final / Decision V5 SHADOW 7.72 Δ -0.03 Clean bull pullback S 7.5 / Q 7.8 / E 8.0" [ref=e2368]:
+              - generic [ref=e2369]:
+                - generic [ref=e2370]:
+                  - generic [ref=e2371]: V4 ACTIVE
+                  - strong [ref=e2372]: "7.75"
+                  - generic [ref=e2373]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2374]: Feeds Final / Decision
+                - generic [ref=e2375]:
+                  - generic [ref=e2376]: V5 SHADOW
+                  - generic [ref=e2377]:
+                    - text: "7.72"
+                    - generic [ref=e2378]: Δ -0.03
+                  - generic [ref=e2379]: Clean bull pullback
+                  - generic [ref=e2380]: S 7.5 / Q 7.8 / E 8.0
+            - cell [ref=e2381]:
+              - generic [ref=e2382]:
+                - button "Details" [ref=e2383]
+                - link "TradingView" [ref=e2384]:
+                  - /url: https://www.tradingview.com/chart/?symbol=SLDE
+          - row [ref=e2385] [cursor=pointer]:
+            - cell "64" [ref=e2386]
+            - cell [ref=e2387]:
+              - strong [ref=e2388]: ROG
+            - cell "Process industries" [ref=e2389]
+            - cell "6.74" [ref=e2390]
+            - cell "Incomplete data" [ref=e2391]
+            - cell "Incomplete No fundamentals" [ref=e2393]:
+              - generic [ref=e2394]:
+                - generic [ref=e2395]: Incomplete
+                - generic [ref=e2396]: No fundamentals
+            - cell "28" [ref=e2397]
+            - cell [ref=e2398]
+            - cell "V4 ACTIVE 7.74 Extended momentum Feeds Final / Decision V5 SHADOW 6.85 Δ -0.89 Clean bull pullback S 8.3 / Q 4.6 / E 7.5" [ref=e2399]:
+              - generic [ref=e2400]:
+                - generic [ref=e2401]:
+                  - generic [ref=e2402]: V4 ACTIVE
+                  - strong [ref=e2403]: "7.74"
+                  - generic [ref=e2404]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2405]: Feeds Final / Decision
+                - generic [ref=e2406]:
+                  - generic [ref=e2407]: V5 SHADOW
+                  - generic [ref=e2408]:
+                    - text: "6.85"
+                    - generic [ref=e2409]: Δ -0.89
+                  - generic [ref=e2410]: Clean bull pullback
+                  - generic [ref=e2411]: S 8.3 / Q 4.6 / E 7.5
+            - cell [ref=e2412]:
+              - generic [ref=e2413]:
+                - button "Details" [ref=e2414]
+                - link "TradingView" [ref=e2415]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ROG
+          - row [ref=e2416] [cursor=pointer]:
+            - cell "65" [ref=e2417]
+            - cell [ref=e2418]:
+              - strong [ref=e2419]: TT
+            - cell "Producer manufacturing" [ref=e2420]
+            - cell "6.72" [ref=e2421]
+            - cell "Incomplete data" [ref=e2422]
+            - cell "Incomplete No technicals Box Failure +2" [ref=e2424]:
+              - generic [ref=e2425]:
+                - generic [ref=e2426]: Incomplete
+                - generic [ref=e2427]: No technicals
+                - generic [ref=e2428]: Box Failure
+                - generic [ref=e2429]: "+2"
+            - cell "28" [ref=e2430]
+            - cell "7.72 Clean compounder" [ref=e2431]:
+              - text: "7.72"
+              - generic [ref=e2432]: Clean compounder
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 5.43 · Distribution risk; retained but not used." [ref=e2433]:
+              - generic [ref=e2434]:
+                - generic [ref=e2435]: No technical decision input
+                - generic [ref=e2436]: Does not feed Final / Decision
+                - generic [ref=e2437]: Observed V4 5.43 · Distribution risk; retained but not used.
+            - cell [ref=e2438]:
+              - generic [ref=e2439]:
+                - button "Details" [ref=e2440]
+                - link "TradingView" [ref=e2441]:
+                  - /url: https://www.tradingview.com/chart/?symbol=TT
+          - row [ref=e2442] [cursor=pointer]:
+            - cell "66" [ref=e2443]
+            - cell [ref=e2444]:
+              - strong [ref=e2445]: MU
+            - cell "Electronic technology" [ref=e2446]
+            - cell "6.66" [ref=e2447]
+            - cell "Incomplete data" [ref=e2448]
+            - cell "Incomplete No fundamentals" [ref=e2450]:
+              - generic [ref=e2451]:
+                - generic [ref=e2452]: Incomplete
+                - generic [ref=e2453]: No fundamentals
+            - cell "77" [ref=e2454]
+            - cell [ref=e2455]
+            - cell "V4 ACTIVE 7.66 Extended momentum Feeds Final / Decision V5 SHADOW 7.25 Δ -0.42 Clean bull pullback S 7.4 / Q 6.8 / E 7.8" [ref=e2456]:
+              - generic [ref=e2457]:
+                - generic [ref=e2458]:
+                  - generic [ref=e2459]: V4 ACTIVE
+                  - strong [ref=e2460]: "7.66"
+                  - generic [ref=e2461]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2462]: Feeds Final / Decision
+                - generic [ref=e2463]:
+                  - generic [ref=e2464]: V5 SHADOW
+                  - generic [ref=e2465]:
+                    - text: "7.25"
+                    - generic [ref=e2466]: Δ -0.42
+                  - generic [ref=e2467]: Clean bull pullback
+                  - generic [ref=e2468]: S 7.4 / Q 6.8 / E 7.8
+            - cell [ref=e2469]:
+              - generic [ref=e2470]:
+                - button "Details" [ref=e2471]
+                - link "TradingView" [ref=e2472]:
+                  - /url: https://www.tradingview.com/chart/?symbol=MU
+          - row [ref=e2473] [cursor=pointer]:
+            - cell "67" [ref=e2474]
+            - cell [ref=e2475]:
+              - strong [ref=e2476]: LPG
+            - cell "Transportation" [ref=e2477]
+            - cell "6.64" [ref=e2478]
+            - cell "Incomplete data" [ref=e2479]
+            - cell "Incomplete No fundamentals" [ref=e2481]:
+              - generic [ref=e2482]:
+                - generic [ref=e2483]: Incomplete
+                - generic [ref=e2484]: No fundamentals
+            - cell "28" [ref=e2485]
+            - cell [ref=e2486]
+            - cell "V4 ACTIVE 7.64 Extended momentum Feeds Final / Decision V5 SHADOW 7.01 Δ -0.63 Clean bull pullback S 8.3 / Q 4.8 / E 8.0" [ref=e2487]:
+              - generic [ref=e2488]:
+                - generic [ref=e2489]:
+                  - generic [ref=e2490]: V4 ACTIVE
+                  - strong [ref=e2491]: "7.64"
+                  - generic [ref=e2492]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2493]: Feeds Final / Decision
+                - generic [ref=e2494]:
+                  - generic [ref=e2495]: V5 SHADOW
+                  - generic [ref=e2496]:
+                    - text: "7.01"
+                    - generic [ref=e2497]: Δ -0.63
+                  - generic [ref=e2498]: Clean bull pullback
+                  - generic [ref=e2499]: S 8.3 / Q 4.8 / E 8.0
+            - cell [ref=e2500]:
+              - generic [ref=e2501]:
+                - button "Details" [ref=e2502]
+                - link "TradingView" [ref=e2503]:
+                  - /url: https://www.tradingview.com/chart/?symbol=LPG
+          - row [ref=e2504] [cursor=pointer]:
+            - cell "68" [ref=e2505]
+            - cell [ref=e2506]:
+              - strong [ref=e2507]: PI
+            - cell "Electronic technology" [ref=e2508]
+            - cell "6.64" [ref=e2509]
+            - cell "Incomplete data" [ref=e2510]
+            - cell "Incomplete No fundamentals" [ref=e2512]:
+              - generic [ref=e2513]:
+                - generic [ref=e2514]: Incomplete
+                - generic [ref=e2515]: No fundamentals
+            - cell "21" [ref=e2516]
+            - cell [ref=e2517]
+            - cell "V4 ACTIVE 7.64 Extended momentum Feeds Final / Decision V5 SHADOW 7.00 Δ -0.63 Clean bull pullback S 7.6 / Q 5.7 / E 7.8" [ref=e2518]:
+              - generic [ref=e2519]:
+                - generic [ref=e2520]:
+                  - generic [ref=e2521]: V4 ACTIVE
+                  - strong [ref=e2522]: "7.64"
+                  - generic [ref=e2523]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2524]: Feeds Final / Decision
+                - generic [ref=e2525]:
+                  - generic [ref=e2526]: V5 SHADOW
+                  - generic [ref=e2527]:
+                    - text: "7.00"
+                    - generic [ref=e2528]: Δ -0.63
+                  - generic [ref=e2529]: Clean bull pullback
+                  - generic [ref=e2530]: S 7.6 / Q 5.7 / E 7.8
+            - cell [ref=e2531]:
+              - generic [ref=e2532]:
+                - button "Details" [ref=e2533]
+                - link "TradingView" [ref=e2534]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PI
+          - row [ref=e2535] [cursor=pointer]:
+            - cell "69" [ref=e2536]
+            - cell [ref=e2537]:
+              - strong [ref=e2538]: CON
+            - cell "Health services" [ref=e2539]
+            - cell "6.62" [ref=e2540]
+            - cell "Incomplete data" [ref=e2541]
+            - cell "Incomplete No fundamentals" [ref=e2543]:
+              - generic [ref=e2544]:
+                - generic [ref=e2545]: Incomplete
+                - generic [ref=e2546]: No fundamentals
+            - cell "22" [ref=e2547]
+            - cell [ref=e2548]
+            - cell "V4 ACTIVE 7.62 Extended momentum Feeds Final / Decision V5 SHADOW 7.99 Δ +0.36 Extended momentum S 8.0 / Q 7.8 / E 8.1" [ref=e2549]:
+              - generic [ref=e2550]:
+                - generic [ref=e2551]:
+                  - generic [ref=e2552]: V4 ACTIVE
+                  - strong [ref=e2553]: "7.62"
+                  - generic [ref=e2554]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2555]: Feeds Final / Decision
+                - generic [ref=e2556]:
+                  - generic [ref=e2557]: V5 SHADOW
+                  - generic [ref=e2558]:
+                    - text: "7.99"
+                    - generic [ref=e2559]: Δ +0.36
+                  - generic [ref=e2560]: Extended momentum
+                  - generic [ref=e2561]: S 8.0 / Q 7.8 / E 8.1
+            - cell [ref=e2562]:
+              - generic [ref=e2563]:
+                - button "Details" [ref=e2564]
+                - link "TradingView" [ref=e2565]:
+                  - /url: https://www.tradingview.com/chart/?symbol=CON
+          - row [ref=e2566] [cursor=pointer]:
+            - cell "70" [ref=e2567]
+            - cell [ref=e2568]:
+              - strong [ref=e2569]: CLMT
+            - cell "Energy minerals" [ref=e2570]
+            - cell "6.62" [ref=e2571]
+            - cell "Incomplete data" [ref=e2572]
+            - cell "Incomplete No fundamentals" [ref=e2574]:
+              - generic [ref=e2575]:
+                - generic [ref=e2576]: Incomplete
+                - generic [ref=e2577]: No fundamentals
+            - cell "30" [ref=e2578]
+            - cell [ref=e2579]
+            - cell "V4 ACTIVE 7.62 Extended momentum Feeds Final / Decision V5 SHADOW 7.30 Δ -0.33 Clean bull pullback S 8.0 / Q 6.1 / E 8.0" [ref=e2580]:
+              - generic [ref=e2581]:
+                - generic [ref=e2582]:
+                  - generic [ref=e2583]: V4 ACTIVE
+                  - strong [ref=e2584]: "7.62"
+                  - generic [ref=e2585]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2586]: Feeds Final / Decision
+                - generic [ref=e2587]:
+                  - generic [ref=e2588]: V5 SHADOW
+                  - generic [ref=e2589]:
+                    - text: "7.30"
+                    - generic [ref=e2590]: Δ -0.33
+                  - generic [ref=e2591]: Clean bull pullback
+                  - generic [ref=e2592]: S 8.0 / Q 6.1 / E 8.0
+            - cell [ref=e2593]:
+              - generic [ref=e2594]:
+                - button "Details" [ref=e2595]
+                - link "TradingView" [ref=e2596]:
+                  - /url: https://www.tradingview.com/chart/?symbol=CLMT
+          - row [ref=e2597] [cursor=pointer]:
+            - cell "71" [ref=e2598]
+            - cell [ref=e2599]:
+              - strong [ref=e2600]: AVT
+            - cell "Distribution services" [ref=e2601]
+            - cell "6.61" [ref=e2602]
+            - cell "Incomplete data" [ref=e2603]
+            - cell "Incomplete No fundamentals" [ref=e2605]:
+              - generic [ref=e2606]:
+                - generic [ref=e2607]: Incomplete
+                - generic [ref=e2608]: No fundamentals
+            - cell "28" [ref=e2609]
+            - cell [ref=e2610]
+            - cell "V4 ACTIVE 7.61 No trade Feeds Final / Decision V5 SHADOW 7.02 Δ -0.59 Clean bull pullback S 7.9 / Q 5.2 / E 8.1" [ref=e2611]:
+              - generic [ref=e2612]:
+                - generic [ref=e2613]:
+                  - generic [ref=e2614]: V4 ACTIVE
+                  - strong [ref=e2615]: "7.61"
+                  - generic [ref=e2616]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2617]: Feeds Final / Decision
+                - generic [ref=e2618]:
+                  - generic [ref=e2619]: V5 SHADOW
+                  - generic [ref=e2620]:
+                    - text: "7.02"
+                    - generic [ref=e2621]: Δ -0.59
+                  - generic [ref=e2622]: Clean bull pullback
+                  - generic [ref=e2623]: S 7.9 / Q 5.2 / E 8.1
+            - cell [ref=e2624]:
+              - generic [ref=e2625]:
+                - button "Details" [ref=e2626]
+                - link "TradingView" [ref=e2627]:
+                  - /url: https://www.tradingview.com/chart/?symbol=AVT
+          - row [ref=e2628] [cursor=pointer]:
+            - cell "72" [ref=e2629]
+            - cell [ref=e2630]:
+              - strong [ref=e2631]: RAL
+            - cell "Electronic technology" [ref=e2632]
+            - cell "6.61" [ref=e2633]
+            - cell "Incomplete data" [ref=e2634]
+            - cell "Incomplete No fundamentals" [ref=e2636]:
+              - generic [ref=e2637]:
+                - generic [ref=e2638]: Incomplete
+                - generic [ref=e2639]: No fundamentals
+            - cell "35" [ref=e2640]
+            - cell [ref=e2641]
+            - cell "V4 ACTIVE 7.61 No trade Feeds Final / Decision V5 SHADOW 7.07 Δ -0.54 Clean bull pullback S 7.8 / Q 5.5 / E 8.1" [ref=e2642]:
+              - generic [ref=e2643]:
+                - generic [ref=e2644]:
+                  - generic [ref=e2645]: V4 ACTIVE
+                  - strong [ref=e2646]: "7.61"
+                  - generic [ref=e2647]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2648]: Feeds Final / Decision
+                - generic [ref=e2649]:
+                  - generic [ref=e2650]: V5 SHADOW
+                  - generic [ref=e2651]:
+                    - text: "7.07"
+                    - generic [ref=e2652]: Δ -0.54
+                  - generic [ref=e2653]: Clean bull pullback
+                  - generic [ref=e2654]: S 7.8 / Q 5.5 / E 8.1
+            - cell [ref=e2655]:
+              - generic [ref=e2656]:
+                - button "Details" [ref=e2657]
+                - link "TradingView" [ref=e2658]:
+                  - /url: https://www.tradingview.com/chart/?symbol=RAL
+          - row [ref=e2659] [cursor=pointer]:
+            - cell "73" [ref=e2660]
+            - cell [ref=e2661]:
+              - strong [ref=e2662]: KEYS
+            - cell "Electronic technology" [ref=e2663]
+            - cell "6.58" [ref=e2664]
+            - cell "Incomplete data" [ref=e2665]
+            - cell "Incomplete No fundamentals" [ref=e2667]:
+              - generic [ref=e2668]:
+                - generic [ref=e2669]: Incomplete
+                - generic [ref=e2670]: No fundamentals
+            - cell "47" [ref=e2671]
+            - cell [ref=e2672]
+            - cell "V4 ACTIVE 7.58 Extended momentum Feeds Final / Decision V5 SHADOW 6.85 Δ -0.73 Clean bull pullback S 8.0 / Q 5.3 / E 7.0" [ref=e2673]:
+              - generic [ref=e2674]:
+                - generic [ref=e2675]:
+                  - generic [ref=e2676]: V4 ACTIVE
+                  - strong [ref=e2677]: "7.58"
+                  - generic [ref=e2678]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2679]: Feeds Final / Decision
+                - generic [ref=e2680]:
+                  - generic [ref=e2681]: V5 SHADOW
+                  - generic [ref=e2682]:
+                    - text: "6.85"
+                    - generic [ref=e2683]: Δ -0.73
+                  - generic [ref=e2684]: Clean bull pullback
+                  - generic [ref=e2685]: S 8.0 / Q 5.3 / E 7.0
+            - cell [ref=e2686]:
+              - generic [ref=e2687]:
+                - button "Details" [ref=e2688]
+                - link "TradingView" [ref=e2689]:
+                  - /url: https://www.tradingview.com/chart/?symbol=KEYS
+          - row [ref=e2690] [cursor=pointer]:
+            - cell "74" [ref=e2691]
+            - cell [ref=e2692]:
+              - strong [ref=e2693]: A
+            - cell "Health technology" [ref=e2694]
+            - cell "6.51" [ref=e2695]
+            - cell "Incomplete data" [ref=e2696]
+            - cell "Incomplete No technicals Distribution Risk" [ref=e2698]:
+              - generic [ref=e2699]:
+                - generic [ref=e2700]: Incomplete
+                - generic [ref=e2701]: No technicals
+                - generic [ref=e2702]: Distribution Risk
+            - cell "54" [ref=e2703]
+            - cell "7.51 High-quality quant" [ref=e2704]:
+              - text: "7.51"
+              - generic [ref=e2705]: High-quality quant
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 7.09 · Distribution risk; retained but not used." [ref=e2706]:
+              - generic [ref=e2707]:
+                - generic [ref=e2708]: No technical decision input
+                - generic [ref=e2709]: Does not feed Final / Decision
+                - generic [ref=e2710]: Observed V4 7.09 · Distribution risk; retained but not used.
+            - cell [ref=e2711]:
+              - generic [ref=e2712]:
+                - button "Details" [ref=e2713]
+                - link "TradingView" [ref=e2714]:
+                  - /url: https://www.tradingview.com/chart/?symbol=A
+          - row [ref=e2715] [cursor=pointer]:
+            - cell "75" [ref=e2716]
+            - cell [ref=e2717]:
+              - strong [ref=e2718]: NTRA
+            - cell "Health technology" [ref=e2719]
+            - cell "6.51" [ref=e2720]
+            - cell "Incomplete data" [ref=e2721]
+            - cell "Incomplete No fundamentals" [ref=e2723]:
+              - generic [ref=e2724]:
+                - generic [ref=e2725]: Incomplete
+                - generic [ref=e2726]: No fundamentals
+            - cell "35" [ref=e2727]
+            - cell [ref=e2728]
+            - cell "V4 ACTIVE 7.51 No trade Feeds Final / Decision V5 SHADOW 6.99 Δ -0.52 Clean bull pullback S 8.3 / Q 5.2 / E 7.2" [ref=e2729]:
+              - generic [ref=e2730]:
+                - generic [ref=e2731]:
+                  - generic [ref=e2732]: V4 ACTIVE
+                  - strong [ref=e2733]: "7.51"
+                  - generic [ref=e2734]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2735]: Feeds Final / Decision
+                - generic [ref=e2736]:
+                  - generic [ref=e2737]: V5 SHADOW
+                  - generic [ref=e2738]:
+                    - text: "6.99"
+                    - generic [ref=e2739]: Δ -0.52
+                  - generic [ref=e2740]: Clean bull pullback
+                  - generic [ref=e2741]: S 8.3 / Q 5.2 / E 7.2
+            - cell [ref=e2742]:
+              - generic [ref=e2743]:
+                - button "Details" [ref=e2744]
+                - link "TradingView" [ref=e2745]:
+                  - /url: https://www.tradingview.com/chart/?symbol=NTRA
+          - row [ref=e2746] [cursor=pointer]:
+            - cell "76" [ref=e2747]
+            - cell [ref=e2748]:
+              - strong [ref=e2749]: PCTY
+            - cell "Technology services" [ref=e2750]
+            - cell "6.44" [ref=e2751]
+            - cell "Incomplete data" [ref=e2752]
+            - cell "Incomplete No fundamentals" [ref=e2754]:
+              - generic [ref=e2755]:
+                - generic [ref=e2756]: Incomplete
+                - generic [ref=e2757]: No fundamentals
+            - cell "22" [ref=e2758]
+            - cell [ref=e2759]
+            - cell "V4 ACTIVE 7.44 Trend repair Feeds Final / Decision V5 SHADOW 7.53 Δ +0.09 Volatility contraction setup S 6.4 / Q 8.1 / E 9.0" [ref=e2760]:
+              - generic [ref=e2761]:
+                - generic [ref=e2762]:
+                  - generic [ref=e2763]: V4 ACTIVE
+                  - strong [ref=e2764]: "7.44"
+                  - generic [ref=e2765]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2766]: Feeds Final / Decision
+                - generic [ref=e2767]:
+                  - generic [ref=e2768]: V5 SHADOW
+                  - generic [ref=e2769]:
+                    - text: "7.53"
+                    - generic [ref=e2770]: Δ +0.09
+                  - generic [ref=e2771]: Volatility contraction setup
+                  - generic [ref=e2772]: S 6.4 / Q 8.1 / E 9.0
+            - cell [ref=e2773]:
+              - generic [ref=e2774]:
+                - button "Details" [ref=e2775]
+                - link "TradingView" [ref=e2776]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PCTY
+          - row [ref=e2777] [cursor=pointer]:
+            - cell "77" [ref=e2778]
+            - cell [ref=e2779]:
+              - strong [ref=e2780]: WKC
+            - cell "Distribution services" [ref=e2781]
+            - cell "6.40" [ref=e2782]
+            - cell "Incomplete data" [ref=e2783]
+            - cell "Incomplete No fundamentals" [ref=e2785]:
+              - generic [ref=e2786]:
+                - generic [ref=e2787]: Incomplete
+                - generic [ref=e2788]: No fundamentals
+            - cell "15" [ref=e2789]
+            - cell [ref=e2790]
+            - cell "V4 ACTIVE 7.40 Filtered momentum Feeds Final / Decision V5 SHADOW 4.82 Δ -2.58 No trade S 7.0 / Q 0.2 / E 7.9" [ref=e2791]:
+              - generic [ref=e2792]:
+                - generic [ref=e2793]:
+                  - generic [ref=e2794]: V4 ACTIVE
+                  - strong [ref=e2795]: "7.40"
+                  - generic [ref=e2796]: Filtered momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2797]: Feeds Final / Decision
+                - generic [ref=e2798]:
+                  - generic [ref=e2799]: V5 SHADOW
+                  - generic [ref=e2800]:
+                    - text: "4.82"
+                    - generic [ref=e2801]: Δ -2.58
+                  - generic [ref=e2802]: No trade
+                  - generic [ref=e2803]: S 7.0 / Q 0.2 / E 7.9
+            - cell [ref=e2804]:
+              - generic [ref=e2805]:
+                - button "Details" [ref=e2806]
+                - link "TradingView" [ref=e2807]:
+                  - /url: https://www.tradingview.com/chart/?symbol=WKC
+          - row [ref=e2808] [cursor=pointer]:
+            - cell "78" [ref=e2809]
+            - cell [ref=e2810]:
+              - strong [ref=e2811]: AMG
+            - cell "Finance" [ref=e2812]
+            - cell "6.40" [ref=e2813]
+            - cell "Incomplete data" [ref=e2814]
+            - cell "Incomplete No fundamentals" [ref=e2816]:
+              - generic [ref=e2817]:
+                - generic [ref=e2818]: Incomplete
+                - generic [ref=e2819]: No fundamentals
+            - cell "33" [ref=e2820]
+            - cell [ref=e2821]
+            - cell "V4 ACTIVE 7.40 Filtered pullback Feeds Final / Decision V5 SHADOW 7.80 Δ +0.40 Volatility contraction setup S 6.5 / Q 9.2 / E 8.3" [ref=e2822]:
+              - generic [ref=e2823]:
+                - generic [ref=e2824]:
+                  - generic [ref=e2825]: V4 ACTIVE
+                  - strong [ref=e2826]: "7.40"
+                  - generic [ref=e2827]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2828]: Feeds Final / Decision
+                - generic [ref=e2829]:
+                  - generic [ref=e2830]: V5 SHADOW
+                  - generic [ref=e2831]:
+                    - text: "7.80"
+                    - generic [ref=e2832]: Δ +0.40
+                  - generic [ref=e2833]: Volatility contraction setup
+                  - generic [ref=e2834]: S 6.5 / Q 9.2 / E 8.3
+            - cell [ref=e2835]:
+              - generic [ref=e2836]:
+                - button "Details" [ref=e2837]
+                - link "TradingView" [ref=e2838]:
+                  - /url: https://www.tradingview.com/chart/?symbol=AMG
+          - row [ref=e2839] [cursor=pointer]:
+            - cell "79" [ref=e2840]
+            - cell [ref=e2841]:
+              - strong [ref=e2842]: DDOG
+            - cell "Technology services" [ref=e2843]
+            - cell "6.40" [ref=e2844]
+            - cell "Incomplete data" [ref=e2845]
+            - cell "Incomplete No fundamentals" [ref=e2847]:
+              - generic [ref=e2848]:
+                - generic [ref=e2849]: Incomplete
+                - generic [ref=e2850]: No fundamentals
+            - cell "29" [ref=e2851]
+            - cell [ref=e2852]
+            - cell "V4 ACTIVE 7.40 No trade Feeds Final / Decision V5 SHADOW 7.03 Δ -0.37 Clean bull pullback S 7.7 / Q 5.6 / E 8.0" [ref=e2853]:
+              - generic [ref=e2854]:
+                - generic [ref=e2855]:
+                  - generic [ref=e2856]: V4 ACTIVE
+                  - strong [ref=e2857]: "7.40"
+                  - generic [ref=e2858]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2859]: Feeds Final / Decision
+                - generic [ref=e2860]:
+                  - generic [ref=e2861]: V5 SHADOW
+                  - generic [ref=e2862]:
+                    - text: "7.03"
+                    - generic [ref=e2863]: Δ -0.37
+                  - generic [ref=e2864]: Clean bull pullback
+                  - generic [ref=e2865]: S 7.7 / Q 5.6 / E 8.0
+            - cell [ref=e2866]:
+              - generic [ref=e2867]:
+                - button "Details" [ref=e2868]
+                - link "TradingView" [ref=e2869]:
+                  - /url: https://www.tradingview.com/chart/?symbol=DDOG
+          - row [ref=e2870] [cursor=pointer]:
+            - cell "80" [ref=e2871]
+            - cell [ref=e2872]:
+              - strong [ref=e2873]: TEN
+            - cell "Transportation" [ref=e2874]
+            - cell "6.39" [ref=e2875]
+            - cell "Incomplete data" [ref=e2876]
+            - cell "Incomplete No fundamentals" [ref=e2878]:
+              - generic [ref=e2879]:
+                - generic [ref=e2880]: Incomplete
+                - generic [ref=e2881]: No fundamentals
+            - cell "48" [ref=e2882]
+            - cell [ref=e2883]
+            - cell "V4 ACTIVE 7.39 No trade Feeds Final / Decision V5 SHADOW 6.94 Δ -0.45 Clean bull pullback S 8.0 / Q 4.9 / E 8.0" [ref=e2884]:
+              - generic [ref=e2885]:
+                - generic [ref=e2886]:
+                  - generic [ref=e2887]: V4 ACTIVE
+                  - strong [ref=e2888]: "7.39"
+                  - generic [ref=e2889]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2890]: Feeds Final / Decision
+                - generic [ref=e2891]:
+                  - generic [ref=e2892]: V5 SHADOW
+                  - generic [ref=e2893]:
+                    - text: "6.94"
+                    - generic [ref=e2894]: Δ -0.45
+                  - generic [ref=e2895]: Clean bull pullback
+                  - generic [ref=e2896]: S 8.0 / Q 4.9 / E 8.0
+            - cell [ref=e2897]:
+              - generic [ref=e2898]:
+                - button "Details" [ref=e2899]
+                - link "TradingView" [ref=e2900]:
+                  - /url: https://www.tradingview.com/chart/?symbol=TEN
+          - row [ref=e2901] [cursor=pointer]:
+            - cell "81" [ref=e2902]
+            - cell [ref=e2903]:
+              - strong [ref=e2904]: ROK
+            - cell "Producer manufacturing" [ref=e2905]
+            - cell "6.38" [ref=e2906]
+            - cell "Incomplete data" [ref=e2907]
+            - cell "Incomplete No technicals Distribution Risk +1" [ref=e2909]:
+              - generic [ref=e2910]:
+                - generic [ref=e2911]: Incomplete
+                - generic [ref=e2912]: No technicals
+                - generic [ref=e2913]: Distribution Risk
+                - generic [ref=e2914]: "+1"
+            - cell "28" [ref=e2915]
+            - cell "7.38 High-quality quant" [ref=e2916]:
+              - text: "7.38"
+              - generic [ref=e2917]: High-quality quant
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 5.65 · Distribution risk; retained but not used." [ref=e2918]:
+              - generic [ref=e2919]:
+                - generic [ref=e2920]: No technical decision input
+                - generic [ref=e2921]: Does not feed Final / Decision
+                - generic [ref=e2922]: Observed V4 5.65 · Distribution risk; retained but not used.
+            - cell [ref=e2923]:
+              - generic [ref=e2924]:
+                - button "Details" [ref=e2925]
+                - link "TradingView" [ref=e2926]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ROK
+          - row [ref=e2927] [cursor=pointer]:
+            - cell "82" [ref=e2928]
+            - cell [ref=e2929]:
+              - strong [ref=e2930]: QGEN
+            - cell "Health technology" [ref=e2931]
+            - cell "6.38" [ref=e2932]
+            - cell "Incomplete data" [ref=e2933]
+            - cell "Incomplete No technicals Box Failure +2" [ref=e2935]:
+              - generic [ref=e2936]:
+                - generic [ref=e2937]: Incomplete
+                - generic [ref=e2938]: No technicals
+                - generic [ref=e2939]: Box Failure
+                - generic [ref=e2940]: "+2"
+            - cell "34" [ref=e2941]
+            - cell "7.38 High-quality quant" [ref=e2942]:
+              - text: "7.38"
+              - generic [ref=e2943]: High-quality quant
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 5.75 · Failed breakout; retained but not used." [ref=e2944]:
+              - generic [ref=e2945]:
+                - generic [ref=e2946]: No technical decision input
+                - generic [ref=e2947]: Does not feed Final / Decision
+                - generic [ref=e2948]: Observed V4 5.75 · Failed breakout; retained but not used.
+            - cell [ref=e2949]:
+              - generic [ref=e2950]:
+                - button "Details" [ref=e2951]
+                - link "TradingView" [ref=e2952]:
+                  - /url: https://www.tradingview.com/chart/?symbol=QGEN
+          - row [ref=e2953] [cursor=pointer]:
+            - cell "83" [ref=e2954]
+            - cell [ref=e2955]:
+              - strong [ref=e2956]: META
+            - cell "Technology services" [ref=e2957]
+            - cell "6.38" [ref=e2958]
+            - cell "Incomplete data" [ref=e2959]
+            - cell "Incomplete No fundamentals" [ref=e2961]:
+              - generic [ref=e2962]:
+                - generic [ref=e2963]: Incomplete
+                - generic [ref=e2964]: No fundamentals
+            - cell "21" [ref=e2965]
+            - cell [ref=e2966]
+            - cell "V4 ACTIVE 7.38 No trade Feeds Final / Decision V5 SHADOW 7.19 Δ -0.19 Clean bull pullback S 7.2 / Q 6.6 / E 8.1" [ref=e2967]:
+              - generic [ref=e2968]:
+                - generic [ref=e2969]:
+                  - generic [ref=e2970]: V4 ACTIVE
+                  - strong [ref=e2971]: "7.38"
+                  - generic [ref=e2972]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e2973]: Feeds Final / Decision
+                - generic [ref=e2974]:
+                  - generic [ref=e2975]: V5 SHADOW
+                  - generic [ref=e2976]:
+                    - text: "7.19"
+                    - generic [ref=e2977]: Δ -0.19
+                  - generic [ref=e2978]: Clean bull pullback
+                  - generic [ref=e2979]: S 7.2 / Q 6.6 / E 8.1
+            - cell [ref=e2980]:
+              - generic [ref=e2981]:
+                - button "Details" [ref=e2982]
+                - link "TradingView" [ref=e2983]:
+                  - /url: https://www.tradingview.com/chart/?symbol=META
+          - row [ref=e2984] [cursor=pointer]:
+            - cell "84" [ref=e2985]
+            - cell [ref=e2986]:
+              - strong [ref=e2987]: ZS
+            - cell "Technology services" [ref=e2988]
+            - cell "6.35" [ref=e2989]
+            - cell "Incomplete data" [ref=e2990]
+            - cell "Incomplete No fundamentals" [ref=e2992]:
+              - generic [ref=e2993]:
+                - generic [ref=e2994]: Incomplete
+                - generic [ref=e2995]: No fundamentals
+            - cell "55" [ref=e2996]
+            - cell [ref=e2997]
+            - cell "V4 ACTIVE 7.35 Trend repair Feeds Final / Decision V5 SHADOW 7.25 Δ -0.10 Volatility contraction setup S 7.0 / Q 7.9 / E 6.6" [ref=e2998]:
+              - generic [ref=e2999]:
+                - generic [ref=e3000]:
+                  - generic [ref=e3001]: V4 ACTIVE
+                  - strong [ref=e3002]: "7.35"
+                  - generic [ref=e3003]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3004]: Feeds Final / Decision
+                - generic [ref=e3005]:
+                  - generic [ref=e3006]: V5 SHADOW
+                  - generic [ref=e3007]:
+                    - text: "7.25"
+                    - generic [ref=e3008]: Δ -0.10
+                  - generic [ref=e3009]: Volatility contraction setup
+                  - generic [ref=e3010]: S 7.0 / Q 7.9 / E 6.6
+            - cell [ref=e3011]:
+              - generic [ref=e3012]:
+                - button "Details" [ref=e3013]
+                - link "TradingView" [ref=e3014]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ZS
+          - row [ref=e3015] [cursor=pointer]:
+            - cell "85" [ref=e3016]
+            - cell [ref=e3017]:
+              - strong [ref=e3018]: DOCU
+            - cell "Technology services" [ref=e3019]
+            - cell "6.34" [ref=e3020]
+            - cell "Incomplete data" [ref=e3021]
+            - cell "Incomplete No fundamentals" [ref=e3023]:
+              - generic [ref=e3024]:
+                - generic [ref=e3025]: Incomplete
+                - generic [ref=e3026]: No fundamentals
+            - cell "57" [ref=e3027]
+            - cell [ref=e3028]
+            - cell "V4 ACTIVE 7.34 Filtered momentum Feeds Final / Decision V5 SHADOW 7.07 Δ -0.27 Clean bull pullback S 6.8 / Q 6.1 / E 9.2" [ref=e3029]:
+              - generic [ref=e3030]:
+                - generic [ref=e3031]:
+                  - generic [ref=e3032]: V4 ACTIVE
+                  - strong [ref=e3033]: "7.34"
+                  - generic [ref=e3034]: Filtered momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3035]: Feeds Final / Decision
+                - generic [ref=e3036]:
+                  - generic [ref=e3037]: V5 SHADOW
+                  - generic [ref=e3038]:
+                    - text: "7.07"
+                    - generic [ref=e3039]: Δ -0.27
+                  - generic [ref=e3040]: Clean bull pullback
+                  - generic [ref=e3041]: S 6.8 / Q 6.1 / E 9.2
+            - cell [ref=e3042]:
+              - generic [ref=e3043]:
+                - button "Details" [ref=e3044]
+                - link "TradingView" [ref=e3045]:
+                  - /url: https://www.tradingview.com/chart/?symbol=DOCU
+          - row [ref=e3046] [cursor=pointer]:
+            - cell "86" [ref=e3047]
+            - cell [ref=e3048]:
+              - strong [ref=e3049]: VIA
+            - cell "Technology services" [ref=e3050]
+            - cell "6.33" [ref=e3051]
+            - cell "Incomplete data" [ref=e3052]
+            - cell "Incomplete No fundamentals" [ref=e3054]:
+              - generic [ref=e3055]:
+                - generic [ref=e3056]: Incomplete
+                - generic [ref=e3057]: No fundamentals
+            - cell "33" [ref=e3058]
+            - cell [ref=e3059]
+            - cell "V4 ACTIVE 7.33 Trend repair Feeds Final / Decision V5 SHADOW 7.06 Δ -0.27 Volatility contraction setup S 6.6 / Q 7.1 / E 8.1" [ref=e3060]:
+              - generic [ref=e3061]:
+                - generic [ref=e3062]:
+                  - generic [ref=e3063]: V4 ACTIVE
+                  - strong [ref=e3064]: "7.33"
+                  - generic [ref=e3065]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3066]: Feeds Final / Decision
+                - generic [ref=e3067]:
+                  - generic [ref=e3068]: V5 SHADOW
+                  - generic [ref=e3069]:
+                    - text: "7.06"
+                    - generic [ref=e3070]: Δ -0.27
+                  - generic [ref=e3071]: Volatility contraction setup
+                  - generic [ref=e3072]: S 6.6 / Q 7.1 / E 8.1
+            - cell [ref=e3073]:
+              - generic [ref=e3074]:
+                - button "Details" [ref=e3075]
+                - link "TradingView" [ref=e3076]:
+                  - /url: https://www.tradingview.com/chart/?symbol=VIA
+          - row [ref=e3077] [cursor=pointer]:
+            - cell "87" [ref=e3078]
+            - cell [ref=e3079]:
+              - strong [ref=e3080]: DUOL
+            - cell "Technology services" [ref=e3081]
+            - cell "6.30" [ref=e3082]
+            - cell "Incomplete data" [ref=e3083]
+            - cell "Incomplete No fundamentals" [ref=e3085]:
+              - generic [ref=e3086]:
+                - generic [ref=e3087]: Incomplete
+                - generic [ref=e3088]: No fundamentals
+            - cell "35" [ref=e3089]
+            - cell [ref=e3090]
+            - cell "V4 ACTIVE 7.30 Trend repair Feeds Final / Decision V5 SHADOW 6.88 Δ -0.42 Volatility contraction setup S 6.1 / Q 7.1 / E 8.3" [ref=e3091]:
+              - generic [ref=e3092]:
+                - generic [ref=e3093]:
+                  - generic [ref=e3094]: V4 ACTIVE
+                  - strong [ref=e3095]: "7.30"
+                  - generic [ref=e3096]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3097]: Feeds Final / Decision
+                - generic [ref=e3098]:
+                  - generic [ref=e3099]: V5 SHADOW
+                  - generic [ref=e3100]:
+                    - text: "6.88"
+                    - generic [ref=e3101]: Δ -0.42
+                  - generic [ref=e3102]: Volatility contraction setup
+                  - generic [ref=e3103]: S 6.1 / Q 7.1 / E 8.3
+            - cell [ref=e3104]:
+              - generic [ref=e3105]:
+                - button "Details" [ref=e3106]
+                - link "TradingView" [ref=e3107]:
+                  - /url: https://www.tradingview.com/chart/?symbol=DUOL
+          - row [ref=e3108] [cursor=pointer]:
+            - cell "88" [ref=e3109]
+            - cell [ref=e3110]:
+              - strong [ref=e3111]: VRSN
+            - cell "Technology services" [ref=e3112]
+            - cell "6.23" [ref=e3113]
+            - cell "Incomplete data" [ref=e3114]
+            - cell "Incomplete No fundamentals" [ref=e3116]:
+              - generic [ref=e3117]:
+                - generic [ref=e3118]: Incomplete
+                - generic [ref=e3119]: No fundamentals
+            - cell "15" [ref=e3120]
+            - cell [ref=e3121]
+            - cell "V4 ACTIVE 7.23 Filtered pullback Feeds Final / Decision V5 SHADOW 7.05 Δ -0.18 Volatility contraction setup S 6.9 / Q 7.4 / E 6.8" [ref=e3122]:
+              - generic [ref=e3123]:
+                - generic [ref=e3124]:
+                  - generic [ref=e3125]: V4 ACTIVE
+                  - strong [ref=e3126]: "7.23"
+                  - generic [ref=e3127]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3128]: Feeds Final / Decision
+                - generic [ref=e3129]:
+                  - generic [ref=e3130]: V5 SHADOW
+                  - generic [ref=e3131]:
+                    - text: "7.05"
+                    - generic [ref=e3132]: Δ -0.18
+                  - generic [ref=e3133]: Volatility contraction setup
+                  - generic [ref=e3134]: S 6.9 / Q 7.4 / E 6.8
+            - cell [ref=e3135]:
+              - generic [ref=e3136]:
+                - button "Details" [ref=e3137]
+                - link "TradingView" [ref=e3138]:
+                  - /url: https://www.tradingview.com/chart/?symbol=VRSN
+          - row [ref=e3139] [cursor=pointer]:
+            - cell "89" [ref=e3140]
+            - cell [ref=e3141]:
+              - strong [ref=e3142]: NWE
+            - cell "Utilities" [ref=e3143]
+            - cell "6.15" [ref=e3144]
+            - cell "Incomplete data" [ref=e3145]
+            - cell "Incomplete No fundamentals" [ref=e3147]:
+              - generic [ref=e3148]:
+                - generic [ref=e3149]: Incomplete
+                - generic [ref=e3150]: No fundamentals
+            - cell "27" [ref=e3151]
+            - cell [ref=e3152]
+            - cell "V4 ACTIVE 7.15 Extended momentum Feeds Final / Decision V5 SHADOW 6.68 Δ -0.47 Tight base breakout S 6.4 / Q 7.5 / E 6.0" [ref=e3153]:
+              - generic [ref=e3154]:
+                - generic [ref=e3155]:
+                  - generic [ref=e3156]: V4 ACTIVE
+                  - strong [ref=e3157]: "7.15"
+                  - generic [ref=e3158]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3159]: Feeds Final / Decision
+                - generic [ref=e3160]:
+                  - generic [ref=e3161]: V5 SHADOW
+                  - generic [ref=e3162]:
+                    - text: "6.68"
+                    - generic [ref=e3163]: Δ -0.47
+                  - generic [ref=e3164]: Tight base breakout
+                  - generic [ref=e3165]: S 6.4 / Q 7.5 / E 6.0
+            - cell [ref=e3166]:
+              - generic [ref=e3167]:
+                - button "Details" [ref=e3168]
+                - link "TradingView" [ref=e3169]:
+                  - /url: https://www.tradingview.com/chart/?symbol=NWE
+          - row [ref=e3170] [cursor=pointer]:
+            - cell "90" [ref=e3171]
+            - cell [ref=e3172]:
+              - strong [ref=e3173]: DGII
+            - cell "Electronic technology" [ref=e3174]
+            - cell "6.08" [ref=e3175]
+            - cell "Incomplete data" [ref=e3176]
+            - cell "Incomplete No fundamentals" [ref=e3178]:
+              - generic [ref=e3179]:
+                - generic [ref=e3180]: Incomplete
+                - generic [ref=e3181]: No fundamentals
+            - cell "42" [ref=e3182]
+            - cell [ref=e3183]
+            - cell "V4 ACTIVE 7.08 Filtered pullback Feeds Final / Decision V5 SHADOW 7.15 Δ +0.07 Clean bull pullback S 6.5 / Q 6.9 / E 9.1" [ref=e3184]:
+              - generic [ref=e3185]:
+                - generic [ref=e3186]:
+                  - generic [ref=e3187]: V4 ACTIVE
+                  - strong [ref=e3188]: "7.08"
+                  - generic [ref=e3189]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3190]: Feeds Final / Decision
+                - generic [ref=e3191]:
+                  - generic [ref=e3192]: V5 SHADOW
+                  - generic [ref=e3193]:
+                    - text: "7.15"
+                    - generic [ref=e3194]: Δ +0.07
+                  - generic [ref=e3195]: Clean bull pullback
+                  - generic [ref=e3196]: S 6.5 / Q 6.9 / E 9.1
+            - cell [ref=e3197]:
+              - generic [ref=e3198]:
+                - button "Details" [ref=e3199]
+                - link "TradingView" [ref=e3200]:
+                  - /url: https://www.tradingview.com/chart/?symbol=DGII
+          - row [ref=e3201] [cursor=pointer]:
+            - cell "91" [ref=e3202]
+            - cell [ref=e3203]:
+              - strong [ref=e3204]: BTSG
+            - cell "Health services" [ref=e3205]
+            - cell "6.07" [ref=e3206]
+            - cell "Incomplete data" [ref=e3207]
+            - cell "Incomplete No fundamentals" [ref=e3209]:
+              - generic [ref=e3210]:
+                - generic [ref=e3211]: Incomplete
+                - generic [ref=e3212]: No fundamentals
+            - cell "23" [ref=e3213]
+            - cell [ref=e3214]
+            - cell "V4 ACTIVE 7.07 Filtered pullback Feeds Final / Decision V5 SHADOW 7.03 Δ -0.05 Volatility contraction setup S 6.1 / Q 7.5 / E 8.1" [ref=e3215]:
+              - generic [ref=e3216]:
+                - generic [ref=e3217]:
+                  - generic [ref=e3218]: V4 ACTIVE
+                  - strong [ref=e3219]: "7.07"
+                  - generic [ref=e3220]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3221]: Feeds Final / Decision
+                - generic [ref=e3222]:
+                  - generic [ref=e3223]: V5 SHADOW
+                  - generic [ref=e3224]:
+                    - text: "7.03"
+                    - generic [ref=e3225]: Δ -0.05
+                  - generic [ref=e3226]: Volatility contraction setup
+                  - generic [ref=e3227]: S 6.1 / Q 7.5 / E 8.1
+            - cell [ref=e3228]:
+              - generic [ref=e3229]:
+                - button "Details" [ref=e3230]
+                - link "TradingView" [ref=e3231]:
+                  - /url: https://www.tradingview.com/chart/?symbol=BTSG
+          - row [ref=e3232] [cursor=pointer]:
+            - cell "92" [ref=e3233]
+            - cell [ref=e3234]:
+              - strong [ref=e3235]: AMZN
+            - cell "Retail trade" [ref=e3236]
+            - cell "6.05" [ref=e3237]
+            - cell "Incomplete data" [ref=e3238]
+            - cell "Incomplete No fundamentals" [ref=e3240]:
+              - generic [ref=e3241]:
+                - generic [ref=e3242]: Incomplete
+                - generic [ref=e3243]: No fundamentals
+            - cell "22" [ref=e3244]
+            - cell [ref=e3245]
+            - cell "V4 ACTIVE 7.05 Filtered pullback Feeds Final / Decision V5 SHADOW 7.56 Δ +0.51 Volatility contraction setup S 6.3 / Q 8.7 / E 8.4" [ref=e3246]:
+              - generic [ref=e3247]:
+                - generic [ref=e3248]:
+                  - generic [ref=e3249]: V4 ACTIVE
+                  - strong [ref=e3250]: "7.05"
+                  - generic [ref=e3251]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3252]: Feeds Final / Decision
+                - generic [ref=e3253]:
+                  - generic [ref=e3254]: V5 SHADOW
+                  - generic [ref=e3255]:
+                    - text: "7.56"
+                    - generic [ref=e3256]: Δ +0.51
+                  - generic [ref=e3257]: Volatility contraction setup
+                  - generic [ref=e3258]: S 6.3 / Q 8.7 / E 8.4
+            - cell [ref=e3259]:
+              - generic [ref=e3260]:
+                - button "Details" [ref=e3261]
+                - link "TradingView" [ref=e3262]:
+                  - /url: https://www.tradingview.com/chart/?symbol=AMZN
+          - row [ref=e3263] [cursor=pointer]:
+            - cell "93" [ref=e3264]
+            - cell [ref=e3265]:
+              - strong [ref=e3266]: PWR
+            - cell "Industrial services" [ref=e3267]
+            - cell "5.99" [ref=e3268]
+            - cell "Incomplete data" [ref=e3269]
+            - cell "Incomplete No fundamentals" [ref=e3271]:
+              - generic [ref=e3272]:
+                - generic [ref=e3273]: Incomplete
+                - generic [ref=e3274]: No fundamentals
+            - cell "22" [ref=e3275]
+            - cell [ref=e3276]
+            - cell "V4 ACTIVE 6.99 Extended momentum Feeds Final / Decision V5 SHADOW 6.34 Δ -0.65 Clean bull pullback S 6.9 / Q 4.9 / E 7.6" [ref=e3277]:
+              - generic [ref=e3278]:
+                - generic [ref=e3279]:
+                  - generic [ref=e3280]: V4 ACTIVE
+                  - strong [ref=e3281]: "6.99"
+                  - generic [ref=e3282]: Extended momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3283]: Feeds Final / Decision
+                - generic [ref=e3284]:
+                  - generic [ref=e3285]: V5 SHADOW
+                  - generic [ref=e3286]:
+                    - text: "6.34"
+                    - generic [ref=e3287]: Δ -0.65
+                  - generic [ref=e3288]: Clean bull pullback
+                  - generic [ref=e3289]: S 6.9 / Q 4.9 / E 7.6
+            - cell [ref=e3290]:
+              - generic [ref=e3291]:
+                - button "Details" [ref=e3292]
+                - link "TradingView" [ref=e3293]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PWR
+          - row [ref=e3294] [cursor=pointer]:
+            - cell "94" [ref=e3295]
+            - cell [ref=e3296]:
+              - strong [ref=e3297]: ECPG
+            - cell "Finance" [ref=e3298]
+            - cell "5.99" [ref=e3299]
+            - cell "Incomplete data" [ref=e3300]
+            - cell "Incomplete No fundamentals" [ref=e3302]:
+              - generic [ref=e3303]:
+                - generic [ref=e3304]: Incomplete
+                - generic [ref=e3305]: No fundamentals
+            - cell "28" [ref=e3306]
+            - cell [ref=e3307]
+            - cell "V4 ACTIVE 6.99 Filtered pullback Feeds Final / Decision V5 SHADOW 7.28 Δ +0.29 Clean bull pullback S 6.0 / Q 8.3 / E 8.4" [ref=e3308]:
+              - generic [ref=e3309]:
+                - generic [ref=e3310]:
+                  - generic [ref=e3311]: V4 ACTIVE
+                  - strong [ref=e3312]: "6.99"
+                  - generic [ref=e3313]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3314]: Feeds Final / Decision
+                - generic [ref=e3315]:
+                  - generic [ref=e3316]: V5 SHADOW
+                  - generic [ref=e3317]:
+                    - text: "7.28"
+                    - generic [ref=e3318]: Δ +0.29
+                  - generic [ref=e3319]: Clean bull pullback
+                  - generic [ref=e3320]: S 6.0 / Q 8.3 / E 8.4
+            - cell [ref=e3321]:
+              - generic [ref=e3322]:
+                - button "Details" [ref=e3323]
+                - link "TradingView" [ref=e3324]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ECPG
+          - row [ref=e3325] [cursor=pointer]:
+            - cell "95" [ref=e3326]
+            - cell [ref=e3327]:
+              - strong [ref=e3328]: PLXS
+            - cell "Electronic technology" [ref=e3329]
+            - cell "5.96" [ref=e3330]
+            - cell "Incomplete data" [ref=e3331]
+            - cell "Incomplete No fundamentals" [ref=e3333]:
+              - generic [ref=e3334]:
+                - generic [ref=e3335]: Incomplete
+                - generic [ref=e3336]: No fundamentals
+            - cell "21" [ref=e3337]
+            - cell [ref=e3338]
+            - cell "V4 ACTIVE 6.96 No trade Feeds Final / Decision V5 SHADOW 7.07 Δ +0.11 Volatility contraction setup S 6.3 / Q 7.5 / E 7.9" [ref=e3339]:
+              - generic [ref=e3340]:
+                - generic [ref=e3341]:
+                  - generic [ref=e3342]: V4 ACTIVE
+                  - strong [ref=e3343]: "6.96"
+                  - generic [ref=e3344]: No trade
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3345]: Feeds Final / Decision
+                - generic [ref=e3346]:
+                  - generic [ref=e3347]: V5 SHADOW
+                  - generic [ref=e3348]:
+                    - text: "7.07"
+                    - generic [ref=e3349]: Δ +0.11
+                  - generic [ref=e3350]: Volatility contraction setup
+                  - generic [ref=e3351]: S 6.3 / Q 7.5 / E 7.9
+            - cell [ref=e3352]:
+              - generic [ref=e3353]:
+                - button "Details" [ref=e3354]
+                - link "TradingView" [ref=e3355]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PLXS
+          - row [ref=e3356] [cursor=pointer]:
+            - cell "96" [ref=e3357]
+            - cell [ref=e3358]:
+              - strong [ref=e3359]: RBRK
+            - cell "Technology services" [ref=e3360]
+            - cell "5.96" [ref=e3361]
+            - cell "Incomplete data" [ref=e3362]
+            - cell "Incomplete No fundamentals" [ref=e3364]:
+              - generic [ref=e3365]:
+                - generic [ref=e3366]: Incomplete
+                - generic [ref=e3367]: No fundamentals
+            - cell "57" [ref=e3368]
+            - cell [ref=e3369]
+            - cell "V4 ACTIVE 8.46 Overheated momentum Feeds Final / Decision V5 SHADOW 8.43 Δ -0.03 Volatility contraction setup S 8.7 / Q 8.7 / E 7.3" [ref=e3370]:
+              - generic [ref=e3371]:
+                - generic [ref=e3372]:
+                  - generic [ref=e3373]: V4 ACTIVE
+                  - strong [ref=e3374]: "8.46"
+                  - generic [ref=e3375]: Overheated momentum
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3376]: Feeds Final / Decision
+                - generic [ref=e3377]:
+                  - generic [ref=e3378]: V5 SHADOW
+                  - generic [ref=e3379]:
+                    - text: "8.43"
+                    - generic [ref=e3380]: Δ -0.03
+                  - generic [ref=e3381]: Volatility contraction setup
+                  - generic [ref=e3382]: S 8.7 / Q 8.7 / E 7.3
+            - cell [ref=e3383]:
+              - generic [ref=e3384]:
+                - button "Details" [ref=e3385]
+                - link "TradingView" [ref=e3386]:
+                  - /url: https://www.tradingview.com/chart/?symbol=RBRK
+          - row [ref=e3387] [cursor=pointer]:
+            - cell "97" [ref=e3388]
+            - cell [ref=e3389]:
+              - strong [ref=e3390]: KNSA
+            - cell "Health technology" [ref=e3391]
+            - cell "5.94" [ref=e3392]
+            - cell "Incomplete data" [ref=e3393]
+            - cell "Incomplete No fundamentals" [ref=e3395]:
+              - generic [ref=e3396]:
+                - generic [ref=e3397]: Incomplete
+                - generic [ref=e3398]: No fundamentals
+            - cell "27" [ref=e3399]
+            - cell [ref=e3400]
+            - cell "V4 ACTIVE 6.94 Trend repair Feeds Final / Decision V5 SHADOW 6.92 Δ -0.02 Clean bull pullback S 6.1 / Q 7.3 / E 8.1" [ref=e3401]:
+              - generic [ref=e3402]:
+                - generic [ref=e3403]:
+                  - generic [ref=e3404]: V4 ACTIVE
+                  - strong [ref=e3405]: "6.94"
+                  - generic [ref=e3406]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3407]: Feeds Final / Decision
+                - generic [ref=e3408]:
+                  - generic [ref=e3409]: V5 SHADOW
+                  - generic [ref=e3410]:
+                    - text: "6.92"
+                    - generic [ref=e3411]: Δ -0.02
+                  - generic [ref=e3412]: Clean bull pullback
+                  - generic [ref=e3413]: S 6.1 / Q 7.3 / E 8.1
+            - cell [ref=e3414]:
+              - generic [ref=e3415]:
+                - button "Details" [ref=e3416]
+                - link "TradingView" [ref=e3417]:
+                  - /url: https://www.tradingview.com/chart/?symbol=KNSA
+          - row [ref=e3418] [cursor=pointer]:
+            - cell "98" [ref=e3419]
+            - cell [ref=e3420]:
+              - strong [ref=e3421]: AFRM
+            - cell "Finance" [ref=e3422]
+            - cell "5.91" [ref=e3423]
+            - cell "Incomplete data" [ref=e3424]
+            - cell "Incomplete No fundamentals" [ref=e3426]:
+              - generic [ref=e3427]:
+                - generic [ref=e3428]: Incomplete
+                - generic [ref=e3429]: No fundamentals
+            - cell "29" [ref=e3430]
+            - cell [ref=e3431]
+            - cell "V4 ACTIVE 6.91 Trend repair Feeds Final / Decision V5 SHADOW 6.97 Δ +0.06 Volatility contraction setup S 5.4 / Q 8.1 / E 8.6" [ref=e3432]:
+              - generic [ref=e3433]:
+                - generic [ref=e3434]:
+                  - generic [ref=e3435]: V4 ACTIVE
+                  - strong [ref=e3436]: "6.91"
+                  - generic [ref=e3437]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3438]: Feeds Final / Decision
+                - generic [ref=e3439]:
+                  - generic [ref=e3440]: V5 SHADOW
+                  - generic [ref=e3441]:
+                    - text: "6.97"
+                    - generic [ref=e3442]: Δ +0.06
+                  - generic [ref=e3443]: Volatility contraction setup
+                  - generic [ref=e3444]: S 5.4 / Q 8.1 / E 8.6
+            - cell [ref=e3445]:
+              - generic [ref=e3446]:
+                - button "Details" [ref=e3447]
+                - link "TradingView" [ref=e3448]:
+                  - /url: https://www.tradingview.com/chart/?symbol=AFRM
+          - row [ref=e3449] [cursor=pointer]:
+            - cell "99" [ref=e3450]
+            - cell [ref=e3451]:
+              - strong [ref=e3452]: LLY
+            - cell "Health technology" [ref=e3453]
+            - cell "5.90" [ref=e3454]
+            - cell "Incomplete data" [ref=e3455]
+            - cell "Incomplete No fundamentals" [ref=e3457]:
+              - generic [ref=e3458]:
+                - generic [ref=e3459]: Incomplete
+                - generic [ref=e3460]: No fundamentals
+            - cell "22" [ref=e3461]
+            - cell [ref=e3462]
+            - cell "V4 ACTIVE 6.90 Filtered pullback Feeds Final / Decision V5 SHADOW 7.38 Δ +0.48 Volatility contraction setup S 6.3 / Q 8.4 / E 8.1" [ref=e3463]:
+              - generic [ref=e3464]:
+                - generic [ref=e3465]:
+                  - generic [ref=e3466]: V4 ACTIVE
+                  - strong [ref=e3467]: "6.90"
+                  - generic [ref=e3468]: Filtered pullback
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3469]: Feeds Final / Decision
+                - generic [ref=e3470]:
+                  - generic [ref=e3471]: V5 SHADOW
+                  - generic [ref=e3472]:
+                    - text: "7.38"
+                    - generic [ref=e3473]: Δ +0.48
+                  - generic [ref=e3474]: Volatility contraction setup
+                  - generic [ref=e3475]: S 6.3 / Q 8.4 / E 8.1
+            - cell [ref=e3476]:
+              - generic [ref=e3477]:
+                - button "Details" [ref=e3478]
+                - link "TradingView" [ref=e3479]:
+                  - /url: https://www.tradingview.com/chart/?symbol=LLY
+          - row [ref=e3480] [cursor=pointer]:
+            - cell "100" [ref=e3481]
+            - cell [ref=e3482]:
+              - strong [ref=e3483]: FLEX
+            - cell "Electronic technology" [ref=e3484]
+            - cell "5.87" [ref=e3485]
+            - cell "Incomplete data" [ref=e3486]
+            - cell "Incomplete No fundamentals" [ref=e3488]:
+              - generic [ref=e3489]:
+                - generic [ref=e3490]: Incomplete
+                - generic [ref=e3491]: No fundamentals
+            - cell "28" [ref=e3492]
+            - cell [ref=e3493]
+            - cell "V4 ACTIVE 6.87 Trend repair Feeds Final / Decision V5 SHADOW 7.00 Δ +0.13 Volatility contraction setup S 5.5 / Q 8.1 / E 8.6" [ref=e3494]:
+              - generic [ref=e3495]:
+                - generic [ref=e3496]:
+                  - generic [ref=e3497]: V4 ACTIVE
+                  - strong [ref=e3498]: "6.87"
+                  - generic [ref=e3499]: Trend repair
+                  - generic "This active technical score feeds the combined Final score and Decision." [ref=e3500]: Feeds Final / Decision
+                - generic [ref=e3501]:
+                  - generic [ref=e3502]: V5 SHADOW
+                  - generic [ref=e3503]:
+                    - text: "7.00"
+                    - generic [ref=e3504]: Δ +0.13
+                  - generic [ref=e3505]: Volatility contraction setup
+                  - generic [ref=e3506]: S 5.5 / Q 8.1 / E 8.6
+            - cell [ref=e3507]:
+              - generic [ref=e3508]:
+                - button "Details" [ref=e3509]
+                - link "TradingView" [ref=e3510]:
+                  - /url: https://www.tradingview.com/chart/?symbol=FLEX
+      - navigation "Decision cockpit pages" [ref=e3511]:
+        - text: Showing 1-100 of 209 decisions. Filters and sorting apply to this page; exports remain run-wide.
+        - generic [ref=e3512]:
+          - generic [ref=e3513]: Previous decisions
+          - link "Next decisions" [ref=e3514] [cursor=pointer]:
+            - /url: http://127.0.0.1:8000/runs/30?cockpit_offset=100&cockpit_limit=100
+    - generic [ref=e3515]:
+      - generic [ref=e3517]:
+        - heading "Raw CSV Preview" [level=2] [ref=e3518]
+        - paragraph [ref=e3519]: First 10 preserved rows mapped to ticker, company, and sector.
+      - generic [ref=e3520]:
+        - generic [ref=e3521]:
+          - strong [ref=e3522]: "123"
+          - text: raw columns
+        - generic [ref=e3523]:
+          - strong [ref=e3524]: "0"
+          - text: duplicate tickers
+      - group [ref=e3525]:
+        - generic "Raw CSV Preview rows" [ref=e3526] [cursor=pointer]

@@ -17,7 +17,7 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canon
 from app.services.domain_write_fence import bounded_domain_session
 from app.services.ib_api import IB, Contract
 from app.services.ib_connection import create_ib_client
-from app.services.ib_contract_resolver import resolve_us_stock_contract
+from app.services.ib_contract_resolver import invalidate_cached_contract, resolve_us_stock_contract
 from app.services.ib_data_fetcher import IBHistoricalRequestError, fetch_daily_bars
 from app.services.ib_fetch_plan_service import (
     FetchAction,
@@ -119,6 +119,7 @@ def execute_fetch_plan(
         "bar_cache_write_ms": 0.0,
     }
     benchmark_evidence: list[dict[str, object]] = []
+    contract_requalification_attempts: set[str] = set()
     for plan_item in plan.items:
         expected_by_ticker[plan_item.ticker.upper()] += 1
     execution_items = _benchmark_first_items(plan.items, settings.ib_benchmark_symbols)
@@ -222,6 +223,7 @@ def execute_fetch_plan(
                     force_full_backfill=force_full_backfill,
                     performance=performance,
                     should_cancel=should_cancel,
+                    contract_requalification_attempts=contract_requalification_attempts,
                 )
                 cancel_after_item = bool(should_cancel and should_cancel())
                 _increment_run_totals(item_run, fetch_item)
@@ -460,6 +462,7 @@ def _execute_plan_item(
     force_full_backfill: bool,
     performance: dict[str, float] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    contract_requalification_attempts: set[str] | None = None,
 ) -> None:
     performance = performance if performance is not None else {}
     fetch_item.started_at = datetime.now(UTC)
@@ -717,6 +720,20 @@ def _execute_plan_item(
                 retryable=exc.retryable,
                 elapsed_seconds=request_duration,
             )
+            if not exc.retryable and exc.code == 200 and exc.classification == "CONTRACT_NOT_FOUND":
+                _invalidate_and_requalify_contract(
+                    db,
+                    ib,
+                    fetch_item,
+                    plan_item,
+                    failed_contract=contract,
+                    attempts=(
+                        contract_requalification_attempts
+                        if contract_requalification_attempts is not None
+                        else set()
+                    ),
+                    provider_message=exc.provider_message,
+                )
             if not exc.retryable or attempt >= settings.ib_max_retries:
                 _mark_failed(fetch_item, str(exc))
                 return
@@ -794,6 +811,86 @@ def _execute_plan_item(
             if not backoff_completed:
                 _mark_skipped(fetch_item, "Cancellation requested during IB retry backoff.")
                 return
+
+
+def _invalidate_and_requalify_contract(
+    db: Session,
+    ib: IB,
+    fetch_item: IBFetchItem,
+    plan_item: FetchPlanItem,
+    *,
+    failed_contract: Contract,
+    attempts: set[str],
+    provider_message: str,
+) -> None:
+    """Invalidate error-200 identity and make at most one qualification probe.
+
+    The probe only prepares cache state for a future acquisition plan. The
+    current item's immutable contract identity is never replaced or retried.
+    """
+
+    ticker = plan_item.ticker.upper()
+    failed_conid = int(getattr(failed_contract, "conId", 0) or 0) or None
+    invalidated = invalidate_cached_contract(
+        db,
+        ticker,
+        expected_conid=failed_conid,
+        reason=f"IB error 200 CONTRACT_NOT_FOUND: {_safe_message(provider_message)}",
+    )
+    metadata = dict(fetch_item.decision_metadata_json or {})
+    metadata.update(
+        {
+            "cached_contract_invalidated": invalidated,
+            "invalidated_contract_conid": failed_conid,
+            "acquisition_plan_identity_retained": True,
+        }
+    )
+    if ticker in attempts:
+        metadata["contract_requalification"] = "BOUNDED_ALREADY_ATTEMPTED"
+        fetch_item.decision_metadata_json = metadata
+        return
+    attempts.add(ticker)
+    resolution = resolve_us_stock_contract(db, ticker, ib, force_refresh=True)
+    replacement = resolution.contract
+    replacement_identity = (
+        {
+            "conId": int(getattr(replacement, "conId", 0) or 0),
+            "symbol": getattr(replacement, "symbol", None),
+            "secType": getattr(replacement, "secType", None),
+            "exchange": getattr(replacement, "exchange", None),
+            "primaryExchange": getattr(replacement, "primaryExchange", None),
+            "currency": getattr(replacement, "currency", None),
+            "localSymbol": getattr(replacement, "localSymbol", None),
+            "tradingClass": getattr(replacement, "tradingClass", None),
+        }
+        if replacement is not None
+        else None
+    )
+    replacement_conid = (
+        int(replacement_identity["conId"] or 0) if replacement_identity is not None else None
+    )
+    if replacement_identity is None:
+        outcome = "NO_MATCH"
+    elif replacement_conid != failed_conid:
+        outcome = "NEW_IDENTITY_REQUIRES_NEW_PLAN"
+    else:
+        outcome = "SAME_INVALID_IDENTITY"
+        invalidate_cached_contract(
+            db,
+            ticker,
+            expected_conid=failed_conid,
+            reason="Requalification returned the same identity rejected by historical data.",
+        )
+    metadata.update(
+        {
+            "contract_requalification": outcome,
+            "contract_requalification_attempted": True,
+            "replacement_contract_identity": replacement_identity,
+            "replacement_requires_new_acquisition_plan": outcome
+            == "NEW_IDENTITY_REQUIRES_NEW_PLAN",
+        }
+    )
+    fetch_item.decision_metadata_json = metadata
 
 
 def _record_historical_failure(

@@ -100,7 +100,7 @@ def test_unrated_insufficient_opportunity_change_cannot_alert(
     assert not any(isinstance(row, CeriAlertEvent) for row in db.added)
 
 
-def test_accepted_risk_change_can_alert_when_opportunity_is_unrated(
+def test_accepted_risk_change_cannot_alert_when_confidence_is_insufficient(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _enable_alerts(monkeypatch)
@@ -135,7 +135,33 @@ def test_accepted_risk_change_can_alert_when_opportunity_is_unrated(
         db, changes=[change], ticker_by_company={42: "TEST"}
     )
 
-    assert result.alerts == 1
+    assert result.alerts == 0
+    assert result.skipped == 1
+
+
+def test_low_confidence_opportunity_is_research_only_and_cannot_alert(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_alerts(monkeypatch)
+    snapshot = _snapshot(opportunity=7.5, coverage=100.0, confidence="Low")
+    change = CeriChangeEvent(
+        id=5,
+        company_id=42,
+        from_snapshot_id=1,
+        to_snapshot_id=snapshot.id,
+        change_type="OPPORTUNITY_UPGRADED",
+        severity="NOTABLE",
+        dedup_key="low-confidence-upgrade",
+        delta_json={"from": 6.0, "to": 7.5},
+    )
+    db = FakeDb(objects={(CeriScoreSnapshot, snapshot.id): snapshot})
+
+    result = CeriAlertService(alerts_enabled=True).rebuild_alerts(
+        db, changes=[change], ticker_by_company={42: "TEST"}
+    )
+
+    assert result.alerts == 0
+    assert result.skipped == 1
 
 
 def test_material_new_catalyst_revision_has_distinct_dedup_identity() -> None:

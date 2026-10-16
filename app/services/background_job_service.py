@@ -70,6 +70,7 @@ class JobFailureKind(StrEnum):
 NON_RETRYABLE_PROVENANCE_CODES = frozenset(
     {
         "DECISION_MANIFEST_MISMATCH",
+        "DECISION_MANIFEST_RECONSTRUCTION_FAILED",
         "DECISION_LINEAGE_MISMATCH",
         "IMMUTABLE_EVIDENCE_MISMATCH",
         "MALFORMED_DECISION_MANIFEST",
@@ -1338,8 +1339,7 @@ def requeue_stalled_jobs(
                     blocked_step = db.scalar(
                         select(PipelineStep).where(
                             PipelineStep.pipeline_run_id == pipeline.id,
-                            PipelineStep.step_name
-                            == (effective_stage or pipeline.current_step),
+                            PipelineStep.step_name == (effective_stage or pipeline.current_step),
                         )
                     )
                     if blocked_step is not None:
@@ -1350,9 +1350,7 @@ def requeue_stalled_jobs(
                             "Useful progress remained frozen and automatic recovery was exhausted."
                         )
                         payload = dict(blocked_step.result_json or {})
-                        payload["terminal_reason_code"] = (
-                            "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
-                        )
+                        payload["terminal_reason_code"] = "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
                         blocked_step.result_json = payload
             continue
         job.status = JobStatus.RECOVERING
@@ -1692,7 +1690,7 @@ def mark_job_failed_or_retry(
 
         mark_sec_repair_failure(db, job, error, failure)
     if (
-        values["status"] == JobStatus.FAILED
+        values["status"] in {JobStatus.QUEUED, JobStatus.FAILED}
         and job.job_type == "FULL_PIPELINE"
         and getattr(job, "pipeline_dependency_id", None) is None
     ):

@@ -1,0 +1,961 @@
+- generic [ref=f3e1]:
+  - link "Skip to main content" [ref=f3e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=f3e3]:
+    - link "SwingLens" [ref=f3e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Primary navigation" [ref=f3e5]:
+      - link "Dashboard" [ref=f3e6] [cursor=pointer]:
+        - /url: /
+      - link "Runs" [ref=f3e7] [cursor=pointer]:
+        - /url: /runs
+      - link "Market Regime" [ref=f3e8] [cursor=pointer]:
+        - /url: /market-regime
+      - link "Market Changes" [ref=f3e9] [cursor=pointer]:
+        - /url: /setup-lifecycle
+      - link "Alerts" [ref=f3e10] [cursor=pointer]:
+        - /url: /setup-lifecycle/alerts
+      - link "CERI" [ref=f3e11] [cursor=pointer]:
+        - /url: /ceri
+      - link "CERI Ops" [ref=f3e12] [cursor=pointer]:
+        - /url: /ceri/operations
+      - link "History" [ref=f3e13] [cursor=pointer]:
+        - /url: /history
+      - link "Winner Evidence" [ref=f3e14] [cursor=pointer]:
+        - /url: /winner-probability/operations
+      - link "IB Gateway" [ref=f3e15] [cursor=pointer]:
+        - /url: /ib
+      - link "Scoring" [ref=f3e16] [cursor=pointer]:
+        - /url: /scoring
+      - link "Settings" [ref=f3e17] [cursor=pointer]:
+        - /url: /settings
+      - link "Operations" [ref=f3e18] [cursor=pointer]:
+        - /url: /system/operations
+      - link "Help" [ref=f3e19] [cursor=pointer]:
+        - /url: /help
+  - main [ref=f3e20]:
+    - generic [ref=f3e21]:
+      - generic [ref=f3e22]:
+        - generic [ref=f3e23]:
+          - heading "Run 30" [level=1] [ref=f3e24]
+          - paragraph [ref=f3e25]: skimmer 2_2026-10-08.csv
+        - generic [ref=f3e26]:
+          - button "Run full pipeline" [ref=f3e28]
+          - status [ref=f3e29]:
+            - generic [ref=f3e31]: IB Connected
+          - button "Recalculate fundamentals" [disabled] [ref=f3e33]
+          - button "Refresh technicals" [disabled] [ref=f3e35]
+          - button "Refresh combined" [disabled] [ref=f3e37]
+          - button "Refresh rankings" [disabled] [ref=f3e39]
+          - link "Sector rotation" [ref=f3e40] [cursor=pointer]:
+            - /url: /runs/30/sector-rotation
+          - link "Market changes" [ref=f3e41] [cursor=pointer]:
+            - /url: /runs/30/setup-lifecycle
+          - link "CERI" [ref=f3e42] [cursor=pointer]:
+            - /url: /runs/30/ceri
+          - link "Winner evidence" [ref=f3e43] [cursor=pointer]:
+            - /url: /runs/30/winner-probability
+          - link "All runs" [ref=f3e44] [cursor=pointer]:
+            - /url: /runs
+      - generic [ref=f3e45]:
+        - generic [ref=f3e46]:
+          - text: Upload ingestion
+          - generic [ref=f3e47]: COMPLETED
+        - generic [ref=f3e48]:
+          - text: Pipeline execution
+          - link "PARTIAL" [ref=f3e49] [cursor=pointer]:
+            - /url: /runs/30/pipeline/30
+        - generic [ref=f3e51]: Uploaded 2026-10-08 11:58:49.622632+02:00
+        - generic [ref=f3e52]: Processed 2026-10-08 11:58:51.183836+02:00
+        - generic [ref=f3e53]: CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.
+    - generic [ref=f3e54]:
+      - generic [ref=f3e55]:
+        - generic [ref=f3e56]:
+          - heading "CERI Evidence" [level=2] [ref=f3e57]
+          - paragraph [ref=f3e58]: Catalyst and estimate revision intelligence for this run. Structured evidence suggests opportunities and risks; it does not place orders.
+        - generic [ref=f3e59]:
+          - link "Open CERI" [ref=f3e60] [cursor=pointer]:
+            - /url: /runs/30/ceri
+          - link "Changes" [ref=f3e61] [cursor=pointer]:
+            - /url: /ceri/changes
+          - link "Operations" [ref=f3e62] [cursor=pointer]:
+            - /url: /ceri/operations
+      - generic [ref=f3e63]:
+        - generic [ref=f3e64]:
+          - strong [ref=f3e65]: "209"
+          - text: captured
+        - generic [ref=f3e66]:
+          - strong [ref=f3e67]: "0"
+          - text: eligible/current
+        - generic [ref=f3e68]:
+          - strong [ref=f3e69]: "209"
+          - text: excluded
+        - generic [ref=f3e70]:
+          - strong [ref=f3e71]: "0"
+          - text: quarantined
+        - generic [ref=f3e72]:
+          - strong [ref=f3e73]: "0"
+          - text: high opportunity / low risk
+        - generic [ref=f3e74]:
+          - strong [ref=f3e75]: "0"
+          - text: low-confidence
+        - generic [ref=f3e76]:
+          - strong [ref=f3e77]: "0"
+          - text: warning flags
+        - generic [ref=f3e78]: CAPTURED_EXCLUDED
+      - paragraph [ref=f3e79]: "Excluded: Parent Pipeline Unsuccessful (209). Excluded evidence is retained for audit and is not current decision input."
+    - generic [ref=f3e80]:
+      - generic [ref=f3e81]:
+        - generic [ref=f3e82]:
+          - heading "Setup Lifecycle" [level=2] [ref=f3e83]
+          - paragraph [ref=f3e84]: Lifecycle state changes and alerts for this run. Evidence remains research-oriented and source-preserving.
+        - generic [ref=f3e85]:
+          - link "Open changes" [ref=f3e86] [cursor=pointer]:
+            - /url: /runs/30/setup-lifecycle
+          - link "Alerts" [ref=f3e87] [cursor=pointer]:
+            - /url: /setup-lifecycle/alerts
+          - link "Operations" [ref=f3e88] [cursor=pointer]:
+            - /url: /setup-lifecycle/operations
+      - generic [ref=f3e89]:
+        - generic [ref=f3e90]:
+          - strong [ref=f3e91]: "165"
+          - text: active episodes represented by this run's current snapshots
+        - generic [ref=f3e92]:
+          - strong [ref=f3e93]: "209"
+          - text: canonical revisions
+        - generic [ref=f3e94]:
+          - strong [ref=f3e95]: "96"
+          - text: lifecycle changes
+        - generic [ref=f3e96]:
+          - strong [ref=f3e97]: "1194"
+          - text: signal changes
+        - generic [ref=f3e98]:
+          - strong [ref=f3e99]: "1290"
+          - text: meaningful changes
+        - generic [ref=f3e100]: COMPLETED
+    - generic [ref=f3e101]:
+      - generic [ref=f3e102]:
+        - generic [ref=f3e103]:
+          - heading "Pipeline 30" [level=2] [ref=f3e104]
+          - paragraph [ref=f3e105]: "Pipeline completed partially with 209 combined rows, 181 incomplete rows, and 0 IB failures. Winner Evidence: 28 inserted, 181 excluded, 0 failed."
+        - link "Open progress" [ref=f3e107] [cursor=pointer]:
+          - /url: /runs/30/pipeline/30
+      - generic [ref=f3e108]:
+        - generic [ref=f3e109]: PARTIAL
+        - generic [ref=f3e110]: 13 / 13 steps
+        - generic [ref=f3e111]: Job COMPLETED
+    - generic "Run workflow" [ref=f3e113]:
+      - generic [ref=f3e116]:
+        - strong [ref=f3e117]: Uploaded
+        - generic [ref=f3e118]: Completed
+        - generic [ref=f3e119]: Raw rows are stored.
+      - generic [ref=f3e122]:
+        - strong [ref=f3e123]: Fundamentals scored
+        - generic [ref=f3e124]: Completed
+        - generic [ref=f3e125]: 209 score rows.
+      - generic [ref=f3e128]:
+        - strong [ref=f3e129]: Column mapping checked
+        - generic [ref=f3e130]: Completed
+        - generic [ref=f3e131]: Raw columns mapped to canonical scoring fields.
+      - generic [ref=f3e134]:
+        - strong [ref=f3e135]: IB fetch planned
+        - generic [ref=f3e136]: Completed
+        - generic [ref=f3e137]: Fetch plan can be previewed.
+      - generic [ref=f3e140]:
+        - strong [ref=f3e141]: OHLCV ready
+        - generic [ref=f3e142]: Warning
+        - generic [ref=f3e143]: 206 ready, 2 short, 0 stale, 0 missing.
+      - generic [ref=f3e146]:
+        - strong [ref=f3e147]: Technicals scored
+        - generic [ref=f3e148]: Warning
+        - generic [ref=f3e149]: 209 technical rows; 3 warnings.
+      - generic [ref=f3e152]:
+        - strong [ref=f3e153]: Cockpit ready
+        - generic [ref=f3e154]: Completed
+        - generic [ref=f3e155]: 209 combined rows.
+      - generic [ref=f3e158]:
+        - strong [ref=f3e159]: Export ready
+        - generic [ref=f3e160]: Completed
+        - generic [ref=f3e161]: CSV exports are ready.
+    - region "Run summary" [ref=f3e162]:
+      - generic [ref=f3e163]:
+        - generic [ref=f3e164]: Rows
+        - strong [ref=f3e165]: "209"
+      - generic [ref=f3e166]:
+        - generic [ref=f3e167]: Combined
+        - strong [ref=f3e168]: "209"
+      - generic [ref=f3e169]:
+        - generic [ref=f3e170]: Incomplete
+        - strong [ref=f3e171]: "181"
+      - generic [ref=f3e172]:
+        - generic [ref=f3e173]: Warnings
+        - strong [ref=f3e174]: "181"
+      - generic [ref=f3e175]:
+        - generic [ref=f3e176]: Strong
+        - strong [ref=f3e177]: "2"
+      - generic [ref=f3e178]:
+        - generic [ref=f3e179]: Earnings Blocked
+        - strong [ref=f3e180]: "0"
+      - generic [ref=f3e181]:
+        - generic [ref=f3e182]: Earnings High
+        - strong [ref=f3e183]: "0"
+      - generic [ref=f3e184]:
+        - generic [ref=f3e185]: Earnings Medium
+        - strong [ref=f3e186]: "1"
+      - generic [ref=f3e187]:
+        - generic [ref=f3e188]: Earnings Unknown
+        - strong [ref=f3e189]: "0"
+      - generic [ref=f3e190]:
+        - generic [ref=f3e191]: Top Complete
+        - strong [ref=f3e192]: SN
+        - generic [ref=f3e193]: "8.20"
+    - generic [ref=f3e194]:
+      - generic [ref=f3e195]:
+        - generic [ref=f3e196]:
+          - heading "Winner Evidence" [level=2] [ref=f3e197]
+          - paragraph [ref=f3e198]: Research-only target-before-stop evidence for this run. Existing ranks stay unchanged.
+        - generic [ref=f3e199]:
+          - link "Open evidence" [ref=f3e200] [cursor=pointer]:
+            - /url: /runs/30/winner-probability
+          - link "CSV" [ref=f3e201] [cursor=pointer]:
+            - /url: /api/winner-probability/run/30/export.csv
+          - link "Operations" [ref=f3e202] [cursor=pointer]:
+            - /url: /winner-probability/operations
+      - generic [ref=f3e203]:
+        - generic [ref=f3e204]:
+          - strong [ref=f3e205]: "28"
+          - text: snapshots
+        - generic [ref=f3e206]:
+          - strong [ref=f3e207]: "28"
+          - text: estimates
+        - generic [ref=f3e208]:
+          - strong [ref=f3e209]: "28"
+          - text: insufficient
+        - generic [ref=f3e210]: NEXT_OPEN and diagnostic evidence remain separate
+    - generic [ref=f3e211]:
+      - generic [ref=f3e212]:
+        - generic [ref=f3e213]:
+          - heading "Sector Rotation" [level=2] [ref=f3e214]
+          - paragraph [ref=f3e215]: Latest snapshot from 2026-10-07 with 10 sectors and 209 tickers.
+        - generic [ref=f3e216]:
+          - link "Open dashboard" [ref=f3e217] [cursor=pointer]:
+            - /url: /runs/30/sector-rotation
+          - link "CSV" [ref=f3e218] [cursor=pointer]:
+            - /url: /runs/30/sector-rotation/export.csv
+          - link "Brief" [ref=f3e219] [cursor=pointer]:
+            - /url: /runs/30/sector-rotation/brief.md
+      - generic [ref=f3e220]:
+        - generic [ref=f3e221]:
+          - strong [ref=f3e222]: Energy
+          - text: leading sector
+          - generic [ref=f3e223]: Universe Only
+        - generic [ref=f3e224]:
+          - strong [ref=f3e225]: Communication Services
+          - text: weakest sector
+          - generic [ref=f3e226]: momentum_swing
+        - generic [ref=f3e227]:
+          - strong [ref=f3e228]: Communication Services
+          - text: riskiest sector
+          - generic [ref=f3e229]: 4 warnings
+    - generic [ref=f3e230]:
+      - generic [ref=f3e231]:
+        - generic [ref=f3e232]:
+          - heading "Ranking Profiles" [level=2] [ref=f3e233]
+          - paragraph [ref=f3e234]: 1045 profile rows across 5 profiles.
+        - generic [ref=f3e235]:
+          - button "Refresh rankings" [disabled] [ref=f3e237]
+          - link "All profiles CSV" [ref=f3e238] [cursor=pointer]:
+            - /url: /runs/30/rankings/export.csv
+      - generic "Market policy for ranking profiles" [ref=f3e239]:
+        - generic [ref=f3e240]:
+          - strong [ref=f3e241]: Bull trend
+          - text: Green risk
+          - generic [ref=f3e242]: 2026-10-07
+        - generic [ref=f3e243]:
+          - strong [ref=f3e244]: 100%
+          - text: research size context
+          - generic [ref=f3e245]: normal confidence
+        - generic [ref=f3e246]:
+          - strong [ref=f3e247]: Preferred
+          - text: Momentum Swing, Quality Momentum
+        - link "Market detail" [ref=f3e248] [cursor=pointer]:
+          - /url: /runs/30/market-regime
+      - generic [ref=f3e249]:
+        - generic [ref=f3e250]:
+          - strong [ref=f3e251]: STNG
+          - text: Clean Compounder Pullback
+          - generic [ref=f3e252]: 8.95 - Strong candidate
+          - generic [ref=f3e253]: 209 rows - 24 candidates - 181 warnings
+          - link "CSV" [ref=f3e254] [cursor=pointer]:
+            - /url: /runs/30/rankings/clean_compounder_pullback/export.csv
+        - generic [ref=f3e255]:
+          - strong [ref=f3e256]: STNG
+          - text: Defensive Quality
+          - generic [ref=f3e257]: 8.86 - Strong candidate
+          - generic [ref=f3e258]: 209 rows - 27 candidates - 181 warnings
+          - link "CSV" [ref=f3e259] [cursor=pointer]:
+            - /url: /runs/30/rankings/defensive_quality/export.csv
+        - generic [ref=f3e260]:
+          - strong [ref=f3e261]: MSM
+          - text: Early Rocket
+          - generic [ref=f3e262]: 6.91 - Watchlist
+          - generic [ref=f3e263]: 209 rows - 0 candidates - 181 warnings
+          - link "CSV" [ref=f3e264] [cursor=pointer]:
+            - /url: /runs/30/rankings/early_rocket/export.csv
+        - generic [ref=f3e265]:
+          - strong [ref=f3e266]: STNG
+          - text: Momentum Swing
+          - generic [ref=f3e267]: 7.85 - Candidate
+          - generic [ref=f3e268]: 209 rows - 18 candidates - 181 warnings
+          - link "CSV" [ref=f3e269] [cursor=pointer]:
+            - /url: /runs/30/rankings/momentum_swing/export.csv
+        - generic [ref=f3e270]:
+          - strong [ref=f3e271]: STNG
+          - text: Quality Momentum
+          - generic [ref=f3e272]: 8.21 - Strong candidate
+          - generic [ref=f3e273]: 209 rows - 19 candidates - 181 warnings
+          - link "CSV" [ref=f3e274] [cursor=pointer]:
+            - /url: /runs/30/rankings/quality_momentum/export.csv
+    - generic [ref=f3e276]:
+      - generic [ref=f3e277]:
+        - heading "Actions" [level=2] [ref=f3e278]
+        - paragraph [ref=f3e279]: Refresh scores, export data, or move back through stored runs.
+      - generic [ref=f3e280]:
+        - link "Combined CSV" [ref=f3e281] [cursor=pointer]:
+          - /url: /runs/30/exports/combined.csv
+        - link "Fundamentals CSV" [ref=f3e282] [cursor=pointer]:
+          - /url: /runs/30/exports/fundamentals.csv
+        - link "Technicals CSV" [ref=f3e283] [cursor=pointer]:
+          - /url: /runs/30/exports/technicals.csv
+        - link "Raw CSV" [ref=f3e284] [cursor=pointer]:
+          - /url: /runs/30/exports/raw.csv
+        - link "IB Plan CSV" [ref=f3e285] [cursor=pointer]:
+          - /url: /runs/30/exports/ib-fetch-plan.csv
+        - link "IB Results CSV" [ref=f3e286] [cursor=pointer]:
+          - /url: /runs/30/exports/ib-fetch-results.csv
+        - link "Coverage CSV" [ref=f3e287] [cursor=pointer]:
+          - /url: /runs/30/exports/coverage.csv
+        - link "Mapping CSV" [ref=f3e288] [cursor=pointer]:
+          - /url: /runs/30/exports/mapping.csv
+        - link "Ranking Profiles CSV" [ref=f3e289] [cursor=pointer]:
+          - /url: /runs/30/rankings/export.csv
+        - link "Sector rotation" [ref=f3e290] [cursor=pointer]:
+          - /url: /runs/30/sector-rotation
+        - link "Coverage detail" [ref=f3e291] [cursor=pointer]:
+          - /url: /runs/30/coverage
+        - link "Column mapping" [ref=f3e292] [cursor=pointer]:
+          - /url: /runs/30/mapping
+    - generic [ref=f3e293]:
+      - generic [ref=f3e294]:
+        - generic [ref=f3e295]:
+          - heading "IB Gateway" [level=2] [ref=f3e296]
+          - paragraph [ref=f3e297]: Read-only market data fetch for uploaded tickers and benchmarks.
+        - button "Test connection" [ref=f3e299]
+      - generic [ref=f3e300]:
+        - generic [ref=f3e302]:
+          - term [ref=f3e303]: Host
+          - definition [ref=f3e304]: 127.0.0.1
+          - term [ref=f3e305]: Port
+          - definition [ref=f3e306]: "4002"
+          - term [ref=f3e307]: Client ID
+          - definition [ref=f3e308]: "21"
+          - term [ref=f3e309]: Read-only
+          - definition [ref=f3e310]: "Yes"
+          - term [ref=f3e311]: Full backfill
+          - definition [ref=f3e312]: 3 Y
+          - term [ref=f3e313]: Top-up
+          - definition [ref=f3e314]: 10 D
+          - term [ref=f3e315]: Refresh
+          - definition [ref=f3e316]: 60 D
+          - term [ref=f3e317]: Bar size
+          - definition [ref=f3e318]: 1 day
+          - term [ref=f3e319]: Rate limit
+          - definition [ref=f3e320]: 20/min, 3.0s gap
+          - term [ref=f3e321]: Benchmarks
+          - definition [ref=f3e322]: SPY, QQQ
+          - term [ref=f3e323]: Required bars
+          - definition [ref=f3e324]: "252"
+          - term [ref=f3e325]: Status
+          - definition [ref=f3e326]:
+            - generic [ref=f3e327]: Not tested
+        - generic [ref=f3e328]:
+          - generic [ref=f3e329]:
+            - generic [ref=f3e330]: Ticker subset
+            - textbox "Ticker subset" [ref=f3e331]:
+              - /placeholder: "Optional: MSFT, AAPL, NVDA"
+          - generic [ref=f3e332]:
+            - generic [ref=f3e333]:
+              - checkbox "Include SPY/QQQ" [checked] [ref=f3e334]
+              - text: Include SPY/QQQ
+            - generic [ref=f3e335]:
+              - checkbox "Adjusted" [checked] [ref=f3e336]
+              - text: Adjusted
+            - generic [ref=f3e337]:
+              - checkbox "Trades" [checked] [ref=f3e338]
+              - text: Trades
+            - generic [ref=f3e339]:
+              - checkbox "Force recent refresh" [ref=f3e340]
+              - text: Force recent refresh
+            - generic [ref=f3e341]:
+              - checkbox "Force full backfill" [ref=f3e342]
+              - text: Force full backfill
+          - generic [ref=f3e343]:
+            - button "Preview fetch plan" [ref=f3e344]
+            - button "Fetch IB bars" [ref=f3e345]
+      - generic [ref=f3e346]:
+        - generic [ref=f3e347]:
+          - strong [ref=f3e348]: "206"
+          - text: ready
+        - generic [ref=f3e349]:
+          - strong [ref=f3e350]: "2"
+          - text: insufficient
+        - generic [ref=f3e351]:
+          - strong [ref=f3e352]: "0"
+          - text: stale
+        - generic [ref=f3e353]:
+          - strong [ref=f3e354]: "0"
+          - text: missing volume
+        - generic [ref=f3e355]:
+          - strong [ref=f3e356]: "0"
+          - text: contract failed
+        - generic [ref=f3e357]:
+          - strong [ref=f3e358]: "0"
+          - text: missing
+        - generic [ref=f3e359]:
+          - strong [ref=f3e360]: "252"
+          - text: required bars
+        - generic [ref=f3e361]:
+          - strong [ref=f3e362]: SPY
+          - text: ready
+        - generic [ref=f3e363]:
+          - strong [ref=f3e364]: QQQ
+          - text: ready
+        - link "Open coverage" [ref=f3e365] [cursor=pointer]:
+          - /url: /runs/30/coverage
+        - link "Open mapping" [ref=f3e366] [cursor=pointer]:
+          - /url: /runs/30/mapping
+      - generic [ref=f3e367]:
+        - generic [ref=f3e368]:
+          - generic [ref=f3e369]:
+            - heading "Latest Fetch" [level=3] [ref=f3e370]
+            - paragraph [ref=f3e371]: COMPLETED · fetched 31506 · executed 268 / planned 268 · inserted 30366 · revised 67 · unchanged 1073 · failures 0
+          - generic [ref=f3e372]:
+            - link "Open progress" [ref=f3e373] [cursor=pointer]:
+              - /url: /runs/30/ib/fetches/16
+            - link "Results CSV" [ref=f3e374] [cursor=pointer]:
+              - /url: /runs/30/exports/ib-fetch-results.csv
+        - paragraph [ref=f3e375]: Executed 268 IB requests; skipped 154 items.
+        - group [ref=f3e376]:
+          - generic "Latest Fetch rows (first 50 of 422; open progress for all)" [ref=f3e377] [cursor=pointer]
+      - group [ref=f3e378]:
+        - generic "OHLCV coverage by ticker (first 50 of 209; open coverage for all)" [ref=f3e379] [cursor=pointer]
+    - generic [ref=f3e380]:
+      - generic [ref=f3e382]:
+        - heading "Decision Cockpit" [level=2] [ref=f3e383]
+        - paragraph [ref=f3e384]: Complete rows are ranked ahead of incomplete rows.
+      - note [ref=f3e385]:
+        - strong [ref=f3e386]: Research only.
+        - text: SwingLens surfaces combined decisions, gates, and research size hints evidence for local review; it does not place broker orders or provide execution instructions.
+      - generic "Evidence provenance" [ref=f3e387]:
+        - generic [ref=f3e388]: Evidence Decision Time
+        - generic [ref=f3e389]: Source cutoff 2026-10-08 11:58:51.183836+02:00
+        - generic [ref=f3e390]: Freshness Run Snapshot
+        - generic [ref=f3e391]: Correction As Known
+        - generic [ref=f3e392]: Confidence row_level
+      - generic [ref=f3e393]:
+        - generic [ref=f3e394]:
+          - strong [ref=f3e395]: "2"
+          - text: Strong candidate
+        - generic [ref=f3e396]:
+          - strong [ref=f3e397]: "19"
+          - text: Candidate
+        - generic [ref=f3e398]:
+          - strong [ref=f3e399]: "7"
+          - text: Watchlist
+        - generic [ref=f3e400]:
+          - strong [ref=f3e401]: "181"
+          - text: Incomplete data
+      - generic [ref=f3e402]:
+        - generic [ref=f3e403]:
+          - button "Top 10" [ref=f3e404]
+          - button "Top 20" [ref=f3e405]
+          - button "Strong only" [ref=f3e406]
+          - button "Candidate+" [ref=f3e407]
+          - button "Clean only" [ref=f3e408]
+          - button "Warnings only" [ref=f3e409]
+          - button "Incomplete only" [ref=f3e410]
+          - button "Hide avoid" [ref=f3e411]
+          - button "Hide earnings blocked" [ref=f3e412]
+          - button "Earnings risk" [ref=f3e413]
+          - button "Earnings clear" [ref=f3e414]
+        - generic [ref=f3e415]:
+          - button "Copy visible tickers" [ref=f3e416]
+          - button "Copy top 10" [ref=f3e417]
+          - button "Copy candidates" [ref=f3e418]
+          - button "Copy warnings" [ref=f3e419]
+          - button "Copy incomplete" [ref=f3e420]
+      - generic [ref=f3e421]:
+        - generic [ref=f3e422]:
+          - generic [ref=f3e423]: Search
+          - searchbox "Search" [ref=f3e424]
+        - generic [ref=f3e425]:
+          - generic [ref=f3e426]: Decision
+          - combobox "Decision" [ref=f3e427]:
+            - option "All" [selected]
+            - option "Candidate"
+            - option "Incomplete data"
+            - option "Strong candidate"
+            - option "Watchlist"
+        - generic [ref=f3e428]:
+          - generic [ref=f3e429]: Sector
+          - combobox "Sector" [ref=f3e430]:
+            - option "All" [selected]
+            - option "Commercial services"
+            - option "Communications"
+            - option "Consumer durables"
+            - option "Consumer non-durables"
+            - option "Consumer services"
+            - option "Distribution services"
+            - option "Electronic technology"
+            - option "Energy minerals"
+            - option "Finance"
+            - option "Health services"
+            - option "Health technology"
+            - option "Industrial services"
+            - option "Process industries"
+            - option "Producer manufacturing"
+            - option "Retail trade"
+            - option "Technology services"
+            - option "Transportation"
+            - option "Utilities"
+        - generic [ref=f3e431]:
+          - generic [ref=f3e432]: Min final
+          - spinbutton "Min final" [ref=f3e433]
+        - generic [ref=f3e434]:
+          - generic [ref=f3e435]: Min fundamental
+          - spinbutton "Min fundamental" [ref=f3e436]
+        - generic [ref=f3e437]:
+          - generic [ref=f3e438]: Min technical
+          - spinbutton "Min technical" [ref=f3e439]
+        - generic [ref=f3e440]:
+          - checkbox "Incomplete only" [ref=f3e441]
+          - generic [ref=f3e442]: Incomplete only
+        - generic [ref=f3e443]:
+          - checkbox "Warnings only" [ref=f3e444]
+          - generic [ref=f3e445]: Warnings only
+        - button "Clear filters" [ref=f3e446]
+      - table [ref=f3e448]:
+        - caption [ref=f3e449]: Combined decision cockpit ranked by completeness, score, warnings, and gates.
+        - rowgroup [ref=f3e450]:
+          - row [ref=f3e451]:
+            - columnheader [ref=f3e452]:
+              - button "Rank" [ref=f3e453]
+            - columnheader [ref=f3e454]:
+              - button "Ticker" [ref=f3e455]
+            - columnheader [ref=f3e456]:
+              - button "Sector" [ref=f3e457]
+            - columnheader [ref=f3e458]:
+              - button "Final" [ref=f3e459]
+            - columnheader [ref=f3e460]:
+              - button "Decision" [ref=f3e461]
+            - columnheader [ref=f3e462]:
+              - button "Warnings" [ref=f3e463]
+            - columnheader [ref=f3e464]:
+              - button "Earning Days" [ref=f3e465]
+            - columnheader [ref=f3e466]:
+              - button "Fundamental" [ref=f3e467]
+            - columnheader [ref=f3e468]:
+              - button "Technical" [ref=f3e469]
+            - columnheader "Actions" [ref=f3e470]
+        - rowgroup [ref=f3e471]:
+          - row [ref=f3e713] [cursor=pointer]:
+            - cell "201" [ref=f3e473]
+            - cell [ref=f3e474]:
+              - strong [ref=f3e475]: PPLI
+            - cell "Technology services" [ref=f3e476]
+            - cell "0.00" [ref=f3e477]
+            - cell "Incomplete data" [ref=f3e478]
+            - cell "Incomplete No fundamentals No technicals +2" [ref=f3e480]:
+              - generic [ref=f3e481]:
+                - generic [ref=f3e482]: Incomplete
+                - generic [ref=f3e483]: No fundamentals
+                - generic [ref=f3e484]: No technicals
+                - generic [ref=f3e485]: "+2"
+            - cell "34" [ref=f3e486]
+            - cell [ref=f3e487]
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 5.59 · No trade; retained but not used." [ref=f3e488]:
+              - generic [ref=f3e489]:
+                - generic [ref=f3e490]: No technical decision input
+                - generic [ref=f3e491]: Does not feed Final / Decision
+                - generic [ref=f3e492]: Observed V4 5.59 · No trade; retained but not used.
+            - cell [ref=f3e714]:
+              - generic [ref=f3e494]:
+                - button "Hide" [expanded] [active] [ref=f3e715]
+                - link "TradingView" [ref=f3e496]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PPLI
+          - row [ref=f3e716]:
+            - cell [ref=f3e717]:
+              - status [ref=f3e718]:
+                - generic [ref=f3e719]:
+                  - generic [ref=f3e720]:
+                    - heading "Combined Decision" [level=3] [ref=f3e721]
+                    - generic [ref=f3e722]:
+                      - term [ref=f3e723]: Ticker
+                      - definition [ref=f3e724]: PPLI
+                      - term [ref=f3e725]: Company
+                      - definition [ref=f3e726]: People Incorporated
+                      - term [ref=f3e727]: Sector
+                      - definition [ref=f3e728]: Technology services
+                      - term [ref=f3e729]: Final Rank
+                      - definition [ref=f3e730]: "201"
+                      - term [ref=f3e731]: Final Score
+                      - definition [ref=f3e732]: "0.00"
+                      - term [ref=f3e733]: Decision
+                      - definition [ref=f3e734]: Incomplete data
+                      - term [ref=f3e735]: Research Size Hint
+                      - definition [ref=f3e736]: Wait
+                      - term [ref=f3e737]: Fundamental Label
+                      - definition [ref=f3e738]: N/A
+                      - term [ref=f3e739]: Technical Class
+                      - definition [ref=f3e740]: N/A
+                      - term [ref=f3e741]: Complete
+                      - definition [ref=f3e742]: "No"
+                  - generic [ref=f3e743]:
+                    - heading "Fundamentals" [level=3] [ref=f3e744]
+                    - generic [ref=f3e745]:
+                      - term [ref=f3e746]: Model
+                      - definition [ref=f3e747]: fundamentals_v2.1
+                      - term [ref=f3e748]: Score
+                      - definition [ref=f3e749]: "5.08"
+                      - term [ref=f3e750]: Coverage
+                      - definition [ref=f3e751]: "9.49"
+                      - term [ref=f3e752]: Growth
+                      - definition [ref=f3e753]: "1.85"
+                      - term [ref=f3e754]: Profitability
+                      - definition [ref=f3e755]: "2.94"
+                      - term [ref=f3e756]: FCF
+                      - definition [ref=f3e757]: "4.73"
+                      - term [ref=f3e758]: Earnings
+                      - definition [ref=f3e759]: "6.95"
+                      - term [ref=f3e760]: Capital
+                      - definition [ref=f3e761]: "2.22"
+                      - term [ref=f3e762]: Balance
+                      - definition [ref=f3e763]: "7.95"
+                      - term [ref=f3e764]: Valuation
+                      - definition [ref=f3e765]: "6.11"
+                      - term [ref=f3e766]: Forward
+                      - definition [ref=f3e767]: "8.67"
+                      - term [ref=f3e768]: Shareholder
+                      - definition [ref=f3e769]: "9.07"
+                      - term [ref=f3e770]: Liquidity Risk
+                      - definition [ref=f3e771]: "9.23"
+                      - term [ref=f3e772]: Missing Penalty
+                      - definition [ref=f3e773]: "0.20"
+                      - term [ref=f3e774]: Missing Core
+                      - definition [ref=f3e775]: None
+                      - term [ref=f3e776]: Missing High
+                      - definition [ref=f3e777]: net_income_growth_ttm_yoy
+                      - term [ref=f3e778]: Warnings
+                      - definition [ref=f3e779]: poor_cash_conversion, balance_sheet_stress
+                  - generic [ref=f3e780]:
+                    - heading "Technicals" [level=3] [ref=f3e781]
+                    - generic [ref=f3e782]:
+                      - term [ref=f3e783]: Model
+                      - definition [ref=f3e784]: 4.0.0
+                      - term [ref=f3e785]: Score
+                      - definition [ref=f3e786]: "5.59"
+                      - term [ref=f3e787]: Trend
+                      - definition [ref=f3e788]: "4.47"
+                      - term [ref=f3e789]: Momentum
+                      - definition [ref=f3e790]: "3.80"
+                      - term [ref=f3e791]: Setup
+                      - definition [ref=f3e792]: "6.80"
+                      - term [ref=f3e793]: Risk
+                      - definition [ref=f3e794]: "2.00"
+                      - term [ref=f3e795]: Market
+                      - definition [ref=f3e796]: "10.00"
+                      - term [ref=f3e797]: RS
+                      - definition [ref=f3e798]: "4.40"
+                      - term [ref=f3e799]: HTF
+                      - definition [ref=f3e800]: "4.75"
+                      - term [ref=f3e801]: Confidence
+                      - definition [ref=f3e802]: low
+                      - term [ref=f3e803]: Stage
+                      - definition [ref=f3e804]: Stage 1
+                      - term [ref=f3e805]: Regime
+                      - definition [ref=f3e806]: Bull trend
+                      - term [ref=f3e807]: Leadership
+                      - definition [ref=f3e808]: "2.43"
+                      - term [ref=f3e809]: VCP
+                      - definition [ref=f3e810]: "4.90"
+                      - term [ref=f3e811]: Box Tightness
+                      - definition [ref=f3e812]: "0.00"
+                      - term [ref=f3e813]: Breakout Quality
+                      - definition [ref=f3e814]: "2.00"
+                      - term [ref=f3e815]: Climax Risk
+                      - definition [ref=f3e816]: "1.00"
+                      - term [ref=f3e817]: Tags
+                      - definition [ref=f3e818]: Tight closes; Low confidence
+                      - term [ref=f3e819]: Warnings
+                      - definition [ref=f3e820]: insufficient_history, low_technical_confidence
+                      - term [ref=f3e821]: Action
+                      - definition [ref=f3e822]: No clear trade
+                  - generic [ref=f3e823]:
+                    - heading "Risk Context" [level=3] [ref=f3e824]
+                    - generic [ref=f3e825]:
+                      - term [ref=f3e826]: Stop
+                      - definition [ref=f3e827]: "40.15"
+                      - term [ref=f3e828]: Target
+                      - definition [ref=f3e829]: "42.64"
+                      - term [ref=f3e830]: Reward/Risk
+                      - definition [ref=f3e831]: "4.66"
+                      - term [ref=f3e832]: Entry Risk
+                      - definition [ref=f3e833]: "1.09"
+                      - term [ref=f3e834]: Earnings Risk
+                      - definition [ref=f3e835]: clear
+                      - term [ref=f3e836]: Earnings Date
+                      - definition [ref=f3e837]: 2026-11-10
+                      - term [ref=f3e838]: Days Until Earnings
+                      - definition [ref=f3e839]: "34"
+                      - term [ref=f3e840]: Notes
+                      - definition [ref=f3e841]: fundamental missing, technical missing
+                  - generic [ref=f3e842]:
+                    - heading "Warnings and Missing Data" [level=3] [ref=f3e843]
+                    - generic [ref=f3e844]:
+                      - generic [ref=f3e845]: Incomplete
+                      - generic [ref=f3e846]: No fundamentals
+                      - generic [ref=f3e847]: No technicals
+                      - generic [ref=f3e848]: Short history
+                      - generic [ref=f3e849]: Low confidence
+                      - generic [ref=f3e850]: Cash conversion
+                      - generic [ref=f3e851]: Balance sheet
+                    - generic [ref=f3e852]:
+                      - term [ref=f3e853]: Overall
+                      - definition [ref=f3e854]: 7 warning(s)
+                      - term [ref=f3e855]: Combined
+                      - definition [ref=f3e856]: incomplete_data, missing_fundamental, missing_technical, insufficient_history, low_technical_confidence
+                      - term [ref=f3e857]: Fundamental
+                      - definition [ref=f3e858]: poor_cash_conversion, balance_sheet_stress
+                      - term [ref=f3e859]: Technical
+                      - definition [ref=f3e860]: insufficient_history, low_technical_confidence
+                      - term [ref=f3e861]: Earnings
+                      - definition [ref=f3e862]: None
+          - row [ref=f3e497] [cursor=pointer]:
+            - cell "202" [ref=f3e498]
+            - cell [ref=f3e499]:
+              - strong [ref=f3e500]: PRGO
+            - cell "Health technology" [ref=f3e501]
+            - cell "0.00" [ref=f3e502]
+            - cell "Incomplete data" [ref=f3e503]
+            - cell "Incomplete No fundamentals No technicals +2" [ref=f3e505]:
+              - generic [ref=f3e506]:
+                - generic [ref=f3e507]: Incomplete
+                - generic [ref=f3e508]: No fundamentals
+                - generic [ref=f3e509]: No technicals
+                - generic [ref=f3e510]: "+2"
+            - cell "35" [ref=f3e511]
+            - cell [ref=f3e512]
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 7.15 · Filtered pullback; retained but not used." [ref=f3e513]:
+              - generic [ref=f3e514]:
+                - generic [ref=f3e515]: No technical decision input
+                - generic [ref=f3e516]: Does not feed Final / Decision
+                - generic [ref=f3e517]: Observed V4 7.15 · Filtered pullback; retained but not used.
+            - cell [ref=f3e518]:
+              - generic [ref=f3e519]:
+                - button "Details" [ref=f3e520]
+                - link "TradingView" [ref=f3e521]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PRGO
+          - row [ref=f3e522] [cursor=pointer]:
+            - cell "203" [ref=f3e523]
+            - cell [ref=f3e524]:
+              - strong [ref=f3e525]: PRLB
+            - cell "Process industries" [ref=f3e526]
+            - cell "0.00" [ref=f3e527]
+            - cell "Incomplete data" [ref=f3e528]
+            - cell "Incomplete No fundamentals No technicals +1" [ref=f3e530]:
+              - generic [ref=f3e531]:
+                - generic [ref=f3e532]: Incomplete
+                - generic [ref=f3e533]: No fundamentals
+                - generic [ref=f3e534]: No technicals
+                - generic [ref=f3e535]: "+1"
+            - cell "23" [ref=f3e536]
+            - cell [ref=f3e537]
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 7.23 · Extended momentum; retained but not used." [ref=f3e538]:
+              - generic [ref=f3e539]:
+                - generic [ref=f3e540]: No technical decision input
+                - generic [ref=f3e541]: Does not feed Final / Decision
+                - generic [ref=f3e542]: Observed V4 7.23 · Extended momentum; retained but not used.
+            - cell [ref=f3e543]:
+              - generic [ref=f3e544]:
+                - button "Details" [ref=f3e545]
+                - link "TradingView" [ref=f3e546]:
+                  - /url: https://www.tradingview.com/chart/?symbol=PRLB
+          - row [ref=f3e547] [cursor=pointer]:
+            - cell "204" [ref=f3e548]
+            - cell [ref=f3e549]:
+              - strong [ref=f3e550]: SBH
+            - cell "Retail trade" [ref=f3e551]
+            - cell "0.00" [ref=f3e552]
+            - cell "Incomplete data" [ref=f3e553]
+            - cell "Incomplete No fundamentals No technicals +1" [ref=f3e555]:
+              - generic [ref=f3e556]:
+                - generic [ref=f3e557]: Incomplete
+                - generic [ref=f3e558]: No fundamentals
+                - generic [ref=f3e559]: No technicals
+                - generic [ref=f3e560]: "+1"
+            - cell "36" [ref=f3e561]
+            - cell [ref=f3e562]
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 6.72 · Distribution risk; retained but not used." [ref=f3e563]:
+              - generic [ref=f3e564]:
+                - generic [ref=f3e565]: No technical decision input
+                - generic [ref=f3e566]: Does not feed Final / Decision
+                - generic [ref=f3e567]: Observed V4 6.72 · Distribution risk; retained but not used.
+            - cell [ref=f3e568]:
+              - generic [ref=f3e569]:
+                - button "Details" [ref=f3e570]
+                - link "TradingView" [ref=f3e571]:
+                  - /url: https://www.tradingview.com/chart/?symbol=SBH
+          - row [ref=f3e572] [cursor=pointer]:
+            - cell "205" [ref=f3e573]
+            - cell [ref=f3e574]:
+              - strong [ref=f3e575]: TBBB
+            - cell "Retail trade" [ref=f3e576]
+            - cell "0.00" [ref=f3e577]
+            - cell "Incomplete data" [ref=f3e578]
+            - cell "Incomplete No fundamentals No technicals +2" [ref=f3e580]:
+              - generic [ref=f3e581]:
+                - generic [ref=f3e582]: Incomplete
+                - generic [ref=f3e583]: No fundamentals
+                - generic [ref=f3e584]: No technicals
+                - generic [ref=f3e585]: "+2"
+            - cell "54" [ref=f3e586]
+            - cell [ref=f3e587]
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 7.94 · Extended momentum; retained but not used." [ref=f3e588]:
+              - generic [ref=f3e589]:
+                - generic [ref=f3e590]: No technical decision input
+                - generic [ref=f3e591]: Does not feed Final / Decision
+                - generic [ref=f3e592]: Observed V4 7.94 · Extended momentum; retained but not used.
+            - cell [ref=f3e593]:
+              - generic [ref=f3e594]:
+                - button "Details" [ref=f3e595]
+                - link "TradingView" [ref=f3e596]:
+                  - /url: https://www.tradingview.com/chart/?symbol=TBBB
+          - row [ref=f3e597] [cursor=pointer]:
+            - cell "206" [ref=f3e598]
+            - cell [ref=f3e599]:
+              - strong [ref=f3e600]: VTRS
+            - cell "Health technology" [ref=f3e601]
+            - cell "0.00" [ref=f3e602]
+            - cell "Incomplete data" [ref=f3e603]
+            - cell "Incomplete No fundamentals No technicals +2" [ref=f3e605]:
+              - generic [ref=f3e606]:
+                - generic [ref=f3e607]: Incomplete
+                - generic [ref=f3e608]: No fundamentals
+                - generic [ref=f3e609]: No technicals
+                - generic [ref=f3e610]: "+2"
+            - cell "29" [ref=f3e611]
+            - cell [ref=f3e612]
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 7.65 · No trade; retained but not used." [ref=f3e613]:
+              - generic [ref=f3e614]:
+                - generic [ref=f3e615]: No technical decision input
+                - generic [ref=f3e616]: Does not feed Final / Decision
+                - generic [ref=f3e617]: Observed V4 7.65 · No trade; retained but not used.
+            - cell [ref=f3e618]:
+              - generic [ref=f3e619]:
+                - button "Details" [ref=f3e620]
+                - link "TradingView" [ref=f3e621]:
+                  - /url: https://www.tradingview.com/chart/?symbol=VTRS
+          - row [ref=f3e622] [cursor=pointer]:
+            - cell "207" [ref=f3e623]
+            - cell [ref=f3e624]:
+              - strong [ref=f3e625]: WAT
+            - cell "Health technology" [ref=f3e626]
+            - cell "0.00" [ref=f3e627]
+            - cell "Incomplete data" [ref=f3e628]
+            - cell "Incomplete No fundamentals No technicals +2" [ref=f3e630]:
+              - generic [ref=f3e631]:
+                - generic [ref=f3e632]: Incomplete
+                - generic [ref=f3e633]: No fundamentals
+                - generic [ref=f3e634]: No technicals
+                - generic [ref=f3e635]: "+2"
+            - cell "27" [ref=f3e636]
+            - cell [ref=f3e637]
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 7.66 · Distribution risk; retained but not used." [ref=f3e638]:
+              - generic [ref=f3e639]:
+                - generic [ref=f3e640]: No technical decision input
+                - generic [ref=f3e641]: Does not feed Final / Decision
+                - generic [ref=f3e642]: Observed V4 7.66 · Distribution risk; retained but not used.
+            - cell [ref=f3e643]:
+              - generic [ref=f3e644]:
+                - button "Details" [ref=f3e645]
+                - link "TradingView" [ref=f3e646]:
+                  - /url: https://www.tradingview.com/chart/?symbol=WAT
+          - row [ref=f3e647] [cursor=pointer]:
+            - cell "208" [ref=f3e648]
+            - cell [ref=f3e649]:
+              - strong [ref=f3e650]: WCC
+            - cell "Distribution services" [ref=f3e651]
+            - cell "0.00" [ref=f3e652]
+            - cell "Incomplete data" [ref=f3e653]
+            - cell "Incomplete No fundamentals No technicals +1" [ref=f3e655]:
+              - generic [ref=f3e656]:
+                - generic [ref=f3e657]: Incomplete
+                - generic [ref=f3e658]: No fundamentals
+                - generic [ref=f3e659]: No technicals
+                - generic [ref=f3e660]: "+1"
+            - cell "22" [ref=f3e661]
+            - cell [ref=f3e662]
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 6.92 · Distribution risk; retained but not used." [ref=f3e663]:
+              - generic [ref=f3e664]:
+                - generic [ref=f3e665]: No technical decision input
+                - generic [ref=f3e666]: Does not feed Final / Decision
+                - generic [ref=f3e667]: Observed V4 6.92 · Distribution risk; retained but not used.
+            - cell [ref=f3e668]:
+              - generic [ref=f3e669]:
+                - button "Details" [ref=f3e670]
+                - link "TradingView" [ref=f3e671]:
+                  - /url: https://www.tradingview.com/chart/?symbol=WCC
+          - row [ref=f3e672] [cursor=pointer]:
+            - cell "209" [ref=f3e673]
+            - cell [ref=f3e674]:
+              - strong [ref=f3e675]: ZIM
+            - cell "Transportation" [ref=f3e676]
+            - cell "0.00" [ref=f3e677]
+            - cell "Incomplete data" [ref=f3e678]
+            - cell "Incomplete No fundamentals No technicals +1" [ref=f3e680]:
+              - generic [ref=f3e681]:
+                - generic [ref=f3e682]: Incomplete
+                - generic [ref=f3e683]: No fundamentals
+                - generic [ref=f3e684]: No technicals
+                - generic [ref=f3e685]: "+1"
+            - cell "42" [ref=f3e686]
+            - cell [ref=f3e687]
+            - cell "No technical decision input Does not feed Final / Decision Observed V4 6.51 · Distribution risk; retained but not used." [ref=f3e688]:
+              - generic [ref=f3e689]:
+                - generic [ref=f3e690]: No technical decision input
+                - generic [ref=f3e691]: Does not feed Final / Decision
+                - generic [ref=f3e692]: Observed V4 6.51 · Distribution risk; retained but not used.
+            - cell [ref=f3e693]:
+              - generic [ref=f3e694]:
+                - button "Details" [ref=f3e695]
+                - link "TradingView" [ref=f3e696]:
+                  - /url: https://www.tradingview.com/chart/?symbol=ZIM
+      - navigation "Decision cockpit pages" [ref=f3e697]:
+        - text: Showing 201-209 of 209 decisions. Filters and sorting apply to this page; exports remain run-wide.
+        - generic [ref=f3e698]:
+          - link "Previous decisions" [ref=f3e699] [cursor=pointer]:
+            - /url: http://127.0.0.1:8000/runs/30?cockpit_offset=100&cockpit_limit=100
+          - generic [ref=f3e700]: Next decisions
+    - generic [ref=f3e701]:
+      - generic [ref=f3e703]:
+        - heading "Raw CSV Preview" [level=2] [ref=f3e704]
+        - paragraph [ref=f3e705]: First 10 preserved rows mapped to ticker, company, and sector.
+      - generic [ref=f3e706]:
+        - generic [ref=f3e707]:
+          - strong [ref=f3e708]: "123"
+          - text: raw columns
+        - generic [ref=f3e709]:
+          - strong [ref=f3e710]: "0"
+          - text: duplicate tickers
+      - group [ref=f3e711]:
+        - generic "Raw CSV Preview rows" [ref=f3e712] [cursor=pointer]

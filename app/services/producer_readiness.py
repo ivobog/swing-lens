@@ -9,41 +9,10 @@ from types import SimpleNamespace
 from typing import Any, Protocol
 
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.warning_taxonomy import warnings_preserve_integrity_readiness
 
 READINESS_POLICY_VERSION = "producer-readiness-v1"
 READINESS_PAYLOAD_KEY = "producer_readiness"
-
-_ADVISORY_WARNING_FLAGS_BY_PRODUCER = {
-    "FUNDAMENTAL": frozenset(
-        {
-            "earnings_quality_risk",
-            "poor_cash_conversion",
-            "high_accrual_risk",
-            "capital_efficiency_deterioration",
-            "asset_growth_without_returns",
-            "balance_sheet_stress",
-            "liquidity_buffer_weak",
-            "forward_quality_weak",
-            "dividend_payout_risk",
-        }
-    ),
-    "TECHNICAL": frozenset(
-        {
-            "failed_breakout",
-            "distribution_risk",
-            "blowoff_top",
-            "box_failure",
-            "liquidity_warning",
-            "market_risk_off",
-            "climax_reversal_risk",
-            "late_stage_extension",
-            "stage_gate_blocked",
-            "stage_3_distribution",
-            "stage_4_downtrend",
-        }
-    ),
-}
-
 
 class ReadinessStatus(Enum):
     # Deliberately not StrEnum: LifecycleState.READY must not compare equal.
@@ -523,7 +492,7 @@ def normalize_producer_readiness(
     if (
         warnings
         and status is ReadinessStatus.READY
-        and not _advisory_business_risk_warnings_only(producer, output, warnings)
+        and not _classified_advisory_warnings_only(producer, output, warnings)
     ):
         status = ReadinessStatus.DEGRADED
     if status is ReadinessStatus.UNKNOWN:
@@ -549,15 +518,12 @@ def normalize_producer_readiness(
     )
 
 
-def _advisory_business_risk_warnings_only(
+def _classified_advisory_warnings_only(
     producer: str,
     output: dict[str, Any],
     warnings: list[ReadinessReason],
 ) -> bool:
-    allowed = _ADVISORY_WARNING_FLAGS_BY_PRODUCER.get(producer)
-    if allowed is None or any(
-        reason is not ReadinessReason.PRODUCER_WARNING for reason in warnings
-    ):
+    if any(reason is not ReadinessReason.PRODUCER_WARNING for reason in warnings):
         return False
 
     flags: list[str] = []
@@ -576,7 +542,7 @@ def _advisory_business_risk_warnings_only(
         if not isinstance(values, (list, tuple)):
             return False
         flags.extend(str(value).strip().lower() for value in values)
-    return bool(flags) and all(flag in allowed for flag in flags)
+    return warnings_preserve_integrity_readiness(flags)
 
 
 def readiness_from_evidence(evidence: Any) -> ProducerReadinessEnvelope:

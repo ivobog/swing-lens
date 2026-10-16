@@ -25,6 +25,7 @@ from app.models.ceri_tables import (
     CeriCatalystEventRevision,
     CeriCatalystSource,
     CeriChangeEvent,
+    CeriCompany,
     CeriDerivedFeature,
     CeriEarningsActual,
     CeriEstimateSnapshot,
@@ -112,6 +113,23 @@ def evidence_db():
     for table in tables:
         table.create(engine)
     with Session(engine) as db:
+        for run_id in range(7, 21):
+            db.add(UploadRun(id=run_id, filename=f"ceri-{run_id}.csv", status="COMPLETED"))
+        db.commit()
+        yield db
+        db.rollback()
+    engine.dispose()
+
+
+@pytest.fixture
+def postgres_evidence_db(disposable_postgres_database: str):
+    """Exercise PostgreSQL-only purge SQL against the production dialect."""
+    config = Config("alembic.ini")
+    config.attributes["database_url"] = disposable_postgres_database
+    command.upgrade(config, "head")
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        db.add(CeriCompany(id=1, ticker="ACME", exchange="TEST"))
         for run_id in range(7, 21):
             db.add(UploadRun(id=run_id, filename=f"ceri-{run_id}.csv", status="COMPLETED"))
         db.commit()
@@ -300,13 +318,13 @@ def test_rule_change_freezes_old_rule_payload(evidence_db: Session) -> None:
 
 
 def test_purge_is_forbidden_for_referenced_decision_evidence(
-    evidence_db: Session,
+    postgres_evidence_db: Session,
 ) -> None:
-    source = _source(evidence_db, 501, "licensed-hash", purge_eligible=True)
-    snapshot, _identity = _persist(evidence_db, run_id=14, source_ids=[source.id])
+    source = _source(postgres_evidence_db, 501, "licensed-hash", purge_eligible=True)
+    snapshot, _identity = _persist(postgres_evidence_db, run_id=14, source_ids=[source.id])
     service = CeriPurgeService()
     preview = service.preview(
-        evidence_db,
+        postgres_evidence_db,
         CeriPurgePreviewRequest(
             provider="eodhd",
             license_scope="licensed-test",
@@ -316,7 +334,7 @@ def test_purge_is_forbidden_for_referenced_decision_evidence(
     )
     with pytest.raises(CeriPurgeError, match="immutable CERI decision evidence"):
         service.execute(
-            evidence_db,
+            postgres_evidence_db,
             CeriPurgeExecuteRequest(
                 provider="eodhd",
                 license_scope="licensed-test",

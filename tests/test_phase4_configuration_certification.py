@@ -121,6 +121,7 @@ def test_handoff_validates_immutable_combined_source_pins(tampered):
     from datetime import UTC, date, datetime
     from types import SimpleNamespace as Row
 
+    from app.models.tables import MarketRegimeSnapshot, SectorRotationSnapshot
     from app.services.transition_preflight_plan_service import (
         TransitionPreflightError,
         _validate_handoff_temporal_lineage,
@@ -154,14 +155,31 @@ def test_handoff_validates_immutable_combined_source_pins(tampered):
             }
         },
     )
+    market = MarketRegimeSnapshot(
+        id=500,
+        run_id=7,
+        calculation_context_id=11,
+        calculation_cutoff_at=cutoff.cutoff_at,
+        input_as_of_session=cutoff.latest_completed_session,
+        calendar_version=cutoff.calendar_version,
+    )
+    sector = SectorRotationSnapshot(
+        id=600,
+        run_id=7,
+        calculation_context_id=11,
+        calculation_cutoff_at=cutoff.cutoff_at,
+        input_as_of_session=cutoff.latest_completed_session,
+        calendar_version=cutoff.calendar_version,
+        market_regime_snapshot_id=market.id,
+    )
     context = Row(
         ticker="ACME",
         raw_row=Row(id=9, run_id=7),
         fundamental_score=fundamental,
         technical_score=technical,
         combined_result=combined,
-        market_regime_snapshot=None,
-        sector_rotation_snapshot=None,
+        market_regime_snapshot=market,
+        sector_rotation_snapshot=sector,
         sector_rotation_row=None,
         ranking_results=[],
         price_bars=[],
@@ -176,14 +194,20 @@ def test_handoff_validates_immutable_combined_source_pins(tampered):
         if tampered:
             with pytest.raises(TransitionPreflightError, match="combined_evidence_sources"):
                 _validate_handoff_temporal_lineage(
-                    Row(scalars=lambda _query: []),
+                    Row(
+                        scalars=lambda _query: [],
+                        get=lambda _model, _identity: Row(pipeline_run_id=None),
+                    ),
                     upload_run_id=7,
                     market_cutoff=cutoff,
                     built_rows=[(context, None)],
                 )
         else:
             _validate_handoff_temporal_lineage(
-                Row(scalars=lambda _query: []),
+                Row(
+                    scalars=lambda _query: [],
+                    get=lambda _model, _identity: Row(pipeline_run_id=None),
+                ),
                 upload_run_id=7,
                 market_cutoff=cutoff,
                 built_rows=[(context, None)],
