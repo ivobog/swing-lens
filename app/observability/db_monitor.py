@@ -375,14 +375,16 @@ def resolve_process_role(configured_role: str | None = None) -> str:
     if configured and configured != "auto":
         return re.sub(r"[^a-z0-9_-]+", "-", configured).strip("-") or "unknown"
     argv = " ".join(sys.argv).lower().replace("\\", "/")
-    if "pytest" in argv or os.getenv("PYTEST_CURRENT_TEST"):
-        return "test"
     if "app.worker_supervisor" in argv or "/app/worker_supervisor.py" in argv:
         return "supervisor"
     if "app.worker" in argv or "/app/worker.py" in argv:
         return "worker"
     if "app.serve" in argv or "/app/serve.py" in argv or "uvicorn" in argv:
         return "web"
+    # Certification children inherit PYTEST_CURRENT_TEST from the test runner.
+    # Their explicit entry point still identifies the database connection owner.
+    if "pytest" in argv or os.getenv("PYTEST_CURRENT_TEST"):
+        return "test"
     if (
         argv.startswith("scripts/")
         or "/scripts/" in argv

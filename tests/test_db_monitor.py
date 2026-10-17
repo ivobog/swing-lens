@@ -604,6 +604,25 @@ def test_process_role_detects_python_module_file_paths(
     assert resolve_process_role("auto") == expected
 
 
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        ([r"C:\repo\app\worker.py"], "worker"),
+        ([r"C:\repo\app\worker_supervisor.py"], "supervisor"),
+        ([r"C:\repo\app\serve.py"], "web"),
+    ],
+)
+def test_process_role_uses_explicit_entry_point_with_inherited_pytest_context(
+    monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
+    expected: str,
+) -> None:
+    monkeypatch.setattr(monitor_module.sys, "argv", argv)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "certification::pipeline (call)")
+
+    assert resolve_process_role("auto") == expected
+
+
 def test_monitor_health_contains_retention_and_queue_proof(tmp_path: Path) -> None:
     writer = JsonlTelemetryWriter(
         tmp_path,
