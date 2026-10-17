@@ -1,0 +1,9 @@
+{
+  "run_id": 39,
+  "pipeline_id": 39,
+  "root_job_id": 1338,
+  "policy": "REQUIRE_IB",
+  "tickers": [
+    "AAPL"
+  ]
+}

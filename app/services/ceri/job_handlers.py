@@ -54,6 +54,7 @@ from app.services.ceri.orchestration import (
 from app.services.ceri.parent_pipeline_fence import require_parent_pipeline_active
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.ceri.providers.eodhd_client import EodhdTransientError
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
 from app.services.ceri.purge_service import (
     CeriPurgeExecuteRequest,
@@ -144,6 +145,8 @@ def execute_provider_ingest_job(
     except CeriIngestionCancelled as exc:
         raise CancelRequested(str(exc)) from exc
     except CeriParentPipelineTerminalError:
+        raise
+    except EodhdTransientError:
         raise
     except SQLAlchemyError:
         raise

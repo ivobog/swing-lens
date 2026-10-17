@@ -1,0 +1,11 @@
+{
+  "before_sha256": "243c3ff03c0967041b8961486855a04cea76c7e1a76b620396348c3de511178f",
+  "after_sha256": "243c3ff03c0967041b8961486855a04cea76c7e1a76b620396348c3de511178f",
+  "unchanged": true,
+  "row_counts": {
+    "pipeline": 1,
+    "steps": 13,
+    "jobs": 33,
+    "ingestions": 360
+  }
+}

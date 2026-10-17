@@ -1,0 +1,20 @@
+{
+  "status": "IB_API_READY",
+  "host": "127.0.0.1",
+  "port": 4002,
+  "client_id": 25,
+  "api_connected": true,
+  "api_ready": true,
+  "process_running": true,
+  "server_version": 176,
+  "smoke_response_received": true,
+  "checked_at": "2026-10-16T23:59:12.689148+00:00",
+  "expires_at": "2026-10-16T23:59:17.689148+00:00",
+  "latency_ms": 6,
+  "error_code": null,
+  "failure_category": null,
+  "message": "IB Gateway API connection successful.",
+  "failure_phase": null,
+  "handshake_latency_ms": 5,
+  "smoke_latency_ms": 1
+}

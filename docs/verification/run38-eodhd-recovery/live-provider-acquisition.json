@@ -1,0 +1,87 @@
+{
+  "acquisitions": [
+    {
+      "provider": "eodhd",
+      "dataset": "estimates",
+      "status": "COMPLETED",
+      "fetched_count": 48,
+      "failed_count": 0,
+      "quota_state_json": {
+        "status": "manual",
+        "provider": "eodhd"
+      },
+      "errors_json": null
+    },
+    {
+      "provider": "eodhd",
+      "dataset": "earnings",
+      "status": "COMPLETED",
+      "fetched_count": 7,
+      "failed_count": 0,
+      "quota_state_json": {
+        "status": "manual",
+        "provider": "eodhd"
+      },
+      "errors_json": null
+    },
+    {
+      "provider": "eodhd",
+      "dataset": "catalysts",
+      "status": "COMPLETED",
+      "fetched_count": 50,
+      "failed_count": 0,
+      "quota_state_json": {
+        "status": "manual",
+        "provider": "eodhd"
+      },
+      "errors_json": null
+    },
+    {
+      "provider": "sec",
+      "dataset": "guidance",
+      "status": "COMPLETED",
+      "fetched_count": 0,
+      "failed_count": 0,
+      "quota_state_json": {
+        "provider": "sec",
+        "readiness_state": "READY_TERMINAL_REUSE",
+        "incremental_mode": "ACTIVE",
+        "readiness_reason": "TERMINAL_EXTRACTION_REUSED",
+        "documents_skipped": 5,
+        "processor_signature": "sec-guidance:eed017654682a0c9",
+        "run_evidence_status": "READY",
+        "documents_discovered": 5,
+        "documents_downloaded": 0,
+        "documents_would_skip": 5,
+        "documents_cache_reused": 0,
+        "documents_zero_records": 0,
+        "stale_leases_recovered": 0,
+        "documents_claimed_elsewhere": 0
+      },
+      "errors_json": null
+    }
+  ],
+  "provider_requests": [
+    {
+      "provider": "eodhd",
+      "endpoint": "dataset:estimates",
+      "retry_count": 0,
+      "error_code": null,
+      "latency_ms": 2695
+    },
+    {
+      "provider": "eodhd",
+      "endpoint": "dataset:earnings",
+      "retry_count": 0,
+      "error_code": null,
+      "latency_ms": 1422
+    },
+    {
+      "provider": "eodhd",
+      "endpoint": "dataset:catalysts",
+      "retry_count": 0,
+      "error_code": null,
+      "latency_ms": 26228
+    }
+  ]
+}

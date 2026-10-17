@@ -11938,9 +11938,9 @@
     {
       "id": "TX-08",
       "boundary": "CERI provider ingest job transaction/batches",
-      "retained": "ingestion/source/request locks; payload IDs retained",
-      "revalidation": "provider/dataset/request key, PIT cutoff, job token",
-      "continuation": "normalize enqueue"
+      "retained": "per-ticker ingestion/source/request state commits before detached completion checkpoints; failed-attempt diagnostics commit without a completion checkpoint",
+      "revalidation": "active parent pipeline and exact execution token at each domain commit; retain provider/dataset/request key, scope/refresh identity and PIT cutoff on retry",
+      "continuation": "existing bounded worker retry reacquires missing tickers; normalization waits for terminal providers"
     },
     {
       "id": "TX-09",
@@ -12692,6 +12692,13 @@
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/batched_job_handlers.py",
+      "function": "execute_provider_ingest_batch_job",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Run 38 recovery: commit per-ticker acquisition or failed-attempt diagnostics under parent-pipeline and execution-token fences before detached completion checkpoints; covered by the PostgreSQL worker recovery test."
     },
     {
       "path": "app/services/ceri/batched_workflow.py",
@@ -17572,7 +17579,8 @@
       "tests/test_t14a_mutation_inventory.py"
     ],
     "TX-08": [
-      "tests/test_t14a_mutation_inventory.py"
+      "tests/test_t14a_mutation_inventory.py",
+      "tests/integration/test_eodhd_job_recovery_postgresql.py::test_eodhd_worker_retry_preserves_success_and_exhausts_budget"
     ],
     "TX-09": [
       "tests/test_t14a_mutation_inventory.py"

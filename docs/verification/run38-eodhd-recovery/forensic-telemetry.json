@@ -1,0 +1,81 @@
+{
+  "run38_requests": [
+    {
+      "endpoint": "dataset:catalysts",
+      "error_code": "PROVIDER_REQUEST_FAILED",
+      "retry_count": 3,
+      "count": 34,
+      "min_ms": 128356,
+      "max_ms": 128538,
+      "avg_ms": "128398"
+    },
+    {
+      "endpoint": "dataset:catalysts",
+      "error_code": null,
+      "retry_count": 0,
+      "count": 48,
+      "min_ms": 9792,
+      "max_ms": 28045,
+      "avg_ms": "17230"
+    },
+    {
+      "endpoint": "dataset:catalysts",
+      "error_code": null,
+      "retry_count": 1,
+      "count": 4,
+      "min_ms": 56644,
+      "max_ms": 61729,
+      "avg_ms": "59622"
+    },
+    {
+      "endpoint": "dataset:catalysts",
+      "error_code": null,
+      "retry_count": 2,
+      "count": 1,
+      "min_ms": 92378,
+      "max_ms": 92378,
+      "avg_ms": "92378"
+    },
+    {
+      "endpoint": "dataset:catalysts",
+      "error_code": null,
+      "retry_count": 3,
+      "count": 1,
+      "min_ms": 119763,
+      "max_ms": 119763,
+      "avg_ms": "119763"
+    },
+    {
+      "endpoint": "dataset:earnings",
+      "error_code": null,
+      "retry_count": 0,
+      "count": 88,
+      "min_ms": 1233,
+      "max_ms": 1477,
+      "avg_ms": "1318"
+    },
+    {
+      "endpoint": "dataset:estimates",
+      "error_code": null,
+      "retry_count": 0,
+      "count": 88,
+      "min_ms": 539,
+      "max_ms": 3452,
+      "avg_ms": "2551"
+    }
+  ],
+  "run39_ib": [],
+  "run39_progress": [
+    {
+      "id": 1338,
+      "status": "RUNNING",
+      "progress_stage": "SECTOR_ROTATION_SNAPSHOT",
+      "progress_current_item": "PERSISTENCE_VALIDATION:complete",
+      "progress_processed": 9,
+      "progress_total": 9,
+      "heartbeat_at": "2026-10-17 01:58:40.630058+02:00",
+      "last_progress_at": "2026-10-17 01:58:38.460885+02:00",
+      "checkpoint_version": "sector-rotation-v1:PERSISTENCE_VALIDATION:9"
+    }
+  ]
+}

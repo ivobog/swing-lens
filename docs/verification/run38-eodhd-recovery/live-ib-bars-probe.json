@@ -1,0 +1,32 @@
+{
+  "status": "SUCCESS",
+  "read_only": true,
+  "ticker": "AAPL",
+  "bars_returned": 3,
+  "latest_session": "2026-10-16",
+  "seconds": 4.718,
+  "diagnostics": {
+    "request_id": 4,
+    "contract": {
+      "symbol": "AAPL",
+      "con_id": 265598,
+      "sec_type": "STK",
+      "exchange": "SMART",
+      "primary_exchange": "NASDAQ",
+      "currency": "USD"
+    },
+    "request": {
+      "end_datetime": "",
+      "duration": "3 D",
+      "bar_size": "1 day",
+      "what_to_show": "TRADES",
+      "use_rth": true,
+      "format_date": 1,
+      "keep_up_to_date": false,
+      "chart_options": []
+    },
+    "timeout_seconds": 30.0,
+    "provider_callbacks": []
+  },
+  "persisted": false
+}

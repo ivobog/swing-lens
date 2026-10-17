@@ -34,6 +34,7 @@ from app.services.ceri.batched_workflow import (
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.feature_rebuild_service import CeriFeatureRebuildResult
 from app.services.ceri.orchestration import CeriIngestionResult, CeriIngestionService
+from app.services.ceri.providers.eodhd_client import EodhdTransientError
 from app.services.pipeline_prerequisites import CeriUpstreamStageBlockedError
 from app.settings import SecDocumentIncrementalMode, Settings
 
@@ -315,6 +316,31 @@ def test_provider_batch_continues_after_partial_ticker_failure(monkeypatch) -> N
     assert result["results"]["T1"]["status"] == "PARTIAL"
     assert job.status == JobStatus.RUNNING
     assert job_result_status(job) == JobStatus.PARTIAL
+
+
+def test_provider_retry_keeps_prior_data_quality_failure_partial(monkeypatch) -> None:
+    monkeypatch.setattr(
+        batched_job_handlers, "ceri_flags", lambda: SimpleNamespace(provider_ingest=True)
+    )
+    calls = []
+
+    class Service:
+        def ingest(self, _db, request, **_kwargs):
+            calls.append(request.ticker)
+            if request.ticker == "T0":
+                return SimpleNamespace(as_dict=lambda: {"status": "PARTIAL", "failed": 1})
+            if calls.count("T1") == 1:
+                raise EodhdTransientError("temporary read timeout")
+            return SimpleNamespace(as_dict=lambda: {"status": "COMPLETED", "failed": 0})
+
+    job = _provider_batch_job(["T0", "T1"])
+    with pytest.raises(EodhdTransientError):
+        execute_provider_ingest_batch_job(FakeDb(), job, ingestion_service=Service())
+    assert job.operational_metadata_json["ceri_batch"]["completed_tickers"] == ["T0"]
+    result = execute_provider_ingest_batch_job(FakeDb(), job, ingestion_service=Service())
+    assert result["status"] == "PARTIAL"
+    assert result["failed"] == 1
+    assert calls == ["T0", "T1", "T1"]
 
 
 def test_ceri_checkpoint_updates_durable_progress_fields_monotonically(monkeypatch) -> None:

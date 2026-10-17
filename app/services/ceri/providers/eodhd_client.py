@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from http.client import HTTPException
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
@@ -25,6 +27,10 @@ class EodhdAuthenticationError(EodhdProviderError):
 
 class EodhdQuotaExceeded(EodhdProviderError):
     pass
+
+
+class EodhdTransientError(EodhdProviderError, ConnectionError):
+    """A bounded HTTP attempt budget exhausted; the durable job may retry it."""
 
 
 @dataclass(frozen=True)
@@ -104,23 +110,22 @@ class EodhdHttpClient:
     ) -> Any:
         if not self.configured:
             raise EodhdAuthenticationError("EODHD_API_KEY is not configured")
-        self._reserve(call_cost)
         query = dict(params or {})
         query.update({"api_token": self.config.api_key, "fmt": "json"})
         url = urljoin(self.config.base_url.rstrip("/") + "/", path.lstrip("/"))
         url = f"{url}?{urlencode(query, doseq=True)}"
         attempts = max(1, self.config.max_attempts)
         for attempt in range(1, attempts + 1):
+            self._reserve(call_cost)
             self._requests += 1
+            retry_after = None
             try:
                 response = self._transport(url, self.config.timeout_seconds)
                 payload, status, headers = self._decode_response(response)
                 if status in {401, 403}:
                     raise EodhdAuthenticationError("EODHD rejected credentials or entitlement")
-                if status == 429:
-                    raise _RetryableProviderError(_retry_after(headers))
-                if status >= 500:
-                    raise _RetryableProviderError(None)
+                if status == 429 or status >= 500:
+                    raise _RetryableProviderError(status, _retry_after(headers))
                 if status >= 400:
                     raise EodhdProviderError(f"EODHD request failed with HTTP {status}")
                 self._successful += 1
@@ -132,41 +137,40 @@ class EodhdHttpClient:
                 self._last_error = redact_text(str(exc))
                 raise
             except _RetryableProviderError as exc:
-                self._last_error = "transient provider failure"
-                if attempt >= attempts:
-                    self._failed += 1
-                    raise EodhdProviderError(
-                        f"EODHD transient request failure after {attempts} attempts"
-                    ) from exc
-                self._retries += 1
-                self._sleep(exc.retry_after or min(30.0, 2 ** (attempt - 1)))
+                self._last_error = str(exc)
+                retry_after = exc.retry_after
             except HTTPError as exc:
-                if exc.code in {401, 403}:
-                    self._failed += 1
-                    raise EodhdAuthenticationError(
-                        "EODHD rejected credentials or entitlement"
-                    ) from exc
-                if exc.code == 429 or exc.code >= 500:
-                    if attempt >= attempts:
+                try:
+                    self._last_error = f"HTTP {exc.code}"
+                    if exc.code in {401, 403}:
+                        self._failed += 1
+                        raise EodhdAuthenticationError(
+                            "EODHD rejected credentials or entitlement"
+                        ) from None
+                    if exc.code != 429 and exc.code < 500:
                         self._failed += 1
                         raise EodhdProviderError(
-                            f"EODHD transient request failure after {attempts} attempts"
-                        ) from exc
-                    self._retries += 1
-                    self._sleep(min(30.0, 2 ** (attempt - 1)))
-                    continue
-                self._failed += 1
-                raise EodhdProviderError(f"EODHD request failed with HTTP {exc.code}") from exc
-            except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+                            f"EODHD request failed with HTTP {exc.code}"
+                        ) from None
+                    retry_after = _retry_after(
+                        {str(k).lower(): str(v) for k, v in dict(exc.headers or {}).items()}
+                    )
+                finally:
+                    exc.close()
+            except (URLError, OSError, HTTPException, json.JSONDecodeError, UnicodeError) as exc:
                 self._last_error = _safe_error(exc, self.config.api_key)
-                if attempt >= attempts:
-                    self._failed += 1
-                    raise EodhdProviderError("EODHD network or response failure") from exc
-                self._retries += 1
-                self._sleep(min(30.0, 2 ** (attempt - 1)))
-            except EodhdProviderError:
+            except EodhdProviderError as exc:
                 self._failed += 1
+                self._last_error = _safe_error(exc, self.config.api_key)
                 raise
+            if attempt >= attempts:
+                self._failed += 1
+                raise EodhdTransientError(
+                    f"EODHD {path.split('?', 1)[0]} failed after {attempts} attempts "
+                    f"(timeout={self.config.timeout_seconds}s): {self._last_error}"
+                ) from None
+            self._retries += 1
+            self._sleep(min(30.0, retry_after if retry_after is not None else 2 ** (attempt - 1)))
         raise AssertionError("unreachable")
 
     def safe_metadata(self) -> dict[str, Any]:
@@ -209,9 +213,8 @@ class EodhdHttpClient:
             self._calls_used_today_value = 0
         return self._calls_today
 
-    @staticmethod
-    def _urllib_transport(url: str, timeout: int) -> Any:
-        request = Request(url, headers={"User-Agent": "SwingLens/0.1.0"})
+    def _urllib_transport(self, url: str, timeout: int) -> Any:
+        request = Request(url, headers={"User-Agent": self.config.user_agent})
         with urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed provider base URL
             return _BufferedResponse(
                 status=int(getattr(response, "status", getattr(response, "code", 200))),
@@ -228,6 +231,10 @@ class EodhdHttpClient:
             str(key).lower(): str(value)
             for key, value in dict(getattr(response, "headers", {})).items()
         }
+        # HTTP error bodies are often HTML. Preserve the status even when the
+        # response cannot be decoded as JSON.
+        if status >= 400:
+            return None, status, headers
         body = response.read()
         if isinstance(body, bytes):
             body = body.decode("utf-8")
@@ -235,7 +242,8 @@ class EodhdHttpClient:
 
 
 class _RetryableProviderError(RuntimeError):
-    def __init__(self, retry_after: float | None) -> None:
+    def __init__(self, status: int, retry_after: float | None) -> None:
+        super().__init__(f"HTTP {status}")
         self.retry_after = retry_after
 
 
@@ -256,7 +264,8 @@ def _retry_after(headers: dict[str, str]) -> float | None:
     if not value:
         return None
     try:
-        return max(0.0, float(value))
+        seconds = float(value)
+        return max(0.0, seconds) if math.isfinite(seconds) else None
     except ValueError:
         try:
             return max(0.0, (parsedate_to_datetime(value) - datetime.now(UTC)).total_seconds())
@@ -265,7 +274,7 @@ def _retry_after(headers: dict[str, str]) -> float | None:
 
 
 def _safe_error(exc: Exception, secret: str | None = None) -> str:
-    text = redact_text(str(exc))
+    text = redact_text(f"{exc.__class__.__name__}: {exc}")
     if secret:
         text = text.replace(secret, "[redacted]")
     text = text.replace("\n", " ").strip()

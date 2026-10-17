@@ -1,0 +1,870 @@
+{
+  "run39_events": [
+    {
+      "timestamp": "2026-10-16T23:57:18.556803+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "VALIDATING_RUN",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-16T23:57:18.915803+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "VALIDATING_RUN",
+      "status": "COMPLETED",
+      "duration_ms": 369.32
+    },
+    {
+      "timestamp": "2026-10-16T23:57:18.933806+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "SCORING_FUNDAMENTALS",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-16T23:57:19.724474+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "SCORING_FUNDAMENTALS",
+      "status": "COMPLETED",
+      "duration_ms": 794.669
+    },
+    {
+      "timestamp": "2026-10-16T23:57:19.743474+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "FETCHING_MARKET_DATA",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-16T23:57:20.649606+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "FETCHING_MARKET_DATA",
+      "status": "COMPLETED",
+      "duration_ms": 911.012
+    },
+    {
+      "timestamp": "2026-10-16T23:57:20.669604+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "SCORING_TECHNICALS",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-16T23:58:21.026196+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "SCORING_TECHNICALS",
+      "status": "COMPLETED",
+      "duration_ms": 60365.506
+    },
+    {
+      "timestamp": "2026-10-16T23:58:21.038198+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "MARKET_REGIME_SNAPSHOT",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-16T23:58:24.780639+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "MARKET_REGIME_SNAPSHOT",
+      "status": "COMPLETED",
+      "duration_ms": 3746.406
+    },
+    {
+      "timestamp": "2026-10-16T23:58:24.793638+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "COMBINING_RESULTS",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-16T23:58:25.285639+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "COMBINING_RESULTS",
+      "status": "COMPLETED",
+      "duration_ms": 496.038
+    },
+    {
+      "timestamp": "2026-10-16T23:58:25.301640+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "RANKING_PROFILES",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-16T23:58:26.475714+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "RANKING_PROFILES",
+      "status": "COMPLETED",
+      "duration_ms": 1178.96
+    },
+    {
+      "timestamp": "2026-10-16T23:58:26.489721+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "SECTOR_ROTATION_SNAPSHOT",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-16T23:58:49.628026+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "SECTOR_ROTATION_SNAPSHOT",
+      "status": "COMPLETED",
+      "duration_ms": 23136.234
+    },
+    {
+      "timestamp": "2026-10-16T23:58:49.702033+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "CERI_PROVIDER_INGEST",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-16T23:58:50.482031+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1338,
+      "pipeline_run_id": 39,
+      "stage": "CERI_PROVIDER_INGEST",
+      "status": "COMPLETED",
+      "duration_ms": 784.265
+    },
+    {
+      "timestamp": "2026-10-16T23:58:50.593030+00:00",
+      "event": "job.completed",
+      "job_id": 1338,
+      "job_type": "FULL_PIPELINE"
+    },
+    {
+      "timestamp": "2026-10-16T23:58:53.854712+00:00",
+      "event": "ceri.ingestion_completed",
+      "provider": "eodhd",
+      "dataset": "estimates",
+      "status": "COMPLETED",
+      "counts": {
+        "requested": 48,
+        "fetched": 48,
+        "inserted": 0,
+        "deduplicated": 48,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 0
+      }
+    },
+    {
+      "timestamp": "2026-10-16T23:58:53.968715+00:00",
+      "event": "job.completed",
+      "job_id": 1339,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH"
+    },
+    {
+      "timestamp": "2026-10-16T23:58:56.505241+00:00",
+      "event": "ceri.ingestion_completed",
+      "provider": "eodhd",
+      "dataset": "earnings",
+      "status": "COMPLETED",
+      "counts": {
+        "requested": 7,
+        "fetched": 7,
+        "inserted": 0,
+        "deduplicated": 7,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 0
+      }
+    },
+    {
+      "timestamp": "2026-10-16T23:58:56.582240+00:00",
+      "event": "job.completed",
+      "job_id": 1341,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH"
+    },
+    {
+      "timestamp": "2026-10-16T23:59:23.366598+00:00",
+      "event": "ceri.ingestion_completed",
+      "provider": "eodhd",
+      "dataset": "catalysts",
+      "status": "COMPLETED",
+      "counts": {
+        "requested": 50,
+        "fetched": 50,
+        "inserted": 34,
+        "deduplicated": 16,
+        "corrected": 9,
+        "quarantined": 0,
+        "failed": 0
+      }
+    },
+    {
+      "timestamp": "2026-10-16T23:59:23.435115+00:00",
+      "event": "job.completed",
+      "job_id": 1343,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH"
+    },
+    {
+      "timestamp": "2026-10-16T23:59:24.340572+00:00",
+      "event": "ceri.ingestion_completed",
+      "provider": "sec",
+      "dataset": "guidance",
+      "status": "COMPLETED",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 0
+      }
+    },
+    {
+      "timestamp": "2026-10-16T23:59:24.415096+00:00",
+      "event": "job.completed",
+      "job_id": 1345,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH"
+    },
+    {
+      "timestamp": "2026-10-16T23:59:28.515535+00:00",
+      "event": "job.completed",
+      "job_id": 1340,
+      "job_type": "CERI_NORMALIZE_BATCH"
+    },
+    {
+      "timestamp": "2026-10-16T23:59:29.883687+00:00",
+      "event": "job.completed",
+      "job_id": 1342,
+      "job_type": "CERI_NORMALIZE_BATCH"
+    },
+    {
+      "timestamp": "2026-10-16T23:59:35.212563+00:00",
+      "event": "job.completed",
+      "job_id": 1344,
+      "job_type": "CERI_NORMALIZE_BATCH"
+    },
+    {
+      "timestamp": "2026-10-16T23:59:36.127331+00:00",
+      "event": "job.completed",
+      "job_id": 1346,
+      "job_type": "CERI_NORMALIZE_BATCH"
+    },
+    {
+      "timestamp": "2026-10-16T23:59:45.446986+00:00",
+      "event": "job.completed",
+      "job_id": 1347,
+      "job_type": "CERI_FEATURE_BATCH"
+    },
+    {
+      "timestamp": "2026-10-16T23:59:46.080028+00:00",
+      "event": "job.completed",
+      "job_id": 1348,
+      "job_type": "CERI_RUN_FINALIZE"
+    },
+    {
+      "timestamp": "2026-10-17T00:00:07.174904+00:00",
+      "event": "job.completed",
+      "job_id": 1349,
+      "job_type": "CERI_CAPTURE_RUN"
+    },
+    {
+      "timestamp": "2026-10-17T00:00:13.842841+00:00",
+      "event": "job.completed",
+      "job_id": 1350,
+      "job_type": "CERI_CHANGE_DETECTION"
+    },
+    {
+      "timestamp": "2026-10-17T00:00:14.847458+00:00",
+      "event": "job.completed",
+      "job_id": 1351,
+      "job_type": "CERI_ALERT_REBUILD"
+    },
+    {
+      "timestamp": "2026-10-17T00:00:15.483655+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1352,
+      "pipeline_run_id": 39,
+      "stage": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-17T00:00:20.329076+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1352,
+      "pipeline_run_id": 39,
+      "stage": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "status": "COMPLETED",
+      "duration_ms": 4854.058
+    },
+    {
+      "timestamp": "2026-10-17T00:00:20.833078+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1352,
+      "pipeline_run_id": 39,
+      "stage": "CAPTURING_SETUP_SIGNALS",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-17T00:00:26.198036+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1352,
+      "pipeline_run_id": 39,
+      "stage": "CAPTURING_SETUP_SIGNALS",
+      "status": "COMPLETED",
+      "duration_ms": 5373.322
+    },
+    {
+      "timestamp": "2026-10-17T00:00:26.214040+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1352,
+      "pipeline_run_id": 39,
+      "stage": "EVALUATING_SETUP_LIFECYCLES",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-17T00:01:01.901547+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1352,
+      "pipeline_run_id": 39,
+      "stage": "EVALUATING_SETUP_LIFECYCLES",
+      "status": "COMPLETED",
+      "duration_ms": 35686.285
+    },
+    {
+      "timestamp": "2026-10-17T00:01:01.997545+00:00",
+      "event": "pipeline.stage_started",
+      "background_job_id": 1352,
+      "pipeline_run_id": 39,
+      "stage": "CAPTURING_WINNER_PREDICTIONS",
+      "status": "RUNNING",
+      "duration_ms": null
+    },
+    {
+      "timestamp": "2026-10-17T00:01:13.966587+00:00",
+      "event": "pipeline.stage_finished",
+      "background_job_id": 1352,
+      "pipeline_run_id": 39,
+      "stage": "CAPTURING_WINNER_PREDICTIONS",
+      "status": "COMPLETED",
+      "duration_ms": 11979.312
+    },
+    {
+      "timestamp": "2026-10-17T00:01:14.103585+00:00",
+      "event": "job.completed",
+      "job_id": 1352,
+      "job_type": "FULL_PIPELINE"
+    }
+  ],
+  "run38_failed_ingestions": [
+    {
+      "timestamp": "2026-10-16T21:25:49.138248+00:00",
+      "ingestion_run_id": 14330,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:27:57.770629+00:00",
+      "ingestion_run_id": 14331,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:30:06.474563+00:00",
+      "ingestion_run_id": 14332,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:32:15.087513+00:00",
+      "ingestion_run_id": 14333,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:34:23.740838+00:00",
+      "ingestion_run_id": 14334,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:36:32.372908+00:00",
+      "ingestion_run_id": 14335,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:40:40.972460+00:00",
+      "ingestion_run_id": 14338,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:42:49.641697+00:00",
+      "ingestion_run_id": 14339,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:46:49.210866+00:00",
+      "ingestion_run_id": 14343,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:48:57.835372+00:00",
+      "ingestion_run_id": 14344,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:51:06.523667+00:00",
+      "ingestion_run_id": 14345,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:53:15.122945+00:00",
+      "ingestion_run_id": 14346,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:55:23.873111+00:00",
+      "ingestion_run_id": 14347,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T21:57:32.496276+00:00",
+      "ingestion_run_id": 14348,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:01:54.666540+00:00",
+      "ingestion_run_id": 14353,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:04:03.693559+00:00",
+      "ingestion_run_id": 14354,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:06:12.359684+00:00",
+      "ingestion_run_id": 14355,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:08:21.007588+00:00",
+      "ingestion_run_id": 14356,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:10:29.633286+00:00",
+      "ingestion_run_id": 14357,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:12:38.260652+00:00",
+      "ingestion_run_id": 14358,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:14:46.900466+00:00",
+      "ingestion_run_id": 14359,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:16:55.502520+00:00",
+      "ingestion_run_id": 14360,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:19:04.130881+00:00",
+      "ingestion_run_id": 14361,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:21:12.725620+00:00",
+      "ingestion_run_id": 14362,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:23:21.336052+00:00",
+      "ingestion_run_id": 14363,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:25:29.956793+00:00",
+      "ingestion_run_id": 14364,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:27:38.607390+00:00",
+      "ingestion_run_id": 14365,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:29:47.243310+00:00",
+      "ingestion_run_id": 14366,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:31:55.847154+00:00",
+      "ingestion_run_id": 14367,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:34:04.600392+00:00",
+      "ingestion_run_id": 14368,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:36:13.225487+00:00",
+      "ingestion_run_id": 14369,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:38:21.846952+00:00",
+      "ingestion_run_id": 14370,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:40:30.469572+00:00",
+      "ingestion_run_id": 14371,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-16T22:42:39.062875+00:00",
+      "ingestion_run_id": 14372,
+      "status": "PARTIAL",
+      "counts": {
+        "requested": 0,
+        "fetched": 0,
+        "inserted": 0,
+        "deduplicated": 0,
+        "corrected": 0,
+        "quarantined": 0,
+        "failed": 1
+      }
+    }
+  ]
+}

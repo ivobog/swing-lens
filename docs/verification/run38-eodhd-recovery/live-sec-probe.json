@@ -1,0 +1,24 @@
+{
+  "status": "SUCCESS",
+  "provider": "sec",
+  "ticker": "AAPL",
+  "documents_discovered": 5,
+  "stats": {
+    "requests": 2,
+    "failures": 0,
+    "retries": 0,
+    "timeouts": 0,
+    "http_2xx": 2,
+    "http_403": 0,
+    "http_429": 0,
+    "http_5xx": 0,
+    "company_ticker_requests": 1,
+    "submissions_requests": 1,
+    "filing_document_requests": 0,
+    "other_requests": 0,
+    "bytes_downloaded": 963437,
+    "pacing_sleep_ms": 47.0000000204891,
+    "retry_sleep_ms": 0.0,
+    "http_wait_ms": 504.986000014469
+  }
+}

@@ -24,6 +24,7 @@ from app.services.ceri.dtos import (
 from app.services.ceri.enums import CatalystCategory, CeriDataset
 from app.services.ceri.provider_protocol import CeriProvider
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.ceri.providers.eodhd_client import EodhdTransientError
 from app.services.ceri.source_record_service import CeriSourceRecordService
 from app.settings import SecDocumentIncrementalMode, Settings, get_settings
 
@@ -183,8 +184,11 @@ class CeriIngestionService:
         checkpoint: dict[str, Any] = {}
         provider_stats_before = _provider_stats(provider)
         started = time.perf_counter()
+        retry_error = None
 
         try:
+            if callable(should_cancel) and should_cancel():
+                raise CeriIngestionCancelled("CERI ingestion cancelled.")
             for index, record in enumerate(self._fetch_records(provider, request), start=1):
                 requested += 1
                 payload_bytes = len(
@@ -213,10 +217,20 @@ class CeriIngestionService:
                     failed += 1
                     errors.append(_safe_error(index, record, exc))
                 checkpoint = {"last_record_index": index}
+            if callable(should_cancel) and should_cancel():
+                raise CeriIngestionCancelled("CERI ingestion cancelled.")
         except CeriIngestionCancelled:
-            status = "CANCELLED"
+            raise
         except SQLAlchemyError:
             raise
+        except EodhdTransientError as exc:
+            failed += 1
+            errors.append({"error": _safe_message(exc)})
+            # FAILED acquisitions can be attempted again under the same exact
+            # workflow/refresh identity. PARTIAL data remains terminal and must
+            # still fail certification; it is never relabeled as successful.
+            status = "FAILED"
+            retry_error = exc
         except Exception as exc:
             failed += 1
             errors.append({"error": _safe_message(exc)})
@@ -253,6 +267,8 @@ class CeriIngestionService:
             response_bytes=response_bytes,
             stored_bytes=stored_bytes,
         )
+        if retry_error is not None:
+            raise retry_error
         return self._result_from_run(finished)
 
     def request_key(self, request: CeriIngestionRequest) -> str:

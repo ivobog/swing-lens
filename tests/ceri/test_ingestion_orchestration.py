@@ -16,9 +16,53 @@ from app.services.ceri.job_handlers import (
     execute_provider_ingest_job,
     implemented_ceri_job_handlers,
 )
-from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
+from app.services.ceri.orchestration import (
+    CeriIngestionCancelled,
+    CeriIngestionRequest,
+    CeriIngestionService,
+)
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.ceri.providers.eodhd_client import EodhdClientConfig, EodhdHttpClient
+from app.services.ceri.providers.eodhd_provider import EodhdCeriProvider
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
+
+
+def test_run38_exhausted_timeout_propagates_to_existing_job_retry() -> None:
+    def timeout(*_args):
+        raise TimeoutError("The read operation timed out")
+
+    provider = EodhdCeriProvider(
+        client=EodhdHttpClient(
+            EodhdClientConfig(api_key="fixture", max_attempts=1),
+            transport=timeout,
+            sleep=lambda _seconds: None,
+        )
+    )
+    service = CeriIngestionService(registry=CeriProviderRegistry(providers={"eodhd": provider}))
+    db = FakeDb()
+    with pytest.raises(ConnectionError, match="read operation timed out"):
+        service.ingest(
+            db,
+            CeriIngestionRequest(
+                provider="eodhd",
+                dataset=CeriDataset.CATALYSTS,
+                ticker="AAPL",
+            ),
+        )
+    ingestion = next(row for row in db.added if isinstance(row, CeriIngestionRun))
+    assert ingestion.status == "FAILED"
+    assert "TimeoutError" in str(ingestion.errors_json)
+
+
+def test_cancellation_during_empty_response_does_not_complete_ingestion() -> None:
+    service = _ingestion_service([])
+    cancelled = iter([False, True])
+    with pytest.raises(CeriIngestionCancelled):
+        service.ingest(
+            FakeDb(),
+            CeriIngestionRequest(provider="manual", dataset=CeriDataset.ESTIMATES, ticker="MSFT"),
+            should_cancel=lambda: next(cancelled),
+        )
 
 
 def test_manual_ingestion_persists_source_records_and_counts() -> None:
@@ -76,9 +120,7 @@ def test_manual_ingestion_counts_corrected_provider_records() -> None:
         idempotency_key="legacy-key",
     )
     db = FakeDb(scalar_queue=[None, None, existing])
-    service = _ingestion_service(
-        [{"provider_record_id": "est-1", "ticker": "MSFT", "eps": 2}]
-    )
+    service = _ingestion_service([{"provider_record_id": "est-1", "ticker": "MSFT", "eps": 2}])
 
     result = service.ingest(
         db,
@@ -147,9 +189,7 @@ def test_provider_ingest_job_marks_partial_when_ingestion_has_failures(
     assert job.status == JobStatus.RUNNING
     assert job_result_status(job) == JobStatus.PARTIAL
     normalize_jobs = [
-        row
-        for row in db.added
-        if isinstance(row, BackgroundJob) and row.job_type == CERI_NORMALIZE
+        row for row in db.added if isinstance(row, BackgroundJob) and row.job_type == CERI_NORMALIZE
     ]
     assert len(normalize_jobs) == 1
     assert normalize_jobs[0].payload_json["request_key"].startswith("ceri:normalize:")

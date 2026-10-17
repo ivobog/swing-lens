@@ -1,0 +1,152 @@
+{
+  "pipeline": [
+    {
+      "id": 39,
+      "status": "COMPLETED",
+      "current_step": null,
+      "execution_authority_state": "ACTIVE",
+      "started_at": "2026-10-17 01:57:18.424804+02:00",
+      "completed_at": "2026-10-17 02:01:13.981586+02:00",
+      "error_message": null,
+      "scope_id": "83e39ebbfbe3f66b2df83d6219c8fdceef76c80163d309b6276b494a9fd62ba8",
+      "refresh_cycle_id": "a0635d15161c609a6cb6ab72d0438a07d303012536a7989fb42916e7b3f6d29b",
+      "acquisition_plan_id": "662059286b8a76fdb0859c8478380c32dd3d7c9ad2a79ea3464fbaf71dce7f65"
+    }
+  ],
+  "dependencies": [
+    {
+      "id": 54,
+      "dependency_type": "CERI_WORKFLOW",
+      "state": "COMPLETED",
+      "error_message": null,
+      "root_job_id": 1338,
+      "child_job_id": 1351,
+      "continuation_job_id": 1352
+    }
+  ],
+  "job_status_counts": [
+    {
+      "status": "COMPLETED",
+      "count": 15
+    }
+  ],
+  "certified_ceri": [
+    {
+      "id": 3897,
+      "run_id": 39,
+      "ticker": "AAPL",
+      "calculation_context_id": 71,
+      "evidence_id": 37746,
+      "evidence_hash": "22f44eeaeab75955fe3bc51d6f3fbee85707399ee0f8d01045645892b57d7582",
+      "cutoff_at": "2026-10-17 01:59:36.818447+02:00",
+      "as_of_session": "2026-10-16"
+    }
+  ],
+  "evidence": [
+    {
+      "artifact_kind": "CERI",
+      "count": 1
+    },
+    {
+      "artifact_kind": "COMBINED",
+      "count": 1
+    },
+    {
+      "artifact_kind": "FUNDAMENTAL",
+      "count": 1
+    },
+    {
+      "artifact_kind": "RANKING",
+      "count": 5
+    },
+    {
+      "artifact_kind": "REGIME",
+      "count": 1
+    },
+    {
+      "artifact_kind": "SECTOR",
+      "count": 1
+    },
+    {
+      "artifact_kind": "SETUP",
+      "count": 1
+    },
+    {
+      "artifact_kind": "TECHNICAL",
+      "count": 1
+    }
+  ],
+  "outputs": [
+    {
+      "combined": 1,
+      "rankings": 5,
+      "setup_signals": 1,
+      "winner_predictions": 1,
+      "handoff_manifests": 1
+    }
+  ],
+  "ownership": [
+    {
+      "id": 14505,
+      "provider": "eodhd",
+      "dataset": "estimates",
+      "run_id": "39",
+      "scope_id": "83e39ebbfbe3f66b2df83d6219c8fdceef76c80163d309b6276b494a9fd62ba8",
+      "refresh_cycle_id": "a0635d15161c609a6cb6ab72d0438a07d303012536a7989fb42916e7b3f6d29b",
+      "acquisition_plan_id": "662059286b8a76fdb0859c8478380c32dd3d7c9ad2a79ea3464fbaf71dce7f65"
+    },
+    {
+      "id": 14506,
+      "provider": "eodhd",
+      "dataset": "earnings",
+      "run_id": "39",
+      "scope_id": "83e39ebbfbe3f66b2df83d6219c8fdceef76c80163d309b6276b494a9fd62ba8",
+      "refresh_cycle_id": "a0635d15161c609a6cb6ab72d0438a07d303012536a7989fb42916e7b3f6d29b",
+      "acquisition_plan_id": "662059286b8a76fdb0859c8478380c32dd3d7c9ad2a79ea3464fbaf71dce7f65"
+    },
+    {
+      "id": 14507,
+      "provider": "eodhd",
+      "dataset": "catalysts",
+      "run_id": "39",
+      "scope_id": "83e39ebbfbe3f66b2df83d6219c8fdceef76c80163d309b6276b494a9fd62ba8",
+      "refresh_cycle_id": "a0635d15161c609a6cb6ab72d0438a07d303012536a7989fb42916e7b3f6d29b",
+      "acquisition_plan_id": "662059286b8a76fdb0859c8478380c32dd3d7c9ad2a79ea3464fbaf71dce7f65"
+    },
+    {
+      "id": 14508,
+      "provider": "sec",
+      "dataset": "guidance",
+      "run_id": "39",
+      "scope_id": "83e39ebbfbe3f66b2df83d6219c8fdceef76c80163d309b6276b494a9fd62ba8",
+      "refresh_cycle_id": "a0635d15161c609a6cb6ab72d0438a07d303012536a7989fb42916e7b3f6d29b",
+      "acquisition_plan_id": "662059286b8a76fdb0859c8478380c32dd3d7c9ad2a79ea3464fbaf71dce7f65"
+    }
+  ],
+  "source_membership": [
+    {
+      "id": 14505,
+      "provider": "eodhd",
+      "dataset": "estimates",
+      "member_count": 48
+    },
+    {
+      "id": 14506,
+      "provider": "eodhd",
+      "dataset": "earnings",
+      "member_count": 7
+    },
+    {
+      "id": 14507,
+      "provider": "eodhd",
+      "dataset": "catalysts",
+      "member_count": 50
+    },
+    {
+      "id": 14508,
+      "provider": "sec",
+      "dataset": "guidance",
+      "member_count": 0
+    }
+  ]
+}

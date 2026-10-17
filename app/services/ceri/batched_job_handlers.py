@@ -51,6 +51,7 @@ from app.services.ceri.orchestration import (
 from app.services.ceri.parent_pipeline_fence import require_parent_pipeline_active
 from app.services.ceri.processing_run_service import CeriProcessingRunService
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.ceri.providers.eodhd_client import EodhdTransientError
 from app.services.ceri.run_local_contract import (
     has_revision_feature_output,
     provider_no_data_is_explicit,
@@ -113,7 +114,6 @@ def execute_provider_ingest_batch_job(
         registry=CeriProviderRegistry(config=load_ceri_config()),
     )
     completed, results = _checkpoint_state(job)
-    failed = 0
     for index, ticker in enumerate(tickers, start=1):
         if ticker in completed:
             continue
@@ -143,7 +143,6 @@ def execute_provider_ingest_batch_job(
                     should_cancel=lambda: _heartbeat_and_cancel(db, job),
                 )
             result_values = result.as_dict()
-            failed += int(result_values.get("failed") or 0)
             results[ticker] = result_values
         except CeriIngestionCancelled as exc:
             raise CancelRequested(str(exc)) from exc
@@ -151,13 +150,31 @@ def execute_provider_ingest_batch_job(
             raise
         except SQLAlchemyError:
             raise
+        except EodhdTransientError as exc:
+            # Keep the failed attempt's diagnosis/telemetry, but leave this
+            # ticker out of the completion checkpoint. The worker's existing
+            # retry budget owns the next attempt and keeps the DAG barrier shut.
+            if _heartbeat_and_cancel(db, job, heartbeat=False):
+                raise CancelRequested("CERI provider batch cancelled.") from None
+            if isinstance(db, Session):
+                require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
+                db.commit()
+            raise EodhdTransientError(f"{provider}/{dataset.value}/{ticker}: {exc}") from None
         except Exception as exc:
-            failed += 1
             results[ticker] = {
                 "status": "PARTIAL",
                 "failed": 1,
                 "error": _safe_error(exc),
             }
+        if _heartbeat_and_cancel(db, job, heartbeat=False):
+            raise CancelRequested("CERI provider batch cancelled.")
+        if isinstance(db, Session):
+            # A detached checkpoint survives worker rollback. Commit acquired
+            # data first, using the existing parent and execution-token fences.
+            # A crash before the checkpoint is safe: ingest coalesces the exact
+            # completed request without contacting the provider again.
+            require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
+            db.commit()
         completed.add(ticker)
         _save_checkpoint(
             db,
@@ -170,6 +187,10 @@ def execute_provider_ingest_batch_job(
         if index % checkpoint_interval == 0:
             if _heartbeat_and_cancel(db, job):
                 raise CancelRequested("CERI provider batch cancelled.")
+    failed = sum(
+        max(int(value.get("failed") or 0), int(value.get("status") != "COMPLETED"))
+        for value in results.values()
+    )
     if failed:
         _set_job_outcome_status(job, JobStatus.PARTIAL)
     require_parent_pipeline_active(db, job, lock_for_checkpoint=True)
