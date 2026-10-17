@@ -1,0 +1,720 @@
+{
+  "comparison_count": 623,
+  "database_relationship_count": 49,
+  "database_row_count": 6305,
+  "execution": {
+    "alembic_revision": "0091_readiness_constraints",
+    "canonical_tickers": [
+      "ALFA",
+      "BRAV",
+      "CHAR",
+      "DELT",
+      "ECHO",
+      "FOXT",
+      "GOLF",
+      "RISK"
+    ],
+    "csv_hash": "91300f83aab34215265dd1149f57e9e4b469362adadbd5584db3df6fd222cb22",
+    "database_engine": "PostgreSQL",
+    "database_name": "swinglens_pytest_cert_4f2a3ed47a3b",
+    "decoy_run_id": 1,
+    "decoy_ticker": "DECOY_ONLY_CANARY",
+    "execution_id": "20261017T204523Z-98b5300b",
+    "feature_flags": {
+      "CERI_ADMIN_ENABLED": "true",
+      "CERI_ALERTS_ENABLED": "true",
+      "CERI_BATCHED_WORKFLOW_ENABLED": "true",
+      "CERI_ENABLED": "true",
+      "CERI_LEGACY_PIPELINE_SCHEDULING_ENABLED": "false",
+      "CERI_PROVIDER_INGEST_ENABLED": "true",
+      "CERI_RUN_CAPTURE_ENABLED": "true",
+      "CERI_UI_ENABLED": "true",
+      "JOB_WORKER_ENABLED": "false",
+      "SETUP_CAPTURE_HANDOFF_ENABLED": "true",
+      "SETUP_LIFECYCLE_ALERTS_ENABLED": "true",
+      "SETUP_LIFECYCLE_ENABLED": "true",
+      "SETUP_LIFECYCLE_PIPELINE_STEP_ENABLED": "true",
+      "TECHNICAL_ARTIFACT_CACHE_ENABLED": "true",
+      "TECHNICAL_ARTIFACT_CACHE_WRITE_ENABLED": "true",
+      "TECHNICAL_PROCESS_POOL_ENABLED": "true",
+      "TECHNICAL_PURE_BOUNDARY_ENABLED": "true",
+      "TECHNICAL_PURE_BOUNDARY_SHADOW_COMPARE_ENABLED": "false",
+      "TECHNICAL_SERIES_VERSION_MAINTENANCE_ENABLED": "true",
+      "USE_DURABLE_PIPELINE": "true",
+      "WINNER_PROBABILITY_ADMIN_ENABLED": "true",
+      "WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED": "false",
+      "WINNER_PROBABILITY_AUTO_MATURATION_ENABLED": "false",
+      "WINNER_PROBABILITY_CAPTURE_IN_PIPELINE": "true",
+      "WINNER_PROBABILITY_ENABLED": "true"
+    },
+    "fixture_hash": "84c1a6c3917dcdd8e9a6d99b74ed2f8830a6b8647a0292919698e8ba55339487",
+    "fixture_version": "single-run-certification-1.0.0",
+    "git_commit": "4a5339d1bd158e592c6b2cdbc0333bc9629e6d41",
+    "provider_mode": "deterministic",
+    "python": "3.12.2 (tags/v3.12.2:6abddd9, Feb  6 2024, 21:26:36) [MSC v.1937 64 bit (AMD64)]",
+    "run_status": "COMPLETED",
+    "runtime_identity": {
+      "pipeline_finished_at": "2026-10-17 22:49:59.370960+02:00",
+      "pipeline_id": 2,
+      "pipeline_started_at": "2026-10-17 22:46:15.885307+02:00",
+      "root_correlation_id": "root-aff157a2db6f4323aa0ea707fcb68108",
+      "root_job_id": 1,
+      "runtime_instance_id": "20261017T204523Z-98b5300b",
+      "worker_generation": 1,
+      "worker_id": "certification-20261017T204523Z-98b5300b",
+      "worker_instance_id": "51f391d7120f48c18bce43ba51ae6859",
+      "worker_process_id": 67424,
+      "worker_started_at": "2026-10-17 22:46:09.235937+02:00"
+    },
+    "ticker_count": 8,
+    "working_tree_fingerprint": null
+  },
+  "exports": [
+    {
+      "name": "combined.csv",
+      "path": "/runs/3/exports/combined.csv",
+      "row_count": 8,
+      "status": "PASS"
+    },
+    {
+      "name": "fundamentals.csv",
+      "path": "/runs/3/exports/fundamentals.csv",
+      "row_count": 8,
+      "status": "PASS"
+    },
+    {
+      "name": "technicals.csv",
+      "path": "/runs/3/exports/technicals.csv",
+      "row_count": 8,
+      "status": "PASS"
+    },
+    {
+      "name": "raw.csv",
+      "path": "/runs/3/exports/raw.csv",
+      "row_count": 8,
+      "status": "PASS"
+    },
+    {
+      "name": "ranking-profiles.csv",
+      "path": "/runs/3/rankings/export.csv",
+      "row_count": 40,
+      "status": "PASS"
+    },
+    {
+      "name": "market-regime.csv",
+      "path": "/runs/3/market-regime/export.csv",
+      "row_count": 1,
+      "status": "PASS"
+    },
+    {
+      "name": "sector-rotation.csv",
+      "path": "/runs/3/sector-rotation/export.csv",
+      "row_count": 6,
+      "status": "PASS"
+    },
+    {
+      "name": "setup-lifecycle.csv",
+      "path": "/setup-lifecycle/export.csv",
+      "row_count": 5,
+      "status": "PASS"
+    },
+    {
+      "name": "winner-evidence.csv",
+      "path": "/api/winner-probability/run/3/export.csv",
+      "row_count": 1,
+      "status": "PASS"
+    },
+    {
+      "name": "ceri.csv",
+      "path": "/ceri/export.csv?run_id=3",
+      "row_count": 0,
+      "status": "PASS"
+    },
+    {
+      "name": "market-regime.json",
+      "path": "/runs/3/market-regime/export.json",
+      "status": "PASS"
+    },
+    {
+      "name": "sector-rotation.json",
+      "path": "/runs/3/sector-rotation/export.json",
+      "status": "PASS"
+    },
+    {
+      "name": "sector-rotation.md",
+      "path": "/runs/3/sector-rotation/brief.md",
+      "status": "PASS"
+    },
+    {
+      "name": "winner-evidence.json",
+      "path": "/api/winner-probability/run/3/export.json",
+      "status": "PASS"
+    },
+    {
+      "name": "ceri.json",
+      "path": "/ceri/export.json?run_id=3",
+      "status": "PASS"
+    }
+  ],
+  "failures": [],
+  "gui_surface_count": 19,
+  "gui_surfaces": [
+    {
+      "name": "pipeline-progress",
+      "path": "/runs/3/pipeline/2",
+      "screenshot": "screenshots/gui/020-pipeline-progress.png",
+      "status": 200
+    },
+    {
+      "name": "run-detail",
+      "path": "/runs/3",
+      "screenshot": "screenshots/gui/010-run-detail.png",
+      "status": 200
+    },
+    {
+      "name": "column-mapping",
+      "path": "/runs/3/mapping",
+      "screenshot": "screenshots/gui/030-column-mapping.png",
+      "status": 200
+    },
+    {
+      "name": "coverage",
+      "path": "/runs/3/coverage",
+      "screenshot": "screenshots/gui/040-coverage.png",
+      "status": 200
+    },
+    {
+      "name": "market-regime",
+      "path": "/runs/3/market-regime",
+      "screenshot": "screenshots/gui/050-market-regime.png",
+      "status": 200
+    },
+    {
+      "name": "sector-rotation",
+      "path": "/runs/3/sector-rotation",
+      "screenshot": "screenshots/gui/060-sector-rotation.png",
+      "status": 200
+    },
+    {
+      "name": "market-changes",
+      "path": "/runs/3/setup-lifecycle",
+      "screenshot": "screenshots/gui/070-market-changes.png",
+      "status": 200
+    },
+    {
+      "name": "alerts",
+      "path": "/setup-lifecycle/alerts",
+      "screenshot": "screenshots/gui/080-alerts.png",
+      "status": 200
+    },
+    {
+      "name": "winner-evidence",
+      "path": "/runs/3/winner-probability",
+      "screenshot": "screenshots/gui/090-winner-evidence.png",
+      "status": 200
+    },
+    {
+      "name": "ceri",
+      "path": "/runs/3/ceri",
+      "screenshot": "screenshots/gui/100-ceri.png",
+      "status": 200
+    },
+    {
+      "name": "ceri-changes",
+      "path": "/ceri/changes",
+      "screenshot": "screenshots/gui/105-ceri-changes.png",
+      "status": 200
+    },
+    {
+      "name": "runs",
+      "path": "/runs",
+      "screenshot": "screenshots/gui/110-runs.png",
+      "status": 200
+    },
+    {
+      "name": "history",
+      "path": "/history?run_id=3",
+      "screenshot": "screenshots/gui/120-history.png",
+      "status": 200
+    },
+    {
+      "name": "ticker-chart",
+      "path": "/runs/3/tickers/ALFA/chart",
+      "screenshot": "screenshots/gui/130-ticker-chart.png",
+      "status": 200
+    },
+    {
+      "name": "ranking-profile",
+      "path": "/runs/3/rankings/clean_compounder_pullback",
+      "screenshot": "screenshots/gui/140-ranking-profile.png",
+      "status": 200
+    },
+    {
+      "name": "ceri-ticker",
+      "path": "/ceri/ticker/ALFA",
+      "screenshot": "screenshots/gui/150-ceri-ticker.png",
+      "status": 200
+    },
+    {
+      "name": "lifecycle-ticker",
+      "path": "/setup-lifecycle/ticker/ALFA",
+      "screenshot": "screenshots/gui/160-lifecycle-ticker.png",
+      "status": 200
+    },
+    {
+      "name": "winner-prediction",
+      "path": "/winner-probability/predictions/21",
+      "screenshot": "screenshots/gui/170-winner-prediction.png",
+      "status": 200
+    },
+    {
+      "name": "winner-operations",
+      "path": "/winner-probability/operations",
+      "screenshot": "screenshots/gui/180-winner-operations.png",
+      "status": 200
+    }
+  ],
+  "idempotency": {
+    "after_first": {
+      "alert_count": 0,
+      "ceri_alert_count": 1,
+      "prediction_count": 1,
+      "ranking_count": 40
+    },
+    "after_second": {
+      "alert_count": 0,
+      "ceri_alert_count": 1,
+      "prediction_count": 1,
+      "ranking_count": 40
+    },
+    "before": {
+      "alert_count": 0,
+      "ceri_alert_count": 1,
+      "prediction_count": 1,
+      "ranking_count": 40
+    },
+    "operation": "canonical ranking read and repeated rejected standalone refresh",
+    "winner_maturation": {
+      "immutable_hash_after": "e118738af40fcb446bb53a1383d0785d48edbe69296f58cf68b99a99bc9aecb5",
+      "immutable_hash_before": "e118738af40fcb446bb53a1383d0785d48edbe69296f58cf68b99a99bc9aecb5",
+      "mutation_status": "REJECTED",
+      "pending_after": 10,
+      "pending_before": 10,
+      "prediction_id": 21,
+      "reason": "http.winner.mature is not authorized during certification. Try again from this page.",
+      "ticker": "ALFA"
+    }
+  },
+  "integrity_checks": [
+    {
+      "actual": 1,
+      "expected": 1,
+      "name": "run_exists_once",
+      "passed": true,
+      "sql": "select count(*) as value from upload_runs where id = :run_id"
+    },
+    {
+      "actual": 0,
+      "expected": 0,
+      "name": "no_duplicate_raw_tickers",
+      "passed": true,
+      "sql": "select count(*) as value from ( select ticker from raw_company_rows where run_id = :run_id group by ticker having count(*) > 1 ) duplicates"
+    },
+    {
+      "actual": 0,
+      "expected": 0,
+      "name": "no_orphan_pipeline_steps",
+      "passed": true,
+      "sql": "select count(*) as value from pipeline_steps ps left join pipeline_runs pr on pr.id = ps.pipeline_run_id where pr.id is null"
+    },
+    {
+      "actual": 0,
+      "expected": 0,
+      "name": "no_orphan_winner_estimates",
+      "passed": true,
+      "sql": "select count(*) as value from winner_probability_estimates e left join winner_prediction_snapshots p on p.id = e.prediction_id where p.id is null"
+    },
+    {
+      "actual": 0,
+      "expected": 0,
+      "name": "no_orphan_lifecycle_alerts",
+      "passed": true,
+      "sql": "select count(*) as value from signal_alert_events a left join setup_lifecycle_evaluation_runs e on e.id = a.evaluation_run_id where a.evaluation_run_id is not null and e.id is null"
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "one_ceri_snapshot_per_run_ticker",
+      "passed": true,
+      "sql": "select count(*) as value from ceri_score_snapshots where run_id = :run_id"
+    },
+    {
+      "actual": 0,
+      "expected": 0,
+      "name": "no_orphan_ceri_alerts",
+      "passed": true,
+      "sql": "select count(*) as value from ceri_alert_events a left join ceri_change_events c on c.id = a.source_change_event_id where a.source_change_event_id is not null and c.id is null"
+    },
+    {
+      "actual": 1,
+      "expected": 1,
+      "name": "pipeline_terminal",
+      "passed": true,
+      "sql": "select count(*) as value from pipeline_runs where upload_run_id = :run_id and status in ('COMPLETED', 'PARTIAL')"
+    }
+  ],
+  "passed_comparison_count": 623,
+  "pipeline_steps": [
+    {
+      "completed_at": "2026-10-17 22:46:53.839993+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:46:53.702994+02:00",
+      "status": "COMPLETED",
+      "step_name": "VALIDATING_RUN",
+      "step_order": 1
+    },
+    {
+      "completed_at": "2026-10-17 22:46:56.032637+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:46:53.958516+02:00",
+      "status": "COMPLETED",
+      "step_name": "SCORING_FUNDAMENTALS",
+      "step_order": 2
+    },
+    {
+      "completed_at": "2026-10-17 22:47:00.533723+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": {
+        "accepted_inactive_tickers": [],
+        "blockers": [],
+        "downstream_tickers": [
+          "ALFA",
+          "BRAV",
+          "CHAR",
+          "DELT",
+          "ECHO",
+          "FOXT",
+          "GOLF",
+          "RISK"
+        ],
+        "technical_tickers": [
+          "ALFA",
+          "BRAV",
+          "CHAR",
+          "DELT",
+          "ECHO",
+          "FOXT",
+          "GOLF",
+          "RISK"
+        ],
+        "tickers": {
+          "ALFA": {
+            "disposition": "READY",
+            "disposition_id": 1,
+            "downstream_eligible": true,
+            "expected_session": "2026-10-16",
+            "latest_bar_session": "2026-10-16",
+            "lifecycle_state": "UNKNOWN",
+            "reason_code": "EXPECTED_SESSION_AVAILABLE",
+            "revision": 1,
+            "technical_eligible": true
+          },
+          "BRAV": {
+            "disposition": "READY",
+            "disposition_id": 2,
+            "downstream_eligible": true,
+            "expected_session": "2026-10-16",
+            "latest_bar_session": "2026-10-16",
+            "lifecycle_state": "UNKNOWN",
+            "reason_code": "EXPECTED_SESSION_AVAILABLE",
+            "revision": 1,
+            "technical_eligible": true
+          },
+          "CHAR": {
+            "disposition": "READY",
+            "disposition_id": 3,
+            "downstream_eligible": true,
+            "expected_session": "2026-10-16",
+            "latest_bar_session": "2026-10-16",
+            "lifecycle_state": "UNKNOWN",
+            "reason_code": "EXPECTED_SESSION_AVAILABLE",
+            "revision": 1,
+            "technical_eligible": true
+          },
+          "DELT": {
+            "disposition": "READY",
+            "disposition_id": 4,
+            "downstream_eligible": true,
+            "expected_session": "2026-10-16",
+            "latest_bar_session": "2026-10-16",
+            "lifecycle_state": "UNKNOWN",
+            "reason_code": "EXPECTED_SESSION_AVAILABLE",
+            "revision": 1,
+            "technical_eligible": true
+          },
+          "ECHO": {
+            "disposition": "READY",
+            "disposition_id": 5,
+            "downstream_eligible": true,
+            "expected_session": "2026-10-16",
+            "latest_bar_session": "2026-10-16",
+            "lifecycle_state": "UNKNOWN",
+            "reason_code": "EXPECTED_SESSION_AVAILABLE",
+            "revision": 1,
+            "technical_eligible": true
+          },
+          "FOXT": {
+            "disposition": "READY",
+            "disposition_id": 6,
+            "downstream_eligible": true,
+            "expected_session": "2026-10-16",
+            "latest_bar_session": "2026-10-16",
+            "lifecycle_state": "UNKNOWN",
+            "reason_code": "EXPECTED_SESSION_AVAILABLE",
+            "revision": 1,
+            "technical_eligible": true
+          },
+          "GOLF": {
+            "disposition": "READY",
+            "disposition_id": 7,
+            "downstream_eligible": true,
+            "expected_session": "2026-10-16",
+            "latest_bar_session": "2026-10-16",
+            "lifecycle_state": "UNKNOWN",
+            "reason_code": "EXPECTED_SESSION_AVAILABLE",
+            "revision": 1,
+            "technical_eligible": true
+          },
+          "RISK": {
+            "disposition": "READY",
+            "disposition_id": 8,
+            "downstream_eligible": true,
+            "expected_session": "2026-10-16",
+            "latest_bar_session": "2026-10-16",
+            "lifecycle_state": "UNKNOWN",
+            "reason_code": "EXPECTED_SESSION_AVAILABLE",
+            "revision": 1,
+            "technical_eligible": true
+          }
+        }
+      },
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:46:56.120637+02:00",
+      "status": "COMPLETED",
+      "step_name": "FETCHING_MARKET_DATA",
+      "step_order": 3
+    },
+    {
+      "completed_at": "2026-10-17 22:47:34.597969+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:47:00.634785+02:00",
+      "status": "COMPLETED",
+      "step_name": "SCORING_TECHNICALS",
+      "step_order": 4
+    },
+    {
+      "completed_at": "2026-10-17 22:47:38.519105+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:47:34.689081+02:00",
+      "status": "COMPLETED",
+      "step_name": "MARKET_REGIME_SNAPSHOT",
+      "step_order": 5
+    },
+    {
+      "completed_at": "2026-10-17 22:47:41.148989+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:47:38.626099+02:00",
+      "status": "COMPLETED",
+      "step_name": "COMBINING_RESULTS",
+      "step_order": 6
+    },
+    {
+      "completed_at": "2026-10-17 22:47:52.895282+02:00",
+      "error_message": null,
+      "message": "Persisted 40 ranking results across 5 profiles.",
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:47:41.210992+02:00",
+      "status": "COMPLETED",
+      "step_name": "RANKING_PROFILES",
+      "step_order": 7
+    },
+    {
+      "completed_at": "2026-10-17 22:48:00.878588+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:47:53.054818+02:00",
+      "status": "COMPLETED",
+      "step_name": "SECTOR_ROTATION_SNAPSHOT",
+      "step_order": 8
+    },
+    {
+      "completed_at": "2026-10-17 22:48:54.128976+02:00",
+      "error_message": null,
+      "message": "Required CERI child workflow completed and certified.",
+      "result_json": {
+        "async_timing": {
+          "child_execution_duration_ms": 52085.991,
+          "completed_at": "2026-10-17T20:48:54.128976+00:00",
+          "dependency_wait_duration_ms": 52324.372,
+          "dependency_wait_started_at": "2026-10-17T20:48:01.804604+00:00",
+          "dispatch_duration_ms": 720.628,
+          "status": "COMPLETED",
+          "total_logical_duration_ms": 53162.312
+        }
+      },
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:48:00.966664+02:00",
+      "status": "COMPLETED",
+      "step_name": "CERI_PROVIDER_INGEST",
+      "step_order": 9
+    },
+    {
+      "completed_at": "2026-10-17 22:48:57.836541+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:48:54.715068+02:00",
+      "status": "COMPLETED",
+      "step_name": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "step_order": 10
+    },
+    {
+      "completed_at": "2026-10-17 22:49:17.501176+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": {
+        "setup_capture_handoff": {
+          "alerted": 0,
+          "canonical": 0,
+          "captured": 8,
+          "changed": 0,
+          "errors_by_ticker": {},
+          "evaluation_run_id": 1,
+          "failed": 0,
+          "low_confidence": 3,
+          "performance": {
+            "setup_context_build_ms": 204.092,
+            "setup_latest_bar_query_ms": 358.82
+          },
+          "read": 8,
+          "skipped": 0,
+          "snapshot_ids": [
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "status": "COMPLETED",
+          "transitioned": 0,
+          "warning": 31,
+          "warnings_by_ticker": {
+            "ALFA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BRAV": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CHAR": [
+              "DATA_QUALITY_INSUFFICIENT",
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_REQUIRED_CLASSIFICATION",
+              "MISSING_REQUIRED_SETUP_SCORE",
+              "MISSING_REQUIRED_TECHNICAL_SCORE",
+              "MISSING_SECTOR_ROTATION",
+              "TECHNICAL_CONSUMER_INELIGIBLE"
+            ],
+            "DELT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ECHO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FOXT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GOLF": [
+              "DATA_QUALITY_INSUFFICIENT",
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_REQUIRED_CLASSIFICATION",
+              "MISSING_REQUIRED_SETUP_SCORE",
+              "MISSING_REQUIRED_TECHNICAL_SCORE",
+              "MISSING_SECTOR_ROTATION",
+              "TECHNICAL_CONSUMER_INELIGIBLE"
+            ],
+            "RISK": [
+              "DATA_QUALITY_INSUFFICIENT",
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_REQUIRED_CLASSIFICATION",
+              "MISSING_REQUIRED_SETUP_SCORE",
+              "MISSING_REQUIRED_TECHNICAL_SCORE",
+              "MISSING_SECTOR_ROTATION",
+              "TECHNICAL_CONSUMER_INELIGIBLE"
+            ]
+          }
+        }
+      },
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:49:01.300723+02:00",
+      "status": "COMPLETED",
+      "step_name": "CAPTURING_SETUP_SIGNALS",
+      "step_order": 11
+    },
+    {
+      "completed_at": "2026-10-17 22:49:45.536791+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:49:17.571172+02:00",
+      "status": "COMPLETED",
+      "step_name": "EVALUATING_SETUP_LIFECYCLES",
+      "step_order": 12
+    },
+    {
+      "completed_at": "2026-10-17 22:49:59.232437+02:00",
+      "error_message": null,
+      "message": null,
+      "result_json": null,
+      "retry_count": 0,
+      "started_at": "2026-10-17 22:49:45.680198+02:00",
+      "status": "COMPLETED",
+      "step_name": "CAPTURING_WINNER_PREDICTIONS",
+      "step_order": 13
+    }
+  ],
+  "run_id": 3,
+  "schema": "swinglens.single-run-certification-report.v1",
+  "verdict": "PASS",
+  "warnings": [
+    "No unread lifecycle alert was available for GUI acknowledgement."
+  ]
+}

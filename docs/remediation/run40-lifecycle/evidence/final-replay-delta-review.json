@@ -1,0 +1,8 @@
+{
+  "large_native_loaded_candidate": "d839b59",
+  "changed_service_methods": [
+    "_completed_publication"
+  ],
+  "validation_query_and_result_calls_identical": true,
+  "changes": "Materialize the same episode/alert queries; report and check cancellation after each successful validation. No validator, result, authority, domain write or commit change."
+}

@@ -1,0 +1,1247 @@
+{
+  "pipeline": [
+    {
+      "id": 40,
+      "status": "FAILED",
+      "current_step": "EVALUATING_SETUP_LIFECYCLES",
+      "started_at": "2026-10-17 11:25:57.826363+02:00",
+      "completed_at": "2026-10-17 13:39:41.264799+02:00",
+      "error_message": "Control-plane transaction exceeded 3s lock timeout.",
+      "message": "Pipeline failed.",
+      "performance": {
+        "phase": 1,
+        "fallbacks": [],
+        "ib_network_ms": null,
+        "prewarm_job_id": null,
+        "schema_version": "pipeline-performance-v1",
+        "pipeline_wall_ms": 2854957.599,
+        "setup_capture_ms": 867891.415,
+        "ib_pacing_wait_ms": null,
+        "step_durations_ms": {
+          "CAPTURING_SETUP_SIGNALS": 867891.415,
+          "EVALUATING_SETUP_LIFECYCLES": 1667634.729,
+          "FREEZING_DECISION_HANDOFF_MANIFEST": 155422.08
+        },
+        "bar_cache_write_ms": null,
+        "prewarm_age_seconds": null,
+        "setup_evaluation_ms": 1667634.729,
+        "technical_cache_hits": 0,
+        "pipeline_execution_ms": 2854957.599,
+        "technical_finalize_ms": null,
+        "pipeline_total_wall_ms": 2854957.599,
+        "prewarm_reused_tickers": 0,
+        "setup_context_build_ms": 3311.436,
+        "technical_cache_misses": 0,
+        "pipeline_queue_delay_ms": null,
+        "prewarm_covered_tickers": 0,
+        "technical_input_load_ms": null,
+        "technical_max_in_flight": null,
+        "technical_worker_span_ms": null,
+        "setup_latest_bar_query_ms": 4721.824,
+        "technical_worker_processes": null,
+        "technical_cache_shadow_misses": 0,
+        "technical_cache_shadow_candidates": 0,
+        "technical_cache_shadow_mismatches": 0,
+        "technical_cache_shadow_validations": 0,
+        "technical_tickers_completed_during_fetch": 0
+      },
+      "ceri_completion_state": "CERTIFIED",
+      "handoff_manifest_id": "27"
+    }
+  ],
+  "steps": [
+    {
+      "step_name": "VALIDATING_RUN",
+      "step_order": 1,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 11:25:57.898801+02:00",
+      "completed_at": "2026-10-17 11:25:58.047799+02:00",
+      "message": null,
+      "error_message": null
+    },
+    {
+      "step_name": "SCORING_FUNDAMENTALS",
+      "step_order": 2,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 11:25:58.162326+02:00",
+      "completed_at": "2026-10-17 11:26:10.779608+02:00",
+      "message": null,
+      "error_message": null
+    },
+    {
+      "step_name": "FETCHING_MARKET_DATA",
+      "step_order": 3,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 11:26:10.891471+02:00",
+      "completed_at": "2026-10-17 11:26:17.071830+02:00",
+      "message": null,
+      "error_message": null
+    },
+    {
+      "step_name": "SCORING_TECHNICALS",
+      "step_order": 4,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 11:26:17.195834+02:00",
+      "completed_at": "2026-10-17 11:30:21.837189+02:00",
+      "message": null,
+      "error_message": null
+    },
+    {
+      "step_name": "MARKET_REGIME_SNAPSHOT",
+      "step_order": 5,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 11:30:21.993696+02:00",
+      "completed_at": "2026-10-17 11:30:27.091176+02:00",
+      "message": null,
+      "error_message": null
+    },
+    {
+      "step_name": "COMBINING_RESULTS",
+      "step_order": 6,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 11:30:27.256696+02:00",
+      "completed_at": "2026-10-17 11:30:43.745395+02:00",
+      "message": null,
+      "error_message": null
+    },
+    {
+      "step_name": "RANKING_PROFILES",
+      "step_order": 7,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 11:30:43.972268+02:00",
+      "completed_at": "2026-10-17 11:32:01.983958+02:00",
+      "message": "Persisted 440 ranking results across 5 profiles.",
+      "error_message": null
+    },
+    {
+      "step_name": "SECTOR_ROTATION_SNAPSHOT",
+      "step_order": 8,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 11:32:02.303495+02:00",
+      "completed_at": "2026-10-17 11:33:54.189014+02:00",
+      "message": null,
+      "error_message": null
+    },
+    {
+      "step_name": "CERI_PROVIDER_INGEST",
+      "step_order": 9,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 11:33:55.023497+02:00",
+      "completed_at": "2026-10-17 12:52:05.728249+02:00",
+      "message": "Required CERI child workflow completed and certified.",
+      "error_message": null
+    },
+    {
+      "step_name": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "step_order": 10,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 12:52:06.481838+02:00",
+      "completed_at": "2026-10-17 12:54:41.974804+02:00",
+      "message": "Decision evidence committed; downstream pre-mutation re-verification accepted.",
+      "error_message": null
+    },
+    {
+      "step_name": "CAPTURING_SETUP_SIGNALS",
+      "step_order": 11,
+      "status": "COMPLETED",
+      "started_at": "2026-10-17 12:57:11.834013+02:00",
+      "completed_at": "2026-10-17 13:11:39.786517+02:00",
+      "message": null,
+      "error_message": null
+    },
+    {
+      "step_name": "EVALUATING_SETUP_LIFECYCLES",
+      "step_order": 12,
+      "status": "FAILED",
+      "started_at": "2026-10-17 13:11:40.097617+02:00",
+      "completed_at": "2026-10-17 13:39:27.823832+02:00",
+      "message": null,
+      "error_message": "Control-plane transaction exceeded 3s lock timeout."
+    },
+    {
+      "step_name": "CAPTURING_WINNER_PREDICTIONS",
+      "step_order": 13,
+      "status": "PENDING",
+      "started_at": null,
+      "completed_at": null,
+      "message": null,
+      "error_message": null
+    }
+  ],
+  "jobs": [
+    {
+      "id": 1353,
+      "job_type": "FULL_PIPELINE",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:25:56.624308+02:00",
+      "completed_at": "2026-10-17 11:33:58.230894+02:00",
+      "run_after": "2026-10-17 11:25:55.249264+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": null,
+      "progress_last_completed_item": null,
+      "progress_sequence": 102,
+      "last_progress_at": "2026-10-17 11:33:57.471925+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T09:25:56.624308+00:00",
+        "finished_at": "2026-10-17T09:33:58.230894+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 1375.044,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 481606.586,
+        "original_queue_delay_ms": 3011.064
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1354,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:33:58.480129+02:00",
+      "completed_at": "2026-10-17 11:35:29.901534+02:00",
+      "run_after": "2026-10-17 11:33:55.785406+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "DK",
+      "progress_last_completed_item": "DK",
+      "progress_sequence": 26,
+      "last_progress_at": "2026-10-17 11:35:29.842878+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T09:33:58.480129+00:00",
+        "finished_at": "2026-10-17T09:35:29.901534+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 2694.723,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 91421.405,
+        "original_queue_delay_ms": 3159.261
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1355,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:35:30.110921+02:00",
+      "completed_at": "2026-10-17 11:36:59.224230+02:00",
+      "run_after": "2026-10-17 11:33:55.849403+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "LNG",
+      "progress_last_completed_item": "LNG",
+      "progress_sequence": 26,
+      "last_progress_at": "2026-10-17 11:36:59.176230+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T09:35:30.110921+00:00",
+        "finished_at": "2026-10-17T09:36:59.224230+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 94261.518,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 89113.309,
+        "original_queue_delay_ms": 94790.053
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1356,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:37:41.018559+02:00",
+      "completed_at": "2026-10-17 11:39:05.770856+02:00",
+      "run_after": "2026-10-17 11:33:55.924934+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "RRC",
+      "progress_last_completed_item": "RRC",
+      "progress_sequence": 26,
+      "last_progress_at": "2026-10-17 11:39:05.716856+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T09:37:41.018559+00:00",
+        "finished_at": "2026-10-17T09:39:05.770856+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 225093.625,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 84752.297,
+        "original_queue_delay_ms": 225697.691
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1357,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:36:59.384746+02:00",
+      "completed_at": "2026-10-17 11:37:40.855517+02:00",
+      "run_after": "2026-10-17 11:33:55.982929+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "WST",
+      "progress_last_completed_item": "WST",
+      "progress_sequence": 14,
+      "last_progress_at": "2026-10-17 11:37:40.829517+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T09:36:59.384746+00:00",
+        "finished_at": "2026-10-17T09:37:40.855517+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 183401.817,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 41470.771,
+        "original_queue_delay_ms": 184063.878
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1358,
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:29:14.576496+02:00",
+      "completed_at": "2026-10-17 12:34:34.849277+02:00",
+      "run_after": "2026-10-17 11:33:56.035931+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_NORMALIZE",
+      "progress_current_item": "LNG",
+      "progress_last_completed_item": "LNG",
+      "progress_sequence": 2305,
+      "last_progress_at": "2026-10-17 12:34:34.566591+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:29:14.576496+00:00",
+        "finished_at": "2026-10-17T10:34:34.849277+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 3318540.565,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 320272.781,
+        "original_queue_delay_ms": 3319255.628
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1359,
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:34:35.358139+02:00",
+      "completed_at": "2026-10-17 12:38:42.487302+02:00",
+      "run_after": "2026-10-17 11:33:56.081929+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_NORMALIZE",
+      "progress_current_item": "WST",
+      "progress_last_completed_item": "WST",
+      "progress_sequence": 1779,
+      "last_progress_at": "2026-10-17 12:38:42.333281+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:34:35.358139+00:00",
+        "finished_at": "2026-10-17T10:38:42.487302+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 3639276.21,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 247129.163,
+        "original_queue_delay_ms": 3640037.271
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1360,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:40:30.761404+02:00",
+      "completed_at": "2026-10-17 11:41:13.302508+02:00",
+      "run_after": "2026-10-17 11:33:56.128932+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "DK",
+      "progress_last_completed_item": "DK",
+      "progress_sequence": 26,
+      "last_progress_at": "2026-10-17 11:41:13.247466+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T09:40:30.761404+00:00",
+        "finished_at": "2026-10-17T09:41:13.302508+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 394632.472,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 42541.104,
+        "original_queue_delay_ms": 395440.536
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1361,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:39:48.240709+02:00",
+      "completed_at": "2026-10-17 11:40:30.665314+02:00",
+      "run_after": "2026-10-17 11:33:56.172928+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "LNG",
+      "progress_last_completed_item": "LNG",
+      "progress_sequence": 26,
+      "last_progress_at": "2026-10-17 11:40:30.625321+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T09:39:48.240709+00:00",
+        "finished_at": "2026-10-17T09:40:30.665314+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 352067.781,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 42424.605,
+        "original_queue_delay_ms": 352919.841
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1362,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:39:05.908380+02:00",
+      "completed_at": "2026-10-17 11:39:48.149187+02:00",
+      "run_after": "2026-10-17 11:33:56.215931+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "RRC",
+      "progress_last_completed_item": "RRC",
+      "progress_sequence": 26,
+      "last_progress_at": "2026-10-17 11:39:48.103670+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T09:39:05.908380+00:00",
+        "finished_at": "2026-10-17T09:39:48.149187+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 309692.449,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 42240.807,
+        "original_queue_delay_ms": 310587.512
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1363,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:41:13.419621+02:00",
+      "completed_at": "2026-10-17 11:41:35.263202+02:00",
+      "run_after": "2026-10-17 11:33:56.255930+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "WST",
+      "progress_last_completed_item": "WST",
+      "progress_sequence": 14,
+      "last_progress_at": "2026-10-17 11:41:35.242153+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T09:41:13.419621+00:00",
+        "finished_at": "2026-10-17T09:41:35.263202+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 437163.691,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 21843.581,
+        "original_queue_delay_ms": 438098.753
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1364,
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:38:42.608832+02:00",
+      "completed_at": "2026-10-17 12:39:32.391481+02:00",
+      "run_after": "2026-10-17 11:33:56.294929+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_NORMALIZE",
+      "progress_current_item": "LNG",
+      "progress_last_completed_item": "LNG",
+      "progress_sequence": 390,
+      "last_progress_at": "2026-10-17 12:39:32.334484+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:38:42.608832+00:00",
+        "finished_at": "2026-10-17T10:39:32.391481+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 3886313.903,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 49782.649,
+        "original_queue_delay_ms": 3887287.964
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1365,
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:39:32.501484+02:00",
+      "completed_at": "2026-10-17 12:40:18.367371+02:00",
+      "run_after": "2026-10-17 11:33:56.330970+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_NORMALIZE",
+      "progress_current_item": "WST",
+      "progress_last_completed_item": "WST",
+      "progress_sequence": 294,
+      "last_progress_at": "2026-10-17 12:40:18.339369+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:39:32.501484+00:00",
+        "finished_at": "2026-10-17T10:40:18.367371+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 3936170.514,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 45865.887,
+        "original_queue_delay_ms": 3937180.616
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1366,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 2,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:41:35.378240+02:00",
+      "completed_at": "2026-10-17 12:26:24.832466+02:00",
+      "run_after": "2026-10-17 12:16:45.853577+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "DK",
+      "progress_last_completed_item": "DK",
+      "progress_sequence": 28,
+      "last_progress_at": "2026-10-17 12:26:24.790469+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:21:11.061837+00:00",
+        "finished_at": "2026-10-17T10:26:24.832466+00:00",
+        "attempt_number": 3,
+        "queue_delay_ms": 265208.26,
+        "retry_count_at_start": 2,
+        "execution_duration_ms": 313770.629,
+        "original_queue_delay_ms": 2835740.969
+      },
+      "failure_classification": {
+        "code": "EodhdTransientError",
+        "kind": "TRANSIENT",
+        "retryable": true
+      },
+      "setup_progress": null
+    },
+    {
+      "id": 1367,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 2,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:56:45.178491+02:00",
+      "completed_at": "2026-10-17 12:21:10.966837+02:00",
+      "run_after": "2026-10-17 12:14:36.873556+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "LNG",
+      "progress_last_completed_item": "LNG",
+      "progress_sequence": 28,
+      "last_progress_at": "2026-10-17 12:21:10.871312+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:18:36.452074+00:00",
+        "finished_at": "2026-10-17T10:21:10.966837+00:00",
+        "attempt_number": 3,
+        "queue_delay_ms": 239578.518,
+        "retry_count_at_start": 2,
+        "execution_duration_ms": 154514.763,
+        "original_queue_delay_ms": 2681131.206
+      },
+      "failure_classification": {
+        "code": "EodhdTransientError",
+        "kind": "TRANSIENT",
+        "retryable": true
+      },
+      "setup_progress": null
+    },
+    {
+      "id": 1368,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 1,
+      "max_retries": 3,
+      "started_at": "2026-10-17 11:47:00.869250+02:00",
+      "completed_at": "2026-10-17 12:18:36.343069+02:00",
+      "run_after": "2026-10-17 11:57:45.030861+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "RRC",
+      "progress_last_completed_item": "RRC",
+      "progress_sequence": 27,
+      "last_progress_at": "2026-10-17 12:18:36.294072+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:13:45.932609+00:00",
+        "finished_at": "2026-10-17T10:18:36.343069+00:00",
+        "attempt_number": 2,
+        "queue_delay_ms": 960901.748,
+        "retry_count_at_start": 1,
+        "execution_duration_ms": 290410.46,
+        "original_queue_delay_ms": 2390611.741
+      },
+      "failure_classification": {
+        "code": "EodhdTransientError",
+        "kind": "TRANSIENT",
+        "retryable": true
+      },
+      "setup_progress": null
+    },
+    {
+      "id": 1369,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 1,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:01:56.139060+02:00",
+      "completed_at": "2026-10-17 12:28:14.842641+02:00",
+      "run_after": "2026-10-17 12:05:05.217691+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "WST",
+      "progress_last_completed_item": "WST",
+      "progress_sequence": 15,
+      "last_progress_at": "2026-10-17 12:28:14.825638+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:26:24.931992+00:00",
+        "finished_at": "2026-10-17T10:28:14.842641+00:00",
+        "attempt_number": 2,
+        "queue_delay_ms": 1279714.301,
+        "retry_count_at_start": 1,
+        "execution_duration_ms": 109910.649,
+        "original_queue_delay_ms": 3149611.124
+      },
+      "failure_classification": {
+        "code": "EodhdTransientError",
+        "kind": "TRANSIENT",
+        "retryable": true
+      },
+      "setup_progress": null
+    },
+    {
+      "id": 1370,
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:40:18.498373+02:00",
+      "completed_at": "2026-10-17 12:40:48.514569+02:00",
+      "run_after": "2026-10-17 11:33:56.515674+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_NORMALIZE",
+      "progress_current_item": "LNG",
+      "progress_last_completed_item": "LNG",
+      "progress_sequence": 149,
+      "last_progress_at": "2026-10-17 12:40:48.402048+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:40:18.498373+00:00",
+        "finished_at": "2026-10-17T10:40:48.514569+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 3981982.699,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 30016.196,
+        "original_queue_delay_ms": 3983177.505
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1371,
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:40:48.629117+02:00",
+      "completed_at": "2026-10-17 12:41:07.561077+02:00",
+      "run_after": "2026-10-17 11:33:56.554864+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_NORMALIZE",
+      "progress_current_item": "WST",
+      "progress_last_completed_item": "WST",
+      "progress_sequence": 94,
+      "last_progress_at": "2026-10-17 12:41:07.543080+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:40:48.629117+00:00",
+        "finished_at": "2026-10-17T10:41:07.561077+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 4012074.253,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 18931.96,
+        "original_queue_delay_ms": 4013308.249
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1372,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:28:40.703319+02:00",
+      "completed_at": "2026-10-17 12:28:57.578076+02:00",
+      "run_after": "2026-10-17 11:33:56.590381+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "DK",
+      "progress_last_completed_item": "DK",
+      "progress_sequence": 26,
+      "last_progress_at": "2026-10-17 12:28:57.539076+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:28:40.703319+00:00",
+        "finished_at": "2026-10-17T10:28:57.578076+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 3284112.938,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 16874.757,
+        "original_queue_delay_ms": 3285382.451
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1373,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:28:57.662075+02:00",
+      "completed_at": "2026-10-17 12:29:14.445495+02:00",
+      "run_after": "2026-10-17 11:33:56.620379+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "LNG",
+      "progress_last_completed_item": "LNG",
+      "progress_sequence": 26,
+      "last_progress_at": "2026-10-17 12:29:14.395172+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:28:57.662075+00:00",
+        "finished_at": "2026-10-17T10:29:14.445495+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 3301041.696,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 16783.42,
+        "original_queue_delay_ms": 3302341.207
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1374,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:28:14.937639+02:00",
+      "completed_at": "2026-10-17 12:28:31.052502+02:00",
+      "run_after": "2026-10-17 11:33:56.652897+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "RRC",
+      "progress_last_completed_item": "RRC",
+      "progress_sequence": 26,
+      "last_progress_at": "2026-10-17 12:28:31.010984+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:28:14.937639+00:00",
+        "finished_at": "2026-10-17T10:28:31.052502+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 3258284.742,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 16114.863,
+        "original_queue_delay_ms": 3259616.771
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1375,
+      "job_type": "CERI_PROVIDER_INGEST_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:28:31.144504+02:00",
+      "completed_at": "2026-10-17 12:28:40.578318+02:00",
+      "run_after": "2026-10-17 11:33:56.690914+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_PROVIDER_INGEST",
+      "progress_current_item": "WST",
+      "progress_last_completed_item": "WST",
+      "progress_sequence": 14,
+      "last_progress_at": "2026-10-17 12:28:40.552319+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:28:31.144504+00:00",
+        "finished_at": "2026-10-17T10:28:40.578318+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 3274453.59,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 9433.814,
+        "original_queue_delay_ms": 3275823.636
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1376,
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:41:07.652594+02:00",
+      "completed_at": "2026-10-17 12:41:22.028211+02:00",
+      "run_after": "2026-10-17 11:33:56.726900+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_NORMALIZE",
+      "progress_current_item": "LNG",
+      "progress_last_completed_item": "LNG",
+      "progress_sequence": 51,
+      "last_progress_at": "2026-10-17 12:41:21.986211+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:41:07.652594+00:00",
+        "finished_at": "2026-10-17T10:41:22.028211+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 4030925.694,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 14375.617,
+        "original_queue_delay_ms": 4032331.726
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1377,
+      "job_type": "CERI_NORMALIZE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:41:22.109209+02:00",
+      "completed_at": "2026-10-17 12:41:33.161162+02:00",
+      "run_after": "2026-10-17 11:33:56.762422+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_NORMALIZE",
+      "progress_current_item": "WST",
+      "progress_last_completed_item": "WST",
+      "progress_sequence": 39,
+      "last_progress_at": "2026-10-17 12:41:33.146162+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:41:22.109209+00:00",
+        "finished_at": "2026-10-17T10:41:33.161162+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 4045346.787,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 11051.953,
+        "original_queue_delay_ms": 4046788.341
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1378,
+      "job_type": "CERI_FEATURE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:41:33.242674+02:00",
+      "completed_at": "2026-10-17 12:44:12.571603+02:00",
+      "run_after": "2026-10-17 11:33:56.803474+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_FEATURE_REBUILD",
+      "progress_current_item": "feature-rebuild-complete",
+      "progress_last_completed_item": "LNG",
+      "progress_sequence": 67,
+      "last_progress_at": "2026-10-17 12:44:12.130084+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:41:33.242674+00:00",
+        "finished_at": "2026-10-17T10:44:12.571603+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 4056439.2,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 159328.929,
+        "original_queue_delay_ms": 4057921.806
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1379,
+      "job_type": "CERI_FEATURE_BATCH",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:44:13.118854+02:00",
+      "completed_at": "2026-10-17 12:45:57.072073+02:00",
+      "run_after": "2026-10-17 11:33:56.847997+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_FEATURE_REBUILD",
+      "progress_current_item": "feature-rebuild-complete",
+      "progress_last_completed_item": "WST",
+      "progress_sequence": 55,
+      "last_progress_at": "2026-10-17 12:45:56.688756+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:44:13.118854+00:00",
+        "finished_at": "2026-10-17T10:45:57.072073+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 4216270.857,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 103953.219,
+        "original_queue_delay_ms": 4217797.986
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1380,
+      "job_type": "CERI_RUN_FINALIZE",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:45:57.788215+02:00",
+      "completed_at": "2026-10-17 12:45:58.762792+02:00",
+      "run_after": "2026-10-17 11:33:56.889489+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_CONTEXT_FREEZE",
+      "progress_current_item": "calculation_context",
+      "progress_last_completed_item": "calculation_context",
+      "progress_sequence": 2,
+      "last_progress_at": "2026-10-17 12:45:58.687794+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:45:57.788215+00:00",
+        "finished_at": "2026-10-17T10:45:58.762792+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 4320898.726,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 974.577,
+        "original_queue_delay_ms": 4322467.347
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1381,
+      "job_type": "CERI_CAPTURE_RUN",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:45:58.900325+02:00",
+      "completed_at": "2026-10-17 12:50:30.754003+02:00",
+      "run_after": "2026-10-17 12:45:58.728792+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_CAPTURE_RUN",
+      "progress_current_item": "ESTC",
+      "progress_last_completed_item": "ESTC",
+      "progress_sequence": 190,
+      "last_progress_at": "2026-10-17 12:50:30.096488+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:45:58.900325+00:00",
+        "finished_at": "2026-10-17T10:50:30.754003+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 171.533,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 271853.678,
+        "original_queue_delay_ms": 233.745
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1382,
+      "job_type": "CERI_CHANGE_DETECTION",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:50:30.894525+02:00",
+      "completed_at": "2026-10-17 12:51:52.391394+02:00",
+      "run_after": "2026-10-17 12:50:30.556009+02:00",
+      "error_message": null,
+      "progress_stage": "CERI_CHANGE_DETECTION",
+      "progress_current_item": "companies:498-514",
+      "progress_last_completed_item": "514",
+      "progress_sequence": 5,
+      "last_progress_at": "2026-10-17 12:51:52.304848+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:50:30.894525+00:00",
+        "finished_at": "2026-10-17T10:51:52.391394+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 338.516,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 81496.869,
+        "original_queue_delay_ms": 271953.275
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1383,
+      "job_type": "CERI_ALERT_REBUILD",
+      "status": "COMPLETED",
+      "retry_count": 0,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:51:52.510364+02:00",
+      "completed_at": "2026-10-17 12:52:05.906799+02:00",
+      "run_after": "2026-10-17 12:51:52.366365+02:00",
+      "error_message": null,
+      "progress_stage": null,
+      "progress_current_item": null,
+      "progress_last_completed_item": null,
+      "progress_sequence": 1,
+      "last_progress_at": "2026-10-17 12:51:52.510364+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "COMPLETED",
+        "started_at": "2026-10-17T10:51:52.510364+00:00",
+        "finished_at": "2026-10-17T10:52:05.906799+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 143.999,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 13396.435,
+        "original_queue_delay_ms": 81570.674
+      },
+      "failure_classification": null,
+      "setup_progress": null
+    },
+    {
+      "id": 1384,
+      "job_type": "FULL_PIPELINE",
+      "status": "QUEUED",
+      "retry_count": 1,
+      "max_retries": 3,
+      "started_at": "2026-10-17 12:52:06.030301+02:00",
+      "completed_at": null,
+      "run_after": "2026-10-17 13:40:43.620817+02:00",
+      "error_message": "Control-plane transaction exceeded 3s lock timeout.",
+      "progress_stage": "EVALUATING_SETUP_LIFECYCLES",
+      "progress_current_item": "EVIDENCE_AUTHORITY_VALIDATION_COMPLETED:canonical-setup-candidates",
+      "progress_last_completed_item": "canonical-setup-candidates",
+      "progress_sequence": 246,
+      "last_progress_at": "2026-10-17 13:18:26.191143+02:00",
+      "worker_id": null,
+      "last_attempt": {
+        "status": "RETRYING",
+        "started_at": "2026-10-17T10:52:06.030301+00:00",
+        "finished_at": "2026-10-17T11:39:43.620817+00:00",
+        "attempt_number": 1,
+        "queue_delay_ms": 403.052,
+        "retry_count_at_start": 0,
+        "execution_duration_ms": 2857590.516,
+        "original_queue_delay_ms": 13485.252
+      },
+      "failure_classification": {
+        "code": "ControlPlaneLockTimeout",
+        "kind": "UNCLASSIFIED_RETRYABLE",
+        "retryable": true
+      },
+      "setup_progress": {
+        "phase": "EVIDENCE_AUTHORITY_VALIDATION_COMPLETED",
+        "total": 88,
+        "processed": 88
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "id": 55,
+      "dependency_type": "CERI_WORKFLOW",
+      "state": "COMPLETED",
+      "root_job_id": 1353,
+      "child_job_id": 1383,
+      "continuation_job_id": 1384,
+      "error_message": null
+    }
+  ],
+  "evaluation_columns": [
+    {
+      "column_name": "id"
+    },
+    {
+      "column_name": "source_run_id"
+    },
+    {
+      "column_name": "source_run_id_text"
+    },
+    {
+      "column_name": "mode"
+    },
+    {
+      "column_name": "status"
+    },
+    {
+      "column_name": "current_phase"
+    },
+    {
+      "column_name": "engine_version"
+    },
+    {
+      "column_name": "config_version"
+    },
+    {
+      "column_name": "config_hash"
+    },
+    {
+      "column_name": "output_evaluation_version"
+    },
+    {
+      "column_name": "date_from"
+    },
+    {
+      "column_name": "date_to"
+    },
+    {
+      "column_name": "ticker_scope_json"
+    },
+    {
+      "column_name": "requested_config_json"
+    },
+    {
+      "column_name": "dry_run"
+    },
+    {
+      "column_name": "requester"
+    },
+    {
+      "column_name": "source_snapshot_min_id"
+    },
+    {
+      "column_name": "source_snapshot_max_id"
+    },
+    {
+      "column_name": "read_count"
+    },
+    {
+      "column_name": "captured_count"
+    },
+    {
+      "column_name": "canonical_count"
+    },
+    {
+      "column_name": "changed_count"
+    },
+    {
+      "column_name": "transitioned_count"
+    },
+    {
+      "column_name": "alerted_count"
+    },
+    {
+      "column_name": "skipped_count"
+    },
+    {
+      "column_name": "warning_count"
+    },
+    {
+      "column_name": "failed_count"
+    },
+    {
+      "column_name": "counts_json"
+    },
+    {
+      "column_name": "error_summary_json"
+    },
+    {
+      "column_name": "audit_json"
+    },
+    {
+      "column_name": "started_at"
+    },
+    {
+      "column_name": "heartbeat_at"
+    },
+    {
+      "column_name": "last_heartbeat_at"
+    },
+    {
+      "column_name": "completed_at"
+    },
+    {
+      "column_name": "duration_ms"
+    },
+    {
+      "column_name": "created_at"
+    }
+  ],
+  "historical_sha256": "684287f36b176a92c770cf633c22237dc02b471e85dbb178193a5866a0b8f3ec"
+}

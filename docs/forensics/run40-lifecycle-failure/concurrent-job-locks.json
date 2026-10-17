@@ -1,0 +1,179 @@
+[
+  {
+    "file": "logs\\db-monitor\\supervisor\\sql-2026-10-17-p14432.jsonl",
+    "line": 30437,
+    "timestamp": "2026-10-17T11:39:18.835834+00:00",
+    "record_type": "sql",
+    "duration_ms": 1.677,
+    "success": true,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.id, background_jobs.scope_id, background_jobs.refresh_cycle_id, background_jobs.acquisition_plan_id, background_jobs.required_for_parent_completion, background_jobs.pipeline_dependency_id, background_jobs.job_type, background_jobs.related_run_id, background_jobs.request_key, background_jobs.root_job_id, background_jobs.parent_job_id, background_jobs.continuation_depth, background_jobs.trigger_source, background_jobs.root_correlation_id, background_jobs.causation_id, background_jobs.trigger_kind, background_jobs.trigger_name, background_jobs.triggered_by_request_id, background_jobs.triggered_by_job_id, background_jobs.fanout_group_id, background_jobs.coalesced_into_job_id, background_jobs.status, background_jobs.priority, background_jobs.payload_json, background_jobs.result_json, background_jobs.error_message, background_jobs.retry_count, background_jobs.max_retries, background_jobs.requested_cancel, background_jobs.worker_id, background_jobs.worker_instance_id, background_jobs.lease_owner, background_jobs.execution_token, background_jobs.locked_at, background_jobs.heartbeat_at, background_jobs.lease_expires_at, background_jobs.run_after, background_jobs.created_at, background_jobs.started_at, background_jobs.completed_at, background_jobs.last_progress_at, background_jobs.progress_sequence, background_jobs.progress_stage, background_jobs.progress_current_item, background_jobs.progress_last_completed_item, background_jobs.progress_processed, background_jobs.progress_total, background_jobs.checkpoint_version, background_jobs.stall_detected_at, background_jobs.recovery_count, background_jobs.operational_metadata_json FROM background_jobs WHERE background_jobs.status = ?::VARCHAR AND background_jobs.last_progress_at IS NOT NULL AND background_jobs.worker_id = ?::VARCHAR AND background_jobs.worker_instance_id = ?::VARCHAR",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 1033,
+      "function": "fence_stalled_jobs",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 25312,
+      "name": "MainThread"
+    },
+    "parameter_digest": "4d077574099a0dc67185a08434c37d85965436d58ce2d6c52071adbdd60e71bb"
+  },
+  {
+    "file": "logs\\db-monitor\\supervisor\\sql-2026-10-17-p14432.jsonl",
+    "line": 30438,
+    "timestamp": "2026-10-17T11:39:18.838837+00:00",
+    "record_type": "sql",
+    "duration_ms": 1.45,
+    "success": true,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.id, background_jobs.scope_id, background_jobs.refresh_cycle_id, background_jobs.acquisition_plan_id, background_jobs.required_for_parent_completion, background_jobs.pipeline_dependency_id, background_jobs.job_type, background_jobs.related_run_id, background_jobs.request_key, background_jobs.root_job_id, background_jobs.parent_job_id, background_jobs.continuation_depth, background_jobs.trigger_source, background_jobs.root_correlation_id, background_jobs.causation_id, background_jobs.trigger_kind, background_jobs.trigger_name, background_jobs.triggered_by_request_id, background_jobs.triggered_by_job_id, background_jobs.fanout_group_id, background_jobs.coalesced_into_job_id, background_jobs.status, background_jobs.priority, background_jobs.payload_json, background_jobs.result_json, background_jobs.error_message, background_jobs.retry_count, background_jobs.max_retries, background_jobs.requested_cancel, background_jobs.worker_id, background_jobs.worker_instance_id, background_jobs.lease_owner, background_jobs.execution_token, background_jobs.locked_at, background_jobs.heartbeat_at, background_jobs.lease_expires_at, background_jobs.run_after, background_jobs.created_at, background_jobs.started_at, background_jobs.completed_at, background_jobs.last_progress_at, background_jobs.progress_sequence, background_jobs.progress_stage, background_jobs.progress_current_item, background_jobs.progress_last_completed_item, background_jobs.progress_processed, background_jobs.progress_total, background_jobs.checkpoint_version, background_jobs.stall_detected_at, background_jobs.recovery_count, background_jobs.operational_metadata_json FROM background_jobs WHERE background_jobs.status = ?::VARCHAR AND background_jobs.last_progress_at IS NOT NULL AND background_jobs.worker_id = ?::VARCHAR AND background_jobs.worker_instance_id = ?::VARCHAR FOR UPDATE SKIP LOCKED",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 1040,
+      "function": "fence_stalled_jobs",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 25312,
+      "name": "MainThread"
+    },
+    "parameter_digest": "4d077574099a0dc67185a08434c37d85965436d58ce2d6c52071adbdd60e71bb"
+  },
+  {
+    "file": "logs\\db-monitor\\supervisor\\sql-2026-10-17-p14432.jsonl",
+    "line": 30439,
+    "timestamp": "2026-10-17T11:39:18.840836+00:00",
+    "record_type": "sql",
+    "duration_ms": 0.786,
+    "success": true,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.workflow_key AS background_jobs_workflow_key FROM background_jobs WHERE background_jobs.id = ?::BIGINT",
+    "python_caller": {
+      "source_file": "app/services/persistence_redaction.py",
+      "line_number": 55,
+      "function": "redact_session_persistence_boundaries",
+      "module": "app.services.persistence_redaction"
+    },
+    "thread": {
+      "id": 25312,
+      "name": "MainThread"
+    },
+    "parameter_digest": "2e3ea5deac76295ae5c3357bf39338e319b2428bb99211f55bf63882e36e21d8"
+  },
+  {
+    "file": "logs\\db-monitor\\supervisor\\sql-2026-10-17-p14432.jsonl",
+    "line": 30440,
+    "timestamp": "2026-10-17T11:39:18.843837+00:00",
+    "record_type": "sql",
+    "duration_ms": 2.112,
+    "success": true,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET operational_metadata_json=?::JSONB WHERE background_jobs.id = ?::BIGINT",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 1172,
+      "function": "fence_stalled_jobs",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 25312,
+      "name": "MainThread"
+    },
+    "parameter_digest": "34de171b9f3411f060e4f30f2e549c0656d36bddc9fcaf77f8b5c3681dd661cc"
+  },
+  {
+    "file": "logs\\db-monitor\\supervisor\\sql-2026-10-17-p14432.jsonl",
+    "line": 30454,
+    "timestamp": "2026-10-17T11:39:23.899609+00:00",
+    "record_type": "sql",
+    "duration_ms": 1.71,
+    "success": true,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.id, background_jobs.scope_id, background_jobs.refresh_cycle_id, background_jobs.acquisition_plan_id, background_jobs.required_for_parent_completion, background_jobs.pipeline_dependency_id, background_jobs.job_type, background_jobs.related_run_id, background_jobs.request_key, background_jobs.root_job_id, background_jobs.parent_job_id, background_jobs.continuation_depth, background_jobs.trigger_source, background_jobs.root_correlation_id, background_jobs.causation_id, background_jobs.trigger_kind, background_jobs.trigger_name, background_jobs.triggered_by_request_id, background_jobs.triggered_by_job_id, background_jobs.fanout_group_id, background_jobs.coalesced_into_job_id, background_jobs.status, background_jobs.priority, background_jobs.payload_json, background_jobs.result_json, background_jobs.error_message, background_jobs.retry_count, background_jobs.max_retries, background_jobs.requested_cancel, background_jobs.worker_id, background_jobs.worker_instance_id, background_jobs.lease_owner, background_jobs.execution_token, background_jobs.locked_at, background_jobs.heartbeat_at, background_jobs.lease_expires_at, background_jobs.run_after, background_jobs.created_at, background_jobs.started_at, background_jobs.completed_at, background_jobs.last_progress_at, background_jobs.progress_sequence, background_jobs.progress_stage, background_jobs.progress_current_item, background_jobs.progress_last_completed_item, background_jobs.progress_processed, background_jobs.progress_total, background_jobs.checkpoint_version, background_jobs.stall_detected_at, background_jobs.recovery_count, background_jobs.operational_metadata_json FROM background_jobs WHERE background_jobs.status = ?::VARCHAR AND background_jobs.last_progress_at IS NOT NULL AND background_jobs.worker_id = ?::VARCHAR AND background_jobs.worker_instance_id = ?::VARCHAR",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 1033,
+      "function": "fence_stalled_jobs",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 25312,
+      "name": "MainThread"
+    },
+    "parameter_digest": "4d077574099a0dc67185a08434c37d85965436d58ce2d6c52071adbdd60e71bb"
+  },
+  {
+    "file": "logs\\db-monitor\\supervisor\\sql-2026-10-17-p14432.jsonl",
+    "line": 30455,
+    "timestamp": "2026-10-17T11:39:23.903608+00:00",
+    "record_type": "sql",
+    "duration_ms": 1.758,
+    "success": true,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.id, background_jobs.scope_id, background_jobs.refresh_cycle_id, background_jobs.acquisition_plan_id, background_jobs.required_for_parent_completion, background_jobs.pipeline_dependency_id, background_jobs.job_type, background_jobs.related_run_id, background_jobs.request_key, background_jobs.root_job_id, background_jobs.parent_job_id, background_jobs.continuation_depth, background_jobs.trigger_source, background_jobs.root_correlation_id, background_jobs.causation_id, background_jobs.trigger_kind, background_jobs.trigger_name, background_jobs.triggered_by_request_id, background_jobs.triggered_by_job_id, background_jobs.fanout_group_id, background_jobs.coalesced_into_job_id, background_jobs.status, background_jobs.priority, background_jobs.payload_json, background_jobs.result_json, background_jobs.error_message, background_jobs.retry_count, background_jobs.max_retries, background_jobs.requested_cancel, background_jobs.worker_id, background_jobs.worker_instance_id, background_jobs.lease_owner, background_jobs.execution_token, background_jobs.locked_at, background_jobs.heartbeat_at, background_jobs.lease_expires_at, background_jobs.run_after, background_jobs.created_at, background_jobs.started_at, background_jobs.completed_at, background_jobs.last_progress_at, background_jobs.progress_sequence, background_jobs.progress_stage, background_jobs.progress_current_item, background_jobs.progress_last_completed_item, background_jobs.progress_processed, background_jobs.progress_total, background_jobs.checkpoint_version, background_jobs.stall_detected_at, background_jobs.recovery_count, background_jobs.operational_metadata_json FROM background_jobs WHERE background_jobs.status = ?::VARCHAR AND background_jobs.last_progress_at IS NOT NULL AND background_jobs.worker_id = ?::VARCHAR AND background_jobs.worker_instance_id = ?::VARCHAR FOR UPDATE SKIP LOCKED",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 1040,
+      "function": "fence_stalled_jobs",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 25312,
+      "name": "MainThread"
+    },
+    "parameter_digest": "4d077574099a0dc67185a08434c37d85965436d58ce2d6c52071adbdd60e71bb"
+  },
+  {
+    "file": "logs\\db-monitor\\supervisor\\sql-2026-10-17-p14432.jsonl",
+    "line": 30456,
+    "timestamp": "2026-10-17T11:39:40.810390+00:00",
+    "record_type": "sql",
+    "duration_ms": 0.927,
+    "success": true,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.workflow_key AS background_jobs_workflow_key FROM background_jobs WHERE background_jobs.id = ?::BIGINT",
+    "python_caller": {
+      "source_file": "app/services/persistence_redaction.py",
+      "line_number": 55,
+      "function": "redact_session_persistence_boundaries",
+      "module": "app.services.persistence_redaction"
+    },
+    "thread": {
+      "id": 25312,
+      "name": "MainThread"
+    },
+    "parameter_digest": "2e3ea5deac76295ae5c3357bf39338e319b2428bb99211f55bf63882e36e21d8"
+  },
+  {
+    "file": "logs\\db-monitor\\supervisor\\sql-2026-10-17-p14432.jsonl",
+    "line": 30457,
+    "timestamp": "2026-10-17T11:39:40.813391+00:00",
+    "record_type": "long_transaction",
+    "duration_ms": 16916.175,
+    "transaction_start": "2026-10-17T11:39:23.896607+00:00",
+    "transaction_end": "2026-10-17T11:39:40.813391+00:00"
+  },
+  {
+    "file": "logs\\db-monitor\\supervisor\\sql-2026-10-17-p14432.jsonl",
+    "line": 30458,
+    "timestamp": "2026-10-17T11:39:40.812391+00:00",
+    "record_type": "sql",
+    "duration_ms": 1.344,
+    "success": true,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET operational_metadata_json=?::JSONB WHERE background_jobs.id = ?::BIGINT",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 1172,
+      "function": "fence_stalled_jobs",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 25312,
+      "name": "MainThread"
+    },
+    "parameter_digest": "34de171b9f3411f060e4f30f2e549c0656d36bddc9fcaf77f8b5c3681dd661cc"
+  }
+]

@@ -1,0 +1,136 @@
+{
+  "writer_candidates": {
+    "pre_existing_unregistered": [
+      [
+        "app/services/market_calculation_context_service.py",
+        "create_pipeline_ceri_certification_context",
+        "add"
+      ],
+      [
+        "app/services/setup_lifecycle/decision_evidence.py",
+        "lock_setup_publication_sources",
+        "add"
+      ],
+      [
+        "app/services/setup_lifecycle/decision_evidence.py",
+        "prefetch_setup_validation_sources",
+        "add"
+      ],
+      [
+        "app/services/setup_lifecycle/repository.py",
+        "_setup_source_evidence_ids",
+        "add"
+      ],
+      [
+        "app/services/setup_lifecycle/repository.py",
+        "visit",
+        "add"
+      ]
+    ],
+    "remediation_added_sites": [
+      [
+        "app/services/pipeline_service.py",
+        "mark_pipeline_job_failure",
+        "state_assignment"
+      ]
+    ],
+    "remediation_unregistered": []
+  },
+  "transaction_sites": {
+    "pre_existing_unregistered": [
+      [
+        "app/services/background_worker.py",
+        "_post_job_recycle_required",
+        "rollback"
+      ],
+      [
+        "app/services/ceri/batched_job_handlers.py",
+        "execute_provider_ingest_batch_job",
+        "commit"
+      ],
+      [
+        "app/services/contextual_consumer_eligibility.py",
+        "certify_fundamental_admission_orm_contract",
+        "autonomous_session"
+      ],
+      [
+        "app/services/contextual_consumer_eligibility.py",
+        "certify_fundamental_admission_orm_contract",
+        "begin_nested"
+      ],
+      [
+        "app/services/contextual_consumer_eligibility.py",
+        "certify_fundamental_admission_orm_contract",
+        "flush"
+      ],
+      [
+        "app/services/contextual_consumer_eligibility.py",
+        "certify_fundamental_admission_orm_contract",
+        "rollback"
+      ],
+      [
+        "app/services/market_calculation_context_service.py",
+        "create_pipeline_ceri_certification_context",
+        "flush"
+      ],
+      [
+        "app/services/setup_lifecycle/snapshot_builder.py",
+        "_close_clean_parent_transaction_before_setup_build",
+        "commit"
+      ],
+      [
+        "app/services/setup_lifecycle/snapshot_builder.py",
+        "bounded_verification_checkpoint",
+        "commit"
+      ],
+      [
+        "app/services/setup_lifecycle/snapshot_builder.py",
+        "capture_snapshots_for_run",
+        "commit"
+      ],
+      [
+        "app/services/technical_score_service.py",
+        "_score_tickers_process_pool",
+        "commit"
+      ],
+      [
+        "app/services/technical_score_service.py",
+        "_score_tickers_process_pool",
+        "rollback"
+      ],
+      [
+        "app/services/technical_score_service.py",
+        "_score_tickers_pure_sequential",
+        "commit"
+      ],
+      [
+        "app/services/technical_score_service.py",
+        "_score_tickers_pure_sequential",
+        "rollback"
+      ]
+    ],
+    "remediation_added_sites": [
+      [
+        "app/services/pipeline_executor.py",
+        "_pipeline_step",
+        "rollback"
+      ],
+      [
+        "app/services/setup_lifecycle/evaluation_service.py",
+        "evaluate_run",
+        "commit"
+      ]
+    ],
+    "remediation_unregistered": []
+  },
+  "state_writer_sites": {
+    "pre_existing_unregistered": [],
+    "remediation_added_sites": [
+      [
+        "app/services/pipeline_service.py",
+        "mark_pipeline_job_failure"
+      ]
+    ],
+    "remediation_unregistered": []
+  }
+}

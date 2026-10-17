@@ -1,0 +1,121 @@
+{
+  "start_utc": "2026-10-17T11:18:26.200+00:00",
+  "end_utc": "2026-10-17T11:39:24.703+00:00",
+  "wall_seconds": 1258.503,
+  "job_sql_records": 33454,
+  "sql_duration_sum_ms": 87498.402,
+  "caller_counts": {
+    "assert_current_execution_ownership": 6633,
+    "SetupLifecycleRepository.heartbeat_evaluation_run": 1,
+    "transactional": 939,
+    "SetupLifecycleRepository.get_snapshots_by_ids": 2,
+    "SetupLifecycleRepository.canonical_snapshot_histories_before": 1,
+    "validate_setup_projection": 4757,
+    "_projection_pin": 13625,
+    "lock_decision_scope": 1874,
+    "validate_signal_change": 937,
+    "identity_cutoff": 937,
+    "resolve_pipeline_market_context": 1874,
+    "SetupLifecycleRepository.get_signal_change_event": 937,
+    "SetupLifecycleRepository.add": 937
+  },
+  "operation_counts": {
+    "SAVEPOINT": 939,
+    "SELECT": 30638,
+    "UPDATE": 1,
+    "RELEASE": 939,
+    "INSERT": 937
+  },
+  "change_event_insert_statements": 937,
+  "business_background_job_for_update_count": 0,
+  "successful_autonomous_heartbeat_updates": 245,
+  "autonomous_first": [
+    {
+      "file": "logs\\db-monitor\\worker\\sql-2026-10-17-p15132.6.jsonl",
+      "line": 42982,
+      "timestamp": "2026-10-17T11:18:28.673797+00:00",
+      "record_type": "sql",
+      "duration_ms": 9.623,
+      "success": true,
+      "operation": "UPDATE",
+      "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+      "python_caller": {
+        "source_file": "app/services/background_job_service.py",
+        "line_number": 2269,
+        "function": "_apply_running_job_update",
+        "module": "app.services.background_job_service"
+      },
+      "thread": {
+        "id": 2320,
+        "name": "local-worker-1-job-control-heartbeat"
+      },
+      "parameter_digest": "eedfda4fcd872e8ee004494704fa4cb10bbbcb12f3050fbd0697931faa6a0f87"
+    }
+  ],
+  "autonomous_last": [
+    {
+      "file": "logs\\db-monitor\\worker\\sql-2026-10-17-p15132.7.jsonl",
+      "line": 30349,
+      "timestamp": "2026-10-17T11:39:12.378433+00:00",
+      "record_type": "sql",
+      "duration_ms": 2.483,
+      "success": true,
+      "operation": "UPDATE",
+      "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+      "python_caller": {
+        "source_file": "app/services/background_job_service.py",
+        "line_number": 2269,
+        "function": "_apply_running_job_update",
+        "module": "app.services.background_job_service"
+      },
+      "thread": {
+        "id": 2320,
+        "name": "local-worker-1-job-control-heartbeat"
+      },
+      "parameter_digest": "3031e87eeeca000104e1c3c0f96c87e94f68f892f9b1b0753fede2cb34ec6b4b"
+    },
+    {
+      "file": "logs\\db-monitor\\worker\\sql-2026-10-17-p15132.7.jsonl",
+      "line": 30525,
+      "timestamp": "2026-10-17T11:39:17.510974+00:00",
+      "record_type": "sql",
+      "duration_ms": 1.187,
+      "success": true,
+      "operation": "UPDATE",
+      "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+      "python_caller": {
+        "source_file": "app/services/background_job_service.py",
+        "line_number": 2269,
+        "function": "_apply_running_job_update",
+        "module": "app.services.background_job_service"
+      },
+      "thread": {
+        "id": 2320,
+        "name": "local-worker-1-job-control-heartbeat"
+      },
+      "parameter_digest": "2888b197523c337f2e6161bb0bd95e019c80a5fd1bbcc5e80808f38db385c9ef"
+    },
+    {
+      "file": "logs\\db-monitor\\worker\\sql-2026-10-17-p15132.7.jsonl",
+      "line": 30689,
+      "timestamp": "2026-10-17T11:39:22.577972+00:00",
+      "record_type": "sql",
+      "duration_ms": 1.38,
+      "success": true,
+      "operation": "UPDATE",
+      "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+      "python_caller": {
+        "source_file": "app/services/background_job_service.py",
+        "line_number": 2269,
+        "function": "_apply_running_job_update",
+        "module": "app.services.background_job_service"
+      },
+      "thread": {
+        "id": 2320,
+        "name": "local-worker-1-job-control-heartbeat"
+      },
+      "parameter_digest": "fda0a36262e7a1f249665b00912da4b96915ac3662020b2084dc4921125d519a"
+    }
+  ],
+  "duration_note": "SQL timers exclude Python/ORM work and do not constitute a CPU profile."
+}

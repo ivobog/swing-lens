@@ -1,0 +1,117 @@
+[
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 180,
+    "text": "2026-10-17 13:39:27 CEST ERROR:  canceling statement due to lock timeout"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 181,
+    "text": "2026-10-17 13:39:27 CEST CONTEXT:  while locking tuple (430,2) in relation \"background_jobs\""
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 182,
+    "text": "2026-10-17 13:39:27 CEST STATEMENT:  UPDATE background_jobs SET heartbeat_at=$1::TIMESTAMP WITH TIME ZONE, lease_expires_at=$2::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = $3::BIGINT AND background_jobs.status IN ($4::VARCHAR) AND background_jobs.execution_token = $5::VARCHAR"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 183,
+    "text": "2026-10-17 13:39:30 CEST ERROR:  canceling statement due to lock timeout"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 184,
+    "text": "2026-10-17 13:39:30 CEST CONTEXT:  while locking tuple (430,2) in relation \"background_jobs\""
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 185,
+    "text": "2026-10-17 13:39:30 CEST STATEMENT:  UPDATE background_jobs SET heartbeat_at=$1::TIMESTAMP WITH TIME ZONE, lease_expires_at=$2::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = $3::BIGINT AND background_jobs.status IN ($4::VARCHAR) AND background_jobs.execution_token = $5::VARCHAR"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 186,
+    "text": "2026-10-17 13:39:40 CEST LOG:  duration: 12980.525 ms  plan:"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 187,
+    "text": "\tQuery Text: SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json "
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 188,
+    "text": "\tFROM background_jobs "
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 189,
+    "text": "\tWHERE background_jobs.id = $1::BIGINT FOR UPDATE"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 190,
+    "text": "\tQuery Parameters: $1 = '1384'"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 191,
+    "text": "\tLockRows  (cost=0.28..8.31 rows=1 width=138)"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 192,
+    "text": "\t  Output: status, execution_token, job_type, related_run_id, payload_json, ctid"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 193,
+    "text": "\t  ->  Index Scan using background_jobs_pkey on public.background_jobs  (cost=0.28..8.30 rows=1 width=138)"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 194,
+    "text": "\t        Output: status, execution_token, job_type, related_run_id, payload_json, ctid"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 195,
+    "text": "\t        Index Cond: (background_jobs.id = '1384'::bigint)"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 196,
+    "text": "\tQuery Identifier: 7111678468235169701"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 197,
+    "text": "2026-10-17 13:39:46 CEST LOG:  could not receive data from client: An existing connection was forcibly closed by the remote host."
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 198,
+    "text": ""
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 199,
+    "text": "\t"
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 200,
+    "text": "2026-10-17 13:39:47 CEST LOG:  could not receive data from client: An existing connection was forcibly closed by the remote host."
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 201,
+    "text": ""
+  },
+  {
+    "file": "C:\\Program Files\\PostgreSQL\\18\\data\\log\\postgresql-2026-10-17_131129.log",
+    "line": 202,
+    "text": "\t"
+  }
+]

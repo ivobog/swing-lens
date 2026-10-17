@@ -1,0 +1,41 @@
+{
+  "reviewed_at_utc": "2026-10-17T17:39:42.920613+00:00",
+  "production_paths": [
+    "app/services/background_job_service.py",
+    "app/services/core_mutation_authority.py",
+    "app/services/pipeline_executor.py",
+    "app/services/pipeline_service.py",
+    "app/services/ranking_profile_service.py",
+    "app/services/technical_score_service.py",
+    "app/services/setup_lifecycle/canonicalization.py",
+    "app/services/setup_lifecycle/change_authority.py",
+    "app/services/setup_lifecycle/change_detector.py",
+    "app/services/setup_lifecycle/evaluation_service.py",
+    "app/services/setup_lifecycle/export_service.py",
+    "app/services/setup_lifecycle/maintenance_service.py",
+    "app/services/setup_lifecycle/query_service.py",
+    "app/services/setup_lifecycle/replay_service.py",
+    "app/services/setup_lifecycle/repository.py"
+  ],
+  "contracts_checked": [
+    "Healthy watchdog observation neither locks lease rows nor mutates metadata; actual fencing rechecks ownership and progress under a short conditional row lock.",
+    "Control-plane timeout reaches worker retry classification; business rollback precedes separate attempt/parent bookkeeping; terminal/cancelled authority cannot be revived.",
+    "Successful lifecycle publication commits pointers, canonical revisions, changes, episodes, transitions, alerts and completed publication together.",
+    "Retained events preserve original creator and proof; equivalence excludes only attempt provenance, with exact evidence and source validation.",
+    "Serving gates include selections/history, event/change queries, episodes, alerts, maintenance, feature export and replay views. Raw forensic access remains.",
+    "Validation reuse stays within exact SQL transaction and pinned source/configuration. Ownership validation remains per-write and at commit.",
+    "Optional callbacks report completed native work and propagate failure/cancellation; they introduce no commits or altered financial calculations.",
+    "Winner sector validator retains explicitly supplied Session and checks complete child rows; missing authority/tampering reject."
+  ],
+  "unchanged_guards": [
+    "3-second control-plane lock timeout",
+    "terminal-parent claim guard",
+    "domain commit ownership fence",
+    "source/evidence/configuration certification",
+    "runtime observer 120-second review boundary / 30-second useful-progress freshness"
+  ],
+  "pre_existing_changes_note": "Ranking contained pre-existing Session guards; other pre-existing dirty worker, supervisor, policy and settings changes are preserved and included in the isolated source manifest. No main commit/push or production restart.",
+  "final_read_only_replay_delta": "final-replay-delta-review.json",
+  "final_boundary_verification": "final-replay-boundaries.xml: 10 passed",
+  "final_application_source_review": "final-app-source-equivalence.json"
+}

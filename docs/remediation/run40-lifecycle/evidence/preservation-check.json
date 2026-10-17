@@ -1,0 +1,128 @@
+{
+  "forensic_files": {
+    "analyze_logs.py": true,
+    "blocking-graph.json": true,
+    "concurrent-job-locks.json": true,
+    "database-summary.json": true,
+    "detector-sql-statistics.json": true,
+    "failure-log-extract.json": true,
+    "job-row-lock-sql.json": true,
+    "persistence-impact.json": true,
+    "postgresql-errors.json": true,
+    "REPORT.md": true,
+    "reproduce_watchdog_lock.py": true,
+    "reproduction-results.json": true,
+    "reviewed-code-sha256.json": true,
+    "sql-failure-window.json": true,
+    "watchdog-log-window.json": true
+  },
+  "domain": {
+    "snapshots": {
+      "count": 88,
+      "expected_count": 88,
+      "sha256_matches": true,
+      "expected_sha256": "11f364c0eafe8f103ba5dcb98e8d3bd93b754e91c7f30ea7bc789a0d6c773b60",
+      "serializations": {
+        "sorted=True,compact=True": "08d77d5d8d314b11846e966f75c10a749ae37ba69dc1a24151445132e1c2e062",
+        "sorted=True,compact=False": "11f364c0eafe8f103ba5dcb98e8d3bd93b754e91c7f30ea7bc789a0d6c773b60",
+        "sorted=False,compact=True": "0032042a57326885e265ef437a7bef358d40730b72c243d6e6112ec9a5d13aa2",
+        "sorted=False,compact=False": "f694bb1ae6b9b97274af7564f31ca99c60f11ab5d5b11ed48fa42eec7020baf0"
+      }
+    },
+    "changes": {
+      "count": 937,
+      "expected_count": 937,
+      "sha256_matches": true,
+      "expected_sha256": "8de3946146b92c16b263a3ea8781b678011e8274a067421502308e9d8f484622",
+      "serializations": {
+        "sorted=True,compact=True": "217e65a0f187601449d62476848485312db0135d00caf835f49f3b572f1295ab",
+        "sorted=True,compact=False": "8de3946146b92c16b263a3ea8781b678011e8274a067421502308e9d8f484622",
+        "sorted=False,compact=True": "ea7c51c8467a4085df8e99aa3c074c3348227a3ee360fd4c9a58082c833fb3cb",
+        "sorted=False,compact=False": "5b9eb7828ee4442fc7f93fa1cf21080394f2353c4086d5e63e61ea071b65c0c9"
+      }
+    },
+    "evaluations": {
+      "count": 2,
+      "expected_count": 2,
+      "sha256_matches": true,
+      "expected_sha256": "3f52f7cf71d2a4444197e95e5182f8ee04969db43aac3a54a23d121d70ec528f",
+      "serializations": {
+        "sorted=True,compact=True": "83ac39c1b54e98febacbe98f7b9d57d2d81b0a89af0d394dc3b2cd30e6d3d268",
+        "sorted=True,compact=False": "3f52f7cf71d2a4444197e95e5182f8ee04969db43aac3a54a23d121d70ec528f",
+        "sorted=False,compact=True": "4e7952c330fa6df0e27e8fc24b399dc471ac4bbc62a8679e455bc50b394d8fef",
+        "sorted=False,compact=False": "7d8353994e3366f94c39e98292749aed1d56f51b2d16775d0a4ab6d713c0fad8"
+      }
+    },
+    "lifecycle_events": {
+      "count": 88,
+      "expected_count": 88,
+      "sha256_matches": true,
+      "expected_sha256": "42c0199b59ca94ab834ce746f6de50cd211bae53f0339fc8402014e26d5a5950",
+      "serializations": {
+        "sorted=True,compact=True": "9a5487e83ebac980f8b09d28e80563a17763f7985b7dee87414148eaa8038aa5",
+        "sorted=True,compact=False": "42c0199b59ca94ab834ce746f6de50cd211bae53f0339fc8402014e26d5a5950",
+        "sorted=False,compact=True": "a67b2cd05a38d87b7322b4cfbd607217ca7ff7659825829a3d6ebf544d0145d3",
+        "sorted=False,compact=False": "51dc2fdce3e4136c7ade52b50f1742a0fdad571951bd0b021139a33a0c429f66"
+      }
+    },
+    "selections": {
+      "count": 88,
+      "expected_count": 88,
+      "sha256_matches": true,
+      "expected_sha256": "c21130f09c0435aabc99e9416d10b52c19a3b27e488bc7c6f3b232bf24c58b85",
+      "serializations": {
+        "sorted=True,compact=True": "8fcbcf8d15c18a1f49f511b5ada7904ebdd5c0244ff8f5f2ea9fd181f4a76c7a",
+        "sorted=True,compact=False": "c21130f09c0435aabc99e9416d10b52c19a3b27e488bc7c6f3b232bf24c58b85",
+        "sorted=False,compact=True": "930dc34e15fcad063f0fbbd3319fe198e01965bf13bb9d6618f4896e38dbb0ea",
+        "sorted=False,compact=False": "641c139a0757c7ec3700e4cbadf8f446c16530fdc20924b1d0f21c5833ad2a02"
+      }
+    }
+  },
+  "control": {
+    "pipeline": [
+      {
+        "id": 40,
+        "status": "FAILED",
+        "current_step": "EVALUATING_SETUP_LIFECYCLES",
+        "execution_authority_state": "ACTIVE"
+      }
+    ],
+    "job": [
+      {
+        "id": 1384,
+        "status": "QUEUED",
+        "retry_count": 1,
+        "execution_token": null
+      }
+    ],
+    "evaluation": [
+      {
+        "id": 57,
+        "status": "FAILED",
+        "changed_count": 0,
+        "alerted_count": 0
+      }
+    ]
+  },
+  "forensic_control_comparison": {
+    "pipeline": {
+      "rows": 1,
+      "equal": true
+    },
+    "steps": {
+      "rows": 13,
+      "equal": true
+    },
+    "jobs": {
+      "rows": 32,
+      "equal": true
+    },
+    "dependencies": {
+      "rows": 1,
+      "equal": true
+    }
+  },
+  "all_forensic_files_unchanged": true,
+  "all_domain_fingerprints_match": true,
+  "all_forensic_control_columns_unchanged": true
+}

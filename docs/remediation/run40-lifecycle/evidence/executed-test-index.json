@@ -1,0 +1,306 @@
+[
+  {
+    "file": "authority-downstream.xml",
+    "tests": "33",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "2222.672"
+  },
+  {
+    "file": "canonical-checkpoints-unit.xml",
+    "tests": "15",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "5.138"
+  },
+  {
+    "file": "e2e-startup-diagnostic.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "1",
+    "skipped": "0",
+    "time": "134.321"
+  },
+  {
+    "file": "failed-sql-rollback.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "32.311"
+  },
+  {
+    "file": "final-boundaries.xml",
+    "tests": "76",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "50.619"
+  },
+  {
+    "file": "final-cache-guard.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "104.484"
+  },
+  {
+    "file": "final-checkpoints-postgresql.xml",
+    "tests": "3",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "337.963"
+  },
+  {
+    "file": "final-consumers.xml",
+    "tests": "23",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "10.825"
+  },
+  {
+    "file": "final-native-replay.xml",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "424.506"
+  },
+  {
+    "file": "final-replay-boundaries.xml",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "305.715"
+  },
+  {
+    "file": "final-unit.xml",
+    "tests": "455",
+    "failures": "1",
+    "errors": "0",
+    "skipped": "0",
+    "time": "139.945"
+  },
+  {
+    "file": "full-e2e-bounded-checkpoints.xml",
+    "tests": "2",
+    "failures": "1",
+    "errors": "0",
+    "skipped": "0",
+    "time": "1462.034"
+  },
+  {
+    "file": "full-e2e-clean.xml",
+    "tests": "2",
+    "failures": "0",
+    "errors": "2",
+    "skipped": "0",
+    "time": "319.225"
+  },
+  {
+    "file": "full-e2e-final.xml",
+    "tests": "2",
+    "failures": "2",
+    "errors": "0",
+    "skipped": "0",
+    "time": "412.779"
+  },
+  {
+    "file": "full-e2e-native-prerequisite.xml",
+    "tests": "2",
+    "failures": "1",
+    "errors": "0",
+    "skipped": "0",
+    "time": "2659.903"
+  },
+  {
+    "file": "full-e2e-sector-session-final.xml",
+    "tests": "3",
+    "failures": "1",
+    "errors": "0",
+    "skipped": "0",
+    "time": "2026.864"
+  },
+  {
+    "file": "full-e2e-serialized-88.xml",
+    "tests": "1",
+    "failures": "1",
+    "errors": "0",
+    "skipped": "0",
+    "time": "2213.058"
+  },
+  {
+    "file": "full-e2e-upstream-progress-final.xml",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "3645.204"
+  },
+  {
+    "file": "full-e2e.xml",
+    "tests": "2",
+    "failures": "1",
+    "errors": "1",
+    "skipped": "0",
+    "time": "608.339"
+  },
+  {
+    "file": "historical-replay.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "276.516"
+  },
+  {
+    "file": "legacy-replay.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "332.257"
+  },
+  {
+    "file": "native-88-final-runtime-restore-argument.xml",
+    "tests": "1",
+    "failures": "1",
+    "errors": "0",
+    "skipped": "0",
+    "time": "3.693"
+  },
+  {
+    "file": "native-88-final-runtime.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "3335.902"
+  },
+  {
+    "file": "native-88.xml",
+    "tests": "1",
+    "failures": "1",
+    "errors": "0",
+    "skipped": "0",
+    "time": "6350.717"
+  },
+  {
+    "file": "native-winner-fixture.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "92.249"
+  },
+  {
+    "file": "native-winner-history.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "73.016"
+  },
+  {
+    "file": "profile-after.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "316.035"
+  },
+  {
+    "file": "sector-session-after.xml",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "117.153"
+  },
+  {
+    "file": "sector-session-before.xml",
+    "tests": "1",
+    "failures": "1",
+    "errors": "0",
+    "skipped": "0",
+    "time": "96.918"
+  },
+  {
+    "file": "sector-source-consumers.xml",
+    "tests": "48",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "7.552"
+  },
+  {
+    "file": "upstream-progress-cancellation.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "1.813"
+  },
+  {
+    "file": "upstream-progress-postgresql-corrected.xml",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "92.500"
+  },
+  {
+    "file": "upstream-progress-postgresql.xml",
+    "tests": "2",
+    "failures": "2",
+    "errors": "0",
+    "skipped": "0",
+    "time": "105.331"
+  },
+  {
+    "file": "upstream-progress-unit.xml",
+    "tests": "85",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "79.716"
+  },
+  {
+    "file": "winner-trace-10.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "1",
+    "skipped": "0",
+    "time": "102.853"
+  },
+  {
+    "file": "winner-trace-corrected-10.xml",
+    "tests": "1",
+    "failures": "1",
+    "errors": "0",
+    "skipped": "0",
+    "time": "484.728"
+  },
+  {
+    "file": "winner-trace-serial-10.xml",
+    "tests": "1",
+    "failures": "0",
+    "errors": "1",
+    "skipped": "0",
+    "time": "86.026"
+  },
+  {
+    "file": "worker-postgresql.xml",
+    "tests": "14",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "636.380"
+  }
+]

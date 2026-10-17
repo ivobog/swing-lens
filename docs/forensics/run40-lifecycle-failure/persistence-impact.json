@@ -1,0 +1,159 @@
+{
+  "output_counts": [
+    {
+      "object": "snapshots",
+      "n": 88
+    },
+    {
+      "object": "changes_eval57",
+      "n": 937
+    },
+    {
+      "object": "predictions",
+      "n": 0
+    },
+    {
+      "object": "alerts_eval57",
+      "n": 0
+    },
+    {
+      "object": "lifecycle_events_eval57",
+      "n": 88
+    }
+  ],
+  "changes": [
+    {
+      "first_id": 10913,
+      "last_id": 11849,
+      "event_count": 937,
+      "ticker_count": 80,
+      "earliest_created_at": "2026-10-17 13:16:22.652689+02:00",
+      "latest_created_at": "2026-10-17 13:16:22.652689+02:00",
+      "attached_to_episode": 0
+    }
+  ],
+  "evaluations": [
+    {
+      "id": 54,
+      "source_run_id": 39,
+      "mode": "LIVE",
+      "status": "COMPLETED",
+      "current_phase": "snapshot_capture",
+      "started_at": "2026-10-17 02:00:24.009286+02:00",
+      "completed_at": "2026-10-17 02:00:26.055801+02:00",
+      "counts_json": {
+        "read": 1,
+        "failed": 0,
+        "alerted": 0,
+        "changed": 0,
+        "skipped": 0,
+        "warning": 2,
+        "captured": 1,
+        "canonical": 0,
+        "transitioned": 0
+      },
+      "error_summary_json": {}
+    },
+    {
+      "id": 55,
+      "source_run_id": 39,
+      "mode": "LIVE",
+      "status": "COMPLETED",
+      "current_phase": "completed",
+      "started_at": "2026-10-17 02:00:26.541669+02:00",
+      "completed_at": "2026-10-17 02:01:01.670545+02:00",
+      "counts_json": {
+        "read": 1,
+        "failed": 0,
+        "alerted": 0,
+        "changed": 13,
+        "skipped": 0,
+        "warning": 2,
+        "captured": 1,
+        "canonical": 1,
+        "reconciled": 1,
+        "transitioned": 1
+      },
+      "error_summary_json": {}
+    },
+    {
+      "id": 56,
+      "source_run_id": 40,
+      "mode": "LIVE",
+      "status": "COMPLETED",
+      "current_phase": "snapshot_capture",
+      "started_at": "2026-10-17 13:01:04.052047+02:00",
+      "completed_at": "2026-10-17 13:11:39.317054+02:00",
+      "counts_json": {
+        "read": 88,
+        "failed": 0,
+        "alerted": 0,
+        "changed": 0,
+        "skipped": 0,
+        "warning": 176,
+        "captured": 88,
+        "canonical": 0,
+        "transitioned": 0
+      },
+      "error_summary_json": {}
+    },
+    {
+      "id": 57,
+      "source_run_id": 40,
+      "mode": "LIVE",
+      "status": "FAILED",
+      "current_phase": "failed",
+      "started_at": "2026-10-17 13:11:40.586189+02:00",
+      "completed_at": "2026-10-17 13:39:27.815831+02:00",
+      "counts_json": {
+        "failed": 1
+      },
+      "error_summary_json": {
+        "system": "Control-plane transaction exceeded 3s lock timeout."
+      }
+    }
+  ],
+  "server_observability": [
+    {
+      "name": "lock_timeout",
+      "setting": "0"
+    },
+    {
+      "name": "log_line_prefix",
+      "setting": "%t "
+    },
+    {
+      "name": "log_lock_waits",
+      "setting": "off"
+    }
+  ],
+  "claimable_jobs": [],
+  "replay_identity_witness": {
+    "event_id": 11319,
+    "persisted_evaluation_id": 57,
+    "hypothetical_evaluation_id": 580000,
+    "same_source_event_key": true,
+    "body_equal": false,
+    "changed_body_fields": [
+      "evaluation_run_id"
+    ],
+    "persisted": false
+  },
+  "historical_integrity": {
+    "baseline": "684287f36b176a92c770cf633c22237dc02b471e85dbb178193a5866a0b8f3ec",
+    "current": "684287f36b176a92c770cf633c22237dc02b471e85dbb178193a5866a0b8f3ec",
+    "unchanged": true
+  },
+  "lifecycle_event_types": [
+    {
+      "event_type": "CANONICAL_REVISION",
+      "n": 88
+    }
+  ],
+  "current_selections": [
+    {
+      "n": 88
+    }
+  ],
+  "current_market_change_query_matches": 937
+}

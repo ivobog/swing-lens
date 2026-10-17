@@ -1,0 +1,25 @@
+{
+  "database": "swinglens_pytest_run40_417515b611df",
+  "production_run_mutated": false,
+  "watchdog_fenced_jobs": [],
+  "lock_graph": {
+    "pid": 44344,
+    "blockers": [
+      38968
+    ],
+    "wait_event_type": "Lock",
+    "wait_event": "transactionid"
+  },
+  "watchdog_backend_pid": 38968,
+  "heartbeat_while_watchdog_uncommitted": {
+    "outcome": "ControlPlaneLockTimeout",
+    "message": "Control-plane transaction exceeded 3s lock timeout.",
+    "elapsed_seconds": 3.014
+  },
+  "heartbeat_after_watchdog_commit": {
+    "outcome": "success"
+  },
+  "queued_job_authorized_with_active_pipeline": true,
+  "queued_job_authorized_with_failed_pipeline": false,
+  "disposable_database_dropped": true
+}

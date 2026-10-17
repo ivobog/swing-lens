@@ -1,0 +1,48 @@
+{
+  "forensic_code_pins_match": {
+    "app/services/background_job_service.py": true,
+    "app/services/domain_write_fence.py": true,
+    "app/services/background_worker.py": true,
+    "app/worker_supervisor.py": true,
+    "app/services/pipeline_executor.py": true,
+    "app/services/pipeline_execution_authority.py": true,
+    "app/services/setup_lifecycle/evaluation_service.py": true,
+    "app/services/setup_lifecycle/change_detector.py": true,
+    "app/services/setup_lifecycle/change_authority.py": true,
+    "app/services/setup_lifecycle/repository.py": true,
+    "app/observability/logging.py": true
+  },
+  "workers": [
+    {
+      "worker_id": "local-worker-1",
+      "instance_id": "b378b24ee8674df28ad003e7f45756d2",
+      "process_id": 35236,
+      "started_at": "2026-10-17 13:39:54.315596+02:00",
+      "heartbeat_at": "2026-10-17 14:24:35.267519+02:00",
+      "stopping_at": null
+    }
+  ],
+  "run40_control_sha256": "684287f36b176a92c770cf633c22237dc02b471e85dbb178193a5866a0b8f3ec",
+  "run40_domain_sha256": {
+    "snapshots": {
+      "count": 88,
+      "sha256": "11f364c0eafe8f103ba5dcb98e8d3bd93b754e91c7f30ea7bc789a0d6c773b60"
+    },
+    "changes": {
+      "count": 937,
+      "sha256": "8de3946146b92c16b263a3ea8781b678011e8274a067421502308e9d8f484622"
+    },
+    "evaluations": {
+      "count": 2,
+      "sha256": "3f52f7cf71d2a4444197e95e5182f8ee04969db43aac3a54a23d121d70ec528f"
+    },
+    "lifecycle_events": {
+      "count": 88,
+      "sha256": "42c0199b59ca94ab834ce746f6de50cd211bae53f0339fc8402014e26d5a5950"
+    },
+    "selections": {
+      "count": 88,
+      "sha256": "c21130f09c0435aabc99e9416d10b52c19a3b27e488bc7c6f3b232bf24c58b85"
+    }
+  }
+}

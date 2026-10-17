@@ -1,0 +1,17 @@
+{
+  "shared_checkout_head": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+  "certification_commit": "4396ff7ad143360a044f7967445fd8f326f371d2",
+  "full_e2e_candidate": "80026eba50c677bc2c08415f686c4b49d6fbda3e",
+  "certification_worktree_clean": true,
+  "file_count": 48,
+  "all_candidate_files_match": true,
+  "production_changes_since_passing_full_e2e": [
+    "app/services/setup_lifecycle/evaluation_service.py:_completed_publication read-only progress/cancellation boundaries"
+  ],
+  "native_recheck": "Fresh final-code process, actual native setup capture plus exact 34-statement interruption/publication/replay/Winner test body, on 321 authenticated native historical snapshots and 88 native current upstream inputs.",
+  "source_content_equivalence": "final-app-source-equivalence.json",
+  "final_replay_progress_validation": "final-replay-boundaries.xml: 10 passed",
+  "large_native_candidate": "d839b59d4b8624a9e0cc1a999ddbffa72ee2cc11",
+  "large_native_evidence": "native-88-final-runtime.xml: 1 passed",
+  "final_delta_review": "final-replay-delta-review.json"
+}

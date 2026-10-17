@@ -1,0 +1,16 @@
+{
+  "handoff_at_utc": "2026-10-17T18:39:23.846339+00:00",
+  "stopped_fixture_builder_pids": [
+    61648,
+    49676
+  ],
+  "counts_before_handoff": {
+    "historical_snapshots": 321,
+    "current_snapshots": 0,
+    "current_evaluations": 0
+  },
+  "dump_sha256": "2c3cc0e80db663b03d01f745780414e2807ae5bafa6cac32e5cd2f279b72d6f7",
+  "timed_current_evaluation_had_not_started": true,
+  "reason": "Native fixture builder predates late shared-validator changes. Reuse authenticated inputs in a fresh final-code process; run real setup capture and the exact existing interruption/publication/replay/Winner assertions.",
+  "production_processes_touched": false
+}

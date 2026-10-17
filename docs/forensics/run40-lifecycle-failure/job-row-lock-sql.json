@@ -1,0 +1,4595 @@
+[
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36008,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:11:40.034064+00:00",
+    "duration_ms": 1.454,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "9871defb048c919025e91fa9276741e8cca28bfb224b6ffff96f4417668ce685",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36033,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:11:40.076099+00:00",
+    "duration_ms": 2.883,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET last_progress_at=?::TIMESTAMP WITH TIME ZONE, progress_sequence=(background_jobs.progress_sequence + ?::BIGINT), progress_stage=?::VARCHAR, progress_current_item=?::VARCHAR, progress_last_completed_item=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN NULL ELSE background_jobs.progress_last_completed_item END, progress_processed=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER ELSE background_jobs.progress_processed END, progress_total=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN NULL ELSE background_jobs.progress_total END, checkpoint_version=?::VARCHAR WHERE background_jobs.id = ?::BIGINT AND background_jobs.status = ?::VARCHAR AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d03aaa6e1ded97ce1b981189690a29c181f7e4d00d1a33ad7f6489fac631a0ea",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 10,
+      "parameter_types": [
+        "NoneType",
+        "datetime",
+        "int",
+        "int",
+        "int",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "4b9aa70715228dd55e5f3780d68464c896384fe2b16d5a3a8915113fb91d7451",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 976,
+      "function": "record_job_progress",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36037,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:11:40.095617+00:00",
+    "duration_ms": 1.366,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "9db8823687f7e39835547941fcd3b17cb34eeda4acd8698614c9029df77c50ab",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36045,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:11:40.194617+00:00",
+    "duration_ms": 0.858,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36048,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:11:40.218618+00:00",
+    "duration_ms": 1.577,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "023f6751bcdf57cef531843f7eef0c65810004d0d56c3324536c2314be3b04eb",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36069,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:11:40.262622+00:00",
+    "duration_ms": 1.609,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "688c15f5e452a0255895cb94c714ba7f18cb36896ed54348718e5b5606cb0ab0",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36094,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:11:40.311617+00:00",
+    "duration_ms": 2.678,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET last_progress_at=?::TIMESTAMP WITH TIME ZONE, progress_sequence=(background_jobs.progress_sequence + ?::BIGINT), progress_stage=?::VARCHAR, progress_current_item=?::VARCHAR, progress_last_completed_item=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN NULL ELSE background_jobs.progress_last_completed_item END, progress_processed=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER ELSE background_jobs.progress_processed END, progress_total=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN NULL ELSE background_jobs.progress_total END, checkpoint_version=?::VARCHAR WHERE background_jobs.id = ?::BIGINT AND background_jobs.status = ?::VARCHAR AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d03aaa6e1ded97ce1b981189690a29c181f7e4d00d1a33ad7f6489fac631a0ea",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 10,
+      "parameter_types": [
+        "NoneType",
+        "datetime",
+        "int",
+        "int",
+        "int",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "496b1c679fbfa863d8d96c67ad9861aebab140504f98633b58b9620b3c62ef70",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 976,
+      "function": "record_job_progress",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36175,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:11:55.893456+00:00",
+    "duration_ms": 2.911,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36177,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:11:55.992701+00:00",
+    "duration_ms": 87.985,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36242,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:09.635304+00:00",
+    "duration_ms": 1.154,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36248,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:09.795808+00:00",
+    "duration_ms": 0.914,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36254,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:09.992327+00:00",
+    "duration_ms": 1.082,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36260,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:10.167440+00:00",
+    "duration_ms": 2.578,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36266,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:10.423502+00:00",
+    "duration_ms": 0.933,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36272,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:10.638749+00:00",
+    "duration_ms": 0.86,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36278,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:10.869266+00:00",
+    "duration_ms": 0.992,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36284,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:11.077782+00:00",
+    "duration_ms": 0.94,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36290,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:11.329965+00:00",
+    "duration_ms": 0.936,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36307,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:11.611484+00:00",
+    "duration_ms": 0.98,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36313,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:11.908541+00:00",
+    "duration_ms": 1.654,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36319,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:12.222719+00:00",
+    "duration_ms": 2.646,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36325,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:12.471363+00:00",
+    "duration_ms": 0.949,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36331,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:12.697967+00:00",
+    "duration_ms": 1.306,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36337,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:12.910540+00:00",
+    "duration_ms": 1.102,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36343,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:13.128630+00:00",
+    "duration_ms": 1.299,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36357,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:13.443183+00:00",
+    "duration_ms": 1.02,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36361,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:13.563224+00:00",
+    "duration_ms": 1.022,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36379,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:15.861516+00:00",
+    "duration_ms": 0.842,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36390,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:15.939517+00:00",
+    "duration_ms": 0.886,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36401,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.021518+00:00",
+    "duration_ms": 0.769,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36412,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.087031+00:00",
+    "duration_ms": 0.846,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36423,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.157035+00:00",
+    "duration_ms": 0.877,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36434,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.231033+00:00",
+    "duration_ms": 0.902,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36445,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.306548+00:00",
+    "duration_ms": 0.778,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36456,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.371546+00:00",
+    "duration_ms": 0.793,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36467,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.442546+00:00",
+    "duration_ms": 0.807,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36478,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.538617+00:00",
+    "duration_ms": 0.764,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36500,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.664177+00:00",
+    "duration_ms": 1.185,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36511,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.764749+00:00",
+    "duration_ms": 0.994,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36522,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.872847+00:00",
+    "duration_ms": 0.77,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36533,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:16.975853+00:00",
+    "duration_ms": 0.972,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36544,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:17.048880+00:00",
+    "duration_ms": 0.85,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36555,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:17.147879+00:00",
+    "duration_ms": 0.873,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36566,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:17.281912+00:00",
+    "duration_ms": 0.861,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36573,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:17.346908+00:00",
+    "duration_ms": 0.762,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 36608,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:12:26.659872+00:00",
+    "duration_ms": 0.933,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 37022,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:14:27.491382+00:00",
+    "duration_ms": 1.384,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 37934,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:15:00.975688+00:00",
+    "duration_ms": 0.839,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 38899,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:15:32.170889+00:00",
+    "duration_ms": 0.688,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 39935,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:16:05.952267+00:00",
+    "duration_ms": 0.928,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 40479,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:16:22.650188+00:00",
+    "duration_ms": 0.746,
+    "slow_query": false,
+    "operation": "SELECT",
+    "normalized_sql": "SELECT background_jobs.status, background_jobs.execution_token, background_jobs.job_type, background_jobs.related_run_id, background_jobs.payload_json FROM background_jobs WHERE background_jobs.id = ?::BIGINT FOR UPDATE",
+    "query_fingerprint": "90e28e8077e9ec9281dfb6372222527c2bb1c9b8ac3576acb226dfb4d9074ced",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 1,
+      "parameter_types": [
+        "int"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "29dc102cd8553b061021009ff3d5907cd9e72ef30e63493d484ea7bfe386cae8",
+    "python_caller": {
+      "source_file": "app/services/domain_write_fence.py",
+      "line_number": 220,
+      "function": "assert_current_execution_ownership",
+      "module": "app.services.domain_write_fence"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 40913,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:17:01.618519+00:00",
+    "duration_ms": 1.453,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "2a2943bf17a4c562b6358c538ef33fdab6cbb8f9c03100537c7f6f10da7e9455",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 40917,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:17:01.636521+00:00",
+    "duration_ms": 1.341,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "2be78725e7fef81b214a7c57af933e82a24208a0fe46b6d77143595db03c6256",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 40943,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:17:01.692047+00:00",
+    "duration_ms": 3.71,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET last_progress_at=?::TIMESTAMP WITH TIME ZONE, progress_sequence=(background_jobs.progress_sequence + ?::BIGINT), progress_stage=?::VARCHAR, progress_current_item=?::VARCHAR, progress_last_completed_item=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::VARCHAR ELSE ?::VARCHAR END, progress_processed=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_processed END, progress_total=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_total END, checkpoint_version=?::VARCHAR, operational_metadata_json=?::JSONB WHERE background_jobs.id = ?::BIGINT AND background_jobs.status = ?::VARCHAR AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "823d12e0f7abde420da830bad21632dc1f55f57ef187a9abcee73bb6f8ef8086",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 20,
+      "parameter_types": [
+        "Jsonb",
+        "datetime",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "38aa0742499b416ab57287a3fb0d4ccb17f743720363f9b7c6adcb5f5996dda5",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 976,
+      "function": "record_job_progress",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42551,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:11.009149+00:00",
+    "duration_ms": 0.885,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "055e4693ecb7f11219f7a01ab3122fea4a7d8b156e7bbb27cfc50f72175e015d",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42554,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:11.016151+00:00",
+    "duration_ms": 1.446,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "1a468551bd41e2b30ddbd3d50ab791348e616629a65536e7c9c2a5b2c45b3db8",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42580,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:11.059804+00:00",
+    "duration_ms": 2.435,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET last_progress_at=?::TIMESTAMP WITH TIME ZONE, progress_sequence=(background_jobs.progress_sequence + ?::BIGINT), progress_stage=?::VARCHAR, progress_current_item=?::VARCHAR, progress_last_completed_item=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::VARCHAR ELSE ?::VARCHAR END, progress_processed=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_processed END, progress_total=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_total END, checkpoint_version=?::VARCHAR, operational_metadata_json=?::JSONB WHERE background_jobs.id = ?::BIGINT AND background_jobs.status = ?::VARCHAR AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "823d12e0f7abde420da830bad21632dc1f55f57ef187a9abcee73bb6f8ef8086",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 20,
+      "parameter_types": [
+        "Jsonb",
+        "datetime",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "a7e34893ba3e69e52f46a76568aa48adc20c062818b6fd19dc7ecdb857d5376f",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 976,
+      "function": "record_job_progress",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42652,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:16.235064+00:00",
+    "duration_ms": 1.087,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "c9f03d6b2404b686cb621926fe49ebb4a454f14eaab5ba2fe8c68f62d2d0182b",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42655,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:16.248066+00:00",
+    "duration_ms": 1.372,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "640b92c66d2d95cb9b93b3cd25a472ad48c3323e90b471c2242e8f5e4ead4b2f",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42682,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:16.296064+00:00",
+    "duration_ms": 2.065,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET last_progress_at=?::TIMESTAMP WITH TIME ZONE, progress_sequence=(background_jobs.progress_sequence + ?::BIGINT), progress_stage=?::VARCHAR, progress_current_item=?::VARCHAR, progress_last_completed_item=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::VARCHAR ELSE ?::VARCHAR END, progress_processed=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_processed END, progress_total=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_total END, checkpoint_version=?::VARCHAR, operational_metadata_json=?::JSONB WHERE background_jobs.id = ?::BIGINT AND background_jobs.status = ?::VARCHAR AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "823d12e0f7abde420da830bad21632dc1f55f57ef187a9abcee73bb6f8ef8086",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 20,
+      "parameter_types": [
+        "Jsonb",
+        "datetime",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "058be988fac7487cbfe886b477761c7978170739da4a537a6815d2ddd0b34a7f",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 976,
+      "function": "record_job_progress",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42753,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:20.758454+00:00",
+    "duration_ms": 0.591,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "ecc5b7440f118e86292e290f13b5f81b583d083158a0e2be4ac8947bf607bd35",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42756,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:20.770455+00:00",
+    "duration_ms": 1.376,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "fe8d6f2ae27f88f9da43300b5ff34627e16fab2b74930872e97feb7db5cb5acf",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42782,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:20.811454+00:00",
+    "duration_ms": 2.156,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET last_progress_at=?::TIMESTAMP WITH TIME ZONE, progress_sequence=(background_jobs.progress_sequence + ?::BIGINT), progress_stage=?::VARCHAR, progress_current_item=?::VARCHAR, progress_last_completed_item=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::VARCHAR ELSE ?::VARCHAR END, progress_processed=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_processed END, progress_total=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_total END, checkpoint_version=?::VARCHAR, operational_metadata_json=?::JSONB WHERE background_jobs.id = ?::BIGINT AND background_jobs.status = ?::VARCHAR AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "823d12e0f7abde420da830bad21632dc1f55f57ef187a9abcee73bb6f8ef8086",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 20,
+      "parameter_types": [
+        "Jsonb",
+        "datetime",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "ee1a4e3b843e37038c5f291ac8b17252139e5f83051446a7842e9908506efffc",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 976,
+      "function": "record_job_progress",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42852,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:24.326297+00:00",
+    "duration_ms": 2.12,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "2530fe7b3e5dd518349d342282c4c10b7f93a5c7fd64ed670d51becd347bbffe",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42857,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:24.342296+00:00",
+    "duration_ms": 1.391,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "8ff2f5b7af639e6326fc63cc3be7240a431c9eb09fea9f5e61636fe2d55df147",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42883,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:24.402300+00:00",
+    "duration_ms": 2.784,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET last_progress_at=?::TIMESTAMP WITH TIME ZONE, progress_sequence=(background_jobs.progress_sequence + ?::BIGINT), progress_stage=?::VARCHAR, progress_current_item=?::VARCHAR, progress_last_completed_item=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::VARCHAR ELSE ?::VARCHAR END, progress_processed=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_processed END, progress_total=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_total END, checkpoint_version=?::VARCHAR, operational_metadata_json=?::JSONB WHERE background_jobs.id = ?::BIGINT AND background_jobs.status = ?::VARCHAR AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "823d12e0f7abde420da830bad21632dc1f55f57ef187a9abcee73bb6f8ef8086",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 20,
+      "parameter_types": [
+        "Jsonb",
+        "datetime",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "8dc0994d5feb4f387f518e205e1f05f755a056be2d81350c301c5d06ea535cd9",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 976,
+      "function": "record_job_progress",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42911,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:26.079634+00:00",
+    "duration_ms": 1.484,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "105e6cccea3780280e0855212891c94d457b879517d44562c86ab20ca28f1a58",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42914,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:26.093147+00:00",
+    "duration_ms": 1.961,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "3d39ba656f262655ca91ab8d2d94d2da6bba521011d82d453ef69a443c64eb58",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42941,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:26.144145+00:00",
+    "duration_ms": 3.215,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET last_progress_at=?::TIMESTAMP WITH TIME ZONE, progress_sequence=(background_jobs.progress_sequence + ?::BIGINT), progress_stage=?::VARCHAR, progress_current_item=?::VARCHAR, progress_last_completed_item=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::VARCHAR ELSE ?::VARCHAR END, progress_processed=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_processed END, progress_total=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_total END, checkpoint_version=?::VARCHAR, operational_metadata_json=?::JSONB WHERE background_jobs.id = ?::BIGINT AND background_jobs.status = ?::VARCHAR AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "823d12e0f7abde420da830bad21632dc1f55f57ef187a9abcee73bb6f8ef8086",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 20,
+      "parameter_types": [
+        "Jsonb",
+        "datetime",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "f284fb116e1cebe1dc49b6d6720b188e3b1763667fea1c9503d7217e30fd6264",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 976,
+      "function": "record_job_progress",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42943,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:26.150144+00:00",
+    "duration_ms": 1.333,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "b9904a0efe013135ce2808d989fd11b6a6408ce3bc47729ecefb3412403820a2",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42946,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:26.156144+00:00",
+    "duration_ms": 1.395,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "8ce3968f75b3d8ae972f92ffab0a71dddca2131b79231d8cf0694bd80e281252",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.6.jsonl",
+    "line": 42972,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:18:26.199692+00:00",
+    "duration_ms": 3.6,
+    "slow_query": false,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET last_progress_at=?::TIMESTAMP WITH TIME ZONE, progress_sequence=(background_jobs.progress_sequence + ?::BIGINT), progress_stage=?::VARCHAR, progress_current_item=?::VARCHAR, progress_last_completed_item=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::VARCHAR ELSE ?::VARCHAR END, progress_processed=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_processed < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_processed END, progress_total=CASE WHEN (background_jobs.progress_stage != ?::VARCHAR OR background_jobs.progress_stage IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total IS NULL) THEN ?::INTEGER WHEN (background_jobs.progress_total < ?::BIGINT) THEN ?::INTEGER ELSE background_jobs.progress_total END, checkpoint_version=?::VARCHAR, operational_metadata_json=?::JSONB WHERE background_jobs.id = ?::BIGINT AND background_jobs.status = ?::VARCHAR AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "823d12e0f7abde420da830bad21632dc1f55f57ef187a9abcee73bb6f8ef8086",
+    "rowcount": 1,
+    "executemany": false,
+    "success": true,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 20,
+      "parameter_types": [
+        "Jsonb",
+        "datetime",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "91e907221973422e7a4078608f12b1639e0e59c59d30b95b8dcc3e49c0c55d00",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 976,
+      "function": "record_job_progress",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "telemetry_priority": "P2"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.7.jsonl",
+    "line": 30786,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:39:27.792839+00:00",
+    "duration_ms": 3088.213,
+    "slow_query": true,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": null,
+    "executemany": false,
+    "success": false,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "feb05eae827309bb3ab2705315b35a93c18a18f6ea102561739edec760ae9c04",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 26140,
+      "name": "MainThread"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "BACKGROUND_JOB",
+    "root_correlation_id": "root-56e0309d473542b1be60df8faadc7f0e",
+    "causation_id": "cause-fbe4038219b54d119bf709bb2b3a84ce",
+    "job_id": 1384,
+    "job_type": "FULL_PIPELINE",
+    "run_id": 40,
+    "worker_id": "local-worker-1",
+    "workflow_key": "pipeline:40:ceri-continuation",
+    "attempt": 1,
+    "error_type": "LockNotAvailable",
+    "error_summary": "canceling statement due to lock timeout CONTEXT: while locking tuple (?,?) in relation ?",
+    "application_stack": [
+      {
+        "source_file": "app/worker.py",
+        "line_number": 122,
+        "function": "<module>",
+        "module": "__main__"
+      },
+      {
+        "source_file": "app/worker.py",
+        "line_number": 105,
+        "function": "main",
+        "module": "__main__"
+      },
+      {
+        "source_file": "app/services/background_worker.py",
+        "line_number": 222,
+        "function": "run_worker",
+        "module": "app.services.background_worker"
+      },
+      {
+        "source_file": "app/services/background_worker.py",
+        "line_number": 295,
+        "function": "_run_worker_control_loop",
+        "module": "app.services.background_worker"
+      },
+      {
+        "source_file": "app/services/background_worker.py",
+        "line_number": 1031,
+        "function": "run_worker_once",
+        "module": "app.services.background_worker"
+      },
+      {
+        "source_file": "app/services/background_worker.py",
+        "line_number": 1333,
+        "function": "execute_job",
+        "module": "app.services.background_worker"
+      },
+      {
+        "source_file": "app/services/background_worker.py",
+        "line_number": 1551,
+        "function": "_execute_full_pipeline_job",
+        "module": "app.services.background_worker"
+      },
+      {
+        "source_file": "app/services/configuration_delivery.py",
+        "line_number": 139,
+        "function": "execute",
+        "module": "app.services.configuration_delivery"
+      },
+      {
+        "source_file": "app/services/pipeline_executor.py",
+        "line_number": 377,
+        "function": "execute_full_pipeline",
+        "module": "app.services.pipeline_executor"
+      },
+      {
+        "source_file": "app/services/pipeline_executor.py",
+        "line_number": 1604,
+        "function": "_execute_resumed_pipeline",
+        "module": "app.services.pipeline_executor"
+      },
+      {
+        "source_file": "app/services/pipeline_executor.py",
+        "line_number": 3970,
+        "function": "_invoke_setup_evaluation",
+        "module": "app.services.pipeline_executor"
+      },
+      {
+        "source_file": "app/services/pipeline_executor.py",
+        "line_number": 3932,
+        "function": "_evaluate_setup_lifecycles",
+        "module": "app.services.pipeline_executor"
+      },
+      {
+        "source_file": "app/services/configuration_delivery.py",
+        "line_number": 959,
+        "function": "SetupLifecycleEvaluationService.execute",
+        "module": "app.services.configuration_delivery"
+      },
+      {
+        "source_file": "app/services/setup_lifecycle/evaluation_service.py",
+        "line_number": 270,
+        "function": "SetupLifecycleEvaluationService.evaluate_run",
+        "module": "app.services.setup_lifecycle.evaluation_service"
+      },
+      {
+        "source_file": "app/services/setup_lifecycle/evaluation_service.py",
+        "line_number": 662,
+        "function": "_report_lifecycle_progress",
+        "module": "app.services.setup_lifecycle.evaluation_service"
+      },
+      {
+        "source_file": "app/services/pipeline_executor.py",
+        "line_number": 3207,
+        "function": "checkpoint",
+        "module": "app.services.pipeline_executor"
+      },
+      {
+        "source_file": "app/services/pipeline_executor.py",
+        "line_number": 3129,
+        "function": "_raise_if_cancelled",
+        "module": "app.services.pipeline_executor"
+      },
+      {
+        "source_file": "app/services/background_worker.py",
+        "line_number": 1466,
+        "function": "should_cancel",
+        "module": "app.services.background_worker"
+      },
+      {
+        "source_file": "app/services/background_job_service.py",
+        "line_number": 1962,
+        "function": "heartbeat_job",
+        "module": "app.services.background_job_service"
+      },
+      {
+        "source_file": "app/services/background_job_service.py",
+        "line_number": 2269,
+        "function": "_apply_running_job_update",
+        "module": "app.services.background_job_service"
+      }
+    ],
+    "telemetry_priority": "P0"
+  },
+  {
+    "file": "sql-2026-10-17-p15132.7.jsonl",
+    "line": 30803,
+    "process_role": "worker",
+    "process_id": 15132,
+    "hostname": "NewLaptop",
+    "process_started_at": "2026-10-17T09:03:07.759021+00:00",
+    "application_version": "0.1.0",
+    "deployment_id": "local-development",
+    "feature_rebuild_impl_version": "batch-prefetch-v1",
+    "git_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "git_dirty": true,
+    "record_type": "sql",
+    "timestamp": "2026-10-17T11:39:30.746276+00:00",
+    "duration_ms": 3019.705,
+    "slow_query": true,
+    "operation": "UPDATE",
+    "normalized_sql": "UPDATE background_jobs SET heartbeat_at=?::TIMESTAMP WITH TIME ZONE, lease_expires_at=?::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = ?::BIGINT AND background_jobs.status IN (?::VARCHAR) AND background_jobs.execution_token = ?::VARCHAR",
+    "query_fingerprint": "d6898f0d2f93cb71285e442709bda44570a05b4a52ef3df0ad41481c6533c8b9",
+    "rowcount": null,
+    "executemany": false,
+    "success": false,
+    "parameter_shape": {
+      "shape": "mapping",
+      "parameter_count": 5,
+      "parameter_types": [
+        "datetime",
+        "datetime",
+        "int",
+        "str",
+        "str"
+      ],
+      "batch_size": 1
+    },
+    "parameter_digest": "c15014377fe8e156ff63e93404f97e51d87550d1dc0a946cd8c1356355ad9bfb",
+    "python_caller": {
+      "source_file": "app/services/background_job_service.py",
+      "line_number": 2269,
+      "function": "_apply_running_job_update",
+      "module": "app.services.background_job_service"
+    },
+    "thread": {
+      "id": 2320,
+      "name": "local-worker-1-job-control-heartbeat"
+    },
+    "process": {
+      "id": 15132,
+      "hostname": "NewLaptop",
+      "role": "worker"
+    },
+    "origin_type": "UNKNOWN",
+    "error_type": "LockNotAvailable",
+    "error_summary": "canceling statement due to lock timeout CONTEXT: while locking tuple (?,?) in relation ?",
+    "application_stack": [
+      {
+        "source_file": "app/services/background_worker.py",
+        "line_number": 1250,
+        "function": "_active_pipeline_control_heartbeat_loop",
+        "module": "app.services.background_worker"
+      },
+      {
+        "source_file": "app/services/background_worker.py",
+        "line_number": 1210,
+        "function": "persist_detached_job_control",
+        "module": "app.services.background_worker"
+      },
+      {
+        "source_file": "app/services/background_job_service.py",
+        "line_number": 1962,
+        "function": "heartbeat_job",
+        "module": "app.services.background_job_service"
+      },
+      {
+        "source_file": "app/services/background_job_service.py",
+        "line_number": 2269,
+        "function": "_apply_running_job_update",
+        "module": "app.services.background_job_service"
+      }
+    ],
+    "telemetry_priority": "P0"
+  }
+]
