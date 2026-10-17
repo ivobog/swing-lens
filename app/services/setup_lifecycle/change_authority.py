@@ -1,5 +1,7 @@
 """Exact native authority for supporting signal-change ledger rows."""
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import select
@@ -27,6 +29,84 @@ PROJECTION_FIELDS = (
     "confidence_score",
     "confidence_label",
 )
+
+_change_validation = ContextVar("setup_change_validation", default=None)
+
+
+@contextmanager
+def change_source_validation_scope(db, *, previous, current, history, configuration):
+    """Reuse exact locked source validation within one native comparison only."""
+    from app.services.setup_lifecycle.change_detector import SetupLifecycleChangeDetector
+    from app.services.source_mutation_authority import (
+        PrefetchedSourceBodies,
+        prefetched_source_scope,
+    )
+
+    sources = {row.id: row for row in (previous, current, *history)}
+    bundle = PrefetchedSourceBodies(db)
+    bundle.load(
+        SetupSignalSnapshot, select(SetupSignalSnapshot).where(SetupSignalSnapshot.id.in_(sources))
+    )
+    evidence_ids = {row.evidence_id for row in sources.values()}
+    bundle.load(
+        CoreCalculationEvidence,
+        select(CoreCalculationEvidence).where(CoreCalculationEvidence.id.in_(evidence_ids)),
+    )
+    bundle.load(
+        SetupLifecycleEvaluationEvidence,
+        select(SetupLifecycleEvaluationEvidence).where(
+            SetupLifecycleEvaluationEvidence.setup_evidence_id.in_(evidence_ids)
+        ),
+    )
+    bundle.load(
+        SetupSignalSnapshotSelectionEvent,
+        select(SetupSignalSnapshotSelectionEvent).where(
+            SetupSignalSnapshotSelectionEvent.selected_snapshot_id.in_(sources)
+        ),
+    )
+    bundle.load(
+        SetupSignalSnapshotCurrentSelection,
+        select(SetupSignalSnapshotCurrentSelection).where(
+            SetupSignalSnapshotCurrentSelection.selected_snapshot_id.in_(sources)
+        ),
+    )
+    bundle.seal()
+    with prefetched_source_scope(db, bundle, retain_execution_ownership=False):
+        manifest = discover_change_sources(db, previous=previous, current=current, history=history)
+        detector = SetupLifecycleChangeDetector(config=configuration.setup_config())
+        native = detector.detect_changes(
+            previous=previous,
+            current=current,
+            history=history,
+        )
+        state = {
+            "db": db,
+            "transaction": db.get_transaction(),
+            "bundle": bundle,
+            # The yielded manifest belongs to the caller. Keep an independent
+            # copy so altering it cannot alter the cache's validation key.
+            "pins": {key: dict(pin) for key, pin in manifest["snapshot_projections"].items()},
+            "native": native,
+            "detector": detector,
+            "source_rows": sources,
+            "comparison": (previous.id, current.id, tuple(row.id for row in history)),
+            "configuration": configuration.snapshot.resolution_hash,
+        }
+        token = _change_validation.set(state)
+        try:
+            yield manifest
+            _check_change_scope(db, state)
+            # Detect untracked in-place JSON edits as well as ORM/Core writes.
+            bundle.full_audit_unchanged_in_memory()
+        finally:
+            _change_validation.reset(token)
+
+
+def _check_change_scope(db, state):
+    if state["db"] is not db or state["transaction"] is not db.get_transaction():
+        raise ValueError("MUTATION_CHANGE_VALIDATION_TRANSACTION_CHANGED")
+    state["bundle"].refresh()
+    state["bundle"].assert_unchanged_in_memory()
 
 
 def signal_change_body(event):
@@ -61,7 +141,16 @@ def _evaluation_projection(evaluation):
     }
 
 
-def _projection_pin(db, snapshot, *, discover=False, supplied=None):
+def _projection_pin(db, snapshot, *, discover=False, supplied=None, selection_event_id=None):
+    state = _change_validation.get()
+    if (
+        state is not None
+        and not discover
+        and state["source_rows"].get(snapshot.id) is snapshot
+        and state["pins"].get(str(snapshot.id)) == supplied
+    ):
+        _check_change_scope(db, state)
+        return dict(supplied)
     validate_setup_projection(db, snapshot)
     setup = db.get(CoreCalculationEvidence, snapshot.evidence_id)
     captured = (setup.payload_json.get("debug_json") or {}).get("native_projection_at_capture")
@@ -112,21 +201,26 @@ def _projection_pin(db, snapshot, *, discover=False, supplied=None):
         ):
             raise ValueError("MUTATION_CHANGE_LIFECYCLE_PROJECTION_MISMATCH")
     if discover:
-        selection = db.scalar(
-            select(SetupSignalSnapshotCurrentSelection).where(
-                SetupSignalSnapshotCurrentSelection.selected_snapshot_id == snapshot.id,
-            )
-        )
-        audit = (
-            db.scalar(
-                select(SetupSignalSnapshotSelectionEvent).where(
-                    SetupSignalSnapshotSelectionEvent.selected_snapshot_id == snapshot.id,
-                    SetupSignalSnapshotSelectionEvent.selection_revision == selection.revision,
+        if selection_event_id is not None:
+            # Completed publication reads name an exact historical revision;
+            # fresh comparison discovery still requires the current pointer.
+            audit = db.get(SetupSignalSnapshotSelectionEvent, selection_event_id)
+        else:
+            selection = db.scalar(
+                select(SetupSignalSnapshotCurrentSelection).where(
+                    SetupSignalSnapshotCurrentSelection.selected_snapshot_id == snapshot.id,
                 )
             )
-            if selection
-            else None
-        )
+            audit = (
+                db.scalar(
+                    select(SetupSignalSnapshotSelectionEvent).where(
+                        SetupSignalSnapshotSelectionEvent.selected_snapshot_id == snapshot.id,
+                        SetupSignalSnapshotSelectionEvent.selection_revision == selection.revision,
+                    )
+                )
+                if selection
+                else None
+            )
         audit_id = audit.id if audit else None
     else:
         audit_id = (supplied or {}).get("selection_event_id")
@@ -159,6 +253,37 @@ def discover_change_sources(db, *, previous, current, history):
     }
 
 
+def _retained_projection(db, snapshot, pin):
+    """Read the immutable projection named by an existing proof.
+
+    Lifecycle processing may subsequently change serving projection columns.
+    That cannot change a previously certified change event's calculation input.
+    This view is for retained-source validation only, never a new writer bypass.
+    """
+    validate_setup_projection(db, snapshot)
+    setup = db.get(CoreCalculationEvidence, snapshot.evidence_id)
+    projection = (setup.payload_json.get("debug_json") or {}).get("native_projection_at_capture")
+    evaluation_id = pin.get("lifecycle_evaluation_evidence_id")
+    if evaluation_id is not None:
+        evaluation = db.get(SetupLifecycleEvaluationEvidence, evaluation_id)
+        validate_retained_decision(
+            db,
+            evaluation,
+            contract="setup-lifecycle-evaluation-evidence-v1",
+            payload_key="payload_fingerprint",
+        )
+        projection = _evaluation_projection(evaluation)
+    view = SetupSignalSnapshot(
+        **{column.name: getattr(snapshot, column.name) for column in snapshot.__table__.columns}
+    )
+    if not isinstance(projection, dict) or set(projection) != set(PROJECTION_FIELDS):
+        raise ValueError("MUTATION_CHANGE_CAPTURE_PROJECTION_AUTHORITY_REQUIRED")
+    for key, value in projection.items():
+        setattr(view, key, value)
+    _projection_pin(db, view, supplied=pin)
+    return view
+
+
 def validate_signal_change(db, event, *, configuration, source_manifest, source_validation=False):
     from app.services.calculation_identity import CalculationIdentity
     from app.services.domain_mutation import MutationDomain, MutationSemanticMode
@@ -174,6 +299,11 @@ def validate_signal_change(db, event, *, configuration, source_manifest, source_
     history = [db.get(SetupSignalSnapshot, key) for key in source_manifest["history_snapshot_ids"]]
     if any(row is None for row in history) or len({row.id for row in history}) != len(history):
         raise ValueError("MUTATION_CHANGE_HISTORY_AUTHORITY_MISMATCH")
+    if source_validation:
+        pins = source_manifest["snapshot_projections"]
+        previous = _retained_projection(db, previous, pins[str(previous.id)])
+        current = _retained_projection(db, current, pins[str(current.id)])
+        history = [_retained_projection(db, row, pins[str(row.id)]) for row in history]
     if (
         previous.data_as_of_date >= current.data_as_of_date
         or current.ticker != event.ticker
@@ -208,8 +338,21 @@ def validate_signal_change(db, event, *, configuration, source_manifest, source_
             or run.config_hash != current.config_hash
         ):
             raise ValueError("MUTATION_CHANGE_EVALUATION_RUN_SCOPE_MISMATCH")
-    detector = SetupLifecycleChangeDetector(config=configuration.setup_config())
-    changes = detector.detect_changes(previous=previous, current=current, history=tuple(history))
+    state = _change_validation.get()
+    if (
+        state is not None
+        and not source_validation
+        and state["configuration"] == configuration.snapshot.resolution_hash
+        and state["comparison"] == (previous.id, current.id, tuple(row.id for row in history))
+    ):
+        _check_change_scope(db, state)
+        changes = state["native"]
+        detector = state["detector"]
+    else:
+        detector = SetupLifecycleChangeDetector(config=configuration.setup_config())
+        changes = detector.detect_changes(
+            previous=previous, current=current, history=tuple(history)
+        )
     change = next((row for row in changes if row.signal_key == event.signal_key), None)
     if change is None:
         raise ValueError("MUTATION_CHANGE_NATIVE_CONDITION_MISMATCH")

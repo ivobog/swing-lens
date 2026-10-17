@@ -6,6 +6,7 @@ the identity, configuration, exact sources and manifest that it is writing.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import wraps
@@ -37,6 +38,7 @@ from app.services.market_clock_service import MarketCalculationCutoff
 from app.services.producer_readiness import readiness_from_evidence
 
 _active_writers = ContextVar("core_mutation_semantic_transactions", default=())
+_coalesced_writer_sessions = ContextVar("coalesced_core_writer_sessions", default=())
 
 
 @dataclass(frozen=True)
@@ -539,7 +541,7 @@ def validate_source_values(source, evidence, *, db=None, locked_source_rows=None
             name = field if field in mapper.column_attrs else field + "_json"
             if name not in mapper.column_attrs:
                 raise ValueError("MUTATION_SOURCE_VALUE_SCHEMA_MISMATCH: " + field)
-            if supplied_fields is not None and name not in supplied_fields:
+            if row is source and supplied_fields is not None and name not in supplied_fields:
                 continue  # Native frozen readers deliberately omit unused columns.
             actual = normalized[name] if normalized is not None else getattr(row, name)
             column = mapper.column_attrs[name].columns[0]
@@ -573,9 +575,11 @@ def validate_source_values(source, evidence, *, db=None, locked_source_rows=None
     if kind == "SECTOR":
         from app.models.tables import SectorRotationRow
 
-        db = object_session(source)
+        sector_db = db if db is not None else object_session(source)
+        if sector_db is None:
+            raise ValueError("MUTATION_SOURCE_SECTOR_SESSION_REQUIRED")
         rows = list(
-            db.scalars(
+            sector_db.scalars(
                 select(SectorRotationRow)
                 .where(SectorRotationRow.snapshot_id == source.id)
                 .with_for_update()
@@ -665,6 +669,15 @@ def core_writer_transaction(writer):
         if not isinstance(db, Session):
             return writer(*args, **kwargs)
         owner = writer.__module__ + ":" + writer.__qualname__
+        if db in _coalesced_writer_sessions.get() and any(
+            active_db is db for active_db, _active_owner in _active_writers.get()
+        ):
+            # The containing semantic writer owns the savepoint and rollback.
+            token = _active_writers.set(_active_writers.get() + ((db, owner),))
+            try:
+                return writer(*args, **kwargs)
+            finally:
+                _active_writers.reset(token)
         token = None
         preserved_exception = None
         try:
@@ -705,6 +718,18 @@ def core_writer_transaction(writer):
                 _active_writers.reset(token)
 
     return transactional
+
+
+@contextmanager
+def coalesced_core_writer_members(db: Session):
+    """Run nested Setup writers under their active batch writer's savepoint."""
+    if not any(active_db is db for active_db, _owner in _active_writers.get()):
+        raise RuntimeError("COALESCED_CORE_WRITER_REQUIRES_ACTIVE_BATCH")
+    token = _coalesced_writer_sessions.set(_coalesced_writer_sessions.get() + (db,))
+    try:
+        yield
+    finally:
+        _coalesced_writer_sessions.reset(token)
 
 
 def _validate_artifact_temporal_identity(current_row, identity) -> None:

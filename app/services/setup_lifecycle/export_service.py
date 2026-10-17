@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_
 
 from app.models.tables import SetupLifecycleEvent, SignalAlertEvent
 from app.services.csv_export import write_csv
+from app.services.setup_lifecycle.repository import published_lifecycle_select
 
 CHANGE_COLUMNS = (
     "id",
@@ -167,7 +168,7 @@ def setup_lifecycle_point_in_time_features(
     timeframe: str = "1d",
 ) -> dict[str, Any]:
     event = db.scalar(
-        select(SetupLifecycleEvent)
+        published_lifecycle_select(SetupLifecycleEvent)
         .where(SetupLifecycleEvent.ticker == ticker.strip().upper())
         .where(SetupLifecycleEvent.timeframe == timeframe)
         .where(SetupLifecycleEvent.effective_date <= as_of_date)
@@ -189,7 +190,7 @@ def setup_lifecycle_point_in_time_features(
         }
     alerts = list(
         db.scalars(
-            select(SignalAlertEvent)
+            published_lifecycle_select(SignalAlertEvent)
             .where(SignalAlertEvent.ticker == event.ticker)
             .where(SignalAlertEvent.timeframe == event.timeframe)
             .where(SignalAlertEvent.effective_date <= as_of_date)

@@ -61,6 +61,8 @@ class SetupLifecycleCanonicalizer:
         run_id: int,
         evaluation_run_id: int | None = None,
         snapshot_ids: tuple[int, ...] | None = None,
+        progress_callback=None,
+        should_cancel=None,
     ) -> CanonicalizationResult:
         if snapshot_ids is None:
             affected = self.repository.load_snapshots_for_run(
@@ -76,11 +78,54 @@ class SetupLifecycleCanonicalizer:
             affected,
             lock=False,
         )
-        return self.canonicalize_snapshots(
-            db,
-            candidates,
-            evaluation_run_id=evaluation_run_id,
-            affected_snapshot_ids=tuple(snapshot.id for snapshot in affected),
+        affected_ids = tuple(snapshot.id for snapshot in affected)
+        if progress_callback is None and should_cancel is None:
+            return self.canonicalize_snapshots(
+                db,
+                candidates,
+                evaluation_run_id=evaluation_run_id,
+                affected_snapshot_ids=affected_ids,
+            )
+        # All canonical keys are already locked above. Bound each native batch
+        # without releasing that authority or committing any domain publication.
+        groups = list(_groups(candidates).values())
+        results = []
+        for offset in range(0, len(groups), 5):
+            if should_cancel is not None and should_cancel():
+                from app.services.setup_lifecycle.evaluation_service import (
+                    SetupLifecycleEvaluationCancelled,
+                )
+
+                raise SetupLifecycleEvaluationCancelled("Setup canonicalization cancelled.")
+            batch = groups[offset : offset + 5]
+            results.append(
+                self.canonicalize_snapshots(
+                    db,
+                    [snapshot for group in batch for snapshot in group],
+                    evaluation_run_id=evaluation_run_id,
+                    affected_snapshot_ids=affected_ids,
+                )
+            )
+            if progress_callback is not None:
+                ticker = batch[-1][0].ticker
+                progress_callback(
+                    phase="CANONICALIZATION_BATCH_COMPLETED",
+                    processed=offset + len(batch),
+                    total=len(groups),
+                    current_item=ticker,
+                    last_completed_item=ticker,
+                )
+        return CanonicalizationResult(
+            selected_snapshot_ids=tuple(
+                key for row in results for key in row.selected_snapshot_ids
+            ),
+            changed_snapshot_ids=tuple(key for row in results for key in row.changed_snapshot_ids),
+            unchanged_snapshot_ids=tuple(
+                key for row in results for key in row.unchanged_snapshot_ids
+            ),
+            audit_event_ids=tuple(key for row in results for key in row.audit_event_ids),
+            groups_evaluated=sum(row.groups_evaluated for row in results),
+            warnings=tuple(warning for row in results for warning in row.warnings),
         )
 
     @anchored_decision_calculator

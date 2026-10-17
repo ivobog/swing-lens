@@ -87,7 +87,134 @@ def current_canonical_snapshot_predicate(snapshot_entity=SetupSignalSnapshot):
     return (
         select(SetupSignalSnapshotCurrentSelection.id)
         .where(SetupSignalSnapshotCurrentSelection.selected_snapshot_id == snapshot_entity.id)
+        .where(
+            lifecycle_publication_predicate(
+                SetupSignalSnapshotCurrentSelection.selected_evaluation_run_id,
+                snapshot_id=SetupSignalSnapshotCurrentSelection.selected_snapshot_id,
+            )
+        )
+        .correlate(snapshot_entity)
         .exists()
+    )
+
+
+def lifecycle_publication_predicate(
+    evaluation_id,
+    *,
+    snapshot_id=None,
+    change_event_id=None,
+    alert_event_id=None,
+):
+    """Serving requires a completed publication; raw audit rows remain readable.
+
+    A replay can publish validated existing artifacts without rewriting their
+    original evaluation provenance. Its exact IDs live in the existing audit.
+    NULL owners retain the existing explicit standalone/legacy contract.
+    """
+    from sqlalchemy import Text, cast
+    from sqlalchemy.orm import aliased
+
+    publication = aliased(SetupLifecycleEvaluationRun)
+    completed = publication.status.in_(("COMPLETED", "PARTIAL"))
+    choices = [
+        evaluation_id.is_(None),
+        select(publication.id).where(publication.id == evaluation_id, completed).exists(),
+    ]
+    for audit_field, artifact_id in (
+        ("published_snapshots", snapshot_id),
+        ("published_change_events", change_event_id),
+        ("published_alert_events", alert_event_id),
+    ):
+        if artifact_id is not None:
+            snapshot = aliased(SetupSignalSnapshot)
+            source = select(snapshot.run_id)
+            if audit_field == "published_snapshots":
+                source = source.where(snapshot.id == artifact_id)
+            elif audit_field == "published_change_events":
+                change = aliased(SignalChangeEvent)
+                source = source.join(change, change.current_snapshot_id == snapshot.id).where(
+                    change.id == artifact_id
+                )
+            else:
+                change = aliased(SignalChangeEvent)
+                alert = aliased(SignalAlertEvent)
+                source = (
+                    source.join(change, change.current_snapshot_id == snapshot.id)
+                    .join(alert, alert.signal_change_event_id == change.id)
+                    .where(alert.id == artifact_id)
+                )
+            # The source expression is two levels below its serving entity.
+            # Explicit correlation prevents an accidental whole-table scalar.
+            source = source.correlate(artifact_id.class_)
+            choices.append(
+                select(publication.id)
+                .where(
+                    completed,
+                    publication.source_run_id == source.scalar_subquery(),
+                    publication.audit_json[audit_field].op("->>")(cast(artifact_id, Text))
+                    == "published",
+                )
+                .exists()
+            )
+    return or_(*choices)
+
+
+def published_lifecycle_select(entity):
+    """Build serving queries without changing raw audit/recovery access."""
+    owners = {
+        SetupLifecycleEpisode: (
+            SetupLifecycleEpisode.opening_evaluation_id,
+            SetupLifecycleEpisode.current_snapshot_id,
+            None,
+        ),
+        SetupLifecycleEvent: (
+            SetupLifecycleEvent.evaluation_run_id,
+            SetupLifecycleEvent.snapshot_id,
+            None,
+        ),
+        SignalChangeEvent: (SignalChangeEvent.evaluation_run_id, None, SignalChangeEvent.id),
+        SignalAlertEvent: (
+            SignalAlertEvent.evaluation_run_id,
+            None,
+            SignalAlertEvent.signal_change_event_id,
+        ),
+    }
+    owner, snapshot, change = owners[entity]
+    if entity is SetupLifecycleEpisode:
+        from sqlalchemy import case
+        from sqlalchemy.orm import aliased
+
+        from app.models.tables import SetupLifecycleEvaluationEvidence
+
+        latest = aliased(SetupLifecycleEvaluationEvidence)
+        owner = case(
+            (
+                entity.latest_evaluation_evidence_id.is_not(None),
+                select(latest.evaluation_run_id)
+                .where(latest.id == entity.latest_evaluation_evidence_id)
+                .correlate(entity)
+                .scalar_subquery(),
+            ),
+            else_=owner,
+        )
+        snapshot = None
+    if entity is SetupLifecycleEvent:
+        return select(entity).where(
+            or_(
+                lifecycle_publication_predicate(owner),
+                and_(
+                    entity.event_type == "CANONICAL_REVISION",
+                    lifecycle_publication_predicate(owner, snapshot_id=snapshot),
+                ),
+            )
+        )
+    return select(entity).where(
+        lifecycle_publication_predicate(
+            owner,
+            snapshot_id=snapshot,
+            change_event_id=change if entity is not SignalAlertEvent else None,
+            alert_event_id=entity.id if entity is SignalAlertEvent else None,
+        )
     )
 
 
@@ -1043,6 +1170,7 @@ class SetupLifecycleRepository:
             .where(SetupSignalSnapshot.timeframe == timeframe)
             .where(SetupSignalSnapshot.data_as_of_date < before_date)
             .where(SetupSignalSnapshot.evidence_id.is_not(None))
+            .where(current_canonical_snapshot_predicate())
             .order_by(
                 SetupSignalSnapshot.data_as_of_date.desc(),
                 SetupSignalSnapshot.id.desc(),
@@ -1072,6 +1200,7 @@ class SetupLifecycleRepository:
                 .where(SetupSignalSnapshot.timeframe == timeframe)
                 .where(SetupSignalSnapshot.data_as_of_date < before_date)
                 .where(SetupSignalSnapshot.evidence_id.is_not(None))
+                .where(current_canonical_snapshot_predicate())
                 .order_by(
                     SetupSignalSnapshot.data_as_of_date.desc(),
                     SetupSignalSnapshot.id.desc(),
@@ -1125,6 +1254,7 @@ class SetupLifecycleRepository:
             )
             .where(or_(*cutoff_predicates))
             .where(SetupSignalSnapshot.evidence_id.is_not(None))
+            .where(current_canonical_snapshot_predicate())
             .subquery()
         )
         rows = list(
@@ -1288,6 +1418,7 @@ class SetupLifecycleRepository:
                 .where(SetupSignalSnapshot.timeframe == timeframe)
                 .where(SetupSignalSnapshot.data_as_of_date < before_date)
                 .where(SetupSignalSnapshot.evidence_id.is_not(None))
+                .where(current_canonical_snapshot_predicate())
                 .order_by(
                     SetupSignalSnapshot.ticker,
                     SetupSignalSnapshot.data_as_of_date.desc(),
@@ -1659,14 +1790,28 @@ class SetupLifecycleRepository:
             )
         existing = self.get_signal_change_event(db, event.source_event_key)
         if existing is not None:
-            if isinstance(db, Session) and (
-                signal_change_body(existing) != signal_change_body(event)
-                or CanonicalEvidenceSerializer.dumps(
-                    (existing.evidence_json or {}).get("native_change_proof")
+            if isinstance(db, Session):
+                retained_proof = (existing.evidence_json or {}).get("native_change_proof")
+                old_body, new_body = signal_change_body(existing), signal_change_body(event)
+                # Evaluation IDs record the creating attempt, not event identity.
+                # Preserve that provenance and validate its original proof.
+                old_body.pop("evaluation_run_id")
+                new_body.pop("evaluation_run_id")
+                if old_body != new_body or not isinstance(retained_proof, dict):
+                    raise ValueError("MUTATION_CHANGE_ALTERED_RETRY")
+                verified = validate_signal_change(
+                    db,
+                    existing,
+                    configuration=effective_configuration,
+                    source_manifest=retained_proof.get("source_manifest"),
+                    source_validation=True,
                 )
-                != CanonicalEvidenceSerializer.dumps(proof)
-            ):
-                raise ValueError("MUTATION_CHANGE_ALTERED_RETRY")
+                if (
+                    CanonicalEvidenceSerializer.dumps(retained_proof)
+                    != CanonicalEvidenceSerializer.dumps(verified)
+                    or retained_proof["source_manifest"] != proof["source_manifest"]
+                ):
+                    raise ValueError("MUTATION_CHANGE_ALTERED_RETRY")
             return existing
         if isinstance(db, Session):
             event.evidence_json = {

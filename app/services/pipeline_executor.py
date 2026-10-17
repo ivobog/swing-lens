@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from inspect import Parameter, signature
@@ -56,6 +56,7 @@ from app.services.decision_handoff_contract import (
     RequiredHandoffContextArtifact,
     validate_required_handoff_context_artifact,
 )
+from app.services.domain_write_fence import ControlPlaneLockTimeout
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_job_service import FetchJobOptions, _admit_fetch_authority
@@ -910,11 +911,11 @@ def execute_full_pipeline(
                 upload_run.id,
                 market_cutoff,
                 pipeline_run_id=pipeline.id,
-                checkpoint_callback=lambda **progress: _ranking_job_checkpoint(
+                checkpoint_callback=_ranking_checkpoint_callback(
                     db,
+                    should_cancel=should_cancel,
                     progress_callback=progress_callback,
                     lease_guard=lease_guard,
-                    **progress,
                 ),
             )
             result["ranking_profiles"] = ranking.profile_count
@@ -1021,7 +1022,7 @@ def execute_full_pipeline(
         _record_performance_metrics(db, PipelineStatus.FAILED, result["performance"])
         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
-    except JobLeaseLost:
+    except (JobLeaseLost, ControlPlaneLockTimeout):
         if overlap_coordinator is not None:
             overlap_coordinator.abort()
         raise
@@ -1166,7 +1167,7 @@ def _continue_after_sector_snapshot(
             SLSE_PIPELINE_CAPTURE_STEP,
             lease_guard=lease_guard,
             performance=performance,
-        ):
+        ) as capture_step:
             capture = dependencies.capture_setup_signals or _capture_setup_signals
             capture_result = _call_market_sensitive(
                 capture,
@@ -1182,6 +1183,7 @@ def _continue_after_sector_snapshot(
                 capture_result,
                 performance=performance,
             )
+            _retain_setup_capture_handoff(capture_step, capture_result)
         _raise_if_cancelled(should_cancel)
         setup_evaluation_checkpoint = _setup_evaluation_checkpoint_callback(
             db,
@@ -1556,7 +1558,12 @@ def _execute_resumed_pipeline(
             result.get("market_regime_confidence") == "low"
         )
 
-        capture_result = None
+        capture_result = (
+            _retained_setup_capture_handoff(db, pipeline.id)
+            if resume_from_step == SLSE_PIPELINE_EVALUATION_STEP
+            and _setup_lifecycle_pipeline_step_enabled(dependencies)
+            else None
+        )
         run_setup_capture = resume_from_step in {
             DECISION_HANDOFF_PIPELINE_STEP,
             SLSE_PIPELINE_CAPTURE_STEP,
@@ -1579,7 +1586,7 @@ def _execute_resumed_pipeline(
                 SLSE_PIPELINE_CAPTURE_STEP,
                 lease_guard=lease_guard,
                 performance=performance,
-            ):
+            ) as capture_step:
                 capture = dependencies.capture_setup_signals or _capture_setup_signals
                 if dependencies.market_cutoff is None:
                     raise RuntimeError("resumed pipeline is missing its frozen market cutoff")
@@ -1597,6 +1604,7 @@ def _execute_resumed_pipeline(
                     capture_result,
                     performance=performance,
                 )
+                _retain_setup_capture_handoff(capture_step, capture_result)
         if _setup_lifecycle_pipeline_step_enabled(dependencies) and run_setup_evaluation:
             _raise_if_cancelled(should_cancel)
             setup_evaluation_checkpoint = _setup_evaluation_checkpoint_callback(
@@ -1688,7 +1696,7 @@ def _execute_resumed_pipeline(
         result["blocked_diagnostics"] = exc.diagnostics
         _mark_pipeline_blocked(db, pipeline, exc, result=result, lease_guard=lease_guard)
         raise
-    except JobLeaseLost:
+    except (JobLeaseLost, ControlPlaneLockTimeout):
         raise
     except PipelineCancelled:
         result["performance"] = performance.snapshot()
@@ -2534,6 +2542,7 @@ def _pipeline_step(
         observed_at=attempt_started_at,
     )
     step = _require_step(db, pipeline.id, step_name)
+    step_id = step.id
     if step.status in {
         PipelineStepStatus.RUNNING,
         PipelineStepStatus.COMPLETED,
@@ -2574,7 +2583,7 @@ def _pipeline_step(
     _report_job_stage_progress(db, pipeline, step_name)
     try:
         yield step
-    except JobLeaseLost:
+    except (JobLeaseLost, ControlPlaneLockTimeout):
         observe_step("LEASE_LOST", "JOB_LEASE_LOST")
         raise
     except CeriBootstrapRequiredError:
@@ -2607,6 +2616,11 @@ def _pipeline_step(
         observe_step(step.status)
         raise
     except Exception as exc:
+        if isinstance(db, Session):
+            # Failure reporting is not a publication boundary for staged domain
+            # writes. Keep only the previously committed stage/attempt state.
+            db.rollback()
+            step = db.get(PipelineStep, step_id)
         step.status = PipelineStepStatus.FAILED
         step.completed_at = _utcnow()
         step.error_message = _safe_message(str(exc))
@@ -2729,6 +2743,7 @@ def _technical_job_checkpoint(
                     "CALCULATED",
                     "DECLARING_EVIDENCE",
                     "BATCH_PERSISTED",
+                    "PERSISTING_EVIDENCE",
                     "PUBLISHED",
                 }
                 else None
@@ -3253,22 +3268,20 @@ def _setup_evaluation_checkpoint_callback(
                         "total": total,
                     }
                 },
-                commit_mutation_transaction=phase
-                in {
-                    "INPUTS_LOADED",
-                    "CANDIDATES_SELECTED",
-                    "EVIDENCE_VALIDATION_BATCH_COMPLETED",
-                    "EVIDENCE_AUTHORITY_VALIDATION_COMPLETED",
-                    "CHANGE_DETECTION_COMPLETED",
-                    "CHANGE_ALERT_EVALUATION_COMPLETED",
-                    "LIFECYCLE_INPUTS_LOADED",
-                    "RECONCILIATION_BATCH_COMPLETED",
-                    "LIFECYCLE_EVALUATION_STARTED",
-                    "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
-                    "PRIMARY_STATUS_REFRESH_BATCH_COMPLETED",
-                    "STATE_TRANSITION_EVALUATION_COMPLETED",
-                },
             )
+
+    return checkpoint
+
+
+def _ranking_checkpoint_callback(db, *, should_cancel, progress_callback, lease_guard):
+    def checkpoint(**progress):
+        _raise_if_cancelled(should_cancel)
+        _ranking_job_checkpoint(
+            db,
+            progress_callback=progress_callback,
+            lease_guard=lease_guard,
+            **progress,
+        )
 
     return checkpoint
 
@@ -3963,6 +3976,26 @@ def _capture_setup_signals(
         )
     except SetupLifecycleCaptureCancelled as exc:
         raise PipelineCancelled(str(exc)) from exc
+
+
+def _retain_setup_capture_handoff(step, capture_result):
+    from app.services.setup_lifecycle.snapshot_builder import SnapshotCaptureResult
+
+    if isinstance(capture_result, SnapshotCaptureResult):
+        step.result_json = {
+            **(step.result_json or {}),
+            "setup_capture_handoff": asdict(capture_result),
+        }
+
+
+def _retained_setup_capture_handoff(db, pipeline_id):
+    from app.services.setup_lifecycle.snapshot_builder import SnapshotCaptureResult
+
+    step = _require_step(db, pipeline_id, SLSE_PIPELINE_CAPTURE_STEP)
+    payload = (step.result_json or {}).get("setup_capture_handoff")
+    if step.status != PipelineStepStatus.COMPLETED or payload is None:
+        return None
+    return SnapshotCaptureResult(**{**payload, "snapshot_ids": tuple(payload["snapshot_ids"])})
 
 
 def _evaluate_setup_lifecycles(

@@ -924,7 +924,8 @@ def test_structural_progress_advance_prevents_false_stall_after_300_seconds() ->
     now = datetime.now(UTC)
     job = _running_job()
     job.heartbeat_at = now
-    job.last_progress_at = now - timedelta(minutes=10)
+    # The real progress UPDATE advances timestamp and sequence atomically.
+    job.last_progress_at = now
     job.progress_stage = "CERI_PROVIDER_INGEST"
     job.progress_sequence = 146
     job.operational_metadata_json = {
@@ -948,8 +949,8 @@ def test_structural_progress_advance_prevents_false_stall_after_300_seconds() ->
         == []
     )
     observation = job.operational_metadata_json["progress_watchdog"]
-    assert observation["progress_sequence"] == 146
-    assert observation["unchanged_since"] == now.isoformat()
+    assert observation["progress_sequence"] == 145
+    assert observation["unchanged_since"] == (now - timedelta(minutes=10)).isoformat()
 
 
 def test_sec_repair_progress_advance_prevents_false_default_timeout_fence() -> None:
@@ -981,8 +982,8 @@ def test_sec_repair_progress_advance_prevents_false_default_timeout_fence() -> N
     )
     assert job.status == JobStatus.RUNNING
     observation = job.operational_metadata_json["progress_watchdog"]
-    assert observation["progress_sequence"] == 12
-    assert observation["unchanged_since"] == now.isoformat()
+    assert observation["progress_sequence"] == 11
+    assert observation["unchanged_since"] == (now - timedelta(minutes=10)).isoformat()
 
 
 def test_fresh_worker_and_lease_heartbeats_do_not_mask_frozen_progress_sequence() -> None:

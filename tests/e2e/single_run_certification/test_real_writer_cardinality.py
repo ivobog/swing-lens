@@ -76,7 +76,7 @@ def certification_provider_ingest_enabled() -> bool:
 @pytest.mark.e2e
 @pytest.mark.slow
 @pytest.mark.destructive
-@pytest.mark.parametrize("size", (10, 100))
+@pytest.mark.parametrize("size", (10, 88, 100))
 def test_frozen_real_writer_cardinality(
     certification_environment,  # noqa: F811
     certification_page,  # noqa: F811
@@ -132,8 +132,8 @@ def test_frozen_real_writer_cardinality(
             env,
             recorder,
             run_id,
-            absolute_deadline_seconds=3600 if size == 100 else 900,
-            progress_deadline_seconds=900 if size == 100 else 180,
+            absolute_deadline_seconds=3600 if size >= 88 else 900,
+            progress_deadline_seconds=900 if size >= 88 else 180,
             admission_deadline_seconds=600 if size == 100 else 300,
         )
         if status != "COMPLETED":
@@ -311,6 +311,8 @@ def test_frozen_real_writer_cardinality(
             assert counts["technical"] == size, counts
             assert counts["combined"] == size, counts
             assert counts["ceri"] > 0 and counts["setup"] > 0 and counts["winner"] > 0, counts
+            if size == 88:
+                assert all(counts[name] == size for name in ("ceri", "setup", "winner")), counts
             assert job_counts.get("CERI_PROVIDER_INGEST_BATCH", 0) > 0, job_counts
             assert job_counts.get("CERI_NORMALIZE_BATCH", 0) > 0, job_counts
             assert job_counts.get("CERI_FEATURE_BATCH", 0) > 0, job_counts

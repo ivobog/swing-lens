@@ -20,6 +20,7 @@ from app.services.setup_lifecycle.episode_service import SetupLifecycleEpisodeSe
 from app.services.setup_lifecycle.repository import (
     SetupLifecycleRepository,
     current_canonical_snapshot_predicate,
+    published_lifecycle_select,
 )
 
 
@@ -192,7 +193,7 @@ class SetupLifecycleMaintenanceService:
     def _active_episodes(self, db) -> list[SetupLifecycleEpisode]:
         return list(
             db.scalars(
-                select(SetupLifecycleEpisode)
+                published_lifecycle_select(SetupLifecycleEpisode)
                 .where(SetupLifecycleEpisode.status == "ACTIVE")
                 .where(SetupLifecycleEpisode.latest_evaluation_evidence_id.is_not(None))
                 .where(SetupLifecycleEpisode.latest_transition_evidence_id.is_not(None))
@@ -231,7 +232,7 @@ class SetupLifecycleMaintenanceService:
         date_from: date | None,
         date_to: date | None,
     ) -> list[SetupLifecycleEvent]:
-        statement = select(SetupLifecycleEvent).where(
+        statement = published_lifecycle_select(SetupLifecycleEvent).where(
             SetupLifecycleEvent.is_current_version.is_(True)
         )
         if ticker:
@@ -254,7 +255,7 @@ class SetupLifecycleMaintenanceService:
     ):
         from app.models.tables import SignalChangeEvent
 
-        statement = select(SignalChangeEvent)
+        statement = published_lifecycle_select(SignalChangeEvent)
         if ticker:
             statement = statement.where(
                 SignalChangeEvent.ticker == self.repository.normalize_ticker(ticker)

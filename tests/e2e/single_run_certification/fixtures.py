@@ -416,6 +416,8 @@ def seed_prerequisites(
             _seed_ceri_manual_evidence(db, as_of_session=as_of_session)
         )
         db.commit()
+        _seed_native_fundamental_contract_sample(db, run_id=decoy.id)
+        db.commit()
         counts = {
             "upload_runs": db.query(UploadRun).count(),
             "price_bars": db.query(PriceBar).count(),
@@ -433,6 +435,63 @@ def seed_prerequisites(
         )
     engine.dispose()
     return result
+
+
+def _seed_native_fundamental_contract_sample(db: Session, *, run_id: int) -> None:
+    """Supply the real score required by the deployment admission ORM probe.
+
+    Keep this prerequisite in the decoy run. The target run still executes its
+    own complete financial pipeline and cannot consume this canary's evidence.
+    """
+    from app.models.tables import ExecutionConfigurationBinding, PipelineRun
+    from app.services.configuration_delivery import (
+        persist_configuration_anchor,
+        resolve_readiness_configurations,
+    )
+    from app.services.core_effective_configuration import resolve_fundamental_configuration
+    from app.services.fundamental_score_service import recalculate_run_fundamentals
+    from app.services.market_calculation_context_service import create_pipeline_market_context
+
+    config = resolve_fundamental_configuration()
+    financials = json.loads(Path(__file__).with_name("financial_inputs.json").read_text())
+    aliases = config.values["column_aliases"]
+    db.add(
+        RawCompanyRow(
+            run_id=run_id,
+            row_number=1,
+            ticker=DECOY_TICKER,
+            sector="Technology",
+            sector_canonical="Information Technology",
+            raw_json={
+                "Symbol": DECOY_TICKER,
+                **{aliases[key][0]: value for key, value in financials.items() if key in aliases},
+            },
+        )
+    )
+    pipeline = PipelineRun(upload_run_id=run_id, status="RUNNING")
+    db.add(pipeline)
+    db.flush()
+    cutoff = create_pipeline_market_context(db, pipeline, cutoff_at=datetime.now(UTC))
+    configs = (config, *resolve_readiness_configurations())
+    anchor = persist_configuration_anchor(
+        db, {item.snapshot.family.namespace: item for item in configs}
+    )
+    db.add(
+        ExecutionConfigurationBinding(
+            binding_key=f"pipeline:{pipeline.id}",
+            pipeline_run_id=pipeline.id,
+            anchor_id=anchor["anchor_id"],
+        )
+    )
+    db.flush()
+    scores = recalculate_run_fundamentals(
+        db,
+        run_id,
+        market_cutoff=cutoff,
+        pipeline_run_id=pipeline.id,
+        effective_configuration=config,
+    )
+    assert len(scores) == 1 and scores[0].evidence_id is not None
 
 
 def _seed_setup_lifecycle_baseline(
@@ -589,7 +648,11 @@ def _seed_price_bars(
         count = (
             bar_count
             if bar_count is not None
-            else 180 if ticker == "FOXT" else 90 if ticker == "GOLF" else 320
+            else 180
+            if ticker == "FOXT"
+            else 90
+            if ticker == "GOLF"
+            else 320
         )
         for what_to_show in what_to_show_values:
             for bar in _ohlcv(ticker, count, as_of_session=as_of_session):
@@ -925,9 +988,7 @@ def _seed_ceri_manual_evidence(
         db,
         CeriFeatureRebuildRequest(
             company_ids=tuple(
-                db.scalars(
-                    select(CeriCompany.id).where(CeriCompany.ticker.in_(tickers))
-                )
+                db.scalars(select(CeriCompany.id).where(CeriCompany.ticker.in_(tickers)))
             ),
             # Use the same canonical completed exchange session as the seeded
             # market bars, including on weekends and exchange holidays.
@@ -941,8 +1002,7 @@ def _seed_ceri_manual_evidence(
         request_key=(
             f"certification:features:{FIXTURE_VERSION}"
             if tickers == CANONICAL_TICKERS
-            else "certification:features:"
-            + hashlib.sha256("|".join(tickers).encode()).hexdigest()
+            else "certification:features:" + hashlib.sha256("|".join(tickers).encode()).hexdigest()
         ),
         scope={"tickers": list(tickers)},
     )

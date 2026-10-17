@@ -8451,6 +8451,15 @@
     },
     {
       "path": "app/services/pipeline_service.py",
+      "function": "mark_pipeline_job_failure",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-006"
+      ],
+      "reason": "Run 40: suppress queued infrastructure retry when the locked parent is terminal, cancelled or revoked."
+    },
+    {
+      "path": "app/services/pipeline_service.py",
       "function": "start_pipeline",
       "kind": "add",
       "writer_ids": [
@@ -13563,6 +13572,13 @@
     },
     {
       "path": "app/services/pipeline_executor.py",
+      "function": "_pipeline_step",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Run 40: discard unfinished domain writes before separately recording a failed step."
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
       "function": "_save_progress",
       "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
@@ -13875,6 +13891,13 @@
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/setup_lifecycle/evaluation_service.py",
+      "function": "evaluate_run",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Run 40: failure audit only, in a separate bounded domain session after atomic business rollback; successful publication remains caller-owned."
     },
     {
       "path": "app/services/setup_lifecycle/repository.py",
@@ -17337,6 +17360,10 @@
     {
       "path": "app/services/pipeline_service.py",
       "function": "enqueue_pipeline_after_ceri_completion"
+    },
+    {
+      "path": "app/services/pipeline_service.py",
+      "function": "mark_pipeline_job_failure"
     },
     {
       "path": "app/services/pipeline_state_machine.py",

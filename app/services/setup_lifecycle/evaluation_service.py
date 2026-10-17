@@ -5,7 +5,12 @@ from dataclasses import dataclass, field
 from inspect import Parameter, signature
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.services.configuration_delivery import anchored_decision_calculator
+from app.services.core_mutation_authority import core_writer_transaction
+from app.services.domain_write_fence import bounded_domain_session
 from app.services.market_calculation_context_service import (
     assert_pipeline_calculation_context,
 )
@@ -37,7 +42,7 @@ class SetupLifecycleEvaluationCancelled(Exception):
     pass
 
 
-_LIFECYCLE_PROGRESS_BATCH_SIZE = 25
+_LIFECYCLE_PROGRESS_BATCH_SIZE = 5
 
 
 @dataclass(frozen=True)
@@ -136,6 +141,83 @@ class SetupLifecycleEvaluationService:
         pipeline_run_id: int | None = None,
         progress_callback: Callable[..., None] | None = None,
     ) -> SetupLifecycleEvaluationResult:
+        # Capture has its own existing preparation/commit contract. Complete it
+        # before opening the atomic lifecycle publication transaction.
+        if isinstance(db, Session) and capture_result is None and snapshot_ids is None:
+            capture_result = self.capture_service.capture_snapshots_for_run(
+                db,
+                run_id,
+                requester=requester,
+                market_cutoff=market_cutoff,
+                should_cancel=should_cancel,
+            )
+        try:
+            return self._evaluate_run(
+                db,
+                run_id,
+                requester=requester,
+                should_cancel=should_cancel,
+                capture_result=capture_result,
+                snapshot_ids=snapshot_ids,
+                market_cutoff=market_cutoff,
+                pipeline_run_id=pipeline_run_id,
+                progress_callback=progress_callback,
+            )
+        except Exception as exc:
+            from app.models.tables import UploadRun
+            from app.services.background_job_service import JobLeaseLost
+            from app.services.pipeline_executor import PipelineCancelled
+
+            if not isinstance(db, Session) or isinstance(exc, JobLeaseLost):
+                raise
+            # The semantic writer has rolled back the complete business unit.
+            # Only an audit row is committed here, in a separately fenced
+            # transaction; the caller still owns a successful publication.
+            with bounded_domain_session(db) as audit_db:
+                if audit_db.get(UploadRun, run_id) is not None:
+                    failed = self.repository.create_evaluation_run(
+                        audit_db,
+                        mode="LIVE",
+                        status=EvaluationStatus.RUNNING.value,
+                        engine_version=self.config.engine.version,
+                        config_version=self.config.engine.config_version,
+                        config_hash=self.config.config_hash,
+                        source_run_id=run_id,
+                        source_run_id_text=str(run_id),
+                        output_evaluation_version=self._evaluation_version(run_id),
+                        requester=requester,
+                    )
+                    self.repository.complete_evaluation_run(
+                        audit_db,
+                        failed,
+                        status=(
+                            EvaluationStatus.CANCELLED.value
+                            if isinstance(
+                                exc, (SetupLifecycleEvaluationCancelled, PipelineCancelled)
+                            )
+                            else EvaluationStatus.FAILED.value
+                        ),
+                        current_phase="failed",
+                        counts={"failed": 1},
+                        errors={"system": str(exc)},
+                    )
+                    audit_db.commit()
+            raise
+
+    @core_writer_transaction
+    def _evaluate_run(
+        self,
+        db,
+        run_id: int,
+        *,
+        requester: str | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+        capture_result: SnapshotCaptureResult | None = None,
+        snapshot_ids: tuple[int, ...] | None = None,
+        market_cutoff: MarketCalculationCutoff | None = None,
+        pipeline_run_id: int | None = None,
+        progress_callback: Callable[..., None] | None = None,
+    ) -> SetupLifecycleEvaluationResult:
         from sqlalchemy.orm import Session
 
         from app.services.entrypoint_authority import EntryPointAuthorityError
@@ -164,6 +246,18 @@ class SetupLifecycleEvaluationService:
                 supplied_context=market_cutoff,
             )
         handoff_snapshot_ids = _handoff_snapshot_ids(capture_result, snapshot_ids)
+        if isinstance(db, Session) and handoff_snapshot_ids is not None:
+            completed = self._completed_publication(
+                db,
+                run_id,
+                handoff_snapshot_ids,
+                capture_result,
+                market_cutoff,
+                should_cancel=should_cancel,
+                progress_callback=progress_callback,
+            )
+            if completed is not None:
+                return completed
         evaluation_run = self.repository.create_evaluation_run(
             db,
             mode="LIVE",
@@ -218,6 +312,8 @@ class SetupLifecycleEvaluationService:
                 run_id=run_id,
                 evaluation_run_id=evaluation_run.id,
                 snapshot_ids=handoff_snapshot_ids,
+                progress_callback=progress_callback,
+                should_cancel=should_cancel,
             )
             selected_snapshot_ids = tuple(canonical.selected_snapshot_ids)
             selected_total = len(selected_snapshot_ids)
@@ -261,6 +357,8 @@ class SetupLifecycleEvaluationService:
                 db,
                 evaluation_run_id=evaluation_run.id,
                 snapshot_ids=selected_snapshot_ids,
+                progress_callback=progress_callback,
+                should_cancel=should_cancel,
             )
             _report_lifecycle_progress(
                 progress_callback,
@@ -291,10 +389,13 @@ class SetupLifecycleEvaluationService:
                     evaluation_run_id=evaluation_run.id,
                     snapshot_ids=selected_snapshot_ids,
                     progress_callback=progress_callback,
+                    should_cancel=should_cancel,
                 )
             )
             self._checkpoint(db, evaluation_run.id, "finalize", should_cancel)
         except SetupLifecycleEvaluationCancelled:
+            if isinstance(db, Session):
+                raise
             self.repository.complete_evaluation_run(
                 db,
                 evaluation_run,
@@ -304,6 +405,8 @@ class SetupLifecycleEvaluationService:
             )
             raise
         except Exception as exc:
+            if isinstance(db, Session):
+                raise
             from app.services.setup_lifecycle.errors import SetupLifecycleReconciliationError
 
             self.repository.complete_evaluation_run(
@@ -339,6 +442,21 @@ class SetupLifecycleEvaluationService:
             total=1,
             current_item="evaluation-result",
         )
+        if isinstance(db, Session):
+            self.repository.record_evaluation_audit(
+                db,
+                evaluation_run.id,
+                {
+                    **(evaluation_run.audit_json or {}),
+                    "published_snapshots": {str(key): "published" for key in selected_snapshot_ids},
+                    "published_change_events": {
+                        str(key): "published" for key in changes.event_ids if key is not None
+                    },
+                    "published_alert_events": {
+                        str(key): "published" for key in change_alerts.event_ids if key is not None
+                    },
+                },
+            )
         self.repository.complete_evaluation_run(
             db,
             evaluation_run,
@@ -369,6 +487,141 @@ class SetupLifecycleEvaluationService:
             last_completed_item="evaluation-result",
         )
         return result
+
+    def _completed_publication(
+        self,
+        db,
+        run_id,
+        snapshot_ids,
+        capture,
+        market_cutoff,
+        *,
+        should_cancel,
+        progress_callback,
+    ):
+        from app.models.tables import (
+            SetupLifecycleEpisode,
+            SetupLifecycleEvaluationRun,
+            SetupSignalSnapshotSelectionEvent,
+            SignalAlertEvent,
+        )
+        from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+        from app.services.decision_mutation_authority import (
+            validate_episode_projection,
+        )
+        from app.services.setup_lifecycle.alert_authority import validate_alert_event_projection
+        from app.services.setup_lifecycle.change_authority import (
+            _projection_pin,
+            validate_signal_change,
+        )
+
+        for published in db.scalars(
+            select(SetupLifecycleEvaluationRun)
+            .where(
+                SetupLifecycleEvaluationRun.source_run_id == run_id,
+                SetupLifecycleEvaluationRun.config_hash == self.config.config_hash,
+                SetupLifecycleEvaluationRun.status.in_(("COMPLETED", "PARTIAL")),
+            )
+            .order_by(SetupLifecycleEvaluationRun.id.desc())
+        ):
+            audit = published.audit_json or {}
+            if set(audit.get("published_snapshots", {})) != {str(key) for key in snapshot_ids}:
+                continue
+            self._validate_capture_handoff(
+                db,
+                run_id=run_id,
+                capture_result=capture,
+                snapshot_ids=snapshot_ids,
+                market_cutoff=market_cutoff,
+            )
+
+            def checkpoint(processed, total, item):
+                if should_cancel():
+                    raise SetupLifecycleEvaluationCancelled("Setup lifecycle replay cancelled.")
+                _report_lifecycle_progress(
+                    progress_callback,
+                    phase="PUBLICATION_REPLAY_VALIDATION",
+                    processed=processed,
+                    total=total,
+                    current_item=item,
+                    last_completed_item=item if processed else None,
+                )
+
+            checkpoint(0, len(snapshot_ids), "snapshots")
+            for index, snapshot in enumerate(
+                self.repository.get_snapshots_by_ids(db, snapshot_ids), 1
+            ):
+                revision = db.scalar(
+                    select(SetupSignalSnapshotSelectionEvent)
+                    .where(
+                        SetupSignalSnapshotSelectionEvent.selected_snapshot_id == snapshot.id,
+                        SetupSignalSnapshotSelectionEvent.occurred_at <= published.completed_at,
+                    )
+                    .order_by(SetupSignalSnapshotSelectionEvent.id.desc())
+                    .limit(1)
+                )
+                if revision is None:
+                    raise ValueError("MUTATION_CHANGE_PUBLISHED_SELECTION_MISSING")
+                _projection_pin(db, snapshot, discover=True, selection_event_id=revision.id)
+                checkpoint(index, len(snapshot_ids), f"snapshot:{snapshot.id}")
+            change_ids = tuple(int(key) for key in audit.get("published_change_events", {}))
+            changes = self.repository.get_signal_change_events_by_ids(db, change_ids)
+            if len(changes) != len(change_ids):
+                raise ValueError("MUTATION_CHANGE_PUBLISHED_EVENT_MISSING")
+            for index, change in enumerate(changes, 1):
+                if should_cancel():
+                    raise SetupLifecycleEvaluationCancelled("Setup lifecycle replay cancelled.")
+                proof = (change.evidence_json or {}).get("native_change_proof") or {}
+                verified = validate_signal_change(
+                    db,
+                    change,
+                    configuration=self.effective_configuration,
+                    source_manifest=proof.get("source_manifest"),
+                    source_validation=True,
+                )
+                if Canonical.dumps(proof) != Canonical.dumps(verified):
+                    raise ValueError("MUTATION_CHANGE_ALTERED_RETRY")
+                if index % 10 == 0 or index == len(changes):
+                    checkpoint(index, len(changes), f"change:{change.id}")
+            episodes = list(
+                db.scalars(
+                    select(SetupLifecycleEpisode).where(
+                        SetupLifecycleEpisode.current_snapshot_id.in_(snapshot_ids)
+                    )
+                )
+            )
+            for index, episode in enumerate(episodes, 1):
+                validate_episode_projection(db, episode)
+                checkpoint(index, len(episodes), f"episode:{episode.id}")
+            alerts = list(
+                db.scalars(
+                    select(SignalAlertEvent).where(
+                        (SignalAlertEvent.evaluation_run_id == published.id)
+                        | SignalAlertEvent.id.in_(
+                            tuple(int(key) for key in audit.get("published_alert_events", {}))
+                        )
+                    )
+                )
+            )
+            for index, alert in enumerate(alerts, 1):
+                validate_alert_event_projection(db, alert)
+                checkpoint(index, len(alerts), f"alert:{alert.id}")
+            return self._result(
+                db,
+                published.id,
+                capture
+                or SnapshotCaptureResult(
+                    evaluation_run_id=None,
+                    status=published.status,
+                    snapshot_ids=snapshot_ids,
+                    captured=len(snapshot_ids),
+                ),
+                CanonicalizationResult(selected_snapshot_ids=snapshot_ids),
+                SignalChangeDetectionResult(event_ids=change_ids),
+                lifecycle_transitions=0,
+                alerts=0,
+            )
+        return None
 
     def _validate_capture_handoff(
         self,
@@ -471,6 +724,7 @@ class SetupLifecycleEvaluationService:
         evaluation_run_id: int,
         snapshot_ids: tuple[int, ...],
         progress_callback: Callable[..., None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[int, int, tuple[dict[str, Any], ...]]:
         transitions = 0
         alert_created = 0
@@ -517,6 +771,8 @@ class SetupLifecycleEvaluationService:
         plans_by_snapshot: dict[int, Any] = {}
         if callable(planner) and use_preloaded_episodes:
             for index, snapshot in enumerate(snapshots, start=1):
+                if should_cancel is not None and should_cancel():
+                    raise SetupLifecycleEvaluationCancelled("Setup reconciliation cancelled.")
                 key = (snapshot.ticker, snapshot.timeframe)
                 plan = planner(
                     db,
@@ -550,6 +806,8 @@ class SetupLifecycleEvaluationService:
             current_item="setup-candidates",
         )
         for index, snapshot in enumerate(snapshots, start=1):
+            if should_cancel is not None and should_cancel():
+                raise SetupLifecycleEvaluationCancelled("Setup lifecycle evaluation cancelled.")
             key = (snapshot.ticker, snapshot.timeframe)
             history = history_by_key.setdefault(key, [])
             episode_kwargs = (
@@ -695,8 +953,10 @@ def _canonicalize_run(
     run_id: int,
     evaluation_run_id: int,
     snapshot_ids: tuple[int, ...] | None,
+    progress_callback=None,
+    should_cancel=None,
 ) -> CanonicalizationResult:
-    parameters = signature(canonicalizer.canonicalize_run).parameters.values()
+    parameters = tuple(signature(canonicalizer.canonicalize_run).parameters.values())
     accepts_snapshot_ids = any(
         parameter.name == "snapshot_ids" or parameter.kind == Parameter.VAR_KEYWORD
         for parameter in parameters
@@ -707,4 +967,7 @@ def _canonicalize_run(
     }
     if snapshot_ids is not None and accepts_snapshot_ids:
         kwargs["snapshot_ids"] = snapshot_ids
+    for name, value in (("progress_callback", progress_callback), ("should_cancel", should_cancel)):
+        if any(p.name == name or p.kind == Parameter.VAR_KEYWORD for p in parameters):
+            kwargs[name] = value
     return canonicalizer.canonicalize_run(db, **kwargs)

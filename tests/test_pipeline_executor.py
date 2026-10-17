@@ -135,14 +135,14 @@ def test_setup_capture_distinguishes_read_and_durable_mutation_checkpoints() -> 
     ]
 
 
-def test_setup_evaluation_commits_each_completed_preparation_batch() -> None:
+def test_setup_evaluation_progress_keeps_publication_atomic() -> None:
     progress: list[dict[str, object]] = []
     checkpoint = pipeline_executor._setup_evaluation_checkpoint_callback(
         object(),
         should_cancel=lambda: False,
         progress_callback=lambda _db, **values: progress.append(values),
     )
-    durable_phases = (
+    progress_phases = (
         "INPUTS_LOADED",
         "CANDIDATES_SELECTED",
         "EVIDENCE_VALIDATION_BATCH_COMPLETED",
@@ -154,7 +154,7 @@ def test_setup_evaluation_commits_each_completed_preparation_batch() -> None:
         "LIFECYCLE_EVALUATION_STARTED",
     )
 
-    for phase in durable_phases:
+    for phase in progress_phases:
         checkpoint(
             phase=phase,
             processed=25,
@@ -163,9 +163,8 @@ def test_setup_evaluation_commits_each_completed_preparation_batch() -> None:
             last_completed_item="MSFT",
         )
 
-    assert [item["commit_mutation_transaction"] for item in progress] == [True] * len(
-        durable_phases
-    )
+    assert len(progress) == len(progress_phases)
+    assert all(not item.get("commit_mutation_transaction", False) for item in progress)
 
 
 def test_technical_progress_closes_only_prepublication_read_transactions() -> None:
@@ -1093,12 +1092,7 @@ def test_setup_evaluation_progress_is_adapted_to_job_progress_contract() -> None
         "EVALUATING_SETUP_LIFECYCLES",
     ]
     assert [event["processed"] for event in forwarded] == [51, 25, 51, 51]
-    assert [event["commit_mutation_transaction"] for event in forwarded] == [
-        True,
-        True,
-        True,
-        True,
-    ]
+    assert all(not event.get("commit_mutation_transaction", False) for event in forwarded)
     assert [event["checkpoint_version"] for event in forwarded] == [
         "setup-evaluation-v1:LIFECYCLE_INPUTS_LOADED:51",
         "setup-evaluation-v1:LIFECYCLE_EVALUATION_BATCH_COMPLETED:25",
@@ -1559,6 +1553,35 @@ def test_execute_full_pipeline_marks_pipeline_cancelled_before_next_step() -> No
         }
     ]
     assert set(unfinished) == {PipelineStepStatus.CANCELLED}
+
+
+def test_ranking_evidence_checkpoint_honors_pipeline_cancellation() -> None:
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    calls = []
+    cancel_requested = False
+
+    def ranking(_db, _run_id, *, checkpoint_callback, **_kwargs):
+        nonlocal cancel_requested
+        calls.append("rankings")
+        cancel_requested = True
+        checkpoint_callback(
+            phase="PERSISTING_EVIDENCE",
+            processed=5,
+            total=10,
+            last_completed_item="momentum_swing:MSFT",
+        )
+        pytest.fail("Ranking continued after cancellation")
+
+    dependencies = replace(_dependencies(calls), refresh_rankings=ranking)
+    with pytest.raises(PipelineCancelled):
+        execute_full_pipeline(
+            db,
+            pipeline_run_id=3,
+            should_cancel=lambda: cancel_requested,
+            dependencies=dependencies,
+        )
+    assert "rankings" in calls and "sector_rotation" not in calls
+    assert db.pipeline.status == PipelineStatus.CANCELLED
 
 
 def test_execute_full_pipeline_fails_when_run_has_no_tickers() -> None:

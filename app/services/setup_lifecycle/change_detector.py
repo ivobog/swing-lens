@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -7,7 +8,10 @@ from typing import Any
 
 from app.models.tables import SetupSignalSnapshot, SignalChangeEvent
 from app.services.configuration_delivery import anchored_decision_calculator
-from app.services.core_mutation_authority import core_writer_transaction
+from app.services.core_mutation_authority import (
+    coalesced_core_writer_members,
+    core_writer_transaction,
+)
 from app.services.setup_lifecycle.config import SetupLifecycleConfig
 from app.services.setup_lifecycle.enums import EventSeverity, SignalCategory, SignalValueType
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
@@ -99,6 +103,8 @@ class SetupLifecycleChangeDetector:
         *,
         evaluation_run_id: int | None,
         snapshot_ids: tuple[int, ...],
+        progress_callback=None,
+        should_cancel=None,
     ) -> SignalChangeDetectionResult:
         current_snapshots = self.repository.get_snapshots_by_ids(db, snapshot_ids)
         event_ids: list[int | None] = []
@@ -119,7 +125,33 @@ class SetupLifecycleChangeDetector:
             else None
         )
 
-        for current in current_snapshots:
+        total = len(current_snapshots)
+
+        def checkpoint(index, current, *, event_batch=None):
+            if should_cancel is not None and should_cancel():
+                from app.services.setup_lifecycle.evaluation_service import (
+                    SetupLifecycleEvaluationCancelled,
+                )
+
+                raise SetupLifecycleEvaluationCancelled("Setup change detection cancelled.")
+            if progress_callback is not None:
+                progress_callback(
+                    phase=(
+                        "CHANGE_DETECTION_BATCH_COMPLETED"
+                        if event_batch is None
+                        else "CHANGE_DETECTION_EVENT_BATCH_COMPLETED"
+                    ),
+                    processed=index,
+                    total=total,
+                    current_item=(
+                        current.ticker
+                        if event_batch is None
+                        else f"{current.ticker}:events:{event_batch}"
+                    ),
+                    last_completed_item=current.ticker if event_batch is None else None,
+                )
+
+        for index, current in enumerate(current_snapshots, 1):
             if histories is None:
                 previous = self.repository.previous_canonical_snapshot(
                     db,
@@ -142,43 +174,60 @@ class SetupLifecycleChangeDetector:
                 history = tuple(reversed(ascending))
             if previous is None:
                 skipped += 1
+                checkpoint(index, current)
                 continue
             from sqlalchemy.orm import Session
 
-            from app.services.setup_lifecycle.change_authority import discover_change_sources
+            from app.services.setup_lifecycle.change_authority import change_source_validation_scope
 
-            source_manifest = (
-                discover_change_sources(db, previous=previous, current=current, history=history)
-                if isinstance(db, Session)
-                else None
-            )
-            for change in self.detect_changes(
-                previous=previous,
-                current=current,
-                history=history,
-            ):
-                event = self._to_event(
-                    change,
-                    previous=previous,
-                    current=current,
-                    evaluation_run_id=evaluation_run_id,
-                )
-                if isinstance(db, Session):
-                    persisted = self.repository.add_signal_change_event(
+            with (
+                (
+                    change_source_validation_scope(
                         db,
-                        event,
-                        effective_configuration=self.effective_configuration,
-                        source_manifest=source_manifest,
+                        previous=previous,
+                        current=current,
+                        history=history,
+                        configuration=self.effective_configuration,
                     )
-                else:
-                    existing = self.repository.get_signal_change_event(db, event.source_event_key)
-                    if existing is not None:
-                        continue
-                    persisted = self.repository.add_signal_change_event(db, event)
-                if persisted is not event:
-                    continue
-                event_ids.append(getattr(persisted, "id", None))
-                changes.append(change)
+                    if isinstance(db, Session)
+                    else nullcontext(None)
+                ) as source_manifest,
+                coalesced_core_writer_members(db) if isinstance(db, Session) else nullcontext(),
+            ):
+                for event_index, change in enumerate(
+                    self.detect_changes(
+                        previous=previous,
+                        current=current,
+                        history=history,
+                    ),
+                    1,
+                ):
+                    event = self._to_event(
+                        change,
+                        previous=previous,
+                        current=current,
+                        evaluation_run_id=evaluation_run_id,
+                    )
+                    if isinstance(db, Session):
+                        persisted = self.repository.add_signal_change_event(
+                            db,
+                            event,
+                            effective_configuration=self.effective_configuration,
+                            source_manifest=source_manifest,
+                        )
+                    else:
+                        existing = self.repository.get_signal_change_event(
+                            db, event.source_event_key
+                        )
+                        if existing is not None:
+                            continue
+                        persisted = self.repository.add_signal_change_event(db, event)
+                    event_ids.append(getattr(persisted, "id", None))
+                    if persisted is event:
+                        changes.append(change)
+                    if event_index % 10 == 0:
+                        checkpoint(index - 1, current, event_batch=event_index)
+            checkpoint(index, current)
 
         return SignalChangeDetectionResult(
             created_events=len(changes),

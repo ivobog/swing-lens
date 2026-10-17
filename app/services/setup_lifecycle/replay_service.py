@@ -27,6 +27,7 @@ from app.services.setup_lifecycle.lifecycle_engine import (
 from app.services.setup_lifecycle.repository import (
     SetupLifecycleRepository,
     current_canonical_snapshot_predicate,
+    published_lifecycle_select,
 )
 
 
@@ -187,7 +188,7 @@ class SetupLifecycleReplayService:
         )
 
     def _current_events(self, db, request: SetupLifecycleReplayRequest):
-        statement = select(SetupLifecycleEvent).where(
+        statement = published_lifecycle_select(SetupLifecycleEvent).where(
             SetupLifecycleEvent.is_current_version.is_(True)
         )
         if request.ticker:
@@ -210,7 +211,7 @@ class SetupLifecycleReplayService:
         )
 
     def _alert_differences(self, db, request: SetupLifecycleReplayRequest) -> dict[str, int]:
-        statement = select(SignalAlertEvent)
+        statement = published_lifecycle_select(SignalAlertEvent)
         if request.ticker:
             statement = statement.where(
                 SignalAlertEvent.ticker == self.repository.normalize_ticker(request.ticker)
@@ -243,7 +244,7 @@ class SetupLifecycleReplayService:
         if not proposed:
             return None
         first = proposed[0]
-        statement = select(SetupLifecycleEpisode).where(
+        statement = published_lifecycle_select(SetupLifecycleEpisode).where(
             SetupLifecycleEpisode.ticker == first["ticker"]
         )
         if request.ticker:

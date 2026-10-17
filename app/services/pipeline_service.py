@@ -734,14 +734,113 @@ def _pipeline_job_failure_view(pipeline, job, failure):
 def mark_pipeline_job_failure(db, job, failure):
     pipeline = db.scalar(
         select(PipelineRun)
-        .where(PipelineRun.result_json["background_job_id"].astext == str(job.id))
+        .where(
+            (PipelineRun.result_json["background_job_id"].astext == str(job.id))
+            | (PipelineRun.result_json["continuation_job_id"].astext == str(job.id))
+        )
         .with_for_update()
     )
-    if pipeline is None or (
-        pipeline.status in PIPELINE_TERMINAL_STATUSES and pipeline.status != PipelineStatus.FAILED
-    ):
+    if pipeline is None:
         return
-    if (pipeline.result_json or {}).get("background_job_id") != job.id:
+    if job.id not in {
+        (pipeline.result_json or {}).get("background_job_id"),
+        (pipeline.result_json or {}).get("continuation_job_id"),
+    }:
+        return
+    if failure["code"] == "CONTROL_PLANE_LOCK_TIMEOUT":
+        from app.services.pipeline_state_machine import (
+            transition_pipeline,
+            transition_pipeline_step,
+        )
+
+        # This parent was never terminalized by the executor. Never borrow a
+        # cancelled/revoked/terminal parent's authority for an automatic retry.
+        if (
+            pipeline.status in PIPELINE_TERMINAL_STATUSES
+            or pipeline.status == PipelineStatus.CANCEL_REQUESTED
+            or pipeline.execution_authority_state != "ACTIVE"
+        ):
+            if job.status == JobStatus.QUEUED:
+                from app.services.background_job_service import _with_attempt_finished
+
+                job.status = JobStatus.CANCELLED
+                job.completed_at = _utcnow()
+                job.error_message = "INFRASTRUCTURE_RETRY_SUPPRESSED_BY_PIPELINE_AUTHORITY"
+                job.operational_metadata_json = _with_attempt_finished(
+                    job.operational_metadata_json,
+                    finished_at=job.completed_at,
+                    status=JobStatus.CANCELLED,
+                )
+                if pipeline.status == PipelineStatus.CANCEL_REQUESTED:
+                    transition_pipeline(
+                        db,
+                        pipeline,
+                        PipelineStatus.CANCELLED,
+                        actor="pipeline_orchestrator",
+                        message="Pipeline cancellation completed.",
+                    )
+                if pipeline.status == PipelineStatus.CANCELLED:
+                    for cancelled_step in db.scalars(
+                        select(PipelineStep).where(
+                            PipelineStep.pipeline_run_id == pipeline.id,
+                            PipelineStep.status.in_(("PENDING", "RUNNING", "INTERRUPTED")),
+                        )
+                    ):
+                        transition_pipeline_step(
+                            db,
+                            cancelled_step,
+                            "CANCELLED",
+                            completed_at=job.completed_at,
+                            message="Cancelled before infrastructure retry.",
+                        )
+                db.flush()
+            return
+        target = pipeline.current_step or "VALIDATING_RUN"
+        step = db.scalar(
+            select(PipelineStep).where(
+                PipelineStep.pipeline_run_id == pipeline.id, PipelineStep.step_name == target
+            )
+        )
+        retrying = job.status == JobStatus.QUEUED
+        reason = "CONTROL_PLANE_LOCK_TIMEOUT" if retrying else "CONTROL_PLANE_RETRIES_EXHAUSTED"
+        if step is not None:
+            transition_pipeline_step(
+                db,
+                step,
+                "INTERRUPTED" if retrying else "FAILED",
+                completed_at=_utcnow(),
+                error_message=reason,
+                message="Infrastructure retry pending."
+                if retrying
+                else "Infrastructure retries exhausted.",
+            )
+        # Resume only boundaries supported by the existing durable executor.
+        if retrying and target in {
+            "SECTOR_ROTATION_SNAPSHOT",
+            "CERI_PROVIDER_INGEST",
+            "FREEZING_DECISION_HANDOFF_MANIFEST",
+            "CAPTURING_SETUP_SIGNALS",
+            "EVALUATING_SETUP_LIFECYCLES",
+            "CAPTURING_WINNER_PREDICTIONS",
+        }:
+            job.payload_json = {**job.payload_json, "resume_from_step": target}
+        transition_pipeline(
+            db,
+            pipeline,
+            PipelineStatus.QUEUED if retrying else PipelineStatus.FAILED,
+            actor="recovery",
+            current_step=target,
+            message=reason,
+            error_message=None if retrying else reason,
+        )
+        pipeline.result_json = {
+            **(pipeline.result_json or {}),
+            "job_failure_classification": failure,
+            "infrastructure_retry_reason": reason,
+        }
+        db.flush()
+        return
+    if pipeline.status in PIPELINE_TERMINAL_STATUSES and pipeline.status != PipelineStatus.FAILED:
         return
     view = _pipeline_job_failure_view(pipeline, job, failure)
     # The stage wrapper may already have marked FAILED before the durable job

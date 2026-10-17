@@ -40,6 +40,8 @@ from app.services.setup_lifecycle.enums import (
 from app.services.setup_lifecycle.repository import (
     SetupLifecycleRepository,
     current_canonical_snapshot_predicate,
+    lifecycle_publication_predicate,
+    published_lifecycle_select,
 )
 from app.services.setup_lifecycle.run_summary import MEANINGFUL_LIFECYCLE_EVENT_TYPES
 from app.services.us_market_calendar import next_us_trading_day
@@ -124,14 +126,12 @@ class SetupLifecycleQueryService:
         if query.filters.transition == "NO_MATERIAL_CHANGE":
             return self._no_material_changes(db, query)
         lifecycle_statement = (
-            select(SetupLifecycleEvent)
+            published_lifecycle_select(SetupLifecycleEvent)
             .outerjoin(
                 SetupSignalSnapshot,
                 SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id,
             )
-            .where(
-                SetupLifecycleEvent.event_type.in_(MEANINGFUL_LIFECYCLE_EVENT_TYPES)
-            )
+            .where(SetupLifecycleEvent.event_type.in_(MEANINGFUL_LIFECYCLE_EVENT_TYPES))
         )
         if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
             lifecycle_statement = lifecycle_statement.where(
@@ -142,7 +142,7 @@ class SetupLifecycleQueryService:
                 SetupLifecycleEvent.transition_evidence_id.is_not(None)
             )
         lifecycle_statement = _apply_event_filters(lifecycle_statement, query.filters)
-        signal_statement = select(SignalChangeEvent).join(
+        signal_statement = published_lifecycle_select(SignalChangeEvent).join(
             SetupSignalSnapshot,
             SignalChangeEvent.current_snapshot_id == SetupSignalSnapshot.id,
         )
@@ -232,11 +232,16 @@ class SetupLifecycleQueryService:
                 "INVALID_DATE", "NO_MATERIAL_CHANGE requires an as-of date"
             )
         has_lifecycle_event = (
-            select(SetupLifecycleEvent.id)
-            .where(SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id)
+            published_lifecycle_select(SetupLifecycleEvent)
+            .with_only_columns(SetupLifecycleEvent.id)
             .where(
-                SetupLifecycleEvent.event_type.in_(MEANINGFUL_LIFECYCLE_EVENT_TYPES)
+                lifecycle_publication_predicate(
+                    SetupLifecycleEvent.evaluation_run_id,
+                    snapshot_id=SetupLifecycleEvent.snapshot_id,
+                )
             )
+            .where(SetupLifecycleEvent.snapshot_id == SetupSignalSnapshot.id)
+            .where(SetupLifecycleEvent.event_type.in_(MEANINGFUL_LIFECYCLE_EVENT_TYPES))
             .exists()
         )
         if query.view_scope == SetupLifecycleViewScope.CURRENT_MARKET:
@@ -244,7 +249,13 @@ class SetupLifecycleQueryService:
                 SetupLifecycleEvent.is_current_version.is_(True)
             )
         has_signal_change = (
-            select(SignalChangeEvent.id)
+            published_lifecycle_select(SignalChangeEvent)
+            .with_only_columns(SignalChangeEvent.id)
+            .where(
+                lifecycle_publication_predicate(
+                    SignalChangeEvent.evaluation_run_id, change_event_id=SignalChangeEvent.id
+                )
+            )
             .where(SignalChangeEvent.current_snapshot_id == SetupSignalSnapshot.id)
             .exists()
         )
@@ -308,7 +319,7 @@ class SetupLifecycleQueryService:
 
     def alerts(self, db: Session, query: SetupLifecycleListQuery) -> dict[str, Any]:
         query = _validate_query(query)
-        statement = select(SignalAlertEvent).join(
+        statement = published_lifecycle_select(SignalAlertEvent).join(
             SignalAlertRule,
             SignalAlertEvent.alert_rule_id == SignalAlertRule.id,
         )
@@ -355,13 +366,13 @@ class SetupLifecycleQueryService:
         )
         episodes = list(
             db.scalars(
-                select(SetupLifecycleEpisode)
+                published_lifecycle_select(SetupLifecycleEpisode)
                 .where(SetupLifecycleEpisode.ticker == normalized)
                 .where(SetupLifecycleEpisode.timeframe == timeframe)
                 .order_by(SetupLifecycleEpisode.opened_on.desc(), SetupLifecycleEpisode.id.desc())
             )
         )
-        lifecycle_statement = select(SetupLifecycleEvent).where(
+        lifecycle_statement = published_lifecycle_select(SetupLifecycleEvent).where(
             SetupLifecycleEvent.ticker == normalized,
             SetupLifecycleEvent.timeframe == timeframe,
         )
@@ -372,7 +383,7 @@ class SetupLifecycleQueryService:
             kind_priority=3,
             cursor_key=cursor_key,
         )
-        signal_statement = select(SignalChangeEvent).where(
+        signal_statement = published_lifecycle_select(SignalChangeEvent).where(
             SignalChangeEvent.ticker == normalized,
             SignalChangeEvent.timeframe == timeframe,
         )
@@ -383,7 +394,7 @@ class SetupLifecycleQueryService:
             kind_priority=2,
             cursor_key=cursor_key,
         )
-        alert_statement = select(SignalAlertEvent).where(
+        alert_statement = published_lifecycle_select(SignalAlertEvent).where(
             SignalAlertEvent.ticker == normalized,
             SignalAlertEvent.timeframe == timeframe,
         )
@@ -463,7 +474,15 @@ class SetupLifecycleQueryService:
         }
 
     def episode_detail(self, db: Session, episode_id: int) -> dict[str, Any]:
-        episode = db.get(SetupLifecycleEpisode, episode_id)
+        episode = (
+            db.scalar(
+                published_lifecycle_select(SetupLifecycleEpisode).where(
+                    SetupLifecycleEpisode.id == episode_id
+                )
+            )
+            if isinstance(db, Session)
+            else db.get(SetupLifecycleEpisode, episode_id)
+        )
         if episode is None:
             raise SetupLifecycleQueryError(
                 "EPISODE_NOT_FOUND",
@@ -472,14 +491,14 @@ class SetupLifecycleQueryService:
             )
         events = list(
             db.scalars(
-                select(SetupLifecycleEvent)
+                published_lifecycle_select(SetupLifecycleEvent)
                 .where(SetupLifecycleEvent.episode_id == episode_id)
                 .order_by(SetupLifecycleEvent.effective_date.asc(), SetupLifecycleEvent.id.asc())
             )
         )
         changes = list(
             db.scalars(
-                select(SignalChangeEvent)
+                published_lifecycle_select(SignalChangeEvent)
                 .where(SignalChangeEvent.episode_id == episode_id)
                 .order_by(SignalChangeEvent.effective_date.asc(), SignalChangeEvent.id.asc())
             )
@@ -664,9 +683,7 @@ def episode_payload(episode: SetupLifecycleEpisode) -> dict[str, Any]:
         "latest_evaluation_evidence_id": episode.latest_evaluation_evidence_id,
         "latest_transition_evidence_id": episode.latest_transition_evidence_id,
         "evidence_status": (
-            "CERTIFIED"
-            if episode.latest_evaluation_evidence_id is not None
-            else "LEGACY_CURRENT"
+            "CERTIFIED" if episode.latest_evaluation_evidence_id is not None else "LEGACY_CURRENT"
         ),
         "engine_version": episode.engine_version,
         "config_version": episode.config_version,
@@ -772,9 +789,7 @@ class _MarketChangePayloadContext:
     episodes: dict[int, SetupLifecycleEpisode]
     current_selection_snapshot_ids: set[int] = field(default_factory=set)
     view_scope: SetupLifecycleViewScope = SetupLifecycleViewScope.CURRENT_MARKET
-    transition_evidence: dict[int, SetupLifecycleTransitionEvidence] = field(
-        default_factory=dict
-    )
+    transition_evidence: dict[int, SetupLifecycleTransitionEvidence] = field(default_factory=dict)
     setup_evidence: dict[int, CoreCalculationEvidence] = field(default_factory=dict)
 
 
@@ -800,7 +815,7 @@ def _prime_market_change_payload_context(
     }
     if signal_snapshot_ids:
         related_statement = (
-            select(SetupLifecycleEvent)
+            published_lifecycle_select(SetupLifecycleEvent)
             .where(SetupLifecycleEvent.snapshot_id.in_(signal_snapshot_ids))
             .order_by(SetupLifecycleEvent.id.desc())
         )
@@ -878,16 +893,12 @@ def _prime_market_change_payload_context(
     setup_ids = {
         row.evidence_id for row in current_snapshots.values() if row.evidence_id is not None
     }
-    transition_evidence = _rows_by_id(
-        db, SetupLifecycleTransitionEvidence, transition_ids
-    )
+    transition_evidence = _rows_by_id(db, SetupLifecycleTransitionEvidence, transition_ids)
     setup_evidence = _rows_by_id(db, CoreCalculationEvidence, setup_ids)
     if view_scope == SetupLifecycleViewScope.HISTORICAL_RUN:
         missing_transition = transition_ids - set(transition_evidence)
         missing_setup = setup_ids - set(setup_evidence)
-        wrong_setup = {
-            row.id for row in setup_evidence.values() if row.artifact_kind != "SETUP"
-        }
+        wrong_setup = {row.id for row in setup_evidence.values() if row.artifact_kind != "SETUP"}
         if missing_transition or missing_setup or wrong_setup:
             raise SetupLifecycleQueryError(
                 "HISTORICAL_EVIDENCE_UNAVAILABLE",
@@ -937,15 +948,10 @@ def market_change_payload(
         if current_snapshot_id
         else None
     )
-    is_current_selection = (
-        current is not None
-        and (
-            current.id in context.current_selection_snapshot_ids
-            if context is not None
-            else bool(
-                SetupLifecycleRepository().current_selection_snapshot_ids(db, {current.id})
-            )
-        )
+    is_current_selection = current is not None and (
+        current.id in context.current_selection_snapshot_ids
+        if context is not None
+        else bool(SetupLifecycleRepository().current_selection_snapshot_ids(db, {current.id}))
     )
     previous = (
         context.explicit_previous_snapshots.get(previous_snapshot_id or 0)
@@ -974,7 +980,7 @@ def market_change_payload(
         related_lifecycle = context.lifecycle_by_snapshot.get(current_snapshot_id or 0)
     elif related_lifecycle is None and current_snapshot_id is not None:
         related_lifecycle = db.scalar(
-            select(SetupLifecycleEvent)
+            published_lifecycle_select(SetupLifecycleEvent)
             .where(SetupLifecycleEvent.snapshot_id == current_snapshot_id)
             .where(SetupLifecycleEvent.is_current_version.is_(True))
             .order_by(SetupLifecycleEvent.id.desc())
@@ -1192,9 +1198,7 @@ def market_change_payload(
         payload["phase"] = sealed_payload["to_phase"]
     if "reasons" in sealed_payload:
         payload["reason_codes"] = list(sealed_payload["reasons"] or [])
-        payload["latest_reason"] = (
-            payload["reason_codes"][0] if payload["reason_codes"] else None
-        )
+        payload["latest_reason"] = payload["reason_codes"][0] if payload["reason_codes"] else None
     payload.update(
         {
             "read_mode": "CERTIFIED_EVIDENCE",
@@ -1324,9 +1328,7 @@ def alert_payload(
             and source_snapshot.id in context.current_selection_snapshot_ids
         )
         decision_evidence = context.decisions.get(alert.decision_evidence_id or 0)
-        rule_evidence = context.rule_evidence.get(
-            getattr(decision_evidence, "rule_evidence_id", 0)
-        )
+        rule_evidence = context.rule_evidence.get(getattr(decision_evidence, "rule_evidence_id", 0))
     else:
         rule = getattr(alert, "alert_rule", None)
         if db is not None and (rule is None or getattr(rule, "id", None) is None):
@@ -1351,9 +1353,7 @@ def alert_payload(
         is_current_selection = bool(
             source_snapshot is not None
             and db is not None
-            and SetupLifecycleRepository().current_selection_snapshot_ids(
-                db, {source_snapshot.id}
-            )
+            and SetupLifecycleRepository().current_selection_snapshot_ids(db, {source_snapshot.id})
         )
         decision_evidence = (
             db.get(SignalAlertDecisionEvidence, alert.decision_evidence_id)
@@ -1405,9 +1405,7 @@ def alert_payload(
         "actionability": getattr(lifecycle, "actionability_after", None)
         or getattr(source_snapshot, "actionability_candidate", None)
         or evidence.get("actionability_after"),
-        "confidence": _int_or_none(
-            immutable_decision_payload.get("source_confidence", confidence)
-        ),
+        "confidence": _int_or_none(immutable_decision_payload.get("source_confidence", confidence)),
         "confidence_label": getattr(lifecycle, "confidence_label", None)
         or getattr(source_snapshot, "confidence_label", None)
         or evidence.get("confidence_label"),
@@ -1440,9 +1438,7 @@ def alert_payload(
         or getattr(source_snapshot, "config_hash", None),
         "source_data_hash": getattr(source_snapshot, "source_data_hash", None),
         "reason_codes": list(
-            getattr(decision_evidence, "reasons_json", None)
-            or alert.reason_codes_json
-            or []
+            getattr(decision_evidence, "reasons_json", None) or alert.reason_codes_json or []
         ),
         "evidence": evidence,
         "historical_decision": immutable_decision if decision_evidence is not None else None,
@@ -1492,9 +1488,7 @@ def _prime_no_material_payload_context(
                 "historical Setup evidence is missing or incompatible",
                 status_code=409,
             )
-        return _NoMaterialPayloadContext(
-            {}, {}, setup_evidence=evidence, view_scope=view_scope
-        )
+        return _NoMaterialPayloadContext({}, {}, setup_evidence=evidence, view_scope=view_scope)
     current_alias = aliased(SetupSignalSnapshot)
     previous_lateral = (
         select(SetupSignalSnapshot)
@@ -1522,7 +1516,7 @@ def _prime_no_material_payload_context(
     ).all()
     tickers = {row.ticker for row in snapshots}
     episodes = db.scalars(
-        select(SetupLifecycleEpisode)
+        published_lifecycle_select(SetupLifecycleEpisode)
         .where(SetupLifecycleEpisode.ticker.in_(tickers))
         .where(SetupLifecycleEpisode.status == "ACTIVE")
         .order_by(
@@ -1566,7 +1560,7 @@ def no_material_change_payload(
         context.episode_by_ticker.get((snapshot.ticker, snapshot.timeframe))
         if context is not None
         else db.scalar(
-            select(SetupLifecycleEpisode)
+            published_lifecycle_select(SetupLifecycleEpisode)
             .where(SetupLifecycleEpisode.ticker == snapshot.ticker)
             .where(SetupLifecycleEpisode.timeframe == snapshot.timeframe)
             .where(SetupLifecycleEpisode.status == "ACTIVE")
@@ -1962,7 +1956,8 @@ def _apply_signal_change_filters(statement, filters: SetupLifecycleFilters):
         )
     if filters.blocker:
         blocker_episode = (
-            select(SetupLifecycleEpisode.id)
+            published_lifecycle_select(SetupLifecycleEpisode)
+            .with_only_columns(SetupLifecycleEpisode.id)
             .where(SetupLifecycleEpisode.id == SignalChangeEvent.episode_id)
             .where(SetupLifecycleEpisode.metadata_json["blockers"].contains([filters.blocker]))
             .exists()
@@ -1996,13 +1991,15 @@ def _apply_alert_filters(statement, filters: SetupLifecycleFilters):
         statement = statement.where(SignalAlertEvent.effective_date <= filters.date_to)
     if filters.lifecycle_state:
         lifecycle_match = (
-            select(SetupLifecycleEvent.id)
+            published_lifecycle_select(SetupLifecycleEvent)
+            .with_only_columns(SetupLifecycleEvent.id)
             .where(SetupLifecycleEvent.id == SignalAlertEvent.lifecycle_event_id)
             .where(SetupLifecycleEvent.to_state == filters.lifecycle_state)
             .exists()
         )
         signal_match = (
-            select(SignalChangeEvent.id)
+            published_lifecycle_select(SignalChangeEvent)
+            .with_only_columns(SignalChangeEvent.id)
             .join(
                 SetupSignalSnapshot,
                 SignalChangeEvent.current_snapshot_id == SetupSignalSnapshot.id,
@@ -2025,13 +2022,15 @@ def _apply_alert_filters(statement, filters: SetupLifecycleFilters):
             statement = statement.where(False)
     if filters.actionability:
         lifecycle_match = (
-            select(SetupLifecycleEvent.id)
+            published_lifecycle_select(SetupLifecycleEvent)
+            .with_only_columns(SetupLifecycleEvent.id)
             .where(SetupLifecycleEvent.id == SignalAlertEvent.lifecycle_event_id)
             .where(SetupLifecycleEvent.actionability_after == filters.actionability)
             .exists()
         )
         signal_match = (
-            select(SignalChangeEvent.id)
+            published_lifecycle_select(SignalChangeEvent)
+            .with_only_columns(SignalChangeEvent.id)
             .join(
                 SetupSignalSnapshot,
                 SignalChangeEvent.current_snapshot_id == SetupSignalSnapshot.id,
@@ -2043,13 +2042,15 @@ def _apply_alert_filters(statement, filters: SetupLifecycleFilters):
         statement = statement.where(or_(lifecycle_match, signal_match))
     if filters.blocker:
         lifecycle_blocker = (
-            select(SetupLifecycleEvent.id)
+            published_lifecycle_select(SetupLifecycleEvent)
+            .with_only_columns(SetupLifecycleEvent.id)
             .where(SetupLifecycleEvent.id == SignalAlertEvent.lifecycle_event_id)
             .where(SetupLifecycleEvent.evidence_json["blockers"].contains([filters.blocker]))
             .exists()
         )
         episode_blocker = (
-            select(SetupLifecycleEpisode.id)
+            published_lifecycle_select(SetupLifecycleEpisode)
+            .with_only_columns(SetupLifecycleEpisode.id)
             .join(
                 SetupLifecycleEvent,
                 SetupLifecycleEvent.episode_id == SetupLifecycleEpisode.id,
@@ -2117,7 +2118,8 @@ def _apply_snapshot_filters(statement, filters: SetupLifecycleFilters):
         )
     if filters.blocker:
         blocker_episode = (
-            select(SetupLifecycleEpisode.id)
+            published_lifecycle_select(SetupLifecycleEpisode)
+            .with_only_columns(SetupLifecycleEpisode.id)
             .where(SetupLifecycleEpisode.ticker == SetupSignalSnapshot.ticker)
             .where(SetupLifecycleEpisode.timeframe == SetupSignalSnapshot.timeframe)
             .where(SetupLifecycleEpisode.status == "ACTIVE")
@@ -2391,12 +2393,14 @@ def _combined_change_sort_columns(sort: str):
         else_=_severity_priority(SignalChangeEvent.severity),
     )
     lifecycle_episode_age = (
-        select(SetupLifecycleEpisode.state_age_sessions)
+        published_lifecycle_select(SetupLifecycleEpisode)
+        .with_only_columns(SetupLifecycleEpisode.state_age_sessions)
         .where(SetupLifecycleEpisode.id == SetupLifecycleEvent.episode_id)
         .scalar_subquery()
     )
     signal_episode_age = (
-        select(SetupLifecycleEpisode.state_age_sessions)
+        published_lifecycle_select(SetupLifecycleEpisode)
+        .with_only_columns(SetupLifecycleEpisode.state_age_sessions)
         .where(SetupLifecycleEpisode.id == SignalChangeEvent.episode_id)
         .scalar_subquery()
     )

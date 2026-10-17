@@ -288,19 +288,18 @@ def test_evaluation_progress_is_multiphase_monotonic_and_output_neutral() -> Non
     assert observed.as_dict() == baseline.as_dict()
     assert [event["sequence"] for event in events] == list(range(1, len(events) + 1))
     phases = [event["phase"] for event in events]
-    assert phases == [
+    phase_order = [
+        phase for index, phase in enumerate(phases) if not index or phase != phases[index - 1]
+    ]
+    assert phase_order == [
         "INPUTS_LOADED",
         "CANDIDATES_SELECTED",
-        "EVIDENCE_VALIDATION_BATCH_COMPLETED",
-        "EVIDENCE_VALIDATION_BATCH_COMPLETED",
         "EVIDENCE_VALIDATION_BATCH_COMPLETED",
         "EVIDENCE_AUTHORITY_VALIDATION_COMPLETED",
         "CHANGE_DETECTION_COMPLETED",
         "CHANGE_ALERT_EVALUATION_COMPLETED",
         "LIFECYCLE_INPUTS_LOADED",
         "LIFECYCLE_EVALUATION_STARTED",
-        "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
-        "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
         "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
         "STATE_TRANSITION_EVALUATION_COMPLETED",
         "PERSISTENCE_STARTED",
@@ -310,7 +309,7 @@ def test_evaluation_progress_is_multiphase_monotonic_and_output_neutral() -> Non
         event["processed"]
         for event in events
         if event["phase"] == "LIFECYCLE_EVALUATION_BATCH_COMPLETED"
-    ] == [25, 50, 51]
+    ] == [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 51]
     assert observed_episodes.applied_snapshot_ids == list(snapshot_ids)
     assert baseline_episodes.applied_snapshot_ids == list(snapshot_ids)
     assert len(observed_repository.created) == len(observed_repository.completed) == 1
@@ -402,6 +401,8 @@ class FakeChangeDetector:
         *,
         evaluation_run_id,
         snapshot_ids,
+        progress_callback=None,
+        should_cancel=None,
     ) -> SignalChangeDetectionResult:
         return self.result
 

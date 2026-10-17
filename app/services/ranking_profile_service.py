@@ -173,6 +173,7 @@ def refresh_all_ranking_profiles(
         run_id=run_id,
         market_cutoff=market_cutoff,
         pipeline_run_id=pipeline_run_id,
+        checkpoint_callback=checkpoint_callback,
     )
     calculation_cutoff = _validated_cutoff(validated)
     evaluation_date = _validated_evaluation_date(validated, today=today)
@@ -292,6 +293,7 @@ def refresh_ranking_profile(
         run_id=run_id,
         market_cutoff=market_cutoff,
         pipeline_run_id=pipeline_run_id,
+        checkpoint_callback=checkpoint_callback,
     )
     calculation_cutoff = _validated_cutoff(validated)
     evaluation_date = _validated_evaluation_date(validated, today=today)
@@ -811,9 +813,11 @@ def _validated_ranking_sources(
     run_id: int,
     market_cutoff: MarketCalculationCutoff | None,
     pipeline_run_id: int | None,
+    checkpoint_callback: Callable[..., None] | None = None,
 ) -> dict[str, _ValidatedRankingSources]:
     validated: dict[str, _ValidatedRankingSources] = {}
-    for row in _unique_rows(rows):
+    unique_rows = _unique_rows(rows)
+    for index, row in enumerate(unique_rows, start=1):
         ticker = row.ticker.upper()
         fundamental = fundamentals.get(ticker)
         technical = technicals.get(ticker)
@@ -861,8 +865,25 @@ def _validated_ranking_sources(
             fundamental_identity,
             technical_identity,
         )
+        _ranking_checkpoint(
+            checkpoint_callback,
+            phase="VALIDATING_SOURCES",
+            processed=index,
+            total=len(unique_rows),
+            ticker=ticker,
+        )
     _require_single_ranking_context(validated)
     return validated
+
+
+def _ranking_checkpoint(callback, *, phase, processed, total, ticker):
+    if callback is not None and (processed % 5 == 0 or processed == total):
+        callback(
+            phase=phase,
+            processed=processed,
+            total=total,
+            last_completed_item=ticker,
+        )
 
 
 def _validated_cutoff(validated: dict[str, _ValidatedRankingSources]) -> datetime:

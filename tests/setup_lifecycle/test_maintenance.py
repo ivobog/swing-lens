@@ -5,7 +5,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.models.tables import SetupLifecycleEpisode
+from app.models.tables import (
+    SetupLifecycleEpisode,
+    SetupLifecycleEvent,
+    SetupSignalSnapshot,
+    SignalChangeEvent,
+)
 from app.services.setup_lifecycle.dtos import EpisodeApplyResult
 from app.services.setup_lifecycle.maintenance_service import (
     SetupLifecycleMaintenanceService,
@@ -123,16 +128,16 @@ class FakeMaintenanceDb:
         self.signal_change_events = list(signal_change_events or [])
 
     def scalars(self, statement):
-        text = str(statement)
-        if "setup_lifecycle_episodes" in text:
+        entity = statement.column_descriptions[0]["entity"]
+        if entity is SetupLifecycleEpisode:
             rows = self.active_episodes
             self.active_episodes = []
             return rows
-        if "setup_signal_snapshots" in text:
+        if entity is SetupSignalSnapshot:
             return self.repair_snapshots
-        if "setup_lifecycle_events" in text:
+        if entity is SetupLifecycleEvent:
             return self.lifecycle_events
-        if "signal_change_events" in text:
+        if entity is SignalChangeEvent:
             return self.signal_change_events
         return []
 

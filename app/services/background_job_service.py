@@ -13,7 +13,7 @@ from typing import Any
 from uuid import uuid4
 from weakref import WeakKeyDictionary
 
-from sqlalchemy import MetaData, Table, case, delete, insert, or_, select, update
+from sqlalchemy import MetaData, Table, case, delete, event, insert, or_, select, update
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
@@ -1095,22 +1095,38 @@ def fence_stalled_jobs(
             candidate_query,
             certification_session_id=str(authority.certification_session_id),
         )
-    # A non-locking MVCC read makes SKIP LOCKED observable.  It does not grant
-    # the watchdog authority to mutate the row, but prevents an owned/stalled
-    # execution from being indistinguishable from an empty candidate set.
+    # Healthy observations must never lock or rewrite the leased job row.
+    # Progress sequence and last_progress_at advance in the same control UPDATE;
+    # the timestamp, rather than watchdog polling metadata, owns the stall clock.
     candidates = list(db.scalars(candidate_query).all())
     if not candidates:
         logger.info(
             "job.watchdog.decision %s",
             {"decision": "NO_CANDIDATE", "worker_id": worker_id},
         )
-    query = candidate_query.with_for_update(skip_locked=True)
-    locked_candidates = list(db.scalars(query).all())
-    acquired_ids = {job.id for job in locked_candidates}
+    overdue = []
     for candidate in candidates:
-        if candidate.id in acquired_ids:
-            continue
         effective_stage = _effective_progress_stage(candidate)
+        timeout = progress_timeout_seconds(
+            effective_stage,
+            default_timeout_seconds=default_timeout_seconds,
+            market_data_timeout_seconds=market_data_timeout_seconds,
+            long_stage_timeout_seconds=long_stage_timeout_seconds,
+        )
+        if candidate.requested_cancel or candidate.last_progress_at < observed_at - timedelta(
+            seconds=timeout
+        ):
+            overdue.append(
+                (
+                    candidate.id,
+                    candidate.execution_token,
+                    candidate.progress_sequence,
+                    candidate.last_progress_at,
+                    candidate.progress_stage,
+                    observed_at - timedelta(seconds=timeout),
+                )
+            )
+            continue
         decision_context = {
             "job_id": candidate.id,
             "run_id": candidate.related_run_id,
@@ -1118,11 +1134,36 @@ def fence_stalled_jobs(
             "job_progress_age_seconds": _age_seconds(observed_at, candidate.last_progress_at),
             "progress_sequence": int(candidate.progress_sequence or 0),
             "stage": effective_stage,
-            "decision": "LOCKED_CANDIDATE_SKIPPED",
+            "stall_threshold_seconds": timeout,
+            "decision": "HEALTHY_WITHIN_PROGRESS_TIMEOUT",
         }
-        logger.warning("job.watchdog.decision %s", decision_context, extra=decision_context)
+        _watchdog_decision(db, decision_context)
     fenced: list[int] = []
-    for job in locked_candidates:
+    for job_id, token, sequence, progress_at, stage, deadline in overdue:
+        # Re-read under the lock, including heartbeat/lease/cancellation fields.
+        # A competing claim or progress update invalidates this observation.
+        query = (
+            candidate_query.where(
+                BackgroundJob.id == job_id,
+                BackgroundJob.execution_token == token,
+                BackgroundJob.progress_sequence == sequence,
+                BackgroundJob.last_progress_at == progress_at,
+                BackgroundJob.progress_stage == stage,
+                or_(
+                    BackgroundJob.requested_cancel.is_(True),
+                    BackgroundJob.last_progress_at < deadline,
+                ),
+            )
+            .with_for_update(skip_locked=True)
+            .execution_options(populate_existing=True)
+        )
+        locked = list(db.scalars(query).all())
+        if not locked:
+            _watchdog_decision(
+                db, {"job_id": job_id, "decision": "LOCKED_OR_ADVANCED_CANDIDATE_SKIPPED"}
+            )
+            continue
+        job = locked[0]
         if job.requested_cancel:
             _finalize_recovery_cancellation(db, job, now=observed_at)
             continue
@@ -1134,47 +1175,10 @@ def fence_stalled_jobs(
             long_stage_timeout_seconds=long_stage_timeout_seconds,
         )
         metadata = dict(job.operational_metadata_json or {})
-        observation = dict(metadata.get("progress_watchdog") or {})
         current_sequence = int(job.progress_sequence or 0)
-        has_observed_sequence = "progress_sequence" in observation
-        observed_sequence = int(observation.get("progress_sequence", current_sequence))
-        if has_observed_sequence and observed_sequence != current_sequence:
-            unchanged_since = observed_at
-            decision = "HEALTHY_PROGRESS_SEQUENCE_ADVANCED"
-        else:
-            raw_unchanged_since = observation.get("unchanged_since")
-            try:
-                unchanged_since = datetime.fromisoformat(str(raw_unchanged_since))
-            except (TypeError, ValueError):
-                unchanged_since = job.last_progress_at or observed_at
-            decision = "HEALTHY_WITHIN_PROGRESS_TIMEOUT"
-        if unchanged_since.tzinfo is None:
-            unchanged_since = unchanged_since.replace(tzinfo=UTC)
         worker_age = _age_seconds(observed_at, worker_heartbeat_at)
         lease_age = _age_seconds(observed_at, job.heartbeat_at)
         progress_age = _age_seconds(observed_at, job.last_progress_at)
-        observation = {
-            "progress_sequence": current_sequence,
-            "unchanged_since": unchanged_since.isoformat(),
-            "observed_at": observed_at.isoformat(),
-        }
-        metadata["progress_watchdog"] = observation
-        job.operational_metadata_json = metadata
-        if unchanged_since >= observed_at - timedelta(seconds=timeout):
-            decision_context = {
-                "job_id": job.id,
-                "run_id": job.related_run_id,
-                "job_type": job.job_type,
-                "worker_heartbeat_age_seconds": worker_age,
-                "job_lease_heartbeat_age_seconds": lease_age,
-                "job_progress_age_seconds": progress_age,
-                "progress_sequence": current_sequence,
-                "stage": effective_stage,
-                "stall_threshold_seconds": timeout,
-                "decision": decision,
-            }
-            logger.info("job.watchdog.decision %s", decision_context, extra=decision_context)
-            continue
         old_token = job.execution_token
         _interrupt_fenced_pipeline_steps(db, job, observed_at=observed_at)
         job.status = JobStatus.STALLED
@@ -1235,10 +1239,34 @@ def fence_stalled_jobs(
             "stall_threshold_seconds": timeout,
             "decision": decision,
         }
-        logger.warning("job.watchdog.decision %s", decision_context, extra=decision_context)
+        _watchdog_decision(db, decision_context)
         publish_after_commit(db, "increment", "swinglens_job_stalls_total", job_type=job.job_type)
     db.flush()
     return fenced
+
+
+def _watchdog_decision(db, context):
+    if isinstance(db, Session):
+        db.info.setdefault("watchdog_decisions", []).append(context)
+    else:
+        logger.info("job.watchdog.decision %s", context, extra=context)
+
+
+@event.listens_for(Session, "after_commit")
+def _publish_watchdog_decisions(db):
+    if not db.in_nested_transaction():
+        for context in db.info.pop("watchdog_decisions", []):
+            level = (
+                logging.WARNING
+                if context.get("decision") == "STALL_PROGRESS_SEQUENCE_FROZEN"
+                else logging.INFO
+            )
+            logger.log(level, "job.watchdog.decision %s", context, extra=context)
+
+
+@event.listens_for(Session, "after_rollback")
+def _discard_watchdog_decisions(db):
+    db.info.pop("watchdog_decisions", None)
 
 
 def _effective_progress_stage(job: BackgroundJob) -> str | None:
@@ -1750,7 +1778,11 @@ def mark_job_failed_or_retry(
         }
 
     _apply_running_job_update(db, job, expected_token, values)
-    if values["status"] == JobStatus.QUEUED and job.job_type == "FULL_PIPELINE":
+    if job.job_type == "FULL_PIPELINE" and failure["code"] == "CONTROL_PLANE_LOCK_TIMEOUT":
+        from app.services.pipeline_service import mark_pipeline_job_failure
+
+        mark_pipeline_job_failure(db, job, failure)
+    elif values["status"] == JobStatus.QUEUED and job.job_type == "FULL_PIPELINE":
         from app.services.pipeline_service import mark_pipeline_job_retry
 
         mark_pipeline_job_retry(db, job, failure)
@@ -1766,6 +1798,7 @@ def mark_job_failed_or_retry(
         values["status"] == JobStatus.FAILED
         and job.job_type == "FULL_PIPELINE"
         and getattr(job, "pipeline_dependency_id", None) is None
+        and failure["code"] != "CONTROL_PLANE_LOCK_TIMEOUT"
     ):
         from app.services.pipeline_service import mark_pipeline_job_failure
 
@@ -1796,6 +1829,14 @@ def mark_job_failed_or_retry(
 def classify_job_failure(error: str | Exception) -> dict[str, Any]:
     """Classify deterministic provenance failures without disabling retries globally."""
 
+    from app.services.domain_write_fence import ControlPlaneLockTimeout
+
+    if isinstance(error, ControlPlaneLockTimeout):
+        return {
+            "kind": JobFailureKind.TRANSIENT.value,
+            "retryable": True,
+            "code": "CONTROL_PLANE_LOCK_TIMEOUT",
+        }
     parameter_limit = _database_parameter_limit_failure(error)
     if parameter_limit is not None:
         return parameter_limit
