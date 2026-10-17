@@ -36,6 +36,7 @@ def observe_certification_runtime(
     pipeline_id: int,
     lock_wait_seconds: float = 5.0,
     transaction_age_seconds: float = 45.0,
+    transaction_progress_seconds: float = 30.0,
     no_progress_seconds: float = 180.0,
     control_heartbeat_seconds: float = 30.0,
 ) -> CertificationObservation:
@@ -47,6 +48,7 @@ def observe_certification_runtime(
         "pipeline_id": int(pipeline_id),
         "lock_wait_seconds": float(lock_wait_seconds),
         "transaction_age_seconds": float(transaction_age_seconds),
+        "transaction_progress_seconds": float(transaction_progress_seconds),
         "no_progress_seconds": float(no_progress_seconds),
         "control_heartbeat_seconds": float(control_heartbeat_seconds),
     }
@@ -311,38 +313,7 @@ def observe_certification_runtime(
             params,
         )
     )
-    failures.extend(
-        _query_failures(
-            db,
-            "POSTGRES_TRANSACTION_AGE_EXCEEDED",
-            """
-            select pid, state,
-                   extract(epoch from (now() - xact_start)) as transaction_age_seconds,
-                   wait_event_type, wait_event, left(query, 500) as query
-            from pg_stat_activity
-            where datname = current_database() and pid <> pg_backend_pid()
-              and xact_start is not null
-              and xact_start < now() - make_interval(secs => :transaction_age_seconds)
-            """,
-            params,
-        )
-    )
-    failures.extend(
-        _query_failures(
-            db,
-            "POSTGRES_IDLE_IN_TRANSACTION",
-            """
-            select pid, state,
-                   extract(epoch from (now() - xact_start)) as transaction_age_seconds,
-                   left(query, 500) as query
-            from pg_stat_activity
-            where datname = current_database() and pid <> pg_backend_pid()
-              and state = 'idle in transaction'
-              and xact_start < now() - make_interval(secs => :transaction_age_seconds)
-            """,
-            params,
-        )
-    )
+    failures.extend(_transaction_policy_failures(db, params))
     return CertificationObservation(
         observed_at=datetime.now(UTC),
         pipeline_id=int(pipeline_id),
@@ -353,6 +324,68 @@ def observe_certification_runtime(
 
 def _rows(db: Session, statement: str, params: dict[str, Any]) -> list[dict[str, Any]]:
     return [dict(row) for row in db.execute(text(statement), params).mappings()]
+
+
+def _transaction_policy_failures(
+    db: Session,
+    params: dict[str, Any],
+) -> list[CertificationInvariantFailure]:
+    """Allow long atomic worker transactions only while this run makes progress."""
+
+    healthy_work = bool(
+        _rows(
+            db,
+            """
+            select j.id
+            from background_jobs j
+            join background_workers w
+              on w.worker_id = j.worker_id and w.instance_id = j.worker_instance_id
+            where (j.payload_json->>'pipeline_run_id')::bigint = :pipeline_id
+              and j.status = 'RUNNING'
+              and j.requested_cancel is not true
+              and j.lease_expires_at >= now()
+              and j.heartbeat_at >=
+                  now() - make_interval(secs => :transaction_progress_seconds)
+              and j.last_progress_at >=
+                  now() - make_interval(secs => :transaction_progress_seconds)
+              and w.stopping_at is null
+              and w.heartbeat_at >=
+                  now() - make_interval(secs => :transaction_progress_seconds)
+              and w.control_loop_heartbeat_at >=
+                  now() - make_interval(secs => :control_heartbeat_seconds)
+            limit 1
+            """,
+            params,
+        )
+    )
+    transactions = _rows(
+        db,
+        """
+        select pid, state, application_name,
+               extract(epoch from (now() - xact_start)) as transaction_age_seconds,
+               wait_event_type, wait_event, left(query, 500) as query
+        from pg_stat_activity
+        where datname = current_database() and pid <> pg_backend_pid()
+          and xact_start is not null
+          and xact_start < now() - make_interval(secs => :transaction_age_seconds)
+        """,
+        params,
+    )
+    failures: list[CertificationInvariantFailure] = []
+    for transaction in transactions:
+        progressing_worker = healthy_work and transaction["application_name"] == "swinglens-worker"
+        detail = {
+            **transaction,
+            "review_age_seconds": params["transaction_age_seconds"],
+            "progress_freshness_seconds": params["transaction_progress_seconds"],
+            "healthy_pipeline_progress": progressing_worker,
+        }
+        if progressing_worker:
+            continue
+        failures.append(_failure("POSTGRES_TRANSACTION_STALLED", detail))
+        if transaction["state"] == "idle in transaction":
+            failures.append(_failure("POSTGRES_IDLE_IN_TRANSACTION", detail))
+    return failures
 
 
 def _query_failures(

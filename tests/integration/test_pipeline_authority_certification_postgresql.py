@@ -349,6 +349,83 @@ def test_12_supervisor_inspection_during_active_transaction_is_bounded(
     engine.dispose()
 
 
+def test_12b_transaction_policy_distinguishes_progress_stall_and_unrelated_session(
+    authority_database_url: str,
+) -> None:
+    engine = create_engine(authority_database_url)
+    pipeline_id, root_id = _seed_pipeline(engine, root_status=JobStatus.RUNNING)
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        now = datetime.now(UTC)
+        root.progress_stage = "CAPTURING_SETUP_SIGNALS"
+        root.progress_sequence = 1
+        root.progress_processed = 1
+        root.progress_total = 100
+        root.last_progress_at = now
+        db.add(
+            BackgroundWorker(
+                worker_id=root.worker_id,
+                instance_id=root.worker_instance_id,
+                generation=1,
+                queues_json=["interactive"],
+                heartbeat_at=now,
+                resource_collector_heartbeat_at=now,
+                control_loop_heartbeat_at=now,
+            )
+        )
+        db.commit()
+
+    def observe_active_transaction(*, application_name: str = "swinglens-worker") -> set[str]:
+        with Session(engine) as active:
+            active.execute(
+                text("select set_config('application_name', :name, true)"),
+                {"name": application_name},
+            )
+            active.execute(text("select * from market_calculation_contexts limit 1"))
+            time.sleep(0.12)
+            with Session(engine) as observer:
+                observation = observe_certification_runtime(
+                    observer,
+                    pipeline_id=pipeline_id,
+                    transaction_age_seconds=0.05,
+                    transaction_progress_seconds=1.0,
+                    no_progress_seconds=5.0,
+                    control_heartbeat_seconds=1.0,
+                )
+            active.rollback()
+        return {failure.code for failure in observation.failures}
+
+    healthy_codes = observe_active_transaction()
+    assert "POSTGRES_TRANSACTION_STALLED" not in healthy_codes
+    assert "POSTGRES_IDLE_IN_TRANSACTION" not in healthy_codes
+
+    unrelated_codes = observe_active_transaction(application_name="unrelated-client")
+    assert "POSTGRES_TRANSACTION_STALLED" in unrelated_codes
+    assert "POSTGRES_IDLE_IN_TRANSACTION" in unrelated_codes
+
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        root.last_progress_at = datetime.now(UTC) - timedelta(seconds=5)
+        db.commit()
+    stalled_codes = observe_active_transaction()
+    assert "POSTGRES_TRANSACTION_STALLED" in stalled_codes
+    assert "POSTGRES_IDLE_IN_TRANSACTION" in stalled_codes
+
+    with Session(engine) as db:
+        root = db.get(BackgroundJob, root_id)
+        root.last_progress_at = datetime.now(UTC)
+        root.heartbeat_at = datetime.now(UTC)
+        root.requested_cancel = True
+        worker = db.get(BackgroundWorker, root.worker_id)
+        worker.heartbeat_at = datetime.now(UTC)
+        worker.control_loop_heartbeat_at = datetime.now(UTC)
+        db.commit()
+    cancelled_codes = observe_active_transaction()
+    assert "POSTGRES_TRANSACTION_STALLED" in cancelled_codes
+    assert "POSTGRES_IDLE_IN_TRANSACTION" in cancelled_codes
+    engine.dispose()
+
+
 def test_13_lock_timeout_cancellation_is_bounded_and_diagnostic(
     authority_database_url: str,
 ) -> None:

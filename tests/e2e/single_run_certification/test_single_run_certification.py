@@ -954,6 +954,7 @@ def _run_pipeline_through_gui(
                     pipeline_id=pipeline_id,
                     lock_wait_seconds=5,
                     transaction_age_seconds=120,
+                    transaction_progress_seconds=30,
                     no_progress_seconds=progress_deadline_seconds,
                 )
             with observer_log.open("a", encoding="utf-8") as handle:
