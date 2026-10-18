@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -8,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from app.models.tables import SetupLifecycleEvaluationRun, SetupSignalSnapshot
+from app.observability.logging import log_event
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.configuration_delivery import anchored_decision_calculator
 from app.services.contextual_calculation_identity import (
@@ -62,6 +64,7 @@ REQUIRED_FEATURE_SOURCES = (
 )
 OPTIONAL_CONTEXT_SOURCES = ("market_regime", "sector_rotation")
 FRESH_BAR_GRACE_SESSIONS = 3
+logger = logging.getLogger(__name__)
 
 
 class SetupLifecycleCaptureCancelled(RuntimeError):
@@ -1179,6 +1182,41 @@ class SetupLifecycleSnapshotCaptureService:
             performance=dict(getattr(self.loader, "last_metrics", {})),
         )
         if finalize_evaluation_run:
+            from sqlalchemy.orm import Session
+
+            if isinstance(db, Session):
+                from app.services.setup_lifecycle.capture_provenance import (
+                    CAPTURE_MEMBERSHIP_KEY,
+                    capture_membership,
+                )
+
+                membership = capture_membership(
+                    db,
+                    evaluation_run,
+                    self.repository.get_snapshots_by_ids(db, tuple(snapshot_ids)),
+                )
+                self.repository.record_evaluation_audit(
+                    db,
+                    evaluation_run.id,
+                    {
+                        **(evaluation_run.audit_json or {}),
+                        CAPTURE_MEMBERSHIP_KEY: membership,
+                    },
+                )
+                created = sum(
+                    item["creator_evaluation_run_id"] == evaluation_run.id
+                    for item in membership["snapshots"].values()
+                )
+                log_event(
+                    logger,
+                    "setup.capture.membership_staged",
+                    run_id=run_id,
+                    capture_attempt_id=evaluation_run.id,
+                    snapshot_count=len(snapshot_ids),
+                    created_snapshots=created,
+                    reused_snapshots=len(snapshot_ids) - created,
+                    membership_fingerprint=membership["fingerprint"],
+                )
             self.repository.complete_evaluation_run(
                 db,
                 evaluation_run,

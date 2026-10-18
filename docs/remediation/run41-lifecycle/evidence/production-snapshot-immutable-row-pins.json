@@ -1,0 +1,893 @@
+{
+  "original_full_rows_match_forensic_hashes": true,
+  "native_canonical_publication_fields": [
+    "canonical_decision_json",
+    "canonical_reason",
+    "canonicalized_at",
+    "is_canonical"
+  ],
+  "immutable_row_sha256": {
+    "3498": "71b430f38506e0f5d50fb1575b4b319a3be557aafd78272abea35ea38c2ae965",
+    "3499": "73228b7c3e798ac0e60cfcf392eababbb4cd405e84cb65936af01e421b3632b7",
+    "3500": "9f30bd8f3e53f0bf7e554f4f28027dbd5628836b5b1fb30ccec8ec9e874c8c40",
+    "3501": "f76a40a0ecc9a3d5250202588f71d0c7476566b6764a73055a271dea228a7745",
+    "3502": "4caef2ccec0e5bdb8e664ceeaf9cc9b56faa61e6626ec8985b692d4af4357842",
+    "3503": "c872be531d4b744aeac2f084f17173c9902e66130feb3b4c508488685f592168",
+    "3504": "e4154e3ab8e5539ce4cb57dd31eb71c9c30c5132a42a65ee9fb164338cbd7066",
+    "3505": "fcec0e31b683b20a7555123f489904083b4e23e937f9be18f457afd90ac0d607",
+    "3506": "178c76039196a4b607cb8e6c425665faa0e04d708b71e293c9457459c42807db",
+    "3507": "fbda42dfc13f8905b51a7016ad9ababcb224d3acebfd5f7b393d265eb3e56372",
+    "3508": "6ee758328c96a2c4281f88a3a1dda1769502a68e601405eb4493d29ae6b9b3fb",
+    "3509": "d3d18fb34028a8e38dbd57f529a031bb9434ec4bc0b3f2fa10068a67fb53ed51",
+    "3510": "0a1cb5281d0e95983562cec7479450ef200fb35d5541fb2bc70caf4e10e27d99",
+    "3511": "6d5b3f6ace2a74adf973f9b6aeee4c26efac2382faf7043a1415fea9a9a19fdc",
+    "3512": "9d2fe5ad4e7efec59fe120d09edc286cc034b7c9b76ac75f3d30e1b4eed4e90a",
+    "3513": "02bd3efc6dadb37f8dc0f5dcd932f2ade6460a7b761a587f98bc253db6e40e17",
+    "3514": "86d292b3dac60bb772a755ff06fb1fa339392c921f79c6c2f189d4ea3fb84861",
+    "3515": "d771012645fa6230c71f441285d49aa6e4aec3de00ea46ef608aade121f2c6db",
+    "3516": "323f311e88a704a7583c3c29c71e55ad5188eb6b40acb7931774e4f9a3aed340",
+    "3517": "ba8f2e76d9d1d70a0d9764fd3665d0d68b57db0847b2235cef8554429f1da8b1",
+    "3518": "1d2ce1939fe28e94e340d1a65154f5044207baab1ef2201d220d405c1e8efb81",
+    "3519": "78c6e20c0a8d0280bfa93ccaf30a1bcd0b7f8bbd209ed8723937c397420fc41f",
+    "3520": "4dacaaba632393b51f71d3a26c4855ae9557b9c340b41e69bef3cea968b02633",
+    "3521": "b4b6d7bfbbb19d2dc0e345e5de7b255dabc9ec8cba4423a07394d34638133120",
+    "3522": "2041af8a7a1db0299f027247657c12226fa99813caa61ab6b5f2a157f2cee6b0",
+    "3523": "f993bcd64d66fdc76ade76e5fa885365c1a5b36dcb97b4b11501f5c212c56e7b",
+    "3524": "de81eec8f22fd4f51951e5af9d3eeeb46b2d35b0274c28b7b95b049d2039aef6",
+    "3525": "466058cad00cd8046b829c16a06708cd7b499022e08c3ec3c8ec2ad27f9888fc",
+    "3526": "0912512023056bc01a1f620dc31988a8f82bd80a66b0c43b12bc7781439bfb42",
+    "3527": "befea4af23883de46e4256b936efe21aace8a1e749ecb6964ee8a869ba341bcd",
+    "3528": "feb38f681513fdda1685f319679fe43caa3995505716cbdeabb556c298a74b35",
+    "3529": "7e2c9d32235d53e5cd263fa3c8033f7be49c133a9c6108e6a2ad0ca87f960444",
+    "3530": "cc8c46530af737bb06162289faf7c302942c63516aeb271dcf24e10968de4b6c",
+    "3531": "f56ead49f941d35674a4fe465938e94619c89cd3a2d450b727f82a6ee38e7113",
+    "3532": "41ec053ceb5ba74ee9ecd98105b3e01c3212ff93a223a3908dba40fca9f981c6",
+    "3533": "ed8559a2d1c19bbb74c2fd9cdad23157f4ec187f77d3628127b3da266069ccca",
+    "3534": "4772cdcb743fda3b91a037fe96f202775d371791ce2b42c6e6fbecf160398a9f",
+    "3535": "5dc1232e6165c601c4aa23684276d978d202c8b4c424a857957f49194c2fb05a",
+    "3536": "948f59052731b2da5fddfef7853bab40caddfc4615b6e5d81ea9b2ae45af36a3",
+    "3537": "caf3d752e57589fcd246dac55fef54c7582877f38e398d55470035672f37fb83",
+    "3538": "56bc518eb1a78268f6efde11211ca7fdded5b4f3451630d1ecdb51d16f8b0b5e",
+    "3539": "19a96b6a94b6a911ae570c561c3fa060453b4f31a8286d4080b5a8d846c9c74d",
+    "3540": "8dd4a7952640e21e76624e4ffe841e79b288d607c0adaa13277f92212c150c06",
+    "3541": "4c94df0faa3d747e4ab3c68f0e0cd48df8759a5df7069efffb9e260d85330ebe",
+    "3542": "c9d554b0d59fa4542d802cb029832ecbe7b974cf0f3434de2ce957325f0e57dc",
+    "3543": "9c56ec70a6d1c20b81210af79956dd7d08baa068795a11cdd05584c09e80f4a0",
+    "3544": "4557dd7b3e8aaeef393838fedd47844838bf427ffb74bb139f0caea8023120d9",
+    "3545": "4fe209873590447418516e0926e5408725c9c251e684e28764ff1d689372bada",
+    "3546": "221ebeeda89ffb6dae8f121c2bbf316d6ce626d069e5d1e2f7306f9b5dc82b19",
+    "3547": "60fd3d2b119466332c53950f30d16b565af051977ec1e63ad88ea60113035451",
+    "3548": "61f75eb56fafc9730d5c3ba582d4e9ea12d33b6b721e59564ac90cd5e5fe6ec6",
+    "3549": "8883c0c27ce582484ad3f8005ecf297124415450f72d57cddfead72bd111112a",
+    "3550": "9bc27aa12e06ff5c552f3f652e1912ccc699bea75634be85b169a615c53784a2",
+    "3551": "6e0bf2443c32adf6f1d00bafe092fac623b27235df14acab01d57e640d1c6a6f",
+    "3552": "087327fe11a3bd1d41aa6ab1a63d857d2f288c63ffb59028457e3e7fc208b3d3",
+    "3553": "f0534a6b1dda81cf2b2f11ffb7cbc04db38e086337167b7e1dd06662deecd36b",
+    "3554": "46c13c959a53631a7cf9b0e35e31179966a3422fb861951ee4115f7566d13818",
+    "3555": "0d7edd920ca537cbc10a3633f5f10f8c12b03ee70af066cf982decbf649ffe84",
+    "3556": "8fecc373ad279927430b0d17aa29903d4b8ad4cb2431e77be05de48fb3189e50",
+    "3557": "dcb6569ae324ef3619ff8f953a3e4771af78d0cac0cd70c61a1bd5a172fe9ea4",
+    "3558": "5ada50df90a312c4e5407c737029758ac076ce362f08823e8fab07616dead62a",
+    "3559": "981a04f7b694b761ae4cb66ebbb9c17c34015a9657bfbfacd4b34b4b95b8e4db",
+    "3560": "8ff9b150ab3259024c271cb0ae07fa28692e45618a48aaba537630986a0390ea",
+    "3561": "84593ac85eec736f613394751f69a263686191e0be9c91f4a0aded48d2c7adc5",
+    "3562": "84bcf77accda77daa4f743272dd2298bb6715bea6597d28fa6e5e79dbaeef24b",
+    "3563": "58dafdaa615f1d1bf1445832eb4479e42f81229eddc0f26279e5b246236cc807",
+    "3564": "b918e8e85177df5b8f3388fe29ce52ad5740ca9611523e8fbbd574a2cb13dc4c",
+    "3565": "2d0a99d4cab37e82f8e2959b32867c91668936f977d4db265a928393d237d9e5",
+    "3566": "47b98c787adb0ae75bcfc88892c249b66e5ced6f160e53db4e8ffc594b7b3991",
+    "3567": "6438f6a1bcca1db9598ae725eb2f983a620ceafd0f98fa8188c86f004e91ca05",
+    "3568": "5b52e0896fbfb547b11bd81bff798bdf1bfcf4d4c720832a65e5acb4eb0a3071",
+    "3569": "f728fd0bf7a9d497fdc523327d217a358445284ff59aa6a16185e59a0caa1bb6",
+    "3570": "22bbd14378843a095400fd261cb4eaf3a52a3badfe3656bfc6d4f5c3cca891f2",
+    "3571": "3b0ca42e589638a75aac03db4991ed46f5c926d7d6d209343d9e250d08065765",
+    "3572": "c72f67cac4b1eb5c2ad501f91b6ee4526fb33d3c4b33181c2eee73af588a2fcb",
+    "3573": "c52285e08b4f01cdb37e47f9a8bfa12c34a80d37f191c7c82f94938908cd20d5",
+    "3574": "ac65da9fe7043d13f8619b0d87a3cf8ecfe82193897a0f0ee04307701c69ad95",
+    "3575": "89c6dea6813637ee1694706fec3d461c7946deb4acedb8485bab3753185d565a",
+    "3576": "0e12aa222370f1bfb7e96ea6f1df4da17efa1b322546f7a0d82434ab23f76bb8",
+    "3577": "04e84e61bf6ff24e383772e10b908b153284c9e85a785b934b52279fec181cde",
+    "3578": "8574542101418a8e5bc75947d7401ecb209865bd3b81a76a8a4e2b3804b792f0",
+    "3579": "4247d36198ea1aad9aa8150c96726af5f3afdac7b450c1168f2297e760c00b8a",
+    "3580": "99e6e3c80d678c735819e932603e2b978c8c2f0df6be31d566f16cd70df6d405",
+    "3581": "4139102bbeb95a540014c251089a3fc80609082b14ca0301c8738fdd72c97092",
+    "3582": "8a0ee9fcba3e037620a804874054bbfec0b0ae4ce098a6247da368dac7e9b33e",
+    "3583": "ed4de035f5813c18421af190bdddc9e14173ab0712e87a466344591bffc13528",
+    "3584": "681628a6d458a5facd9e50d128d34049b6594ca7ef0b37b80ec5c98c158d1587",
+    "3585": "e149094ad02e3ab242d099d61e251ca98702a107a092eee7f633b969bfe94378"
+  },
+  "original_canonical_publication_metadata": {
+    "3498": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3499": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3500": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3501": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3502": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3503": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3504": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3505": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3506": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3507": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3508": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3509": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3510": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3511": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3512": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3513": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3514": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3515": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3516": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3517": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3518": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3519": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3520": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3521": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3522": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3523": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3524": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3525": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3526": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3527": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3528": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3529": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3530": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3531": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3532": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3533": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3534": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3535": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3536": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3537": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3538": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3539": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3540": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3541": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3542": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3543": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3544": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3545": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3546": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3547": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3548": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3549": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3550": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3551": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3552": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3553": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3554": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3555": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3556": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3557": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3558": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3559": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3560": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3561": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3562": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3563": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3564": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3565": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3566": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3567": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3568": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3569": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3570": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3571": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3572": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3573": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3574": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3575": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3576": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3577": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3578": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3579": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3580": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3581": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3582": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3583": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3584": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    },
+    "3585": {
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonicalized_at": null,
+      "is_canonical": false,
+      "canonical_reason": null
+    }
+  }
+}

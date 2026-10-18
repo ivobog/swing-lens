@@ -1,0 +1,17 @@
+{
+  "sha256": "4e762bc00d53045c71eb61a0e8c3582e150bf6cea07b39d7c8f8982f4eba9ee5",
+  "scope": [
+    "pipeline",
+    "steps",
+    "jobs",
+    "evaluations",
+    "dependencies",
+    "snapshots",
+    "configuration-bindings",
+    "configuration-anchor",
+    "execution-settings",
+    "impact-counts",
+    "impact-count-queries"
+  ],
+  "read_only_enforced": true
+}

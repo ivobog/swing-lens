@@ -1,0 +1,53 @@
+{
+  "alembic_revision": "0092_phase2_eligibility_ledgers",
+  "canonical_tickers": [
+    "ALFA",
+    "BRAV",
+    "CHAR",
+    "DELT",
+    "ECHO",
+    "FOXT",
+    "GOLF",
+    "RISK"
+  ],
+  "csv_hash": "91300f83aab34215265dd1149f57e9e4b469362adadbd5584db3df6fd222cb22",
+  "database_engine": "PostgreSQL",
+  "database_name": "swinglens_pytest_cert_8f79566cb472",
+  "decoy_run_id": 1,
+  "decoy_ticker": "DECOY_ONLY_CANARY",
+  "execution_id": "20261018T130110Z-638e7394",
+  "feature_flags": {
+    "CERI_ADMIN_ENABLED": "true",
+    "CERI_ALERTS_ENABLED": "true",
+    "CERI_BATCHED_WORKFLOW_ENABLED": "true",
+    "CERI_ENABLED": "true",
+    "CERI_LEGACY_PIPELINE_SCHEDULING_ENABLED": "false",
+    "CERI_PROVIDER_INGEST_ENABLED": "true",
+    "CERI_RUN_CAPTURE_ENABLED": "true",
+    "CERI_UI_ENABLED": "true",
+    "JOB_WORKER_ENABLED": "false",
+    "SETUP_CAPTURE_HANDOFF_ENABLED": "false",
+    "SETUP_LIFECYCLE_ALERTS_ENABLED": "true",
+    "SETUP_LIFECYCLE_ENABLED": "true",
+    "SETUP_LIFECYCLE_PIPELINE_STEP_ENABLED": "true",
+    "TECHNICAL_ARTIFACT_CACHE_ENABLED": "true",
+    "TECHNICAL_ARTIFACT_CACHE_WRITE_ENABLED": "true",
+    "TECHNICAL_SERIES_VERSION_MAINTENANCE_ENABLED": "true",
+    "USE_DURABLE_PIPELINE": "true",
+    "WINNER_PROBABILITY_ADMIN_ENABLED": "true",
+    "WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED": "false",
+    "WINNER_PROBABILITY_AUTO_MATURATION_ENABLED": "false",
+    "WINNER_PROBABILITY_CAPTURE_IN_PIPELINE": "true",
+    "WINNER_PROBABILITY_ENABLED": "true"
+  },
+  "fixture_hash": "84c1a6c3917dcdd8e9a6d99b74ed2f8830a6b8647a0292919698e8ba55339487",
+  "fixture_version": "single-run-certification-1.0.0",
+  "git_commit": "75bc04f32960497a4d823d01aa6d0e6a96aa4105",
+  "harness_configuration": {
+    "admission_mode": "normal",
+    "transaction_trace": false
+  },
+  "provider_mode": "deterministic",
+  "python": "3.12.2 (tags/v3.12.2:6abddd9, Feb  6 2024, 21:26:36) [MSC v.1937 64 bit (AMD64)]",
+  "working_tree_fingerprint": null
+}

@@ -1,0 +1,19 @@
+{
+  "ceri_max_checkpoint_gap_seconds": 2.59775,
+  "ceri_max_job_seconds": 9.503183,
+  "ceri_workflow_seconds": 66.539655,
+  "job_counts": {
+    "CERI_ALERT_REBUILD": 1,
+    "CERI_CAPTURE_RUN": 1,
+    "CERI_CHANGE_DETECTION": 1,
+    "CERI_FEATURE_BATCH": 1,
+    "CERI_NORMALIZE_BATCH": 4,
+    "CERI_PROVIDER_INGEST_BATCH": 4,
+    "CERI_RUN_FINALIZE": 1,
+    "FULL_PIPELINE": 2
+  },
+  "provider_source_records": 60,
+  "size": 10,
+  "technical_ms": 39292.727,
+  "total_pipeline_seconds": 245.285108
+}

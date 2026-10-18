@@ -1205,6 +1205,7 @@ def _continue_after_sector_snapshot(
                 capture_result=(
                     capture_result if _setup_capture_handoff_enabled(dependencies) else None
                 ),
+                capture_handoff_enabled=_setup_capture_handoff_enabled(dependencies),
                 market_cutoff=market_cutoff,
                 pipeline_run_id=pipeline.id,
                 progress_callback=setup_evaluation_checkpoint,
@@ -1627,6 +1628,7 @@ def _execute_resumed_pipeline(
                     capture_result=(
                         capture_result if _setup_capture_handoff_enabled(dependencies) else None
                     ),
+                    capture_handoff_enabled=_setup_capture_handoff_enabled(dependencies),
                     market_cutoff=dependencies.market_cutoff,
                     pipeline_run_id=pipeline.id,
                     progress_callback=setup_evaluation_checkpoint,
@@ -4030,7 +4032,14 @@ def _invoke_setup_evaluation(
     market_cutoff: MarketCalculationCutoff,
     pipeline_run_id: int,
     progress_callback: Callable[..., None] | None = None,
+    capture_handoff_enabled: bool | None = None,
 ) -> Any:
+    log_event(
+        logger, "setup.lifecycle.evaluation_inputs", pipeline_run_id=pipeline_run_id,
+        run_id=run_id, capture_handoff_enabled=capture_handoff_enabled,
+        capture_handoff_supplied=capture_result is not None,
+        capture_path="STAGE_HANDOFF" if capture_result is not None else "INTERNAL_RECAPTURE",
+    )
     parameters = signature(evaluate).parameters.values()
     names = {parameter.name for parameter in parameters}
     accepts_kwargs = any(parameter.kind == Parameter.VAR_KEYWORD for parameter in parameters)

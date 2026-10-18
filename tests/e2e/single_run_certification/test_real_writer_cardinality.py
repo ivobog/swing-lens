@@ -63,6 +63,7 @@ from single_run_certification.test_single_run_certification import (
     certification_environment,  # noqa: F401
     certification_page,  # noqa: F401
     certification_provider_mode,  # noqa: F401
+    certification_setup_capture_handoff_enabled,  # noqa: F401
 )
 
 EXACT_TEN = ("BHE", "BLLN", "KLIC", "LSCC", "PDFS", "ACMR", "RDVT", "AVT", "DVN", "JNJ")
@@ -77,6 +78,9 @@ def certification_provider_ingest_enabled() -> bool:
 @pytest.mark.slow
 @pytest.mark.destructive
 @pytest.mark.parametrize("size", (10, 88, 100))
+@pytest.mark.parametrize(
+    "certification_setup_capture_handoff_enabled", (False, True), indirect=True
+)
 def test_frozen_real_writer_cardinality(
     certification_environment,  # noqa: F811
     certification_page,  # noqa: F811

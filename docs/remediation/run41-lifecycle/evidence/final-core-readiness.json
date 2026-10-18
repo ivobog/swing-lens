@@ -1,0 +1,16 @@
+{
+  "http_status": 200,
+  "status": "ok",
+  "check_states": {
+    "database": "ok",
+    "database_provenance": "ok",
+    "migrations": "ok",
+    "storage": "ok",
+    "supervisor": "ok",
+    "web": "ok",
+    "worker": "ok",
+    "topology": "ok",
+    "metrics_listeners": "ok"
+  },
+  "captured_at_utc": "2026-10-18T15:24:48.339321+00:00"
+}

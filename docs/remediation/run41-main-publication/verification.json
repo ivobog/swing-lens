@@ -1,0 +1,34 @@
+{
+  "base_commit": "e69361f35ba9425c01d015c9cac80e91fd95c54a",
+  "scope": "Run 41 implementation integrated onto current origin/main",
+  "test_results": {
+    "regressions.xml": {
+      "tests": 172,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9
+    },
+    "outcome-contract.xml": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "native-postgresql.xml": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "total_passed": 182,
+  "native_tests_reexecuted_without_skips": true,
+  "repository_wide_ruff": "passed",
+  "architecture_registry": "passed; exceptions=0",
+  "e2e_cardinality_collection": 6,
+  "historical_full_pipeline_and_live_recovery_baseline": "75bc04f32960497a4d823d01aa6d0e6a96aa4105",
+  "whole_pipeline_reexecuted_for_publication": false,
+  "sealed_evidence_staged_blob_hashes": "all match",
+  "unredacted_nondefault_credential_url_findings": 0,
+  "database_dump_staged": false
+}

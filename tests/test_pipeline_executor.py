@@ -635,7 +635,10 @@ def test_resume_from_ceri_propagates_frozen_context_to_setup_evaluation() -> Non
     assert calls == ["ceri_schedule"]
 
 
-def test_post_ceri_continuation_runs_handoff_setup_and_winner_without_upstream_replay() -> None:
+@pytest.mark.parametrize("handoff_enabled", [False, True])
+def test_post_ceri_continuation_runs_handoff_setup_and_winner_without_upstream_replay(
+    handoff_enabled,
+) -> None:
     db = PipelineExecutorFakeDb(
         tickers=["MSFT"],
         ceri_provider_ingest_enabled=True,
@@ -688,6 +691,7 @@ def test_post_ceri_continuation_runs_handoff_setup_and_winner_without_upstream_r
         _dependencies(
             calls,
             setup_lifecycle_enabled=True,
+            setup_capture_handoff_enabled=handoff_enabled,
             setup_capture_result={"snapshots_captured": 1},
             setup_evaluation_result={"canonical_snapshots": 1},
             winner_capture_enabled=True,
@@ -711,7 +715,12 @@ def test_post_ceri_continuation_runs_handoff_setup_and_winner_without_upstream_r
     )
 
     assert result.status == PipelineStatus.COMPLETED, db.pipeline.error_message
-    assert calls == ["setup_capture", "setup_evaluate", "winner_capture"]
+    assert calls == [
+        "setup_capture",
+        "setup_evaluate",
+        *(["setup_evaluate_handoff"] if handoff_enabled else []),
+        "winner_capture",
+    ]
     assert db.pipeline.result_json["decision_handoff_manifest_id"] == 91
     assert any(
         item["stage"] == "FREEZING_DECISION_HANDOFF_MANIFEST"
@@ -1256,7 +1265,8 @@ def test_execute_full_pipeline_runs_setup_lifecycle_steps_when_enabled() -> None
     assert result.setup_lifecycle_evaluation_skipped == 0
 
 
-def test_execute_full_pipeline_passes_setup_capture_handoff_when_enabled() -> None:
+@pytest.mark.parametrize("handoff_enabled", [False, True])
+def test_execute_full_pipeline_passes_setup_capture_handoff_when_enabled(handoff_enabled) -> None:
     db = PipelineExecutorFakeDb(tickers=["MSFT"], setup_lifecycle_enabled=True)
     calls = []
     dependencies = _dependencies(
@@ -1266,14 +1276,14 @@ def test_execute_full_pipeline_passes_setup_capture_handoff_when_enabled() -> No
             CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
         ],
         setup_lifecycle_enabled=True,
-        setup_capture_handoff_enabled=True,
+        setup_capture_handoff_enabled=handoff_enabled,
         setup_capture_result={"snapshots_captured": 1},
         setup_evaluation_result={"canonical_snapshots": 1},
     )
 
     execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
 
-    assert "setup_evaluate_handoff" in calls
+    assert ("setup_evaluate_handoff" in calls) is handoff_enabled
 
 
 def test_execute_full_pipeline_runs_ceri_before_setup_lifecycle_when_enabled(

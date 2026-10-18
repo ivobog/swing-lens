@@ -11541,6 +11541,13 @@
         "WRITE-012"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/observability/logging.py",
+      "function": "format",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Run 41: seen.add only tracks exception identities in a bounded in-memory set; no database mutation."
     }
   ],
   "recovery_paths": [
@@ -14801,6 +14808,13 @@
       "primitive": "rollback",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/setup_lifecycle/evaluation_service.py",
+      "function": "evaluate_run",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Run 41: discard staged recapture/publication writes on failure or cancellation before separately fenced audit bookkeeping."
     }
   ],
   "high_risk_tables": [

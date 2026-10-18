@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from inspect import Parameter, signature
@@ -8,6 +9,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.observability.logging import log_event
 from app.services.configuration_delivery import anchored_decision_calculator
 from app.services.core_mutation_authority import core_writer_transaction
 from app.services.domain_write_fence import bounded_domain_session
@@ -31,8 +33,10 @@ from app.services.setup_lifecycle.episode_service import (
     SetupLifecycleEpisodeService,
     normalized_snapshot_from_row,
 )
+from app.services.setup_lifecycle.errors import SetupCaptureHandoffError
 from app.services.setup_lifecycle.repository import SetupLifecycleRepository
 from app.services.setup_lifecycle.snapshot_builder import (
+    SetupLifecycleCaptureCancelled,
     SetupLifecycleSnapshotCaptureService,
     SnapshotCaptureResult,
 )
@@ -43,6 +47,7 @@ class SetupLifecycleEvaluationCancelled(Exception):
 
 
 _LIFECYCLE_PROGRESS_BATCH_SIZE = 5
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -141,17 +146,57 @@ class SetupLifecycleEvaluationService:
         pipeline_run_id: int | None = None,
         progress_callback: Callable[..., None] | None = None,
     ) -> SetupLifecycleEvaluationResult:
-        # Capture has its own existing preparation/commit contract. Complete it
-        # before opening the atomic lifecycle publication transaction.
-        if isinstance(db, Session) and capture_result is None and snapshot_ids is None:
-            capture_result = self.capture_service.capture_snapshots_for_run(
-                db,
-                run_id,
-                requester=requester,
-                market_cutoff=market_cutoff,
-                should_cancel=should_cancel,
-            )
         try:
+            # Capture prepares exact sources before opening the lifecycle
+            # publication transaction. Retain its attempt membership separately
+            # from the creators of any idempotently reused snapshots.
+            if isinstance(db, Session) and capture_result is None and snapshot_ids is None:
+                if pipeline_run_id is not None:
+                    market_cutoff = assert_pipeline_calculation_context(
+                        db,
+                        pipeline_run_id=pipeline_run_id,
+                        upload_run_id=run_id,
+                        supplied_context=market_cutoff,
+                    )
+
+                def capture_progress(ticker, processed, total, *, phase):
+                    _report_lifecycle_progress(
+                        progress_callback,
+                        phase="RECAPTURE_" + phase,
+                        processed=processed,
+                        total=total,
+                        current_item=ticker,
+                        last_completed_item=ticker if processed else None,
+                    )
+
+                log_event(
+                    logger,
+                    "setup.lifecycle.capture_started",
+                    run_id=run_id,
+                    pipeline_run_id=pipeline_run_id,
+                    capture_path="INTERNAL_RECAPTURE",
+                )
+                try:
+                    capture_result = self.capture_service.capture_snapshots_for_run(
+                        db,
+                        run_id,
+                        requester=requester,
+                        market_cutoff=market_cutoff,
+                        should_cancel=should_cancel,
+                        progress_callback=capture_progress,
+                    )
+                except SetupLifecycleCaptureCancelled as exc:
+                    raise SetupLifecycleEvaluationCancelled(str(exc)) from exc
+            log_event(
+                logger,
+                "setup.lifecycle.capture_resolved",
+                run_id=run_id,
+                pipeline_run_id=pipeline_run_id,
+                capture_attempt_id=capture_result.evaluation_run_id if capture_result else None,
+                snapshot_count=len(capture_result.snapshot_ids)
+                if capture_result
+                else len(snapshot_ids or ()),
+            )
             return self._evaluate_run(
                 db,
                 run_id,
@@ -170,6 +215,7 @@ class SetupLifecycleEvaluationService:
 
             if not isinstance(db, Session) or isinstance(exc, JobLeaseLost):
                 raise
+            db.rollback()
             # The semantic writer has rolled back the complete business unit.
             # Only an audit row is committed here, in a separately fenced
             # transaction; the caller still owns a successful publication.
@@ -193,13 +239,22 @@ class SetupLifecycleEvaluationService:
                         status=(
                             EvaluationStatus.CANCELLED.value
                             if isinstance(
-                                exc, (SetupLifecycleEvaluationCancelled, PipelineCancelled)
+                                exc,
+                                (
+                                    SetupLifecycleEvaluationCancelled,
+                                    SetupLifecycleCaptureCancelled,
+                                    PipelineCancelled,
+                                ),
                             )
                             else EvaluationStatus.FAILED.value
                         ),
                         current_phase="failed",
                         counts={"failed": 1},
-                        errors={"system": str(exc)},
+                        errors={
+                            "system": exc.as_dict()
+                            if isinstance(exc, SetupCaptureHandoffError)
+                            else str(exc)
+                        },
                     )
                     audit_db.commit()
             raise
@@ -289,6 +344,7 @@ class SetupLifecycleEvaluationService:
                     capture_result=capture_result,
                     snapshot_ids=handoff_snapshot_ids,
                     market_cutoff=market_cutoff,
+                    pipeline_run_id=pipeline_run_id,
                 )
                 capture = capture_result or SnapshotCaptureResult(
                     evaluation_run_id=None,
@@ -631,37 +687,90 @@ class SetupLifecycleEvaluationService:
         capture_result: SnapshotCaptureResult | None,
         snapshot_ids: tuple[int, ...],
         market_cutoff: MarketCalculationCutoff | None,
+        pipeline_run_id: int | None = None,
     ) -> None:
+        context = {
+            "run_id": run_id,
+            "pipeline_run_id": pipeline_run_id,
+            "capture_attempt_id": capture_result.evaluation_run_id if capture_result else None,
+            "calculation_context_id": market_cutoff.context_id if market_cutoff else None,
+        }
+
+        def reject(reason, message, **details):
+            raise SetupCaptureHandoffError(reason, message, **context, **details)
+
         if len(snapshot_ids) != len(set(snapshot_ids)):
-            raise ValueError("Setup capture handoff contains duplicate snapshot IDs.")
+            reject("DUPLICATE_IDS", "Setup capture handoff contains duplicate snapshot IDs.")
         if capture_result is not None and capture_result.captured not in {0, len(snapshot_ids)}:
-            raise ValueError("Setup capture handoff count does not match snapshot IDs.")
+            reject("COUNT_MISMATCH", "Setup capture handoff count does not match snapshot IDs.")
         snapshots = self.repository.get_snapshots_by_ids(db, snapshot_ids)
         if len(snapshots) != len(snapshot_ids):
-            raise ValueError("Setup capture handoff contains missing snapshot IDs.")
+            reject("MISSING_IDS", "Setup capture handoff contains missing snapshot IDs.")
         expected_evaluation_run_id = (
             capture_result.evaluation_run_id if capture_result is not None else None
         )
+        members = None
+        if isinstance(db, Session) and expected_evaluation_run_id is not None:
+            from app.services.setup_lifecycle.capture_provenance import validate_capture_membership
+
+            members = validate_capture_membership(
+                db,
+                capture_attempt_id=expected_evaluation_run_id,
+                run_id=run_id,
+                config=self.config,
+                snapshots=snapshots,
+                pipeline_run_id=pipeline_run_id,
+            )
         for snapshot in snapshots:
             if snapshot.run_id != run_id:
-                raise ValueError("Setup capture handoff contains a snapshot from another run.")
+                reject(
+                    "RUN_MISMATCH",
+                    "Setup capture handoff contains a snapshot from another run.",
+                    snapshot_id=snapshot.id,
+                    ticker=snapshot.ticker,
+                )
             if snapshot.config_hash != self.config.config_hash:
-                raise ValueError("Setup capture handoff config hash does not match evaluator.")
+                reject(
+                    "CONFIG_MISMATCH",
+                    "Setup capture handoff config hash does not match evaluator.",
+                    snapshot_id=snapshot.id,
+                    ticker=snapshot.ticker,
+                )
             if snapshot.engine_version != self.config.engine.version:
-                raise ValueError("Setup capture handoff engine version does not match evaluator.")
+                reject(
+                    "ENGINE_MISMATCH",
+                    "Setup capture handoff engine version does not match evaluator.",
+                    snapshot_id=snapshot.id,
+                    ticker=snapshot.ticker,
+                )
+            expected_creator = (
+                members[str(snapshot.id)]["creator_evaluation_run_id"]
+                if members is not None
+                else expected_evaluation_run_id
+            )
             if (
                 expected_evaluation_run_id is not None
-                and snapshot.evaluation_run_id != expected_evaluation_run_id
+                and snapshot.evaluation_run_id != expected_creator
             ):
-                raise ValueError("Setup capture handoff snapshot ownership is inconsistent.")
+                reject(
+                    "OWNER_MISMATCH",
+                    "Setup capture handoff snapshot ownership is inconsistent.",
+                    snapshot_id=snapshot.id,
+                    ticker=snapshot.ticker,
+                    expected_creator_id=expected_creator,
+                    actual_creator_id=snapshot.evaluation_run_id,
+                )
             if market_cutoff is not None and (
                 snapshot.calculation_context_id != market_cutoff.context_id
                 or snapshot.calculation_cutoff_at != market_cutoff.cutoff_at
                 or snapshot.input_as_of_session != market_cutoff.latest_completed_session
                 or snapshot.calendar_version != market_cutoff.calendar_version
             ):
-                raise ValueError(
-                    "Setup capture handoff does not match the pipeline market context."
+                reject(
+                    "CONTEXT_MISMATCH",
+                    "Setup capture handoff does not match the pipeline market context.",
+                    snapshot_id=snapshot.id,
+                    ticker=snapshot.ticker,
                 )
 
     def _checkpoint(

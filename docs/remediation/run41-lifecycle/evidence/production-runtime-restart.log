@@ -1,0 +1,37 @@
+Worker quiescence: {"reachable":true,"workerPresent":true,"workerProcessPresent":true,"workerInstanceId":"a38a7baf0bf940818f1fe591070d2cd2","workerGeneration":82,"workerPid":54636,"workerHeartbeatAt":"2026-10-18T16:35:20.42246+02:00","workerHeartbeatAgeSeconds":0.199003,"controlLoopHeartbeatAt":"2026-10-18T16:35:19.021431+02:00","controlLoopHeartbeatAgeSeconds":1.600032,"quiesceRequestedAt":"2026-10-18T16:35:20.312835+02:00","claimFenceEstablishedAt":"2026-10-18T16:35:20.340836+02:00","quiescedAt":"2026-10-18T16:35:20.42246+02:00","workerAcknowledgedAt":"2026-10-18T16:35:20.42246+02:00","ackLatencySeconds":0.109625,"safeToStopAt":"2026-10-18T16:35:20.621463+02:00","requested":true,"claimFenceEstablished":true,"claimFenceKind":"DURABLE_REGISTRATION_ROW","workerIdentityValid":true,"workerAcknowledged":true,"acknowledged":true,"activeCount":0,"active":[],"safeToStop":true,"reasonCode":"CLAIM_FENCE_ESTABLISHED"}
+WARNING: Observability DEGRADED: stop incomplete; core lifecycle continues. Docker command exited with code 1
+Local PostgreSQL: left running by canonical settings
+
+SwingLens Local Stack
+----------------------------------------
+Database           READY
+Schema             HEAD
+Web/API            STOPPED
+Core               STOPPED
+Application        STOPPED
+Worker             STOPPED
+Disk               UNAVAILABLE
+IB API             STOPPED
+Prometheus         UNAVAILABLE
+Grafana            UNAVAILABLE
+Observability      STOPPED
+OVERALL            STOPPED
+Local PostgreSQL: verified postgresql-x64-18 PostgreSQL 18.3, PID 18672
+Schema: Alembic head verified/applied under provenance and advisory locks
+Web/API: ready on strongly verified PID 14688
+WARNING: Observability DEGRADED: startup failed; core remains running. Docker command exited with code 1
+
+SwingLens Local Stack
+----------------------------------------
+Database           READY
+Schema             HEAD
+Web/API            READY
+Core               OK
+Application        READY
+Worker             READY
+Disk               READY - 16.1% free
+IB API             ON DEMAND - verified before IB-required work
+Prometheus         UNAVAILABLE
+Grafana            UNAVAILABLE
+Observability      DEGRADED
+OVERALL            DEGRADED (non-blocking warnings: Prometheus, Grafana)

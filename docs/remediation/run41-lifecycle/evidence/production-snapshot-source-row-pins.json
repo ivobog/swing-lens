@@ -1,0 +1,1427 @@
+{
+  "original_full_rows_match_forensic_hashes": true,
+  "native_publication_fields": [
+    "actionability_candidate",
+    "canonical_decision_json",
+    "canonical_reason",
+    "canonicalized_at",
+    "confidence_label",
+    "confidence_score",
+    "is_canonical",
+    "lifecycle_state_candidate",
+    "primary_phase",
+    "primary_setup_family"
+  ],
+  "immutable_row_sha256": {
+    "3498": "c7330ec07b211f97e5e6c79002e81c3a3a8c73aae5394535b5649df8ecad93a5",
+    "3499": "5c265ce91f7f2ac59d2a22631c13f0a56048a3af341359bc60fd1ca3ec3a468f",
+    "3500": "86d7ec9931a71ba8d260eafc2329dc407ffdbd13062a5da2c5f1ad4bed189c80",
+    "3501": "55944c9aa37f82454c7a9ae4685a8bb2f7d35479894fce6c5e965fae2c60acd8",
+    "3502": "0ad16c4e384a530a8e13f4e7b38d9720f0da3a612f0c5312ed2386a207589949",
+    "3503": "f69fbd8912c4f10d4d5639679e03d093cdcb6fcce51bb9a78b538887367c9363",
+    "3504": "221a53e3b3652df184c2ca8705f757bf53d152958d2d8e17996788f7f7e988a8",
+    "3505": "276cda52365fe0320dccdb780e3a1f18f1fa7d8a2defeac973ea8d03e82b1794",
+    "3506": "ffa443f35d5b6a307f423e42e1dbe58140c29b7b32739fc7b7e9004c2c3c552f",
+    "3507": "25da4555e2481c11f1d71c3896ab48e694ce99757fe3d63fee4f314fc1f5f55b",
+    "3508": "0454fa6c62aca289c7ad2019085af28fe38d83d331ecb5b25c4a925443c226aa",
+    "3509": "c9c7ac4f0339ea2826e11dca6b8dc186136dabc018e5626d33f4681f4066b824",
+    "3510": "da80095f96a37c84270e138208ea2f9ec7dc2c67226195ac114a59815d5fced5",
+    "3511": "fff4b6fe09f01790c3a725608d50453cc51dcc3617915cd821a07d718798bf07",
+    "3512": "3f90645ae46311b9d5fe9842b42e21855a4a60af2e9d571f446abb73d23c2aa4",
+    "3513": "1b21c3f3aad5e8868902544d79f9dba2e3a1b2b5ba4fd119fc5643489be83fca",
+    "3514": "6849c128400d309f96dd65f6e740a137b6ec439c7dedc8c12b6b77b5e7c12ee8",
+    "3515": "49616937889402a98fb4e2d95d98272e0fae6229830aa34f74377f7442667609",
+    "3516": "a0490f27c18fa87b1eed24f628af9016dca623d22213b78dfbe0d8b7c481a9fd",
+    "3517": "32ccdb8de903f17ad7ad9342656c72ab2eacb528dc9314456171001fbd386aa5",
+    "3518": "92554770f78f29b491f1046f1721d90fc06851bdbf0bb301a142e9c209aed07b",
+    "3519": "c0a1904d1dd61595f9e7187dc33529ec3733d419af3a60e916271295135b7883",
+    "3520": "088ceaa57a582fe58d439000b643a5a63cb710cf291cbb23843a4f1ebcabfed7",
+    "3521": "b2d0543e2229013960bd15e7416bea378c4aab3f54bbf499d7496d94013766e4",
+    "3522": "cd8800d87461668971c5827ada29d8ae50364f4832492d126b0d01816fe5ceb3",
+    "3523": "b19157eea9e600b742e95ae67ad47228fa4a618543dff0ff259d7c6767e75f0a",
+    "3524": "a5f28daab0c287c75c018f18ed38049ba7ad22a4648be0a2a3cec0526aa07d40",
+    "3525": "189fbf127d13a7da4d641d6db58b123f96e5c1310ae7784d2ecd35c65c2a5e62",
+    "3526": "c7f078f883cd0367525a0b561d3ade06286327e08d028ebe38c16e7e9fdb2280",
+    "3527": "3ad29ea4795f376d40cde111051b527e5cc61668a3f481e6b1972e0a1e3cb0b0",
+    "3528": "369d392d30fcbb0b55f5936f461996b44f35ffe1f2d66887b08d0ea3a9efbb44",
+    "3529": "b8766c1a90ac2ab475252eb834a9c3c851b0bb92cf1b4c2c5e10afd80df39ceb",
+    "3530": "0662abfb4f667611fd3cb6d6cea38e7cf5591bfe05da5646960a4382ac316149",
+    "3531": "800f8e569274b88988b7f1d20198b269cc947ed200f39b50edb5473dc68d86b3",
+    "3532": "bf273ab4f079555e706229ab77b9e978dd1dea7c55d6c31d80734011e390e18a",
+    "3533": "76e112c62f558fdab05ef164d919fa1fc17d4095ed5dd556e56234d16e07ab8e",
+    "3534": "26f623ec688b8e74df55c20215206cd36b782865585cf9bee6969f792f564e47",
+    "3535": "227789bc7b168ac47745cdff0b2fbcfd452ed3158482b5af31f1e20de290eb21",
+    "3536": "be3d1a7e021a7d3dd50155490c224b65ef1d77c0479e68f5100cff37026ce6e0",
+    "3537": "6d1121e1e77e3228342a68ffa02170e74d563e088ec684697cb26bb77b6104dd",
+    "3538": "a9c10ad6361839dd4cece387abafad86eae7d6e13523b29c937ca022f1412013",
+    "3539": "328df7f52d0e7e241ef2dd9b27292847492ca9f30c3a1abb99fab32986425c48",
+    "3540": "e630385cc8a61247b53a58abd3036befc5f1e9248a6116b5d5f026c58b7e954f",
+    "3541": "334a269421ad92c9604c28861605b6ef0cefa958f442e60dbcff7660da11f273",
+    "3542": "b30fb50e5583ff144b05c44a583515ef99642458b28d8c5ba635a8abcea8e5df",
+    "3543": "3509c95d30be5999d2f2c0ad1a38027ee486a5954a13cc0119c1923cfc580f79",
+    "3544": "dfba8f6456801f9c067531a10a9fe1114f8ba0c46d3da0ea8a008c10d2859433",
+    "3545": "9e7327c05367ea1763c98a242f25294bef987ece9bcb20935418c82233356318",
+    "3546": "2280ad8ac3b9e8a7891b858d8b4d0ce62470baa20abe1ba996df00f12b8ab2b5",
+    "3547": "4b2cc254e2c46455e0063f901370f40654ebf5f2d697f583076cb0489c4aadd0",
+    "3548": "bc72115153ee14524373173935b8e2c3b5aa4022d68ae785aa3263b88be4893d",
+    "3549": "e0ae5839052094584f16443454d74c8f744c075b446dfe9dbcf37d8035ba9bfe",
+    "3550": "1e898b42d801fe5023be8c35b7c286c5ab2160fe9d226025728c112cc4264ef6",
+    "3551": "0fd2907b76509cbb8e71e52d1e40f4b79552ead8da138d58833036ff2450dcfe",
+    "3552": "7b23ce8f8fc76b65bc98f609303633f247ef21b692562b0f13c46581fe20b217",
+    "3553": "ce2a19adca016a25c4f7102884ab0d73bc1e73708089696023fec07ab99b65fd",
+    "3554": "e6c15595344022d5038413964441ca373f4fd63113b1fbb9968fade1a724898c",
+    "3555": "3191d8aa4ea83b90d6c92d4822867dddb7043dceb4b84f0b1d8bb2fe5a6883e1",
+    "3556": "e553bf0848232f459f3c2e662e8464a8f3c9a524f8e42fb374e3f97f647db71e",
+    "3557": "f62f24e602a1f806e2adc2dd5b6ed33299b45de16987426ee62cf6f706485b0e",
+    "3558": "8700ab17b615b0685815c22df199f00f0cdb967bc4af80633aedfb41724d34ae",
+    "3559": "685687dfe7a27b3aa63d53527027b72f0b16ef5bfb09e6f0e8c7a9f7b27b5779",
+    "3560": "79bcf9765a4bad1b1f624359a64e2c908bf23324f161fdeb1e7a4d48f07552e8",
+    "3561": "2a191346b8508197127644587845832843f171b4a1f839aecdae5d60c6fac36c",
+    "3562": "2e37645a5ea5d11672a7e00493b65b56b0f1a1d666de11a33e48f6be4c86f4d9",
+    "3563": "1edb5bc56e4439df678f169e70220dc03350096b87d6823e4e46b96485c919fe",
+    "3564": "80ea0b8d5f925c1399decc3339dc567df7f25f3ec46928d97a0a480561d0dd83",
+    "3565": "a4a2519ba85a0e1ca38893050750777d7d73c1da010fe4a2ef6a3b26a70cb099",
+    "3566": "c4df0b6ee53ca173ae61333a730773158dce17bc20e0001c81d7ef73e2389519",
+    "3567": "8563b59cabd4960371f04f9e90631a5c774aecdb8420be39457bb42685f915dd",
+    "3568": "8568d259ac02c96bb51a30658464f4904925ca28844c08ee3b6893829738dbd1",
+    "3569": "e6cb7044fbed8f369d75dc6660e85d239db4814beba3f299ef0b349e776de700",
+    "3570": "36af62ad0228a5b0e0350c9b6b763d998bf64382c5c8511a77a4988f565bc84d",
+    "3571": "dd139206c939960c5d80f6410aa09bba2cd9832c4d42e5f2b51584d44e8966c7",
+    "3572": "37187c48cef75dff8cd9e0d4a7e5a3ea8dd273085b7282cb7080dcbbfec5a812",
+    "3573": "50da46ce1b4834f5274704bf8d77a5bcc7997524329fa7d984fa56ff88fa1a39",
+    "3574": "93f6559aae16133911b3aeb2a6a3a0f4a7dc6f70ac53df92f43d3e295cdac7a0",
+    "3575": "f915329a7742f2e219cdec95a2fb92104fa17832829c27a7f5aab342fd5ef7c9",
+    "3576": "41dc8cebc24f5bca31688d33cde780cc0feee8819459fc9707078f9aaf257971",
+    "3577": "d7285852b6f954e8926842bc29536e2294ed7aa6c79e00b2367b589bc269d284",
+    "3578": "a629bbb708f3acdd59ab79b5ced2a04c79d7dbc913e1349aea8a7dbc7208978e",
+    "3579": "3432efc4c552373b962d47367ca9e037ee5b802d9c6f62b88363649494b29d15",
+    "3580": "b527adc50965c42f4c6f5daa75a66e3af6284cc8ce1b6b9db0f935dcca2a3d53",
+    "3581": "3e196895cb19b5132de02bb1e21d6a82219e3778f51181912664e47df1d47a3d",
+    "3582": "26136860e06ef12884c2e5cb93df7145d5c922c0cf6eaaeedb9e230db9dd8441",
+    "3583": "df36f31206b02aca0dbe0354a627d040005dba95ab5892324772d682a45bd043",
+    "3584": "c038be762c83f1e653db52b46798c935089edf093231cdda454aeec5f51d9748",
+    "3585": "70cee5f7cebae114636546a51f86ba637794570c8a72e578d890fdc38f8e4609"
+  },
+  "original_native_publication_metadata": {
+    "3498": {
+      "primary_phase": "Stage 1",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3499": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3500": {
+      "primary_phase": "Stage 1",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3501": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3502": {
+      "primary_phase": "Stage 1",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3503": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3504": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3505": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3506": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3507": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3508": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3509": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3510": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3511": {
+      "primary_phase": "Stage 1",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3512": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3513": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3514": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3515": {
+      "primary_phase": "Unknown",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3516": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3517": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3518": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3519": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3520": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3521": {
+      "primary_phase": "Stage 3",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3522": {
+      "primary_phase": "Stage 1",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3523": {
+      "primary_phase": "Stage 1",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3524": {
+      "primary_phase": "Stage 3",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3525": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3526": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3527": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3528": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3529": {
+      "primary_phase": "Unknown",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3530": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3531": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3532": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3533": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3534": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3535": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3536": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3537": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3538": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3539": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3540": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3541": {
+      "primary_phase": "Stage 3",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3542": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3543": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3544": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3545": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3546": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3547": {
+      "primary_phase": "Unknown",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3548": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3549": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3550": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3551": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3552": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3553": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3554": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3555": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3556": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3557": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3558": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3559": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3560": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3561": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3562": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3563": {
+      "primary_phase": "Stage 1",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3564": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3565": {
+      "primary_phase": "Stage 1",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3566": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3567": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3568": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3569": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3570": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3571": {
+      "primary_phase": "Stage 3",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3572": {
+      "primary_phase": "Stage 3",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3573": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3574": {
+      "primary_phase": "Stage 1",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3575": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3576": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3577": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3578": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3579": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "PULLBACK",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3580": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3581": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3582": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3583": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3584": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "BREAKOUT",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    },
+    "3585": {
+      "primary_phase": "Stage 2",
+      "actionability_candidate": null,
+      "is_canonical": false,
+      "confidence_score": 100,
+      "lifecycle_state_candidate": null,
+      "canonicalized_at": null,
+      "confidence_label": "HIGH",
+      "primary_setup_family": "GENERIC",
+      "canonical_decision_json": {
+        "reason": "pending_phase_4_canonicalization",
+        "canonical": false
+      },
+      "canonical_reason": null
+    }
+  }
+}

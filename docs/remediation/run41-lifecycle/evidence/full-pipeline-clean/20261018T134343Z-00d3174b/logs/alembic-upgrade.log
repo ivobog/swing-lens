@@ -1,0 +1,95 @@
+verified disposable database before Alembic: database=swinglens_pytest_cert_041a31d2f064 server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_pytest_cert_041a31d2f064
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_create_database_foundation, create database foundation
+INFO  [alembic.runtime.migration] Running upgrade 0001_create_database_foundation -> 0002_fetch_warning_flags, add fetch summary and warning flags
+INFO  [alembic.runtime.migration] Running upgrade 0002_fetch_warning_flags -> 0003_price_bar_revision_metadata, add price bar revision metadata
+INFO  [alembic.runtime.migration] Running upgrade 0003_price_bar_revision_metadata -> 0004_expand_ib_fetch_persistence, expand ib fetch persistence
+INFO  [alembic.runtime.migration] Running upgrade 0004_expand_ib_fetch_persistence -> 0005_add_fundamentals_v2_columns, add fundamentals v2 columns
+INFO  [alembic.runtime.migration] Running upgrade 0005_add_fundamentals_v2_columns -> 0006_add_technical_v4_columns, add technical scoring v4 columns
+INFO  [alembic.runtime.migration] Running upgrade 0006_add_technical_v4_columns -> 0007_add_background_jobs, add background jobs
+INFO  [alembic.runtime.migration] Running upgrade 0007_add_background_jobs -> 0008_add_pipeline_tables, add pipeline tables
+INFO  [alembic.runtime.migration] Running upgrade 0008_add_pipeline_tables -> 0009_history_indexes, add history pagination indexes
+INFO  [alembic.runtime.migration] Running upgrade 0009_history_indexes -> 0010_add_earnings_risk_gate, add earnings risk gate fields
+INFO  [alembic.runtime.migration] Running upgrade 0010_add_earnings_risk_gate -> 0011_create_ranking_results, create ranking results
+INFO  [alembic.runtime.migration] Running upgrade 0011_create_ranking_results -> 0012_add_market_regime_snapshots, add market regime snapshots
+INFO  [alembic.runtime.migration] Running upgrade 0012_add_market_regime_snapshots -> 0013_add_sector_rotation_tables, add sector rotation tables
+INFO  [alembic.runtime.migration] Running upgrade 0013_add_sector_rotation_tables -> 0014_sector_metadata, add raw company sector metadata
+INFO  [alembic.runtime.migration] Running upgrade 0014_sector_metadata -> 0015_harden_job_leases, harden background job leases
+INFO  [alembic.runtime.migration] Running upgrade 0015_harden_job_leases -> 0016_add_winner_probability_engine, add winner probability engine
+INFO  [alembic.runtime.migration] Running upgrade 0016_add_winner_probability_engine -> 0017_create_setup_lifecycle_tables, create setup lifecycle tables
+INFO  [alembic.runtime.migration] Running upgrade 0017_create_setup_lifecycle_tables -> 0018_add_ceri_tables, add ceri tables
+INFO  [alembic.runtime.migration] Running upgrade 0018_add_ceri_tables -> 0019_add_ceri_ingestion_audit_fields, add ceri ingestion audit fields
+INFO  [alembic.runtime.migration] Running upgrade 0019_add_ceri_ingestion_audit_fields -> 0020_add_ceri_revision_feature_lineage, add ceri revision feature lineage
+INFO  [alembic.runtime.migration] Running upgrade 0020_add_ceri_revision_feature_lineage -> 0021_add_ceri_earnings_consensus_reason, add ceri earnings consensus reason
+INFO  [alembic.runtime.migration] Running upgrade 0021_add_ceri_earnings_consensus_reason -> 0022_price_bar_revisions_ceri_corrections, add price bar revisions and ceri corrections
+INFO  [alembic.runtime.migration] Running upgrade 0022_price_bar_revisions_ceri_corrections -> 0023_immutable_snapshot_evidence, add immutable snapshot evidence
+INFO  [alembic.runtime.migration] Running upgrade 0023_immutable_snapshot_evidence -> 0024_background_job_request_keys, add background job request keys
+INFO  [alembic.runtime.migration] Running upgrade 0024_background_job_request_keys -> 0025_winner_combined_result_set_null, set null winner prediction combined result fk
+INFO  [alembic.runtime.migration] Running upgrade 0025_winner_combined_result_set_null -> 0026_technical_artifact_cache, add price series versions and technical feature artifacts
+INFO  [alembic.runtime.migration] Running upgrade 0026_technical_artifact_cache -> 0027_ceri_provider_policy_telemetry, add provider-aware CERI license metadata and request telemetry
+INFO  [alembic.runtime.migration] Running upgrade 0027_ceri_provider_policy_telemetry -> 0028_ceri_observation_and_guidance_lineage, add CERI retrieval timestamp and structured guidance values
+INFO  [alembic.runtime.migration] Running upgrade 0028_ceri_observation_and_guidance_lineage -> 0029_ceri_wave4_evidence_features, add Wave 4 evidence, price response, and derived feature lineage
+INFO  [alembic.runtime.migration] Running upgrade 0029_ceri_wave4_evidence_features -> 0030_fix_ceri_estimate_snapshot_identity, fix CERI estimate snapshot identity
+INFO  [alembic.runtime.migration] Running upgrade 0030_fix_ceri_estimate_snapshot_identity -> 0031_add_ib_market_intelligence, add IBKR market intelligence and Flex journal evidence
+INFO  [alembic.runtime.migration] Running upgrade 0031_add_ib_market_intelligence -> 0032_harden_ibmi_phase1, harden IB market-intelligence phase 1 identities
+INFO  [alembic.runtime.migration] Running upgrade 0032_harden_ibmi_phase1 -> 0033_retain_histogram_raw, retain raw IB histogram evidence
+INFO  [alembic.runtime.migration] Running upgrade 0033_retain_histogram_raw -> 0034_slse_dashboard_indexes, add SLSE dashboard query indexes
+INFO  [alembic.runtime.migration] Running upgrade 0034_slse_dashboard_indexes -> 0035_ceri_workflow_identity, add CERI workflow identity
+INFO  [alembic.runtime.migration] Running upgrade 0035_ceri_workflow_identity -> 0036_background_worker_heartbeats, add background worker heartbeats
+INFO  [alembic.runtime.migration] Running upgrade 0036_background_worker_heartbeats -> 0037_background_queue_claim_index, add background queue claim index
+INFO  [alembic.runtime.migration] Running upgrade 0037_background_queue_claim_index -> 0038_technical_cache_shadow_validation, add technical cache shadow validation state
+INFO  [alembic.runtime.migration] Running upgrade 0038_technical_cache_shadow_validation -> 0039_ib_fetch_decision_telemetry, add IB fetch decision telemetry
+INFO  [alembic.runtime.migration] Running upgrade 0039_ib_fetch_decision_telemetry -> 0040_ceri_remediation_ledgers, add additive CERI remediation evidence and ledger fields
+INFO  [alembic.runtime.migration] Running upgrade 0040_ceri_remediation_ledgers -> 0041_sec_incremental_documents, add durable SEC filing document extraction state
+INFO  [alembic.runtime.migration] Running upgrade 0041_sec_incremental_documents -> 0042_ceri_run101_fail_closed, make CERI guidance acceptance fail closed and add review lineage
+INFO  [alembic.runtime.migration] Running upgrade 0042_ceri_run101_fail_closed -> 0043_ceri_run102_relative_evidence, rehydrate Run 102 same-provider relative EPS evidence
+INFO  [alembic.runtime.migration] Running upgrade 0043_ceri_run102_relative_evidence -> 0044_ceri_controlled_replays, add immutable parallel CERI controlled replay provenance
+INFO  [alembic.runtime.migration] Running upgrade 0044_ceri_controlled_replays -> 0045_ceri_changes_alerts_semantics, add CERI comparison, business-change, and alert-validity semantics
+INFO  [alembic.runtime.migration] Running upgrade 0045_ceri_changes_alerts_semantics -> 0046_owpe_pre11_training_compatibility, add append-only OWPE pre-1.1 training compatibility artifacts
+INFO  [alembic.runtime.migration] Running upgrade 0046_owpe_pre11_training_compatibility -> 0047_ceri_feature_rebuild_performance, add CERI incremental feature-build state and scoped lookup indexes
+INFO  [alembic.runtime.migration] Running upgrade 0047_ceri_feature_rebuild_performance -> 0048_sec_guidance_normalization_performance, add bounded SEC guidance normalization lookup indexes
+INFO  [alembic.runtime.migration] Running upgrade 0048_sec_guidance_normalization_performance -> 0049_winner_jobs_reliability, add Winner evidence watermarks and cohort generations
+INFO  [alembic.runtime.migration] Running upgrade 0049_winner_jobs_reliability -> 0050_sec_processor_promotion, add explicit SEC processor promotion and applicability state
+INFO  [alembic.runtime.migration] Running upgrade 0050_sec_processor_promotion -> 0051_worker_progress_reliability, add durable job progress and restart-safe market-data item identity
+INFO  [alembic.runtime.migration] Running upgrade 0051_worker_progress_reliability -> 0052_technical_scoring_v5, add technical scoring v5 persistence
+INFO  [alembic.runtime.migration] Running upgrade 0052_technical_scoring_v5 -> 0053_split_artifact_identity, split technical feature and final scoring identities
+INFO  [alembic.runtime.migration] Running upgrade 0053_split_artifact_identity -> 0054_worker_instance_reliability, add durable worker process-instance and supervisor reliability state
+INFO  [alembic.runtime.migration] Running upgrade 0054_worker_instance_reliability -> 0055_ceri_operations_indexes, Add bounded-query indexes for the CERI operations dashboard.
+INFO  [alembic.runtime.migration] Running upgrade 0055_ceri_operations_indexes -> 0056_cover_ceri_freshness, Cover CERI source timestamps in the stale-record count index.
+INFO  [alembic.runtime.migration] Running upgrade 0056_cover_ceri_freshness -> 0057_winner_maturation, Add Winner maturation workflow lineage and database single-flight.
+INFO  [alembic.runtime.migration] Running upgrade 0057_winner_maturation -> 0058_winner_temporal_integrity, Add durable Winner decision time and temporal validity ledger.
+INFO  [alembic.runtime.migration] Running upgrade 0058_winner_temporal_integrity -> 0059_winner_market_data_obligations, Add durable Winner market-data obligations.
+INFO  [alembic.runtime.migration] Running upgrade 0059_winner_market_data_obligations -> 0060_winner_estimate_lifecycle, Add explicit Winner estimate lifecycle.
+INFO  [alembic.runtime.migration] Running upgrade 0060_winner_estimate_lifecycle -> 0061_winner_estimate_policy, Add Winner estimate replacement lineage and publication audit.
+INFO  [alembic.runtime.migration] Running upgrade 0061_winner_estimate_policy -> 0062_observability_causality, Add observability causality and enqueue-attempt audit.
+INFO  [alembic.runtime.migration] Running upgrade 0062_observability_causality -> 0063_observability_triggered_by_job, Add explicit immediate-job causation reference.
+INFO  [alembic.runtime.migration] Running upgrade 0063_observability_triggered_by_job -> 0064_observability_downstream_correlation, Propagate causality into CERI runs and provider telemetry.
+INFO  [alembic.runtime.migration] Running upgrade 0064_observability_downstream_correlation -> 0065_observability_remediation, Fence recovering jobs and add bounded Operations access paths.
+INFO  [alembic.runtime.migration] Running upgrade 0065_observability_remediation -> 0066_obs_review2_liveness, separate process and functional control-loop liveness
+INFO  [alembic.runtime.migration] Running upgrade 0066_obs_review2_liveness -> 0067_worker_quiesce, Add durable lifecycle quiesce handshake fields.
+INFO  [alembic.runtime.migration] Running upgrade 0067_worker_quiesce -> 0068_market_calc_context, Add immutable market calculation cutoff context.
+INFO  [alembic.runtime.migration] Running upgrade 0068_market_calc_context -> 0069_lifecycle_current_selection, Separate lifecycle snapshot evidence from mutable current selection.
+INFO  [alembic.runtime.migration] Running upgrade 0069_lifecycle_current_selection -> 0070_ceri_price_response_pit_context, Persist CERI price-response point-in-time context.
+INFO  [alembic.runtime.migration] Running upgrade 0070_ceri_price_response_pit_context -> 0071_transition_preflight_plan, Bind transition preflight evidence to one frozen pipeline context.
+INFO  [alembic.runtime.migration] Running upgrade 0071_transition_preflight_plan -> 0072_ceri_artifact_context_lineage, Enforce explicit lineage for pipeline-owned CERI temporal artifacts.
+INFO  [alembic.runtime.migration] Running upgrade 0072_ceri_artifact_context_lineage -> 0073_decision_manifest_lifecycle, Split run-start anchors from post-upstream decision manifests.
+INFO  [alembic.runtime.migration] Running upgrade 0073_decision_manifest_lifecycle -> 0074_ceri_evidence_quarantine, Add append-only CERI evidence dispositions.
+INFO  [alembic.runtime.migration] Running upgrade 0074_ceri_evidence_quarantine -> 0075_core_immutable_evidence, Add immutable core calculation evidence and mutable projection pointers.
+INFO  [alembic.runtime.migration] Running upgrade 0075_core_immutable_evidence -> 0076_regime_sector_evidence, Extend immutable evidence to Market Regime and Sector Rotation.
+INFO  [alembic.runtime.migration] Running upgrade 0076_regime_sector_evidence -> 0077_ceri_decision_evidence, Extend shared immutable evidence to CERI decisions.
+INFO  [alembic.runtime.migration] Running upgrade 0077_ceri_decision_evidence -> 0078_ibmi_constituent_evidence, Extend shared immutable evidence to IBMI constituent evidence.
+INFO  [alembic.runtime.migration] Running upgrade 0078_ibmi_constituent_evidence -> 0079_setup_lifecycle_alert_ev, Add immutable Setup, lifecycle, transition, and alert decision evidence.
+INFO  [alembic.runtime.migration] Running upgrade 0079_setup_lifecycle_alert_ev -> 0080_effective_configuration, Content-addressed immutable configuration records for durable delivery.
+INFO  [alembic.runtime.migration] Running upgrade 0080_effective_configuration -> 0081_scope_refresh_identity, Add immutable work-scope, refresh-cycle, and acquisition-plan records.
+INFO  [alembic.runtime.migration] Running upgrade 0081_scope_refresh_identity -> 0082_pipeline_ceri_scope, Bind Pipeline, CERI, IB, and durable jobs to semantic work authority.
+INFO  [alembic.runtime.migration] Running upgrade 0082_pipeline_ceri_scope -> 0083_winner_scope_truth, Bind Winner durable generations, publication, and checkpoints to semantic authority.
+INFO  [alembic.runtime.migration] Running upgrade 0083_winner_scope_truth -> 0084_technical_recovery, Add exact first-fetch provenance and shared Technical source manifests.
+INFO  [alembic.runtime.migration] Running upgrade 0084_technical_recovery -> 0085_ceri_change_scope, Add the scoped temporal lookup used by CERI change detection.
+INFO  [alembic.runtime.migration] Running upgrade 0085_ceri_change_scope -> 0086_ceri_feature_source_manifest, Add immutable CERI feature source manifests.
+INFO  [alembic.runtime.migration] Running upgrade 0086_ceri_feature_source_manifest -> 0087_pipeline_dependencies, Add explicit pipeline dependency and continuation authority.
+INFO  [alembic.runtime.migration] Running upgrade 0087_pipeline_dependencies -> 0088_ceri_run_source_lineage, Add run-local CERI source membership and contain incident runs 6/7.
+INFO  [alembic.runtime.migration] Running upgrade 0088_ceri_run_source_lineage -> 0089_pipeline_execution_authority, Add fail-closed pipeline execution authority.
+INFO  [alembic.runtime.migration] Running upgrade 0089_pipeline_execution_authority -> 0090_market_data_readiness, Add instrument lifecycle evidence and ticker/session readiness ledgers.
+INFO  [alembic.runtime.migration] Running upgrade 0090_market_data_readiness -> 0091_readiness_constraints, Enforce lifecycle and ticker/session readiness cross-field invariants.
+INFO  [alembic.runtime.migration] Running upgrade 0091_readiness_constraints -> 0092_phase2_eligibility_ledgers, Add append-only consumer eligibility, Winner acquisition, and shadow ledgers.

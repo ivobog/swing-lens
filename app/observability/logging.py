@@ -60,8 +60,7 @@ class JsonLogFormatter(logging.Formatter):
             "parent_process_id": os.getppid(),
             **context_fields(),
             **{
-                field: os.environ.get(env_name)
-                for field, env_name in _LIFECYCLE_ENV_FIELDS.items()
+                field: os.environ.get(env_name) for field, env_name in _LIFECYCLE_ENV_FIELDS.items()
             },
         }
         for key in _OPTIONAL_ENVELOPE_FIELDS:
@@ -72,7 +71,35 @@ class JsonLogFormatter(logging.Formatter):
         if record.exc_info:
             payload["error_type"] = record.exc_info[0].__name__ if record.exc_info[0] else None
             payload["error_summary"] = redact_text(str(record.exc_info[1]))
-            payload["stack"] = traceback.format_exception(*record.exc_info)[-1].strip()
+            # Record locations, never frame locals or source-code lines (which
+            # can themselves contain credentials). Keep exception chains bounded.
+            frames = traceback.extract_tb(record.exc_info[2])[-24:]
+            payload["traceback_frames"] = [
+                {"file": frame.filename, "line": frame.lineno, "function": frame.name}
+                for frame in frames
+            ]
+            payload["stack"] = "\n".join(
+                [f"{frame.filename}:{frame.lineno} in {frame.name}" for frame in frames]
+                + [f"{payload['error_type']}: {payload['error_summary']}"]
+            )
+            error = record.exc_info[1]
+            payload["error_code"] = getattr(error, "code", None)
+            payload["error_diagnostics"] = getattr(error, "diagnostics", None)
+            chain = []
+            seen = set()
+            while error is not None and id(error) not in seen and len(chain) < 5:
+                seen.add(id(error))
+                chain.append(
+                    {
+                        "type": type(error).__name__,
+                        "summary": redact_text(str(error)),
+                        "sqlstate": getattr(error, "sqlstate", None),
+                    }
+                )
+                error = error.__cause__ or (
+                    error.__context__ if not error.__suppress_context__ else None
+                )
+            payload["exception_chain"] = chain
         return json.dumps(redact_sensitive(payload), separators=(",", ":"), default=str)
 
 

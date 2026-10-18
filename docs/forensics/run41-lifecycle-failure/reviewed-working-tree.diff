@@ -1,0 +1,1330 @@
+diff --git a/app/services/background_job_service.py b/app/services/background_job_service.py
+index 970299d..3502fa4 100644
+--- a/app/services/background_job_service.py
++++ b/app/services/background_job_service.py
+@@ -13,7 +13,7 @@ from typing import Any
+ from uuid import uuid4
+ from weakref import WeakKeyDictionary
+ 
+-from sqlalchemy import MetaData, Table, case, delete, insert, or_, select, update
++from sqlalchemy import MetaData, Table, case, delete, event, insert, or_, select, update
+ from sqlalchemy import inspect as sa_inspect
+ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+ from sqlalchemy.exc import IntegrityError
+@@ -1027,22 +1027,38 @@ def fence_stalled_jobs(
+             candidate_query,
+             certification_session_id=str(authority.certification_session_id),
+         )
+-    # A non-locking MVCC read makes SKIP LOCKED observable.  It does not grant
+-    # the watchdog authority to mutate the row, but prevents an owned/stalled
+-    # execution from being indistinguishable from an empty candidate set.
++    # Healthy observations must never lock or rewrite the leased job row.
++    # Progress sequence and last_progress_at advance in the same control UPDATE;
++    # the timestamp, rather than watchdog polling metadata, owns the stall clock.
+     candidates = list(db.scalars(candidate_query).all())
+     if not candidates:
+         logger.info(
+             "job.watchdog.decision %s",
+             {"decision": "NO_CANDIDATE", "worker_id": worker_id},
+         )
+-    query = candidate_query.with_for_update(skip_locked=True)
+-    locked_candidates = list(db.scalars(query).all())
+-    acquired_ids = {job.id for job in locked_candidates}
++    overdue = []
+     for candidate in candidates:
+-        if candidate.id in acquired_ids:
+-            continue
+         effective_stage = _effective_progress_stage(candidate)
++        timeout = progress_timeout_seconds(
++            effective_stage,
++            default_timeout_seconds=default_timeout_seconds,
++            market_data_timeout_seconds=market_data_timeout_seconds,
++            long_stage_timeout_seconds=long_stage_timeout_seconds,
++        )
++        if candidate.requested_cancel or candidate.last_progress_at < observed_at - timedelta(
++            seconds=timeout
++        ):
++            overdue.append(
++                (
++                    candidate.id,
++                    candidate.execution_token,
++                    candidate.progress_sequence,
++                    candidate.last_progress_at,
++                    candidate.progress_stage,
++                    observed_at - timedelta(seconds=timeout),
++                )
++            )
++            continue
+         decision_context = {
+             "job_id": candidate.id,
+             "run_id": candidate.related_run_id,
+@@ -1050,11 +1066,36 @@ def fence_stalled_jobs(
+             "job_progress_age_seconds": _age_seconds(observed_at, candidate.last_progress_at),
+             "progress_sequence": int(candidate.progress_sequence or 0),
+             "stage": effective_stage,
+-            "decision": "LOCKED_CANDIDATE_SKIPPED",
++            "stall_threshold_seconds": timeout,
++            "decision": "HEALTHY_WITHIN_PROGRESS_TIMEOUT",
+         }
+-        logger.warning("job.watchdog.decision %s", decision_context, extra=decision_context)
++        _watchdog_decision(db, decision_context)
+     fenced: list[int] = []
+-    for job in locked_candidates:
++    for job_id, token, sequence, progress_at, stage, deadline in overdue:
++        # Re-read under the lock, including heartbeat/lease/cancellation fields.
++        # A competing claim or progress update invalidates this observation.
++        query = (
++            candidate_query.where(
++                BackgroundJob.id == job_id,
++                BackgroundJob.execution_token == token,
++                BackgroundJob.progress_sequence == sequence,
++                BackgroundJob.last_progress_at == progress_at,
++                BackgroundJob.progress_stage == stage,
++                or_(
++                    BackgroundJob.requested_cancel.is_(True),
++                    BackgroundJob.last_progress_at < deadline,
++                ),
++            )
++            .with_for_update(skip_locked=True)
++            .execution_options(populate_existing=True)
++        )
++        locked = list(db.scalars(query).all())
++        if not locked:
++            _watchdog_decision(
++                db, {"job_id": job_id, "decision": "LOCKED_OR_ADVANCED_CANDIDATE_SKIPPED"}
++            )
++            continue
++        job = locked[0]
+         if job.requested_cancel:
+             _finalize_recovery_cancellation(db, job, now=observed_at)
+             continue
+@@ -1066,47 +1107,10 @@ def fence_stalled_jobs(
+             long_stage_timeout_seconds=long_stage_timeout_seconds,
+         )
+         metadata = dict(job.operational_metadata_json or {})
+-        observation = dict(metadata.get("progress_watchdog") or {})
+         current_sequence = int(job.progress_sequence or 0)
+-        has_observed_sequence = "progress_sequence" in observation
+-        observed_sequence = int(observation.get("progress_sequence", current_sequence))
+-        if has_observed_sequence and observed_sequence != current_sequence:
+-            unchanged_since = observed_at
+-            decision = "HEALTHY_PROGRESS_SEQUENCE_ADVANCED"
+-        else:
+-            raw_unchanged_since = observation.get("unchanged_since")
+-            try:
+-                unchanged_since = datetime.fromisoformat(str(raw_unchanged_since))
+-            except (TypeError, ValueError):
+-                unchanged_since = job.last_progress_at or observed_at
+-            decision = "HEALTHY_WITHIN_PROGRESS_TIMEOUT"
+-        if unchanged_since.tzinfo is None:
+-            unchanged_since = unchanged_since.replace(tzinfo=UTC)
+         worker_age = _age_seconds(observed_at, worker_heartbeat_at)
+         lease_age = _age_seconds(observed_at, job.heartbeat_at)
+         progress_age = _age_seconds(observed_at, job.last_progress_at)
+-        observation = {
+-            "progress_sequence": current_sequence,
+-            "unchanged_since": unchanged_since.isoformat(),
+-            "observed_at": observed_at.isoformat(),
+-        }
+-        metadata["progress_watchdog"] = observation
+-        job.operational_metadata_json = metadata
+-        if unchanged_since >= observed_at - timedelta(seconds=timeout):
+-            decision_context = {
+-                "job_id": job.id,
+-                "run_id": job.related_run_id,
+-                "job_type": job.job_type,
+-                "worker_heartbeat_age_seconds": worker_age,
+-                "job_lease_heartbeat_age_seconds": lease_age,
+-                "job_progress_age_seconds": progress_age,
+-                "progress_sequence": current_sequence,
+-                "stage": effective_stage,
+-                "stall_threshold_seconds": timeout,
+-                "decision": decision,
+-            }
+-            logger.info("job.watchdog.decision %s", decision_context, extra=decision_context)
+-            continue
+         old_token = job.execution_token
+         _interrupt_fenced_pipeline_steps(db, job, observed_at=observed_at)
+         job.status = JobStatus.STALLED
+@@ -1167,12 +1171,36 @@ def fence_stalled_jobs(
+             "stall_threshold_seconds": timeout,
+             "decision": decision,
+         }
+-        logger.warning("job.watchdog.decision %s", decision_context, extra=decision_context)
++        _watchdog_decision(db, decision_context)
+         publish_after_commit(db, "increment", "swinglens_job_stalls_total", job_type=job.job_type)
+     db.flush()
+     return fenced
+ 
+ 
++def _watchdog_decision(db, context):
++    if isinstance(db, Session):
++        db.info.setdefault("watchdog_decisions", []).append(context)
++    else:
++        logger.info("job.watchdog.decision %s", context, extra=context)
++
++
++@event.listens_for(Session, "after_commit")
++def _publish_watchdog_decisions(db):
++    if not db.in_nested_transaction():
++        for context in db.info.pop("watchdog_decisions", []):
++            level = (
++                logging.WARNING
++                if context.get("decision") == "STALL_PROGRESS_SEQUENCE_FROZEN"
++                else logging.INFO
++            )
++            logger.log(level, "job.watchdog.decision %s", context, extra=context)
++
++
++@event.listens_for(Session, "after_rollback")
++def _discard_watchdog_decisions(db):
++    db.info.pop("watchdog_decisions", None)
++
++
+ def _effective_progress_stage(job: BackgroundJob) -> str | None:
+     """Resolve the declared resume boundary before its first item checkpoint."""
+ 
+@@ -1693,7 +1721,10 @@ def mark_job_failed_or_retry(
+     if (
+         values["status"] in {JobStatus.QUEUED, JobStatus.FAILED}
+         and job.job_type == "FULL_PIPELINE"
+-        and getattr(job, "pipeline_dependency_id", None) is None
++        and (
++            getattr(job, "pipeline_dependency_id", None) is None
++            or failure["code"] == "CONTROL_PLANE_LOCK_TIMEOUT"
++        )
+     ):
+         from app.services.pipeline_service import mark_pipeline_job_failure
+ 
+@@ -1724,6 +1755,14 @@ def mark_job_failed_or_retry(
+ def classify_job_failure(error: str | Exception) -> dict[str, Any]:
+     """Classify deterministic provenance failures without disabling retries globally."""
+ 
++    from app.services.domain_write_fence import ControlPlaneLockTimeout
++
++    if isinstance(error, ControlPlaneLockTimeout):
++        return {
++            "kind": JobFailureKind.TRANSIENT.value,
++            "retryable": True,
++            "code": "CONTROL_PLANE_LOCK_TIMEOUT",
++        }
+     parameter_limit = _database_parameter_limit_failure(error)
+     if parameter_limit is not None:
+         return parameter_limit
+diff --git a/app/services/background_worker.py b/app/services/background_worker.py
+index a69e5e6..4ecb1ce 100644
+--- a/app/services/background_worker.py
++++ b/app/services/background_worker.py
+@@ -12,7 +12,7 @@ from typing import Any
+ from uuid import uuid4
+ 
+ import psutil
+-from sqlalchemy import text
++from sqlalchemy import exists, select, text
+ from sqlalchemy.exc import DBAPIError, OperationalError
+ from sqlalchemy.orm import Session, sessionmaker
+ 
+@@ -365,10 +365,114 @@ def _run_worker_control_loop(
+             )
+         if stop_after_one:
+             return
++        if ran_job and _post_job_recycle_required(
++            settings=settings,
++            worker_id=worker_id,
++            worker_instance_id=worker_instance_id,
++            session_factory=session_factory,
++        ):
++            return
+         if not ran_job:
+             runtime_stop_event.wait(settings.job_poll_interval_seconds)
+ 
+ 
++def _post_job_recycle_required(
++    *,
++    settings: Settings,
++    worker_id: str,
++    worker_instance_id: str,
++    session_factory: sessionmaker[Session],
++) -> bool:
++    """Request graceful replacement only at a committed, idle job boundary."""
++
++    try:
++        snapshot = process_memory_snapshot()
++    except Exception:
++        logger.exception(
++            "job.worker.post_job_memory_sample_failed",
++            extra={"worker_id": worker_id, "worker_instance_id": worker_instance_id},
++        )
++        return False
++    measured_bytes = snapshot.private_bytes or snapshot.rss_bytes
++    state = memory_status(
++        snapshot,
++        warning_mb=settings.worker_memory_warning_mb,
++        critical_mb=settings.worker_memory_critical_mb,
++    )
++    operational_metrics.set_gauge(
++        "swinglens_worker_rss_bytes",
++        float(snapshot.rss_bytes),
++        worker_id=worker_id,
++    )
++    if snapshot.private_bytes is not None:
++        operational_metrics.set_gauge(
++            "swinglens_worker_private_bytes",
++            float(snapshot.private_bytes),
++            worker_id=worker_id,
++        )
++    operational_metrics.set_gauge(
++        "swinglens_worker_memory_bytes",
++        float(measured_bytes),
++        worker_id=worker_id,
++    )
++    for candidate in ("NORMAL", "WARNING", "CRITICAL"):
++        operational_metrics.set_gauge(
++            "swinglens_worker_memory_status",
++            float(state == candidate),
++            worker_id=worker_id,
++            status=candidate,
++        )
++    threshold_mb = int(getattr(settings, "worker_memory_recycle_mb", 2048))
++    if measured_bytes < threshold_mb * 1024 * 1024:
++        return False
++
++    db = session_factory()
++    try:
++        active_owned_job = bool(
++            db.scalar(
++                select(
++                    exists().where(
++                        BackgroundJob.status.in_((JobStatus.RUNNING, JobStatus.RECOVERING)),
++                        BackgroundJob.worker_id == worker_id,
++                        BackgroundJob.worker_instance_id == worker_instance_id,
++                    )
++                )
++            )
++        )
++    except Exception:
++        db.rollback()
++        logger.exception(
++            "job.worker.post_job_recycle_idle_check_failed",
++            extra={"worker_id": worker_id, "worker_instance_id": worker_instance_id},
++        )
++        return False
++    finally:
++        db.close()
++    if active_owned_job:
++        logger.warning(
++            "job.worker.post_job_recycle_deferred_active_job",
++            extra={
++                "worker_id": worker_id,
++                "worker_instance_id": worker_instance_id,
++                "private_bytes": snapshot.private_bytes,
++                "rss_bytes": snapshot.rss_bytes,
++                "recycle_threshold_mb": threshold_mb,
++            },
++        )
++        return False
++    logger.info(
++        "job.worker.post_job_recycle_requested",
++        extra={
++            "worker_id": worker_id,
++            "worker_instance_id": worker_instance_id,
++            "private_bytes": snapshot.private_bytes,
++            "rss_bytes": snapshot.rss_bytes,
++            "recycle_threshold_mb": threshold_mb,
++        },
++    )
++    return True
++
++
+ def _publish_worker_infrastructure_state(
+     *,
+     session_factory: sessionmaker[Session],
+@@ -516,6 +620,7 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
+         "database_schema_revision": schema_revision,
+         "deployment_git_sha": identity.get("git_sha"),
+         "deployment_git_dirty": identity.get("git_dirty"),
++        "worker_memory_recycle_mb": settings.worker_memory_recycle_mb,
+         "winner_probability_auto_maturation_enabled": (
+             settings.winner_probability_auto_maturation_enabled
+         ),
+@@ -609,6 +714,11 @@ def _worker_heartbeat_loop(
+                 operational_metrics.set_gauge(
+                     "swinglens_worker_private_bytes", snapshot.private_bytes, worker_id=worker_id
+                 )
++            operational_metrics.set_gauge(
++                "swinglens_worker_memory_bytes",
++                float(snapshot.private_bytes or snapshot.rss_bytes),
++                worker_id=worker_id,
++            )
+             for candidate in ("NORMAL", "WARNING", "CRITICAL"):
+                 operational_metrics.set_gauge(
+                     "swinglens_worker_memory_status",
+@@ -660,11 +770,7 @@ def run_worker_once(
+         queue_names = normalize_worker_queues(queues)
+         allowed_job_types = tuple(
+             sorted(
+-                {
+-                    str(value).strip()
+-                    for value in (included_job_types or ())
+-                    if str(value).strip()
+-                }
++                {str(value).strip() for value in (included_job_types or ()) if str(value).strip()}
+             )
+         )
+         hostname = socket.gethostname()
+diff --git a/app/services/core_mutation_authority.py b/app/services/core_mutation_authority.py
+index 148978a..c43ce07 100644
+--- a/app/services/core_mutation_authority.py
++++ b/app/services/core_mutation_authority.py
+@@ -540,7 +540,7 @@ def validate_source_values(source, evidence, *, db=None):
+             name = field if field in mapper.column_attrs else field + "_json"
+             if name not in mapper.column_attrs:
+                 raise ValueError("MUTATION_SOURCE_VALUE_SCHEMA_MISMATCH: " + field)
+-            if supplied_fields is not None and name not in supplied_fields:
++            if row is source and supplied_fields is not None and name not in supplied_fields:
+                 continue  # Native frozen readers deliberately omit unused columns.
+             actual = normalized[name] if normalized is not None else getattr(row, name)
+             column = mapper.column_attrs[name].columns[0]
+@@ -574,9 +574,11 @@ def validate_source_values(source, evidence, *, db=None):
+     if kind == "SECTOR":
+         from app.models.tables import SectorRotationRow
+ 
+-        db = object_session(source)
++        sector_db = db if db is not None else object_session(source)
++        if sector_db is None:
++            raise ValueError("MUTATION_SOURCE_SECTOR_SESSION_REQUIRED")
+         rows = list(
+-            db.scalars(
++            sector_db.scalars(
+                 select(SectorRotationRow)
+                 .where(SectorRotationRow.snapshot_id == source.id)
+                 .with_for_update()
+diff --git a/app/services/pipeline_executor.py b/app/services/pipeline_executor.py
+index 83855b3..32bfe83 100644
+--- a/app/services/pipeline_executor.py
++++ b/app/services/pipeline_executor.py
+@@ -3,7 +3,7 @@ from __future__ import annotations
+ import logging
+ from collections.abc import Callable
+ from contextlib import contextmanager
+-from dataclasses import dataclass, field, replace
++from dataclasses import asdict, dataclass, field, replace
+ from datetime import UTC, datetime
+ from decimal import Decimal
+ from inspect import Parameter, signature
+@@ -57,6 +57,7 @@ from app.services.decision_handoff_contract import (
+     RequiredHandoffContextArtifact,
+     validate_required_handoff_context_artifact,
+ )
++from app.services.domain_write_fence import ControlPlaneLockTimeout
+ from app.services.fundamental_score_service import recalculate_run_fundamentals
+ from app.services.ib_fetch_executor import execute_fetch_plan
+ from app.services.ib_fetch_job_service import FetchJobOptions, _admit_fetch_authority
+@@ -844,6 +845,9 @@ def execute_full_pipeline(
+                 upload_run.id,
+                 market_cutoff,
+                 pipeline_run_id=pipeline.id,
++                checkpoint_callback=_ranking_checkpoint_callback(
++                    db, should_cancel=should_cancel, progress_callback=progress_callback
++                ),
+             )
+             result["ranking_profiles"] = ranking.profile_count
+             result["ranking_results"] = ranking.result_count
+@@ -949,7 +953,7 @@ def execute_full_pipeline(
+         _record_performance_metrics(db, PipelineStatus.FAILED, result["performance"])
+         _mark_pipeline_failed(db, pipeline, exc, result=result, lease_guard=lease_guard)
+         return _to_execution_result(pipeline, result)
+-    except JobLeaseLost:
++    except (JobLeaseLost, ControlPlaneLockTimeout):
+         if overlap_coordinator is not None:
+             overlap_coordinator.abort()
+         raise
+@@ -1098,7 +1102,7 @@ def _continue_after_sector_snapshot(
+             SLSE_PIPELINE_CAPTURE_STEP,
+             lease_guard=lease_guard,
+             performance=performance,
+-        ):
++        ) as capture_step:
+             capture = dependencies.capture_setup_signals or _capture_setup_signals
+             capture_result = _call_market_sensitive(
+                 capture,
+@@ -1114,6 +1118,7 @@ def _continue_after_sector_snapshot(
+                 capture_result,
+                 performance=performance,
+             )
++            _retain_setup_capture_handoff(capture_step, capture_result)
+             _record_handoff_consumer_acceptance(
+                 db,
+                 pipeline,
+@@ -1536,7 +1541,12 @@ def _execute_resumed_pipeline(
+             result.get("market_regime_confidence") == "low"
+         )
+ 
+-        capture_result = None
++        capture_result = (
++            _retained_setup_capture_handoff(db, pipeline.id)
++            if resume_from_step == SLSE_PIPELINE_EVALUATION_STEP
++            and _setup_lifecycle_pipeline_step_enabled(dependencies)
++            else None
++        )
+         run_setup_capture = resume_from_step in {
+             DECISION_HANDOFF_PIPELINE_STEP,
+             SLSE_PIPELINE_CAPTURE_STEP,
+@@ -1563,7 +1573,7 @@ def _execute_resumed_pipeline(
+                 SLSE_PIPELINE_CAPTURE_STEP,
+                 lease_guard=lease_guard,
+                 performance=performance,
+-            ):
++            ) as capture_step:
+                 capture = dependencies.capture_setup_signals or _capture_setup_signals
+                 if dependencies.market_cutoff is None:
+                     raise RuntimeError("resumed pipeline is missing its frozen market cutoff")
+@@ -1581,6 +1591,7 @@ def _execute_resumed_pipeline(
+                     capture_result,
+                     performance=performance,
+                 )
++                _retain_setup_capture_handoff(capture_step, capture_result)
+                 _record_handoff_consumer_acceptance(
+                     db,
+                     pipeline,
+@@ -1677,7 +1688,7 @@ def _execute_resumed_pipeline(
+         result["blocked_diagnostics"] = exc.diagnostics
+         _mark_pipeline_blocked(db, pipeline, exc, result=result, lease_guard=lease_guard)
+         raise
+-    except JobLeaseLost:
++    except (JobLeaseLost, ControlPlaneLockTimeout):
+         raise
+     except PipelineCancelled:
+         result["performance"] = performance.snapshot()
+@@ -2523,6 +2534,7 @@ def _pipeline_step(
+         observed_at=attempt_started_at,
+     )
+     step = _require_step(db, pipeline.id, step_name)
++    step_id = step.id
+     if step.status in {
+         PipelineStepStatus.RUNNING,
+         PipelineStepStatus.COMPLETED,
+@@ -2563,7 +2575,7 @@ def _pipeline_step(
+     _report_job_stage_progress(db, pipeline, step_name)
+     try:
+         yield step
+-    except JobLeaseLost:
++    except (JobLeaseLost, ControlPlaneLockTimeout):
+         observe_step("LEASE_LOST", "JOB_LEASE_LOST")
+         raise
+     except CeriBootstrapRequiredError:
+@@ -2596,6 +2608,11 @@ def _pipeline_step(
+         observe_step(step.status)
+         raise
+     except Exception as exc:
++        if isinstance(db, Session):
++            # Failure reporting is not a publication boundary for staged domain
++            # writes. Keep only the previously committed stage/attempt state.
++            db.rollback()
++            step = db.get(PipelineStep, step_id)
+         step.status = PipelineStepStatus.FAILED
+         step.completed_at = _utcnow()
+         step.error_message = _safe_message(str(exc))
+@@ -2739,7 +2756,14 @@ def _technical_job_checkpoint(
+             current_item=f"{phase}:{current_item or '-'}",
+             last_completed_item=(
+                 last_completed_item
+-                if phase in {"LOADING_INPUTS", "CALCULATING", "CALCULATED", "PUBLISHED"}
++                if phase
++                in {
++                    "LOADING_INPUTS",
++                    "CALCULATING",
++                    "CALCULATED",
++                    "PERSISTING_EVIDENCE",
++                    "PUBLISHED",
++                }
+                 else None
+             ),
+             processed=(processed if phase != "VALIDATING_EVIDENCE" else None),
+@@ -3227,6 +3251,24 @@ def _setup_evaluation_checkpoint_callback(
+     return checkpoint
+ 
+ 
++def _ranking_checkpoint_callback(db, *, should_cancel, progress_callback):
++    def checkpoint(*, phase, processed, total, last_completed_item):
++        _raise_if_cancelled(should_cancel)
++        if progress_callback is not None:
++            progress_callback(
++                db,
++                stage="RANKING_PROFILES",
++                current_item=f"{phase}:{last_completed_item}",
++                last_completed_item=last_completed_item,
++                processed=processed,
++                total=total,
++                checkpoint_version=f"ranking-v1:{phase}:{processed}",
++                only_if_advanced=False,
++            )
++
++    return checkpoint
++
++
+ def _sector_checkpoint_callback(
+     db: Session,
+     *,
+@@ -3916,6 +3958,26 @@ def _capture_setup_signals(
+         raise PipelineCancelled(str(exc)) from exc
+ 
+ 
++def _retain_setup_capture_handoff(step, capture_result):
++    from app.services.setup_lifecycle.snapshot_builder import SnapshotCaptureResult
++
++    if isinstance(capture_result, SnapshotCaptureResult):
++        step.result_json = {
++            **(step.result_json or {}),
++            "setup_capture_handoff": asdict(capture_result),
++        }
++
++
++def _retained_setup_capture_handoff(db, pipeline_id):
++    from app.services.setup_lifecycle.snapshot_builder import SnapshotCaptureResult
++
++    step = _require_step(db, pipeline_id, SLSE_PIPELINE_CAPTURE_STEP)
++    payload = (step.result_json or {}).get("setup_capture_handoff")
++    if step.status != PipelineStepStatus.COMPLETED or payload is None:
++        return None
++    return SnapshotCaptureResult(**{**payload, "snapshot_ids": tuple(payload["snapshot_ids"])})
++
++
+ def _evaluate_setup_lifecycles(
+     db: Session,
+     run_id: int,
+diff --git a/app/services/setup_lifecycle/evaluation_service.py b/app/services/setup_lifecycle/evaluation_service.py
+index ebaa107..93c4c0e 100644
+--- a/app/services/setup_lifecycle/evaluation_service.py
++++ b/app/services/setup_lifecycle/evaluation_service.py
+@@ -5,7 +5,12 @@ from dataclasses import dataclass, field
+ from inspect import Parameter, signature
+ from typing import Any
+ 
++from sqlalchemy import select
++from sqlalchemy.orm import Session
++
+ from app.services.configuration_delivery import anchored_decision_calculator
++from app.services.core_mutation_authority import core_writer_transaction
++from app.services.domain_write_fence import bounded_domain_session
+ from app.services.market_calculation_context_service import (
+     assert_pipeline_calculation_context,
+ )
+@@ -37,7 +42,7 @@ class SetupLifecycleEvaluationCancelled(Exception):
+     pass
+ 
+ 
+-_LIFECYCLE_PROGRESS_BATCH_SIZE = 25
++_LIFECYCLE_PROGRESS_BATCH_SIZE = 5
+ 
+ 
+ @dataclass(frozen=True)
+@@ -135,6 +140,83 @@ class SetupLifecycleEvaluationService:
+         market_cutoff: MarketCalculationCutoff | None = None,
+         pipeline_run_id: int | None = None,
+         progress_callback: Callable[..., None] | None = None,
++    ) -> SetupLifecycleEvaluationResult:
++        # Capture has its own existing preparation/commit contract. Complete it
++        # before opening the atomic lifecycle publication transaction.
++        if isinstance(db, Session) and capture_result is None and snapshot_ids is None:
++            capture_result = self.capture_service.capture_snapshots_for_run(
++                db,
++                run_id,
++                requester=requester,
++                market_cutoff=market_cutoff,
++                should_cancel=should_cancel,
++            )
++        try:
++            return self._evaluate_run(
++                db,
++                run_id,
++                requester=requester,
++                should_cancel=should_cancel,
++                capture_result=capture_result,
++                snapshot_ids=snapshot_ids,
++                market_cutoff=market_cutoff,
++                pipeline_run_id=pipeline_run_id,
++                progress_callback=progress_callback,
++            )
++        except Exception as exc:
++            from app.models.tables import UploadRun
++            from app.services.background_job_service import JobLeaseLost
++            from app.services.pipeline_executor import PipelineCancelled
++
++            if not isinstance(db, Session) or isinstance(exc, JobLeaseLost):
++                raise
++            # The semantic writer has rolled back the complete business unit.
++            # Only an audit row is committed here, in a separately fenced
++            # transaction; the caller still owns a successful publication.
++            with bounded_domain_session(db) as audit_db:
++                if audit_db.get(UploadRun, run_id) is not None:
++                    failed = self.repository.create_evaluation_run(
++                        audit_db,
++                        mode="LIVE",
++                        status=EvaluationStatus.RUNNING.value,
++                        engine_version=self.config.engine.version,
++                        config_version=self.config.engine.config_version,
++                        config_hash=self.config.config_hash,
++                        source_run_id=run_id,
++                        source_run_id_text=str(run_id),
++                        output_evaluation_version=self._evaluation_version(run_id),
++                        requester=requester,
++                    )
++                    self.repository.complete_evaluation_run(
++                        audit_db,
++                        failed,
++                        status=(
++                            EvaluationStatus.CANCELLED.value
++                            if isinstance(
++                                exc, (SetupLifecycleEvaluationCancelled, PipelineCancelled)
++                            )
++                            else EvaluationStatus.FAILED.value
++                        ),
++                        current_phase="failed",
++                        counts={"failed": 1},
++                        errors={"system": str(exc)},
++                    )
++                    audit_db.commit()
++            raise
++
++    @core_writer_transaction
++    def _evaluate_run(
++        self,
++        db,
++        run_id: int,
++        *,
++        requester: str | None = None,
++        should_cancel: Callable[[], bool] | None = None,
++        capture_result: SnapshotCaptureResult | None = None,
++        snapshot_ids: tuple[int, ...] | None = None,
++        market_cutoff: MarketCalculationCutoff | None = None,
++        pipeline_run_id: int | None = None,
++        progress_callback: Callable[..., None] | None = None,
+     ) -> SetupLifecycleEvaluationResult:
+         from sqlalchemy.orm import Session
+ 
+@@ -164,6 +246,18 @@ class SetupLifecycleEvaluationService:
+                 supplied_context=market_cutoff,
+             )
+         handoff_snapshot_ids = _handoff_snapshot_ids(capture_result, snapshot_ids)
++        if isinstance(db, Session) and handoff_snapshot_ids is not None:
++            completed = self._completed_publication(
++                db,
++                run_id,
++                handoff_snapshot_ids,
++                capture_result,
++                market_cutoff,
++                should_cancel=should_cancel,
++                progress_callback=progress_callback,
++            )
++            if completed is not None:
++                return completed
+         evaluation_run = self.repository.create_evaluation_run(
+             db,
+             mode="LIVE",
+@@ -218,6 +312,8 @@ class SetupLifecycleEvaluationService:
+                 run_id=run_id,
+                 evaluation_run_id=evaluation_run.id,
+                 snapshot_ids=handoff_snapshot_ids,
++                progress_callback=progress_callback,
++                should_cancel=should_cancel,
+             )
+             selected_snapshot_ids = tuple(canonical.selected_snapshot_ids)
+             selected_total = len(selected_snapshot_ids)
+@@ -229,9 +325,7 @@ class SetupLifecycleEvaluationService:
+                 current_item="canonical-setup-candidates",
+                 last_completed_item="canonical-setup-candidates",
+             )
+-            selected_snapshots = self.repository.get_snapshots_by_ids(
+-                db, selected_snapshot_ids
+-            )
++            selected_snapshots = self.repository.get_snapshots_by_ids(db, selected_snapshot_ids)
+             for index, snapshot in enumerate(selected_snapshots, start=1):
+                 if snapshot.evidence_id is None:
+                     persist_setup_evidence(db, snapshot)
+@@ -241,10 +335,7 @@ class SetupLifecycleEvaluationService:
+                     )
+ 
+                     validate_setup_projection(db, snapshot)
+-                if (
+-                    index % _LIFECYCLE_PROGRESS_BATCH_SIZE == 0
+-                    or index == selected_total
+-                ):
++                if index % _LIFECYCLE_PROGRESS_BATCH_SIZE == 0 or index == selected_total:
+                     _report_lifecycle_progress(
+                         progress_callback,
+                         phase="EVIDENCE_VALIDATION_BATCH_COMPLETED",
+@@ -266,6 +357,8 @@ class SetupLifecycleEvaluationService:
+                 db,
+                 evaluation_run_id=evaluation_run.id,
+                 snapshot_ids=selected_snapshot_ids,
++                progress_callback=progress_callback,
++                should_cancel=should_cancel,
+             )
+             _report_lifecycle_progress(
+                 progress_callback,
+@@ -296,10 +389,13 @@ class SetupLifecycleEvaluationService:
+                     evaluation_run_id=evaluation_run.id,
+                     snapshot_ids=selected_snapshot_ids,
+                     progress_callback=progress_callback,
++                    should_cancel=should_cancel,
+                 )
+             )
+             self._checkpoint(db, evaluation_run.id, "finalize", should_cancel)
+         except SetupLifecycleEvaluationCancelled:
++            if isinstance(db, Session):
++                raise
+             self.repository.complete_evaluation_run(
+                 db,
+                 evaluation_run,
+@@ -309,6 +405,8 @@ class SetupLifecycleEvaluationService:
+             )
+             raise
+         except Exception as exc:
++            if isinstance(db, Session):
++                raise
+             from app.services.setup_lifecycle.errors import SetupLifecycleReconciliationError
+ 
+             self.repository.complete_evaluation_run(
+@@ -344,6 +442,21 @@ class SetupLifecycleEvaluationService:
+             total=1,
+             current_item="evaluation-result",
+         )
++        if isinstance(db, Session):
++            self.repository.record_evaluation_audit(
++                db,
++                evaluation_run.id,
++                {
++                    **(evaluation_run.audit_json or {}),
++                    "published_snapshots": {str(key): "published" for key in selected_snapshot_ids},
++                    "published_change_events": {
++                        str(key): "published" for key in changes.event_ids if key is not None
++                    },
++                    "published_alert_events": {
++                        str(key): "published" for key in change_alerts.event_ids if key is not None
++                    },
++                },
++            )
+         self.repository.complete_evaluation_run(
+             db,
+             evaluation_run,
+@@ -375,6 +488,141 @@ class SetupLifecycleEvaluationService:
+         )
+         return result
+ 
++    def _completed_publication(
++        self,
++        db,
++        run_id,
++        snapshot_ids,
++        capture,
++        market_cutoff,
++        *,
++        should_cancel,
++        progress_callback,
++    ):
++        from app.models.tables import (
++            SetupLifecycleEpisode,
++            SetupLifecycleEvaluationRun,
++            SetupSignalSnapshotSelectionEvent,
++            SignalAlertEvent,
++        )
++        from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
++        from app.services.decision_mutation_authority import (
++            validate_episode_projection,
++        )
++        from app.services.setup_lifecycle.alert_authority import validate_alert_event_projection
++        from app.services.setup_lifecycle.change_authority import (
++            _projection_pin,
++            validate_signal_change,
++        )
++
++        for published in db.scalars(
++            select(SetupLifecycleEvaluationRun)
++            .where(
++                SetupLifecycleEvaluationRun.source_run_id == run_id,
++                SetupLifecycleEvaluationRun.config_hash == self.config.config_hash,
++                SetupLifecycleEvaluationRun.status.in_(("COMPLETED", "PARTIAL")),
++            )
++            .order_by(SetupLifecycleEvaluationRun.id.desc())
++        ):
++            audit = published.audit_json or {}
++            if set(audit.get("published_snapshots", {})) != {str(key) for key in snapshot_ids}:
++                continue
++            self._validate_capture_handoff(
++                db,
++                run_id=run_id,
++                capture_result=capture,
++                snapshot_ids=snapshot_ids,
++                market_cutoff=market_cutoff,
++            )
++
++            def checkpoint(processed, total, item):
++                if should_cancel():
++                    raise SetupLifecycleEvaluationCancelled("Setup lifecycle replay cancelled.")
++                _report_lifecycle_progress(
++                    progress_callback,
++                    phase="PUBLICATION_REPLAY_VALIDATION",
++                    processed=processed,
++                    total=total,
++                    current_item=item,
++                    last_completed_item=item if processed else None,
++                )
++
++            checkpoint(0, len(snapshot_ids), "snapshots")
++            for index, snapshot in enumerate(
++                self.repository.get_snapshots_by_ids(db, snapshot_ids), 1
++            ):
++                revision = db.scalar(
++                    select(SetupSignalSnapshotSelectionEvent)
++                    .where(
++                        SetupSignalSnapshotSelectionEvent.selected_snapshot_id == snapshot.id,
++                        SetupSignalSnapshotSelectionEvent.occurred_at <= published.completed_at,
++                    )
++                    .order_by(SetupSignalSnapshotSelectionEvent.id.desc())
++                    .limit(1)
++                )
++                if revision is None:
++                    raise ValueError("MUTATION_CHANGE_PUBLISHED_SELECTION_MISSING")
++                _projection_pin(db, snapshot, discover=True, selection_event_id=revision.id)
++                checkpoint(index, len(snapshot_ids), f"snapshot:{snapshot.id}")
++            change_ids = tuple(int(key) for key in audit.get("published_change_events", {}))
++            changes = self.repository.get_signal_change_events_by_ids(db, change_ids)
++            if len(changes) != len(change_ids):
++                raise ValueError("MUTATION_CHANGE_PUBLISHED_EVENT_MISSING")
++            for index, change in enumerate(changes, 1):
++                if should_cancel():
++                    raise SetupLifecycleEvaluationCancelled("Setup lifecycle replay cancelled.")
++                proof = (change.evidence_json or {}).get("native_change_proof") or {}
++                verified = validate_signal_change(
++                    db,
++                    change,
++                    configuration=self.effective_configuration,
++                    source_manifest=proof.get("source_manifest"),
++                    source_validation=True,
++                )
++                if Canonical.dumps(proof) != Canonical.dumps(verified):
++                    raise ValueError("MUTATION_CHANGE_ALTERED_RETRY")
++                if index % 10 == 0 or index == len(changes):
++                    checkpoint(index, len(changes), f"change:{change.id}")
++            episodes = list(
++                db.scalars(
++                    select(SetupLifecycleEpisode).where(
++                        SetupLifecycleEpisode.current_snapshot_id.in_(snapshot_ids)
++                    )
++                )
++            )
++            for index, episode in enumerate(episodes, 1):
++                validate_episode_projection(db, episode)
++                checkpoint(index, len(episodes), f"episode:{episode.id}")
++            alerts = list(
++                db.scalars(
++                    select(SignalAlertEvent).where(
++                        (SignalAlertEvent.evaluation_run_id == published.id)
++                        | SignalAlertEvent.id.in_(
++                            tuple(int(key) for key in audit.get("published_alert_events", {}))
++                        )
++                    )
++                )
++            )
++            for index, alert in enumerate(alerts, 1):
++                validate_alert_event_projection(db, alert)
++                checkpoint(index, len(alerts), f"alert:{alert.id}")
++            return self._result(
++                db,
++                published.id,
++                capture
++                or SnapshotCaptureResult(
++                    evaluation_run_id=None,
++                    status=published.status,
++                    snapshot_ids=snapshot_ids,
++                    captured=len(snapshot_ids),
++                ),
++                CanonicalizationResult(selected_snapshot_ids=snapshot_ids),
++                SignalChangeDetectionResult(event_ids=change_ids),
++                lifecycle_transitions=0,
++                alerts=0,
++            )
++        return None
++
+     def _validate_capture_handoff(
+         self,
+         db,
+@@ -476,6 +724,7 @@ class SetupLifecycleEvaluationService:
+         evaluation_run_id: int,
+         snapshot_ids: tuple[int, ...],
+         progress_callback: Callable[..., None] | None = None,
++        should_cancel: Callable[[], bool] | None = None,
+     ) -> tuple[int, int, tuple[dict[str, Any], ...]]:
+         transitions = 0
+         alert_created = 0
+@@ -522,6 +771,8 @@ class SetupLifecycleEvaluationService:
+         plans_by_snapshot: dict[int, Any] = {}
+         if callable(planner) and use_preloaded_episodes:
+             for index, snapshot in enumerate(snapshots, start=1):
++                if should_cancel is not None and should_cancel():
++                    raise SetupLifecycleEvaluationCancelled("Setup reconciliation cancelled.")
+                 key = (snapshot.ticker, snapshot.timeframe)
+                 plan = planner(
+                     db,
+@@ -555,6 +806,8 @@ class SetupLifecycleEvaluationService:
+             current_item="setup-candidates",
+         )
+         for index, snapshot in enumerate(snapshots, start=1):
++            if should_cancel is not None and should_cancel():
++                raise SetupLifecycleEvaluationCancelled("Setup lifecycle evaluation cancelled.")
+             key = (snapshot.ticker, snapshot.timeframe)
+             history = history_by_key.setdefault(key, [])
+             episode_kwargs = (
+@@ -608,16 +861,28 @@ class SetupLifecycleEvaluationService:
+                     last_completed_item=snapshot.ticker,
+                 )
+         if use_preloaded_episodes:
+-            self.episode_service.refresh_primary_statuses(
+-                db,
+-                keys=episode_keys,
+-                market_cutoffs={
+-                    (snapshot.ticker, snapshot.timeframe): self.episode_service._snapshot_cutoff(
+-                        db, snapshot
+-                    )
+-                    for snapshot in snapshots
+-                },
+-            )
++            market_cutoffs = {
++                (snapshot.ticker, snapshot.timeframe): self.episode_service._snapshot_cutoff(
++                    db, snapshot
++                )
++                for snapshot in snapshots
++            }
++            ordered_keys = sorted(episode_keys)
++            for offset in range(0, len(ordered_keys), _LIFECYCLE_PROGRESS_BATCH_SIZE):
++                if should_cancel is not None and should_cancel():
++                    raise SetupLifecycleEvaluationCancelled("Setup primary refresh cancelled.")
++                keys = ordered_keys[offset : offset + _LIFECYCLE_PROGRESS_BATCH_SIZE]
++                self.episode_service.refresh_primary_statuses(
++                    db, keys=set(keys), market_cutoffs=market_cutoffs
++                )
++                _report_lifecycle_progress(
++                    progress_callback,
++                    phase="PRIMARY_STATUS_BATCH_COMPLETED",
++                    processed=offset + len(keys),
++                    total=len(ordered_keys),
++                    current_item=keys[-1][0],
++                    last_completed_item=keys[-1][0],
++                )
+         _report_lifecycle_progress(
+             progress_callback,
+             phase="STATE_TRANSITION_EVALUATION_COMPLETED",
+@@ -686,8 +951,10 @@ def _canonicalize_run(
+     run_id: int,
+     evaluation_run_id: int,
+     snapshot_ids: tuple[int, ...] | None,
++    progress_callback=None,
++    should_cancel=None,
+ ) -> CanonicalizationResult:
+-    parameters = signature(canonicalizer.canonicalize_run).parameters.values()
++    parameters = tuple(signature(canonicalizer.canonicalize_run).parameters.values())
+     accepts_snapshot_ids = any(
+         parameter.name == "snapshot_ids" or parameter.kind == Parameter.VAR_KEYWORD
+         for parameter in parameters
+@@ -698,4 +965,7 @@ def _canonicalize_run(
+     }
+     if snapshot_ids is not None and accepts_snapshot_ids:
+         kwargs["snapshot_ids"] = snapshot_ids
++    for name, value in (("progress_callback", progress_callback), ("should_cancel", should_cancel)):
++        if any(p.name == name or p.kind == Parameter.VAR_KEYWORD for p in parameters):
++            kwargs[name] = value
+     return canonicalizer.canonicalize_run(db, **kwargs)
+diff --git a/app/services/setup_lifecycle/repository.py b/app/services/setup_lifecycle/repository.py
+index 31d76c7..7569d5e 100644
+--- a/app/services/setup_lifecycle/repository.py
++++ b/app/services/setup_lifecycle/repository.py
+@@ -137,10 +137,137 @@ def current_canonical_snapshot_predicate(snapshot_entity=SetupSignalSnapshot):
+     return (
+         select(SetupSignalSnapshotCurrentSelection.id)
+         .where(SetupSignalSnapshotCurrentSelection.selected_snapshot_id == snapshot_entity.id)
++        .where(
++            lifecycle_publication_predicate(
++                SetupSignalSnapshotCurrentSelection.selected_evaluation_run_id,
++                snapshot_id=SetupSignalSnapshotCurrentSelection.selected_snapshot_id,
++            )
++        )
++        .correlate(snapshot_entity)
+         .exists()
+     )
+ 
+ 
++def lifecycle_publication_predicate(
++    evaluation_id,
++    *,
++    snapshot_id=None,
++    change_event_id=None,
++    alert_event_id=None,
++):
++    """Serving requires a completed publication; raw audit rows remain readable.
++
++    A replay can publish validated existing artifacts without rewriting their
++    original evaluation provenance. Its exact IDs live in the existing audit.
++    NULL owners retain the existing explicit standalone/legacy contract.
++    """
++    from sqlalchemy import Text, cast
++    from sqlalchemy.orm import aliased
++
++    publication = aliased(SetupLifecycleEvaluationRun)
++    completed = publication.status.in_(("COMPLETED", "PARTIAL"))
++    choices = [
++        evaluation_id.is_(None),
++        select(publication.id).where(publication.id == evaluation_id, completed).exists(),
++    ]
++    for audit_field, artifact_id in (
++        ("published_snapshots", snapshot_id),
++        ("published_change_events", change_event_id),
++        ("published_alert_events", alert_event_id),
++    ):
++        if artifact_id is not None:
++            snapshot = aliased(SetupSignalSnapshot)
++            source = select(snapshot.run_id)
++            if audit_field == "published_snapshots":
++                source = source.where(snapshot.id == artifact_id)
++            elif audit_field == "published_change_events":
++                change = aliased(SignalChangeEvent)
++                source = source.join(change, change.current_snapshot_id == snapshot.id).where(
++                    change.id == artifact_id
++                )
++            else:
++                change = aliased(SignalChangeEvent)
++                alert = aliased(SignalAlertEvent)
++                source = (
++                    source.join(change, change.current_snapshot_id == snapshot.id)
++                    .join(alert, alert.signal_change_event_id == change.id)
++                    .where(alert.id == artifact_id)
++                )
++            # The source expression is two levels below its serving entity.
++            # Explicit correlation prevents an accidental whole-table scalar.
++            source = source.correlate(artifact_id.class_)
++            choices.append(
++                select(publication.id)
++                .where(
++                    completed,
++                    publication.source_run_id == source.scalar_subquery(),
++                    publication.audit_json[audit_field].op("->>")(cast(artifact_id, Text))
++                    == "published",
++                )
++                .exists()
++            )
++    return or_(*choices)
++
++
++def published_lifecycle_select(entity):
++    """Build serving queries without changing raw audit/recovery access."""
++    owners = {
++        SetupLifecycleEpisode: (
++            SetupLifecycleEpisode.opening_evaluation_id,
++            SetupLifecycleEpisode.current_snapshot_id,
++            None,
++        ),
++        SetupLifecycleEvent: (
++            SetupLifecycleEvent.evaluation_run_id,
++            SetupLifecycleEvent.snapshot_id,
++            None,
++        ),
++        SignalChangeEvent: (SignalChangeEvent.evaluation_run_id, None, SignalChangeEvent.id),
++        SignalAlertEvent: (
++            SignalAlertEvent.evaluation_run_id,
++            None,
++            SignalAlertEvent.signal_change_event_id,
++        ),
++    }
++    owner, snapshot, change = owners[entity]
++    if entity is SetupLifecycleEpisode:
++        from sqlalchemy import case
++        from sqlalchemy.orm import aliased
++
++        from app.models.tables import SetupLifecycleEvaluationEvidence
++
++        latest = aliased(SetupLifecycleEvaluationEvidence)
++        owner = case(
++            (
++                entity.latest_evaluation_evidence_id.is_not(None),
++                select(latest.evaluation_run_id)
++                .where(latest.id == entity.latest_evaluation_evidence_id)
++                .correlate(entity)
++                .scalar_subquery(),
++            ),
++            else_=owner,
++        )
++        snapshot = None
++    if entity is SetupLifecycleEvent:
++        return select(entity).where(
++            or_(
++                lifecycle_publication_predicate(owner),
++                and_(
++                    entity.event_type == "CANONICAL_REVISION",
++                    lifecycle_publication_predicate(owner, snapshot_id=snapshot),
++                ),
++            )
++        )
++    return select(entity).where(
++        lifecycle_publication_predicate(
++            owner,
++            snapshot_id=snapshot,
++            change_event_id=change if entity is not SignalAlertEvent else None,
++            alert_event_id=entity.id if entity is SignalAlertEvent else None,
++        )
++    )
++
++
+ _LIFECYCLE_OWNERS = (
+     "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_snapshot",
+     "app.services.setup_lifecycle.episode_service:SetupLifecycleEpisodeService.apply_observation_gap",
+@@ -1156,6 +1283,7 @@ class SetupLifecycleRepository:
+             .where(SetupSignalSnapshot.timeframe == timeframe)
+             .where(SetupSignalSnapshot.data_as_of_date < before_date)
+             .where(SetupSignalSnapshot.evidence_id.is_not(None))
++            .where(current_canonical_snapshot_predicate())
+             .order_by(
+                 SetupSignalSnapshot.data_as_of_date.desc(),
+                 SetupSignalSnapshot.id.desc(),
+@@ -1185,6 +1313,7 @@ class SetupLifecycleRepository:
+                 .where(SetupSignalSnapshot.timeframe == timeframe)
+                 .where(SetupSignalSnapshot.data_as_of_date < before_date)
+                 .where(SetupSignalSnapshot.evidence_id.is_not(None))
++                .where(current_canonical_snapshot_predicate())
+                 .order_by(
+                     SetupSignalSnapshot.data_as_of_date.desc(),
+                     SetupSignalSnapshot.id.desc(),
+@@ -1238,6 +1367,7 @@ class SetupLifecycleRepository:
+             )
+             .where(or_(*cutoff_predicates))
+             .where(SetupSignalSnapshot.evidence_id.is_not(None))
++            .where(current_canonical_snapshot_predicate())
+             .subquery()
+         )
+         rows = list(
+@@ -1401,6 +1531,7 @@ class SetupLifecycleRepository:
+                 .where(SetupSignalSnapshot.timeframe == timeframe)
+                 .where(SetupSignalSnapshot.data_as_of_date < before_date)
+                 .where(SetupSignalSnapshot.evidence_id.is_not(None))
++                .where(current_canonical_snapshot_predicate())
+                 .order_by(
+                     SetupSignalSnapshot.ticker,
+                     SetupSignalSnapshot.data_as_of_date.desc(),
+@@ -1772,14 +1903,28 @@ class SetupLifecycleRepository:
+             )
+         existing = self.get_signal_change_event(db, event.source_event_key)
+         if existing is not None:
+-            if isinstance(db, Session) and (
+-                signal_change_body(existing) != signal_change_body(event)
+-                or CanonicalEvidenceSerializer.dumps(
+-                    (existing.evidence_json or {}).get("native_change_proof")
++            if isinstance(db, Session):
++                retained_proof = (existing.evidence_json or {}).get("native_change_proof")
++                old_body, new_body = signal_change_body(existing), signal_change_body(event)
++                # Evaluation IDs record the creating attempt, not event identity.
++                # Preserve that provenance and validate its original proof.
++                old_body.pop("evaluation_run_id")
++                new_body.pop("evaluation_run_id")
++                if old_body != new_body or not isinstance(retained_proof, dict):
++                    raise ValueError("MUTATION_CHANGE_ALTERED_RETRY")
++                verified = validate_signal_change(
++                    db,
++                    existing,
++                    configuration=effective_configuration,
++                    source_manifest=retained_proof.get("source_manifest"),
++                    source_validation=True,
+                 )
+-                != CanonicalEvidenceSerializer.dumps(proof)
+-            ):
+-                raise ValueError("MUTATION_CHANGE_ALTERED_RETRY")
++                if (
++                    CanonicalEvidenceSerializer.dumps(retained_proof)
++                    != CanonicalEvidenceSerializer.dumps(verified)
++                    or retained_proof["source_manifest"] != proof["source_manifest"]
++                ):
++                    raise ValueError("MUTATION_CHANGE_ALTERED_RETRY")
+             return existing
+         if isinstance(db, Session):
+             event.evidence_json = {
+diff --git a/app/settings.py b/app/settings.py
+index 47907d0..72cac1b 100644
+--- a/app/settings.py
++++ b/app/settings.py
+@@ -101,7 +101,7 @@ class Settings(BaseSettings):
+     allow_public_bind: bool = False
+     use_durable_pipeline: bool = True
+     runtime_mode: RuntimeMode = RuntimeMode.NORMAL
+-    fundamental_admission_mode: FundamentalAdmissionMode = FundamentalAdmissionMode.LEGACY
++    fundamental_admission_mode: FundamentalAdmissionMode = FundamentalAdmissionMode.ACTIVE
+     process_role: ProcessRole = ProcessRole.CLI_OR_MAINTENANCE
+     # The canonical lifecycle creates a fresh value for every runtime start and
+     # propagates it to supervised children.  In CERTIFICATION mode it is also
+@@ -313,6 +313,7 @@ class Settings(BaseSettings):
+     job_watchdog_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
+     worker_memory_warning_mb: int = Field(default=4096, ge=128)
+     worker_memory_critical_mb: int = Field(default=6144, ge=256)
++    worker_memory_recycle_mb: int = Field(default=2048, ge=256)
+     worker_memory_profile_interval_items: int = Field(default=25, ge=1, le=10_000)
+     worker_memory_tracemalloc_enabled: bool = False
+     worker_memory_top_allocations: int = Field(default=10, ge=1, le=50)
+@@ -425,12 +426,11 @@ class Settings(BaseSettings):
+     @model_validator(mode="after")
+     def validate_local_runtime_boundary(self) -> "Settings":
+         if (
+-            self.fundamental_admission_mode is not FundamentalAdmissionMode.LEGACY
++            self.fundamental_admission_mode is FundamentalAdmissionMode.SHADOW
+             and self.runtime_mode is not RuntimeMode.CERTIFICATION
+         ):
+             raise ValueError(
+-                "FUNDAMENTAL_ADMISSION_MODE SHADOW/ACTIVE requires "
+-                "RUNTIME_MODE=CERTIFICATION"
++                "FUNDAMENTAL_ADMISSION_MODE=SHADOW requires RUNTIME_MODE=CERTIFICATION"
+             )
+         if self.job_worker_enabled and not self.durable_worker_process_enabled:
+             if "durable_worker_process_enabled" in self.model_fields_set:
+diff --git a/tests/setup_lifecycle/test_evaluation_service.py b/tests/setup_lifecycle/test_evaluation_service.py
+index fb1d57b..346fcd5 100644
+--- a/tests/setup_lifecycle/test_evaluation_service.py
++++ b/tests/setup_lifecycle/test_evaluation_service.py
+@@ -288,20 +288,19 @@ def test_evaluation_progress_is_multiphase_monotonic_and_output_neutral() -> Non
+     assert observed.as_dict() == baseline.as_dict()
+     assert [event["sequence"] for event in events] == list(range(1, len(events) + 1))
+     phases = [event["phase"] for event in events]
+-    assert phases == [
++    phase_order = [
++        phase for index, phase in enumerate(phases) if not index or phase != phases[index - 1]
++    ]
++    assert phase_order == [
+         "INPUTS_LOADED",
+         "CANDIDATES_SELECTED",
+         "EVIDENCE_VALIDATION_BATCH_COMPLETED",
+-        "EVIDENCE_VALIDATION_BATCH_COMPLETED",
+-        "EVIDENCE_VALIDATION_BATCH_COMPLETED",
+         "EVIDENCE_AUTHORITY_VALIDATION_COMPLETED",
+         "CHANGE_DETECTION_COMPLETED",
+         "CHANGE_ALERT_EVALUATION_COMPLETED",
+         "LIFECYCLE_INPUTS_LOADED",
+         "LIFECYCLE_EVALUATION_STARTED",
+         "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+-        "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+-        "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+         "STATE_TRANSITION_EVALUATION_COMPLETED",
+         "PERSISTENCE_STARTED",
+         "PERSISTENCE_STAGED",
+@@ -310,7 +309,7 @@ def test_evaluation_progress_is_multiphase_monotonic_and_output_neutral() -> Non
+         event["processed"]
+         for event in events
+         if event["phase"] == "LIFECYCLE_EVALUATION_BATCH_COMPLETED"
+-    ] == [25, 50, 51]
++    ] == [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 51]
+     assert observed_episodes.applied_snapshot_ids == list(snapshot_ids)
+     assert baseline_episodes.applied_snapshot_ids == list(snapshot_ids)
+     assert len(observed_repository.created) == len(observed_repository.completed) == 1
+@@ -402,6 +401,8 @@ class FakeChangeDetector:
+         *,
+         evaluation_run_id,
+         snapshot_ids,
++        progress_callback=None,
++        should_cancel=None,
+     ) -> SignalChangeDetectionResult:
+         return self.result
+ 

@@ -1,0 +1,114 @@
+{
+  "database": "swinglens_pytest_run41_141168cc4db9",
+  "production_written": false,
+  "frozen_handoff_enabled": false,
+  "frozen_anchor": "d0f2266758cd3d46984c1601a154908feba3904c61c35839a01175824f028632",
+  "resume_job_id": 1417,
+  "execution_seconds": 508.192,
+  "worker_executed": true,
+  "pipeline_status": "FAILED",
+  "job_status": "FAILED",
+  "pipeline_error": "Pipeline continuation failed. A deterministic failure requires remediation or a typed replan. Pipeline 41, job 1417: DECISION_MANIFEST_MISMATCH.",
+  "job_error": "DECISION_MANIFEST_MISMATCH: production lifecycle inputs differ from the immutable preflight manifest; tickers=",
+  "steps": [
+    {
+      "step_name": "VALIDATING_RUN",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "SCORING_FUNDAMENTALS",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "FETCHING_MARKET_DATA",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "SCORING_TECHNICALS",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "MARKET_REGIME_SNAPSHOT",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "COMBINING_RESULTS",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "RANKING_PROFILES",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "SECTOR_ROTATION_SNAPSHOT",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "CERI_PROVIDER_INGEST",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "CAPTURING_SETUP_SIGNALS",
+      "status": "COMPLETED",
+      "error_message": null
+    },
+    {
+      "step_name": "EVALUATING_SETUP_LIFECYCLES",
+      "status": "FAILED",
+      "error_message": "Pipeline continuation failed. A deterministic failure requires remediation or a typed replan. Pipeline 41, job 1417: DECISION_MANIFEST_MISMATCH."
+    },
+    {
+      "step_name": "CAPTURING_WINNER_PREDICTIONS",
+      "status": "PENDING",
+      "error_message": null
+    }
+  ],
+  "snapshot_creator_and_evidence_pins_preserved": true,
+  "winner_predictions": 0,
+  "lifecycle_evaluations": [
+    {
+      "id": 58,
+      "status": "COMPLETED",
+      "current_phase": "snapshot_capture",
+      "captured_count": 88,
+      "canonical_count": 0,
+      "changed_count": 0,
+      "transitioned_count": 0,
+      "alerted_count": 0
+    },
+    {
+      "id": 61,
+      "status": "FAILED",
+      "current_phase": "failed",
+      "captured_count": 0,
+      "canonical_count": 0,
+      "changed_count": 0,
+      "transitioned_count": 0,
+      "alerted_count": 0
+    },
+    {
+      "id": 62,
+      "status": "FAILED",
+      "current_phase": "failed",
+      "captured_count": 0,
+      "canonical_count": 0,
+      "changed_count": 0,
+      "transitioned_count": 0,
+      "alerted_count": 0
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "source": "logs\\lifecycle-worker.log",
+  "prefix_bytes": 804496672,
+  "prefix_sha256": "56c16abbb0660e45c4f3f2b5662a4cdb02276a61ebe28f48764defaa47c6f469",
+  "selected_job_id": 1417,
+  "selected_records": 184,
+  "captured_at_utc": "2026-10-18T15:24:46.338246+00:00"
+}

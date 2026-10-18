@@ -1,0 +1,882 @@
+{
+  "excluded_count": 6,
+  "exclusions": [
+    {
+      "ticker": "COKE",
+      "acquisition_outcome": "EXCLUDED",
+      "eligibility_reason": "winner_source_ineligible",
+      "decision_fingerprint": "1399e968534bba49ce665aa46857797d352469186baca57a4e9cc4b3825fcf82",
+      "rejected_sources": [
+        {
+          "source": "combined",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "combined-to-winner-v2",
+            "producer_evidence_id": 38891,
+            "producer_readiness_fingerprint": "40769f702546ca5498c837a58ebfd7f624049ca83e2e47bd6130820143c27a44"
+          },
+          "included": false,
+          "source_id": 4389,
+          "requirement": "MANDATORY",
+          "source_feature_id": 4389,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "COMBINED",
+            "evidence_id": 38891,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "COMBINED_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision"
+                }
+              }
+            },
+            "readiness_policy_version": "combined-readiness-v2",
+            "calculation_identity_fingerprint": "dec5cedd156c3ddd9b828657926639d7317a53021e6a35fbd5024644139a38c9"
+          }
+        },
+        {
+          "source": "ranking",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "ranking-to-winner-v2",
+            "producer_evidence_id": 38917,
+            "producer_readiness_fingerprint": "2a2f7df9cc048456d73707dda42941718b5c3dcbf526ec10223f76b477f1a22c"
+          },
+          "included": false,
+          "source_id": 19653,
+          "requirement": "MANDATORY",
+          "source_feature_id": 19653,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "RANKING",
+            "evidence_id": 38917,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental",
+                "low_data_quality"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "RANKING_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:early_rocket-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:early_rocket"
+                }
+              }
+            },
+            "readiness_policy_version": "ranking-readiness-v2",
+            "calculation_identity_fingerprint": "b72a16c25c6f6b6ea055df1cf3751d489988c31223bed8acce53e305fd8094f8"
+          }
+        }
+      ]
+    },
+    {
+      "ticker": "DK",
+      "acquisition_outcome": "EXCLUDED",
+      "eligibility_reason": "winner_source_ineligible",
+      "decision_fingerprint": "328443ae840dfd8f96d47d3ce2a0ba28f2952d82ac2411a1a673d3012eda1151",
+      "rejected_sources": [
+        {
+          "source": "combined",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "combined-to-winner-v2",
+            "producer_evidence_id": 38890,
+            "producer_readiness_fingerprint": "70a6eafc3b7a0762b083742081920473e40c84ff6400f12b0ac33eb9078b6096"
+          },
+          "included": false,
+          "source_id": 4388,
+          "requirement": "MANDATORY",
+          "source_feature_id": 4388,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "COMBINED",
+            "evidence_id": 38890,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "COMBINED_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision"
+                }
+              }
+            },
+            "readiness_policy_version": "combined-readiness-v2",
+            "calculation_identity_fingerprint": "34a0fe15ad724cb6f402ddcc45e6a31534837034014d93c95f0eddacd0392804"
+          }
+        },
+        {
+          "source": "ranking",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "ranking-to-winner-v2",
+            "producer_evidence_id": 39180,
+            "producer_readiness_fingerprint": "43c2ca356b82028ff4ce3ed71c0189cb3645b4f6726c6f4303cc427471548bcc"
+          },
+          "included": false,
+          "source_id": 19916,
+          "requirement": "MANDATORY",
+          "source_feature_id": 19916,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "RANKING",
+            "evidence_id": 39180,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental",
+                "low_data_quality"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "RANKING_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:defensive_quality-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:defensive_quality"
+                }
+              }
+            },
+            "readiness_policy_version": "ranking-readiness-v2",
+            "calculation_identity_fingerprint": "9032686db956b11a329a17f0268f5f818b6dd55fdce555a5454f34874f8bc348"
+          }
+        }
+      ]
+    },
+    {
+      "ticker": "HNGE",
+      "acquisition_outcome": "EXCLUDED",
+      "eligibility_reason": "winner_source_ineligible",
+      "decision_fingerprint": "55f1e2cf7cba993eafb3efa03a861a5bcac2229fa85e7286c484af103a338942",
+      "rejected_sources": [
+        {
+          "source": "combined",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "combined-to-winner-v2",
+            "producer_evidence_id": 38894,
+            "producer_readiness_fingerprint": "6125ebd878e0c3b76405f641985198a63c11e12c4d8fe5abee27cefcce4f4b9c"
+          },
+          "included": false,
+          "source_id": 4392,
+          "requirement": "MANDATORY",
+          "source_feature_id": 4392,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "COMBINED",
+            "evidence_id": 38894,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "distribution_risk",
+                "failed_breakout",
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "COMBINED_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision"
+                }
+              }
+            },
+            "readiness_policy_version": "combined-readiness-v2",
+            "calculation_identity_fingerprint": "226874387c777534142c3ddd55329d101241f53c8680ef01938066289907a5dd"
+          }
+        },
+        {
+          "source": "ranking",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "ranking-to-winner-v2",
+            "producer_evidence_id": 39313,
+            "producer_readiness_fingerprint": "247f21e2b9616660fd13cd41a55df339e13fc531afe905572d071dfec949eb69"
+          },
+          "included": false,
+          "source_id": 20049,
+          "requirement": "MANDATORY",
+          "source_feature_id": 20049,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "RANKING",
+            "evidence_id": 39313,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "distribution_risk",
+                "failed_breakout",
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental",
+                "danger_classification",
+                "low_data_quality"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "RANKING_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:clean_compounder_pullback-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:clean_compounder_pullback"
+                }
+              }
+            },
+            "readiness_policy_version": "ranking-readiness-v2",
+            "calculation_identity_fingerprint": "e0aa3f5a78d72716f0c451d850c0da37965723ddde1af50bf1c6d6b6c02d5c6a"
+          }
+        }
+      ]
+    },
+    {
+      "ticker": "JOE",
+      "acquisition_outcome": "EXCLUDED",
+      "eligibility_reason": "winner_source_ineligible",
+      "decision_fingerprint": "ef520513627c377d6ce1e316e9db9a4276156d1f3697665b0f4f73eb6b8d52f5",
+      "rejected_sources": [
+        {
+          "source": "combined",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "combined-to-winner-v2",
+            "producer_evidence_id": 38893,
+            "producer_readiness_fingerprint": "cb45496ca0d75901b5ab11f15158642e017902de0bdfc0b87f5c425acffb1cbc"
+          },
+          "included": false,
+          "source_id": 4391,
+          "requirement": "MANDATORY",
+          "source_feature_id": 4391,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "COMBINED",
+            "evidence_id": 38893,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "liquidity_warning",
+                "market_risk_off",
+                "missing_fundamental"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "COMBINED_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision"
+                }
+              }
+            },
+            "readiness_policy_version": "combined-readiness-v2",
+            "calculation_identity_fingerprint": "1f8be8286d70679d3bb7bf29e593714d26aa462ee9b67c30e7e7f16a3d81e692"
+          }
+        },
+        {
+          "source": "ranking",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "ranking-to-winner-v2",
+            "producer_evidence_id": 39094,
+            "producer_readiness_fingerprint": "c52537e37c0d7e5c0c601708b09bc15cbbf219eb007b67ac6dd50d57c419acc3"
+          },
+          "included": false,
+          "source_id": 19830,
+          "requirement": "MANDATORY",
+          "source_feature_id": 19830,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "RANKING",
+            "evidence_id": 39094,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "liquidity_warning",
+                "market_risk_off",
+                "missing_fundamental",
+                "low_data_quality"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "RANKING_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:quality_momentum-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:quality_momentum"
+                }
+              }
+            },
+            "readiness_policy_version": "ranking-readiness-v2",
+            "calculation_identity_fingerprint": "05d7d579465eeb4d3a0bc96c02de7d9346715aec1d1137460bfec3118b85921a"
+          }
+        }
+      ]
+    },
+    {
+      "ticker": "NLST",
+      "acquisition_outcome": "EXCLUDED",
+      "eligibility_reason": "winner_source_ineligible",
+      "decision_fingerprint": "27e8e48217a065adbb6a62032da7fe07f8e158685439ff1bb1e0280f995d4053",
+      "rejected_sources": [
+        {
+          "source": "combined",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "combined-to-winner-v2",
+            "producer_evidence_id": 38889,
+            "producer_readiness_fingerprint": "b753a4838f0a0d32249b09494aeab3e8b99d5569072fe37dd20ca12302b0c6a1"
+          },
+          "included": false,
+          "source_id": 4387,
+          "requirement": "MANDATORY",
+          "source_feature_id": 4387,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "COMBINED",
+            "evidence_id": 38889,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "COMBINED_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision"
+                }
+              }
+            },
+            "readiness_policy_version": "combined-readiness-v2",
+            "calculation_identity_fingerprint": "164fd681836b18dc65aadac1046169a9340e7d730dbc6063847f60852b619dae"
+          }
+        },
+        {
+          "source": "ranking",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "ranking-to-winner-v2",
+            "producer_evidence_id": 39186,
+            "producer_readiness_fingerprint": "879973e1820ba94fadf1a358be10fa6cf96ce8d17db4230bed69e0d1cfae6aba"
+          },
+          "included": false,
+          "source_id": 19922,
+          "requirement": "MANDATORY",
+          "source_feature_id": 19922,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "RANKING",
+            "evidence_id": 39186,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental",
+                "low_data_quality"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "RANKING_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:defensive_quality-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:defensive_quality"
+                }
+              }
+            },
+            "readiness_policy_version": "ranking-readiness-v2",
+            "calculation_identity_fingerprint": "7721c7794bf517ae1248d2c31882a9333c44810d2be738944073f306567bfd9c"
+          }
+        }
+      ]
+    },
+    {
+      "ticker": "TEN",
+      "acquisition_outcome": "EXCLUDED",
+      "eligibility_reason": "winner_source_ineligible",
+      "decision_fingerprint": "1b55368949fcb26b4d1f011429882aa0fa3227a6989b6893acb8742389cd471b",
+      "rejected_sources": [
+        {
+          "source": "combined",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "combined-to-winner-v2",
+            "producer_evidence_id": 38892,
+            "producer_readiness_fingerprint": "f93763c7dee2dd5e239c038b2623ca1ba3ceba511b4814dea02db4566f320507"
+          },
+          "included": false,
+          "source_id": 4390,
+          "requirement": "MANDATORY",
+          "source_feature_id": 4390,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "COMBINED",
+            "evidence_id": 38892,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "COMBINED_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "combined-decision-1.0.0",
+                  "namespace": "combined-decision"
+                }
+              }
+            },
+            "readiness_policy_version": "combined-readiness-v2",
+            "calculation_identity_fingerprint": "85729cc9642a09df423fb9f98855ad98acfa1ec5feb791256ea06aa0448cdb74"
+          }
+        },
+        {
+          "source": "ranking",
+          "decision": {
+            "status": "INELIGIBLE",
+            "reasons": [
+              "PRODUCER_READINESS_BLOCKED"
+            ],
+            "consumer": "WINNER",
+            "policy_version": "ranking-to-winner-v2",
+            "producer_evidence_id": 39269,
+            "producer_readiness_fingerprint": "3d0c5d8c2729309f7129062047770f52dcb6ac16fa85de02faeafe6dbf52e840"
+          },
+          "included": false,
+          "source_id": 20005,
+          "requirement": "MANDATORY",
+          "source_feature_id": 20005,
+          "producer_readiness": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "producer": "RANKING",
+            "evidence_id": 39269,
+            "evaluated_at": "2026-10-18T10:51:39.665164Z",
+            "native_signals": {
+              "is_complete": false,
+              "warning_flags_json": [
+                "incomplete_data",
+                "market_risk_off",
+                "missing_fundamental",
+                "low_data_quality"
+              ]
+            },
+            "business_anchor": "2026-10-16",
+            "native_coverage": {},
+            "warning_reasons": [
+              "PRODUCER_WARNING"
+            ],
+            "blocking_reasons": [
+              "RANKING_INCOMPLETE"
+            ],
+            "native_freshness": {},
+            "native_confidence": {},
+            "calculation_versions": {
+              "components": {
+                "state": "NOT_APPLICABLE"
+              },
+              "model_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "engine_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:clean_compounder_pullback-engine"
+                }
+              },
+              "schema_version": {
+                "state": "NOT_APPLICABLE"
+              },
+              "calculation_version": {
+                "state": "KNOWN",
+                "value": {
+                  "version": "1.1.0",
+                  "namespace": "ranking-profile:clean_compounder_pullback"
+                }
+              }
+            },
+            "readiness_policy_version": "ranking-readiness-v2",
+            "calculation_identity_fingerprint": "0a970fe34d24be15079000e482965d328ba2f31e9376321554fa02cf3aed498a"
+          }
+        }
+      ]
+    }
+  ]
+}

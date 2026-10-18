@@ -1,0 +1,6 @@
+{"clientId": 22, "event": "api_handshake", "timeout": 3.0}
+{"event": "current_time"}
+{"event": "disconnect"}
+{"clientId": 22, "event": "api_handshake", "timeout": 3.0}
+{"event": "current_time"}
+{"event": "disconnect"}

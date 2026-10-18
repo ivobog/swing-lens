@@ -1,0 +1,1313 @@
+{
+  "timezones": {
+    "original": "Europe/Berlin",
+    "clone": "Europe/Berlin"
+  },
+  "column_change_counts": {
+    "is_canonical": 88,
+    "primary_phase": 88,
+    "canonical_reason": 88,
+    "canonicalized_at": 88,
+    "confidence_label": 88,
+    "confidence_score": 88,
+    "primary_setup_family": 61,
+    "actionability_candidate": 88,
+    "canonical_decision_json": 88,
+    "lifecycle_state_candidate": 88
+  },
+  "rows": [
+    {
+      "id": 3498,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3499,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3500,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3501,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3502,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3503,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3504,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3505,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3506,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3507,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3508,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3509,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3510,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3511,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3512,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3513,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3514,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3515,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3516,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3517,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3518,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3519,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3520,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3521,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3522,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3523,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3524,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3525,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3526,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3527,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3528,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3529,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3530,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3531,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3532,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3533,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3534,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3535,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3536,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3537,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3538,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3539,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3540,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3541,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3542,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3543,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3544,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3545,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3546,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3547,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3548,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3549,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3550,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3551,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3552,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3553,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3554,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3555,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3556,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3557,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3558,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3559,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3560,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3561,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3562,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3563,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3564,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3565,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3566,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3567,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3568,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3569,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3570,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3571,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3572,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3573,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3574,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3575,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3576,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3577,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3578,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3579,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3580,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3581,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3582,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "primary_setup_family",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3583,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3584,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    },
+    {
+      "id": 3585,
+      "changed_columns": [
+        "is_canonical",
+        "primary_phase",
+        "canonical_reason",
+        "canonicalized_at",
+        "confidence_label",
+        "confidence_score",
+        "actionability_candidate",
+        "canonical_decision_json",
+        "lifecycle_state_candidate"
+      ]
+    }
+  ]
+}

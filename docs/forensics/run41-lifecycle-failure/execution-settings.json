@@ -1,0 +1,414 @@
+{
+  "namespace": "execution.settings",
+  "created_at": "2026-09-30T00:24:38.30816+02:00",
+  "payload_json": {
+    "entries": [
+      {
+        "key": "ceri_alerts_enabled",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "ceri_backfill_enabled",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "ceri_enabled",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "ceri_provider_ingest_enabled",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "ceri_run_capture_enabled",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "ib_market_intelligence_enabled",
+        "value": {
+          "type": "boolean",
+          "value": false
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "ib_short_pressure_enabled",
+        "value": {
+          "type": "boolean",
+          "value": false
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "ib_volatility_intelligence_enabled",
+        "value": {
+          "type": "boolean",
+          "value": false
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "setup_capture_handoff_enabled",
+        "value": {
+          "type": "boolean",
+          "value": false
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "setup_lifecycle_pipeline_step_enabled",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "technical_v5_enabled",
+        "value": {
+          "type": "boolean",
+          "value": false
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "technical_v5_persist_shadow_results",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "technical_v5_shadow_compare_enabled",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "winner_cohort_refresh_v2_enabled",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "winner_probability_capture_in_pipeline",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      },
+      {
+        "key": "winner_probability_enabled",
+        "value": {
+          "type": "boolean",
+          "value": true
+        },
+        "source": {
+          "kind": "SETTINGS_MODEL",
+          "version": null,
+          "identifier": "durable-behavioral-switches"
+        },
+        "defaulted": false,
+        "overridden": false,
+        "value_type": "BOOLEAN",
+        "classification": "BEHAVIORAL"
+      }
+    ],
+    "identity": {
+      "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+      "namespace": "execution.settings",
+      "fingerprint": {
+        "digest": "795cf1056845a507eea34975f59802e05510744962c965d611d6e67ab443e4eb",
+        "algorithm": "sha256",
+        "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+      },
+      "resolution_contract": {
+        "version": "execution.settings-v1",
+        "namespace": "execution.settings"
+      }
+    },
+    "semantic": {
+      "values": {
+        "ceri_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "ceri_alerts_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "technical_v5_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": false
+          },
+          "value_type": "BOOLEAN"
+        },
+        "ceri_backfill_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "ceri_run_capture_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "ib_short_pressure_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": false
+          },
+          "value_type": "BOOLEAN"
+        },
+        "winner_probability_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "ceri_provider_ingest_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "setup_capture_handoff_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": false
+          },
+          "value_type": "BOOLEAN"
+        },
+        "ib_market_intelligence_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": false
+          },
+          "value_type": "BOOLEAN"
+        },
+        "winner_cohort_refresh_v2_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "ib_volatility_intelligence_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": false
+          },
+          "value_type": "BOOLEAN"
+        },
+        "technical_v5_persist_shadow_results": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "technical_v5_shadow_compare_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "setup_lifecycle_pipeline_step_enabled": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        },
+        "winner_probability_capture_in_pipeline": {
+          "value": {
+            "type": "boolean",
+            "value": true
+          },
+          "value_type": "BOOLEAN"
+        }
+      },
+      "namespace": "execution.settings",
+      "schema_version": "execution.settings-v1",
+      "contract_schema": "effective-configuration-v1"
+    },
+    "resolution": {
+      "resolver": "decision_effective_configuration.resolve_execution_settings",
+      "precedence": [
+        "REQUEST",
+        "DATABASE",
+        "SETTINGS_MODEL",
+        "PROFILE",
+        "CODE_DEFAULT"
+      ],
+      "contract_version": "1"
+    },
+    "evaluated_at": null,
+    "semantic_hash": "795cf1056845a507eea34975f59802e05510744962c965d611d6e67ab443e4eb",
+    "resolution_hash": "3d3ce9ac4afcef2c608cb0b5e3cd85abd45f8fd49c930e7abb1b382985d658b8",
+    "producer_version": null,
+    "compatibility_policy": "exact-semantic-v1"
+  },
+  "semantic_hash": "795cf1056845a507eea34975f59802e05510744962c965d611d6e67ab443e4eb",
+  "resolution_hash": "3d3ce9ac4afcef2c608cb0b5e3cd85abd45f8fd49c930e7abb1b382985d658b8"
+}

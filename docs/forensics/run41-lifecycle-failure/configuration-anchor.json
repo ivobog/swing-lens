@@ -1,0 +1,829 @@
+[
+  {
+    "anchor_id": "d0f2266758cd3d46984c1601a154908feba3904c61c35839a01175824f028632",
+    "fingerprint": "e4d9b0a534162d28dfeca86ad75ee532376d03a708a1fc9996384b124489cd26",
+    "payload_json": {
+      "contract": "pipeline-effective-configuration-anchor-v1",
+      "integrity": "d0f2266758cd3d46984c1601a154908feba3904c61c35839a01175824f028632",
+      "fingerprint": "e4d9b0a534162d28dfeca86ad75ee532376d03a708a1fc9996384b124489cd26",
+      "configurations": {
+        "core.combined": {
+          "record": "ca0149a0c868d6fe7c7e9747a6474c92a892e78e9fdf7a2dfda5b129e37c791d",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "core.combined",
+            "fingerprint": {
+              "digest": "539188b6429c02af1d8c641894558f87293880a1133fe24a11487a88b439271b",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "core.combined-v1",
+              "namespace": "core.combined"
+            }
+          }
+        },
+        "core.technical": {
+          "record": "85c3ea3bf125f8715cb6d9f7e02863a01eb85dcb5fca27c361607e14ca818ad7",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "core.technical",
+            "fingerprint": {
+              "digest": "8843e9dc04bdf4c00345a49ad3489ec5be4adbccf611fd83af2ea77cb246e23d",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "core.technical-v1",
+              "namespace": "core.technical"
+            }
+          }
+        },
+        "decision.setup": {
+          "record": "13f77c9b21216ff340d5fca2c38a0fab98d7f1af808eb167308c5b29a8733556",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.setup",
+            "fingerprint": {
+              "digest": "63540b1bc8657849d3eb6aeeeebf87b6b08dccecdcc81783f98ac2ef92c86082",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.setup-v1",
+              "namespace": "decision.setup"
+            }
+          }
+        },
+        "execution.ceri": {
+          "record": "7607e89b2ff42fe104fac466be86cc5e82ae1997eb90bc5ea18b453579e29b35",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "execution.ceri",
+            "fingerprint": {
+              "digest": "363d0f08bac418d0830d3cc61f4c8c038c976e5f38237076e4564bf574f3b522",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "execution.ceri-v1",
+              "namespace": "execution.ceri"
+            }
+          }
+        },
+        "contextual.ceri": {
+          "record": "3bed4d8f618b610b409a9210c007e7a545ceaa3d5eefb971913424ac8db511fc",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "contextual.ceri",
+            "fingerprint": {
+              "digest": "e2d9d0ba5db4d735487078497829666ae84f9cff39fd0b5d827035bd898249c6",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "contextual.ceri-v1",
+              "namespace": "contextual.ceri"
+            }
+          }
+        },
+        "core.fundamental": {
+          "record": "cc398fc11baeade7572ddb7db8060579456e9fb50a299172220da9466b7d6a8c",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "core.fundamental",
+            "fingerprint": {
+              "digest": "d2d5097ccf875544eb72d752ef0f9fd1bfb01f93693c956ba1e782ae2c931a94",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "core.fundamental-v2",
+              "namespace": "core.fundamental"
+            }
+          }
+        },
+        "contextual.regime": {
+          "record": "2bbae76af77e22cfc6bb2e74b74bc36f20ae4b4d840eadc3f9586d7e41a05664",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "contextual.regime",
+            "fingerprint": {
+              "digest": "8c173d45580aee2f068b5f53cb1c16d53f3a38b69f79219a24afaf2d21c224d9",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "contextual.regime-v1",
+              "namespace": "contextual.regime"
+            }
+          }
+        },
+        "contextual.sector": {
+          "record": "39a7e2247e130c9a37ae07555e3e5b48d2347941f09905298db53bccdd6492ef",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "contextual.sector",
+            "fingerprint": {
+              "digest": "70a62e483ff6bb32c9c86423d6787d9f76b7398aec3d66618798fd106be42700",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "contextual.sector-v1",
+              "namespace": "contextual.sector"
+            }
+          }
+        },
+        "execution.scoring": {
+          "record": "b96424aeac047b2ea6cf1a13938a27ac151031411c990d274ef9905941b21cb4",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "execution.scoring",
+            "fingerprint": {
+              "digest": "c5c19ef3e9a998ae98300fe967d16ba1e2bb6d77a318f0add572cc0b86313864",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "execution.scoring-v1",
+              "namespace": "execution.scoring"
+            }
+          }
+        },
+        "decision.lifecycle": {
+          "record": "36a958bb773e7fd60496d6226850029e357fab17f7d7d277340c5f9efda2f51a",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.lifecycle",
+            "fingerprint": {
+              "digest": "4afdc79990c27fadc6ccc0045bf63047a8b4f37b887217f435ae22ce37f85698",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.lifecycle-v1",
+              "namespace": "decision.lifecycle"
+            }
+          }
+        },
+        "execution.settings": {
+          "record": "3d3ce9ac4afcef2c608cb0b5e3cd85abd45f8fd49c930e7abb1b382985d658b8",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "execution.settings",
+            "fingerprint": {
+              "digest": "795cf1056845a507eea34975f59802e05510744962c965d611d6e67ab443e4eb",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "execution.settings-v1",
+              "namespace": "execution.settings"
+            }
+          }
+        },
+        "decision.alerts.ceri": {
+          "record": "385d54b9b928a3b6f5acdca453ffa92898253a9fa91c49d61555cb68c4634f64",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.alerts.ceri",
+            "fingerprint": {
+              "digest": "18cd61d5d09fbf44b13a1793c11bbaabdc9e7d7eeab3de3c3017f39edf83f4df",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.alerts.ceri-v1",
+              "namespace": "decision.alerts.ceri"
+            }
+          }
+        },
+        "decision.alerts.setup": {
+          "record": "fdce0594ad6ac77b4a566da5cd18e4e76af139144f8baf59da8c3d3e6d94b59e",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.alerts.setup",
+            "fingerprint": {
+              "digest": "98a712473a61154cf8fa68319d4949f7dc6ec72a6f4948dd73edce073773e13c",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.alerts.setup-v1",
+              "namespace": "decision.alerts.setup"
+            }
+          }
+        },
+        "decision.ceri.changes": {
+          "record": "bd9645143cde6ec2b04bef6ab3b537f6bf013a01109fb41d66c9d57175e94f68",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.ceri.changes",
+            "fingerprint": {
+              "digest": "7d48d5192919086d83ad89a05a39518afcbf345fed6ac284117ac74176b1cf52",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.ceri.changes-v1",
+              "namespace": "decision.ceri.changes"
+            }
+          }
+        },
+        "decision.winner.cohort": {
+          "record": "3bf205d0a1ca2a4a9f11481458689c199ae96d335350dfe26fa4a9a84571034f",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.winner.cohort",
+            "fingerprint": {
+              "digest": "e27d3270cbb042e557fa69fb03ad1555662700219bd4874a798aa7b1b2ff19b3",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.winner.cohort-v1",
+              "namespace": "decision.winner.cohort"
+            }
+          }
+        },
+        "decision.winner.outcome": {
+          "record": "9a7c143201a017334ccec034a2f48c20d7751c8a3f3a0b41e9c349b9a09c974f",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.winner.outcome",
+            "fingerprint": {
+              "digest": "99a92f0261e1fa2656d26db56b4ab34300c72ed0072ff79a35fb39f39100cc0b",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.winner.outcome-v1",
+              "namespace": "decision.winner.outcome"
+            }
+          }
+        },
+        "contextual.ibmi.histogram": {
+          "record": "7598d13fb30681102d2578a5dceac5fa13e8ea434a53d584113cd8391849df42",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "contextual.ibmi.histogram",
+            "fingerprint": {
+              "digest": "0324ecb7dd2d3780b21f39e7997430b2d65ba8348ef7bc32199502667e4dca51",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "contextual.ibmi.histogram-v1",
+              "namespace": "contextual.ibmi.histogram"
+            }
+          }
+        },
+        "contextual.ibmi.liquidity": {
+          "record": "30fb0950812722c27c189372f1fd4fe47c86bfbfa6cf7ec84ffe78ab3f4363e2",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "contextual.ibmi.liquidity",
+            "fingerprint": {
+              "digest": "70d358184df21c35ae6b23b8b9ac8afa158ecda686b38636a621510e856209cc",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "contextual.ibmi.liquidity-v1",
+              "namespace": "contextual.ibmi.liquidity"
+            }
+          }
+        },
+        "core.ranking:early_rocket": {
+          "record": "3a1811715148562623b26425d9e740136be5e2d05f3f505ca1a086dbfb8f217e",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "core.ranking",
+            "fingerprint": {
+              "digest": "da4771c29d833de9eae483272449a9f8b5ee80ccba78d784d2e7ea7c522df3bc",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "core.ranking-v1",
+              "namespace": "core.ranking"
+            }
+          }
+        },
+        "contextual.ibmi.volatility": {
+          "record": "8eb7bb74a147854e6e3f3d65b196984b3026b81eb66e99ad784b5ab40be48ef6",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "contextual.ibmi.volatility",
+            "fingerprint": {
+              "digest": "5762dd6a1bb3124425f743ccaa856070f92357348d2da6293feeb49c71b7076e",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "contextual.ibmi.volatility-v1",
+              "namespace": "contextual.ibmi.volatility"
+            }
+          }
+        },
+        "decision.winner.generation": {
+          "record": "13d76c928d9dfa397708d0b37f2aeb86a998fb13d6c9ba2555bcdecdc58ce0f7",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.winner.generation",
+            "fingerprint": {
+              "digest": "c672cc7102123c01a8e0a88b56e5d4fcd04fa27df354e94db4729b87a6cd62dc",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.winner.generation-v1",
+              "namespace": "decision.winner.generation"
+            }
+          }
+        },
+        "decision.winner.prediction": {
+          "record": "b224a82b4d0f596cf11835fc4dda243d465d8b5d89d7598b5e3f55747c74385d",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.winner.prediction",
+            "fingerprint": {
+              "digest": "95bfd0177cfbbe1ee71474abf211ba7b09600f857b7c6347bf8f937300d1dd1b",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.winner.prediction-v1",
+              "namespace": "decision.winner.prediction"
+            }
+          }
+        },
+        "core.ranking:momentum_swing": {
+          "record": "2d17a9edd34a78d424dae01b13e19f22b97658487adcaa38627a2b76cbe7af6e",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "core.ranking",
+            "fingerprint": {
+              "digest": "0bdd73e430f7e66c494f550f4f4fba7e225664a398a66aa832d3d771ff9fc04e",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "core.ranking-v1",
+              "namespace": "core.ranking"
+            }
+          }
+        },
+        "core.ranking:quality_momentum": {
+          "record": "cb07e38a656f08f2b5e7ae44126705bca6012399b68a84fc6113704ca7d4bfcb",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "core.ranking",
+            "fingerprint": {
+              "digest": "378e56abd62998aa0e7f48025fd497a7f809302ce57d7d0d12e7e5ba463d730f",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "core.ranking-v1",
+              "namespace": "core.ranking"
+            }
+          }
+        },
+        "contextual.ibmi.short_pressure": {
+          "record": "791e5de793b866d5b4c7919c60ca835372c774d51cbf1ede9eb1f811234fad2c",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "contextual.ibmi.short_pressure",
+            "fingerprint": {
+              "digest": "53fdee469cd8a97423800e4361d7241064ef7bf567f1e19a672fb215474bc8d2",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "contextual.ibmi.short_pressure-v1",
+              "namespace": "contextual.ibmi.short_pressure"
+            }
+          }
+        },
+        "core.ranking:defensive_quality": {
+          "record": "d11834df5afc62989f14c45bf1c173a7f73f8d415c9660887985d5c0deef36bf",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "core.ranking",
+            "fingerprint": {
+              "digest": "99c43e4080b7949bae032ee40b143cd31f2fd205566a255a8e3cc3cb8921635a",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "core.ranking-v1",
+              "namespace": "core.ranking"
+            }
+          }
+        },
+        "decision.readiness.regime.setup": {
+          "record": "852cc2bee9ec1f2679fc0288ee4f64f3961be83a05c43c98126c9236582306ee",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.regime.setup",
+            "fingerprint": {
+              "digest": "fe470d67b98c7888809cb47513252d3bb9c14d2baf01f1ab40a21af120a94535",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.regime.setup-v1",
+              "namespace": "decision.readiness.regime.setup"
+            }
+          }
+        },
+        "decision.readiness.sector.setup": {
+          "record": "2a0cc72dca11537799fda8b41150131b44d61af1805604d2a93463753b894d8d",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.sector.setup",
+            "fingerprint": {
+              "digest": "280953ea05468fbebcba85356fdaf5f4bcb0eb9148acd117b9609c09e3e2f848",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.sector.setup-v1",
+              "namespace": "decision.readiness.sector.setup"
+            }
+          }
+        },
+        "contextual.ibmi.options_activity": {
+          "record": "4cbaa41d82955910636024b06b2e4efd3645ebed26c1b19c8041450b348b1bc3",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "contextual.ibmi.options_activity",
+            "fingerprint": {
+              "digest": "8a6d600432feb9d94325638a64d2f4bcd6e492b7a1b7646be25c05f1ebd3dc3f",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "contextual.ibmi.options_activity-v1",
+              "namespace": "contextual.ibmi.options_activity"
+            }
+          }
+        },
+        "decision.readiness.regime.sector": {
+          "record": "d107436e83d3e37d99e04228ee46dcbc0256914b63da86dc1379fb38a4cfd0b4",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.regime.sector",
+            "fingerprint": {
+              "digest": "76a93e3eb9dab5b2abd39e7af63bc6baa5b95385edee688497fe5e8a4032fc61",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.regime.sector-v1",
+              "namespace": "decision.readiness.regime.sector"
+            }
+          }
+        },
+        "decision.readiness.regime.winner": {
+          "record": "a39861d50925163066a692549aa88efc4548fb7094506ec100e3a58293c67206",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.regime.winner",
+            "fingerprint": {
+              "digest": "d4d6087de9126aacaea0e4bad6e82efc32b8c543ebdfc20e887d4604c7eaa30b",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.regime.winner-v1",
+              "namespace": "decision.readiness.regime.winner"
+            }
+          }
+        },
+        "decision.readiness.sector.sector": {
+          "record": "3efe6244d251ea0b108b604892dbff7c98ff21613127e7f815c8ddca35629722",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.sector.sector",
+            "fingerprint": {
+              "digest": "ef2a59ed5d413d5a9a4499e7654fa120c19915b9e3374d6082ecc7a89fba2fa9",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.sector.sector-v1",
+              "namespace": "decision.readiness.sector.sector"
+            }
+          }
+        },
+        "decision.readiness.sector.winner": {
+          "record": "110a040460f663fbca32a537d3eba52a660af252f9f7d0e85bf8d7636446e8b5",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.sector.winner",
+            "fingerprint": {
+              "digest": "1d047f67a6b6f53914baf66dd51657cf8491ae5d1f6c468b72d16e541216cf96",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.sector.winner-v1",
+              "namespace": "decision.readiness.sector.winner"
+            }
+          }
+        },
+        "decision.readiness.combined.setup": {
+          "record": "6fc4d27b4a1943a068cdab4ecf48a357c9047c7f7c127c8ad06f67536baa9043",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.combined.setup",
+            "fingerprint": {
+              "digest": "e1486b6f037c2e72650c329a4813488cc86291c06c4ae078249a763a5a57a9f2",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.combined.setup-v1",
+              "namespace": "decision.readiness.combined.setup"
+            }
+          }
+        },
+        "decision.readiness.ranking.sector": {
+          "record": "44331f52969495e4454691d71f0959b4533c607953cab11c9f83b52ee22af024",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.ranking.sector",
+            "fingerprint": {
+              "digest": "d8838c4cc5bf9fff927816e47e1c795d397b467e8debbf74cd6ee2023b109631",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.ranking.sector-v1",
+              "namespace": "decision.readiness.ranking.sector"
+            }
+          }
+        },
+        "decision.readiness.ranking.winner": {
+          "record": "6242c2faa6e9588223ac923eef68930a7828e257fdff764b4ef78358938e36b2",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.ranking.winner",
+            "fingerprint": {
+              "digest": "c39771b3ec0a7a51f6c098f212f9d7855cbf32e7a81d00f8a34be23d3fe90702",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.ranking.winner-v1",
+              "namespace": "decision.readiness.ranking.winner"
+            }
+          }
+        },
+        "decision.readiness.combined.sector": {
+          "record": "ae35d5e30a0c03fa7b07c2735cc8249f6325122ed50637e634c8e3839935f021",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.combined.sector",
+            "fingerprint": {
+              "digest": "9242a0c9fdb33e7ad654b5fdb7b81637cf5a48a677a8414e02dbd83c1c218305",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.combined.sector-v1",
+              "namespace": "decision.readiness.combined.sector"
+            }
+          }
+        },
+        "decision.readiness.combined.winner": {
+          "record": "4e685458f36acfecfd6405d92e39858918b9b19602aed8ec469b7e3a3a56922d",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.combined.winner",
+            "fingerprint": {
+              "digest": "66daaa31d7dc98f602a755161f97ced00b4f8c036b030fc72629c20174ad4114",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.combined.winner-v1",
+              "namespace": "decision.readiness.combined.winner"
+            }
+          }
+        },
+        "decision.readiness.technical.setup": {
+          "record": "54d72825052fe4b5865552b37833854645e6327f1cd5373f8092f068b9ecd434",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.technical.setup",
+            "fingerprint": {
+              "digest": "b51cc84ae07d87a949260ec9690e17e95f057f8efe101cf00ac4bf787934ab79",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.technical.setup-v1",
+              "namespace": "decision.readiness.technical.setup"
+            }
+          }
+        },
+        "decision.readiness.technical.sector": {
+          "record": "de4042b4a33fd7fe2bae2aff7dbc1086fcb2e3adfe5adb22e30db9a98fdf5461",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.technical.sector",
+            "fingerprint": {
+              "digest": "83e23e0641f9aeb945f6ab95e9d77288be787afbe85689266ea4434620cb0430",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.technical.sector-v1",
+              "namespace": "decision.readiness.technical.sector"
+            }
+          }
+        },
+        "decision.readiness.technical.winner": {
+          "record": "c714cc4157b193540098e9ddb3d4748dd35bf712b3f7890b49d29f0b289cec98",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.technical.winner",
+            "fingerprint": {
+              "digest": "d954f1de2fc02b114e445078301a459f12be3b460456c8b878bb9ea3d0c1a0b0",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.technical.winner-v1",
+              "namespace": "decision.readiness.technical.winner"
+            }
+          }
+        },
+        "decision.readiness.fundamental.setup": {
+          "record": "bd7dd1ef0bdd57c8815a944a23dc5b31d3aff49cb44d70b0e3ac00cc98f57955",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.fundamental.setup",
+            "fingerprint": {
+              "digest": "80b2d745899f33ea3b60176524333684da08df1eaced1fbe17f1683a93660c9e",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.fundamental.setup-v1",
+              "namespace": "decision.readiness.fundamental.setup"
+            }
+          }
+        },
+        "decision.readiness.technical.ranking": {
+          "record": "51e6cef4823ee5da656f5bc09f7529ffa53149d4c9a1e0172ae8d447fb141ce9",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.technical.ranking",
+            "fingerprint": {
+              "digest": "d854d1aa0c2a0508a1ff2cf98e82116329a038a313e740ca27151fce6964e2e8",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.technical.ranking-v1",
+              "namespace": "decision.readiness.technical.ranking"
+            }
+          }
+        },
+        "decision.readiness.fundamental.winner": {
+          "record": "7125054bd54d8b80c8c3911a026541c4ccdb89a5c33d27cfeff813387b1a7758",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.fundamental.winner",
+            "fingerprint": {
+              "digest": "5152905aabec51b24c6e7457494d524a4ec78070d77fea114465812b143d8fae",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.fundamental.winner-v1",
+              "namespace": "decision.readiness.fundamental.winner"
+            }
+          }
+        },
+        "decision.readiness.technical.combined": {
+          "record": "7375815fc60075888ee3b904ef9902b9e44b15900865d21e375a55b3e000baad",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.technical.combined",
+            "fingerprint": {
+              "digest": "c3bc7cc3aa528f8e499422e168da9f73955fef2939159ffa511bbca9bacddbe0",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.technical.combined-v1",
+              "namespace": "decision.readiness.technical.combined"
+            }
+          }
+        },
+        "core.ranking:clean_compounder_pullback": {
+          "record": "d24526df5eb16a306775679d8a2e7bd8199d3ed86387dbbf5af25cfe0c92cdc6",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "core.ranking",
+            "fingerprint": {
+              "digest": "f75c3cb9a75be1e81841bbb689bb6f580bc4d8053e9029248b8f6e674351d942",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "core.ranking-v1",
+              "namespace": "core.ranking"
+            }
+          }
+        },
+        "decision.readiness.fundamental.ranking": {
+          "record": "5e7bb0964187386956a3fc2814742300c0b10b2b7bccb0f71a74821801751514",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.fundamental.ranking",
+            "fingerprint": {
+              "digest": "307b9515bbb99c533c3333bd74937be24705de0dec78cbcbc40179f48c270dd3",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.fundamental.ranking-v1",
+              "namespace": "decision.readiness.fundamental.ranking"
+            }
+          }
+        },
+        "decision.readiness.fundamental.combined": {
+          "record": "5536a39927959761dfbc76c5667f43fd61b75e7e6387362e452a4140037c7b46",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.fundamental.combined",
+            "fingerprint": {
+              "digest": "a4f5d50531e45237f8ab61fa3e0e983caed06725d9bc438b6407e3df104e46e0",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.fundamental.combined-v1",
+              "namespace": "decision.readiness.fundamental.combined"
+            }
+          }
+        },
+        "decision.readiness.ibmi.ceri.volatility": {
+          "record": "20d6293cf3c970dd8a03660f1abfd9750ba5922adf574382f37ed9b2878e9cd9",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.ibmi.ceri.volatility",
+            "fingerprint": {
+              "digest": "09e927c3ec68c8d8391a7db8f0b446ffffe84e008f6f3125fb49e58dbe258fc6",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.ibmi.ceri.volatility-v1",
+              "namespace": "decision.readiness.ibmi.ceri.volatility"
+            }
+          }
+        },
+        "decision.readiness.ibmi.ranking.liquidity": {
+          "record": "995f6e9ca5730232a62056257bf3dc718479280d22aa975aaee77c898f5a9826",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.ibmi.ranking.liquidity",
+            "fingerprint": {
+              "digest": "6385d35d408a67865d6e5737036f1b3463a615ecf5fc21db0227636b46501313",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.ibmi.ranking.liquidity-v1",
+              "namespace": "decision.readiness.ibmi.ranking.liquidity"
+            }
+          }
+        },
+        "decision.readiness.ibmi.ceri.short_pressure": {
+          "record": "ac2c5933a8ad4d7b0c8fdec13d334fd25408b30cbaef65eb7bc8e141f43d457f",
+          "identity": {
+            "coverage": "COMPLETE_EFFECTIVE_CONFIGURATION",
+            "namespace": "decision.readiness.ibmi.ceri.short_pressure",
+            "fingerprint": {
+              "digest": "8dd41b6f93573070aff70e0eb60f86002ca544c0f64e16bd2d8a375bf9b8abc2",
+              "algorithm": "sha256",
+              "proof_boundary": "canonical resolved behavioral configuration payload equality only"
+            },
+            "resolution_contract": {
+              "version": "decision.readiness.ibmi.ceri.short_pressure-v1",
+              "namespace": "decision.readiness.ibmi.ceri.short_pressure"
+            }
+          }
+        }
+      }
+    }
+  }
+]

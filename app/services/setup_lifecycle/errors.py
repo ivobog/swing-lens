@@ -4,6 +4,19 @@ import json
 from typing import Any
 
 
+class SetupCaptureHandoffError(ValueError):
+    """A deterministic capture membership/provenance rejection."""
+
+    code = "SETUP_CAPTURE_HANDOFF_INVALID"
+
+    def __init__(self, reason: str, message: str, **details: Any) -> None:
+        self.diagnostics = _bounded({"reason": reason, **details})
+        super().__init__(f"{self.code}: {message} " + json.dumps(self.diagnostics, default=str))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"code": self.code, **self.diagnostics}
+
+
 class SetupLifecycleReconciliationError(RuntimeError):
     """Bounded, structured lifecycle authority/preflight failure."""
 

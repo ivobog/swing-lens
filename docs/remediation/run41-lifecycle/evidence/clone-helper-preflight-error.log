@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\Ivica\Documents\SwingLens\scripts\forensics\verify_run41_recovery.py", line 272, in <module>
+    {"prepare": prepare, "verify": verify, "cleanup": cleanup}[parser.parse_args().action]()
+  File "C:\Users\Ivica\Documents\SwingLens\scripts\forensics\verify_run41_recovery.py", line 158, in verify
+    result["frozen_anchor"] = delivery.anchor["integrity"]
+                              ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+KeyError: 'integrity'

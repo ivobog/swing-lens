@@ -1,0 +1,384 @@
+{
+  "operation": "SUPPORTED_OPERATOR_RESUME",
+  "pipeline_run_id": 41,
+  "job_id": 1417,
+  "queued_at_utc": "2026-10-18T14:40:04.586090+00:00",
+  "verification_commit": "75bc04f32960497a4d823d01aa6d0e6a96aa4105",
+  "before": {
+    "pipeline_status": "FAILED",
+    "current_step": "EVALUATING_SETUP_LIFECYCLES",
+    "anchor": {
+      "anchor_id": "d0f2266758cd3d46984c1601a154908feba3904c61c35839a01175824f028632",
+      "fingerprint": "e4d9b0a534162d28dfeca86ad75ee532376d03a708a1fc9996384b124489cd26"
+    },
+    "capture_evaluation_run_id": 58,
+    "snapshot_count": 88,
+    "source_verified": true,
+    "immutable_snapshot_rows_verified": true,
+    "immutable_setup_evidence_rows_verified": true
+  },
+  "evidence_review": {
+    "pipeline_run_id": 41,
+    "handoff_manifest_id": 28,
+    "handoff_manifest_fingerprint": "3302e627eff61087081f85932ef5ecbfd5a6d22995b0d409f66b3fe2dff22a80",
+    "incident_reference": "run41-lifecycle-remediation:75bc04f32960497a4d823d01aa6d0e6a96aa4105",
+    "verified_snapshot_count": 88,
+    "appended_reinstatements": 88,
+    "reviewed_exclusions": [
+      {
+        "snapshot_id": 4052,
+        "exclusion_event_id": 3636
+      },
+      {
+        "snapshot_id": 4023,
+        "exclusion_event_id": 3607
+      },
+      {
+        "snapshot_id": 4034,
+        "exclusion_event_id": 3618
+      },
+      {
+        "snapshot_id": 4002,
+        "exclusion_event_id": 3586
+      },
+      {
+        "snapshot_id": 4018,
+        "exclusion_event_id": 3602
+      },
+      {
+        "snapshot_id": 4041,
+        "exclusion_event_id": 3625
+      },
+      {
+        "snapshot_id": 4032,
+        "exclusion_event_id": 3616
+      },
+      {
+        "snapshot_id": 4028,
+        "exclusion_event_id": 3612
+      },
+      {
+        "snapshot_id": 4036,
+        "exclusion_event_id": 3620
+      },
+      {
+        "snapshot_id": 3986,
+        "exclusion_event_id": 3570
+      },
+      {
+        "snapshot_id": 4033,
+        "exclusion_event_id": 3617
+      },
+      {
+        "snapshot_id": 4064,
+        "exclusion_event_id": 3648
+      },
+      {
+        "snapshot_id": 4050,
+        "exclusion_event_id": 3634
+      },
+      {
+        "snapshot_id": 4020,
+        "exclusion_event_id": 3604
+      },
+      {
+        "snapshot_id": 4060,
+        "exclusion_event_id": 3644
+      },
+      {
+        "snapshot_id": 4061,
+        "exclusion_event_id": 3645
+      },
+      {
+        "snapshot_id": 3999,
+        "exclusion_event_id": 3583
+      },
+      {
+        "snapshot_id": 4024,
+        "exclusion_event_id": 3608
+      },
+      {
+        "snapshot_id": 4043,
+        "exclusion_event_id": 3627
+      },
+      {
+        "snapshot_id": 3991,
+        "exclusion_event_id": 3575
+      },
+      {
+        "snapshot_id": 3997,
+        "exclusion_event_id": 3581
+      },
+      {
+        "snapshot_id": 3996,
+        "exclusion_event_id": 3580
+      },
+      {
+        "snapshot_id": 4040,
+        "exclusion_event_id": 3624
+      },
+      {
+        "snapshot_id": 4015,
+        "exclusion_event_id": 3599
+      },
+      {
+        "snapshot_id": 4037,
+        "exclusion_event_id": 3621
+      },
+      {
+        "snapshot_id": 4011,
+        "exclusion_event_id": 3595
+      },
+      {
+        "snapshot_id": 3994,
+        "exclusion_event_id": 3578
+      },
+      {
+        "snapshot_id": 4044,
+        "exclusion_event_id": 3628
+      },
+      {
+        "snapshot_id": 4073,
+        "exclusion_event_id": 3657
+      },
+      {
+        "snapshot_id": 4047,
+        "exclusion_event_id": 3631
+      },
+      {
+        "snapshot_id": 4039,
+        "exclusion_event_id": 3623
+      },
+      {
+        "snapshot_id": 3989,
+        "exclusion_event_id": 3573
+      },
+      {
+        "snapshot_id": 4005,
+        "exclusion_event_id": 3589
+      },
+      {
+        "snapshot_id": 4070,
+        "exclusion_event_id": 3654
+      },
+      {
+        "snapshot_id": 4031,
+        "exclusion_event_id": 3615
+      },
+      {
+        "snapshot_id": 4053,
+        "exclusion_event_id": 3637
+      },
+      {
+        "snapshot_id": 4067,
+        "exclusion_event_id": 3651
+      },
+      {
+        "snapshot_id": 4065,
+        "exclusion_event_id": 3649
+      },
+      {
+        "snapshot_id": 4000,
+        "exclusion_event_id": 3584
+      },
+      {
+        "snapshot_id": 4072,
+        "exclusion_event_id": 3656
+      },
+      {
+        "snapshot_id": 4069,
+        "exclusion_event_id": 3653
+      },
+      {
+        "snapshot_id": 4035,
+        "exclusion_event_id": 3619
+      },
+      {
+        "snapshot_id": 4054,
+        "exclusion_event_id": 3638
+      },
+      {
+        "snapshot_id": 4010,
+        "exclusion_event_id": 3594
+      },
+      {
+        "snapshot_id": 4004,
+        "exclusion_event_id": 3588
+      },
+      {
+        "snapshot_id": 3990,
+        "exclusion_event_id": 3574
+      },
+      {
+        "snapshot_id": 4056,
+        "exclusion_event_id": 3640
+      },
+      {
+        "snapshot_id": 4049,
+        "exclusion_event_id": 3633
+      },
+      {
+        "snapshot_id": 4022,
+        "exclusion_event_id": 3606
+      },
+      {
+        "snapshot_id": 3993,
+        "exclusion_event_id": 3577
+      },
+      {
+        "snapshot_id": 4014,
+        "exclusion_event_id": 3598
+      },
+      {
+        "snapshot_id": 4009,
+        "exclusion_event_id": 3593
+      },
+      {
+        "snapshot_id": 4055,
+        "exclusion_event_id": 3639
+      },
+      {
+        "snapshot_id": 4019,
+        "exclusion_event_id": 3603
+      },
+      {
+        "snapshot_id": 4013,
+        "exclusion_event_id": 3597
+      },
+      {
+        "snapshot_id": 4017,
+        "exclusion_event_id": 3601
+      },
+      {
+        "snapshot_id": 4063,
+        "exclusion_event_id": 3647
+      },
+      {
+        "snapshot_id": 4007,
+        "exclusion_event_id": 3591
+      },
+      {
+        "snapshot_id": 4006,
+        "exclusion_event_id": 3590
+      },
+      {
+        "snapshot_id": 3995,
+        "exclusion_event_id": 3579
+      },
+      {
+        "snapshot_id": 4029,
+        "exclusion_event_id": 3613
+      },
+      {
+        "snapshot_id": 4025,
+        "exclusion_event_id": 3609
+      },
+      {
+        "snapshot_id": 4057,
+        "exclusion_event_id": 3641
+      },
+      {
+        "snapshot_id": 4038,
+        "exclusion_event_id": 3622
+      },
+      {
+        "snapshot_id": 4071,
+        "exclusion_event_id": 3655
+      },
+      {
+        "snapshot_id": 4003,
+        "exclusion_event_id": 3587
+      },
+      {
+        "snapshot_id": 4048,
+        "exclusion_event_id": 3632
+      },
+      {
+        "snapshot_id": 4045,
+        "exclusion_event_id": 3629
+      },
+      {
+        "snapshot_id": 3992,
+        "exclusion_event_id": 3576
+      },
+      {
+        "snapshot_id": 4058,
+        "exclusion_event_id": 3642
+      },
+      {
+        "snapshot_id": 4021,
+        "exclusion_event_id": 3605
+      },
+      {
+        "snapshot_id": 4051,
+        "exclusion_event_id": 3635
+      },
+      {
+        "snapshot_id": 4012,
+        "exclusion_event_id": 3596
+      },
+      {
+        "snapshot_id": 3998,
+        "exclusion_event_id": 3582
+      },
+      {
+        "snapshot_id": 3988,
+        "exclusion_event_id": 3572
+      },
+      {
+        "snapshot_id": 4059,
+        "exclusion_event_id": 3643
+      },
+      {
+        "snapshot_id": 4001,
+        "exclusion_event_id": 3585
+      },
+      {
+        "snapshot_id": 3987,
+        "exclusion_event_id": 3571
+      },
+      {
+        "snapshot_id": 4068,
+        "exclusion_event_id": 3652
+      },
+      {
+        "snapshot_id": 4008,
+        "exclusion_event_id": 3592
+      },
+      {
+        "snapshot_id": 4027,
+        "exclusion_event_id": 3611
+      },
+      {
+        "snapshot_id": 4042,
+        "exclusion_event_id": 3626
+      },
+      {
+        "snapshot_id": 4062,
+        "exclusion_event_id": 3646
+      },
+      {
+        "snapshot_id": 4046,
+        "exclusion_event_id": 3630
+      },
+      {
+        "snapshot_id": 4066,
+        "exclusion_event_id": 3650
+      },
+      {
+        "snapshot_id": 4030,
+        "exclusion_event_id": 3614
+      },
+      {
+        "snapshot_id": 4016,
+        "exclusion_event_id": 3600
+      },
+      {
+        "snapshot_id": 4026,
+        "exclusion_event_id": 3610
+      }
+    ],
+    "snapshot_rows_modified": false
+  },
+  "raw_production_sql_updates": false
+}

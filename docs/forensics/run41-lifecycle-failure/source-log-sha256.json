@@ -1,0 +1,17 @@
+{
+  "logs/lifecycle-worker.log": {
+    "captured_prefix_bytes": 804288291,
+    "sha256": "aafe53bbb8cb4e7a043cda76be9359db57936b88bfa1e4483db7f0a50e6fe376",
+    "note": "Hash covers the captured prefix; future appends are outside this evidence snapshot."
+  },
+  "logs/lifecycle-supervisor.err.log": {
+    "captured_prefix_bytes": 256980175,
+    "sha256": "e35888fa73cb1fd66a83dfa9d685353f7ae04f6c3f9f87ba4bc6a59d52cb4166",
+    "note": "Hash covers the captured prefix; future appends are outside this evidence snapshot."
+  },
+  "logs/db-monitor/worker/sql-2026-10-18-p69808.6.jsonl": {
+    "captured_prefix_bytes": 74654490,
+    "sha256": "afd6ce584617726ff81f64b1c0a462154077d81a9a789af9306b770015774063",
+    "note": "Hash covers the captured prefix; future appends are outside this evidence snapshot."
+  }
+}

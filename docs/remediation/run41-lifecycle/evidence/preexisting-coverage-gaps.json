@@ -1,0 +1,237 @@
+{
+  "combined_full_rows_match": true,
+  "preexisting_incomplete_rows": {
+    "original": [
+      {
+        "ticker": "COKE",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "DK",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "HNGE",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "distribution_risk",
+          "failed_breakout",
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "JOE",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "liquidity_warning",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "NLST",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "TEN",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      }
+    ],
+    "clone": [
+      {
+        "ticker": "COKE",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "DK",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "HNGE",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "distribution_risk",
+          "failed_breakout",
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "JOE",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "liquidity_warning",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "NLST",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      },
+      {
+        "ticker": "TEN",
+        "is_complete": false,
+        "has_fundamental": false,
+        "has_technical": true,
+        "warning_flags_json": [
+          "incomplete_data",
+          "market_risk_off",
+          "missing_fundamental"
+        ]
+      }
+    ]
+  },
+  "all_combined_row_sha256": {
+    "A": "bc94905ca2b246fbed25e73405efcadab3762c5fcd74b65100da6a456df39221",
+    "AAPL": "2f95087dc80f4c2f04cf08dfb67536be816bca28de95ffad8fdaca08ef74bf19",
+    "ABNB": "c0a1275e4a7d5a4bd4254a39e9fccf0568dcddbee40af1b35ad32dcffc621eed",
+    "AFL": "7283a38c55430bd763180a1d7e48dfa64a3815568919d0addab7b049280bf2b9",
+    "AIZ": "f8f2f7910cf07d5a4df58021cdce683067d0c268a1177451cb9c60cff5b78d93",
+    "ALRM": "a172918dd542fcaa557dcb7ab2b172bcab9f1f8ac3dc31260405f06d10307577",
+    "AME": "981e7b4cd77d1d32d2c8faae3d84fbde21eab5198d35acd81e93018505a0f048",
+    "AMG": "95557dd98ac76a4c18def7679d44d0f8e53aca8768e2cb5cdf98cb8512b67a84",
+    "AMGN": "672676044f02aad1eccc77297d297e397bf78c1cfeb24035cb2794f10a286534",
+    "AR": "099193edefc664f7cd671e90ff2c4c0c4f450394169a3e63520ed2fe6a8a1411",
+    "ASC": "9723bb03eabc7da3c3b30684933492c1a9d1cef2757ce85fd14e984dcbcb5a50",
+    "ATRC": "4cb1b2aa099eb8ec7dfd2293581938eca533d5e7d76e8a8d5529f63b68845b6d",
+    "AUPH": "ae23827e7ef23bfa3e0c1d2a2ac744a39be2585beea8179d68613fa0f9290ec2",
+    "BAP": "e1dcdb9fb54c90faff5c8edcc1651aaed7ec3789327b3c8ec68c5ac2d3627de6",
+    "BTSG": "cbc9fa13829bd3ed2f2b0c4a72cbbe73a8f7a0ba167d126697b03c6d5ffade5a",
+    "CART": "4a9e7156b9853f5c8fc13e3106c164253b97d84bb109f6c908c3a2fc217c29bb",
+    "CBOE": "ca55aa318900a5cc4c06ad6dad16359be2d958fb95127a577408e12a1e60889b",
+    "CCK": "240a269ddcf07aae7c9352a104b1eb55fa77244cb5a986abf67b8eec0a807081",
+    "CHEF": "a44f7262b6ec7abcbb5c100bf8de35e335780fd67fc87016bdf67ccd8e30d783",
+    "CHRD": "36e493cf7db5f38bbe8eaca3339226738f24590adf15bf1d6e7e937359939141",
+    "CINF": "7ec2f229096cc12b54f5a2034447cf82c0aefccf493be06d6aefd3069fa2159e",
+    "COKE": "90a4e609f67cab15045ace8d3762d9162baa35131ee6dd4f4b9c394b4e4d98d2",
+    "DAVE": "480133122fca7a33415c81cc13825ee7a9d084614431dc226f91922fd9f1caf1",
+    "DHT": "8d019f6cf53cf1cfd286ad0d2891755a6980375805c830dd8b83c063a31f255a",
+    "DK": "95f49a903da87e3c7df9f9faed4b2a1c5517b3de01f89d4eb106e689f5940c81",
+    "DRI": "40ceaa80b3bd970bde0328daa7c0d0fe66c24d62d59a41e85de3710df2dec292",
+    "DVN": "471bf2e79fcace99161457e3d8fda2a1c43ecf4e370ad37c69484ef3e74750f5",
+    "ECPG": "99bf7e63e7972112d20f6b9d1c2a8f2b0ef7c7cb01b6f324e5ba10cd3be905c4",
+    "ESTC": "2e6af3b75aeb204eb07f3b53725af73607696c1dad43a0656236e1e0ab663eea",
+    "EXEL": "cbcb007ae30403e51beedd082886599db5a6cd55b99cb0c41bf81d0927741034",
+    "EZPW": "617350f079a320c1d9da650760382477e88bee36b3b825549a3946373bb049d9",
+    "FANG": "2bee8424cd7cb0595cd60777ca3698994d735dd4af97976e30a07764a3d66796",
+    "FAST": "5a055c64261c0b3a0260ee162e1e552e859712cbcbe797f482971700e31c0e69",
+    "FLYW": "99f967bfa57bbc1abbd4f6cba68a8b0aaa5bd5fb6499327f9af8a7b2f2751b1e",
+    "FRO": "8731c3143483710367587ec488c6b7c32845de545011a762e6be2680b6c22a35",
+    "FRPT": "762118e2f49d0151f090892031ef9fbd205b17997fecda1b9b8d89e082e97ade",
+    "FRSH": "9284adc460f99a25ba0491c6d3597912693227649685483779616097565aa5fa",
+    "GCT": "76b8bee140cb1c16f627072a2162da8b21768ac9e1405f69a9c13aa9163395db",
+    "HG": "ab71c6cd242542bbf0ed851ce7a091e3c598780c7123358c2fdeca419c476d74",
+    "HNGE": "5447e00143f97e4dc5ef018e5ab5308d9e796ade4ddea39c36da9425f8ba8345",
+    "HUM": "490c499426308cb5dec9138658473553128e7c9baee6f19aa5508660e5353312",
+    "HURN": "fd26e131a1efd747e9dd9908cd6d9d036278b5f6cdfd2203ed6d7e65f3d437b2",
+    "IQV": "977867212cc7b46fd6dc3730c114fe90acf895600e491ed642cc818a4538c41e",
+    "JOE": "df912ed0227e3fb4ec821047d60d19af0a1ef68f3622b16319f3b70ba502924e",
+    "KDP": "8918a1b8889b66b12a25adc6f5854e57d000af02f508f8f93af85147bb75d5f1",
+    "KMI": "8595f03e88879f3efc4be6765dcd95bc384d373ce8e5c2df5dafd89d11a85956",
+    "KNSA": "e35144d109cbde7f452f344a269a4b6437afbe536ce537e398bdcbac58e18ebd",
+    "LAUR": "b0030336980251d79586b0fa391d1f146ae78479f755c98a5fd7bd99d77a0597",
+    "LLY": "1a73a2a9f40fd6074b1b87405d491d834d5f047125169dac3bd4ac10e5e8cf66",
+    "LNG": "bbd3230c5542e59620a2c96e6debcb93df811ed13dd44bb171582b3232ed061d",
+    "LTC": "d05a70afe0a151bd705d358fabc3c3b2bbadf14ed2df00ae8655ad01056df39e",
+    "MCY": "d6ef4a2997caa1d7f76b7d94b442d74cd4d1154fd5db685bb467215efa301b52",
+    "MEDP": "da70fb404e22d4d7a12a9df484cb6da63e053c5a95d5a37ea7578b190ec911c6",
+    "MET": "b21d8450bafab07ab2d0db40498678bf5aa0a3924e9440473a995d3864cf33c9",
+    "MNST": "216e866517be1a0279f1d29b7c17f339400a76e2d8bb6ca9f050d2865fb82e9a",
+    "MUSA": "4dbefdb77def05828e9ab1c8aa58c037c740b0a9585f30b1c3223545e7137182",
+    "NLST": "27d533e34fa7e1c99a702545cb00996a71ad64039901b3f8ac7e8fd385bedea6",
+    "NPK": "ff1be378db0b40e78c633e160fb8ad1abbec79219d18d995d011c4ce1c6b4ffa",
+    "NWE": "c602c80c0ad75d4132bcd70482ded26e113b0a5d056665a12276667430628309",
+    "OKE": "01e1a10924cbeecb6d0d67ba4b419ee40b01d2b55467dd1e86f83786f807369b",
+    "OPLN": "b02002fca943aef573360be553b85a7b5de8137e8a0ceb1f0a7f4e66f5d67a35",
+    "PAA": "a8dda0b38571e038a3501da5600288b4baeb51c688904042fa6d9468b4a118ae",
+    "PACS": "f5b918d12a73dc6a2e12284655af2745968f3ed6e05aec7d62c2dcd0d7f1ddd9",
+    "PARR": "7fcc734d9f15800ad00fee47a8d65aaea19e492165184206e8485bc78b7a3505",
+    "PAYS": "af94ab3e3c2b00bff3abc8d91bf6a1ffa53b5b3982019f452f0a5591aa392e9d",
+    "PLMR": "649eed8632c7736eebc148624ad361176b42fab5b551dac2b16e648c78ef9832",
+    "PLUS": "203dc3a24faefef95c4c01c1114aed59000a481a8f6a91fc9669884f289f7627",
+    "PNTG": "fffb7ec2e3a67a67fd0fde8d557e996746613f24825e6cf62e7c247fd3ce3d2d",
+    "PR": "fd0b43b848129fe6c1a40973adec6567d4efa36bb0191663684a2cbef1ce1f6a",
+    "RELY": "183ad0aa60dd51c5b60007117610ce1c1dbbf932c2d05aa67270caf8ca1ce629",
+    "RHP": "3d32de40a0904a4d14b878ff74154838fb70d0e1424aba5cc4c5f3d2ab4c1ae6",
+    "RL": "79b1306ec6d32aed0206ccb72954bde59cbae19e859ba9d0308a237859881e63",
+    "ROST": "e4bcf88edb049467069869dfb97ee35725ef0245305c1a66de8b1fbee80268b3",
+    "RPRX": "c8a0927c656ad23d6f6579712262a62c26f4fd31dca2d072ca1675880fcf575b",
+    "RRC": "061c77cf896bec56ac355c854ac91f1fba3a27876097ec75b6258571585686fd",
+    "SHOO": "cd7612775bfd28201f9a9a4cc2ecfe78a463ff611a0914adefb4ef8e8ff28c6a",
+    "SKWD": "02a0967ac243acab5ee6d745724c96b69399cfce42393db504a64cf57cbe3857",
+    "SM": "658de861e5dab4f825be098a681d2e16e43232948fa0807de4e0a87f46145197",
+    "SN": "d937072a5970ce37363fcfd9d2d81abe54a21c944ff5f7dad171166edffda9b1",
+    "SPNT": "60a2534d81f0eebbaa166e4fe551bdf75b56c61395265a111809d628fdceb05e",
+    "SXT": "4fb3dff69bd362732cd86ee4b76b80ca5932af461f322420cfcf35f20a5dcf31",
+    "TEN": "66bff6d7be01b8695be6f8e7f3ad745e716170bc1eee1d19b0bc854fb1f61983",
+    "ULTA": "ef72127b40c3b1b0464fa0e9322cf3ca9c9520898dac6b00a8fb394bb4e8434e",
+    "URBN": "d7b3e958e2c1bebabeb58e6e7c9a66409729cc503777dfb7fc25eafd152f601f",
+    "VSXY": "7e025e38ecf3c78478b8deea7346d749c20324da5f88416b46a5d8ab7a73c9ab",
+    "WELL": "7c92c66462ae505c8e5c107cf6c5be6db45574a9f71c621e6736cbae26024e1f",
+    "WOR": "e5316ca252a38ee1bd24b5a55e4697509f3cdf0a00117ecf62556b7b70855d4f",
+    "WST": "e820eea1857a8ee2c7347256930879b000eba6e052233f196dbc6711507f8e53"
+  }
+}

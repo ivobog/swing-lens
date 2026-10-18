@@ -1,0 +1,58 @@
+[
+  {
+    "file": "affected-unit.xml",
+    "tests": "157",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "file": "architecture-observability-unit.xml",
+    "tests": "39",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "file": "full-pipeline-clean.xml",
+    "tests": "2",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "file": "full-pipeline.xml",
+    "tests": "2",
+    "failures": "2",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "file": "native-contract.xml",
+    "tests": "5",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "file": "recovery-outcome-contract.xml",
+    "tests": "10",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "file": "resume-evidence-review.xml",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  },
+  {
+    "file": "root-continuation-routing.xml",
+    "tests": "4",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0"
+  }
+]

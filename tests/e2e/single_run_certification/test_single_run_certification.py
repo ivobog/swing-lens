@@ -17,6 +17,7 @@ import uuid
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -81,7 +82,7 @@ LIVE_CANARY_TICKERS = ("AAPL", "MSFT", "NVDA", "AMZN", "META")
 @dataclass(frozen=True)
 class CertificationEnvironment:
     base_url: str
-    database_url: str
+    database_url: str = dataclass_field(repr=False)
     database_name: str
     artifact_dir: Path
     csv_path: Path
@@ -111,10 +112,19 @@ def certification_provider_mode() -> str:
 
 
 @pytest.fixture
+def certification_setup_capture_handoff_enabled(request: pytest.FixtureRequest) -> bool:
+    enabled = getattr(request, "param", True)
+    if not isinstance(enabled, bool):
+        pytest.fail("Setup capture handoff certification flag must be boolean")
+    return enabled
+
+
+@pytest.fixture
 def certification_environment(
     tmp_path_factory: pytest.TempPathFactory,
     certification_provider_ingest_enabled: bool,
     certification_provider_mode: str,
+    certification_setup_capture_handoff_enabled: bool,
 ) -> Iterator[CertificationEnvironment]:
     live_mode = certification_provider_mode == "live"
     execution_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
@@ -208,7 +218,7 @@ def certification_environment(
         "WINNER_PROBABILITY_ADMIN_ENABLED": "true",
         "SETUP_LIFECYCLE_ENABLED": "true",
         "SETUP_LIFECYCLE_PIPELINE_STEP_ENABLED": "true",
-        "SETUP_CAPTURE_HANDOFF_ENABLED": "true",
+        "SETUP_CAPTURE_HANDOFF_ENABLED": str(certification_setup_capture_handoff_enabled).lower(),
         "SETUP_LIFECYCLE_ALERTS_ENABLED": "true",
         "CERI_ENABLED": "true",
         "CERI_PROVIDER_INGEST_ENABLED": str(certification_provider_ingest_enabled).lower(),

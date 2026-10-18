@@ -1,0 +1,1809 @@
+[
+  {
+    "id": 521,
+    "status": "COMPLETED",
+    "message": null,
+    "step_name": "VALIDATING_RUN",
+    "started_at": "2026-10-18T12:51:42.395592+02:00",
+    "step_order": 1,
+    "result_json": null,
+    "retry_count": 0,
+    "completed_at": "2026-10-18T12:51:42.672733+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 522,
+    "status": "COMPLETED",
+    "message": null,
+    "step_name": "SCORING_FUNDAMENTALS",
+    "started_at": "2026-10-18T12:51:42.766236+02:00",
+    "step_order": 2,
+    "result_json": null,
+    "retry_count": 0,
+    "completed_at": "2026-10-18T12:51:53.866103+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 523,
+    "status": "COMPLETED",
+    "message": null,
+    "step_name": "FETCHING_MARKET_DATA",
+    "started_at": "2026-10-18T12:51:53.969102+02:00",
+    "step_order": 3,
+    "result_json": {
+      "tickers": {
+        "A": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1592,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "AR": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1601,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "DK": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1616,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "HG": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1630,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "PR": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1660,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "RL": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1663,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "SM": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1669,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "SN": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1670,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "AFL": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1595,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "AIZ": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1596,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "AME": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1598,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "AMG": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1599,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "ASC": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1602,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "BAP": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1605,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "CCK": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1609,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "DHT": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1615,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "DRI": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1617,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "DVN": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1618,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "FRO": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1626,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "GCT": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1629,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "HUM": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1632,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "IQV": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1634,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "JOE": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1635,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "KDP": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1636,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "KMI": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1637,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "LLY": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1640,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "LNG": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1641,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "LTC": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1642,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "MCY": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1643,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "MET": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1645,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "NPK": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1649,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "NWE": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1650,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "OKE": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1651,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "PAA": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1653,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "RHP": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1662,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "RRC": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1666,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "SXT": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1672,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "TEN": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1673,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "WOR": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1678,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "WST": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1679,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "AAPL": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1593,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "ABNB": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1594,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "ALRM": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1597,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "AMGN": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1600,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "ATRC": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1603,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "AUPH": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1604,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "BTSG": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1606,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "CART": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1607,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "CBOE": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1608,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "CHEF": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1610,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "CHRD": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1611,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "CINF": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1612,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "COKE": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1613,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "DAVE": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1614,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "ECPG": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1619,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "ESTC": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1620,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "EXEL": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1621,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "EZPW": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1622,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "FANG": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1623,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "FAST": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1624,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "FLYW": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1625,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "FRPT": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1627,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "FRSH": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1628,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "HNGE": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1631,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "HURN": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1633,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "KNSA": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1638,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "LAUR": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1639,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "MEDP": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1644,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "MNST": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1646,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "MUSA": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1647,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "NLST": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1648,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "OPLN": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1652,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "PACS": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1654,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "PARR": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1655,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "PAYS": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1656,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "PLMR": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1657,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "PLUS": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1658,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "PNTG": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1659,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "RELY": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1661,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "ROST": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1664,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "RPRX": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1665,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "SHOO": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1667,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "SKWD": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1668,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "SPNT": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1671,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "ULTA": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1674,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "URBN": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1675,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "VSXY": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1676,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        },
+        "WELL": {
+          "revision": 1,
+          "disposition": "READY",
+          "reason_code": "EXPECTED_SESSION_AVAILABLE",
+          "disposition_id": 1677,
+          "lifecycle_state": "UNKNOWN",
+          "expected_session": "2026-10-16",
+          "latest_bar_session": "2026-10-16",
+          "technical_eligible": true,
+          "downstream_eligible": true
+        }
+      },
+      "blockers": [],
+      "technical_tickers": [
+        "A",
+        "AAPL",
+        "ABNB",
+        "AFL",
+        "AIZ",
+        "ALRM",
+        "AME",
+        "AMG",
+        "AMGN",
+        "AR",
+        "ASC",
+        "ATRC",
+        "AUPH",
+        "BAP",
+        "BTSG",
+        "CART",
+        "CBOE",
+        "CCK",
+        "CHEF",
+        "CHRD",
+        "CINF",
+        "COKE",
+        "DAVE",
+        "DHT",
+        "DK",
+        "DRI",
+        "DVN",
+        "ECPG",
+        "ESTC",
+        "EXEL",
+        "EZPW",
+        "FANG",
+        "FAST",
+        "FLYW",
+        "FRO",
+        "FRPT",
+        "FRSH",
+        "GCT",
+        "HG",
+        "HNGE",
+        "HUM",
+        "HURN",
+        "IQV",
+        "JOE",
+        "KDP",
+        "KMI",
+        "KNSA",
+        "LAUR",
+        "LLY",
+        "LNG",
+        "LTC",
+        "MCY",
+        "MEDP",
+        "MET",
+        "MNST",
+        "MUSA",
+        "NLST",
+        "NPK",
+        "NWE",
+        "OKE",
+        "OPLN",
+        "PAA",
+        "PACS",
+        "PARR",
+        "PAYS",
+        "PLMR",
+        "PLUS",
+        "PNTG",
+        "PR",
+        "RELY",
+        "RHP",
+        "RL",
+        "ROST",
+        "RPRX",
+        "RRC",
+        "SHOO",
+        "SKWD",
+        "SM",
+        "SN",
+        "SPNT",
+        "SXT",
+        "TEN",
+        "ULTA",
+        "URBN",
+        "VSXY",
+        "WELL",
+        "WOR",
+        "WST"
+      ],
+      "downstream_tickers": [
+        "A",
+        "AAPL",
+        "ABNB",
+        "AFL",
+        "AIZ",
+        "ALRM",
+        "AME",
+        "AMG",
+        "AMGN",
+        "AR",
+        "ASC",
+        "ATRC",
+        "AUPH",
+        "BAP",
+        "BTSG",
+        "CART",
+        "CBOE",
+        "CCK",
+        "CHEF",
+        "CHRD",
+        "CINF",
+        "COKE",
+        "DAVE",
+        "DHT",
+        "DK",
+        "DRI",
+        "DVN",
+        "ECPG",
+        "ESTC",
+        "EXEL",
+        "EZPW",
+        "FANG",
+        "FAST",
+        "FLYW",
+        "FRO",
+        "FRPT",
+        "FRSH",
+        "GCT",
+        "HG",
+        "HNGE",
+        "HUM",
+        "HURN",
+        "IQV",
+        "JOE",
+        "KDP",
+        "KMI",
+        "KNSA",
+        "LAUR",
+        "LLY",
+        "LNG",
+        "LTC",
+        "MCY",
+        "MEDP",
+        "MET",
+        "MNST",
+        "MUSA",
+        "NLST",
+        "NPK",
+        "NWE",
+        "OKE",
+        "OPLN",
+        "PAA",
+        "PACS",
+        "PARR",
+        "PAYS",
+        "PLMR",
+        "PLUS",
+        "PNTG",
+        "PR",
+        "RELY",
+        "RHP",
+        "RL",
+        "ROST",
+        "RPRX",
+        "RRC",
+        "SHOO",
+        "SKWD",
+        "SM",
+        "SN",
+        "SPNT",
+        "SXT",
+        "TEN",
+        "ULTA",
+        "URBN",
+        "VSXY",
+        "WELL",
+        "WOR",
+        "WST"
+      ],
+      "accepted_inactive_tickers": []
+    },
+    "retry_count": 0,
+    "completed_at": "2026-10-18T12:51:59.372095+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 524,
+    "status": "COMPLETED",
+    "message": null,
+    "step_name": "SCORING_TECHNICALS",
+    "started_at": "2026-10-18T12:51:59.509095+02:00",
+    "step_order": 4,
+    "result_json": null,
+    "retry_count": 0,
+    "completed_at": "2026-10-18T12:54:59.492787+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 525,
+    "status": "COMPLETED",
+    "message": null,
+    "step_name": "MARKET_REGIME_SNAPSHOT",
+    "started_at": "2026-10-18T12:54:59.601786+02:00",
+    "step_order": 5,
+    "result_json": null,
+    "retry_count": 0,
+    "completed_at": "2026-10-18T12:55:02.711171+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 526,
+    "status": "COMPLETED",
+    "message": null,
+    "step_name": "COMBINING_RESULTS",
+    "started_at": "2026-10-18T12:55:02.817166+02:00",
+    "step_order": 6,
+    "result_json": null,
+    "retry_count": 0,
+    "completed_at": "2026-10-18T12:55:14.227839+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 527,
+    "status": "COMPLETED",
+    "message": "Persisted 440 ranking results across 5 profiles.",
+    "step_name": "RANKING_PROFILES",
+    "started_at": "2026-10-18T12:55:14.391838+02:00",
+    "step_order": 7,
+    "result_json": null,
+    "retry_count": 0,
+    "completed_at": "2026-10-18T12:56:24.503463+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 528,
+    "status": "COMPLETED",
+    "message": null,
+    "step_name": "SECTOR_ROTATION_SNAPSHOT",
+    "started_at": "2026-10-18T12:56:24.771462+02:00",
+    "step_order": 8,
+    "result_json": null,
+    "retry_count": 0,
+    "completed_at": "2026-10-18T12:58:13.896724+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 529,
+    "status": "COMPLETED",
+    "message": "Required CERI child workflow completed and certified.",
+    "step_name": "CERI_PROVIDER_INGEST",
+    "started_at": "2026-10-18T12:58:14.191249+02:00",
+    "step_order": 9,
+    "result_json": {
+      "async_timing": {
+        "status": "COMPLETED",
+        "completed_at": "2026-10-18T11:26:16.707822+00:00",
+        "dispatch_duration_ms": 1137.386,
+        "total_logical_duration_ms": 1682516.573,
+        "dependency_wait_started_at": "2026-10-18T10:58:15.637181+00:00",
+        "child_execution_duration_ms": 1680485.079,
+        "dependency_wait_duration_ms": 1681070.641
+      }
+    },
+    "retry_count": 0,
+    "completed_at": "2026-10-18T13:26:16.707822+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 530,
+    "status": "COMPLETED",
+    "message": "Decision evidence committed; downstream pre-mutation re-verification accepted.",
+    "step_name": "FREEZING_DECISION_HANDOFF_MANIFEST",
+    "started_at": "2026-10-18T13:26:17.384875+02:00",
+    "step_order": 10,
+    "result_json": {
+      "authority_state": "<restricted:authority_state>",
+      "preflight_plan_id": 30,
+      "continuation_state": "ACCEPTED_BY_DOWNSTREAM_CONSUMER",
+      "completion_semantics": "EVIDENCE_COMMITTED",
+      "decision_handoff_manifest_id": 28,
+      "run_start_anchor_fingerprint": "d158efd25b6293c263fd3d726cc3b45180efa99f513701737810fe8174f5467c",
+      "downstream_consumer_acceptance": {
+        "CAPTURING_SETUP_SIGNALS": "ACCEPTED"
+      },
+      "decision_handoff_manifest_fingerprint": "3302e627eff61087081f85932ef5ecbfd5a6d22995b0d409f66b3fe2dff22a80"
+    },
+    "retry_count": 0,
+    "completed_at": "2026-10-18T13:28:56.27318+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 531,
+    "status": "COMPLETED",
+    "message": null,
+    "step_name": "CAPTURING_SETUP_SIGNALS",
+    "started_at": "2026-10-18T13:31:55.470738+02:00",
+    "step_order": 11,
+    "result_json": {
+      "setup_capture_handoff": {
+        "read": 88,
+        "failed": 0,
+        "status": "COMPLETED",
+        "alerted": 0,
+        "changed": 0,
+        "skipped": 0,
+        "warning": 176,
+        "captured": 88,
+        "canonical": 0,
+        "performance": {
+          "setup_context_build_ms": 2666.89,
+          "setup_latest_bar_query_ms": 4514.566
+        },
+        "snapshot_ids": [
+          3498,
+          3499,
+          3500,
+          3501,
+          3502,
+          3503,
+          3504,
+          3505,
+          3506,
+          3507,
+          3508,
+          3509,
+          3510,
+          3511,
+          3512,
+          3513,
+          3514,
+          3515,
+          3516,
+          3517,
+          3518,
+          3519,
+          3520,
+          3521,
+          3522,
+          3523,
+          3524,
+          3525,
+          3526,
+          3527,
+          3528,
+          3529,
+          3530,
+          3531,
+          3532,
+          3533,
+          3534,
+          3535,
+          3536,
+          3537,
+          3538,
+          3539,
+          3540,
+          3541,
+          3542,
+          3543,
+          3544,
+          3545,
+          3546,
+          3547,
+          3548,
+          3549,
+          3550,
+          3551,
+          3552,
+          3553,
+          3554,
+          3555,
+          3556,
+          3557,
+          3558,
+          3559,
+          3560,
+          3561,
+          3562,
+          3563,
+          3564,
+          3565,
+          3566,
+          3567,
+          3568,
+          3569,
+          3570,
+          3571,
+          3572,
+          3573,
+          3574,
+          3575,
+          3576,
+          3577,
+          3578,
+          3579,
+          3580,
+          3581,
+          3582,
+          3583,
+          3584,
+          3585
+        ],
+        "transitioned": 0,
+        "low_confidence": 0,
+        "errors_by_ticker": {},
+        "evaluation_run_id": 58,
+        "warnings_by_ticker": {
+          "A": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "AR": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "DK": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "HG": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "PR": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "RL": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "SM": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "SN": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "AFL": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "AIZ": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "AME": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "AMG": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "ASC": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "BAP": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "CCK": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "DHT": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "DRI": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "DVN": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "FRO": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "GCT": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "HUM": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "IQV": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "JOE": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "KDP": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "KMI": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "LLY": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "LNG": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "LTC": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "MCY": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "MET": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "NPK": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "NWE": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "OKE": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "PAA": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "RHP": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "RRC": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "SXT": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "TEN": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "WOR": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "WST": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "AAPL": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "ABNB": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "ALRM": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "AMGN": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "ATRC": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "AUPH": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "BTSG": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "CART": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "CBOE": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "CHEF": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "CHRD": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "CINF": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "COKE": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "DAVE": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "ECPG": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "ESTC": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "EXEL": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "EZPW": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "FANG": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "FAST": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "FLYW": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "FRPT": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "FRSH": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "HNGE": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "HURN": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "KNSA": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "LAUR": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "MEDP": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "MNST": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "MUSA": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "NLST": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "OPLN": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "PACS": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "PARR": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "PAYS": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "PLMR": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "PLUS": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "PNTG": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "RELY": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "ROST": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "RPRX": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "SHOO": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "SKWD": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "SPNT": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "ULTA": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "URBN": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "VSXY": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ],
+          "WELL": [
+            "MISSING_OPTIONAL_CONTEXT",
+            "MISSING_SECTOR_ROTATION"
+          ]
+        }
+      }
+    },
+    "retry_count": 0,
+    "completed_at": "2026-10-18T13:41:25.029718+02:00",
+    "error_message": null,
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 532,
+    "status": "FAILED",
+    "message": null,
+    "step_name": "EVALUATING_SETUP_LIFECYCLES",
+    "started_at": "2026-10-18T13:41:25.282232+02:00",
+    "step_order": 12,
+    "result_json": null,
+    "retry_count": 0,
+    "completed_at": "2026-10-18T13:44:30.52371+02:00",
+    "error_message": "Setup capture handoff snapshot ownership is inconsistent.",
+    "pipeline_run_id": 41
+  },
+  {
+    "id": 533,
+    "status": "PENDING",
+    "message": null,
+    "step_name": "CAPTURING_WINNER_PREDICTIONS",
+    "started_at": null,
+    "step_order": 13,
+    "result_json": null,
+    "retry_count": 0,
+    "completed_at": null,
+    "error_message": null,
+    "pipeline_run_id": 41
+  }
+]

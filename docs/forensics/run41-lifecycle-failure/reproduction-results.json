@@ -1,0 +1,71 @@
+{
+  "production_database_written": false,
+  "native_financial_validators_patched": false,
+  "database": "swinglens_pytest_83a633e16dc6",
+  "original_capture": {
+    "evaluation_run_id": 1,
+    "snapshot_ids": [
+      1
+    ],
+    "validation": "PASS"
+  },
+  "recapture": {
+    "evaluation_run_id": 2,
+    "snapshot_ids": [
+      1
+    ],
+    "status": "COMPLETED"
+  },
+  "handoff_disabled": {
+    "type": "ValueError",
+    "error": "Setup capture handoff snapshot ownership is inconsistent."
+  },
+  "persisted_snapshot_owners_after_failure": {
+    "1": 1
+  },
+  "failed_audits": [
+    {
+      "id": 4,
+      "status": "FAILED",
+      "error": {
+        "system": "Setup capture handoff snapshot ownership is inconsistent."
+      }
+    }
+  ],
+  "original_handoff_after_failure": "PASS",
+  "only_attempt_owner_changed": "Setup capture handoff snapshot ownership is inconsistent.",
+  "handoff_enabled": {
+    "evaluation_run_id": 5,
+    "status": "COMPLETED",
+    "snapshots_captured": 1,
+    "canonical_snapshots": 1,
+    "canonical_changed": 1,
+    "change_events": 0,
+    "changed": 0,
+    "lifecycle_transitions": 0,
+    "transitioned": 0,
+    "alerts": 0,
+    "alerted": 0,
+    "active_episodes": 1,
+    "low_confidence": 0,
+    "failed": 0,
+    "warning": 2,
+    "captured": 1,
+    "canonical": 1,
+    "reconciled_episodes": 0,
+    "reconciliation_plans": [
+      {
+        "snapshot_id": 1,
+        "ticker": "R041",
+        "timeframe": "1d",
+        "current_family": "GENERIC",
+        "active_episode_ids": [],
+        "retained_episode_id": null,
+        "displaced_episode_ids": [],
+        "reason_code": null
+      }
+    ]
+  },
+  "creator_provenance_preserved": true,
+  "disposable_database_dropped": true
+}

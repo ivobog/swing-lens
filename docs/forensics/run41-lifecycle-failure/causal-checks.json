@@ -1,0 +1,26 @@
+{
+  "handoff_capture_evaluation_id": 58,
+  "handoff_snapshot_count": 88,
+  "all_handoff_ids_present": true,
+  "all_owners_match_saved_handoff": true,
+  "all_snapshots_from_run41": true,
+  "all_configs_match_capture58": true,
+  "all_engines_match_capture58": true,
+  "contexts": [
+    74
+  ],
+  "cutoffs": [
+    "2026-10-18T12:51:39.665164+02:00"
+  ],
+  "sessions": [
+    "2026-10-16"
+  ],
+  "frozen_handoff_flag": false,
+  "continuation_failure_classification": {
+    "failure_classification": {
+      "code": "ValueError",
+      "kind": "DETERMINISTIC",
+      "retryable": false
+    }
+  }
+}

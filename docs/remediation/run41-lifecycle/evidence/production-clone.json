@@ -1,0 +1,10 @@
+{
+  "database": "swinglens_pytest_run41_141168cc4db9",
+  "dump": "C:\\Users\\Ivica\\Documents\\SwingLens\\.codex-tmp\\run41-recovery\\run41-production-snapshot.dump",
+  "source_database": "swinglens",
+  "dump_bytes": 2230297668,
+  "production_written": false,
+  "dump_sha256": "327cffd18581e34a45208fb4239e58d7283c7ba91db0e79eea5698ed01981c9e",
+  "restored": true,
+  "dropped": true
+}

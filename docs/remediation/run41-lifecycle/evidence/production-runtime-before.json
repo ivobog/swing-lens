@@ -1,0 +1,43 @@
+{
+  "captured_at_utc": "2026-10-18T14:28:09.524071+00:00",
+  "runtime": {
+    "runtimeInstanceId": "93f3db5d308e4b8cba0d156e74cb0978",
+    "gitCommit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "runtimeConfigFingerprint": "8c2e66b92ce1c9dfa39356b59b9e3d058fd55a051cc3968cba967e35a55b90e0",
+    "recordedAtUtc": "2026-10-18T10:20:58.9884072Z",
+    "web": {
+      "createdAt": "2026-10-18T10:20:44.7142030Z",
+      "launcherCreatedAt": "2026-10-18T10:20:41.2144620Z",
+      "launcherPid": 69072,
+      "module": "app.serve",
+      "pid": 23092,
+      "port": 8000,
+      "repoRoot": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "role": "web",
+      "runtimeInstanceId": "93f3db5d308e4b8cba0d156e74cb0978"
+    },
+    "supervisor": {
+      "createdAt": "2026-10-18T10:20:41.2144620Z",
+      "module": "app.worker_supervisor",
+      "pid": 69072,
+      "repoRoot": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "role": "supervisor",
+      "runtimeInstanceId": "93f3db5d308e4b8cba0d156e74cb0978"
+    },
+    "processGroup": {
+      "createdAt": "2026-10-18T10:20:41.2034110Z",
+      "module": "app.worker_supervisor",
+      "pid": 68616,
+      "repoRoot": "C:\\Users\\Ivica\\Documents\\SwingLens",
+      "role": "supervisor",
+      "runtimeInstanceId": "93f3db5d308e4b8cba0d156e74cb0978"
+    }
+  },
+  "status_observed_before_remediation": {
+    "core": "ok",
+    "workerReady": true,
+    "overall": "DEGRADED",
+    "prometheusTargetsReachable": false,
+    "grafanaReady": false
+  }
+}

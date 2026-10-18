@@ -1,2 +1,8 @@
 /.gitattributes text eol=lf
 app/static/vendor/lightweight-charts.standalone.production.js text eol=lf
+# Preserve sealed Run 41 evidence bytes, including original line endings.
+docs/forensics/run41-lifecycle-failure/** -text whitespace=cr-at-eol
+docs/remediation/run41-lifecycle/** -text whitespace=cr-at-eol
+# Preserve patch context and captured traceback whitespace in sealed evidence.
+docs/forensics/run41-lifecycle-failure/reviewed-working-tree.diff -whitespace
+docs/remediation/run41-lifecycle/full-pipeline.xml -whitespace

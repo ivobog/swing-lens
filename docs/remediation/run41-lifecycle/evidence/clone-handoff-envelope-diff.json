@@ -1,0 +1,1593 @@
+{
+  "market_context_matches": true,
+  "ceri_context_matches": true,
+  "ceri_rows_match_without_owner_filter": true,
+  "differences": [
+    {
+      "path": "$.ceri_score_snapshots[0]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "1280e351eea075e21053b3103b097b7c261ee0584e1c8197926dab0f497a223d",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[1]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "a30c51ab148bf60c2a05557cc6b471aaed910bde1b69559a6775f8d9958c7bd8",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[2]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "da1874bae4fa72ba26c0a09afb3972633ccd503c2d2d98c4eed833c7ae46b340",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[3]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "f0c926ec9139336ae4ee288ddb85e182aaa400c9efd019a53549252e6c667702",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[4]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "297acb396f93613d4f911bb5901521860a655074ec0b6de435759bec5d5912ce",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[5]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "2ce7264fbf90eaf02489b5342b07d461fff747126c939982a7c079902e0967a1",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[6]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "67924df0036293fc9cccd3ad1a3266c64a562c5a5d1699d01b16383dc348afaa",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[7]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "4444e2c16b23bf393c76f11c24b4426fc455ade0a6c8ee1b12ac3f5f8b942b36",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[8]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "3ac290ca6b37868822fe3754122fdab1f048d6563123d3d1c75e7c4ea9197e2e",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[9]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "d17b05ffdaca230f4a27d24d82282f8e2211e2297ad50b99e122238041d02f9c",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[10]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "c772cdebb465df8ca67198236dee2dfa9f1d13ccf4939635fc6d6bee6ba94d88",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[11]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "71a125257640d12bfb196650156ce17a88aebfba6b172d65823d9c4fc7ebb6f4",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[12]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "7b90d8e850cc4aae206252477e62a12b8c149a467e36458de9179d5ec0b71201",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[13]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "a1e95a13bec2c2e934865318273a479aa290f0271f4b067236fca5b16e1de66f",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[14]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "6df91ebefd73da84e9a2ddf8f3449e1ef696078fb6cc3036e75e6f22beaed6f6",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[15]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "c1212dc3c40bf670ae6d669e02754bd69d3394587ae8921e870fa7293e7449f2",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[16]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "c670a72f295d3fa07ad31fe519d841750dfe24a992e865d1904b05f2e841df83",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[17]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "90612d4a18d0abd06498ebea9dabc8b334e5aa2087ee4729e89bb7343a5ddcaa",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[18]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "23a8d056944d807f4b9e793f781096701b7660fa5082402400e110dff8add291",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[19]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "9789fc05218b8ed06b7eaabec2fd52621902bc623d3ba97d04a8331c676c9917",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[20]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "b665a261c178500c97810d1fe7158089b81fa9973021b3c547b7acf8892a0a67",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[21]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "d99485ffe79e94621503498243fa785f46abf32fb0fec249d5e0bac1ce49352b",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[22]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "b0102ac8402ba1161c7fda728a804176d722f86d185c2fc46b4a247d61ae1366",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[23]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "336585fb6cca9ce302770d388367cd9e5c0383a7330699198a3be31b0166644d",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[24]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "4f5f220692b85a525959cda9376404226a415571c4f1b6887705c1e6c3f48e36",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[25]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "c8a7bfc47062794103f83d52269e3b295d12d861867198b7b6d8b557bafcb4e7",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[26]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "899f0f9b22acfc6d80ff5e020f2e25e26aab779883bfe31c7e6b50d85e977d21",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[27]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "ca528012e6cd1e6b310ea0a8cab0c191982c092e918def9282da8b6b5d3f0b86",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[28]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "c0a632ec4ff7b4d3b22d419fb85609a3abc3d1d773cc84caa9e2b2403785789e",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[29]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "ba29918fa1d57a2dea79c89d13df37f9bf82a54f08fba641a2ecf8e9635a5ea3",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[30]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "782cf4028c8ab4b4b85f64911ed6b78c2af3672ece77cd5faa3fe942cab0bcaf",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[31]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "3ca0903fca5f11ba90779a5f92c2cb03b4abc0dc76a191c0abe377a9eb25e365",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[32]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "48be187b96bc86b4ceda8360d11ec77c725a3b78e5f18d0e1918789166d035d3",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[33]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "a4ffa943e4d98932846af0497bb2fe24b7848b5f5fa3c9e1ed724812aa996958",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[34]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "326332e342f239917487309b643617f61da6c3664be0d9fe3b7a73c3071e2f2f",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[35]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "5411f9be55303a4e916baaac17598133610c11e7b7c93d1a08e4a53f4c347618",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[36]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "d8e41de27d2ec2d4227dffc7d805820e3adf404304cbdc54ef6e4d20fda7a8e2",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[37]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "49859019ff9ac6cc9be50e5355632e16ae3f7cc4e231ff0923ad1ed33a798606",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[38]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "7f2f39b36dd7832e6d31f50ac18f5bbb7d7856bd68c0608bcfbf4cdcea01a78e",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[39]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "bca13544a21e777da27b1fc2b180c3b290838ddf101b1130f7497607481dc8d0",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[40]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "fa85b9d0735a4dd9ed109494a84557ce51ab1d89cf89c0dfff18b526f3d0cd5f",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[41]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "12264afd3bb229f90deaf3a92785124208501ae2b5d5f55d3555748052399bf6",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[42]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "7cfadda4a5fb504b7b534f9a5593f89ade8751c71be3fe03ee32f52a5b8335c7",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[43]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "658f225166b0c9cd934bcfdac4c654e38c02d67d9174e997305f008fcffdfdf4",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[44]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "8839c60ce0938b3375054baf6be4b3a8ba445d2571b62ca23d009287e4f4b557",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[45]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "7c6acba28f23cf9cba7a055d93e666d6b39cb65106e1785a8697d5562e707891",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[46]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "88821a9523429197bf9ef188a6e3af12d10b7939fb5479a73a7c0c4337f05aa7",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[47]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "07c54132681c32f16537b494fe72c1311f6be5cfb7f35277caa465bdac066575",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[48]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "5db819283e9d7c8f7a42e06e09ab1c98094bf609c4b23bec0f0c02b84ea0bd91",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[49]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "7052873fcc58468e61f7237bc37552d6f9f274aa0726ac2c7f55bfe32f2ffd64",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[50]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "3f367f297e6fc97617196aa6c68bc6596d18cb1fc0444eb23a6660e92da81452",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[51]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "d8e4a5bfaf69a5643095bf270d9de3884b525a1286983d8f5a4a598d7c550227",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[52]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "71f1d85af7d52c29354a5626750fabb7e413b2b4401edb8c1d044d7e4e958fff",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[53]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "f1ac45839638041b3442cc64747b2a2a8e28101153c615fad242dde072c6aef6",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[54]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "344d84995045f2f9e24c24708bcede08e27e34f418953558f92a84778e43b934",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[55]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "790b6edeaccd31a0300d729bcd682d20b939ffe72277bf702b7aca6fc01095b3",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[56]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "ec1dc5ba175d8576911bbf3f9f8b6b670c2b338d11deb4e15ee41ca7f3024302",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[57]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "03bc922be6b5c4847654680680c8f73ef890c9f7d19c969f4facbc7090c52b88",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[58]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "674885cacc450d760f62f5fc56621dde451ab06fe4cb4cb5e1a6dd19841a2011",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[59]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "898e12b77ea7832612290a3cbc48e8b923c1bc058d002f2d371efb698c287e10",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[60]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "f292a19fc11ec7826da67a1b5261fe7802cc953f7b12ad7165fa58ca30269125",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[61]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "e84d4aaddad0db11910673bf7c30ca12dbb38f61847dbe0612145aab896a0312",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[62]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "5d1e2852a59fc32aa5104be0e3e1d20778322437fa393428bc9c91affbdd8ce0",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[63]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "ddcdf91e20511d73c012ed29bf476e9437ad5a087e5b6bb10ce2dfc67210e998",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[64]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "28349e98e9255c99a728767220162d8d7559ebf79dcb4a6abbd3c8461b82c8da",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[65]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "e25f6972e8f9dd6b6ec70d014a2013d648ad520721fda57d6676fd0541d710e6",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[66]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "57090ebcb6d04af607c2016dc34a4dfc758039eaed2388ba37b37faeefc3c77f",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[67]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "c0826aacc0f9ccb2e65b9bf49f501be4d21020df27ca74bceb8c9f04056eda28",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[68]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "68bc43de2ceba6e90e3c6d138e618bb4f642abb32a304850c4002b17eab2a988",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[69]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "07a09899005cb4827e1c277f0b35e59788aae1697900c0a56930012893385d1d",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[70]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "01f75bed980aed33020c9db066ab062bd7a6fb1f23b40c7e5f673971090835cd",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[71]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "51452ad56d8b1eeb751753ed82881264d9a4e39616c91dbc797010e879031a00",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[72]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "c4e1542c3e3208109220ec7b1e15a7dac8a87db4d49bc01896ec1d3d9cad595a",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[73]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "b7f415c44258c2e4121caa15990dd852fe2304400d3f80df5ea5fe22672eebf3",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[74]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "1efe4257fd25d9ad59f4ee19bb405c59e7c3bf1d5ff133a1fcde6740ed667336",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[75]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "43f7f68edc13c218b5327dea6bea36bc99342416f822ffc9b9cdad40cfc3328c",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[76]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "6718c29614ba5a2b7b899cac796d1c2e3447876d4f097d1b5c8d6dbcba9bc352",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[77]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "da75e9857b02b381720d3258a55c9e8e0373c2b768bb983bf2f940ef7354cf41",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[78]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "513409644ea2f588e3bd2ebf7e6bcb832324cd08a895e37fbdc96394674d0366",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[79]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "981cc64f0a01dc2d91dbe4222236d24b0c79261b5350f30e0c291e9a67c20093",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[80]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "7411de494b5cc8d664a0e533a64af921fa3568331b6956ffff6768d3b8786cab",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[81]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "72e8c7024d259de820746c69944f5a9db213035332b26e73d0cbf4745f2800f5",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[82]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "1a806a862a30e75c5d4897e3ee11995ae5bc844343b546b0b466ae2f6a69f7ff",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[83]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "7cb7a3c02819ad39f4221d2c86738bebf08806da6244737405f610ca83a2f267",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[84]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "17824b4ee54c49811a1333b8bb0eba9399a0727a073de23471364b1c346350a4",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[85]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "d9d3a5717ec3f908b12cfb050e3390652d0aacfd7fa47729ed1c58a99a521516",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[86]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "ab485f0bbb71e5f3abfec073bd2e5f849dc1807bda061c8c3415cc63c158ff0d",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    },
+    {
+      "path": "$.ceri_score_snapshots[87]",
+      "change": "removed",
+      "expected": {
+        "present": true,
+        "type": "dict",
+        "digest": "a1a9145459f26a22713ffdcc6b4742b8f113be21c745058861e3f2ee1d02b977",
+        "item_count": 2
+      },
+      "actual": {
+        "present": false
+      },
+      "origin": {
+        "source": "run-start anchor schema",
+        "producer": "transition preflight plan service",
+        "expected_mutability": "IMMUTABLE"
+      }
+    }
+  ],
+  "note": "Stored decision manifests and captured Setup input hashes are controls; runtime reported zero differing decision tickers. No financial authority was granted by this diagnostic.",
+  "committed_mutations": false
+}
