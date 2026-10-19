@@ -1,0 +1,3942 @@
+[
+  {
+    "plan_id": "a9d60d45de0e30ead8d8f278bc6b798e96cd31e66f14a572cbad6b156dac9dbe",
+    "plan_kind": "full-pipeline-run-acquisition",
+    "created_at": "2026-10-18T21:57:23.332946+02:00",
+    "payload_json": {
+      "plan_id": "a9d60d45de0e30ead8d8f278bc6b798e96cd31e66f14a572cbad6b156dac9dbe",
+      "subjects": [
+        {
+          "subject_id": "A",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ABNB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ACHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ACIW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ADSK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AER",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AGYS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AJG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ALL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ALRM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AME",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMGN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ANF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APLE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APOG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APPF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ATRC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVPT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVTR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BAP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BAX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BBWI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BBY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BDX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BIIB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BIP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BJ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BKH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BLK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BRO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BSY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BZ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CAKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CART",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CBC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CBOE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CDW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHEF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHRD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CLMT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CNC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CNK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "COKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "COLM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CPK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRBG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRGY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CROX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CTSH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CVS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DBX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DDS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DHR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DLTR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DOCS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DOCU",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DRH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DRI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DVA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DVN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ECPG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EDU",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ELF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ELV",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EMR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EQH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ETSY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXEL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXPD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXPO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EZPW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FANG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FAST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FDS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FLYW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FRPT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FRSH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "G",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GDDY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GFL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GILD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GME",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GPC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GWW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HAE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HCA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HCI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HNGE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HRB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HUM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HURN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ICLR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IDT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IEX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IPAR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IQV",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KDP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KMB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KMI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNSA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNSL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNTK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KTB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LAUR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LIND",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LLY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LNG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LOPE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LYB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LYFT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "M",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MANH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MAS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MATX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MCO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MCY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MDT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MEDP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MMSI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MNST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MOH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MORN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MSFT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MSM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTCH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTDR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MUR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MUSA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NAVN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NIQ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NOG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NTES",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NTRA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NWE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OLLI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OPLN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OUT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OXY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PACS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PAG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PAGS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PBI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PCOR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PEB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PGR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PINS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PLMR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PLUS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PVH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PYPL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QGEN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QTWO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RELY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RGR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RHP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RLI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RLJ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RMD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ROST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RPRX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RRC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RVTY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RYAN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SAIC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SBH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SDRL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHOO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SJM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SKWD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SMA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SONO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPGI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPOT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPSC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "STRA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SXT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SYNA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TALO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TDC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TEN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "THC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TMO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TNET",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TRGP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TTC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TYL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UHS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ULTA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UNFI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UNH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "URBN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "USFD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UTHR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VAC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VAL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VLO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VNOM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRNS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRSK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRSN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VTRS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WAT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WAY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WELL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WSM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WWW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ZD",
+          "subject_type": "TICKER"
+        }
+      ],
+      "plan_kind": "full-pipeline-run-acquisition",
+      "window_end": null,
+      "plan_version": "t15b-v1",
+      "request_type": "FULL_PIPELINE",
+      "requirements": [
+        {
+          "required": true,
+          "observation_type": "CAPTURING_SETUP_SIGNALS"
+        },
+        {
+          "required": true,
+          "observation_type": "CAPTURING_WINNER_PREDICTIONS"
+        },
+        {
+          "required": true,
+          "observation_type": "CERI_PROVIDER_INGEST"
+        },
+        {
+          "required": true,
+          "observation_type": "COMBINING_RESULTS"
+        },
+        {
+          "required": true,
+          "observation_type": "EVALUATING_SETUP_LIFECYCLES"
+        },
+        {
+          "required": true,
+          "observation_type": "FETCHING_MARKET_DATA"
+        },
+        {
+          "required": true,
+          "observation_type": "FREEZING_DECISION_HANDOFF_MANIFEST"
+        },
+        {
+          "required": true,
+          "observation_type": "MARKET_REGIME_SNAPSHOT"
+        },
+        {
+          "required": true,
+          "observation_type": "RANKING_PROFILES"
+        },
+        {
+          "required": true,
+          "observation_type": "SCORING_FUNDAMENTALS"
+        },
+        {
+          "required": true,
+          "observation_type": "SCORING_TECHNICALS"
+        },
+        {
+          "required": true,
+          "observation_type": "SECTOR_ROTATION_SNAPSHOT"
+        },
+        {
+          "required": true,
+          "observation_type": "VALIDATING_RUN"
+        }
+      ],
+      "revision_key": "pipeline-market-context:78",
+      "window_start": null,
+      "schema_version": "acquisition-plan-v1",
+      "business_cutoff": "2026-10-18T19:57:23.615275Z",
+      "policy_identity": "d3ad203f768896017280515f1d2776fedd363db2dfcb53aec626af3263d12f84",
+      "revision_reason": null,
+      "previous_plan_id": null,
+      "provider_source_class": "PIPELINE_INPUTS",
+      "configuration_identity": null
+    },
+    "plan_version": "t15b-v1",
+    "revision_reason": null,
+    "previous_plan_id": null
+  },
+  {
+    "plan_id": "15624fa36842583d4e028875deed95a6f24c30ff481e6860bb91546bc365567a",
+    "plan_kind": "ib-price-acquisition-acquisition",
+    "created_at": "2026-10-18T22:04:12.766317+02:00",
+    "payload_json": {
+      "plan_id": "15624fa36842583d4e028875deed95a6f24c30ff481e6860bb91546bc365567a",
+      "subjects": [
+        {
+          "subject_id": "A",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ABNB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ACHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ACIW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ADSK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AER",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AGYS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AJG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ALL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ALRM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AME",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMGN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ANF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APLE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APOG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APPF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ATRC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVPT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVTR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BAP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BAX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BBWI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BBY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BDX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BIIB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BIP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BJ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BKH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BLK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BRO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BSY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BZ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CAKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CART",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CBC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CBOE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CDW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHEF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHRD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CLMT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CNC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CNK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "COKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "COLM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CPK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRBG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRGY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CROX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CTSH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CVS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DBX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DDS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DHR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DLTR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DOCS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DOCU",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DRH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DRI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DVA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DVN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ECPG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EDU",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ELF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ELV",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EMR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EQH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ETSY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXEL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXPD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXPO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EZPW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FANG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FAST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FDS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FLYW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FRPT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FRSH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "G",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GDDY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GFL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GILD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GME",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GPC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GWW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HAE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HCA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HCI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HNGE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HRB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HUM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HURN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ICLR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IDT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IEX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IPAR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IQV",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KDP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KMB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KMI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNSA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNSL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNTK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KTB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LAUR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LIND",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LLY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LNG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LOPE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LYB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LYFT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "M",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MANH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MAS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MATX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MCO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MCY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MDT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MEDP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MMSI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MNST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MOH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MORN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MSFT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MSM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTCH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTDR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MUR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MUSA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NAVN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NIQ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NOG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NTES",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NTRA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NWE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OLLI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OPLN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OUT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OXY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PACS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PAG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PAGS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PBI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PCOR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PEB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PGR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PINS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PLMR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PLUS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PVH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PYPL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QGEN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QQQ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QTWO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RELY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RGR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RHP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RLI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RLJ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RMD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ROST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RPRX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RRC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RVTY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RYAN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SAIC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SBH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SDRL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHOO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SJM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SKWD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SMA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SONO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPGI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPOT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPSC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "STRA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SXT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SYNA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TALO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TDC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TEN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "THC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TMO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TNET",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TRGP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TTC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TYL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UHS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ULTA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UNFI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UNH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "URBN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "USFD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UTHR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VAC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VAL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VLO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VNOM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRNS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRSK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRSN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VTRS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WAT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WAY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WELL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WSM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WWW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ZD",
+          "subject_type": "TICKER"
+        }
+      ],
+      "plan_kind": "ib-price-acquisition-acquisition",
+      "window_end": "2026-10-16",
+      "plan_version": "t15b-v1",
+      "request_type": "HISTORICAL_BARS",
+      "requirements": [
+        {
+          "required": true,
+          "observation_type": "A:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "A:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ABNB:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ABNB:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ACHC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ACHC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ACIW:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ACIW:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ADSK:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ADSK:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "AER:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "AER:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "AGYS:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "AGYS:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "AJG:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "AJG:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ALL:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ALL:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ALRM:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ALRM:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "AME:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "AME:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "AMG:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "AMG:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "AMGN:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "AMGN:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "AMT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "AMT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ANF:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ANF:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "APA:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "APA:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "APLE:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "APLE:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "APOG:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "APOG:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "APPF:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "APPF:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "AR:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "AR:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ATRC:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ATRC:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "AVPT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "AVPT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "AVTR:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "AVTR:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "AVY:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "AVY:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BAP:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "BAP:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "BAX:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BAX:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BBWI:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BBWI:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BBY:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BBY:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BDX:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BDX:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BIIB:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BIIB:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BIP:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BIP:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BJ:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BJ:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BKH:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BKH:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BLK:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BLK:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BR:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BR:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BRO:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BRO:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "BSY:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BSY:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BZ:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "BZ:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CAKE:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CAKE:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CART:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "CART:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "CBC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CBC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CBOE:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "CBOE:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "CDW:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CDW:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CHEF:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "CHEF:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "CHH:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CHH:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CHRD:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "CHRD:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "CLMT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CLMT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CNC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CNC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CNK:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CNK:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "COKE:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "COKE:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "COLM:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "COLM:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CPK:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CPK:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CRBG:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CRBG:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CRGY:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CRGY:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CRL:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CRL:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CRM:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CRM:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "CROX:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CROX:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CTSH:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CTSH:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CVS:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "CVS:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "DBX:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DBX:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DDS:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DDS:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DG:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DG:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DHR:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DHR:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DLTR:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "DLTR:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "DOCS:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DOCS:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DOCU:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DOCU:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DRH:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DRH:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DRI:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "DRI:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "DT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "DVA:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "DVA:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "DVN:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "DVN:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ECPG:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ECPG:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "EDU:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EDU:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EHC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EHC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EL:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EL:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ELF:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ELF:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ELV:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ELV:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EMR:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EMR:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EQH:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EQH:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ETSY:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ETSY:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "EXEL:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "EXEL:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "EXPD:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EXPD:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EXPO:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EXPO:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "EZPW:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "EZPW:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FANG:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FANG:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FAST:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FAST:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FDS:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "FDS:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "FLYW:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FLYW:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FRPT:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FRPT:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FRSH:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "FRSH:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "G:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "G:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "GDDY:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GDDY:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GFL:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GFL:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GHC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GHC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GILD:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GILD:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GME:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GME:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GO:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GO:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "GPC:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "GPC:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "GWW:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "GWW:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "HAE:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "HAE:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "HCA:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "HCA:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "HCI:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "HCI:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "HNGE:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "HNGE:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "HRB:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "HRB:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "HUM:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "HUM:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "HURN:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "HURN:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ICLR:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ICLR:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "IDT:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "IDT:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "IEX:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "IEX:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "IPAR:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "IPAR:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "IQV:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "IQV:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "IT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "IT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "KDP:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "KDP:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "KMB:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "KMB:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "KMI:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "KMI:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "KNSA:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "KNSA:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "KNSL:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "KNSL:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "KNTK:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "KNTK:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "KR:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "KR:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "KTB:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "KTB:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "LAUR:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "LAUR:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "LIND:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "LIND:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "LLY:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "LLY:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "LNG:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "LNG:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "LOPE:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "LOPE:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "LW:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "LW:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "LYB:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "LYB:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "LYFT:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "LYFT:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "M:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "M:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MANH:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MANH:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MAS:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "MAS:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "MATX:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MATX:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MCO:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "MCO:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "MCY:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "MCY:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "MDT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MDT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MEDP:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "MEDP:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "MMSI:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MMSI:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MNST:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "MNST:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "MOH:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MOH:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MORN:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MORN:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MSFT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MSFT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MSM:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MSM:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MTCH:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MTCH:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MTDR:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MTDR:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MTN:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MTN:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MUR:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MUR:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "MUSA:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "MUSA:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "NAVN:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "NAVN:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "NIQ:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "NIQ:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "NOG:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "NOG:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "NTES:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "NTES:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "NTRA:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "NTRA:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "NWE:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "NWE:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "OKE:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "OKE:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "OLLI:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "OLLI:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "OPLN:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "OPLN:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "OUT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "OUT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "OXY:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "OXY:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PACS:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "PACS:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "PAG:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "PAG:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "PAGS:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PAGS:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PBI:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PBI:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PCOR:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "PCOR:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "PD:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PD:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PEB:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PEB:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PGR:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "PGR:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "PINS:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PINS:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PK:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PK:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PLMR:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "PLMR:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "PLUS:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "PLUS:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "PM:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PM:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PR:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "PR:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "PVH:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PVH:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "PYPL:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "PYPL:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "QGEN:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "QGEN:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "QQQ:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "QQQ:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "QTWO:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "QTWO:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "RELY:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RELY:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RGR:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "RGR:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "RHP:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RHP:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RL:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RL:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RLI:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "RLI:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "RLJ:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "RLJ:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "RMD:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "RMD:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ROST:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ROST:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RPRX:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RPRX:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RRC:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RRC:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "RVTY:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "RVTY:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "RYAN:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "RYAN:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SAIC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SAIC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SBH:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SBH:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SDRL:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SDRL:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SHO:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SHO:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SHOO:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SHOO:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SHW:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SHW:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SJM:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SJM:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SKWD:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SKWD:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SM:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SM:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SMA:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SMA:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SN:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SN:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SONO:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SONO:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SPGI:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SPGI:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "SPOT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SPOT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SPSC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SPSC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SPY:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SPY:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "STRA:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "STRA:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SXT:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SXT:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "SYNA:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "SYNA:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TALO:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TALO:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TDC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TDC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TEN:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "TEN:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "THC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "THC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TMO:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TMO:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TNET:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "TNET:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "TRGP:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TRGP:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TTC:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TTC:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "TYL:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "TYL:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "UHS:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "UHS:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ULTA:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "ULTA:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "UNFI:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "UNFI:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "UNH:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "UNH:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "URBN:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "URBN:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "USFD:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "USFD:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "UTHR:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "UTHR:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VAC:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "VAC:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "VAL:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VAL:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VLO:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VLO:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VNOM:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "VNOM:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "VRNS:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VRNS:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VRSK:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "VRSK:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "VRSN:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VRSN:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VTRS:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "VTRS:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "WAT:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "WAT:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "WAY:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "WAY:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "WELL:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "WELL:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "WK:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "WK:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "WSM:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "WSM:TRADES:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "WST:ADJUSTED_LAST:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "WST:TRADES:1 day:SKIP"
+        },
+        {
+          "required": true,
+          "observation_type": "WWW:ADJUSTED_LAST:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "WWW:TRADES:1 day:CONTRACT_RESOLUTION_REQUIRED"
+        },
+        {
+          "required": true,
+          "observation_type": "ZD:ADJUSTED_LAST:1 day:TOP_UP_RECENT"
+        },
+        {
+          "required": true,
+          "observation_type": "ZD:TRADES:1 day:TOP_UP_RECENT"
+        }
+      ],
+      "revision_key": "ib-fetch:3b1713129bddac9a42882c729bf41f2ba84faeba2d3964a9e166520b428ce5a0",
+      "window_start": "2023-10-15",
+      "schema_version": "acquisition-plan-v1",
+      "business_cutoff": "2026-10-16",
+      "policy_identity": "b93bb2cfd072a650e4b0ae03c2708614132a61ef7051571f13bf0032d262eefd",
+      "revision_reason": null,
+      "previous_plan_id": null,
+      "provider_source_class": "INTERACTIVE_BROKERS",
+      "configuration_identity": null
+    },
+    "plan_version": "t15b-v1",
+    "revision_reason": null,
+    "previous_plan_id": null
+  }
+]

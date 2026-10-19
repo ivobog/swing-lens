@@ -1,0 +1,6 @@
+{
+  "database": "swinglens",
+  "captured_at": "2026-10-18 22:40:42.918686+02:00",
+  "version": "PostgreSQL 18.3 on x86_64-windows, compiled by msvc-19.44.35223, 64-bit",
+  "read_only_enforced": true
+}

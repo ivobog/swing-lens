@@ -1,0 +1,41 @@
+{
+  "source_file": "C:\\Users\\Ivica\\Documents\\SwingLens\\output\\run43-recovery\\setup-memory-fence-samples.jsonl",
+  "worker_process_id": 52808,
+  "observed_peak": {
+    "observed_at_utc": "2026-10-19T01:16:20.892594+00:00",
+    "id": 1525,
+    "status": "RUNNING",
+    "error_message": null,
+    "recovery_count": 3,
+    "retry_count": 0,
+    "progress_current_item": "PREPARING_PUBLICATION:PD",
+    "last_progress_at": "2026-10-19 03:15:57.433506+02:00",
+    "heartbeat_at": "2026-10-19 03:16:17.484960+02:00",
+    "process_id": 52808,
+    "memory_status": "WARNING",
+    "instance_id": "868c558b2df84ec48d60d61889067e09",
+    "critical_budget_mb": 6144,
+    "rss_bytes": 6602481664,
+    "private_bytes": 6668414976,
+    "peak_observed_bytes": 6668414976
+  },
+  "native_fence": {
+    "observed_at_utc": "2026-10-19T01:16:24.898258+00:00",
+    "id": 1525,
+    "status": "STALLED",
+    "error_message": "Worker exceeded 6144 MB memory budget.",
+    "recovery_count": 3,
+    "retry_count": 0,
+    "progress_current_item": "PREPARING_PUBLICATION:PD",
+    "last_progress_at": "2026-10-19 03:15:57.433506+02:00",
+    "heartbeat_at": null,
+    "process_id": null,
+    "memory_status": null,
+    "instance_id": null,
+    "critical_budget_mb": 6144,
+    "peak_observed_bytes": 6668414976
+  },
+  "note": "The raw STALLED sample has no registered worker PID. Ignore its process-memory counters; valid peak samples explicitly identify worker PID 52808.",
+  "peak_private_mb": 6359.49609375,
+  "configured_critical_mb": 6144
+}

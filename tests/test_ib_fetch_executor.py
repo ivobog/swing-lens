@@ -11,6 +11,7 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canon
 from app.services.ib_data_fetcher import HistoricalBar, IBHistoricalRequestError
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_plan_service import FetchAction, FetchPlan, FetchPlanItem
+from app.services.ib_historical_request_scope import STRICT_RESPONSE_V1
 from app.settings import Settings
 
 
@@ -1144,6 +1145,7 @@ def _plan_item(
 ) -> FetchPlanItem:
     return FetchPlanItem(
         ticker=ticker,
+        response_admission_policy=STRICT_RESPONSE_V1,
         contract_status="RESOLVED",
         what_to_show="TRADES",
         action=action,
@@ -1199,6 +1201,7 @@ def _bar(bar_date: date) -> HistoricalBar:
 def _unresolved_plan_item(ticker: str) -> FetchPlanItem:
     return FetchPlanItem(
         ticker=ticker,
+        response_admission_policy=STRICT_RESPONSE_V1,
         contract_status="MISSING",
         what_to_show="TRADES",
         action=FetchAction.CONTRACT_RESOLUTION_REQUIRED,

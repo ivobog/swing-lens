@@ -1,0 +1,1491 @@
+{
+  "at": "2026-10-19T13:57:33.343548+00:00",
+  "steps": [
+    {
+      "step_name": "CAPTURING_SETUP_SIGNALS",
+      "status": "COMPLETED",
+      "result_json": {
+        "attempt_history": [
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 1,
+            "started_at": "2026-10-19T02:02:50.802935+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 2,
+            "started_at": "2026-10-19T02:21:20.418569+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 3,
+            "started_at": "2026-10-19T02:39:42.962262+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 4,
+            "started_at": "2026-10-19T02:58:09.728121+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 5,
+            "started_at": "2026-10-19T03:17:15.100273+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 6,
+            "started_at": "2026-10-19T03:35:51.066095+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 7,
+            "started_at": "2026-10-19T03:54:13.457419+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 8,
+            "started_at": "2026-10-19T04:14:14.146012+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 9,
+            "started_at": "2026-10-19T04:32:16.365732+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 10,
+            "started_at": "2026-10-19T04:54:51.139851+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 11,
+            "started_at": "2026-10-19T05:13:25.330382+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 12,
+            "started_at": "2026-10-19T05:32:18.345928+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 13,
+            "started_at": "2026-10-19T05:50:50.728281+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 14,
+            "started_at": "2026-10-19T06:09:24.751201+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 15,
+            "started_at": "2026-10-19T06:27:51.407249+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 16,
+            "started_at": "2026-10-19T06:46:18.278909+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 17,
+            "started_at": "2026-10-19T07:04:54.146055+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 18,
+            "started_at": "2026-10-19T07:23:32.942324+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 19,
+            "started_at": "2026-10-19T07:41:59.426329+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 20,
+            "started_at": "2026-10-19T08:02:51.072566+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 21,
+            "started_at": "2026-10-19T08:28:51.217848+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 22,
+            "started_at": "2026-10-19T08:54:55.997934+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 23,
+            "started_at": "2026-10-19T09:20:33.733668+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 24,
+            "started_at": "2026-10-19T09:46:15.975022+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 25,
+            "started_at": "2026-10-19T10:12:19.056039+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 26,
+            "started_at": "2026-10-19T10:38:14.322311+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 27,
+            "started_at": "2026-10-19T11:04:38.987474+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 28,
+            "started_at": "2026-10-19T13:39:39.029223+02:00",
+            "finished_at": null
+          }
+        ],
+        "setup_capture_handoff": {
+          "read": 238,
+          "failed": 0,
+          "status": "COMPLETED",
+          "alerted": 0,
+          "changed": 0,
+          "skipped": 0,
+          "warning": 481,
+          "captured": 238,
+          "canonical": 0,
+          "performance": {
+            "setup_context_build_ms": 15717.516,
+            "setup_latest_bar_query_ms": 29532.434
+          },
+          "snapshot_ids": [
+            9862,
+            9863,
+            9864,
+            9865,
+            9866,
+            9867,
+            9868,
+            9869,
+            9870,
+            9871,
+            9872,
+            9873,
+            9874,
+            9875,
+            9876,
+            9877,
+            9878,
+            9879,
+            9880,
+            9881,
+            9882,
+            9883,
+            9884,
+            9885,
+            9886,
+            9887,
+            9888,
+            9889,
+            9890,
+            9891,
+            9892,
+            9893,
+            9894,
+            9895,
+            9896,
+            9897,
+            9898,
+            9899,
+            9900,
+            9901,
+            9902,
+            9903,
+            9904,
+            9905,
+            9906,
+            9907,
+            9908,
+            9909,
+            9910,
+            9911,
+            9912,
+            9913,
+            9914,
+            9915,
+            9916,
+            9917,
+            9918,
+            9919,
+            9920,
+            9921,
+            9922,
+            9923,
+            9924,
+            9925,
+            9926,
+            9927,
+            9928,
+            9929,
+            9930,
+            9931,
+            9932,
+            9933,
+            9934,
+            9935,
+            9936,
+            9937,
+            9938,
+            9939,
+            9940,
+            9941,
+            9942,
+            9943,
+            9944,
+            9945,
+            9946,
+            9947,
+            9948,
+            9949,
+            9950,
+            9951,
+            9952,
+            9953,
+            9954,
+            9955,
+            9956,
+            9957,
+            9958,
+            9959,
+            9960,
+            9961,
+            9962,
+            9963,
+            9964,
+            9965,
+            9966,
+            9967,
+            9968,
+            9969,
+            9970,
+            9971,
+            9972,
+            9973,
+            9974,
+            9975,
+            9976,
+            9977,
+            9978,
+            9979,
+            9980,
+            9981,
+            9982,
+            9983,
+            9984,
+            9985,
+            9986,
+            9987,
+            9988,
+            9989,
+            9990,
+            9991,
+            9992,
+            9993,
+            9994,
+            9995,
+            9996,
+            9997,
+            9998,
+            9999,
+            10000,
+            10001,
+            10002,
+            10003,
+            10004,
+            10005,
+            10006,
+            10007,
+            10008,
+            10009,
+            10010,
+            10011,
+            10012,
+            10013,
+            10014,
+            10015,
+            10016,
+            10017,
+            10018,
+            10019,
+            10020,
+            10021,
+            10022,
+            10023,
+            10024,
+            10025,
+            10026,
+            10027,
+            10028,
+            10029,
+            10030,
+            10031,
+            10032,
+            10033,
+            10034,
+            10035,
+            10036,
+            10037,
+            10038,
+            10039,
+            10040,
+            10041,
+            10042,
+            10043,
+            10044,
+            10045,
+            10046,
+            10047,
+            10048,
+            10049,
+            10050,
+            10051,
+            10052,
+            10053,
+            10054,
+            10055,
+            10056,
+            10057,
+            10058,
+            10059,
+            10060,
+            10061,
+            10062,
+            10063,
+            10064,
+            10065,
+            10066,
+            10067,
+            10068,
+            10069,
+            10070,
+            10071,
+            10072,
+            10073,
+            10074,
+            10075,
+            10076,
+            10077,
+            10078,
+            10079,
+            10080,
+            10081,
+            10082,
+            10083,
+            10084,
+            10085,
+            10086,
+            10087,
+            10088,
+            10089,
+            10090,
+            10091,
+            10092,
+            10093,
+            10094,
+            10095,
+            10096,
+            10097,
+            10098,
+            10099
+          ],
+          "transitioned": 0,
+          "low_confidence": 1,
+          "errors_by_ticker": {},
+          "evaluation_run_id": 93,
+          "warnings_by_ticker": {
+            "A": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "G": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "M": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BJ": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BZ": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ZD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AER": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AJG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ALL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AME": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AMG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AMT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ANF": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "APA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AVY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BAP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BAX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BBY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BDX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BIP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BKH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BLK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BRO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BSY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CBC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CDW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CHH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CNC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CNK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CPK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CRL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CRM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CVS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DBX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DDS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DHR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DRH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DRI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DVA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DVN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EDU": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EHC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ELF": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ELV": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EMR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EQH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FDS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GFL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GHC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GME": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GPC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GWW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HAE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HCA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HCI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HRB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HUM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IDT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IEX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IQV": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KDP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KMB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KMI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KTB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LLY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LNG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LYB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MAS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MCO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MCY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MDT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MOH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MSM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MTN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MUR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NIQ": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NOG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NWE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OKE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OUT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OXY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PAG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PBI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PEB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PGR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PVH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RGR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RHP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RLI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RLJ": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RMD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RRC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SBH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SHO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SHW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SJM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SMA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SXT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TDC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TEN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "THC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TMO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TTC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TYL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "UHS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "UNH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VAC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VAL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VLO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WAT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WAY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WSM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WST": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WWW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ABNB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ACHC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ACIW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ADSK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AGYS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ALRM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AMGN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "APLE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "APOG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "APPF": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ATRC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AVPT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AVTR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BBWI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BIIB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CAKE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CART": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CBOE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CHEF": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CHRD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CLMT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "COKE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "COLM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CRBG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CRGY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CROX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CTSH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DLTR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DOCS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DOCU": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ECPG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ETSY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EXEL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EXPD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EXPO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EZPW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FANG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FAST": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FLYW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FRPT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FRSH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GDDY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GILD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HNGE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HURN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ICLR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IPAR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KNSA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KNSL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KNTK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LAUR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LIND": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LOPE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LYFT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MANH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MATX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MEDP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MMSI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MNST": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MORN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MSFT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MTCH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MTDR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MUSA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NAVN": [
+              "DATA_QUALITY_INSUFFICIENT",
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_REQUIRED_CLASSIFICATION",
+              "MISSING_REQUIRED_SETUP_SCORE",
+              "MISSING_REQUIRED_TECHNICAL_SCORE",
+              "MISSING_SECTOR_ROTATION",
+              "TECHNICAL_CONSUMER_INELIGIBLE"
+            ],
+            "NTES": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NTRA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OLLI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OPLN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PACS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PAGS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PCOR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PINS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PLMR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PLUS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PYPL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "QGEN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "QTWO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RELY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ROST": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RPRX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RVTY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RYAN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SAIC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SDRL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SHOO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SKWD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SONO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SPGI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SPOT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SPSC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "STRA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SYNA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TALO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TNET": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TRGP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ULTA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "UNFI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "URBN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "USFD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "UTHR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VNOM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VRNS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VRSK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VRSN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VTRS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WELL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "step_name": "EVALUATING_SETUP_LIFECYCLES",
+      "status": "COMPLETED",
+      "result_json": null
+    },
+    {
+      "step_name": "CAPTURING_WINNER_PREDICTIONS",
+      "status": "RUNNING",
+      "result_json": null
+    }
+  ],
+  "evaluation_runs": [
+    {
+      "id": 93,
+      "mode": "LIVE",
+      "status": "COMPLETED",
+      "current_phase": "snapshot_capture",
+      "counts_json": {
+        "read": 238,
+        "failed": 0,
+        "alerted": 0,
+        "changed": 0,
+        "skipped": 0,
+        "warning": 481,
+        "captured": 238,
+        "canonical": 0,
+        "transitioned": 0
+      }
+    },
+    {
+      "id": 94,
+      "mode": "LIVE",
+      "status": "COMPLETED",
+      "current_phase": "snapshot_capture",
+      "counts_json": {
+        "read": 238,
+        "failed": 0,
+        "alerted": 0,
+        "changed": 0,
+        "skipped": 0,
+        "warning": 481,
+        "captured": 238,
+        "canonical": 0,
+        "transitioned": 0
+      }
+    },
+    {
+      "id": 95,
+      "mode": "LIVE",
+      "status": "COMPLETED",
+      "current_phase": "completed",
+      "counts_json": {
+        "read": 238,
+        "failed": 0,
+        "alerted": 7,
+        "changed": 2318,
+        "skipped": 0,
+        "warning": 481,
+        "captured": 238,
+        "canonical": 238,
+        "reconciled": 69,
+        "transitioned": 81
+      }
+    }
+  ]
+}

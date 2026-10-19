@@ -1,0 +1,44 @@
+{
+  "application_events": 7322,
+  "application_event_counts": {
+    "job.claimed": 3,
+    "pipeline": 2,
+    "pipeline.stage_started": 4,
+    "pipeline.stage_finished": 4,
+    "pipeline.dependency.prepared": 1,
+    "observability.metric_publish_failed": 1,
+    "pipeline.dependency.child_queued": 1,
+    "job.completed": 2,
+    "ceri.ingestion_started": 67,
+    "ceri.source_record_inserted": 6762,
+    "ceri.ingestion_completed": 67,
+    "ceri.source_record_corrected": 1,
+    "Connecting": 3,
+    "Connected": 3,
+    "Logged": 3,
+    "Warning": 10,
+    "API": 3,
+    "Disconnecting": 6,
+    "ib.historical_capability.started": 1,
+    "Synchronization": 2,
+    "ib.historical_capability.completed": 1,
+    "Disconnected.": 1,
+    "ib.fetch.request_finished": 354,
+    "job.memory_checkpoint": 19,
+    "job.blocked": 1
+  },
+  "watchdog_decision_counts": {
+    "HEALTHY_WITHIN_PROGRESS_TIMEOUT": 226
+  },
+  "sql_dds_window_records": 232,
+  "sql_failed": 0,
+  "sql_price_bar_inserts": 0,
+  "sql_fetch_item_updates": 4,
+  "sql_window_utc": [
+    "2026-10-18T20:09:04.940859",
+    "2026-10-18T20:09:11.400000"
+  ],
+  "limitations": "SQL telemetry retains parameter shapes/digests, not raw values. Source line numbers and UTC windows correlate the item writes to retained database rows; raw provider OHLCV was not retained.",
+  "sql_context_records": 336,
+  "sql_context_note": "The wider retained context includes the preceding DBX cache insert at 20:09:04.762894; it precedes DDS start and is excluded from these DDS-window counts. DDS final failure SQL is at 20:09:11.320231; the next ticker starts at 20:09:11.412206."
+}

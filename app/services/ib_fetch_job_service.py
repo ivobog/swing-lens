@@ -39,7 +39,11 @@ from app.services.scope_refresh_adoption import (
     require_semantic_authority,
     validate_same_authority,
 )
-from app.services.work_scope_identity import AcquisitionRequirement, ScopeMember
+from app.services.work_scope_identity import (
+    AcquisitionPlanRevisionReason,
+    AcquisitionRequirement,
+    ScopeMember,
+)
 from app.settings import get_settings
 
 FETCH_TERMINAL_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}
@@ -342,6 +346,8 @@ def _admit_fetch_authority(
     options: FetchJobOptions,
     *,
     parent_scope_id: str | None = None,
+    previous_plan_id: str | None = None,
+    revision_reason: AcquisitionPlanRevisionReason | None = None,
 ) -> SemanticWorkAuthority:
     cutoff_candidates = [
         value
@@ -392,6 +398,8 @@ def _admit_fetch_authority(
             "exact_fetch_plan_hash": CanonicalEvidenceSerializer.fingerprint(serialized),
         },
         parent_scope_id=parent_scope_id,
+        previous_plan_id=previous_plan_id,
+        revision_reason=revision_reason,
         refresh_reason="IB_FETCH_ADMISSION",
     )
 

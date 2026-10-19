@@ -1,0 +1,44 @@
+[
+  {
+    "file": "logs/lifecycle-worker.log",
+    "captured_prefix_bytes": 823104258,
+    "sha256_of_captured_prefix": "15b8b92f1e19c2e0bce50bf3395367711befe0c1d738ca0579577c6645bde597",
+    "lines": 702853
+  },
+  {
+    "file": "logs/lifecycle-supervisor.err.log",
+    "captured_prefix_bytes": 262212804,
+    "sha256_of_captured_prefix": "a5443f9ebb66cec7604a1b15b6fa970523adc3f4b6a361a4819fa306009459da",
+    "lines": 288771
+  },
+  {
+    "file": "logs/db-monitor/worker/sql-2026-10-18-p76372.1.jsonl",
+    "captured_prefix_bytes": 104859706,
+    "sha256_of_captured_prefix": "b268e34be9ad569d52fd4029c463b24ea530b834d19cc6f8f0126d763861bafc",
+    "lines": 48837
+  },
+  {
+    "file": "logs/db-monitor/worker/sql-2026-10-18-p76372.2.jsonl",
+    "captured_prefix_bytes": 104857652,
+    "sha256_of_captured_prefix": "fcb69d22f93fb9ae2a0595a8ab00539e45a3d4a159fe2c8b1d676f03fbd68be2",
+    "lines": 51925
+  },
+  {
+    "file": "logs/db-monitor/worker/sql-2026-10-18-p76372.3.jsonl",
+    "captured_prefix_bytes": 104857898,
+    "sha256_of_captured_prefix": "ec7a9c5016e1ff1ca25cad34a9628a5f14e3ab4fe401cacf96026daa57a75f64",
+    "lines": 60621
+  },
+  {
+    "file": "logs/db-monitor/worker/sql-2026-10-18-p76372.4.jsonl",
+    "captured_prefix_bytes": 29466990,
+    "sha256_of_captured_prefix": "88c63beb0c725b75a996c12dfc0d7931effaec2fc1d2dcfb1abb98917ce15209",
+    "lines": 12972
+  },
+  {
+    "file": "logs/db-monitor/worker/sql-2026-10-18-p76372.jsonl",
+    "captured_prefix_bytes": 104860021,
+    "sha256_of_captured_prefix": "52f670760bc64048eafb1b11541e687b38fb8476413d23cdf7772b52fd53f2c0",
+    "lines": 46163
+  }
+]

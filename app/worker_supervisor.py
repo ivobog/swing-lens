@@ -703,6 +703,7 @@ def _supervise_once(
                 worker.instance_id,
                 f"Worker exceeded {settings.worker_memory_critical_mb} MB memory budget.",
                 certification_session_id=certification_session_id,
+                failure_code="WORKER_MEMORY_CRITICAL",
             )
             stalled.extend(reconciliation.fenced_job_ids)
         if not stalled:
@@ -1047,6 +1048,7 @@ def _fence_worker(
     reason: str,
     *,
     certification_session_id: str | None = None,
+    failure_code: str | None = None,
 ) -> WorkerJobReconciliation:
     with SessionLocal() as db:
         reconciliation = reconcile_jobs_for_worker_loss(
@@ -1058,6 +1060,7 @@ def _fence_worker(
             worker_id=worker_id,
             worker_instance_id=instance_id,
             reason=reason,
+            failure_code=failure_code,
         )
         db.commit()
         if reconciliation.untouched_job_ids:

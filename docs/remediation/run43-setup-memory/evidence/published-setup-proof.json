@@ -1,0 +1,3645 @@
+{
+  "at": "2026-10-19T13:08:08.066615+00:00",
+  "count": 238,
+  "unique_tickers": 238,
+  "context_ids": [
+    78
+  ],
+  "financial_outputs_identical_to_before_fix": true,
+  "different_tickers": [],
+  "dds": {
+    "snapshot_id": 10015,
+    "context": 78,
+    "as_of": "2026-10-16",
+    "cutoff": "2026-10-18 21:57:23.615275+02:00",
+    "price_evidence": {
+      "bars": [
+        {
+          "fields": {
+            "low": "653",
+            "high": "674.28",
+            "open": "656.41",
+            "close": "670.22",
+            "source": "IB",
+            "ticker": "DDS",
+            "volume": "27007",
+            "bar_date": "2026-10-15",
+            "data_hash": "b316085eff2a5cb6612df298043932c9",
+            "timeframe": "1 day",
+            "created_at": "2026-10-18T21:13:09.455831Z",
+            "revised_at": null,
+            "what_to_show": "TRADES",
+            "first_seen_at": "2026-10-18T21:13:11.758076Z",
+            "revision_count": 0,
+            "adjustment_type": null,
+            "first_fetch_run_id": 24,
+            "first_fetch_item_id": 5956
+          },
+          "contract": "price-bar-immutable-evidence-v1"
+        },
+        {
+          "fields": {
+            "low": "649.3",
+            "high": "680.09",
+            "open": "674.36",
+            "close": "663.26",
+            "source": "IB",
+            "ticker": "DDS",
+            "volume": "23529",
+            "bar_date": "2026-10-16",
+            "data_hash": "7c9bc9ba31243d7db9b626b33fa2caa8",
+            "timeframe": "1 day",
+            "created_at": "2026-10-18T21:13:09.455831Z",
+            "revised_at": null,
+            "what_to_show": "TRADES",
+            "first_seen_at": "2026-10-18T21:13:11.758076Z",
+            "revision_count": 0,
+            "adjustment_type": null,
+            "first_fetch_run_id": 24,
+            "first_fetch_item_id": 5956
+          },
+          "contract": "price-bar-immutable-evidence-v1"
+        }
+      ],
+      "series_fingerprint": "ecc39803e1467b3542fef32c4161566d0b88d37c820313d07c4b587def17c3d8"
+    }
+  },
+  "snapshots": [
+    {
+      "id": 10038,
+      "ticker": "A",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44856,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "935d0ca10f33ed710188b43c63b89ae5ae2af5c8fbfd81ff08d49ab24128aaf0"
+    },
+    {
+      "id": 9977,
+      "ticker": "ABNB",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44795,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "a82b49405ef8989598c78ce350bd0e9d15b18f74cdf0aa5c032b73d7a23df3cd"
+    },
+    {
+      "id": 10087,
+      "ticker": "ACHC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44905,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "817a10bbefc3f42a18bf996ec96e088e5d5530cffda3a7f482e43f5d2ad2a695"
+    },
+    {
+      "id": 9938,
+      "ticker": "ACIW",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44756,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b9cd3ca06e2110303969b6dc0211fd36cfb3337924f73c193a8325d706e1ad0c"
+    },
+    {
+      "id": 10061,
+      "ticker": "ADSK",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44879,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "5acc352a6a619de7fa1750df6dc8e77635873c10068bc7d9855bd7f0c0c75525"
+    },
+    {
+      "id": 9968,
+      "ticker": "AER",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44786,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "95152f472466cbd9c56093b5b32e962e5e2e13ce5d0ed2fcf04dbe7c8aa264e5"
+    },
+    {
+      "id": 10085,
+      "ticker": "AGYS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44903,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "3ae780a7454e9081f4e929494a12bbba10c0668312a6b6f6b6c290b44fbebfcf"
+    },
+    {
+      "id": 9898,
+      "ticker": "AJG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44716,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "187d6aeea014d93eb1436be6a1ac8ade2e457dd12bc2a5405e1a57dd5d67ff1a"
+    },
+    {
+      "id": 9878,
+      "ticker": "ALL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44696,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "082359b4d22d2a347b7ed653d324341b22059a268ea8f83fee1c859e8a82b3ef"
+    },
+    {
+      "id": 9986,
+      "ticker": "ALRM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44804,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "44e9910217572c7414dc3a7f4788e21125fd5baf93db6f572fc85b4915744b29"
+    },
+    {
+      "id": 9967,
+      "ticker": "AME",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44785,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "f202234ff7f051b0ffcb76335132d29fd313494ff165011700bfb39fa3980598"
+    },
+    {
+      "id": 9954,
+      "ticker": "AMG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44772,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2d3ee162064874f739c80d4a4c78038ceb14b8b8a394a557aa69f98035018e68"
+    },
+    {
+      "id": 9980,
+      "ticker": "AMGN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44798,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "33b47b6ede19893545aa31b9ef05d2ee30409ff87e1eb3742f39463e73092771"
+    },
+    {
+      "id": 9893,
+      "ticker": "AMT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44711,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "a1429cd3b783dcddaa8518b4d53f1d9bf7fa50c5abc3a2938f1864dcef58ef60"
+    },
+    {
+      "id": 9926,
+      "ticker": "ANF",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44744,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "fd2fb07be8071a4c08e7d7bbd6286af4234d8bf9dabc0008e9d50767dfaa856b"
+    },
+    {
+      "id": 9875,
+      "ticker": "APA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44693,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "c30759615f8c3b7e49d83cec618bb2330c7315e52f15daa1542152913fde9357"
+    },
+    {
+      "id": 9916,
+      "ticker": "APLE",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44734,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "1a2d80ab9e8eddee485235bcd8804e9a4d151c218cb0879cc04b3b0a5d29be49"
+    },
+    {
+      "id": 9949,
+      "ticker": "APOG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44767,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "f89b952b4e810719cfae912e2538b08c445779fd088d1c9dd4dab09fd3051fb0"
+    },
+    {
+      "id": 10084,
+      "ticker": "APPF",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44902,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "f8d7b8469e730be897ed7a3e00b6db0a5eac1036723fbaf962f5da50a325c789"
+    },
+    {
+      "id": 9864,
+      "ticker": "AR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44682,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d23040ca252ed76b55bcbad704cb49048231310a1fc900cadafe61a48cd4b4c5"
+    },
+    {
+      "id": 10083,
+      "ticker": "ATRC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44901,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "6cf256f8103097f151efda0a5c5becc65979ce534b82ea6abc339f4d95d6b7a9"
+    },
+    {
+      "id": 10090,
+      "ticker": "AVPT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44908,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "bd2e6ea2b5b4aa21f0d25441c401e63010167eadda7e6a1f7e509b33e435ee9a"
+    },
+    {
+      "id": 9897,
+      "ticker": "AVTR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44715,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "084678c6f522aade9444619b538aff19e940c8ee3982cdbe567c8ac54bec6cfe"
+    },
+    {
+      "id": 9976,
+      "ticker": "AVY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44794,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "0bf76bd233a2306a19c64aefed010097233cf8966fc9ea1c779410fbdf71b39b"
+    },
+    {
+      "id": 9939,
+      "ticker": "BAP",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44757,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "32094b63a255c58cb2c99001be13a81d7bbb95eba2294e9f2ccd9854d018b442"
+    },
+    {
+      "id": 10050,
+      "ticker": "BAX",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44868,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "7fc2b64ab41fa86e2abd415c66f14b1d5654f6c875f24ff9a293d91abc39110c"
+    },
+    {
+      "id": 10037,
+      "ticker": "BBWI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44855,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "db22840cd8f8ce9f348c96e01f2af0aa1e0d5e7008d907bebbbb193e0f2e7884"
+    },
+    {
+      "id": 10044,
+      "ticker": "BBY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44862,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "6e575d359253e1b3896a85e813546f9447362469ff46a4a8e33f69d164197125"
+    },
+    {
+      "id": 10014,
+      "ticker": "BDX",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44832,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "cd2f7e6d56f795eebed3a2696fd015293ffb8b6a5a73bb0accccaf1f9299b6a1"
+    },
+    {
+      "id": 10021,
+      "ticker": "BIIB",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44839,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "50a9d40a6f816cf4ea4fe4d2aae91cb8546593e26d111d58b6e37855776553eb"
+    },
+    {
+      "id": 9936,
+      "ticker": "BIP",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44754,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9ca8a863b4361b2223cd71b950522080a3170bef4bbca213caabf1ccc5143448"
+    },
+    {
+      "id": 9974,
+      "ticker": "BJ",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44792,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "c33ba48cf94a7330db008c0ac5b59c69d9b65abfe4b97ee915f2b715f342f88d"
+    },
+    {
+      "id": 9920,
+      "ticker": "BKH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44738,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "c8313d8786218e600dea492a7a2e2cb1cacaffc48803939396d9f89d3e0a1333"
+    },
+    {
+      "id": 9910,
+      "ticker": "BLK",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44728,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "14b9c0215df6aa1a75b439831a84cfbfdbe57e551ed4f191099752464fdaaf16"
+    },
+    {
+      "id": 9932,
+      "ticker": "BR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44750,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "4f3b816cfdabd5de8d026bd965ca5b967fc4f3b639cc98e95e9f7d4c6440c6a3"
+    },
+    {
+      "id": 9895,
+      "ticker": "BRO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44713,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "744084010c1294524b8b132bcae012e52f3e43d158112dffd4f9dee9fd7908b3"
+    },
+    {
+      "id": 10064,
+      "ticker": "BSY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44882,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "10098e5201aa9f4af7a14666564f76c36c34c652e8cf8555827b8cfed2d0033e"
+    },
+    {
+      "id": 9888,
+      "ticker": "BZ",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44706,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "159dc5a61fedbccfd2c9705a5cbebe3e82301c3a76e390e0964c23d8be21c83f"
+    },
+    {
+      "id": 10034,
+      "ticker": "CAKE",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44852,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "14e62d849855ed342571aeb4b7f356ff1e227dc8b5be1be8a02c84e6ca304883"
+    },
+    {
+      "id": 10072,
+      "ticker": "CART",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44890,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "c853a60c875d04c261d90174282faa15a5767a769d0407c469e54493ff466e4d"
+    },
+    {
+      "id": 9934,
+      "ticker": "CBC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44752,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "23659f5c3e16fb5f549bd796ab2c5d6521c95b6ae8bb7b033031409f2fb99536"
+    },
+    {
+      "id": 9890,
+      "ticker": "CBOE",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44708,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "8e52eb0fb32cbb5f72a45bf4300164deb178db578f4535839e68123fb5021585"
+    },
+    {
+      "id": 10071,
+      "ticker": "CDW",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44889,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "db3be1966c57154c0ab8e64cb7153c4675999f136650f5b7fdc44057633a9827"
+    },
+    {
+      "id": 9993,
+      "ticker": "CHEF",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44811,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "e9b80a9b19a435cb5730eca565713ed732454ce612176a4c69e9b238fe3d8122"
+    },
+    {
+      "id": 9907,
+      "ticker": "CHH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44725,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "69fffe2739150dc6ad2b53728aa6d6bb3a7bc2ba52566b5640c04b4e631df355"
+    },
+    {
+      "id": 9873,
+      "ticker": "CHRD",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44691,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "be4edee34c7c29e29cd4f8e72ad034cd8314c0174694880304797b0b35ccfdb1"
+    },
+    {
+      "id": 10002,
+      "ticker": "CLMT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44820,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "e2223c33b17cf8940d6b6da8787ae5b740a5c5535c574f14f609f9e2d1be1704"
+    },
+    {
+      "id": 10052,
+      "ticker": "CNC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44870,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "ede9bf85cd7ac4a8b5e5e5be3b48908e9ae34e6abbe010b63fd3c24631083ac0"
+    },
+    {
+      "id": 9966,
+      "ticker": "CNK",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44784,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "eb3a0dce0ae95b3d7ef53ba0e1b20ecff2c9773c14f67c1f74fe507b95a983cd"
+    },
+    {
+      "id": 9883,
+      "ticker": "COKE",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44701,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d77ddeca26e405d66207ece10c40918eba71f8291e7893f50b324c103294d5a2"
+    },
+    {
+      "id": 10018,
+      "ticker": "COLM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44836,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "4bc81969c3bb917666d1ba63d1158e38cfa9d941715db57e9695a5056bf21c51"
+    },
+    {
+      "id": 9914,
+      "ticker": "CPK",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44732,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b968170dd76903130255f031fba72edaaa6417d3315f1019eed027bd558fb5af"
+    },
+    {
+      "id": 9961,
+      "ticker": "CRBG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44779,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "071630fd6add3cd07f5e3f772396ea83f210eb0493da642c6742695dff2dce74"
+    },
+    {
+      "id": 9862,
+      "ticker": "CRGY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44680,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "3ed877b173b57b1d277b07aa82e9ad93efac1f07349473aee8a6b675b6476b03"
+    },
+    {
+      "id": 10057,
+      "ticker": "CRL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44875,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "ddeebdfbe55430066a6c77b3b02b37b668a9b448f35ae233c846316c3130aa54"
+    },
+    {
+      "id": 10066,
+      "ticker": "CRM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44884,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "0e711110d33741c40421249f26299c7468d3c5831020572bec435689f1c650f1"
+    },
+    {
+      "id": 10029,
+      "ticker": "CROX",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44847,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2950c35600ff1b1a1a07c96f3b14dc847976b6bcaefe7c52396e0834aa637234"
+    },
+    {
+      "id": 9945,
+      "ticker": "CTSH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44763,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d3f727d1dd2e72392fed1627619bc2dd1b501590babc3c30e8eb882f0ef171d5"
+    },
+    {
+      "id": 9971,
+      "ticker": "CVS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44789,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "a85cbb45f5778f509255779c328b52da749dd4aeb2a2890d2525bbcbdf1ded81"
+    },
+    {
+      "id": 10075,
+      "ticker": "DBX",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44893,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9fc6285af4ba9b11b4fde9893f52cba774862b7a3e3bee5e4bd9fc91db24d1a4"
+    },
+    {
+      "id": 10015,
+      "ticker": "DDS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44833,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "4ca7478ee1b224e2c49a0df74a7d0d03deba5537d3c88d89636d68ecca18c729"
+    },
+    {
+      "id": 9947,
+      "ticker": "DG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44765,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b1262bbd97c92b68e93ef9f9250e1499599b90cf15512e9764255591e18dc0a8"
+    },
+    {
+      "id": 10016,
+      "ticker": "DHR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44834,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "06149554cde0cd5ab54e558cee172ee0aa6736b3d0593de5f4c977bc59feaf3d"
+    },
+    {
+      "id": 9970,
+      "ticker": "DLTR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44788,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d9d99ff8fc419596ac2cd37c5c2e5d7f8360fe7a90bc15590d56507fb0c1975b"
+    },
+    {
+      "id": 10045,
+      "ticker": "DOCS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44863,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "894fc60b20314ff22c82b30395e689f0da0e6d22ddb3f516656a55c9a5f91f20"
+    },
+    {
+      "id": 10092,
+      "ticker": "DOCU",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44910,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "7fcb1df862eb9546ee1c0ceb13c805314bef9fc0e9507e9fc247ef36f3e07f58"
+    },
+    {
+      "id": 9918,
+      "ticker": "DRH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44736,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "4442dd355d2a58eba7a150675f8d653447ba17ed3f9a3459613b3142ffd80d5d"
+    },
+    {
+      "id": 9922,
+      "ticker": "DRI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44740,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "f43c1993980721c8aa70601ae6a32799f9c6c0106f13e17ad98d429d7629461f"
+    },
+    {
+      "id": 10093,
+      "ticker": "DT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44911,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "349820f9fbb94b9d5258011be1eb539cc3eb632d118e39c570a853e0f1220f01"
+    },
+    {
+      "id": 10013,
+      "ticker": "DVA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44831,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "5b75ab8a941bf505cd5ca3eb33f5465f66a699ab241fcbba535c3b9dfed9c266"
+    },
+    {
+      "id": 9879,
+      "ticker": "DVN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44697,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "c6905f6676028e47deeefbb33d47292d40a00b9d7b3f0dd7bced6f3462a0a324"
+    },
+    {
+      "id": 10005,
+      "ticker": "ECPG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44823,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d059b696795e609d0b08458e014cbf4efc160ce49ca534bb0675cf94a00c7264"
+    },
+    {
+      "id": 9923,
+      "ticker": "EDU",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44741,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "ea88cf48460d9e45482313590382ab0716143d3eb5a39b0ad9c26b08e05492b7"
+    },
+    {
+      "id": 9960,
+      "ticker": "EHC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44778,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d91af17cb5b7daed9ebf5d9d26d295d977d077074050b9094ebf2522cb4be80e"
+    },
+    {
+      "id": 10068,
+      "ticker": "EL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44886,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "10472a2a78d2f7db6086d36549c1c5de6b006e08af71c6d9e5ed177b00b9115e"
+    },
+    {
+      "id": 10063,
+      "ticker": "ELF",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44881,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b6e00f21b8211f74b72060bec1ce6847aa5b692bccb32f0f6118ba8537c08173"
+    },
+    {
+      "id": 9963,
+      "ticker": "ELV",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44781,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "602e88f76a7146a1593688d4d2be35e60a7034a4b41aad53887e2df292755eb7"
+    },
+    {
+      "id": 9985,
+      "ticker": "EMR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44803,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "bb349a743d2737bdc6f3aa69fc1825488638ade807b5c65935ade4dc2ce559ee"
+    },
+    {
+      "id": 9988,
+      "ticker": "EQH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44806,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "6e8ffb437f3f5abc5f2418a37b62f5366a741b3aa7431f292561b8758b5c7588"
+    },
+    {
+      "id": 10096,
+      "ticker": "ETSY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44914,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "146dce39f1e5d52d4c0ddc7b617b34d26cb9c91c1fc7b978037ce6b73531ac79"
+    },
+    {
+      "id": 10010,
+      "ticker": "EXEL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44828,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "239f8027178dd0e4ff90783e4841333a440d4aa72777ccefa82cb3ef250cb3e8"
+    },
+    {
+      "id": 10032,
+      "ticker": "EXPD",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44850,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d11771c9251ed8512c2ccaeceef695b6a69f9c1f88a5fc319549ef94b1ff0c7e"
+    },
+    {
+      "id": 9992,
+      "ticker": "EXPO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44810,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "ec82db06627956a8757bac7f21bdd985e2dbac01dc61832302f9e30ea2bb471f"
+    },
+    {
+      "id": 9983,
+      "ticker": "EZPW",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44801,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "0fc82d054fcc722049346a8bd0d9978980336a6657b33ed11686291533e3e60c"
+    },
+    {
+      "id": 9871,
+      "ticker": "FANG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44689,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b73a9d029fdafceee44c6dcbce2b7dfaf639b118f8dc1179f2dd342da9be97fe"
+    },
+    {
+      "id": 9909,
+      "ticker": "FAST",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44727,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "85bdcb22a18217919b79343eddeef93a7c9e834f7329170952ef7f48fd06de1b"
+    },
+    {
+      "id": 9964,
+      "ticker": "FDS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44782,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9b381de333d98c2c506215797ef2d431d09e546068500493e9b32f14211ef153"
+    },
+    {
+      "id": 10097,
+      "ticker": "FLYW",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44915,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "4093d8871979e185794db066239523ce8790d89d13ed5748edaea0ee1f9d1ccf"
+    },
+    {
+      "id": 10039,
+      "ticker": "FRPT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44857,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "70e2cba498b1d6ba08057a24b83020284d4617c1cf7edf5569ef4189fd1af7d5"
+    },
+    {
+      "id": 10089,
+      "ticker": "FRSH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44907,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "025f5b77be95f53c138c999259f32043b2c8fa56d226e2eabb80650fb064463f"
+    },
+    {
+      "id": 10003,
+      "ticker": "G",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44821,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "c80ec21e1601ca291eb8c26bd1a6cb63f120f832e713a047025a1de495ba88b6"
+    },
+    {
+      "id": 10025,
+      "ticker": "GDDY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44843,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2222d2456b189652af311b5777b57bd58691237c5b44379227be662781a32fed"
+    },
+    {
+      "id": 9929,
+      "ticker": "GFL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44747,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9abb9f81c72ba83e3f720a238ad27961a8d8271af5c41883ea7f14585fcff73b"
+    },
+    {
+      "id": 9946,
+      "ticker": "GHC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44764,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "a33e9444b605f144af53e7420a62c26ad636aef532c8bd8cb822268efd15515c"
+    },
+    {
+      "id": 9996,
+      "ticker": "GILD",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44814,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "cc1db1f308813a40f8ecd0c14e06dc88e7610d850ad9712335365684ce6d342d"
+    },
+    {
+      "id": 10094,
+      "ticker": "GME",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44912,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "a7cb25f940d1f00de10a2bf511d1fc9896dcce8b2f7f19bb6378a2df81e31c9b"
+    },
+    {
+      "id": 10036,
+      "ticker": "GO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44854,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "1859253f60b263d48d4046b7f5604733d390d781853c9e3ec53df264d9b06615"
+    },
+    {
+      "id": 9948,
+      "ticker": "GPC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44766,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "fa2acb1a918b5869c7f0f2a9660b9e970c1ad6e12799da348628dc10c29aa39e"
+    },
+    {
+      "id": 9962,
+      "ticker": "GWW",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44780,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "ebb345e4ef01ee4ad6102519fc2a24724ae528263b801ba90111991b8a053865"
+    },
+    {
+      "id": 10069,
+      "ticker": "HAE",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44887,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "822f366f8540341413284a739dbb7f51301361473a15f274258f1c91ca791214"
+    },
+    {
+      "id": 10058,
+      "ticker": "HCA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44876,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "22a9f1b1f7fa0f30ad94c4dc717eb19cbcbe21228475c48eb32ef5d16e84c584"
+    },
+    {
+      "id": 9917,
+      "ticker": "HCI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44735,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "4244ec2d84dbdf2c26db04c19764f6a00a2eb2ed8ae1bb892c8b5f3a0fb14272"
+    },
+    {
+      "id": 10098,
+      "ticker": "HNGE",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44916,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "7f6dc67ead89ce6acf1ec80d299a149d83e3fb4fd8c127c0e70246260e2daf4e"
+    },
+    {
+      "id": 9927,
+      "ticker": "HRB",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44745,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2ea30b16eb9b6fb86b29a43a505880986f9c83b0d3a46024a917a204228e56a7"
+    },
+    {
+      "id": 10095,
+      "ticker": "HUM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44913,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "1e7348c33269821d61e308a74d43797474c1343c8ad0a359b87c519b8bb40d34"
+    },
+    {
+      "id": 9979,
+      "ticker": "HURN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44797,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "46a8275bea0742f60b5443b47f65142451b027fd2255e49fc7cd562b6c931cb4"
+    },
+    {
+      "id": 10080,
+      "ticker": "ICLR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44898,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "aacdc616b30e59f80b0bc0ae27834e56012a4b449ee7386855c9fdbbba14c80e"
+    },
+    {
+      "id": 10051,
+      "ticker": "IDT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44869,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "73f712c0bc13e0c441b3e054a648299f0c0c9a7214344bb120fccf820fa72dd6"
+    },
+    {
+      "id": 9981,
+      "ticker": "IEX",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44799,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "bbd69ca8b956b64ec585fd035b0a1c69ed19090d03a684a583d27e07182b2e47"
+    },
+    {
+      "id": 9935,
+      "ticker": "IPAR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44753,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "6ef0e57284db67de8165eaf116df5a18a2fb8e038949c14137684499ba56c032"
+    },
+    {
+      "id": 10040,
+      "ticker": "IQV",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44858,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "93d9c116246a9c63b1778179c4f42a607893c1bd4afb78421348587c3a9b703f"
+    },
+    {
+      "id": 10008,
+      "ticker": "IT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44826,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2cfeb089fac532a9dd6e10b23c71b1b53bc13adf1177a9045822a3b73e8a0e12"
+    },
+    {
+      "id": 9908,
+      "ticker": "KDP",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44726,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d41ac306df5f0f8b5d79c043adc1d284a93fff2c8297138e1b447cb2e9a00d04"
+    },
+    {
+      "id": 9904,
+      "ticker": "KMB",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44722,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "91f9e40b62011e90dc139143051e8851f67f6ac008e0f2509f86e8a084535b4b"
+    },
+    {
+      "id": 9872,
+      "ticker": "KMI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44690,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "19f4e1c2135f5edd4a453812ae536d5c8fb16ee80dd906c20dbf3c8aeeca02bf"
+    },
+    {
+      "id": 10046,
+      "ticker": "KNSA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44864,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "240313d6d1e1f53b03f54e20dbf11fcac2e06552a166b5af0ab609e9d47d51ee"
+    },
+    {
+      "id": 9892,
+      "ticker": "KNSL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44710,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "3ab97297bab49acd8dcc23c63474deda3e4f47a6a7053d997a128cffb6bff221"
+    },
+    {
+      "id": 9877,
+      "ticker": "KNTK",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44695,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "c837839d026107fcdc1097c6a52a6299d500431bf78a82087da8e6225af6a23f"
+    },
+    {
+      "id": 9903,
+      "ticker": "KR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44721,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b685b8f9a8cfd43a1f8c3bcfe046a26dc4bdcd49390f608b82140e1072e3ef31"
+    },
+    {
+      "id": 9940,
+      "ticker": "KTB",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44758,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "6f9750bb7efe772638a651df6fc6af579b28c77b0fc93bc6f1f96c1f6800211b"
+    },
+    {
+      "id": 10019,
+      "ticker": "LAUR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44837,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "316161c0bd4a13baba01441e3f03141362abc0fc66cedb5959fcfbe477ee2dab"
+    },
+    {
+      "id": 10073,
+      "ticker": "LIND",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44891,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "f653e197138c7eaf3629bb51becae61e6a092933cd24b4261b596c09aed192f0"
+    },
+    {
+      "id": 9943,
+      "ticker": "LLY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44761,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "0e8d20b76b23fa8c74dd7bc5a137d8b8ffc5ca1b3eb2084c49dda1fc01ad4418"
+    },
+    {
+      "id": 9876,
+      "ticker": "LNG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44694,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "284e03cd93fcf0321b4945f79b71cd1c58f15ab990f38d824fee5d487040d7af"
+    },
+    {
+      "id": 9959,
+      "ticker": "LOPE",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44777,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "49cae545abc42a13c608609279d4bceb5416ea2464640ef444db2b34c9ce980a"
+    },
+    {
+      "id": 10020,
+      "ticker": "LW",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44838,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d3c9a36b77057afc3352ca5079cba51119f7ce063e67ccb2acddac6f0aca9b52"
+    },
+    {
+      "id": 9894,
+      "ticker": "LYB",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44712,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "87adf96a12e0871f9ade6223bc330d8fb56853ede219af416e3596013ce90e4e"
+    },
+    {
+      "id": 10055,
+      "ticker": "LYFT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44873,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "de2a5d949735fa6017c6a9411349469b60676230c77e6e376e64a3c254c4a053"
+    },
+    {
+      "id": 10006,
+      "ticker": "M",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44824,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "ce04630ce38af8905aef782e58f8cdae074d9d81ad8246904833a8d22cd8dc33"
+    },
+    {
+      "id": 10060,
+      "ticker": "MANH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44878,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "deb7747057fd8da159ac390d3968db72639f7a4a331a0033c058dc98856307bd"
+    },
+    {
+      "id": 9944,
+      "ticker": "MAS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44762,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "a094ebad4db04d679432653f730268963ec3d8594047b1b94e65956bc6bfd203"
+    },
+    {
+      "id": 9998,
+      "ticker": "MATX",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44816,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "778918cda71ce54a420d40bb774311f9bf380b437b085605576566ce912bd7de"
+    },
+    {
+      "id": 9950,
+      "ticker": "MCO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44768,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "016536c75fb2042dc7ccb6e9dfc2d8815ed42219e54765755ea71b39dc75a40a"
+    },
+    {
+      "id": 9921,
+      "ticker": "MCY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44739,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "5f5a9ec3e573f8d2c67b178d1f11dfa61ce0d3a21e2ecd1501d0ca739a98ebca"
+    },
+    {
+      "id": 9994,
+      "ticker": "MDT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44812,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2d5d74b403623b0ef91992e6b2fd2a81ca6c92cf395932848fa984f7c9cfb087"
+    },
+    {
+      "id": 10042,
+      "ticker": "MEDP",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44860,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "400ce3b311a42b6833153f2d7a2f90589989e3401bbf193631c2651a7df6912a"
+    },
+    {
+      "id": 9984,
+      "ticker": "MMSI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44802,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "fee1010b563f7f948acfa9399ab659fe0a6f92e709a38b46dd8f0d3fbe0899c7"
+    },
+    {
+      "id": 9925,
+      "ticker": "MNST",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44743,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "7268bb1d42a9a6c319761c89384de0ac35016b08e0719179dadc7b6ffa4be00d"
+    },
+    {
+      "id": 10065,
+      "ticker": "MOH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44883,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "bdb49e7959622620239f6cb9cbc1ab927526bcce6730a3620b53e52e01122e40"
+    },
+    {
+      "id": 10004,
+      "ticker": "MORN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44822,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b7b827fcbde6d0ca8a85432be9b6d69694fa2addadd8e90718b3c3ee0fed3a88"
+    },
+    {
+      "id": 10053,
+      "ticker": "MSFT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44871,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "3d24b50a84cf2b324c512b4b295b1a92ace30c273cf57f62f8f9e77b4e8c617e"
+    },
+    {
+      "id": 9973,
+      "ticker": "MSM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44791,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "eaca1c83bf3a78024e09b09a6e049f7d72788510b91afefab0ed67920b572562"
+    },
+    {
+      "id": 10074,
+      "ticker": "MTCH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44892,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "0e66a62566f5487cc6b29c634ac0cec4b39447503e19ce0de45efda1f23bef87"
+    },
+    {
+      "id": 9863,
+      "ticker": "MTDR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44681,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "7b0b30a8e9dbb81dd111fed229cb517d47940c01e9645625d44eb05f717e51be"
+    },
+    {
+      "id": 10026,
+      "ticker": "MTN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44844,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "e7580427401247d637be63131cc50fbe4671fc4e51ce5d843c2c0cbb53a882f1"
+    },
+    {
+      "id": 9867,
+      "ticker": "MUR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44685,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "423a83d0c5904872543a0e0feb3f3073b6827f82feed855ec0207d8ead7287c8"
+    },
+    {
+      "id": 9933,
+      "ticker": "MUSA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44751,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "27332748d5f3da5ab8dc67c885ea08e7cd1f1eb5dd9613b6e4a6a1fcbd49d6ca"
+    },
+    {
+      "id": 9928,
+      "ticker": "NAVN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44746,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d1a60f8745d0ace9cc9428ecf268b168bad864e1b0ec28007e46417db270e00e"
+    },
+    {
+      "id": 10048,
+      "ticker": "NIQ",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44866,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "ed59a0c71e7ea29aebc3c908debce992756007d4f41708740ec504f0dd3a3389"
+    },
+    {
+      "id": 9865,
+      "ticker": "NOG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44683,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "45c2f49d2f7e9ae336d0c9afb10ec5052cbce310236072dafe3c3814e59484e8"
+    },
+    {
+      "id": 10000,
+      "ticker": "NTES",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44818,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "c1b0773c1def88d0bce54dab2cfc317c65789b88b2325611c4643bb2330eca92"
+    },
+    {
+      "id": 10079,
+      "ticker": "NTRA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44897,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2038e75b485a2f4d7034193c0f7b7c0390604ad905b883f98923806716b4d419"
+    },
+    {
+      "id": 9913,
+      "ticker": "NWE",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44731,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "78f78422cd3e527b5b0461cc4b0af5c83250efa038039595cac66add2f7b8f10"
+    },
+    {
+      "id": 9881,
+      "ticker": "OKE",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44699,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9c80f66288e6af8ffcf279fd11a58b3811a6d29eed7f2d2747e26868d44a73f0"
+    },
+    {
+      "id": 10070,
+      "ticker": "OLLI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44888,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b21b13b1ee635527a54ad83ddb29c52ed6834d131f88277e129b3cc69f7ff2dc"
+    },
+    {
+      "id": 9957,
+      "ticker": "OPLN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44775,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "990f408e4335644d0823b5ddfc29fbb30eaa4c789febc817adeb8c21b7b9f328"
+    },
+    {
+      "id": 9906,
+      "ticker": "OUT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44724,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "0f2f95e47eea75ffbace6bf34844db4debf169ba3263a66d499dd823c2604426"
+    },
+    {
+      "id": 9884,
+      "ticker": "OXY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44702,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "f209475ddbc1dd7bddfc45669b91ea68d68dbf7a8308e1a4940c2cec05f55e00"
+    },
+    {
+      "id": 10047,
+      "ticker": "PACS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44865,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "feec9cac245404660fd9d191b19edb841c6f139f887bfeee1df212782041eb8e"
+    },
+    {
+      "id": 9953,
+      "ticker": "PAG",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44771,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "235c6ea388bf3d0b31269122ec24db6c10368fa6a159bcf2f2d71a6fc0fba874"
+    },
+    {
+      "id": 10017,
+      "ticker": "PAGS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44835,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "8aa0833f6ef10e99810f2131405cd04186cc1850389f81278473658c285da749"
+    },
+    {
+      "id": 10035,
+      "ticker": "PBI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44853,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9d85c8f96c8e0fccce6af4816fc6ae7f9527d542cc76e03355e519d3db9d6acf"
+    },
+    {
+      "id": 10078,
+      "ticker": "PCOR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44896,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "5547f3d96e89fe17374345698bfb4d68b4e1aa963160954ce43a2e5799e8923d"
+    },
+    {
+      "id": 10099,
+      "ticker": "PD",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44917,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "5c171337c157ede649881b1761fb17d88b4dec96943fde3489bb36795bbb9d33"
+    },
+    {
+      "id": 9931,
+      "ticker": "PEB",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44749,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9e736af929bd18f4aef5d9b9c4c8a2f7c8befd8cc1a8c1d1861f7c1be14bba9b"
+    },
+    {
+      "id": 9891,
+      "ticker": "PGR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44709,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "f5e61ab9a50eef13fdb2d0e5a399c2df52c6ae33f70e8566f1138f00fda6d1f0"
+    },
+    {
+      "id": 10088,
+      "ticker": "PINS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44906,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "3fddb7206018f3960cad16d793ef52999c5445fbd32cbdfc4b857cea58db46f0"
+    },
+    {
+      "id": 9911,
+      "ticker": "PK",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44729,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "0b6c1407b2a6fb098283ec957ad51a48eae1d279c4f99c9dbd9587b064201e95"
+    },
+    {
+      "id": 9905,
+      "ticker": "PLMR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44723,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "833519a60d3c0d3752c86615c2e129e5e65df65745e76d573a28887f38642ca9"
+    },
+    {
+      "id": 10011,
+      "ticker": "PLUS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44829,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "a2036d0d6d2813c6f201420b8e2e2637f829dd2c737495092873c3d84396c808"
+    },
+    {
+      "id": 9886,
+      "ticker": "PM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44704,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "4b7c9d8fa47d10c9bc2db5c35678f031cdb662d8a99580425323986cb3df2a83"
+    },
+    {
+      "id": 9874,
+      "ticker": "PR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44692,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "79714f176c39c599b3d7012b0b6c4b50ab56e3f67907ec93a3d3a1ce22f78e1f"
+    },
+    {
+      "id": 10001,
+      "ticker": "PVH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44819,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "5fd99c44b4c760dc432e82d9208242f406b8b522ea3bd4eb6686304d7756b5ac"
+    },
+    {
+      "id": 9999,
+      "ticker": "PYPL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44817,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "7cb190af6a204d69734f61cef06651822da54da1f19217a16b91146e23aa9a80"
+    },
+    {
+      "id": 9965,
+      "ticker": "QGEN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44783,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "919d744287c3e15890e722b6e705febd5baedf6100d5077abd2b0b741823be0d"
+    },
+    {
+      "id": 9982,
+      "ticker": "QTWO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44800,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "883f017d5eca37dc3a5e1eda8566e23b0a27895f37511967134868966b116e47"
+    },
+    {
+      "id": 10056,
+      "ticker": "RELY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44874,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2db2c2e3377476958fb081b979bb34bb949ba7e2e70a57b5eff48d49fcad96d3"
+    },
+    {
+      "id": 9919,
+      "ticker": "RGR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44737,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "3a24235276ba721425430e37874708154d9f804a8f9aa548d9988a503a9b4318"
+    },
+    {
+      "id": 9941,
+      "ticker": "RHP",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44759,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "4d8d3b9fff5b9e851ea9794afe0686fc6a6bffcd42640c390d80445feace7b9e"
+    },
+    {
+      "id": 10033,
+      "ticker": "RL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44851,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "0a642cf8ed35a93f43a9983da04ed4798ce121a1956702f6c9452f413be7e3cf"
+    },
+    {
+      "id": 9885,
+      "ticker": "RLI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44703,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2e3ac9830b466d104a2664d337dd6bfca54d7072c220e7d5b8cf6ccd091359f2"
+    },
+    {
+      "id": 9955,
+      "ticker": "RLJ",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44773,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b63ecbb32706f75f847de43977dd0bb594dc38326da98f1a8c5f50b6768f450f"
+    },
+    {
+      "id": 10031,
+      "ticker": "RMD",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44849,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d9d80b391255251261edc9e93fc2d285faa7ad40269e7b1b002ef9d48518a74a"
+    },
+    {
+      "id": 9924,
+      "ticker": "ROST",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44742,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "d41638a06c4b740cb084e84261f965306bc7928004082178b45c4b1f45c31f49"
+    },
+    {
+      "id": 9889,
+      "ticker": "RPRX",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44707,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "23be398c0aae24b07e7981b27d2d4f9d65aa12cab994a4390b6b1e92ba335da7"
+    },
+    {
+      "id": 9870,
+      "ticker": "RRC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44688,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "798409bcdb26ed03261a9b63120e9803bc777fdc50c914e58bfc915c74b4beb7"
+    },
+    {
+      "id": 10030,
+      "ticker": "RVTY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44848,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "caae5052507b37ce32635a9b17113788bba43212f7e8eb827c0193ace0576365"
+    },
+    {
+      "id": 9901,
+      "ticker": "RYAN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44719,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "df8d26d5788c1480baa3fe7f9b31042538d9b087d4c752eea64c79936e5bc27f"
+    },
+    {
+      "id": 9969,
+      "ticker": "SAIC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44787,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "aca45c4d170136dec68366a3168307e8c437e21f0bdc254bdd2ae2b9eca1232c"
+    },
+    {
+      "id": 10077,
+      "ticker": "SBH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44895,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b1df719b994e5c0a4cb9af69a77d9d9e42bb706b7e7d6b555543e2f80bc1949b"
+    },
+    {
+      "id": 9896,
+      "ticker": "SDRL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44714,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9da155f6aa7cb2557467dbb29a4e5a0ed79d0067825f6567314ddd3919c5b972"
+    },
+    {
+      "id": 9978,
+      "ticker": "SHO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44796,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "1922be496c78141552a96d9ab3f02718027ec4e43bede532b95fd9538d8cda76"
+    },
+    {
+      "id": 10059,
+      "ticker": "SHOO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44877,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "835c02457e92c85bc054f0384ce3b54607829ecfceaa2d082628e4083a14f7c7"
+    },
+    {
+      "id": 9987,
+      "ticker": "SHW",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44805,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "f13cd980384acd0bb00e793fd48112487e07eabe630552f5363617f0aa3e7594"
+    },
+    {
+      "id": 9912,
+      "ticker": "SJM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44730,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "35553e7f0dc82601f94831cb09f505bb235751d8967c8f1e159c305903866a34"
+    },
+    {
+      "id": 9902,
+      "ticker": "SKWD",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44720,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "529116b7d48b5ead25d81dbaafd362af9c4302af27bc0fca92bd151dd541ed33"
+    },
+    {
+      "id": 9866,
+      "ticker": "SM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44684,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "3589df495c399e17f4c34e7edb0ffd4e7d20ecf504ed6d3329f8185dcebfca8d"
+    },
+    {
+      "id": 9930,
+      "ticker": "SMA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44748,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9f4ac033be88e76a647458d4b970095867afef93cc0b16d9f1af2cc131d4d9fb"
+    },
+    {
+      "id": 10091,
+      "ticker": "SN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44909,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "c019db7a5066beaf8f3ebe40e1f855cff73b8f9130cb135fe85cd76bf5a20754"
+    },
+    {
+      "id": 10054,
+      "ticker": "SONO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44872,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "b1f41e522a4734ca8d515e66f6abd4c3780abf15b57864c8b0c3f61ee50ed739"
+    },
+    {
+      "id": 9915,
+      "ticker": "SPGI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44733,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "33849272c5cb0df56e2bbe96ac9f1056c7ef57af22a334797d9ab770dc504463"
+    },
+    {
+      "id": 9989,
+      "ticker": "SPOT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44807,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "592b110e70d3eef92810fb7494cb79105bd552eeaf03303d42fd615a6db29880"
+    },
+    {
+      "id": 10049,
+      "ticker": "SPSC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44867,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "4087e007d75122f693167af5266e5dce963fb134f6a638c52e08cd687b997881"
+    },
+    {
+      "id": 10027,
+      "ticker": "STRA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44845,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "cc7ada7700edb2650e868364c427382faf85f1a57c7b170651e9ffe82bf49869"
+    },
+    {
+      "id": 9952,
+      "ticker": "SXT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44770,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "0397704cd2c7fefe44507d62acfd41588487ff18902435dd9b55b7d4cc4bf36a"
+    },
+    {
+      "id": 9975,
+      "ticker": "SYNA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44793,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "fef15384f695c3947f644821ef3221f6355694a3f6560804d3d613efefebdf02"
+    },
+    {
+      "id": 9868,
+      "ticker": "TALO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44686,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "58078385db5b8212d6f1eed6bdf82477857dbf0827220dbed9ed611bf4478403"
+    },
+    {
+      "id": 10082,
+      "ticker": "TDC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44900,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "e4fe4cf0faaa6acc39119c2c9868dd0073157b62ddbfdd4b60d72e245e8c88e7"
+    },
+    {
+      "id": 9991,
+      "ticker": "TEN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44809,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "a0b0ce1becea90b15cb30fda6572a1009cf881f17aeabc6d4cea34cd185122e4"
+    },
+    {
+      "id": 10081,
+      "ticker": "THC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44899,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "00a9068f5f4ec1b5e8890d89dbd75984da1c26c17bb6922828b3b3717e117a94"
+    },
+    {
+      "id": 10007,
+      "ticker": "TMO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44825,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2a35e1ff3c8f0f296b42acb2b690911191508eb6697ecf509854c6bca612b71d"
+    },
+    {
+      "id": 9942,
+      "ticker": "TNET",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44760,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "6571a430e785247bfdd89ca9e68ccbae07a29057dd994015de546bbf077dced4"
+    },
+    {
+      "id": 9869,
+      "ticker": "TRGP",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44687,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "fa808c2763f3ce67e3d3dd6f219f55953458c9a40164e07cb1cb9971d6b23560"
+    },
+    {
+      "id": 9972,
+      "ticker": "TTC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44790,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "51678cc078147937add9fcb40e8abde2bf6b00d0cf9f7c83bc981041223f1a1d"
+    },
+    {
+      "id": 9997,
+      "ticker": "TYL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44815,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "31c7a3c8a06505c9522e1d87ccb4fb7af5475061e09689cf4ca44cf82b28a9b6"
+    },
+    {
+      "id": 10023,
+      "ticker": "UHS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44841,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "e7a4d2f499a5ce15d55027ad2c9e2d4e767c59c3d7854f297204074200e8f833"
+    },
+    {
+      "id": 10076,
+      "ticker": "ULTA",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44894,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "a3ff6ce9b0f5077b3c21ba33dd707ad880f31b3e2298f33592f96a1d7b815830"
+    },
+    {
+      "id": 10012,
+      "ticker": "UNFI",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44830,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "e3777c3d7421c6c823616dd136c991959473a4d61a0f86664cb2e29a6dfbcf70"
+    },
+    {
+      "id": 10028,
+      "ticker": "UNH",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44846,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "ef8872412436e6f72b0afa994a0d15975a4c1222ba583bc25c2dfe408db3298e"
+    },
+    {
+      "id": 10009,
+      "ticker": "URBN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44827,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "524ea44e96d3ce142d3e26cd69b1cf068199335760e902ad2f7f1c95a54ea8c1"
+    },
+    {
+      "id": 9937,
+      "ticker": "USFD",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44755,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "660e1a1da9e0c75259325a6f280e12aac5deb303a18238a143e6e36fc176e6d0"
+    },
+    {
+      "id": 10041,
+      "ticker": "UTHR",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44859,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "8723e6d35fe73cec94bc63d7a5f265f03d0ff04218508e855f22d40c8b64b1eb"
+    },
+    {
+      "id": 10024,
+      "ticker": "VAC",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44842,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "38b31e4ab01220a48e47205aa55b6417adf836cd45075fa5a68188e4b84dfcee"
+    },
+    {
+      "id": 9900,
+      "ticker": "VAL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44718,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9bcc25984f25f57ed0b34069dbb3cbbbaa570731d20c2e9dd4a8c651c1a621b0"
+    },
+    {
+      "id": 9956,
+      "ticker": "VLO",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44774,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2232e612b855384841342fa51e8e12035455fd63e118bff2e3af8d5ac222228b"
+    },
+    {
+      "id": 9880,
+      "ticker": "VNOM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44698,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "866cfb85d82ba5df083fbba0d7be7b520be2d76279d1eb683983dde24af62a4d"
+    },
+    {
+      "id": 9882,
+      "ticker": "VRNS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44700,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2f40b6f9e4b49474aaa686b6cccf0470c04f989398e22f0cb617112f6c9c6fb4"
+    },
+    {
+      "id": 9899,
+      "ticker": "VRSK",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44717,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "cabb46fa17357b562b69ef69f77d650c9ead86ec43138168f23ab497528df1b7"
+    },
+    {
+      "id": 9990,
+      "ticker": "VRSN",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44808,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "74b708012b24e1a9e00cd46c68f4af0eeae718a494cae69a548f453e8eb9a736"
+    },
+    {
+      "id": 9887,
+      "ticker": "VTRS",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44705,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "50639aa4b1cbbfed835659a56e4d14cf9c9a88c171bc215efaca54114f1521d3"
+    },
+    {
+      "id": 10043,
+      "ticker": "WAT",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44861,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "9990c971c386eda62aa4bb99f7632d213b795806eab4b08348464c5863df4e80"
+    },
+    {
+      "id": 10086,
+      "ticker": "WAY",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44904,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "634fb69c716554a74a8a7984df05a0bba524a721814eb38410f71e9705132cb5"
+    },
+    {
+      "id": 9958,
+      "ticker": "WELL",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44776,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "6b3e8d1af6251110794456d0ba8cafbf8568dbd197fa2c1758bd6ef12ffce62d"
+    },
+    {
+      "id": 10067,
+      "ticker": "WK",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44885,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "22e906b743dccfba0d6524cadaa2a3dd0445016527977bc0de5e2a811d5bf33e"
+    },
+    {
+      "id": 9995,
+      "ticker": "WSM",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44813,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "5f53ca3076dd5b737935baa35b49efbaef66442d4c3a3704585d05134e610901"
+    },
+    {
+      "id": 9951,
+      "ticker": "WST",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44769,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "2980304b3ab1446f066d16ac44ad60cbd6d17be2dc69593fa1d660d08138cd89"
+    },
+    {
+      "id": 10022,
+      "ticker": "WWW",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44840,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "83a7d2b54a65d2d2b54c22ed1f9c249885f61eea73826f0a93daf2cd482eb238"
+    },
+    {
+      "id": 10062,
+      "ticker": "ZD",
+      "creator_evaluation_run_id": 93,
+      "evidence_id": 44880,
+      "context_id": 78,
+      "session": "2026-10-16",
+      "source_data_hash": "ead2298a2c01096f40f531f41c332d437fa07dff9d6bbc8a1c1f0efad2c2f073"
+    }
+  ],
+  "steps": [
+    {
+      "step_name": "CAPTURING_SETUP_SIGNALS",
+      "status": "COMPLETED",
+      "result_json": {
+        "attempt_history": [
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 1,
+            "started_at": "2026-10-19T02:02:50.802935+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 2,
+            "started_at": "2026-10-19T02:21:20.418569+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 3,
+            "started_at": "2026-10-19T02:39:42.962262+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 4,
+            "started_at": "2026-10-19T02:58:09.728121+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 5,
+            "started_at": "2026-10-19T03:17:15.100273+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 6,
+            "started_at": "2026-10-19T03:35:51.066095+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 7,
+            "started_at": "2026-10-19T03:54:13.457419+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 8,
+            "started_at": "2026-10-19T04:14:14.146012+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 9,
+            "started_at": "2026-10-19T04:32:16.365732+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 10,
+            "started_at": "2026-10-19T04:54:51.139851+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 11,
+            "started_at": "2026-10-19T05:13:25.330382+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 12,
+            "started_at": "2026-10-19T05:32:18.345928+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 13,
+            "started_at": "2026-10-19T05:50:50.728281+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 14,
+            "started_at": "2026-10-19T06:09:24.751201+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 15,
+            "started_at": "2026-10-19T06:27:51.407249+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 16,
+            "started_at": "2026-10-19T06:46:18.278909+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 17,
+            "started_at": "2026-10-19T07:04:54.146055+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 18,
+            "started_at": "2026-10-19T07:23:32.942324+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 19,
+            "started_at": "2026-10-19T07:41:59.426329+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 20,
+            "started_at": "2026-10-19T08:02:51.072566+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 21,
+            "started_at": "2026-10-19T08:28:51.217848+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 22,
+            "started_at": "2026-10-19T08:54:55.997934+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 23,
+            "started_at": "2026-10-19T09:20:33.733668+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 24,
+            "started_at": "2026-10-19T09:46:15.975022+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 25,
+            "started_at": "2026-10-19T10:12:19.056039+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 26,
+            "started_at": "2026-10-19T10:38:14.322311+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 27,
+            "started_at": "2026-10-19T11:04:38.987474+02:00",
+            "finished_at": null
+          },
+          {
+            "reason": null,
+            "status": "RUNNING",
+            "attempt": 28,
+            "started_at": "2026-10-19T13:39:39.029223+02:00",
+            "finished_at": null
+          }
+        ],
+        "setup_capture_handoff": {
+          "read": 238,
+          "failed": 0,
+          "status": "COMPLETED",
+          "alerted": 0,
+          "changed": 0,
+          "skipped": 0,
+          "warning": 481,
+          "captured": 238,
+          "canonical": 0,
+          "performance": {
+            "setup_context_build_ms": 15717.516,
+            "setup_latest_bar_query_ms": 29532.434
+          },
+          "snapshot_ids": [
+            9862,
+            9863,
+            9864,
+            9865,
+            9866,
+            9867,
+            9868,
+            9869,
+            9870,
+            9871,
+            9872,
+            9873,
+            9874,
+            9875,
+            9876,
+            9877,
+            9878,
+            9879,
+            9880,
+            9881,
+            9882,
+            9883,
+            9884,
+            9885,
+            9886,
+            9887,
+            9888,
+            9889,
+            9890,
+            9891,
+            9892,
+            9893,
+            9894,
+            9895,
+            9896,
+            9897,
+            9898,
+            9899,
+            9900,
+            9901,
+            9902,
+            9903,
+            9904,
+            9905,
+            9906,
+            9907,
+            9908,
+            9909,
+            9910,
+            9911,
+            9912,
+            9913,
+            9914,
+            9915,
+            9916,
+            9917,
+            9918,
+            9919,
+            9920,
+            9921,
+            9922,
+            9923,
+            9924,
+            9925,
+            9926,
+            9927,
+            9928,
+            9929,
+            9930,
+            9931,
+            9932,
+            9933,
+            9934,
+            9935,
+            9936,
+            9937,
+            9938,
+            9939,
+            9940,
+            9941,
+            9942,
+            9943,
+            9944,
+            9945,
+            9946,
+            9947,
+            9948,
+            9949,
+            9950,
+            9951,
+            9952,
+            9953,
+            9954,
+            9955,
+            9956,
+            9957,
+            9958,
+            9959,
+            9960,
+            9961,
+            9962,
+            9963,
+            9964,
+            9965,
+            9966,
+            9967,
+            9968,
+            9969,
+            9970,
+            9971,
+            9972,
+            9973,
+            9974,
+            9975,
+            9976,
+            9977,
+            9978,
+            9979,
+            9980,
+            9981,
+            9982,
+            9983,
+            9984,
+            9985,
+            9986,
+            9987,
+            9988,
+            9989,
+            9990,
+            9991,
+            9992,
+            9993,
+            9994,
+            9995,
+            9996,
+            9997,
+            9998,
+            9999,
+            10000,
+            10001,
+            10002,
+            10003,
+            10004,
+            10005,
+            10006,
+            10007,
+            10008,
+            10009,
+            10010,
+            10011,
+            10012,
+            10013,
+            10014,
+            10015,
+            10016,
+            10017,
+            10018,
+            10019,
+            10020,
+            10021,
+            10022,
+            10023,
+            10024,
+            10025,
+            10026,
+            10027,
+            10028,
+            10029,
+            10030,
+            10031,
+            10032,
+            10033,
+            10034,
+            10035,
+            10036,
+            10037,
+            10038,
+            10039,
+            10040,
+            10041,
+            10042,
+            10043,
+            10044,
+            10045,
+            10046,
+            10047,
+            10048,
+            10049,
+            10050,
+            10051,
+            10052,
+            10053,
+            10054,
+            10055,
+            10056,
+            10057,
+            10058,
+            10059,
+            10060,
+            10061,
+            10062,
+            10063,
+            10064,
+            10065,
+            10066,
+            10067,
+            10068,
+            10069,
+            10070,
+            10071,
+            10072,
+            10073,
+            10074,
+            10075,
+            10076,
+            10077,
+            10078,
+            10079,
+            10080,
+            10081,
+            10082,
+            10083,
+            10084,
+            10085,
+            10086,
+            10087,
+            10088,
+            10089,
+            10090,
+            10091,
+            10092,
+            10093,
+            10094,
+            10095,
+            10096,
+            10097,
+            10098,
+            10099
+          ],
+          "transitioned": 0,
+          "low_confidence": 1,
+          "errors_by_ticker": {},
+          "evaluation_run_id": 93,
+          "warnings_by_ticker": {
+            "A": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "G": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "M": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BJ": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BZ": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ZD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AER": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AJG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ALL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AME": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AMG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AMT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ANF": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "APA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AVY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BAP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BAX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BBY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BDX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BIP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BKH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BLK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BRO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BSY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CBC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CDW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CHH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CNC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CNK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CPK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CRL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CRM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CVS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DBX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DDS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DHR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DRH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DRI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DVA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DVN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EDU": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EHC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ELF": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ELV": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EMR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EQH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FDS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GFL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GHC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GME": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GPC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GWW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HAE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HCA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HCI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HRB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HUM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IDT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IEX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IQV": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KDP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KMB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KMI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KTB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LLY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LNG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LYB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MAS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MCO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MCY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MDT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MOH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MSM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MTN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MUR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NIQ": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NOG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NWE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OKE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OUT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OXY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PAG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PBI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PEB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PGR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PVH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RGR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RHP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RLI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RLJ": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RMD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RRC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SBH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SHO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SHW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SJM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SMA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SXT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TDC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TEN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "THC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TMO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TTC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TYL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "UHS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "UNH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VAC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VAL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VLO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WAT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WAY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WSM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WST": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WWW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ABNB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ACHC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ACIW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ADSK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AGYS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ALRM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AMGN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "APLE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "APOG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "APPF": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ATRC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AVPT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "AVTR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BBWI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "BIIB": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CAKE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CART": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CBOE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CHEF": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CHRD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CLMT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "COKE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "COLM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CRBG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CRGY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CROX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "CTSH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DLTR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DOCS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "DOCU": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ECPG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ETSY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EXEL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EXPD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EXPO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "EZPW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FANG": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FAST": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FLYW": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FRPT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "FRSH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GDDY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "GILD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HNGE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "HURN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ICLR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "IPAR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KNSA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KNSL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "KNTK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LAUR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LIND": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LOPE": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "LYFT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MANH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MATX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MEDP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MMSI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MNST": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MORN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MSFT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MTCH": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MTDR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "MUSA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NAVN": [
+              "DATA_QUALITY_INSUFFICIENT",
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_REQUIRED_CLASSIFICATION",
+              "MISSING_REQUIRED_SETUP_SCORE",
+              "MISSING_REQUIRED_TECHNICAL_SCORE",
+              "MISSING_SECTOR_ROTATION",
+              "TECHNICAL_CONSUMER_INELIGIBLE"
+            ],
+            "NTES": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "NTRA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OLLI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "OPLN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PACS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PAGS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PCOR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PINS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PLMR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PLUS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "PYPL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "QGEN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "QTWO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RELY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ROST": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RPRX": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RVTY": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "RYAN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SAIC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SDRL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SHOO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SKWD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SONO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SPGI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SPOT": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SPSC": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "STRA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "SYNA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TALO": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TNET": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "TRGP": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "ULTA": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "UNFI": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "URBN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "USFD": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "UTHR": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VNOM": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VRNS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VRSK": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VRSN": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "VTRS": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ],
+            "WELL": [
+              "MISSING_OPTIONAL_CONTEXT",
+              "MISSING_SECTOR_ROTATION"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "step_name": "EVALUATING_SETUP_LIFECYCLES",
+      "status": "RUNNING",
+      "result_json": null
+    },
+    {
+      "step_name": "CAPTURING_WINNER_PREDICTIONS",
+      "status": "PENDING",
+      "result_json": null
+    }
+  ]
+}

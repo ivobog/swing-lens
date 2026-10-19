@@ -1072,6 +1072,12 @@ class SetupLifecycleSnapshotCaptureService:
                 checkpoint_callback=verification_checkpoint,
             )
 
+        # Handoff verification is complete. Publication needs the built outputs
+        # and ticker names, not the detached source graph that produced them.
+        source_count = len(run_context.tickers)
+        built_rows = tuple((context.ticker, built) for context, built in built_rows)
+        del run_context
+
         if evaluation_run is None:
             evaluation_run = self.repository.create_evaluation_run(
                 db,
@@ -1086,8 +1092,8 @@ class SetupLifecycleSnapshotCaptureService:
             )
 
         prepared_rows = [
-            (ticker_context, built, replace(built.dto, evaluation_run_id=evaluation_run.id))
-            for ticker_context, built in built_rows
+            (ticker, built, replace(built.dto, evaluation_run_id=evaluation_run.id))
+            for ticker, built in built_rows
         ]
         batch_upsert = getattr(self.repository, "upsert_snapshots", None)
         if batch_upsert is not None:
@@ -1122,14 +1128,14 @@ class SetupLifecycleSnapshotCaptureService:
                     persisted.extend(
                         batch_upsert(
                             db,
-                            [dto for _context, _built, dto in batch],
+                            [dto for _ticker, _built, dto in batch],
                             **optional,
                         )
                     )
                     if progress_callback is not None:
                         processed = offset + len(batch)
                         progress_callback(
-                            batch[-1][0].ticker,
+                            batch[-1][0],
                             processed,
                             total_rows,
                             phase="EVIDENCE_BATCH_PERSISTED",
@@ -1141,13 +1147,13 @@ class SetupLifecycleSnapshotCaptureService:
                         evaluation_run,
                         status=EvaluationStatus.FAILED.value,
                         current_phase="snapshot_persist_failed",
-                        counts={"read": len(run_context.tickers), "failed": 1},
+                        counts={"read": source_count, "failed": 1},
                     )
                 raise
         else:
             persisted = []
 
-        for index, (ticker_context, built, dto) in enumerate(prepared_rows):
+        for index, (ticker, built, dto) in enumerate(prepared_rows):
             try:
                 snapshot = (
                     persisted[index]
@@ -1156,14 +1162,14 @@ class SetupLifecycleSnapshotCaptureService:
                 )
                 snapshot_ids.append(snapshot.id)
                 if built.warnings:
-                    warnings_by_ticker[ticker_context.ticker] = built.warnings
+                    warnings_by_ticker[ticker] = built.warnings
                 if dto.data_quality_label in {
                     DataQualityLabel.LOW.value,
                     DataQualityLabel.INSUFFICIENT.value,
                 }:
                     low_confidence += 1
             except Exception as exc:
-                errors_by_ticker[ticker_context.ticker] = str(exc)
+                errors_by_ticker[ticker] = str(exc)
 
         status = (
             EvaluationStatus.PARTIAL.value if errors_by_ticker else EvaluationStatus.COMPLETED.value
@@ -1171,7 +1177,7 @@ class SetupLifecycleSnapshotCaptureService:
         result = SnapshotCaptureResult(
             evaluation_run_id=evaluation_run.id,
             status=status,
-            read=len(run_context.tickers),
+            read=source_count,
             captured=len(snapshot_ids),
             failed=len(errors_by_ticker),
             warning=sum(len(warnings) for warnings in warnings_by_ticker.values()),

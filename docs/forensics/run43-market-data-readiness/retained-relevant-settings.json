@@ -1,0 +1,6 @@
+{
+  "anchor_id": "d0f2266758cd3d46984c1601a154908feba3904c61c35839a01175824f028632",
+  "resolution_hash": "3d3ce9ac4afcef2c608cb0b5e3cd85abd45f8fd49c930e7abb1b382985d658b8",
+  "entries": [],
+  "note": "Only keys represented in the durable execution.settings namespace are included; absent keys must not be inferred as frozen configuration evidence."
+}

@@ -9,6 +9,9 @@ from app.services.us_market_calendar import (
     subtract_us_trading_sessions,
 )
 
+STRICT_RESPONSE_V1 = "ib-response-strict-v1"
+DAILY_BAR_ADMISSION_V2 = "ib-daily-reviewed-subset-v2"
+
 
 class HistoricalEndMode(StrEnum):
     EXPLICIT = "EXPLICIT"
@@ -17,7 +20,7 @@ class HistoricalEndMode(StrEnum):
 
 @dataclass(frozen=True)
 class HistoricalRequestScope:
-    """Operator-reviewed footprint for one deterministic IB historical request."""
+    """Authorized persistence interval, distinct from the provider's response."""
 
     required_start_date: date | None
     required_end_date: date | None
@@ -29,6 +32,7 @@ class HistoricalRequestScope:
     end_datetime: str
     end_mode: HistoricalEndMode
     reviewed_session_expiry: date | None
+    response_admission_policy: str = DAILY_BAR_ADMISSION_V2
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -51,12 +55,13 @@ def build_historical_request_scope(
     bar_size: str,
     what_to_show: str,
     reviewed_end_date: date | None = None,
+    response_admission_policy: str = DAILY_BAR_ADMISSION_V2,
 ) -> HistoricalRequestScope:
-    """Build the exact reviewed footprint shared by planner and executor.
+    """Freeze the shared persistence interval; duration does not bound raw returns.
 
-    Observed IB behavior for ``N D`` requests with ``1 day`` bars is N daily
-    trading observations, inclusive of the final session. Other duration units
-    retain IB's documented elapsed-time interpretation.
+    The daily session calculation defines admitted coverage, not a promise about
+    IB's earliest returned observation. V2 discards earlier observations while
+    retaining the reviewed upper boundary and the required session coverage.
     """
 
     end = reviewed_end_date or required_end_date
@@ -81,6 +86,7 @@ def build_historical_request_scope(
         end_datetime="" if adjusted_last else f"{end:%Y%m%d}-23:59:59",
         end_mode=end_mode,
         reviewed_session_expiry=end if adjusted_last else None,
+        response_admission_policy=response_admission_policy,
     )
 
 

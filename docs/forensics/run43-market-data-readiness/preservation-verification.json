@@ -1,0 +1,112 @@
+{
+  "read_only_enforced": true,
+  "all_captured_rows_unchanged": true,
+  "checks": [
+    {
+      "artifact": "pipeline",
+      "rows": 1,
+      "before_sha256": "7de91dc547876501c4638342da2c369500545aab864239d8b65ce2b3cc5e5975",
+      "after_sha256": "7de91dc547876501c4638342da2c369500545aab864239d8b65ce2b3cc5e5975",
+      "unchanged": true
+    },
+    {
+      "artifact": "steps",
+      "rows": 13,
+      "before_sha256": "ba4e04726540d598c4ed54877223a320f51a24446d65c301d4a8e8f00317ad5b",
+      "after_sha256": "ba4e04726540d598c4ed54877223a320f51a24446d65c301d4a8e8f00317ad5b",
+      "unchanged": true
+    },
+    {
+      "artifact": "jobs",
+      "rows": 3,
+      "before_sha256": "a8dfaca161b05bc77a4eb66a8a242a524537915d4264366faeca033e438d9219",
+      "after_sha256": "a8dfaca161b05bc77a4eb66a8a242a524537915d4264366faeca033e438d9219",
+      "unchanged": true
+    },
+    {
+      "artifact": "dispositions",
+      "rows": 238,
+      "before_sha256": "9b43a986b5d5505f49c0cac9c76569aca7f8f25af9c093d1ed987ec3faf87e12",
+      "after_sha256": "9b43a986b5d5505f49c0cac9c76569aca7f8f25af9c093d1ed987ec3faf87e12",
+      "unchanged": true
+    },
+    {
+      "artifact": "dds-contract",
+      "rows": 1,
+      "before_sha256": "62fedbd07e20b23e9ec8871f0050335e8ab7d34b9c3b012324d03513c07456b9",
+      "after_sha256": "62fedbd07e20b23e9ec8871f0050335e8ab7d34b9c3b012324d03513c07456b9",
+      "unchanged": true
+    },
+    {
+      "artifact": "dds-lifecycle",
+      "rows": 0,
+      "before_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "after_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "unchanged": true
+    },
+    {
+      "artifact": "dds-recent-bars",
+      "rows": 6,
+      "before_sha256": "ca06565633e144a4db40a9cd8e1cd2cf9f8464129227c81066138cbca04eb85f",
+      "after_sha256": "ca06565633e144a4db40a9cd8e1cd2cf9f8464129227c81066138cbca04eb85f",
+      "unchanged": true
+    },
+    {
+      "artifact": "context",
+      "rows": 1,
+      "before_sha256": "3410c64c187fdb57dfe6c4dee6f853415da49f78b5fa6be03bd52885ad8b412b",
+      "after_sha256": "3410c64c187fdb57dfe6c4dee6f853415da49f78b5fa6be03bd52885ad8b412b",
+      "unchanged": true
+    },
+    {
+      "artifact": "upload",
+      "rows": 1,
+      "before_sha256": "0f26d4969a10619d077207709ee59cade46f1e4177d9c1dfa92f2e5bbeaec7dc",
+      "after_sha256": "0f26d4969a10619d077207709ee59cade46f1e4177d9c1dfa92f2e5bbeaec7dc",
+      "unchanged": true
+    },
+    {
+      "artifact": "fetch-runs",
+      "rows": 1,
+      "before_sha256": "4edc39a07311e1d9d071af5005fadb89b216520f7d66314fab5bcd2941a3cf55",
+      "after_sha256": "4edc39a07311e1d9d071af5005fadb89b216520f7d66314fab5bcd2941a3cf55",
+      "unchanged": true
+    },
+    {
+      "artifact": "fetch-items",
+      "rows": 480,
+      "before_sha256": "f68c1067683f1e7e0e7093bd71383b6bf29ef92781807d5b6c1966f15da0fe65",
+      "after_sha256": "f68c1067683f1e7e0e7093bd71383b6bf29ef92781807d5b6c1966f15da0fe65",
+      "unchanged": true
+    },
+    {
+      "artifact": "dds-fetch-history",
+      "rows": 8,
+      "before_sha256": "9900a8bd65f42455898a26304a5d4692bc960be63027d1aeb345184a4b32b022",
+      "after_sha256": "9900a8bd65f42455898a26304a5d4692bc960be63027d1aeb345184a4b32b022",
+      "unchanged": true
+    },
+    {
+      "artifact": "scopes",
+      "rows": 2,
+      "before_sha256": "a47d88efad37e57c4dd5c29c082c0da2692a6a79c0cea207299df718fcc691c8",
+      "after_sha256": "a47d88efad37e57c4dd5c29c082c0da2692a6a79c0cea207299df718fcc691c8",
+      "unchanged": true
+    },
+    {
+      "artifact": "acquisition-plans",
+      "rows": 2,
+      "before_sha256": "a02ad9332f61ef4cb368c0232b54e6845bbd7224a8b02dbb1fa884e51d784d7e",
+      "after_sha256": "a02ad9332f61ef4cb368c0232b54e6845bbd7224a8b02dbb1fa884e51d784d7e",
+      "unchanged": true
+    },
+    {
+      "artifact": "schema",
+      "rows": 133,
+      "before_sha256": "7c8f458118ca484abf70443b459577f5a299cda2c60b000fdfcb44202cbb81f6",
+      "after_sha256": "7c8f458118ca484abf70443b459577f5a299cda2c60b000fdfcb44202cbb81f6",
+      "unchanged": true
+    }
+  ],
+  "verified_at": "2026-10-18 22:50:13.963680+02:00"
+}

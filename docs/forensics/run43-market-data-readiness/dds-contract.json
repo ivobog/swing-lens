@@ -1,0 +1,17 @@
+[
+  {
+    "id": 137,
+    "symbol": "DDS",
+    "ticker": "DDS",
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 6390,
+    "sec_type": "STK",
+    "local_symbol": "DDS",
+    "error_message": null,
+    "trading_class": "DDS",
+    "last_resolved_at": "2026-10-01T03:34:34.740445+02:00",
+    "primary_exchange": "NYSE",
+    "resolution_status": "RESOLVED"
+  }
+]

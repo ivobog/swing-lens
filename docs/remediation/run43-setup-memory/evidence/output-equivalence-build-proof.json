@@ -1,0 +1,13 @@
+{
+  "baseline": "full-baseline.jsonl",
+  "after": "full-after.jsonl",
+  "compared_members": 238,
+  "identical": true,
+  "different_tickers": [],
+  "excluded_non_financial_fields": [
+    "calculated_at",
+    "origin_type",
+    "_SETUP_PROJECTION_FIELDS"
+  ],
+  "note": "Both build all frozen 238 inputs. Baseline independently prepared all 238; after profiler stopped after build to remove host memory competition. Live native capture must independently validate and publish all members."
+}

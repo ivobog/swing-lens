@@ -9,6 +9,8 @@ from app.models.tables import IBContract, IBFetchItem
 from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ib_historical_request_scope import (
+    DAILY_BAR_ADMISSION_V2,
+    STRICT_RESPONSE_V1,
     build_historical_request_scope,
     reviewed_start_for_duration,
 )
@@ -79,6 +81,7 @@ class FetchPlanItem:
     # Execution-only witness. These remain null in the admitted plan.
     runtime_contract_identity: dict[str, object] | None = None
     runtime_contract_resolved_at: str | None = None
+    response_admission_policy: str = DAILY_BAR_ADMISSION_V2
 
 
 @dataclass(frozen=True)
@@ -198,6 +201,10 @@ def fetch_plan_to_dict(plan: FetchPlan) -> dict[str, object]:
         }
         for item in plan.items
     ]
+    for item in payload["items"]:
+        if item["response_admission_policy"] == STRICT_RESPONSE_V1:
+            # Preserve the exact serialized identity of pre-policy frozen plans.
+            item.pop("response_admission_policy")
     return CanonicalEvidenceSerializer.canonicalize(payload)
 
 
@@ -207,6 +214,8 @@ def fetch_plan_from_dict(payload: dict[str, object]) -> FetchPlan:
     items: list[FetchPlanItem] = []
     for raw in payload.get("items", []):
         values = dict(raw)
+        # Never reinterpret an already-frozen acquisition under a new policy.
+        values.setdefault("response_admission_policy", STRICT_RESPONSE_V1)
         values["action"] = FetchAction(str(values["action"]))
         if values.get("post_resolution_action"):
             values["post_resolution_action"] = FetchAction(str(values["post_resolution_action"]))

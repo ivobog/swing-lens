@@ -1175,7 +1175,6 @@ def fence_stalled_jobs(
             market_data_timeout_seconds=market_data_timeout_seconds,
             long_stage_timeout_seconds=long_stage_timeout_seconds,
         )
-        metadata = dict(job.operational_metadata_json or {})
         current_sequence = int(job.progress_sequence or 0)
         worker_age = _age_seconds(observed_at, worker_heartbeat_at)
         lease_age = _age_seconds(observed_at, job.heartbeat_at)
@@ -1204,22 +1203,7 @@ def fence_stalled_jobs(
             "checkpoint_version": job.checkpoint_version,
             "decision": decision,
         }
-        signature = hashlib.sha256(
-            json.dumps(stall_identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        prior_recovery = dict(metadata.get("progress_recovery") or {})
-        identical_count = (
-            int(prior_recovery.get("identical_count") or 0) + 1
-            if prior_recovery.get("signature") == signature
-            else 1
-        )
-        metadata["progress_recovery"] = {
-            "signature": signature,
-            "identical_count": identical_count,
-            "stall_identity": stall_identity,
-            "last_stalled_at": observed_at.isoformat(),
-        }
-        job.operational_metadata_json = metadata
+        _record_progress_recovery(job, stall_identity, observed_at=observed_at)
         job.operational_metadata_json = _with_lease_event(
             job.operational_metadata_json,
             event_type="PROGRESS_STALLED_FENCED",
@@ -1244,6 +1228,45 @@ def fence_stalled_jobs(
         publish_after_commit(db, "increment", "swinglens_job_stalls_total", job_type=job.job_type)
     db.flush()
     return fenced
+
+
+def _record_progress_recovery(job, identity, *, observed_at, failure_reason=None):
+    metadata = dict(job.operational_metadata_json or {})
+    signature = hashlib.sha256(
+        json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    prior = dict(metadata.get("progress_recovery") or {})
+    metadata["progress_recovery"] = {
+        "signature": signature,
+        "identical_count": int(prior.get("identical_count") or 0) + 1
+        if prior.get("signature") == signature else 1,
+        "stall_identity": identity,
+        "last_stalled_at": observed_at.isoformat(),
+        **({"failure_reason": _safe_error(failure_reason)} if failure_reason else {}),
+    }
+    job.operational_metadata_json = metadata
+
+
+def _memory_recovery_identity(db, job):
+    # Item callbacks do not prove that an atomic stage committed. Only durable
+    # completed stages (or a committed non-pipeline checkpoint) reset the count.
+    identity = {"decision": "WORKER_MEMORY_CRITICAL", "job_type": job.job_type}
+    pipeline_id = (job.payload_json or {}).get("pipeline_run_id")
+    if job.job_type == "FULL_PIPELINE" and pipeline_id is not None:
+        completed = db.scalars(
+            select(PipelineStep).where(
+                PipelineStep.pipeline_run_id == int(pipeline_id),
+                PipelineStep.status == "COMPLETED",
+            ).order_by(PipelineStep.step_order)
+        ).all()
+        identity["completed_steps"] = [int(step.id) for step in completed]
+    else:
+        identity["checkpoint_fingerprint"] = hashlib.sha256(
+            json.dumps(job.payload_json or {}, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
+        ).hexdigest()
+    return identity
 
 
 def _watchdog_decision(db, context):
@@ -1404,9 +1427,20 @@ def requeue_stalled_jobs(
             continue
         recovery = dict((job.operational_metadata_json or {}).get("progress_recovery") or {})
         if int(recovery.get("identical_count") or 0) >= identical_limit:
+            memory_failure = (
+                (recovery.get("stall_identity") or {}).get("decision") == "WORKER_MEMORY_CRITICAL"
+            )
+            reason_code = (
+                "REPEATED_MEMORY_CRITICAL_LIMIT_REACHED" if memory_failure
+                else "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
+            )
+            failure_label = (
+                "memory-critical failures without durable progress"
+                if memory_failure else "progress stalls"
+            )
             metadata = dict(job.operational_metadata_json or {})
             metadata["blocked"] = {
-                "reason_code": "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED",
+                "reason_code": reason_code,
                 "blocked_at": observed_at.isoformat(),
                 "diagnostics": recovery,
             }
@@ -1415,7 +1449,8 @@ def requeue_stalled_jobs(
             job.completed_at = observed_at
             job.error_message = (
                 "Automatic recovery stopped after "
-                f"{recovery.get('identical_count')} equivalent progress stalls."
+                f"{recovery.get('identical_count')} equivalent {failure_label}."
+                + (f" Last failure: {recovery.get('failure_reason')}" if memory_failure else "")
             )
             if job.job_type == "FULL_PIPELINE":
                 pipeline_id = (job.payload_json or {}).get("pipeline_run_id")
@@ -1432,7 +1467,7 @@ def requeue_stalled_jobs(
                         "BLOCKED",
                         actor="recovery",
                         current_step=effective_stage or pipeline.current_step,
-                        message="Automatic recovery stopped after equivalent progress stalls.",
+                        message=f"Automatic recovery stopped after equivalent {failure_label}.",
                     )
                     blocked_step = db.scalar(
                         select(PipelineStep).where(
@@ -1443,12 +1478,13 @@ def requeue_stalled_jobs(
                     if blocked_step is not None:
                         blocked_step.status = "BLOCKED"
                         blocked_step.completed_at = observed_at
-                        blocked_step.message = "Blocked after repeated progress stalls."
+                        blocked_step.message = f"Blocked after repeated {failure_label}."
                         blocked_step.error_message = (
+                            job.error_message if memory_failure else
                             "Useful progress remained frozen and automatic recovery was exhausted."
                         )
                         payload = dict(blocked_step.result_json or {})
-                        payload["terminal_reason_code"] = "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
+                        payload["terminal_reason_code"] = reason_code
                         blocked_step.result_json = payload
             continue
         job.status = JobStatus.RECOVERING
@@ -1496,6 +1532,7 @@ def reconcile_jobs_for_worker_loss(
     reason: str,
     worker_instance_id: str | None = None,
     now: datetime | None = None,
+    failure_code: str | None = None,
 ) -> WorkerJobReconciliation:
     """Apply recovery policy independently to each job owned by a lost worker.
 
@@ -1542,6 +1579,11 @@ def reconcile_jobs_for_worker_loss(
             cancelled.append(int(job.id))
             continue
         old_token = job.execution_token
+        if failure_code == "WORKER_MEMORY_CRITICAL":
+            _record_progress_recovery(
+                job, _memory_recovery_identity(db, job),
+                observed_at=observed_at, failure_reason=reason,
+            )
         job.status = JobStatus.STALLED
         job.stall_detected_at = observed_at
         job.error_message = _safe_error(reason)

@@ -1,0 +1,15 @@
+[
+  {
+    "id": 43,
+    "notes": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+    "status": "COMPLETED",
+    "filename": "skimmer 2_2026-10-16 (1).csv",
+    "file_path": "data\\uploads\\20261018_195715_33606fe5_skimmer 2_2026-10-16 _1_.csv",
+    "row_count": 238,
+    "uploaded_at": "2026-10-18T21:57:15.276133+02:00",
+    "processed_at": "2026-10-18T21:57:16.231862+02:00",
+    "error_message": null,
+    "pine_engine_version": null,
+    "python_engine_version": null
+  }
+]

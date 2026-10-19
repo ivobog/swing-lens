@@ -1,0 +1,19 @@
+{
+  "counts": {
+    "fundamental_scores": 238,
+    "technical_scores": 0,
+    "combined_results": 0,
+    "ranking_results": 0,
+    "setup_signal_snapshots": 0,
+    "winner_prediction_snapshots": 0
+  },
+  "queries": {
+    "fundamental_scores": "select count(*) from fundamental_scores where run_id=43",
+    "technical_scores": "select count(*) from technical_scores where run_id=43",
+    "combined_results": "select count(*) from combined_results where run_id=43",
+    "ranking_results": "select count(*) from ranking_results where run_id=43",
+    "setup_signal_snapshots": "select count(*) from setup_signal_snapshots where run_id=43",
+    "winner_prediction_snapshots": "select count(*) from winner_prediction_snapshots where run_id=43"
+  },
+  "upload_run_id": 43
+}

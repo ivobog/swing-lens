@@ -1,0 +1,1998 @@
+[
+  {
+    "scope_id": "9724446380ebc69a0f4903df38d3de6e7e05be5809a618eac959f5def64c8752",
+    "created_at": "2026-10-18T21:57:23.332946+02:00",
+    "scope_kind": "full-pipeline-run",
+    "payload_json": {
+      "members": [
+        {
+          "subject_id": "A",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ABNB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ACHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ACIW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ADSK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AER",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AGYS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AJG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ALL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ALRM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AME",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMGN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ANF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APLE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APOG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APPF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ATRC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVPT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVTR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BAP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BAX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BBWI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BBY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BDX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BIIB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BIP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BJ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BKH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BLK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BRO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BSY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BZ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CAKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CART",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CBC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CBOE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CDW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHEF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHRD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CLMT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CNC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CNK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "COKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "COLM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CPK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRBG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRGY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CROX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CTSH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CVS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DBX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DDS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DHR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DLTR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DOCS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DOCU",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DRH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DRI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DVA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DVN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ECPG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EDU",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ELF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ELV",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EMR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EQH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ETSY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXEL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXPD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXPO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EZPW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FANG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FAST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FDS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FLYW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FRPT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FRSH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "G",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GDDY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GFL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GILD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GME",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GPC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GWW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HAE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HCA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HCI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HNGE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HRB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HUM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HURN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ICLR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IDT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IEX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IPAR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IQV",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KDP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KMB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KMI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNSA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNSL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNTK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KTB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LAUR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LIND",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LLY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LNG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LOPE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LYB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LYFT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "M",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MANH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MAS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MATX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MCO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MCY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MDT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MEDP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MMSI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MNST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MOH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MORN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MSFT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MSM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTCH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTDR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MUR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MUSA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NAVN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NIQ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NOG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NTES",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NTRA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NWE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OLLI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OPLN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OUT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OXY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PACS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PAG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PAGS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PBI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PCOR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PEB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PGR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PINS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PLMR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PLUS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PVH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PYPL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QGEN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QTWO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RELY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RGR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RHP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RLI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RLJ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RMD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ROST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RPRX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RRC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RVTY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RYAN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SAIC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SBH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SDRL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHOO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SJM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SKWD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SMA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SONO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPGI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPOT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPSC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "STRA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SXT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SYNA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TALO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TDC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TEN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "THC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TMO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TNET",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TRGP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TTC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TYL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UHS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ULTA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UNFI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UNH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "URBN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "USFD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UTHR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VAC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VAL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VLO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VNOM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRNS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRSK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRSN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VTRS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WAT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WAY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WELL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WSM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WWW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ZD",
+          "subject_type": "TICKER"
+        }
+      ],
+      "scope_id": "9724446380ebc69a0f4903df38d3de6e7e05be5809a618eac959f5def64c8752",
+      "scope_kind": "full-pipeline-run",
+      "selected_at": "2026-10-18T19:57:23.615275Z",
+      "subject_kind": "ticker",
+      "dynamic_policy": null,
+      "schema_version": "work-scope-v1",
+      "business_cutoff": "2026-10-18T19:57:23.615275Z",
+      "parent_scope_id": null,
+      "scope_definition": {
+        "stages": [
+          "VALIDATING_RUN",
+          "SCORING_FUNDAMENTALS",
+          "FETCHING_MARKET_DATA",
+          "SCORING_TECHNICALS",
+          "MARKET_REGIME_SNAPSHOT",
+          "COMBINING_RESULTS",
+          "RANKING_PROFILES",
+          "SECTOR_ROTATION_SNAPSHOT",
+          "CERI_PROVIDER_INGEST",
+          "FREEZING_DECISION_HANDOFF_MANIFEST",
+          "CAPTURING_SETUP_SIGNALS",
+          "EVALUATING_SETUP_LIFECYCLES",
+          "CAPTURING_WINNER_PREDICTIONS"
+        ],
+        "upload_run_id": 43,
+        "market_data_policy": "REQUIRE_IB",
+        "market_calculation_context_id": 78
+      },
+      "membership_policy": "FROZEN",
+      "definition_version": "t15b-v1",
+      "acquisition_plan_id": "a9d60d45de0e30ead8d8f278bc6b798e96cd31e66f14a572cbad6b156dac9dbe",
+      "calculation_identity": null,
+      "configuration_identity": null,
+      "membership_fingerprint": "035c789e05abc854a7324158cc95282d7fe96f6019b4dfa7f0937104f1194f85",
+      "selection_policy_identity": "d3ad203f768896017280515f1d2776fedd363db2dfcb53aec626af3263d12f84"
+    },
+    "subject_kind": "ticker",
+    "parent_scope_id": null,
+    "membership_policy": "FROZEN",
+    "acquisition_plan_id": "a9d60d45de0e30ead8d8f278bc6b798e96cd31e66f14a572cbad6b156dac9dbe",
+    "membership_fingerprint": "035c789e05abc854a7324158cc95282d7fe96f6019b4dfa7f0937104f1194f85"
+  },
+  {
+    "scope_id": "b7db1ded35ecc035708e08be92cc5d678ee38ad455e95436253b883be0d44fcc",
+    "created_at": "2026-10-18T22:04:12.766317+02:00",
+    "scope_kind": "ib-price-acquisition",
+    "payload_json": {
+      "members": [
+        {
+          "subject_id": "A",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ABNB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ACHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ACIW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ADSK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AER",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AGYS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AJG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ALL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ALRM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AME",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMGN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AMT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ANF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APLE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APOG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "APPF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ATRC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVPT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVTR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "AVY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BAP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BAX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BBWI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BBY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BDX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BIIB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BIP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BJ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BKH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BLK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BRO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BSY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "BZ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CAKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CART",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CBC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CBOE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CDW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHEF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CHRD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CLMT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CNC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CNK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "COKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "COLM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CPK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRBG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRGY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CRM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CROX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CTSH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "CVS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DBX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DDS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DHR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DLTR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DOCS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DOCU",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DRH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DRI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DVA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "DVN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ECPG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EDU",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ELF",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ELV",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EMR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EQH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ETSY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXEL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXPD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EXPO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "EZPW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FANG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FAST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FDS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FLYW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FRPT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "FRSH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "G",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GDDY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GFL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GHC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GILD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GME",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GPC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "GWW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HAE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HCA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HCI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HNGE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HRB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HUM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "HURN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ICLR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IDT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IEX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IPAR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IQV",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "IT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KDP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KMB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KMI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNSA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNSL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KNTK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "KTB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LAUR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LIND",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LLY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LNG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LOPE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LYB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "LYFT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "M",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MANH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MAS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MATX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MCO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MCY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MDT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MEDP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MMSI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MNST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MOH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MORN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MSFT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MSM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTCH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTDR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MTN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MUR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "MUSA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NAVN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NIQ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NOG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NTES",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NTRA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "NWE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OKE",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OLLI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OPLN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OUT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "OXY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PACS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PAG",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PAGS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PBI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PCOR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PEB",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PGR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PINS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PLMR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PLUS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PVH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "PYPL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QGEN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QQQ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "QTWO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RELY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RGR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RHP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RLI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RLJ",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RMD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ROST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RPRX",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RRC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RVTY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "RYAN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SAIC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SBH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SDRL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHOO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SHW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SJM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SKWD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SMA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SONO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPGI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPOT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPSC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SPY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "STRA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SXT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "SYNA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TALO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TDC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TEN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "THC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TMO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TNET",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TRGP",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TTC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "TYL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UHS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ULTA",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UNFI",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UNH",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "URBN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "USFD",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "UTHR",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VAC",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VAL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VLO",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VNOM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRNS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRSK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VRSN",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "VTRS",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WAT",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WAY",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WELL",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WK",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WSM",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WST",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "WWW",
+          "subject_type": "TICKER"
+        },
+        {
+          "subject_id": "ZD",
+          "subject_type": "TICKER"
+        }
+      ],
+      "scope_id": "b7db1ded35ecc035708e08be92cc5d678ee38ad455e95436253b883be0d44fcc",
+      "scope_kind": "ib-price-acquisition",
+      "selected_at": "2026-10-16T00:00:00.000000Z",
+      "subject_kind": "ticker",
+      "dynamic_policy": null,
+      "schema_version": "work-scope-v1",
+      "business_cutoff": "2026-10-16",
+      "parent_scope_id": "9724446380ebc69a0f4903df38d3de6e7e05be5809a618eac959f5def64c8752",
+      "scope_definition": {
+        "run_id": 43,
+        "window_end": "2026-10-16",
+        "window_start": "2023-10-15",
+        "exact_fetch_plan_hash": "6bc52a48e672c203d8da0702f6899b298fb48c327280554134b5893ee4bc6fcd"
+      },
+      "membership_policy": "FROZEN",
+      "definition_version": "t15b-v1",
+      "acquisition_plan_id": "15624fa36842583d4e028875deed95a6f24c30ff481e6860bb91546bc365567a",
+      "calculation_identity": null,
+      "configuration_identity": null,
+      "membership_fingerprint": "b62a71ee98374e45652b7ef694b167ac1d4ca27eac9737d1b9840acc1f687587",
+      "selection_policy_identity": "b93bb2cfd072a650e4b0ae03c2708614132a61ef7051571f13bf0032d262eefd"
+    },
+    "subject_kind": "ticker",
+    "parent_scope_id": "9724446380ebc69a0f4903df38d3de6e7e05be5809a618eac959f5def64c8752",
+    "membership_policy": "FROZEN",
+    "acquisition_plan_id": "15624fa36842583d4e028875deed95a6f24c30ff481e6860bb91546bc365567a",
+    "membership_fingerprint": "b62a71ee98374e45652b7ef694b167ac1d4ca27eac9737d1b9840acc1f687587"
+  }
+]

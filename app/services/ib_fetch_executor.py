@@ -4,6 +4,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
+from math import isfinite
 from time import perf_counter
 
 from sqlalchemy import func, select
@@ -18,7 +19,7 @@ from app.services.domain_write_fence import bounded_domain_session
 from app.services.ib_api import IB, Contract
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import invalidate_cached_contract, resolve_us_stock_contract
-from app.services.ib_data_fetcher import IBHistoricalRequestError, fetch_daily_bars
+from app.services.ib_data_fetcher import HistoricalBar, IBHistoricalRequestError, fetch_daily_bars
 from app.services.ib_fetch_plan_service import (
     FetchAction,
     FetchPlan,
@@ -29,6 +30,8 @@ from app.services.ib_fetch_plan_service import (
 )
 from app.services.ib_historical_errors import SYSTEMIC_CIRCUIT_CATEGORIES
 from app.services.ib_historical_request_scope import (
+    DAILY_BAR_ADMISSION_V2,
+    STRICT_RESPONSE_V1,
     HistoricalRequestScope,
     build_historical_request_scope,
     validate_reviewed_session_current,
@@ -43,7 +46,9 @@ from app.services.redaction import redact_text
 from app.services.scope_refresh_adoption import SemanticWorkAuthority, bind_semantic_authority
 from app.services.us_market_calendar import (
     is_latest_daily_bar_current,
+    is_us_trading_day,
     latest_completed_us_trading_day,
+    next_us_trading_day,
 )
 from app.services.winner_probability.market_data_obligation_service import (
     MarketDataObligationService,
@@ -647,6 +652,8 @@ def _execute_plan_item(
                     "IB returned no bars while required sessions remain missing.",
                 )
                 return
+            received_count = len(bars)
+            bars = _admit_returned_bars(bars, scope, ticker=plan_item.ticker)
             fetch_item.decision_metadata_json = _decision_metadata(
                 plan_item,
                 action=action,
@@ -656,6 +663,8 @@ def _execute_plan_item(
                 actual_end_date=actual_end,
                 boundary_status="PASS",
                 provider_result="SUCCESS_WITH_BARS",
+                received_bar_count=received_count,
+                admitted_bars=bars,
             )
             cache_started = perf_counter()
             try:
@@ -693,7 +702,14 @@ def _execute_plan_item(
                 actual_start_date=actual_start,
                 actual_end_date=actual_end,
                 boundary_status="FAIL",
+                provider_result="SUCCESS_WITH_BARS",
+                retryable=False,
+                received_bar_count=len(bars),
             )
+            fetch_item.decision_metadata_json = {
+                **fetch_item.decision_metadata_json,
+                "failure_classification": "HISTORICAL_BAR_ADMISSION_REJECTED",
+            }
             _mark_failed(fetch_item, str(exc))
             return
         except IBHistoricalRequestError as exc:
@@ -1283,6 +1299,8 @@ def _decision_metadata(
     provider_error_message: str | None = None,
     provider_request_id: int | None = None,
     retryable: bool | None = None,
+    received_bar_count: int | None = None,
+    admitted_bars: list[HistoricalBar] | None = None,
 ) -> dict[str, object]:
     effective_action = action or plan_item.action
     latest_current = _latest_date_current(plan_item.latest_bar_date, stale_after_days=0)
@@ -1318,6 +1336,24 @@ def _decision_metadata(
         "provider_error_message": provider_error_message,
         "provider_request_id": provider_request_id,
         "retryable": retryable,
+        "response_admission_policy": plan_item.response_admission_policy,
+        "received_bar_count": received_bar_count,
+        "admitted_bar_count": len(admitted_bars) if admitted_bars is not None else None,
+        "discarded_early_bar_count": (
+            received_bar_count - len(admitted_bars)
+            if received_bar_count is not None and admitted_bars is not None
+            else None
+        ),
+        "admitted_start_date": _iso_date(
+            min((bar.bar_date for bar in admitted_bars), default=None)
+            if admitted_bars is not None
+            else None
+        ),
+        "admitted_end_date": _iso_date(
+            max((bar.bar_date for bar in admitted_bars), default=None)
+            if admitted_bars is not None
+            else None
+        ),
         "contract_identity": plan_item.contract_identity,
         "contract_fingerprint": plan_item.contract_fingerprint,
         "contract_qualified_at": plan_item.contract_qualified_at,
@@ -1346,6 +1382,7 @@ def _execution_scope(plan_item: FetchPlanItem, duration: str) -> HistoricalReque
         bar_size=plan_item.bar_size,
         what_to_show=plan_item.what_to_show,
         reviewed_end_date=end,
+        response_admission_policy=plan_item.response_admission_policy,
     )
     if (
         plan_item.request_start_date is not None
@@ -1377,7 +1414,13 @@ def _validate_returned_scope(
     dates = [bar.bar_date for bar in bars]
     actual_start = min(dates, default=None)
     actual_end = max(dates, default=None)
-    if actual_start is not None and actual_start < scope.reviewed_start_date:
+    if scope.response_admission_policy not in {STRICT_RESPONSE_V1, DAILY_BAR_ADMISSION_V2}:
+        raise HistoricalRequestScopeViolation("Unsupported historical response admission policy.")
+    if (
+        scope.response_admission_policy == STRICT_RESPONSE_V1
+        and actual_start is not None
+        and actual_start < scope.reviewed_start_date
+    ):
         raise HistoricalRequestScopeViolation(
             f"IB returned {actual_start} before reviewed scope {scope.reviewed_start_date}; "
             "persisted none of this request."
@@ -1388,6 +1431,50 @@ def _validate_returned_scope(
             "persisted none of this request."
         )
     return actual_start, actual_end
+
+
+def _admit_returned_bars(
+    bars: list[HistoricalBar],
+    scope: HistoricalRequestScope,
+    *,
+    ticker: str,
+) -> list[HistoricalBar]:
+    """V2 validates the response and admits only the frozen daily-bar interval."""
+    if scope.response_admission_policy == STRICT_RESPONSE_V1:
+        return bars
+    if scope.bar_size != "1 day":
+        raise HistoricalRequestScopeViolation("Daily admission requires 1 day bars.")
+    seen = set()
+    for bar in bars:
+        if (
+            bar.ticker != ticker.upper()
+            or bar.what_to_show != scope.what_to_show
+            or bar.timeframe != scope.bar_size
+            or bar.source != "IB"
+        ):
+            raise HistoricalRequestScopeViolation("Historical bar identity/feed mismatch.")
+        if bar.bar_date in seen or not is_us_trading_day(bar.bar_date):
+            raise HistoricalRequestScopeViolation("Duplicate or non-session historical bar.")
+        seen.add(bar.bar_date)
+        prices = (bar.open, bar.high, bar.low, bar.close)
+        if (
+            any(value is None or not isfinite(value) or value < 0 for value in prices)
+            or bar.high < max(bar.open, bar.close, bar.low)
+            or bar.low > min(bar.open, bar.close, bar.high)
+            or (bar.volume is not None and (not isfinite(bar.volume) or bar.volume < 0))
+        ):
+            raise HistoricalRequestScopeViolation("Invalid historical OHLCV bar.")
+    admitted = [bar for bar in bars if bar.bar_date >= scope.reviewed_start_date]
+    required_end = scope.required_end_date or scope.reviewed_end_date
+    required = scope.required_start_date or required_end
+    admitted_dates = {bar.bar_date for bar in admitted}
+    while required <= required_end:
+        if required not in admitted_dates:
+            raise HistoricalRequestScopeViolation(
+                f"Required historical session missing: {required}."
+            )
+        required = next_us_trading_day(required)
+    return admitted
 
 
 def _iso_date(value: date | None) -> str | None:

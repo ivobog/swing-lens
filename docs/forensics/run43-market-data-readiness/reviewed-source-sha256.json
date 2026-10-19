@@ -1,0 +1,86 @@
+[
+  {
+    "path": "app/services/ib_historical_request_scope.py",
+    "current_sha256": "51860ced00685d9bb8dc8e3b3eba12e203f7b9a284fd134d87b178ffb5cdcc22",
+    "logged_runtime_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "commit_blob_sha256": "51860ced00685d9bb8dc8e3b3eba12e203f7b9a284fd134d87b178ffb5cdcc22",
+    "text_equal_after_newline_normalization": true,
+    "functions_ast_equal": {
+      "reviewed_start_for_duration": true,
+      "build_historical_request_scope": true
+    }
+  },
+  {
+    "path": "app/services/ib_fetch_plan_service.py",
+    "current_sha256": "f0d353fc840918cecdf256c7057b6dcfcfae6f5e9343350602c96668bb8ba967",
+    "logged_runtime_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "commit_blob_sha256": "f9dc3eb682e06e9ec75156487ec5bd99971ffdd35140de56d7c5334dcc25e7c3",
+    "text_equal_after_newline_normalization": true,
+    "functions_ast_equal": {
+      "_incremental_request_window": true
+    }
+  },
+  {
+    "path": "app/services/ib_fetch_executor.py",
+    "current_sha256": "606e081bfd8216771d7ece29c9e118d5fca0f2d9e0f82baf347a661f8402dc62",
+    "logged_runtime_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "commit_blob_sha256": "107b7b44e9d30ceb03de6d15717c9a66e7fdf34cbc534cef7756977573fb1eef",
+    "text_equal_after_newline_normalization": true,
+    "functions_ast_equal": {
+      "_execute_plan_item": true,
+      "_validate_returned_scope": true,
+      "execute_fetch_plan": true
+    }
+  },
+  {
+    "path": "app/services/ib_data_fetcher.py",
+    "current_sha256": "630b9a52c0272feb3353e0cf7880b9fe1491e442ed50f610254fde67254379b9",
+    "logged_runtime_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "commit_blob_sha256": "7e12f98700195539c3a65df101ddc2888c56f645e830e01026e2b2e8853858fd",
+    "text_equal_after_newline_normalization": true,
+    "functions_ast_equal": {
+      "fetch_daily_bars": true
+    }
+  },
+  {
+    "path": "app/services/market_data_session_readiness.py",
+    "current_sha256": "51ea9f4465449f6152d83940b9bdac3207571b9a6bd4563c974bede2af8c23f9",
+    "logged_runtime_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "commit_blob_sha256": "51ea9f4465449f6152d83940b9bdac3207571b9a6bd4563c974bede2af8c23f9",
+    "text_equal_after_newline_normalization": true,
+    "functions_ast_equal": {
+      "classify_session_readiness": true,
+      "evaluate_and_persist_session_readiness": true
+    }
+  },
+  {
+    "path": "app/services/price_bar_repository.py",
+    "current_sha256": "f496e58439656f04691ab109ec65b181f5e3712f6127eed7ad2dbd6f4a8cc2a1",
+    "logged_runtime_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "commit_blob_sha256": "24e00e74fc1d24329594520cbca0bfe00e931a02a6b3d9e5e88e1a0737ac9d46",
+    "text_equal_after_newline_normalization": true,
+    "functions_ast_equal": {
+      "load_price_bar_rows_for_context": true
+    }
+  },
+  {
+    "path": "app/services/pipeline_executor.py",
+    "current_sha256": "5fc3829573fc2d7078f83f9fd116d7a502ea1721ae04607fce520fe12784760c",
+    "logged_runtime_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "commit_blob_sha256": "cbd3699aa4443000e241d14861479a6f565facda7394b12fa3e5cbb2b7561eaf",
+    "text_equal_after_newline_normalization": false,
+    "functions_ast_equal": {
+      "_mark_pipeline_blocked": true
+    }
+  },
+  {
+    "path": "app/services/us_market_calendar.py",
+    "current_sha256": "a3d6e32bcc9c565d9b9f2c131b752ae8857cb71cafe7b79d316e3fdd9f3f24d1",
+    "logged_runtime_commit": "96204fb6fa15aed858fa06ba52d4b70c86d1d8b5",
+    "commit_blob_sha256": "a3d6e32bcc9c565d9b9f2c131b752ae8857cb71cafe7b79d316e3fdd9f3f24d1",
+    "text_equal_after_newline_normalization": true,
+    "functions_ast_equal": {
+      "us_trading_sessions_between": true
+    }
+  }
+]

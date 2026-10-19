@@ -1,0 +1,15 @@
+[
+  {
+    "id": 78,
+    "cutoff_at": "2026-10-18T21:57:23.615275+02:00",
+    "created_at": "2026-10-18T21:57:23.332946+02:00",
+    "cutoff_reason": "FULL_PIPELINE_FROZEN_AT_ENQUEUE",
+    "upload_run_id": 43,
+    "pipeline_run_id": 43,
+    "calendar_version": "swinglens-us-equities-v1",
+    "exchange_timezone": "America/New_York",
+    "daily_bar_ready_at": "2026-10-16T22:15:00+02:00",
+    "bar_readiness_version": "daily-close-plus-15m-v1",
+    "latest_completed_session": "2026-10-16"
+  }
+]

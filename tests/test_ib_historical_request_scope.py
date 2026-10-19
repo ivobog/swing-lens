@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from app.services.ib_historical_request_scope import (
+    DAILY_BAR_ADMISSION_V2,
     HistoricalEndMode,
     HistoricalRequestScope,
     build_historical_request_scope,
@@ -39,7 +40,7 @@ def test_daily_duration_review_scope_uses_us_market_sessions(
     assert scope.reviewed_end_date == end
 
 
-def test_scope_keeps_required_range_distinct_from_provider_footprint() -> None:
+def test_scope_keeps_required_range_distinct_from_admitted_revision_window() -> None:
     scope = build_historical_request_scope(
         required_start_date=date(2026, 8, 20),
         required_end_date=date(2026, 9, 4),
@@ -76,6 +77,7 @@ def test_scope_has_explicit_deterministic_ib_end_datetime() -> None:
         "end_datetime": "20260904-23:59:59",
         "end_mode": "EXPLICIT",
         "reviewed_session_expiry": None,
+        "response_admission_policy": DAILY_BAR_ADMISSION_V2,
     }
 
 
