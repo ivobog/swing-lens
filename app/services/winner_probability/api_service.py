@@ -426,11 +426,9 @@ class WinnerProbabilityApiService:
         query: WinnerProbabilityApiQuery,
     ) -> WinnerProbabilityEstimate | None:
         statement = (
-            select(WinnerProbabilityEstimate)
+            estimate_read_statement(query, estimate_kind=estimate_kind)
             .where(WinnerProbabilityEstimate.prediction_id == prediction_id)
             .where(WinnerProbabilityEstimate.outcome_definition_id == outcome_definition_id)
-            .where(WinnerProbabilityEstimate.estimate_kind == estimate_kind)
-            .where(estimate_is_serving())
         )
         if estimate_kind == EstimateKind.LATEST_RESCORE:
             if get_settings().winner_cohort_refresh_v2_enabled:
@@ -452,21 +450,7 @@ class WinnerProbabilityApiService:
                 statement = statement.where(
                     WinnerProbabilityEstimate.cohort_generation_id.is_(None)
                 )
-        cutoff = _cutoff_from_query(query)
-        if cutoff is not None:
-            statement = statement.where(WinnerProbabilityEstimate.created_at <= cutoff)
-            statement = statement.where(WinnerProbabilityEstimate.training_cutoff_at <= cutoff)
-        if query.training_cutoff is not None:
-            statement = statement.where(
-                WinnerProbabilityEstimate.training_cutoff_at <= _end_of_day(query.training_cutoff)
-            )
-        return db.scalar(
-            statement.order_by(
-                WinnerProbabilityEstimate.training_cutoff_at.desc(),
-                WinnerProbabilityEstimate.created_at.desc(),
-                WinnerProbabilityEstimate.id.desc(),
-            ).limit(1)
-        )
+        return db.scalar(statement.order_by(*estimate_selection_order()).limit(1))
 
     def _forward_outcomes(
         self,
@@ -1188,6 +1172,35 @@ def _drift_payload(row: WinnerDriftMetric) -> dict[str, Any]:
 
 def _first_non_null(rows: list[dict[str, Any]], key: str) -> Any:
     return next((row.get(key) for row in rows if row.get(key) is not None), None)
+
+
+def estimate_read_statement(query: WinnerProbabilityApiQuery, *, estimate_kind: str):
+    """Canonical serving/kind/time scope shared by single and batched selections.
+
+    LATEST_RESCORE callers additionally apply their published generation contract.
+    """
+    estimate = WinnerProbabilityEstimate
+    statement = select(estimate).where(
+        estimate.estimate_kind == estimate_kind, estimate_is_serving()
+    )
+    cutoff = _cutoff_from_query(query)
+    if cutoff is not None:
+        statement = statement.where(
+            estimate.created_at <= cutoff, estimate.training_cutoff_at <= cutoff
+        )
+    if query.training_cutoff is not None:
+        statement = statement.where(
+            estimate.training_cutoff_at <= _end_of_day(query.training_cutoff)
+        )
+    return statement
+
+
+def estimate_selection_order():
+    return (
+        WinnerProbabilityEstimate.training_cutoff_at.desc(),
+        WinnerProbabilityEstimate.created_at.desc(),
+        WinnerProbabilityEstimate.id.desc(),
+    )
 
 
 def _cutoff_from_query(query: WinnerProbabilityApiQuery) -> datetime | None:

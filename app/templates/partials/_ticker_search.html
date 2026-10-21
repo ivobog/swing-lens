@@ -1,0 +1,19 @@
+<aside id="ticker-search" class="ticker-search" aria-labelledby="ticker-search-title" hidden>
+  <div class="ticker-search-heading">
+    <h2 id="ticker-search-title">Ticker Search</h2>
+    <button type="button" class="secondary" data-ticker-close aria-label="Close ticker search">Close</button>
+  </div>
+  <label for="ticker-search-input">Ticker or company</label>
+  <input id="ticker-search-input" type="search" maxlength="100" autocomplete="off"
+         placeholder="Try EO or a company name" role="combobox" aria-autocomplete="list"
+         aria-controls="ticker-search-results" aria-expanded="false"
+         aria-describedby="ticker-search-help">
+  <p id="ticker-search-help" class="muted-inline">Local database · ↑ ↓ to browse · Enter to preview</p>
+  <p data-ticker-status role="status" aria-live="polite">Search tickers already known to SwingLens.</p>
+  <button type="button" class="secondary" data-ticker-retry hidden>Retry search</button>
+  <ul id="ticker-search-results" class="ticker-search-results" role="listbox" aria-label="Ticker results"></ul>
+  <section class="ticker-preview" aria-label="Ticker preview" aria-live="polite" data-ticker-preview>
+    <p>Select a ticker for a quick decision preview.</p>
+  </section>
+  <p class="muted-inline">Research only. Opening a page does not place trades.</p>
+</aside>

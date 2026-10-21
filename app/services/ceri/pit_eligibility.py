@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 
 from app.models.ceri_tables import CeriEstimateSnapshot, CeriSourceRecord
 from app.models.tables import PriceBar
@@ -88,6 +88,21 @@ def source_record_knowledge_predicate(cutoff_at: datetime):
     """SQL predicate matching :func:`source_record_known_at`."""
 
     return func.coalesce(CeriSourceRecord.retrieved_at, CeriSourceRecord.ingested_at) <= cutoff_at
+
+
+def source_record_historical_eligibility_predicate(cutoff_at: datetime):
+    """SQL equivalent of source_record_is_eligible, including external timestamps."""
+    return and_(
+        source_record_knowledge_predicate(cutoff_at),
+        *(
+            or_(column.is_(None), column <= cutoff_at)
+            for column in (
+                CeriSourceRecord.published_at,
+                CeriSourceRecord.observed_at,
+                CeriSourceRecord.source_timestamp,
+            )
+        ),
+    )
 
 
 def referenced_sources_are_eligible(

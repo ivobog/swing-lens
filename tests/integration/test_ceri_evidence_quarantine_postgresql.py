@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -20,11 +21,103 @@ from app.services.ceri.evidence_eligibility import (
     append_evidence_dispositions,
     effective_disposition_by_snapshot,
     eligible_snapshot_predicate,
+    eligible_snapshot_select,
     filter_eligible_snapshots,
 )
+from app.services.pipeline_outcome import derive_pipeline_outcome
 from app.services.transition_preflight_plan_service import _build_decision_handoff_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_owner_fallback_is_correlated_to_each_snapshot_upload(
+    disposable_postgres_database: str,
+) -> None:
+    """An unrelated failed run cannot poison a NULL-context-owner fallback."""
+
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    safe_partial_summary = derive_pipeline_outcome(
+        "PARTIAL",
+        {"combined_results": 2, "incomplete_rows": 1},
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "insert into upload_runs(id,filename,status) values "
+                "(100,'safe-partial.csv','COMPLETED'),"
+                "(200,'unrelated-failed.csv','FAILED'),"
+                "(300,'owned-failed.csv','FAILED')"
+            )
+        )
+        connection.execute(
+            text(
+                "insert into pipeline_runs(id,upload_run_id,status,result_json) values "
+                "(100,100,'PARTIAL',cast(:safe_result as jsonb)),"
+                "(200,200,'FAILED','{}'::jsonb),"
+                "(300,300,'FAILED','{}'::jsonb)"
+            ),
+            {"safe_result": json.dumps({"pipeline_outcome_summary": safe_partial_summary})},
+        )
+        connection.execute(
+            text(
+                "insert into market_calculation_contexts "
+                "(id,pipeline_run_id,upload_run_id,cutoff_at,exchange_timezone,"
+                "latest_completed_session,calendar_version,bar_readiness_version,cutoff_reason) "
+                "values "
+                "(901,null,100,'2026-10-15 20:00:00+00','America/New_York',"
+                "'2026-10-15','test','test','test'),"
+                "(903,null,300,'2026-10-15 20:00:00+00','America/New_York',"
+                "'2026-10-15','test','test','test')"
+            )
+        )
+        connection.execute(
+            text(
+                "insert into ceri_companies(id,ticker,exchange) values "
+                "(901,'SAFE1','US'),(902,'SAFE2','US'),(903,'FAIL1','US')"
+            )
+        )
+        connection.execute(
+            text(
+                "insert into ceri_score_snapshots "
+                "(id,run_id,company_id,ticker,as_of_session,cutoff_at,calculation_context_id,"
+                "opportunity_score,opportunity_coverage_pct,event_risk_score,data_confidence,"
+                "coverage_pct,posture,config_version,config_hash,calculation_version,"
+                "evidence_contract_version,comparison_state,evidence_hash) values "
+                "(901,100,901,'SAFE1','2026-10-15','2026-10-15 20:00:00+00',901,"
+                "7,100,1,'Normal',100,'Positive','test','test','test','test','COMPARABLE','safe1'),"
+                "(902,100,902,'SAFE2','2026-10-15','2026-10-15 20:00:00+00',901,"
+                "7,100,1,'Normal',100,'Positive','test','test','test','test','COMPARABLE','safe2'),"
+                "(903,300,903,'FAIL1','2026-10-15','2026-10-15 20:00:00+00',903,"
+                "7,100,1,'Normal',100,'Positive','test','test','test','test','COMPARABLE','fail1')"
+            )
+        )
+
+    with Session(engine) as db:
+        assert (
+            append_evidence_dispositions(
+                db,
+                (
+                    EvidenceDispositionRequest(
+                        ceri_snapshot_id=902,
+                        disposition=EXCLUDED,
+                        reason_code="EXPLICIT_INTEGRITY_EXCLUSION",
+                        incident_reference="OWNER_CORRELATION_REGRESSION",
+                        actor_source="pytest",
+                    ),
+                ),
+            )
+            == 1
+        )
+        db.commit()
+
+        all_ids = set(db.scalars(select(CeriScoreSnapshot.id)))
+        eligible_ids = set(db.scalars(eligible_snapshot_select(CeriScoreSnapshot.id)))
+
+    assert all_ids == {901, 902, 903}
+    assert eligible_ids == {901}
+    assert all_ids - eligible_ids == {902, 903}
+    engine.dispose()
 
 
 def test_append_only_quarantine_is_idempotent_concurrent_and_filters_run159_fixture(

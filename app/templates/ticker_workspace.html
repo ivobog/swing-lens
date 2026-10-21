@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}SwingLens {{ ticker }} Decision Workspace{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', path='/ticker_workspace.css') }}">
+<div class="ticker-workspace-page" data-ticker-workspace data-selected-run="{{ selected_run_id or '' }}">
+  <section class="panel workspace-header">
+    <div class="panel-header">
+      <div>
+        <p class="workspace-eyebrow">Ticker Decision Workspace</p>
+        <h1>{{ ticker }}</h1>
+        {% if identity %}
+          <p>{{ company_name or identity.company_name or "Company name unavailable" }}
+            <span class="muted-inline"> · {{ identity.qualifier }}{% if sector %} · {{ sector }}{% endif %}</span>
+          </p>
+        {% endif %}
+      </div>
+      {% if runs %}
+        <form method="get" action="/tickers/{{ ticker|urlencode }}" class="workspace-run-form">
+          <input type="hidden" name="identity" value="{{ identity.identity }}">
+          <label for="decision-run">Decision Run</label>
+          <select id="decision-run" name="run_id">
+            {% if state == 'selected_run_unavailable' %}
+              <option value="{{ selected_run_id }}" selected>Run {{ selected_run_id }} — unavailable</option>
+            {% endif %}
+            {% for run in runs %}
+              <option value="{{ run.run_id }}" {% if selected_run_id == run.run_id %}selected{% endif %}>Run {{ run.run_id }} · {{ run.cutoff.strftime('%d %b %Y') }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="secondary">View decision</button>
+          {% if runs|length >= 200 %}<small>Showing the most recent 200 eligible runs.</small>{% endif %}
+        </form>
+      {% endif %}
+    </div>
+    {% if state == 'available' %}
+      <div class="workspace-metrics" aria-label="Selected decision summary">
+        {% for label, value in [('Combined rank', combined.final_rank), ('Final score', combined.final_score), ('Fundamental score', combined.fundamental_score), ('Technical score', combined.dual_score)] %}
+          <div><span>{{ label }}</span><strong>{{ 'Unavailable' if value is none else ('%.2f'|format(value) if 'score' in label else value) }}</strong></div>
+        {% endfor %}
+        <div><span>Decision</span><strong>{{ combined.combined_decision or 'Unavailable' }}</strong></div>
+        <div><span>Research size hint</span><strong>{{ combined.position_size_hint or 'Unavailable' }}</strong></div>
+      </div>
+      <div class="badge-list workspace-warnings" aria-label="Primary warnings">
+        {% for badge in primary_warnings %}
+          <span class="badge badge-{{ badge.tone }}" title="{{ badge.flag }}">{{ badge.label }}</span>
+        {% endfor %}
+      </div>
+      <div class="evidence-provenance" aria-label="Selected decision provenance">
+        <span><strong>Run {{ selected_run_id }}</strong></span>
+        <span>Decision cutoff <time datetime="{{ evidence.calculated_at.isoformat() }}">{{ evidence.calculated_at.isoformat() }}</time></span>
+        <span>Certified evidence #{{ evidence.id }}</span>
+        <a href="/runs/{{ selected_run_id }}/tickers/{{ ticker|urlencode }}/chart">Existing chart page</a>
+        <a href="/runs/{{ selected_run_id }}">Run detail</a>
+      </div>
+    {% endif %}
+    {% set disclaimer_context = "ticker decisions, chart levels, and research size hints" %}
+    {% include "partials/_research_disclaimer.html" %}
+  </section>
+
+  {% if state == 'available' %}
+    <details class="panel workspace-section chart-panel section-gap" data-workspace-section="chart" data-chart-url="{{ chart_data_url }}" open>
+      <summary><h2>Price Chart</h2><span>Current cached prices; research levels from Run {{ selected_run_id }}.</span></summary>
+      <div class="workspace-section-body">
+        <p class="muted-inline">Price history is the current local cache. Stop and target come from the selected decision's technical evidence.</p>
+        {% if component_states.technical != 'available' %}<p role="status">{{ component_states.technical }} Research levels are unavailable.</p>{% endif %}
+        {% include "partials/_ticker_price_chart.html" %}
+      </div>
+    </details>
+    <section class="workspace-cards" aria-label="Ticker score cards">
+      {% for card in score_cards %}
+        <details class="panel score-card workspace-section section-gap" data-workspace-section="{{ loop.index }}" {% if loop.first %}open{% endif %}>
+          <summary><h2>{{ card.title }}</h2></summary>
+          <div class="workspace-section-body">
+            {% if card.title == 'Fundamentals' and component_states.fundamental != 'available' %}<p role="status">{{ component_states.fundamental }}</p>{% endif %}
+            {% if card.title == 'Technicals' and component_states.technical != 'available' %}<p role="status">{{ component_states.technical }}</p>{% endif %}
+            {% include "partials/_score_card_body.html" %}
+          </div>
+        </details>
+      {% endfor %}
+    </section>
+    <script src="{{ url_for('static', path='/vendor/lightweight-charts.standalone.production.js') }}"></script>
+    <script src="{{ url_for('static', path='/ticker_chart_panel.js') }}"></script>
+  {% else %}
+    <section class="panel section-gap workspace-empty" role="status">
+      {% if state == 'unknown_ticker' %}
+        <h2>Unknown local ticker</h2><p>This ticker or identity is not in the local catalog.</p>
+      {% elif state == 'identity_ambiguous' %}
+        <h2>Choose a ticker identity</h2><p>This symbol matches multiple identities. Choose a qualified result in Ticker Search.</p>
+      {% elif state == 'decision_identity_unverified' %}
+        <h2>Decision identity unavailable</h2><p>Run scores do not distinguish this symbol's exchanges. No verified decision can be assigned to this identity.</p>
+      {% elif state == 'selected_run_unavailable' %}
+        <h2>Run {{ selected_run_id }} is unavailable for this identity</h2><p>This run has no eligible published decision for the selected ticker identity. Historical evidence may be incomplete or unavailable.{% if runs %} Choose an eligible run above.{% endif %}</p>
+      {% elif state == 'request_error' %}
+        <h2>Decision data could not load</h2><p>The database request failed. Refresh this page to retry.</p>
+      {% else %}
+        <h2>No eligible decision available</h2><p>This ticker is known locally, but no complete, certified published decision is available. Existing evidence may be incomplete or historical evidence unavailable.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+  {% if identity %}
+    {% for key, title, context_label in [('ceri', 'CERI Intelligence', 'Current independent CERI projection'), ('lifecycle', 'Setup Lifecycle', 'Current published lifecycle · Daily timeframe'), ('rankings', 'Ranking Profiles', 'Selected decision run · Profile ranks are separate from Combined rank'), ('winner', 'Winner Evidence', 'Selected decision run · Published decision-time estimates')] %}
+      <details class="panel workspace-section section-gap workspace-intelligence" data-workspace-section="{{ key }}"
+        data-intelligence-url="/api/tickers/{{ ticker|urlencode }}/intelligence/{{ key }}?identity={{ identity.identity|urlencode }}{% if selected_run_id %}&amp;run_id={{ selected_run_id }}{% endif %}{% if evidence %}&amp;evidence_id={{ evidence.id }}{% endif %}">
+        <summary><h2>{{ title }}</h2><span>{{ context_label }}</span><span data-intelligence-summary>Checking availability…</span></summary>
+        <div class="workspace-section-body" data-intelligence-body>
+          <p role="status" data-intelligence-status>Expand to load details.</p>
+          <div data-intelligence-content></div>
+          <button type="button" class="secondary" data-intelligence-retry hidden>Retry {{ title }}</button>
+        </div>
+      </details>
+    {% endfor %}
+    <script src="{{ url_for('static', path='/ticker_workspace.js') }}"></script>
+  {% endif %}
+</div>
+{% endblock %}

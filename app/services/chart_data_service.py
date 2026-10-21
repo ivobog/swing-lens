@@ -11,6 +11,7 @@ from app.services.price_bar_repository import load_preferred_ohlcv_frames
 from app.settings import get_settings
 
 EMPTY_CHART_MESSAGE = "No cached chart data. Fetch IB bars first."
+_TECHNICAL_UNSET = object()
 
 
 def build_ticker_chart_payload(
@@ -19,7 +20,12 @@ def build_ticker_chart_payload(
     ticker: str,
     *,
     max_bars: int | None = None,
+    technical_source: TechnicalScore | None | object = _TECHNICAL_UNSET,
 ) -> dict[str, Any]:
+    """Reuse cached prices; an explicit frozen source (including None) pins levels.
+
+    Existing callers retain their run-scoped compatibility-row lookup.
+    """
     normalized_ticker = ticker.upper()
     price_frame, volume_frame = load_preferred_ohlcv_frames(db, normalized_ticker)
     bar_limit = max_bars or get_settings().chart_max_bars
@@ -37,12 +43,14 @@ def build_ticker_chart_payload(
         else []
     )
     latest_close = bars[-1]["close"]
-    technical = db.scalar(
-        select(TechnicalScore).where(
-            TechnicalScore.run_id == run_id,
-            TechnicalScore.ticker == normalized_ticker,
+    technical = technical_source
+    if technical_source is _TECHNICAL_UNSET:
+        technical = db.scalar(
+            select(TechnicalScore).where(
+                TechnicalScore.run_id == run_id,
+                TechnicalScore.ticker == normalized_ticker,
+            )
         )
-    )
 
     return {
         "ticker": normalized_ticker,

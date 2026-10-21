@@ -6,7 +6,9 @@
     <title>{% block title %}SwingLens{% endblock %}</title>
     <link rel="icon" href="{{ url_for('static', path='/favicon.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/ticker_search.css') }}">
     <script src="{{ url_for('static', path='/app.js') }}?v=20260911-operator-recovery-2" defer></script>
+    <script src="{{ url_for('static', path='/ticker_search.js') }}" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -14,8 +16,11 @@
       <a class="brand" href="/">SwingLens</a>
       {% include "partials/_nav.html" %}
     </header>
-    <main id="main-content" class="page" tabindex="-1">
-      {% block content %}{% endblock %}
-    </main>
+    <div class="app-layout">
+      <main id="main-content" class="page" tabindex="-1">
+        {% block content %}{% endblock %}
+      </main>
+      {% include "partials/_ticker_search.html" %}
+    </div>
   </body>
 </html>

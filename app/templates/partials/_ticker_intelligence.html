@@ -1,0 +1,98 @@
+{% macro show(value) -%}
+  {%- if value is undefined or value is none or value == '' -%}Unavailable
+  {%- elif value is boolean -%}{{ 'Yes' if value else 'No' }}
+  {%- elif value is integer -%}{{ value }}
+  {%- elif value is number -%}{{ '%.2f'|format(value) }}
+  {%- elif value is mapping -%}{{ value.get('label') or value.get('reason') or value.get('value') or 'See evidence details' }}
+  {%- elif value is sequence and value is not string -%}{{ value|join(', ') if value else 'None recorded' }}
+  {%- else -%}{{ value }}{%- endif -%}
+{%- endmacro %}
+{% macro metrics(pairs) %}<dl class="intelligence-metrics">{% for label, value in pairs %}<div><dt>{{ label }}</dt><dd>{{ show(value) }}</dd></div>{% endfor %}</dl>{% endmacro %}
+{% macro facts(mapping) %}<dl class="score-list">{% for key, value in mapping.items() %}<div class="score-item"><dt>{{ key|replace('_', ' ')|capitalize }}</dt><dd class="score-value">{% if value is mapping %}{{ facts(value) }}{% elif value is sequence and value is not string %}{% for item in value %}{% if item is mapping %}{{ facts(item) }}{% else %}<span>{{ show(item) }}{% if not loop.last %}, {% endif %}</span>{% endif %}{% else %}None recorded{% endfor %}{% else %}{{ show(value) }}{% endif %}</dd></div>{% endfor %}</dl>{% endmacro %}
+
+<p class="intelligence-availability" role="status">{{ data.summary }}</p>
+{% if data.as_of %}<p class="evidence-provenance">Source as of <time>{{ data.as_of }}</time>{% if section in ['ceri', 'lifecycle'] %} · Current independent intelligence; may postdate the selected decision.{% else %} · Decision Run {{ data.run_id }}.{% endif %}</p>{% endif %}
+
+{% if section == 'ceri' and data.state != 'disabled' %}<p><a href="/ceri/ticker/{{ ticker|urlencode }}">Full CERI ticker history</a> · <a href="/ceri/changes?ticker={{ ticker|urlencode }}">CERI changes and alerts</a></p>{% endif %}
+{% if section == 'lifecycle' %}<p><a href="/setup-lifecycle/ticker/{{ ticker|urlencode }}">Full lifecycle timeline</a></p>{% endif %}
+
+{% if section == 'ceri' and data.latest %}
+  {% set s = data.latest %}
+  {{ metrics([('Opportunity score', s.opportunity_score), ('Event risk score', s.event_risk_score), ('Data confidence', s.data_confidence), ('Coverage %', s.coverage_pct), ('Posture', s.posture), ('Earnings proximity risk', s.earnings_proximity_risk), ('Evidence age (whole days)', data.age_days)]) }}
+  <div class="badge-list">{% for warning in s.warnings or [] %}<span class="badge badge-warning">{{ warning }}</span>{% endfor %}</div>
+  <details><summary>Opportunity components and contributors</summary>{{ facts(s.ledgers.opportunity) }}<h3>Top positive contributors</h3>{{ facts({'contributors': s.top_positive_contributors or []}) }}<h3>Top negative contributors</h3>{{ facts({'contributors': s.top_negative_contributors or []}) }}</details>
+  <details><summary>Catalysts, estimates, earnings and guidance</summary>
+    <p>Catalyst revisions and earnings below use eligible sources known at the CERI source cutoff above.</p>
+    <h3>Current catalyst revisions</h3>{% for event in data.catalysts %}<article class="intelligence-event"><strong>{{ event.category }} · {{ event.canonical_text }}</strong><p>{{ event.expected_date or 'Date unavailable' }} · {{ event.status }}</p><a href="/api/ceri/events/{{ event.id }}">Event evidence #{{ event.id }}</a>{{ facts(event.current_revision or {}) }}</article>{% else %}<p>No current catalysts available.</p>{% endfor %}
+    <h3>Estimate revisions at this source cutoff</h3>
+    <p role="status">{{ data.revision_provenance.message }}</p>
+    {% if data.revision_provenance.rejected_count %}<p>{{ data.revision_provenance.rejected_count }} pinned revision records are unavailable or incompatible. Unrelated evidence has not been substituted.</p>{% endif %}
+    {% if data.revision_provenance.truncated %}<p>Showing {{ data.revisions|length }} of {{ data.revision_provenance.verified_count }} verified pinned revisions. <a href="/ceri/ticker/{{ ticker|urlencode }}">Full CERI source history</a> · Snapshot #{{ data.revision_provenance.snapshot_id }}.</p>{% endif %}
+    {% for revision in data.revisions %}<article class="intelligence-event">
+      {{ metrics([('Metric', revision.metric), ('Fiscal period', revision.period_key), ('Period slot', revision.period_slot), ('Revision window', revision.window_days ~ 'd'), ('Change', revision.display_pct_change), ('Breadth', revision.display_net_breadth), ('Confidence', revision.revision_confidence_label), ('Source cutoff', revision.calculation_cutoff_at), ('Known at', revision.known_at), ('Calculation context', revision.calculation_context_id), ('Availability reason', revision.unavailable_reason)]) }}
+      <a href="/api/ceri/revisions/{{ revision.id }}">Revision evidence #{{ revision.id }}</a>
+    </article>{% else %}<p>No verified pinned revisions available at this cutoff.</p>{% endfor %}
+    <h3>Earnings evidence</h3>{% for earnings in data.earnings %}{{ metrics([('Report date', earnings.report_at), ('Metric', earnings.metric), ('Actual', earnings.actual), ('Surprise %', earnings.surprise_pct), ('Warnings', earnings.warnings)]) }}{% else %}<p>No earnings evidence available.</p>{% endfor %}
+    <h3>Accepted guidance at this cutoff</h3>{% if data.guidance.selected %}{{ facts(data.guidance.selected) }}{% else %}<p>No accepted guidance available at this source cutoff.</p>{% endif %}
+  </details>
+  <details><summary>Source freshness</summary><p>Feed and source ages are measured at the CERI source cutoff. Evidence age above is measured today.</p>{{ facts(data.freshness) }}</details>
+  <h3>Recent material changes</h3>{% for change in data.changes['items'] %}<article class="intelligence-event">{{ metrics([('Date', change.created_at), ('Type', change.title or change.change_type), ('Importance', change.importance), ('Description', change.summary), ('Status', change.comparison_state ~ ' / ' ~ change.history_scope)]) }}<a href="/ceri/changes?ticker={{ ticker|urlencode }}">Change #{{ change.id }} and source evidence</a></article>{% else %}<p>No eligible recent changes.</p>{% endfor %}
+  <h3>Recent alerts</h3>{% for alert in data.alerts['items'] %}<article class="intelligence-event">{{ metrics([('Date', alert.created_at), ('Type', alert.alert_type), ('Importance', alert.importance or alert.severity), ('Description', alert.change_summary), ('Status', alert.status)]) }}<a href="/ceri/changes?ticker={{ ticker|urlencode }}">Alert #{{ alert.id }} and source evidence</a></article>{% else %}<p>No eligible recent alerts.</p>{% endfor %}
+  <details><summary>Configuration and evidence provenance</summary>{{ metrics([('Snapshot', s.id), ('Source run', s.run_id), ('Cutoff', s.cutoff_at), ('Configuration version', s.config_version), ('Calculation version', s.calculation_version), ('Configuration hash', s.config_hash), ('Evidence hash', s.evidence_hash)]) }}</details>
+{% elif section == 'lifecycle' %}
+  {% for episode in data.episodes or [] %}
+    <article class="intelligence-event"><h3>{{ 'Primary' if episode.is_primary else 'Secondary' }} episode · {{ episode.setup_family }}</h3>
+    {{ metrics([('Lifecycle state', episode.current_state), ('Phase', episode.current_phase), ('Actionability', episode.current_actionability), ('Confidence', episode.confidence_label), ('Confidence score', episode.confidence_score), ('Opened', episode.opened_on), ('State age (sessions)', episode.state_age_sessions), ('Episode age (calendar days at source)', episode.age_calendar_days), ('Important blockers', episode.metadata.get('blockers')), ('Last observed', episode.last_observed_on), ('Current as of', episode.current_as_of_date)]) }}
+    {% set snapshot = data.snapshots.get(episode.current_snapshot_id, {}) %}
+    {{ metrics([('Setup score', snapshot.setup_score), ('Distance to pivot %', snapshot.distance_to_pivot_pct), ('Technical classification', snapshot.technical_classification), ('Warnings', snapshot.warning_flags)]) }}
+    <details><summary>Blockers and evidence provenance</summary>{{ facts(episode.metadata) }}{{ metrics([('Evaluation evidence', episode.latest_evaluation_evidence_id), ('Transition evidence', episode.latest_transition_evidence_id), ('Engine version', episode.engine_version), ('Configuration version', episode.config_version), ('Configuration hash', episode.config_hash)]) }}</details>
+    <a href="/setup-lifecycle/episodes/{{ episode.id }}">Episode #{{ episode.id }}</a></article>
+  {% endfor %}
+  {{ metrics([('Latest relevant change', data.latest_change_date)]) }}
+  <p>Active relevant alerts in the recent published page: <strong>{{ data.active_alerts or 0 }}</strong></p>
+  <h3>Recent published timeline (newest first)</h3>
+  {% for event in data.timeline or [] %}<article class="intelligence-event" data-event-kind="{{ event.kind }}" data-event-id="{{ event.id }}">
+    <time>{{ event.effective_date }}</time> ·
+    {% if event.kind == 'signal' %}
+      <strong>Signal · {{ event.signal_key|replace('_', ' ')|capitalize }}</strong> <span>({{ event.signal_key }})</span>
+      {{ metrics([('Previous value', event.old_value.get('value', event.old_value)), ('Current value', event.new_value.get('value', event.new_value)), ('Delta', event.delta_numeric|string if event.delta_numeric is not none else none), ('Threshold', event.threshold_name), ('Crossing', event.threshold_direction)]) }}
+      <p>Signal change #{{ event.id }}{% if event.current_snapshot_id %} · Source snapshot #{{ event.current_snapshot_id }}{% endif %}</p>
+      {% if event.setup_evidence_id %}<a href="/api/setup-lifecycle/evidence/setups/{{ event.setup_evidence_id }}">Setup evidence #{{ event.setup_evidence_id }}</a>{% endif %}
+    {% elif event.kind == 'alert' %}
+      <strong>Alert · {{ event.alert_type or 'Published alert' }}</strong>
+      {{ metrics([('Lifecycle state', event.lifecycle_state), ('Actionability', event.actionability), ('Confidence', event.confidence)]) }}
+      {% if event.decision_evidence_id %}<a href="/api/setup-lifecycle/evidence/alerts/{{ event.decision_evidence_id }}">Alert decision evidence #{{ event.decision_evidence_id }}</a>{% endif %}
+    {% else %}
+      <strong>Lifecycle · {{ event.event_type }}</strong>
+      {{ metrics([('From state', event.from_state), ('To state', event.to_state), ('Actionability', event.actionability_after)]) }}
+      {% if event.transition_evidence_id %}<a href="/api/setup-lifecycle/evidence/transitions/{{ event.transition_evidence_id }}">Transition evidence #{{ event.transition_evidence_id }}</a>{% endif %}
+    {% endif %}
+    {{ metrics([('Severity', event.severity), ('Status', event.status or event.record_status), ('Reasons / blockers', event.reason_codes or event.blockers or event.warning_flags)]) }}
+    {% if event.episode_id %}<a href="/setup-lifecycle/episodes/{{ event.episode_id }}">Episode #{{ event.episode_id }}</a>{% endif %}
+  </article>{% else %}<p>No recent published transitions, changes or alerts.</p>{% endfor %}
+{% elif section == 'rankings' and data.run_id %}
+  <p>Profile-specific ranks below are distinct from the main Combined Decision rank. Missing profiles are not calculated or published for this run.</p>
+  {% if data.pagination and (data.pagination.total > data.pagination.limit or data.pagination.offset) %}
+    <nav aria-label="Ranking profile pages">
+      <p>Showing {{ data.pagination.first }}–{{ data.pagination.last }} of {{ data.pagination.total }} persisted profiles. Availability and best rank refer to this page.</p>
+      {% if pagination_urls.previous %}<a href="{{ pagination_urls.previous }}" data-intelligence-page>Previous profiles</a>{% endif %}
+      {% if pagination_urls.next %}<a href="{{ pagination_urls.next }}" data-intelligence-page>Next profiles</a>{% endif %}
+    </nav>
+  {% endif %}
+  <div class="table-wrap"><table><caption>Persisted ranking profiles · Run {{ data.run_id }}</caption><thead><tr><th>Profile</th><th>Profile rank</th><th>Score</th><th>Decision</th><th>Warnings</th></tr></thead><tbody>
+  {% for profile in data.profiles or [] %}{% set p = profile.payload %}<tr><td>{{ profile.label }}</td>{% if profile.state == 'available' %}<td>{{ p.profile_rank }}</td><td>{{ show(p.profile_score|float if p.profile_score is not none else none) }}</td><td>{{ p.decision_label }}</td><td>{{ show(p.warning_flags_json) }}</td>{% else %}<td colspan="4">{{ profile.state }}</td>{% endif %}</tr>{% else %}<tr><td colspan="5">Not calculated for this run.</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% for profile in data.profiles or [] if profile.state == 'available' %}{% set p = profile.payload %}<details><summary>{{ profile.label }} details</summary>{{ metrics([('Technical profile score', p.technical_profile_score), ('Fundamental contribution', p.fundamental_score), ('Base technical score', p.base_technical_score), ('Technical classification', p.technical_classification), ('Fundamental label', p.fundamental_label), ('Research size hint', p.position_size_hint), ('Evidence ID', profile.evidence_id), ('Source cutoff', profile.as_of)]) }}{{ facts({'Penalties': p.penalties_json, 'Gates': p.gates_json, 'Frozen configuration': p.effective_configuration_at_creation or {}}) }}</details>{% endfor %}
+{% elif section == 'winner' and data.run_id %}
+  <p>Only visible predictions associated with this decision's immutable combined evidence are shown. Candidate, superseded and unpublished estimates are excluded. A current rescore is not substituted.</p>
+  {% for item in data.get('items', []) %}{% set p = item.prediction %}<article class="intelligence-event"><h3>Prediction #{{ p.id }} · Run {{ p.run_id }}</h3>{{ metrics([('Prediction as of', p.prediction_as_of_date), ('Eligibility', p.eligibility_status), ('Exclusion reason', p.exclusion_reason), ('Setup family', p.setup_family), ('Setup classification', p.setup_classification), ('Market regime', p.market_regime), ('Market risk state', p.market_risk_state), ('Sector state', p.sector_state), ('Source cutoff', p.source_data_cutoff_at), ('Warnings', p.warnings)]) }}
+    {% for entry in item.estimates %}{% set e = entry.estimate %}<h4>{{ entry.outcome.label }} · {{ entry.outcome.horizon_sessions }} sessions</h4>
+      <p>Selected published decision-time estimate #{{ e.id }}.</p>
+      {% if e.point_probability is none %}<strong>Insufficient evidence</strong>{% else %}{{ metrics([('Probability', '%.1f%%'|format(e.point_probability * 100)), ('Lower confidence bound', '%.1f%%'|format(e.lower_bound * 100) if e.lower_bound is not none else none), ('Upper confidence bound', '%.1f%%'|format(e.upper_bound * 100) if e.upper_bound is not none else none)]) }}{% endif %}
+      {{ metrics([('Evidence grade', e.evidence_grade), ('Sample size', e.sample_n), ('Effective sample size', e.effective_n), ('Estimate lifecycle', entry.lifecycle_status), ('Published', entry.published_at), ('Source / version', (e.source or 'Insufficient') ~ ' / ' ~ (e.source_version or 'Unavailable')), ('Training cutoff', e.training_cutoff_at), ('Estimate created', e.created_at), ('Insufficient reasons', e.insufficient_reasons)]) }}
+      <details><summary>Return, sample and model evidence</summary>{{ metrics([('Interval width', e.interval_width), ('Expected return %', e.expected_return_pct), ('Median return %', e.median_return_pct), ('Median MFE %', e.median_mfe_pct), ('Median MAE %', e.median_mae_pct), ('Target-first rate', e.target_first_rate), ('Model version', e.model_version_label), ('Model status', e.model_status)]) }}{{ facts({'Cohort / evidence composition': e.evidence_composition, 'Estimate metadata': e.metadata, 'Frozen configuration hash': e.config_hash, 'Outcome definition': entry.outcome.definition_id}) }}</details>
+      <a href="/api/winner-probability/estimates/{{ e.id }}/reproduction">Estimate #{{ e.id }} reproduction evidence</a>
+    {% else %}<p>Insufficient evidence: {{ p.exclusion_reason or 'No serving published decision-time estimate for this prediction.' }}</p>{% endfor %}
+    <p><a href="/winner-probability/predictions/{{ p.id }}">Prediction details</a></p></article>
+  {% endfor %}
+{% endif %}

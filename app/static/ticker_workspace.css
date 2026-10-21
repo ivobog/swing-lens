@@ -1,0 +1,36 @@
+.workspace-eyebrow { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+.workspace-header .panel-header { flex-wrap: wrap; }
+.workspace-run-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.workspace-run-form label { font-size: 14px; font-weight: 700; }
+.workspace-run-form select { max-width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); font: inherit; }
+.workspace-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 16px; }
+.workspace-metrics span { display: block; color: var(--muted); font-size: 13px; margin-bottom: 7px; }
+.workspace-metrics strong { font-size: 21px; overflow-wrap: anywhere; }
+.workspace-warnings { margin-top: 18px; }
+.workspace-section > summary { cursor: pointer; display: list-item; }
+.workspace-section > summary h2 { display: inline; margin: 0; }
+.workspace-section > summary > span { display: block; color: var(--muted); font-size: 14px; margin: 8px 0 0 18px; }
+.workspace-section-body { padding-top: 18px; }
+.workspace-cards .score-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); column-gap: 28px; }
+.workspace-cards .score-item { break-inside: avoid; }
+.workspace-cards .score-value { overflow-wrap: anywhere; }
+.ticker-workspace-page { min-width: 0; }
+.ticker-workspace-page time { overflow-wrap: anywhere; }
+.workspace-intelligence .table-wrap { max-width: 100%; overflow-x: auto; }
+.workspace-intelligence table { width: 100%; }
+.workspace-intelligence td, .workspace-intelligence th { padding: 10px; text-align: left; vertical-align: top; }
+.workspace-intelligence .score-value, .intelligence-metrics dd { overflow-wrap: anywhere; min-width: 0; }
+.intelligence-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 15px; }
+.intelligence-metrics dt { color: var(--muted); font-size: 13px; }
+.intelligence-metrics dd { margin: 5px 0 0; font-weight: 600; }
+.intelligence-event { border-top: 1px solid var(--border); padding: 16px 0; }
+.workspace-intelligence details { margin-top: 14px; }
+.workspace-intelligence details > summary { cursor: pointer; font-weight: 600; }
+.workspace-intelligence .score-list .score-list { display: block; }
+.workspace-intelligence .score-item { min-width: 0; }
+@media (max-width: 720px) {
+  .workspace-run-form { width: 100%; }
+  .workspace-run-form label { width: 100%; }
+  .workspace-run-form select { flex: 1; min-width: 0; }
+  .workspace-section { padding: 18px; }
+}

@@ -1,6 +1,9 @@
 {% set active_nav = active_nav|default("") %}
 {% set app_settings = request.app.state.settings if request is defined and request.app is defined else none %}
 <nav class="nav" aria-label="Primary navigation">
+  <button type="button" class="ticker-search-toggle" data-ticker-search aria-controls="ticker-search" aria-expanded="false">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/></svg>Ticker Search
+  </button>
   <a href="/" class="{{ 'active' if active_nav == 'dashboard' else '' }}" {{ 'aria-current=page' if active_nav == 'dashboard' else '' }}>Dashboard</a>
   <a href="/runs" class="{{ 'active' if active_nav == 'runs' else '' }}" {{ 'aria-current=page' if active_nav == 'runs' else '' }}>Runs</a>
   <a href="/market-regime" class="{{ 'active' if active_nav == 'market-regime' else '' }}" {{ 'aria-current=page' if active_nav == 'market-regime' else '' }}>Market Regime</a>

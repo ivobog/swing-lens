@@ -11,15 +11,18 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, aliased
 
 from app.models.ceri_tables import CeriEvidenceDisposition, CeriScoreSnapshot
-from app.models.tables import MarketCalculationContext, PipelineRun
+from app.models.tables import CoreCalculationEvidence, MarketCalculationContext, PipelineRun
+from app.services.ceri.constants import PURGE_INVALIDATION_FLAG
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.pipeline_outcome import (
+    NO_INTEGRITY_HAZARD,
+    PIPELINE_OUTCOME_CONTRACT_VERSION,
+)
 from app.services.supporting_mutation_authority import supporting_mutation_operation
 
 ELIGIBLE = "ELIGIBLE"
 EXCLUDED = "EXCLUDED"
-UNSUCCESSFUL_PIPELINE_STATES = frozenset(
-    {"FAILED", "CANCELLED", "BLOCKED", "PARTIAL"}
-)
+HARD_UNSUCCESSFUL_PIPELINE_STATES = frozenset({"FAILED", "CANCELLED", "BLOCKED"})
 
 
 @dataclass(frozen=True)
@@ -90,6 +93,40 @@ def effective_disposition_subquery(name: str | None = None) -> Any:
     )
 
 
+def current_snapshot_authority_predicate(snapshot: Any = CeriScoreSnapshot) -> Any:
+    """Certified current presentation, layered on the existing decision-use policy.
+
+    Historical/audit readers deliberately retain their existing eligibility contract.
+    Current score and related activity readers share this stricter serving boundary.
+    """
+    context_owner = (
+        select(MarketCalculationContext.pipeline_run_id)
+        .where(MarketCalculationContext.id == snapshot.calculation_context_id)
+        .correlate(snapshot)
+        .scalar_subquery()
+    )
+    rejected_owner = exists(
+        select(PipelineRun.id).where(
+            or_(PipelineRun.upload_run_id == snapshot.run_id, PipelineRun.id == context_owner),
+            PipelineRun.execution_authority_state.in_(("QUARANTINED", "RETIRED")),
+        )
+    ).correlate(snapshot)
+    certification = exists(
+        select(CoreCalculationEvidence.id).where(
+            CoreCalculationEvidence.id == snapshot.evidence_id,
+            CoreCalculationEvidence.artifact_kind == "CERI",
+            CoreCalculationEvidence.ticker == snapshot.ticker,
+            CoreCalculationEvidence.run_id.is_not_distinct_from(snapshot.run_id),
+        )
+    ).correlate(snapshot)
+    return and_(
+        eligible_snapshot_predicate(snapshot),
+        ~rejected_owner,
+        certification,
+        ~func.coalesce(snapshot.warnings_json, []).contains([PURGE_INVALIDATION_FLAG]),
+    )
+
+
 def apply_snapshot_eligibility(
     statement: Any,
     *,
@@ -113,10 +150,12 @@ def _owner_eligibility_predicate(snapshot: Any) -> Any:
     # scope has any terminally unsuccessful pipeline owner.
     failed_owner = aliased(PipelineRun)
     no_unsuccessful_upload_owner = ~exists(
-        select(1).where(
+        select(1)
+        .where(
             failed_owner.upload_run_id == snapshot.run_id,
-            failed_owner.status.in_(UNSUCCESSFUL_PIPELINE_STATES),
+            _owner_is_ineligible(failed_owner),
         )
+        .correlate(snapshot)
     )
     context_owner_is_eligible = exists(
         select(1)
@@ -129,13 +168,32 @@ def _owner_eligibility_predicate(snapshot: Any) -> Any:
                     MarketCalculationContext.pipeline_run_id.is_(None),
                     no_unsuccessful_upload_owner,
                 ),
-                PipelineRun.status.not_in(UNSUCCESSFUL_PIPELINE_STATES),
+                ~_owner_is_ineligible(PipelineRun),
             ),
         )
     )
     return or_(
         and_(snapshot.calculation_context_id.is_(None), no_unsuccessful_upload_owner),
         context_owner_is_eligible,
+    )
+
+
+def _owner_is_ineligible(owner: Any) -> Any:
+    summary = owner.result_json["pipeline_outcome_summary"]
+    safe_partial = and_(
+        owner.status == "PARTIAL",
+        func.coalesce(
+            summary["contract_version"].astext == PIPELINE_OUTCOME_CONTRACT_VERSION,
+            False,
+        ),
+        func.coalesce(
+            summary["integrity"]["status"].astext == NO_INTEGRITY_HAZARD,
+            False,
+        ),
+    )
+    return or_(
+        owner.status.in_(HARD_UNSUCCESSFUL_PIPELINE_STATES),
+        and_(owner.status == "PARTIAL", ~safe_partial),
     )
 
 
@@ -208,9 +266,7 @@ def filter_eligible_snapshots(
         eligible_ids = set(
             db.scalars(
                 eligible_snapshot_select(CeriScoreSnapshot.id).where(
-                    CeriScoreSnapshot.id.in_(
-                        [int(row.id) for row in rows if row.id is not None]
-                    )
+                    CeriScoreSnapshot.id.in_([int(row.id) for row in rows if row.id is not None])
                 )
             )
         )
