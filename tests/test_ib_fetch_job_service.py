@@ -196,3 +196,31 @@ class FakeDb:
 
     def scalar(self, statement):
         return self.existing
+
+
+def test_durable_fetch_result_is_json_safe_with_real_receipt_datetimes(monkeypatch):
+    import json
+    from datetime import UTC, datetime
+
+    import app.services.ib_fetch_job_service as service
+    from app.models.tables import BackgroundJob
+    from app.services.ib_fetch_plan_service import fetch_plan_to_dict
+
+    instant = datetime(2026, 10, 23, 16, 30, tzinfo=UTC)
+    fetch_run = IBFetchRun(
+        id=99, status="COMPLETED", requested_tickers=["XLB"],
+        symbols_including_benchmarks=["XLB"], started_at=instant, completed_at=instant,
+        planned_request_count=0, items=[],
+    )
+    monkeypatch.setattr(service, "_load_fetch_run", lambda *_: fetch_run)
+    monkeypatch.setattr(service, "validate_same_authority", lambda *_: None)
+    monkeypatch.setattr(service, "execute_fetch_plan", lambda **_: fetch_run)
+    job = BackgroundJob(
+        id=99, job_type="IB_FETCH", execution_token="new-owned-lease",
+        payload_json={"fetch_run_id": 99, "fetch_plan": fetch_plan_to_dict(_plan(["XLB"], []))},
+    )
+    result = service.execute_durable_fetch_job(FakeDb(), job)
+    persisted = json.loads(json.dumps(result))
+    assert persisted["started_at"] == instant.isoformat()
+    assert persisted["completed_at"] == instant.isoformat()
+    assert persisted["status"] == "COMPLETED"

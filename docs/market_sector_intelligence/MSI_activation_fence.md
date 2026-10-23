@@ -28,3 +28,13 @@ unchanged historical rows, late descendants of old roots, new ACTIVE pipeline
 work, claim/heartbeat/progress/retry/recovery, historical handoff exclusion and
 exactly-once new continuation creation. The operational activation receipts,
 configured boundaries and provider results remain outside Git.
+
+New ADJUSTED_LAST plans use `ib-daily-completed-subset-v3`: only while the
+authoritative exchange session is open, today's forming observation may be
+discarded from a current-ended response whose reviewed end is the immediately
+previous session. Nothing beyond the reviewed end is persisted. Invalid identity,
+duplicate dates, invalid OHLCV, missing required sessions, other future dates and
+expired scopes still fail closed. Actual and admitted ranges and the separate
+early/forming exclusion counts remain in acquisition evidence. Frozen v1/v2
+plans retain their prior policies and serialized identities. Durable fetch results
+encode receipt datetimes before entering job JSONB; API progress remains intact.

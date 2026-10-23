@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from math import isfinite
 from time import perf_counter
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -31,7 +32,9 @@ from app.services.ib_fetch_plan_service import (
 from app.services.ib_historical_errors import SYSTEMIC_CIRCUIT_CATEGORIES
 from app.services.ib_historical_request_scope import (
     DAILY_BAR_ADMISSION_V2,
+    DAILY_BAR_ADMISSION_V3,
     STRICT_RESPONSE_V1,
+    HistoricalEndMode,
     HistoricalRequestScope,
     build_historical_request_scope,
     validate_reviewed_session_current,
@@ -49,6 +52,8 @@ from app.services.us_market_calendar import (
     is_us_trading_day,
     latest_completed_us_trading_day,
     next_us_trading_day,
+    previous_us_trading_day,
+    us_market_session,
 )
 from app.services.winner_probability.market_data_obligation_service import (
     MarketDataObligationService,
@@ -635,7 +640,10 @@ def _execute_plan_item(
                     status=request_result.upper(),
                     duration_ms=round(request_duration * 1000, 3),
                 )
-            actual_start, actual_end = _validate_returned_scope(bars, scope)
+            received_at = datetime.now(UTC)
+            actual_start, actual_end = _validate_returned_scope(
+                bars, scope, observed_at=received_at,
+            )
             if not bars:
                 fetch_item.decision_metadata_json = _decision_metadata(
                     plan_item,
@@ -653,7 +661,9 @@ def _execute_plan_item(
                 )
                 return
             received_count = len(bars)
-            bars = _admit_returned_bars(bars, scope, ticker=plan_item.ticker)
+            bars = _admit_returned_bars(
+                bars, scope, ticker=plan_item.ticker, observed_at=received_at,
+            )
             fetch_item.decision_metadata_json = _decision_metadata(
                 plan_item,
                 action=action,
@@ -1306,6 +1316,11 @@ def _decision_metadata(
     latest_current = _latest_date_current(plan_item.latest_bar_date, stale_after_days=0)
     reviewed_start = scope.reviewed_start_date if scope else plan_item.request_start_date
     reviewed_end = scope.reviewed_end_date if scope else plan_item.request_end_date
+    discarded_unconfirmed = (
+        int(actual_end_date > reviewed_end)
+        if admitted_bars is not None and actual_end_date is not None and reviewed_end is not None
+        else 0
+    )
     return {
         "data_role": plan_item.data_role,
         "dependency_roles": list(plan_item.dependency_roles),
@@ -1340,10 +1355,11 @@ def _decision_metadata(
         "received_bar_count": received_bar_count,
         "admitted_bar_count": len(admitted_bars) if admitted_bars is not None else None,
         "discarded_early_bar_count": (
-            received_bar_count - len(admitted_bars)
+            received_bar_count - len(admitted_bars) - discarded_unconfirmed
             if received_bar_count is not None and admitted_bars is not None
             else None
         ),
+        "discarded_unconfirmed_bar_count": discarded_unconfirmed,
         "admitted_start_date": _iso_date(
             min((bar.bar_date for bar in admitted_bars), default=None)
             if admitted_bars is not None
@@ -1407,14 +1423,44 @@ def _execution_scope(plan_item: FetchPlanItem, duration: str) -> HistoricalReque
     return scope
 
 
+def _unconfirmed_response_session(
+    scope: HistoricalRequestScope, observed_at: datetime | None = None,
+) -> date | None:
+    """V3 alone may discard today's forming ADJUSTED_LAST daily observation."""
+    if (
+        scope.response_admission_policy != DAILY_BAR_ADMISSION_V3
+        or scope.end_mode != HistoricalEndMode.CURRENT
+        or scope.what_to_show != "ADJUSTED_LAST"
+        or scope.bar_size != "1 day"
+        or scope.reviewed_session_expiry != scope.reviewed_end_date
+    ):
+        return None
+    observed_at = observed_at or datetime.now(UTC)
+    if observed_at.tzinfo is None:
+        raise HistoricalRequestScopeViolation("Response receipt must be timezone-aware.")
+    day = observed_at.astimezone(ZoneInfo("America/New_York")).date()
+    session = us_market_session(day)
+    if (
+        session is not None
+        and session.open_at <= observed_at < session.close_at
+        and scope.reviewed_end_date == previous_us_trading_day(day)
+    ):
+        return day
+    return None
+
+
 def _validate_returned_scope(
     bars: list,
     scope: HistoricalRequestScope,
+    *,
+    observed_at: datetime | None = None,
 ) -> tuple[date | None, date | None]:
     dates = [bar.bar_date for bar in bars]
     actual_start = min(dates, default=None)
     actual_end = max(dates, default=None)
-    if scope.response_admission_policy not in {STRICT_RESPONSE_V1, DAILY_BAR_ADMISSION_V2}:
+    if scope.response_admission_policy not in {
+        STRICT_RESPONSE_V1, DAILY_BAR_ADMISSION_V2, DAILY_BAR_ADMISSION_V3,
+    }:
         raise HistoricalRequestScopeViolation("Unsupported historical response admission policy.")
     if (
         scope.response_admission_policy == STRICT_RESPONSE_V1
@@ -1425,7 +1471,10 @@ def _validate_returned_scope(
             f"IB returned {actual_start} before reviewed scope {scope.reviewed_start_date}; "
             "persisted none of this request."
         )
-    if actual_end is not None and actual_end > scope.reviewed_end_date:
+    if (
+        actual_end is not None and actual_end > scope.reviewed_end_date
+        and actual_end != _unconfirmed_response_session(scope, observed_at)
+    ):
         raise HistoricalRequestScopeViolation(
             f"IB returned {actual_end} after reviewed scope {scope.reviewed_end_date}; "
             "persisted none of this request."
@@ -1438,12 +1487,14 @@ def _admit_returned_bars(
     scope: HistoricalRequestScope,
     *,
     ticker: str,
+    observed_at: datetime | None = None,
 ) -> list[HistoricalBar]:
-    """V2 validates the response and admits only the frozen daily-bar interval."""
+    """Admit the frozen interval; forming observations never enter the cache."""
     if scope.response_admission_policy == STRICT_RESPONSE_V1:
         return bars
     if scope.bar_size != "1 day":
         raise HistoricalRequestScopeViolation("Daily admission requires 1 day bars.")
+    _validate_returned_scope(bars, scope, observed_at=observed_at)
     seen = set()
     for bar in bars:
         if (
@@ -1464,7 +1515,10 @@ def _admit_returned_bars(
             or (bar.volume is not None and (not isfinite(bar.volume) or bar.volume < 0))
         ):
             raise HistoricalRequestScopeViolation("Invalid historical OHLCV bar.")
-    admitted = [bar for bar in bars if bar.bar_date >= scope.reviewed_start_date]
+    admitted = [
+        bar for bar in bars
+        if scope.reviewed_start_date <= bar.bar_date <= scope.reviewed_end_date
+    ]
     required_end = scope.required_end_date or scope.reviewed_end_date
     required = scope.required_start_date or required_end
     admitted_dates = {bar.bar_date for bar in admitted}
