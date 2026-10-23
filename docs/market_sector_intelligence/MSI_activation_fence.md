@@ -17,6 +17,9 @@ also bounded by the minimum pipeline ID. The claim and recovery paths share this
 predicate, including watchdog fencing. Continuation reconciliation excludes old
 pipelines. Readiness and lifecycle quiescence use the same execution scope;
 historical findings remain visible as historical diagnostics.
+Fresh-run admission also excludes historical pipelines when reusing an uploaded
+CSV, and namespaces the root request key by the fixed boundary so an old queued
+root cannot absorb the new request. New-run coalescing remains idempotent.
 
 The two settings enter the lifecycle generation fingerprint and worker startup
 diagnostics. Removing or lowering a boundary can re-authorize historical work;

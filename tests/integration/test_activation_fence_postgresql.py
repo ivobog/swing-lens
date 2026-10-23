@@ -226,6 +226,10 @@ def test_historical_handoffs_untouched_and_new_native_continuation_is_idempotent
                 .all()
             )
         _fence(monkeypatch, old_max + 1, old_complete + 1)
+        from app.services.pipeline_service import _authoritative_pipeline_for_run
+
+        old_upload = db.get(PipelineRun, old_pending).upload_run_id
+        assert _authoritative_pipeline_for_run(db, old_upload) is None
         outcome = reconcile_safe_pipeline_invariants(db)
         continuation = db.get(PipelineDependency, dependency_id).continuation_job_id
         assert outcome["continuations_enqueued"] == (continuation,)

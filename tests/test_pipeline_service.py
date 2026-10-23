@@ -260,6 +260,39 @@ def test_start_pipeline_reuses_preparing_pipeline_after_parent_job_finishes() ->
     assert len(db.background_jobs) == 1
 
 
+def test_new_activation_pipeline_does_not_reuse_historical_root_on_same_upload(monkeypatch):
+    from app.services.pipeline_service import _pipeline_request_key
+    from app.settings import Settings
+
+    old_pipeline = PipelineRun(
+        id=3, upload_run_id=7, status=PipelineStatus.PENDING,
+        result_json={"background_job_id": 10},
+    )
+    old_job = BackgroundJob(
+        id=10, job_type=FULL_PIPELINE_JOB_TYPE, status=JobStatus.QUEUED,
+        request_key=_pipeline_request_key(7, PIPELINE_STEP_NAMES),
+        payload_json={"pipeline_run_id": 3},
+    )
+    db = FakeDb(
+        upload_runs={7: UploadRun(id=7, filename="retained.csv", status="COMPLETED")},
+        pipeline_runs={3: old_pipeline}, background_jobs={10: old_job},
+    )
+    db._next_ids[PipelineRun] = 4
+    db._next_ids[BackgroundJob] = 11
+    settings = Settings(_env_file=None, job_activation_min_id=11, pipeline_activation_min_id=4)
+    monkeypatch.setattr("app.services.pipeline_service.get_settings", lambda: settings)
+    monkeypatch.setattr("app.services.pipeline_execution_authority.get_settings", lambda: settings)
+    pipeline = start_pipeline(db, 7)
+    assert pipeline.id == 4 and pipeline is not old_pipeline
+    assert old_pipeline.status == PipelineStatus.PENDING
+    assert old_pipeline.result_json == {"background_job_id": 10}
+    assert old_job.status == JobStatus.QUEUED
+    assert db.background_jobs[11].request_key.endswith(":activation:4")
+    assert db.background_jobs[11].request_key != old_job.request_key
+    assert start_pipeline(db, 7) is pipeline
+    assert len(db.background_jobs) == len(db.pipeline_runs) == 2
+
+
 def test_pipeline_step_names_insert_setup_lifecycle_only_when_enabled() -> None:
     assert pipeline_step_names(setup_lifecycle_pipeline_step_enabled=False) == PIPELINE_STEP_NAMES
 
