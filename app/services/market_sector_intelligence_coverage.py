@@ -18,7 +18,7 @@ from app.services.market_sector_intelligence_config import (
     MarketSectorIntelligenceConfig,
     load_market_sector_intelligence_config,
 )
-from app.services.price_bar_repository import load_preferred_ohlcv_frames
+from app.services.price_bar_repository import load_preferred_ohlcv_frames, load_price_bars_frame
 from app.services.us_market_calendar import is_us_trading_day
 
 logger = logging.getLogger(__name__)
@@ -29,9 +29,10 @@ class CoverageEvidenceError(ValueError):
 
 
 class MarketSectorIntelligenceCoverageService:
-    def __init__(self, *, clock=None, frame_loader=None):
+    def __init__(self, *, clock=None, frame_loader=None, basis_loader=None):
         self.clock = clock or MarketClockService()
         self.frame_loader = frame_loader or load_preferred_ohlcv_frames
+        self.basis_loader = basis_loader or load_price_bars_frame
 
     def build(
         self,
@@ -78,6 +79,7 @@ class MarketSectorIntelligenceCoverageService:
                         "ETF coverage failed for %s (%s)", row["ticker"], type(exc).__name__
                     )
                     row.update(status="UNAVAILABLE", reason="cached_price_evaluation_failed")
+            freshness = self._freshness(db, config, cutoff)
         return {
             "feature": "market_sector_intelligence",
             "enabled": config.enabled,
@@ -89,6 +91,60 @@ class MarketSectorIntelligenceCoverageService:
             "latest_completed_session": cutoff.latest_completed_session.isoformat(),
             "exchange_timezone": cutoff.exchange_timezone,
             "symbols": rows,
+            "freshness": freshness,
+        }
+
+    def _freshness(self, db, config, cutoff):
+        """Verify each required basis independently, without changing model preference.
+
+        The canonical reader applies receipt/revision PIT visibility. Invalid
+        closes do not qualify as usable evidence; malformed session/receipt
+        evidence makes that basis UNKNOWN rather than certifying freshness.
+        """
+        entries = []
+        for sector in config.sectors:
+            for basis in ("TRADES", "ADJUSTED_LAST"):
+                row = self._row("sector", sector.etf_symbol, None, None)
+                row["price_basis"] = basis
+                if not config.enabled:
+                    row.update(status="UNKNOWN", reason="feature_disabled")
+                else:
+                    try:
+                        frame = self.basis_loader(
+                            db, sector.etf_symbol, basis, timeframe=config.timeframe,
+                            max_session=cutoff.latest_completed_session, as_of=cutoff.cutoff_at,
+                        )
+                        # Validate the full frame before considering usable closes.
+                        try:
+                            self._evaluate(dict(row), frame, cutoff)
+                        except CoverageEvidenceError as exc:
+                            if str(exc) != "invalid_latest_close":
+                                raise
+                        if not frame.empty:
+                            def usable(value):
+                                try:
+                                    return (not pd.api.types.is_bool(value)
+                                            and math.isfinite(float(value)) and float(value) > 0)
+                                except (TypeError, ValueError, OverflowError):
+                                    return False
+                            frame = frame.loc[frame["close"].map(usable)].copy()
+                            frame.attrs["price_basis"] = basis
+                        self._evaluate(row, frame, cutoff)
+                    except Exception:
+                        row.update(status="UNKNOWN", reason="cached_basis_evaluation_failed",
+                                   first_session=None, last_session=None, session_lag=None)
+                entries.append(row)
+        stale = [row for row in entries if row["status"] == "STALE"]
+        missing = [row for row in entries if row["status"] == "MISSING"]
+        unknown = [row for row in entries if row["status"] == "UNKNOWN"]
+        status = "STALE" if stale else "UNKNOWN" if unknown else "MISSING" if missing else "CURRENT"
+        return {
+            "status": status, "expected_session": cutoff.latest_completed_session.isoformat(),
+            "calendar_version": cutoff.calendar_version,
+            "as_of": cutoff.cutoff_at.isoformat(),
+            "required_bases": ["TRADES", "ADJUSTED_LAST"],
+            "max_session_lag": max((row["session_lag"] for row in stale), default=None),
+            "entries": entries,
         }
 
     @staticmethod

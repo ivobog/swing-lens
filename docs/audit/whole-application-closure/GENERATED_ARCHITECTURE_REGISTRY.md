@@ -6,7 +6,7 @@ reviewed registry change. CI uses `--check` and never rewrites files.
 
 | Inventory | Count |
 | --- | ---: |
-| Mutating HTTP registrations | 52 |
+| Mutating HTTP registrations | 53 |
 | Durable job types | 35 |
 | SQLAlchemy tables | 130 |
 | Mutable tables | 129 |

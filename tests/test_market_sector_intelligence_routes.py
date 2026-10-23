@@ -112,12 +112,15 @@ def test_empty_http_cache_is_read_only_and_independent_of_uploads(
     assert first.status_code == 200
     assert len(first.json()["symbols"]) == 12
     assert {row["status"] for row in first.json()["symbols"]} == {"MISSING"}
-    assert len(statements) == 24  # two approved price-basis SELECTs per symbol
+    # D1 preferred-basis reads plus independent freshness for both ETF bases.
+    assert len(statements) == 46
+    assert first.json()["freshness"]["status"] == "MISSING"
+    assert len(first.json()["freshness"]["entries"]) == 22
     record_property("empty_coverage_selects", len(statements))
     assert_only_price_selects(statements)
     assert clock.cutoff_for.call_count == 1
     assert client.get("/settings").status_code == 200
-    assert len(statements) == 24  # Settings needs no database reads at all
+    assert len(statements) == 46  # Settings needs no database reads at all
 
     # Only fixture setup writes occur between measured request boundaries.
     db.execute(
@@ -131,7 +134,7 @@ def test_empty_http_cache_is_read_only_and_independent_of_uploads(
     statements.clear()
     second = client.get(URL)
     assert second.json() == first.json()
-    assert len(statements) == 24
+    assert len(statements) == 46
     assert_only_price_selects(statements)
     assert forbidden.call_count == 0
 

@@ -71,3 +71,10 @@
 @media (max-width: 560px) { .msi-quadrants { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 950px) { .msi-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .msi-price-grid { grid-template-columns: 1fr; } .msi-detail-grid { grid-template-columns: 1fr; gap: 12px; } }
 @media (max-width: 560px) { .page:has(.msi-dashboard) { width: calc(100% - 24px); margin-top: 18px; } .msi-panel { padding: 16px 12px; margin-top: 16px; } .msi-status { padding: 12px; } .msi-status strong { font-size: 16px; } .msi-actions { gap: 12px; } .msi-dashboard h2 { font-size: 20px; } .msi-selection label span { display: none; } .msi-dashboard th, .msi-dashboard td { padding: 10px 8px; } .msi-panel-header { gap: 12px; } }
+.msi-dashboard .msi-freshness { display: inline-block; padding: .35rem .65rem; border-radius: .3rem; font-weight: 700; background: #e9eeeb; color: #263e32; }
+.msi-dashboard .msi-freshness[data-status="STALE"] { background: #ffe0a3; color: #633700; border: 1px solid #ad6500; }
+.msi-dashboard .msi-freshness[data-status="MISSING"], .msi-dashboard .msi-freshness[data-status="UNKNOWN"] { background: #f1ece4; color: #524534; }
+.msi-dashboard .msi-refresh-status { min-height: 1.5em; margin: .5rem 0; }
+.msi-dashboard #msi-refresh:focus-visible { outline: 3px solid #226eac; outline-offset: 3px; }
+.msi-dashboard #msi-refresh[aria-disabled="true"] { opacity: .65; cursor: wait; }
+.msi-dashboard .msi-actions { flex-wrap: wrap; }

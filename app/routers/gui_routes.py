@@ -5,6 +5,7 @@ import yaml
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
+from app.security import local_admin_csrf_token
 from app.services.market_sector_intelligence_chart_service import WINDOWS, selected_symbols
 from app.services.market_sector_intelligence_config import (
     MarketSectorIntelligenceConfigError,
@@ -48,6 +49,7 @@ def market_sector_intelligence_page(
     return templates.TemplateResponse(request, "market_sector_intelligence.html", {
         "active_nav": "market-sector-intelligence", "sectors": sectors,
         "configuration_error": error,
+        "csrf_token": local_admin_csrf_token(request),
         "initial_state": {"etf": focus, "horizon": horizon, "snapshot_id": snapshot_id,
                           "symbols": chosen, "mode": mode},
     })

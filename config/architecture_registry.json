@@ -300,6 +300,19 @@
     },
     {
       "method": "POST",
+      "path": "/api/market-sector-intelligence/refresh",
+      "function": "app.routers.market_sector_intelligence_routes.market_sector_refresh",
+      "domain": "market-sector-intelligence",
+      "mutation_capability": "NORMAL_ONLY",
+      "operation": "http.msi.sector_refresh",
+      "modes": {
+        "NORMAL": "ENABLED",
+        "CERTIFICATION": "DISABLED"
+      },
+      "writer_family": "HTTP_OPERATION"
+    },
+    {
+      "method": "POST",
       "path": "/api/runs/{run_id}/sector-rotation/recalculate",
       "function": "app.routers.sector_rotation_routes.recalculate_run_sector_rotation_api",
       "domain": "sector-rotation",
@@ -15011,6 +15024,27 @@
       "primitive": "rollback",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Read-only exact-worker-instance idle check; rollback only on read failure; never recovers or changes a job."
+    },
+    {
+      "path": "app/routers/market_sector_intelligence_routes.py",
+      "function": "market_sector_refresh",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Manual MSI admission only: fixed cohort, NORMAL/local-admin/CSRF, verified IB preflight, feature advisory lock; native fetch authority/run/job commit atomically, rollback on rejection."
+    },
+    {
+      "path": "app/routers/market_sector_intelligence_routes.py",
+      "function": "market_sector_refresh",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Manual MSI admission only: fixed cohort, NORMAL/local-admin/CSRF, verified IB preflight, feature advisory lock; native fetch authority/run/job commit atomically, rollback on rejection."
+    },
+    {
+      "path": "app/services/market_sector_refresh_service.py",
+      "function": "enqueue_sector_refresh",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Manual MSI admission only: fixed cohort, NORMAL/local-admin/CSRF, verified IB preflight, feature advisory lock; native fetch authority/run/job commit atomically, rollback on rejection."
     }
   ],
   "high_risk_tables": [

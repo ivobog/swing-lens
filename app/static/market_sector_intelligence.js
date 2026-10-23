@@ -211,6 +211,10 @@
     $('reload').disabled = false;
   }
   function renderStatus() {
+    const freshness = window.SectorRefresh.freshnessView(data.coverage && data.coverage.freshness,
+      universe.map(row => row.etf_symbol));
+    text('freshness', freshness.label); $('freshness').dataset.status = freshness.status;
+    text('freshness-detail', freshness.detail);
     ['rotation', 'archive', 'technical', 'chart'].forEach(key => {
       const box = $('status-' + key); box.replaceChildren();
       let summary = 'Unavailable', detail = errors[key] || 'No evidence available.';
@@ -558,5 +562,35 @@
   });
   let resizing;
   window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(() => { renderScatter(); renderPrices(); renderTechnicalChart(); }, 100); });
-  render(); reload();
+  const refreshRequests = new Set();
+  const refreshController = window.SectorRefresh.createRefreshController({
+    storage: {getItem: key => window.sessionStorage.getItem(key),
+      setItem: (key, value) => window.sessionStorage.setItem(key, value), removeItem: key => window.sessionStorage.removeItem(key)},
+    reloadPage: () => window.location.reload(), reloadPanels: reload,
+    view: value => { text('refresh-status', value.message); $('refresh').setAttribute('aria-disabled', String(value.disabled));
+      $('refresh').textContent = value.state === 'UNKNOWN' ? 'Check refresh status' : 'Refresh Sector'; },
+    request: async (url, options = {}) => {
+      const controller = new AbortController(); refreshRequests.add(controller);
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        let response;
+        try { response = await fetch(url, {method: options.method || 'GET', signal: controller.signal,
+          credentials: 'same-origin', cache: 'no-store', headers: {'Accept': 'application/json',
+            ...(options.method ? {'Content-Type': 'application/json', 'X-CSRF-Token': bootstrap.csrf_token} : {})},
+          ...(options.method ? {body: '{}'} : {})}); }
+        catch (_) { const error = new Error('Refresh status is unavailable.'); error.uncertain = true; throw error; }
+        let payload;
+        try { payload = await response.json(); }
+        catch (_) { const error = new Error('Refresh response could not be verified.'); error.uncertain = true; throw error; }
+        if (!response.ok) { const detail = payload.detail || {}; const error = new Error(detail.message || 'Refresh unavailable (HTTP ' + response.status + ').');
+          error.code = detail.code || 'HTTP_' + response.status;
+          error.uncertain = response.status >= 500 && !detail.code; throw error; }
+        return payload;
+      } finally { clearTimeout(timeout); refreshRequests.delete(controller); }
+    }
+  });
+  $('refresh').addEventListener('click', () => refreshController.start());
+  window.addEventListener('pagehide', () => { refreshController.stop(); refreshRequests.forEach(controller => controller.abort()); });
+  window.addEventListener('pageshow', event => { if (event.persisted) refreshController.resume(); });
+  render(); reload(); refreshController.resume();
 }());
