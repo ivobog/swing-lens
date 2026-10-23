@@ -11,6 +11,12 @@ _REGULAR_MARKET_CLOSE = time(16, 0)
 _EARLY_MARKET_CLOSE = time(13, 0)
 _DAILY_BAR_READY_DELAY = timedelta(minutes=15)
 
+LEGACY_CALENDAR_VERSION = "swinglens-us-equities-v1"
+CALENDAR_VERSION = "swinglens-us-equities-v2"
+# NYSE/Nasdaq National Day of Mourning; announced 2024-12-30.
+# https://www.nasdaqtrader.com/TraderNews.aspx?id=ETA2024-87
+_EXCEPTIONAL_CLOSURES = frozenset({date(2025, 1, 9)})
+
 
 @dataclass(frozen=True)
 class USMarketSession:
@@ -19,12 +25,16 @@ class USMarketSession:
     close_at: datetime
 
 
-def us_market_session(day: date) -> USMarketSession | None:
+def us_market_session(
+    day: date, *, calendar_version: str = CALENDAR_VERSION
+) -> USMarketSession | None:
     """Return the authoritative US-equity session schedule for ``day``."""
-    if not is_us_trading_day(day):
+    if not is_us_trading_day(day, calendar_version=calendar_version):
         return None
     close_time = (
-        _EARLY_MARKET_CLOSE if day in _nyse_early_closes(day.year) else _REGULAR_MARKET_CLOSE
+        _EARLY_MARKET_CLOSE
+        if day in _nyse_early_closes(day.year, calendar_version)
+        else _REGULAR_MARKET_CLOSE
     )
     return USMarketSession(
         session=day,
@@ -33,30 +43,36 @@ def us_market_session(day: date) -> USMarketSession | None:
     )
 
 
-def first_us_market_open_after(decision_at: datetime) -> USMarketSession:
+def first_us_market_open_after(
+    decision_at: datetime, *, calendar_version: str = CALENDAR_VERSION
+) -> USMarketSession:
     """Select the first exchange open strictly after an aware decision timestamp."""
     if decision_at.tzinfo is None:
         raise ValueError("decision_at must be timezone-aware")
     local = decision_at.astimezone(_NY_TZ)
     candidate = local.date()
     while True:
-        session = us_market_session(candidate)
+        session = us_market_session(candidate, calendar_version=calendar_version)
         if session is not None and local < session.open_at:
             return session
         candidate += timedelta(days=1)
 
 
-def is_us_trading_day(day: date) -> bool:
-    return day.weekday() < 5 and day not in _nyse_holidays(day.year)
+def is_us_trading_day(day: date, *, calendar_version: str = CALENDAR_VERSION) -> bool:
+    if calendar_version not in {LEGACY_CALENDAR_VERSION, CALENDAR_VERSION}:
+        raise ValueError("unsupported US equity calendar version")
+    return day.weekday() < 5 and day not in _nyse_holidays(day.year, calendar_version)
 
 
-def latest_completed_us_trading_day(now: datetime | None = None) -> date:
+def latest_completed_us_trading_day(
+    now: datetime | None = None, *, calendar_version: str = CALENDAR_VERSION
+) -> date:
     """Return the latest US equity trading day with a complete daily bar."""
     ny_now = _ny_datetime(now)
-    session = us_market_session(ny_now.date())
+    session = us_market_session(ny_now.date(), calendar_version=calendar_version)
     if session is not None and ny_now >= session.close_at + _DAILY_BAR_READY_DELAY:
         return session.session
-    return _previous_us_trading_day(ny_now.date())
+    return _previous_us_trading_day(ny_now.date(), calendar_version=calendar_version)
 
 
 def is_latest_daily_bar_current(
@@ -82,26 +98,30 @@ def is_daily_bar_fresh(
     return latest >= completed - timedelta(days=allowed_age)
 
 
-def next_us_trading_day(day: date) -> date:
+def next_us_trading_day(day: date, *, calendar_version: str = CALENDAR_VERSION) -> date:
     candidate = day + timedelta(days=1)
-    while not _is_us_trading_day(candidate):
+    while not is_us_trading_day(candidate, calendar_version=calendar_version):
         candidate += timedelta(days=1)
     return candidate
 
 
-def previous_us_trading_day(day: date) -> date:
-    return _previous_us_trading_day(day)
+def previous_us_trading_day(day: date, *, calendar_version: str = CALENDAR_VERSION) -> date:
+    return _previous_us_trading_day(day, calendar_version=calendar_version)
 
 
-def subtract_us_trading_sessions(day: date, sessions: int) -> date:
+def subtract_us_trading_sessions(
+    day: date, sessions: int, *, calendar_version: str = CALENDAR_VERSION
+) -> date:
     """Move backward by a bounded number of US equity sessions."""
     candidate = day
     for _ in range(max(0, sessions)):
-        candidate = _previous_us_trading_day(candidate)
+        candidate = _previous_us_trading_day(candidate, calendar_version=calendar_version)
     return candidate
 
 
-def us_trading_sessions_between(start_exclusive: date, end_inclusive: date) -> int:
+def us_trading_sessions_between(
+    start_exclusive: date, end_inclusive: date, *, calendar_version: str = CALENDAR_VERSION
+) -> int:
     """Count completed US equity sessions in ``(start, end]``.
 
     Calendar-only elapsed time (weekends and exchange holidays) contributes
@@ -113,21 +133,23 @@ def us_trading_sessions_between(start_exclusive: date, end_inclusive: date) -> i
     count = 0
     current = start_exclusive
     while True:
-        current = next_us_trading_day(current)
+        current = next_us_trading_day(current, calendar_version=calendar_version)
         if current > end_inclusive:
             return count
         count += 1
 
 
-def nth_us_trading_day_from_entry(entry_day: date, horizon_sessions: int) -> date:
+def nth_us_trading_day_from_entry(
+    entry_day: date, horizon_sessions: int, *, calendar_version: str = CALENDAR_VERSION
+) -> date:
     if horizon_sessions <= 0:
         raise ValueError("horizon_sessions must be positive")
-    if not is_us_trading_day(entry_day):
+    if not is_us_trading_day(entry_day, calendar_version=calendar_version):
         raise ValueError("entry_day must be a US trading day")
 
     candidate = entry_day
     for _ in range(horizon_sessions - 1):
-        candidate = next_us_trading_day(candidate)
+        candidate = next_us_trading_day(candidate, calendar_version=calendar_version)
     return candidate
 
 
@@ -139,9 +161,9 @@ def _ny_datetime(value: datetime | None) -> datetime:
     return value.astimezone(_NY_TZ)
 
 
-def _previous_us_trading_day(day: date) -> date:
+def _previous_us_trading_day(day: date, *, calendar_version: str = CALENDAR_VERSION) -> date:
     candidate = day - timedelta(days=1)
-    while not _is_us_trading_day(candidate):
+    while not is_us_trading_day(candidate, calendar_version=calendar_version):
         candidate -= timedelta(days=1)
     return candidate
 
@@ -150,7 +172,7 @@ _is_us_trading_day = is_us_trading_day
 
 
 @lru_cache(maxsize=32)
-def _nyse_holidays(year: int) -> frozenset[date]:
+def _nyse_holidays(year: int, calendar_version: str = CALENDAR_VERSION) -> frozenset[date]:
     holidays = {
         _observed(date(year, 1, 1)),
         _nth_weekday(year, 1, 0, 3),  # Martin Luther King Jr. Day
@@ -172,11 +194,13 @@ def _nyse_holidays(year: int) -> frozenset[date]:
         observed = _observed(raw)
         if observed.year == year:
             holidays.add(observed)
+    if calendar_version == CALENDAR_VERSION:
+        holidays.update(day for day in _EXCEPTIONAL_CLOSURES if day.year == year)
     return frozenset(holidays)
 
 
 @lru_cache(maxsize=32)
-def _nyse_early_closes(year: int) -> frozenset[date]:
+def _nyse_early_closes(year: int, calendar_version: str = CALENDAR_VERSION) -> frozenset[date]:
     """Rule-based NYSE 13:00 closes used by the shared session service.
 
     Exceptional one-off closures remain full holiday overrides; these stable
@@ -195,7 +219,9 @@ def _nyse_early_closes(year: int) -> frozenset[date]:
     christmas_eve = date(year, 12, 24)
     if christmas_eve.weekday() < 5:
         candidates.add(christmas_eve)
-    return frozenset(day for day in candidates if is_us_trading_day(day))
+    return frozenset(
+        day for day in candidates if is_us_trading_day(day, calendar_version=calendar_version)
+    )
 
 
 def _observed(day: date) -> date:

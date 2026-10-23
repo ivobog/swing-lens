@@ -146,6 +146,10 @@ class WinnerPredictionCaptureService:
         memory_probe: Callable[[Session, int, int, str], None] | None = None,
         target_raw_row_ids: tuple[int, ...] | None = None,
     ) -> WinnerPredictionCaptureResult:
+        if market_cutoff is not None:
+            from app.services.market_clock_service import require_current_execution_calendar
+
+            require_current_execution_calendar(market_cutoff)
         config = config or load_winner_probability_config()
         from app.services.decision_effective_configuration import resolve_winner_configuration
 

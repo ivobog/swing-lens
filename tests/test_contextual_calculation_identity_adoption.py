@@ -40,7 +40,7 @@ from app.services.contextual_calculation_identity import (
     expected_sector_identity,
 )
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
-from app.services.market_clock_service import MarketClockService
+from app.services.market_clock_service import CALENDAR_VERSION, MarketClockService
 from app.services.market_regime_policy import load_market_regime_command_center_config
 from app.services.sector_rotation_service import _select_compatible_previous_snapshot
 from app.services.setup_lifecycle.snapshot_builder import SetupLifecycleSnapshotBuilder
@@ -519,6 +519,50 @@ def test_no_negative_architecture_edges_were_introduced() -> None:
     assert "refresh_ranking" not in sector_source
 
 
+@pytest.mark.parametrize("module", ["VOLATILITY", "SHORT_PRESSURE"])
+def test_revised_calendar_does_not_admit_legacy_ibmi_identity(monkeypatch, module):
+    from contextual_readiness_helpers import ibmi_feature
+
+    from app.services.us_market_calendar import LEGACY_CALENDAR_VERSION
+
+    cutoff = _cutoff()
+    config = load_ib_market_intelligence_config()
+    monkeypatch.setattr(
+        ceri_capture, "get_settings",
+        lambda: SimpleNamespace(
+            ib_market_intelligence_enabled=True,
+            ib_volatility_intelligence_enabled=True,
+            ib_short_pressure_enabled=True,
+        ),
+    )
+    selector = (
+        ceri_capture._point_in_time_volatility_feature
+        if module == "VOLATILITY"
+        else ceri_capture._point_in_time_short_pressure_feature
+    )
+    legacy = ibmi_feature(
+        module, config_hash=config.config_hash, calculation_cutoff_at=cutoff.cutoff_at,
+        calendar_version=LEGACY_CALENDAR_VERSION,
+        as_of_session=cutoff.latest_completed_session,
+    )
+    assert selector(
+        _RowsDb([legacy]), "MSFT", cutoff.cutoff_at,
+        as_of_session=cutoff.latest_completed_session, market_cutoff=cutoff,
+        ibmi_config=config,
+    ) is None
+    assert legacy.calendar_version == LEGACY_CALENDAR_VERSION
+    current = ibmi_feature(
+        module, config_hash=config.config_hash, calculation_cutoff_at=cutoff.cutoff_at,
+        calendar_version=cutoff.calendar_version,
+        as_of_session=cutoff.latest_completed_session,
+    )
+    assert selector(
+        _RowsDb([current]), "MSFT", cutoff.cutoff_at,
+        as_of_session=cutoff.latest_completed_session, market_cutoff=cutoff,
+        ibmi_config=config,
+    ) is not None
+
+
 def _cutoff(*, context_id: int | None = None):
     cutoff = MarketClockService().cutoff_for(
         datetime(2026, 9, 11, 20, 30, tzinfo=UTC), reason="T10C_TEST"
@@ -665,7 +709,7 @@ def _ibmi_feature(
         as_of_session=date(2026, 9, 11),
         calculated_at=calculated_at,
         calculation_cutoff_at=cutoff,
-        calendar_version="swinglens-us-equities-v1",
+        calendar_version=CALENDAR_VERSION,
         module=module,
         classification="HIGH" if module == "SHORT_PRESSURE" else "AVAILABLE",
         score=Decimal("5"),

@@ -1,25 +1,75 @@
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal
 
 import yaml
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
+from app.services.market_sector_intelligence_chart_service import WINDOWS, selected_symbols
+from app.services.market_sector_intelligence_config import (
+    MarketSectorIntelligenceConfigError,
+    load_market_sector_intelligence_config,
+)
 from app.settings import get_settings
 from app.templates import templates
 
 router = APIRouter(tags=["gui"])
 
 
+@router.get("/sector-rotation", response_class=HTMLResponse)
+def market_sector_intelligence_page(
+    request: Request,
+    etf: str | None = None,
+    horizon: int = 126,
+    snapshot_id: Annotated[int | None, Query(ge=1, le=9007199254740991)] = None,
+    symbols: Annotated[str | None, Query(max_length=128)] = None,
+    mode: Literal["relative", "absolute"] = "relative",
+) -> HTMLResponse:
+    from dataclasses import asdict
+
+    if horizon not in WINDOWS:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_CHART_SELECTION"})
+    sectors, error = [], None
+    chosen = []
+    focus = etf.strip().upper() if etf is not None else "XLK"
+    try:
+        config = load_market_sector_intelligence_config()
+        sectors = [asdict(sector) for sector in config.sectors]
+        try:
+            chosen = selected_symbols(symbols if symbols is not None else "XLK,XLF,XLE", config)
+            if focus not in {sector.etf_symbol for sector in config.sectors}:
+                raise ValueError
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail={"code": "INVALID_CHART_SELECTION"}
+            ) from exc
+    except MarketSectorIntelligenceConfigError:
+        error = "Independent sector configuration is unavailable."
+    return templates.TemplateResponse(request, "market_sector_intelligence.html", {
+        "active_nav": "market-sector-intelligence", "sectors": sectors,
+        "configuration_error": error,
+        "initial_state": {"etf": focus, "horizon": horizon, "snapshot_id": snapshot_id,
+                          "symbols": chosen, "mode": mode},
+    })
+
+
 @router.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request) -> HTMLResponse:
     settings = get_settings()
+    market_sector = None
+    market_sector_error = None
+    try:
+        market_sector = load_market_sector_intelligence_config()
+    except MarketSectorIntelligenceConfigError as exc:
+        market_sector_error = str(exc)
     return templates.TemplateResponse(
         request,
         "settings.html",
         {
             "active_nav": "settings",
             "settings_groups": _settings_groups(settings),
+            "market_sector": market_sector,
+            "market_sector_error": market_sector_error,
         },
     )
 

@@ -57,6 +57,7 @@ def build_local_artifact_key(
     input_as_of_session: date | None = None,
     calculation_cutoff_at: datetime | None = None,
     source_manifest_hash: str | None = None,
+    calendar_version: str | None = None,
     artifact_schema_version: str = ARTIFACT_SCHEMA_VERSION,
 ) -> LocalArtifactKey:
     input_versions = {
@@ -67,6 +68,8 @@ def build_local_artifact_key(
             input_as_of_session.isoformat() if input_as_of_session is not None else None
         ),
     }
+    if calendar_version is not None:
+        input_versions["calendar_version"] = calendar_version
     if calculation_cutoff_at is not None or source_manifest_hash is not None:
         input_versions["calculation_cutoff_at"] = CanonicalEvidenceSerializer.canonicalize(
             calculation_cutoff_at
@@ -231,6 +234,7 @@ def upsert_local_artifact(
             else None
         ),
         source_manifest_hash=key.input_versions.get("source_manifest_hash"),
+        calendar_version=key.input_versions.get("calendar_version"),
         artifact_schema_version=key.artifact_schema_version,
     )
     if expected != key:

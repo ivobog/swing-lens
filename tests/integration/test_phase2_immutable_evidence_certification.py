@@ -72,7 +72,8 @@ PHASE2_REVISIONS = (
     "0078_ibmi_constituent_evidence",
     "0079_setup_lifecycle_alert_ev",
 )
-CURRENT_HEAD = "0091_readiness_constraints"
+CURRENT_HEAD = "0093_market_sector_rotation"
+READINESS_CONSTRAINTS_REVISION = "0091_readiness_constraints"
 MARKET_DATA_READINESS_REVISION = "0090_market_data_readiness"
 PIPELINE_EXECUTION_AUTHORITY_REVISION = "0089_pipeline_execution_authority"
 CERI_RUN_SOURCE_REVISION = "0088_ceri_run_source_lineage"
@@ -93,7 +94,11 @@ def test_phase2_postgresql_migration_chain_round_trip_and_schema_contract(
     config = _config(disposable_postgres_database)
     script = ScriptDirectory.from_config(config)
     assert tuple(script.get_heads()) == (CURRENT_HEAD,)
-    assert script.get_revision(CURRENT_HEAD).down_revision == MARKET_DATA_READINESS_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == READINESS_CONSTRAINTS_REVISION
+    assert (
+        script.get_revision(READINESS_CONSTRAINTS_REVISION).down_revision
+        == MARKET_DATA_READINESS_REVISION
+    )
     assert (
         script.get_revision(MARKET_DATA_READINESS_REVISION).down_revision
         == PIPELINE_EXECUTION_AUTHORITY_REVISION

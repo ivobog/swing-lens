@@ -3109,6 +3109,34 @@
       "tests": [
         "tests/test_t14a_mutation_inventory.py"
       ]
+    },
+    {
+      "table": "market_sector_rotation_rows",
+      "model": "app.models.market_sector_intelligence_tables.MarketSectorRotationRow",
+      "domain": "Independent market-sector research",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-083"
+      ],
+      "authority": "Explicit typed NORMAL_ONLY CLI capture; configured CLI role; D2 insert guard; append-only DB triggers",
+      "transaction_family": "TX-29",
+      "tests": [
+        "tests/test_market_sector_intelligence_rotation_storage.py"
+      ]
+    },
+    {
+      "table": "market_sector_rotation_snapshots",
+      "model": "app.models.market_sector_intelligence_tables.MarketSectorRotationSnapshot",
+      "domain": "Independent market-sector research",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-083"
+      ],
+      "authority": "Explicit typed NORMAL_ONLY CLI capture; configured CLI role; D2 insert guard; append-only DB triggers",
+      "transaction_family": "TX-29",
+      "tests": [
+        "tests/test_market_sector_intelligence_rotation_storage.py"
+      ]
     }
   ],
   "writer_families": [
@@ -3879,6 +3907,16 @@
       "functions": "pipeline_dependency_service dependency preparation, reconciliation, completion, and failure",
       "entrypoints": "FULL_PIPELINE CERI and SEC dependency orchestration",
       "authority_transaction": "pipeline execution token, dependency key/type, child job identity, and continuation request key"
+    },
+    {
+      "id": "WRITE-083",
+      "tables": [
+        "market_sector_rotation_snapshots",
+        "market_sector_rotation_rows"
+      ],
+      "functions": "MarketSectorRotationRepository.capture",
+      "entrypoints": "explicit local scripts/market_sector_intelligence_capture.py --capture only",
+      "authority_transaction": "MarketSectorCaptureAuthority; NORMAL_ONLY and CLI_OR_MAINTENANCE; exact config/current-session/material validation; immutable complete-only atomic TX-29"
     }
   ],
   "writer_candidates": [
@@ -11548,6 +11586,15 @@
       "kind": "add",
       "writer_ids": [],
       "reason": "Run 41: seen.add only tracks exception identities in a bounded in-memory set; no database mutation."
+    },
+    {
+      "path": "app/services/market_sector_intelligence_rotation_repository.py",
+      "function": "capture",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-083"
+      ],
+      "reason": "D2-only complete capture; one header and eleven rows under typed CLI authority."
     }
   ],
   "recovery_paths": [
@@ -12097,6 +12144,13 @@
       "retained": "exact two-ticker/provider semantic scope, configuration anchor, market context, pipeline/root IDs and child graph",
       "revalidation": "certification session, schema head, isolated queue, exact payload permissions and retained scope membership",
       "continuation": "provider -> normalize -> one feature batch -> FEATURE_CERTIFIED; no finalizer"
+    },
+    {
+      "id": "TX-29",
+      "boundary": "explicit CLI preview read session closes before a fresh atomic D2-only capture transaction",
+      "retained": "one immutable header and exactly eleven rows; natural-key uniqueness and selected anchor/provenance hashes",
+      "revalidation": "typed NORMAL_ONLY CLI role, current completed market session, version/config, finite metrics, exact anchors, ranks and material digest; same-session conflict is never overwritten",
+      "continuation": "no scheduler, provider, pipeline, HTTP mutation or worker"
     }
   ],
   "transaction_sites": [
@@ -14815,6 +14869,27 @@
       "primitive": "rollback",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Run 41: discard staged recapture/publication writes on failure or cancellation before separately fenced audit bookkeeping."
+    },
+    {
+      "path": "app/services/market_sector_intelligence_rotation_repository.py",
+      "function": "capture",
+      "primitive": "begin",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "D2 TX-29 atomic complete capture; rollback before natural-key race re-read."
+    },
+    {
+      "path": "app/services/market_sector_intelligence_rotation_repository.py",
+      "function": "capture",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "D2 TX-29 atomic complete capture; rollback before natural-key race re-read."
+    },
+    {
+      "path": "app/services/market_sector_intelligence_rotation_repository.py",
+      "function": "capture",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "D2 TX-29 atomic complete capture; rollback before natural-key race re-read."
     }
   ],
   "high_risk_tables": [
@@ -17944,6 +18019,11 @@
     ],
     "READ-026": [
       "tests/integration/test_aggregate_operability_postgresql.py"
+    ],
+    "TX-29": [
+      "tests/test_market_sector_intelligence_rotation_storage.py::test_complete_capture_is_atomic_and_exact_retry_has_no_dml",
+      "tests/test_market_sector_intelligence_rotation_storage.py::test_injected_row_failure_rolls_back_header_and_every_row",
+      "tests/integration/test_market_sector_intelligence_rotation_postgresql.py::test_full_postgresql_upgrade_capture_concurrency_and_immutability"
     ]
   },
   "exceptions": [],

@@ -6,6 +6,7 @@ from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRu
 from app.services.background_job_service import JobStatus
 from app.services.ceri.constants import CERI_PIPELINE_STEPS
 from app.services.ceri.feature_flags import CeriFeatureFlags
+from app.services.market_clock_service import CALENDAR_VERSION
 from app.services.pipeline_service import (
     FULL_PIPELINE_JOB_TYPE,
     PIPELINE_STEP_NAMES,
@@ -128,7 +129,7 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
     assert job.payload_json["pipeline_run_id"] == pipeline.id
     assert job.payload_json["market_cutoff_at"]
     assert job.payload_json["input_as_of_session"]
-    assert job.payload_json["market_calendar_version"] == "swinglens-us-equities-v1"
+    assert job.payload_json["market_calendar_version"] == CALENDAR_VERSION
     assert job.payload_json["bar_readiness_version"] == "daily-close-plus-15m-v1"
     assert {
         key: value
@@ -152,7 +153,7 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
         "ib_port": None,
     }
     assert pipeline.result_json["input_as_of_session"] == "2026-09-04"
-    assert pipeline.result_json["market_calendar_version"] == "swinglens-us-equities-v1"
+    assert pipeline.result_json["market_calendar_version"] == CALENDAR_VERSION
     assert pipeline.result_json["bar_readiness_version"] == "daily-close-plus-15m-v1"
 
 

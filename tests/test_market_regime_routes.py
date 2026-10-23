@@ -72,6 +72,10 @@ def test_market_regime_page_renders_template_in_app(monkeypatch) -> None:
     assert "Market Regime Command Center" in response.text
     assert "Bull trend" in response.text
     assert "Market Permission Layer" in response.text
+    assert "Sector Leadership: based on the uploaded stock universe." in response.text
+    assert "This is not ETF-based market sector rotation." in response.text
+    assert '<a href="/sector-rotation">Open independent Sector Rotation</a>' in response.text
+    assert "Uploaded-stock-cohort sector leadership inputs" in response.text
 
 
 def test_latest_api_returns_snapshot_payload(monkeypatch) -> None:

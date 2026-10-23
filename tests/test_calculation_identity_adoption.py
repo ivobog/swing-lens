@@ -98,10 +98,34 @@ def test_pipeline_job_consumer_accepts_compatible_identity(caplog) -> None:
     assert len(record.calculation_identity_fingerprint) == 64
 
 
+def test_retained_pipeline_v1_context_is_not_retagged_or_mixed_with_v2():
+    from dataclasses import replace
+
+    from app.services.us_market_calendar import LEGACY_CALENDAR_VERSION
+
+    context = replace(_frozen_context(), calendar_version=LEGACY_CALENDAR_VERSION)
+    from app.services.market_calculation_context_service import cutoff_from_row
+
+    database = _context_db(context)
+    retained = cutoff_from_row(database.get(MarketCalculationContext, 42))
+    assert retained == context
+    assert retained.calendar_version == LEGACY_CALENDAR_VERSION
+    with pytest.raises(
+        PipelineCalculationContextError, match="LEGACY_CALENDAR_EXECUTION_NOT_SUPPORTED"
+    ):
+        validate_pipeline_job_market_context(database, pipeline_run_id=3, payload=_payload(context))
+    current_payload = _payload(context)
+    current_payload["market_calendar_version"] = _frozen_context().calendar_version
+    with pytest.raises(PipelineCalculationContextError, match="temporal.calendar"):
+        validate_pipeline_job_market_context(
+            _context_db(context), pipeline_run_id=3, payload=current_payload,
+        )
+
+
 def test_pipeline_job_consumer_rejects_one_dimension_mismatch() -> None:
     context = _frozen_context()
     payload = _payload(context)
-    payload["market_calendar_version"] = "swinglens-us-equities-v2"
+    payload["market_calendar_version"] = context.calendar_version + "-different"
 
     with pytest.raises(
         PipelineCalculationContextError,

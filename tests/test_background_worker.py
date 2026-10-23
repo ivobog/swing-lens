@@ -68,7 +68,7 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     class Db:
         def scalar(self, _statement):
-            return "0091_readiness_constraints"
+            return "0093_market_sector_rotation"
 
     settings = Settings(
         _env_file=None,
@@ -83,6 +83,7 @@ def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
         summary = log_worker_startup_configuration(Db(), settings=settings, worker_id="worker-test")
 
     assert summary["sec_incremental_mode"] == "OFF"
+    assert summary["database_schema_revision"] == "0093_market_sector_rotation"
     assert summary["sec_processor_signature"].startswith("sec-guidance:")
     assert summary["worker_id"] == "worker-test"
     assert summary["worker_process_id"] > 0

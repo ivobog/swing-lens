@@ -29,7 +29,7 @@ from app.services.combined_ranking_identity import (
 )
 from app.services.core_effective_configuration import resolve_technical_configuration
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
-from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.market_clock_service import MarketCalculationCutoff, MarketClockService
 from app.services.ranking_profile_config import get_ranking_profile
 from app.services.technical_indicators import load_pine_defaults
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
@@ -103,7 +103,10 @@ def test_combined_compatible_sources_persist_identity_and_exact_source_refs(monk
 
 
 def test_fundamental_and_technical_producers_persist_context_bound_identities() -> None:
-    row, _, technical, cutoff = _identity_aware_sources()
+    cutoff = MarketClockService().cutoff_for(
+        datetime(2026, 7, 7, 20, 30, tzinfo=UTC), reason="TEST_CURRENT_PRODUCER"
+    ).with_context_id(17)
+    row, _, technical, cutoff = _identity_aware_sources(cutoff=cutoff)
     source_db = SourceDb(row)
 
     fundamentals = fundamental_score_service.recalculate_run_fundamentals(
