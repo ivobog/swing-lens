@@ -13,6 +13,11 @@ from app.models.tables import BackgroundJob, PipelineDependency, PipelineRun, Pi
 from app.observability.correlation import durable_job_causality
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import JobStatus, enqueue_job
+from app.services.pipeline_execution_authority import (
+    job_execution_authority_predicate,
+    pipeline_activation_predicate,
+    pipeline_is_in_activation_scope,
+)
 from app.services.pipeline_state_machine import (
     TERMINAL_PIPELINE_STATES,
     transition_pipeline,
@@ -407,7 +412,11 @@ def reconcile_pipeline_job(db: Session, job_id: int) -> None:
 
     if not isinstance(db, Session):
         return
-    job = db.get(BackgroundJob, job_id)
+    job = db.scalar(
+        select(BackgroundJob).where(
+            BackgroundJob.id == job_id, job_execution_authority_predicate(),
+        )
+    )
     if job is None:
         return
     if job.pipeline_dependency_id is not None:
@@ -453,6 +462,7 @@ def reconcile_pending_dependency_enqueues(
             select(PipelineDependency.id)
             .join(PipelineRun, PipelineRun.id == PipelineDependency.pipeline_run_id)
             .where(PipelineDependency.state == "PENDING_ENQUEUE")
+            .where(pipeline_activation_predicate())
             .where(
                 PipelineRun.id.in_(pipeline_run_ids)
                 if pipeline_run_ids is not None else True
@@ -492,6 +502,7 @@ def reconcile_safe_pipeline_invariants(
         db.scalars(
             select(PipelineDependency)
             .join(PipelineRun, PipelineRun.id == PipelineDependency.pipeline_run_id)
+            .where(pipeline_activation_predicate())
             .where(
                 PipelineDependency.state.in_(DEPENDENCY_ACTIVE_STATES | {"COMPLETED"}),
                 PipelineDependency.child_job_id.is_not(None),
@@ -521,6 +532,7 @@ def reconcile_safe_pipeline_invariants(
         db.scalars(
             select(PipelineRun)
             .where(PipelineRun.status == "CANCEL_REQUESTED")
+            .where(pipeline_activation_predicate())
             .where(
                 PipelineRun.id.in_(pipeline_run_ids)
                 if pipeline_run_ids is not None else True
@@ -568,7 +580,7 @@ def _reconcile_dependency_job(db: Session, job: BackgroundJob) -> None:
     pipeline = db.scalar(
         select(PipelineRun).where(PipelineRun.id == dependency.pipeline_run_id).with_for_update()
     )
-    if pipeline is None:
+    if not pipeline_is_in_activation_scope(pipeline):
         return
     now = _utcnow()
     if job.id == dependency.child_job_id:
@@ -763,7 +775,7 @@ def _reconcile_pipeline_root_job(db: Session, job: BackgroundJob) -> None:
     if not pipeline_id:
         return
     pipeline = db.scalar(select(PipelineRun).where(PipelineRun.id == pipeline_id).with_for_update())
-    if pipeline is None or pipeline.status in TERMINAL_PIPELINE_STATES:
+    if not pipeline_is_in_activation_scope(pipeline) or pipeline.status in TERMINAL_PIPELINE_STATES:
         return
     if pipeline.status == "CANCEL_REQUESTED":
         # Cancellation is a control outcome, not an execution failure.  The

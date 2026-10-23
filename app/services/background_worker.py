@@ -505,6 +505,8 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
         **effective_runtime_configuration(settings),
         "fundamental_admission_mode": settings.fundamental_admission_mode.value,
         "worker_memory_recycle_mb": settings.worker_memory_recycle_mb,
+        "job_activation_min_id": settings.job_activation_min_id,
+        "pipeline_activation_min_id": settings.pipeline_activation_min_id,
         "ceri_enabled": settings.ceri_enabled,
         "ceri_batched_workflow_enabled": settings.ceri_batched_workflow_enabled,
         "ceri_provider_ingest_enabled": settings.ceri_provider_ingest_enabled,

@@ -6,6 +6,7 @@ from sqlalchemy import BigInteger, and_, cast, exists, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob, PipelineDependency, PipelineRun
+from app.settings import get_settings
 
 ACTIVE_EXECUTION_AUTHORITY = "ACTIVE"
 NON_EXECUTABLE_PIPELINE_STATUSES = frozenset(
@@ -21,9 +22,22 @@ NON_EXECUTABLE_PIPELINE_STATUSES = frozenset(
 )
 
 
+def pipeline_activation_predicate() -> Any:
+    """Exclude historical roots without changing retained pipeline evidence."""
+    minimum = get_settings().pipeline_activation_min_id
+    return PipelineRun.id >= minimum if minimum else True
+
+
+def pipeline_is_in_activation_scope(pipeline: PipelineRun | None) -> bool:
+    minimum = get_settings().pipeline_activation_min_id
+    return pipeline is not None and (
+        not minimum or (pipeline.id is not None and pipeline.id >= minimum)
+    )
+
+
 def pipeline_execution_is_authorized(pipeline: PipelineRun | None) -> bool:
     return bool(
-        pipeline is not None
+        pipeline_is_in_activation_scope(pipeline)
         and pipeline.execution_authority_state == ACTIVE_EXECUTION_AUTHORITY
         and pipeline.status not in NON_EXECUTABLE_PIPELINE_STATUSES
     )
@@ -75,6 +89,7 @@ def job_execution_authority_predicate() -> Any:
             PipelineRun.id == payload_pipeline_id,
             PipelineRun.execution_authority_state == ACTIVE_EXECUTION_AUTHORITY,
             PipelineRun.status.not_in(NON_EXECUTABLE_PIPELINE_STATUSES),
+            pipeline_activation_predicate(),
         )
     )
     dependency_authorized = exists(
@@ -84,13 +99,14 @@ def job_execution_authority_predicate() -> Any:
             PipelineDependency.id == BackgroundJob.pipeline_dependency_id,
             PipelineRun.execution_authority_state == ACTIVE_EXECUTION_AUTHORITY,
             PipelineRun.status.not_in(NON_EXECUTABLE_PIPELINE_STATUSES),
+            pipeline_activation_predicate(),
         )
     )
     pipeline_owned = or_(
         payload_has_pipeline,
         BackgroundJob.pipeline_dependency_id.is_not(None),
     )
-    return or_(
+    pipeline_authority = or_(
         ~pipeline_owned,
         and_(
             or_(payload_authorized, dependency_authorized),
@@ -98,6 +114,23 @@ def job_execution_authority_predicate() -> Any:
             # authority from an unrelated dependency.
             or_(~payload_has_pipeline, payload_authorized),
             or_(BackgroundJob.pipeline_dependency_id.is_(None), dependency_authorized),
+        ),
+    )
+    minimum = get_settings().job_activation_min_id
+    if not minimum:
+        return pipeline_authority
+    # Check ancestry as well as the queue row: a freshly created continuation
+    # must never borrow execution from a pre-activation root or parent.
+    return and_(
+        pipeline_authority,
+        BackgroundJob.id >= minimum,
+        *(
+            or_(column.is_(None), column >= minimum)
+            for column in (
+                BackgroundJob.root_job_id,
+                BackgroundJob.parent_job_id,
+                BackgroundJob.triggered_by_job_id,
+            )
         ),
     )
 
