@@ -12,7 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 import psutil
-from sqlalchemy import text
+from sqlalchemy import exists, select, text
 from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -369,6 +369,11 @@ def _run_worker_control_loop(
             )
         if stop_after_one:
             return
+        if ran_job and _post_job_recycle_required(
+            settings=settings, worker_id=worker_id,
+            worker_instance_id=worker_instance_id, session_factory=session_factory,
+        ):
+            return
         if not ran_job:
             runtime_stop_event.wait(settings.job_poll_interval_seconds)
 
@@ -498,6 +503,8 @@ def worker_startup_configuration(db: Session, *, settings: Settings) -> dict[str
         processor_capability = None
     return {
         **effective_runtime_configuration(settings),
+        "fundamental_admission_mode": settings.fundamental_admission_mode.value,
+        "worker_memory_recycle_mb": settings.worker_memory_recycle_mb,
         "ceri_enabled": settings.ceri_enabled,
         "ceri_batched_workflow_enabled": settings.ceri_batched_workflow_enabled,
         "ceri_provider_ingest_enabled": settings.ceri_provider_ingest_enabled,
@@ -708,7 +715,13 @@ def run_worker_once(
         heartbeat_worker_control_loop(db, worker_id, instance_id=worker_instance_id)
         from app.services.pipeline_dependency_service import reconcile_safe_pipeline_invariants
 
-        reconcile_safe_pipeline_invariants(db)
+        if certification_mode and isinstance(db, Session):
+            reconcile_safe_pipeline_invariants(
+                db,
+                pipeline_run_ids=_certification_pipeline_run_ids(db, certification_session_id),
+            )
+        else:
+            reconcile_safe_pipeline_invariants(db)
         db.commit()
 
         if schedule_winner_probability and not certification_mode:
@@ -1509,3 +1522,120 @@ def _execute_sec_readiness_repair_job(
             )
     except SecReadinessRepairCancelled as exc:
         raise CancelRequested(str(exc)) from exc
+
+
+def _certification_pipeline_run_ids(db: Session, session_id: str) -> tuple[int, ...]:
+    """Narrow recovery to explicit roots of the current certification epoch."""
+    from app.services.certification_runtime import (
+        CERTIFICATION_ROOT_JOB_TYPES,
+        certification_claim_filter,
+    )
+
+    payloads = db.scalars(
+        select(BackgroundJob.payload_json).where(
+            BackgroundJob.job_type.in_(CERTIFICATION_ROOT_JOB_TYPES),
+            certification_claim_filter(session_id=session_id),
+        )
+    )
+    return tuple(sorted({
+        value for payload in payloads
+        if isinstance(value := (payload or {}).get("pipeline_run_id"), int)
+        and not isinstance(value, bool) and value > 0
+    }))
+
+
+def _post_job_recycle_required(
+    *,
+    settings: Settings,
+    worker_id: str,
+    worker_instance_id: str,
+    session_factory: sessionmaker[Session],
+) -> bool:
+    """Request graceful replacement only at a committed, idle job boundary."""
+
+    try:
+        snapshot = process_memory_snapshot()
+    except Exception:
+        logger.exception(
+            "job.worker.post_job_memory_sample_failed",
+            extra={"worker_id": worker_id, "worker_instance_id": worker_instance_id},
+        )
+        return False
+    measured_bytes = snapshot.private_bytes or snapshot.rss_bytes
+    state = memory_status(
+        snapshot,
+        warning_mb=settings.worker_memory_warning_mb,
+        critical_mb=settings.worker_memory_critical_mb,
+    )
+    operational_metrics.set_gauge(
+        "swinglens_worker_rss_bytes",
+        float(snapshot.rss_bytes),
+        worker_id=worker_id,
+    )
+    if snapshot.private_bytes is not None:
+        operational_metrics.set_gauge(
+            "swinglens_worker_private_bytes",
+            float(snapshot.private_bytes),
+            worker_id=worker_id,
+        )
+    operational_metrics.set_gauge(
+        "swinglens_worker_memory_bytes",
+        float(measured_bytes),
+        worker_id=worker_id,
+    )
+    for candidate in ("NORMAL", "WARNING", "CRITICAL"):
+        operational_metrics.set_gauge(
+            "swinglens_worker_memory_status",
+            float(state == candidate),
+            worker_id=worker_id,
+            status=candidate,
+        )
+    threshold_mb = int(getattr(settings, "worker_memory_recycle_mb", 2048))
+    if measured_bytes < threshold_mb * 1024 * 1024:
+        return False
+
+    db = session_factory()
+    try:
+        active_owned_job = bool(
+            db.scalar(
+                select(
+                    exists().where(
+                        BackgroundJob.status.in_((JobStatus.RUNNING, JobStatus.RECOVERING)),
+                        BackgroundJob.worker_id == worker_id,
+                        BackgroundJob.worker_instance_id == worker_instance_id,
+                    )
+                )
+            )
+        )
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "job.worker.post_job_recycle_idle_check_failed",
+            extra={"worker_id": worker_id, "worker_instance_id": worker_instance_id},
+        )
+        return False
+    finally:
+        db.close()
+    if active_owned_job:
+        logger.warning(
+            "job.worker.post_job_recycle_deferred_active_job",
+            extra={
+                "worker_id": worker_id,
+                "worker_instance_id": worker_instance_id,
+                "private_bytes": snapshot.private_bytes,
+                "rss_bytes": snapshot.rss_bytes,
+                "recycle_threshold_mb": threshold_mb,
+            },
+        )
+        return False
+    logger.info(
+        "job.worker.post_job_recycle_requested",
+        extra={
+            "worker_id": worker_id,
+            "worker_instance_id": worker_instance_id,
+            "private_bytes": snapshot.private_bytes,
+            "rss_bytes": snapshot.rss_bytes,
+            "recycle_threshold_mb": threshold_mb,
+        },
+    )
+    return True

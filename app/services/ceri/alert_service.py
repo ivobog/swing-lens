@@ -14,6 +14,7 @@ from app.models.ceri_tables import (
     CeriChangeEvent,
     CeriScoreSnapshot,
 )
+from app.services.ceri.actionability import CeriConsumer, evaluate_ceri_actionability
 from app.services.ceri.change_semantics import ComparisonState
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
@@ -207,12 +208,18 @@ class CeriAlertService:
             return False
         if change_type in opportunity_types:
             coverage = snapshot.opportunity_coverage_pct
-            return bool(
+            coverage_satisfied = bool(
                 snapshot.opportunity_score is not None
                 and coverage is not None
                 and coverage + 1e-9 >= self.config.revision.minimum_component_coverage_pct
-                and snapshot.data_confidence != "Insufficient"
             )
+            actionability = evaluate_ceri_actionability(
+                snapshot,
+                consumer=CeriConsumer.ALERT,
+                evidence_eligible=True,
+                require_opportunity=True,
+            )
+            return coverage_satisfied and actionability.allowed
         delta = change.delta_json or {}
         ledger = snapshot.event_risk_ledger_json or {}
         accepted = bool(
@@ -223,6 +230,8 @@ class CeriAlertService:
                 or ledger.get("selected_event_ids")
             )
         )
+        # Accepted risk evidence is independent of opportunity confidence.
+        # Retain main's risk-alert contract rather than applying opportunity caps.
         return bool(delta.get("prior_comparable") is True and accepted)
 
     @anchored_decision_calculator

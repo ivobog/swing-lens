@@ -269,6 +269,19 @@ def main(argv: Sequence[str] | None = None) -> None:
                             child = None
                         if not decision.crash_loop:
                             stop.wait(decision.backoff_seconds)
+                    elif _gracefully_stopped_worker_child(registered_worker, child):
+                        logger.info(
+                            "worker.supervisor.graceful_worker_exit",
+                            extra={
+                                **_worker_log_context(
+                                    registered_worker,
+                                    launcher_pid=child.process.pid,
+                                ),
+                                "exit_code": child.process.returncode,
+                                "reason_code": "GRACEFUL_WORKER_RECYCLE",
+                            },
+                        )
+                        child = None
                     elif (
                         child is not None
                         and child.process.poll() is not None
@@ -1249,6 +1262,19 @@ def _worker_log_context(
         "generation": worker.generation,
         "state": "STOPPING" if worker.stopping_at else "REGISTERED",
     }
+
+
+def _gracefully_stopped_worker_child(
+    worker: BackgroundWorker | None,
+    child: LaunchedWorker | None,
+) -> bool:
+    return bool(
+        worker is not None
+        and worker.stopping_at is not None
+        and child is not None
+        and child.process.pid == (worker.launcher_process_id or worker.process_id)
+        and child.process.poll() == 0
+    )
 
 
 if __name__ == "__main__":

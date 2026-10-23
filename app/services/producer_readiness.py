@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any, Protocol
 
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.warning_taxonomy import warnings_preserve_integrity_readiness
 
 READINESS_POLICY_VERSION = "producer-readiness-v1"
 READINESS_PAYLOAD_KEY = "producer_readiness"
@@ -489,7 +490,11 @@ def normalize_producer_readiness(
     elif producer == "LIFECYCLE" and output.get("missing_observation_sessions", 0) > 0:
         warnings.append(ReadinessReason.LIFECYCLE_OBSERVATION_GAP)
     # Lifecycle trading state and Winner consumer exclusions are never readiness inputs.
-    if warnings and status is ReadinessStatus.READY:
+    if (
+        warnings
+        and status is ReadinessStatus.READY
+        and not _classified_advisory_warnings_only(producer, output, warnings)
+    ):
         status = ReadinessStatus.DEGRADED
     if status is ReadinessStatus.UNKNOWN:
         warnings.append(ReadinessReason.SIGNALS_UNAVAILABLE)
@@ -575,3 +580,34 @@ def legacy_readiness(
 
 def _select(output: dict[str, Any], names: tuple[str, ...]) -> dict[str, Any]:
     return {name: output[name] for name in names if output.get(name) is not None}
+
+
+def _classified_advisory_warnings_only(
+    producer: str,
+    output: dict[str, Any],
+    warnings: list[ReadinessReason],
+) -> bool:
+    # Restore only the score-consumer policy evidenced by the operational ledgers.
+    # Technical, Regime, Sector and other native readiness contracts remain main's.
+    if producer not in {"FUNDAMENTAL", "COMBINED", "RANKING"}:
+        return False
+    if any(reason is not ReadinessReason.PRODUCER_WARNING for reason in warnings):
+        return False
+
+    flags: list[str] = []
+    for key in ("warning_flags_json", "warnings_json", "warning_flags", "warnings"):
+        raw = output.get(key)
+        if not raw:
+            continue
+        if not isinstance(raw, (list, tuple)):
+            return False
+        flags.extend(str(value).strip().lower() for value in raw)
+    if producer == "FUNDAMENTAL":
+        raw_v2 = output.get("v2_warning_flags_json") or {}
+        if not isinstance(raw_v2, dict):
+            return False
+        values = raw_v2.get("flags") or []
+        if not isinstance(values, (list, tuple)):
+            return False
+        flags.extend(str(value).strip().lower() for value in values)
+    return warnings_preserve_integrity_readiness(flags)

@@ -53,7 +53,7 @@ def test_full_postgresql_upgrade_capture_concurrency_and_immutability(
 ):
     url = disposable_postgres_database
     cfg = Config("alembic.ini")
-    run_guarded_alembic_upgrade(cfg, url, "0091_readiness_constraints")
+    run_guarded_alembic_upgrade(cfg, url, "0092_phase2_eligibility_ledgers")
     engine = create_engine(url)
     try:
         before = set(inspect(engine).get_table_names())

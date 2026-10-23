@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from alembic import op
 
 revision = "0093_market_sector_rotation"
-down_revision = "0091_readiness_constraints"
+down_revision = "0092_phase2_eligibility_ledgers"
 branch_labels = None
 depends_on = None
 

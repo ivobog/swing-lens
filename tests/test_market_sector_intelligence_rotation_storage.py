@@ -113,7 +113,7 @@ def test_additive_migration_roundtrip_preserves_old_tables(rotation_engine):
     assert {c["name"] for c in inspector.get_columns(Row.__tablename__)} == set(
         Row.__table__.columns.keys()
     )
-    assert revision().down_revision == "0091_readiness_constraints"
+    assert revision().down_revision == "0092_phase2_eligibility_ledgers"
     assert inspector.get_foreign_keys(Row.__tablename__)[0]["options"]["ondelete"] == "RESTRICT"
     apply_migration(rotation_engine, "downgrade")
     assert inspect(rotation_engine).get_table_names() == ["legacy_marker"]

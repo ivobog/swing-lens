@@ -5699,3 +5699,200 @@ def _protect_native_winner_episode(mapper: Any, connection: Any, target: Any) ->
 
 
 event.listen(WinnerPredictionEpisode, "before_update", _protect_native_winner_episode)
+
+
+class ConsumerEligibilityDecisionRecord(Base):
+    """Append-only decision evidence for one producer-to-consumer edge."""
+
+    __tablename__ = "consumer_eligibility_decisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT")
+    )
+    upload_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT")
+    )
+    producer: Mapped[str] = mapped_column(String(64), nullable=False)
+    consumer: Mapped[str] = mapped_column(String(64), nullable=False)
+    consumer_edge: Mapped[str] = mapped_column(String(128), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_artifact_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_evidence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_calculation_evidence.id", ondelete="RESTRICT")
+    )
+    source_identity_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    decision_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    execution_outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    integrity_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    completeness_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    analytical_confidence: Mapped[str] = mapped_column(String(32), nullable=False)
+    eligibility: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_codes_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    warning_classifications_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False
+    )
+    decision_payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    decision_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    authoritative: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "pipeline_run_id IS NOT NULL OR upload_run_id IS NOT NULL",
+            name="ck_consumer_eligibility_run_identity",
+        ),
+        CheckConstraint(
+            "execution_outcome IN ('SUCCEEDED', 'SUCCEEDED_WITH_GAPS', 'FAILED', "
+            "'CANCELLED', 'BLOCKED', 'UNKNOWN')",
+            name="ck_consumer_eligibility_execution",
+        ),
+        CheckConstraint(
+            "integrity_status IN ('CERTIFIED', 'UNCERTIFIED', 'CONTAMINATED', "
+            "'QUARANTINED', 'UNKNOWN')",
+            name="ck_consumer_eligibility_integrity",
+        ),
+        CheckConstraint(
+            "completeness_status IN ('COMPLETE', 'PARTIAL', 'INSUFFICIENT', 'UNKNOWN')",
+            name="ck_consumer_eligibility_completeness",
+        ),
+        CheckConstraint(
+            "analytical_confidence IN ('HIGH', 'NORMAL', 'LOW', 'INSUFFICIENT', 'UNKNOWN')",
+            name="ck_consumer_eligibility_confidence",
+        ),
+        CheckConstraint(
+            "eligibility IN ('INCLUDED', 'OMITTED_OPTIONAL', 'REJECTED_REQUIRED', 'UNDECIDED')",
+            name="ck_consumer_eligibility_outcome",
+        ),
+        Index(
+            "idx_consumer_eligibility_run_edge",
+            "pipeline_run_id",
+            "consumer_edge",
+            "created_at",
+        ),
+        Index(
+            "idx_consumer_eligibility_source",
+            "source_artifact_kind",
+            "source_identity_fingerprint",
+        ),
+    )
+
+
+class WinnerAcquisitionDecisionRecord(Base):
+    """Append-only ledger row for each Winner source-acquisition attempt."""
+
+    __tablename__ = "winner_acquisition_decisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT")
+    )
+    upload_run_id: Mapped[int] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    raw_row_id: Mapped[int | None] = mapped_column(
+        ForeignKey("raw_company_rows.id", ondelete="RESTRICT")
+    )
+    prediction_id: Mapped[int | None] = mapped_column(
+        ForeignKey("winner_prediction_snapshots.id", ondelete="RESTRICT")
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    decision_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    acquisition_outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    eligibility_reason: Mapped[str | None] = mapped_column(Text)
+    source_identities_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    source_decisions_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    warning_classifications_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False
+    )
+    decision_payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    decision_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "acquisition_outcome IN ('INSERTED', 'DUPLICATE', 'EXCLUDED', 'FAILED')",
+            name="ck_winner_acquisition_outcome",
+        ),
+        CheckConstraint(
+            "acquisition_outcome <> 'INSERTED' OR prediction_id IS NOT NULL",
+            name="ck_winner_acquisition_inserted_prediction",
+        ),
+        Index(
+            "idx_winner_acquisition_run_ticker",
+            "pipeline_run_id",
+            "ticker",
+            "created_at",
+        ),
+        Index("idx_winner_acquisition_prediction", "prediction_id"),
+    )
+
+
+class EligibilityShadowEvaluationRecord(Base):
+    """Non-authoritative, append-only comparison against frozen inputs."""
+
+    __tablename__ = "eligibility_shadow_evaluations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT")
+    )
+    upload_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT")
+    )
+    ticker: Mapped[str | None] = mapped_column(Text)
+    consumer_edge: Mapped[str] = mapped_column(String(128), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_identity_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    decision_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    legacy_outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    proposed_outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    differs: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    frozen_input_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    frozen_input_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    proposed_decision_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    reason_codes_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    warning_classifications_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False
+    )
+    evaluation_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "pipeline_run_id IS NOT NULL OR upload_run_id IS NOT NULL",
+            name="ck_eligibility_shadow_run_identity",
+        ),
+        CheckConstraint(
+            "legacy_outcome IN ('INCLUDED', 'OMITTED_OPTIONAL', 'REJECTED_REQUIRED', 'UNDECIDED')",
+            name="ck_eligibility_shadow_legacy_outcome",
+        ),
+        CheckConstraint(
+            "proposed_outcome IN "
+            "('INCLUDED', 'OMITTED_OPTIONAL', 'REJECTED_REQUIRED', 'UNDECIDED')",
+            name="ck_eligibility_shadow_proposed_outcome",
+        ),
+        Index(
+            "idx_eligibility_shadow_run_edge",
+            "pipeline_run_id",
+            "consumer_edge",
+            "created_at",
+        ),
+        Index("idx_eligibility_shadow_differs", "differs", "created_at"),
+    )
+
+
+for _phase2_immutable_model in (
+    ConsumerEligibilityDecisionRecord,
+    WinnerAcquisitionDecisionRecord,
+    EligibilityShadowEvaluationRecord,
+):
+    event.listen(_phase2_immutable_model, "before_update", _reject_core_evidence_mutation)
+    event.listen(_phase2_immutable_model, "before_delete", _reject_core_evidence_mutation)
