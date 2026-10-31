@@ -681,6 +681,8 @@ jobs:
         with:
           name: release-evidence-production-runtime-certification
           path: test-results/release/
+          # This job owns only the A04 lane; retain its original ownership markers.
+          include-hidden-files: true
           if-no-files-found: error
 
   full-release:

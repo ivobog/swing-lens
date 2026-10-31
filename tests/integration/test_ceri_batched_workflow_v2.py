@@ -1074,7 +1074,14 @@ def test_ceri_parent_rollup_retains_actionable_child_failure(
 
 def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
     disposable_postgres_database: str,
+    monkeypatch,
 ) -> None:
+    # This positive retry fixture must normalize its persisted estimates even
+    # when the deployment's optional CERI master switch defaults to disabled.
+    enabled_settings = Settings(_env_file=None, ceri_enabled=True)
+    monkeypatch.setattr(
+        "app.services.ceri.feature_flags.get_settings", lambda: enabled_settings,
+    )
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
 
@@ -1130,7 +1137,10 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
         )
         db.add(processing)
         db.flush()
-        _execute_handler(db, processing, execute_normalize_job)
+        normalization = _execute_handler(db, processing, execute_normalize_job)
+        assert normalization["status"] == "COMPLETED", normalization
+        assert normalization["normalized"] == 4, normalization
+        assert db.scalar(select(func.count()).select_from(CeriEstimateSnapshot)) == 4
         request = CeriFeatureRebuildRequest(
             ticker="MSFT",
             run_id=run_id,

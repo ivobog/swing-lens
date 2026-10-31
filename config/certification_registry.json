@@ -1225,7 +1225,7 @@
             "lane": "python-regressions",
             "positive": "Nonempty four-domain committed lineage is identical on retry.",
             "negative": "Wrong owner/context/cutoff and duplicate retry effects are excluded.",
-            "reviewed_test_sha256": "723cc6bdf97785e6a7f4fd88c22ce708bf3d18de7fbbb35a308796c8a04206a5"
+            "reviewed_test_sha256": "2456f8492f9da78acfa01d0c834924f74c7ff4000a7d1825371d4f31bae861d9"
           },
           {
             "id": "tests/ceri/test_eodhd_provider.py::test_eodhd_does_not_relabel_mismatched_or_invalid_response_identity",
@@ -1255,7 +1255,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "af993cbd638146a3329a7cd762affdbfb75273d7cf7b311ab4c3c62ec64f406e"
+        "review_sha256": "c9e4da215bf25dd99038aae9b0f16972b371feef6f6d4a2d504e2d6388260700"
       },
       {
         "id": "REGIME_SECTOR_SELECTION",
@@ -1392,7 +1392,7 @@
             "lane": "browser-smoke",
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
-            "reviewed_test_sha256": "8afebf7f6daf557fdb3ddfea71a73da225864e5caaa2eebe62483ea6466dd044"
+            "reviewed_test_sha256": "ac64530e1a98c78a134a15d174064ccda44380864584f85e73238e5f734edadf"
           }
         ],
         "oracle": "A05B expected Winner identities/outcomes and retained A08 reached-assertion/omission evidence.",
@@ -1405,7 +1405,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "5b43d903538f8339f4f38c1b3cd9e0d7b909c662d80458a6dbf5a0be46e5397b",
+        "review_sha256": "1abececc25dd25fa16877165f9110d1b8b037b04426fad4f8d2502ac79690c59",
         "review_addenda": [
           {
             "task": "FR02",

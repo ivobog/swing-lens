@@ -36,6 +36,85 @@ RUNTIME_DIAGNOSTICS = (
 )
 
 
+POSTGRES_DATABASE_IDENTITY_SQL = """
+select d.datname as name, inet_server_addr()::text as host,
+       inet_server_port() as port, d.oid::bigint as oid,
+       pg_get_userbyid(d.datdba) as owner, session_user as session_user,
+       (select system_identifier::text from pg_control_system()) as system_identifier,
+       extract(epoch from pg_postmaster_start_time())::text as postmaster_started_at
+from pg_database d where d.datname =
+"""
+
+
+def postgresql_client_identity(connection) -> dict:
+    """Record the real libpq endpoint separately from server-side NAT identity."""
+    info = connection.info
+    return {"host": info.host, "hostaddr": info.hostaddr,
+            "port": info.port, "name": info.dbname}
+
+
+def capture_database_ownership(admin, *, database_name: str, client: dict,
+                               execution_id: str, invocation_id: str,
+                               source_fingerprint: str) -> dict:
+    """Record the original creator connection before migration or seeding."""
+    cursor = admin.execute(POSTGRES_DATABASE_IDENTITY_SQL + "%s", (database_name,))
+    server = dict(zip(
+        (column.name for column in cursor.description), cursor.fetchone(), strict=True,
+    ))
+    return {"schema": "a04.postgresql-ownership.v1", "execution_id": execution_id,
+            "invocation_id": invocation_id, "source_fingerprint": source_fingerprint,
+            "client": client, "admin_connection": postgresql_client_identity(admin),
+            "created_database": server}
+
+
+def verify_disposable_postgresql(identity: dict, contract: dict, native: dict,
+                                 environment: dict) -> None:
+    """Reconcile authorized loopback clients with the exact freshly owned server.
+
+    A Docker published port is a client endpoint, not inet_server_addr(). Server
+    identity must match the creator's independent administrative observation;
+    an arbitrary private address alone never establishes ownership.
+    """
+    expected = identity["database"]
+    assert expected["host"] == "127.0.0.1", "unauthorized client host"
+    assert expected["name"].startswith("swinglens_pytest_cert_"), "non-disposable database"
+    assert type(expected["port"]) is int and 0 < expected["port"] <= 65535
+    ownership = contract["database_ownership"]
+    assert ownership == environment["database_ownership"], "contradictory ownership"
+    assert ownership["schema"] == "a04.postgresql-ownership.v1"
+    for key in ("execution_id", "invocation_id", "source_fingerprint"):
+        assert ownership[key] == identity[key] and ownership[key], "foreign ownership context"
+    assert ownership["client"] == expected, "creator client mismatch"
+    assert environment["database_name"] == expected["name"]
+    assert environment["database_safety_context"] == "DISPOSABLE_TEST"
+    assert environment["runtime_mode"] == "CERTIFICATION"
+    observed = native["database_connection"]
+    assert observed == {**expected, "hostaddr": "127.0.0.1"}, "driver endpoint mismatch"
+    admin = ownership["admin_connection"]
+    assert admin["host"] == admin["hostaddr"] == expected["host"], "remote administrator"
+    assert admin["port"] == expected["port"], "administrator endpoint mismatch"
+    assert admin["name"] == "postgres" or admin["name"].startswith("swinglens_pytest_")
+    created = ownership["created_database"]
+    actual = native["database_server"]
+    assert actual == created, "server/database identity differs from creator"
+    observed_database = dict(native["database"])
+    observed_database["host"] = str(ipaddress.ip_interface(observed_database["host"]).ip)
+    expected_database = {key: actual[key] for key in ("name", "host", "port")}
+    expected_database["host"] = str(ipaddress.ip_interface(expected_database["host"]).ip)
+    assert observed_database == expected_database, "contradictory server endpoint"
+    assert actual["name"] == expected["name"]
+    assert type(actual["oid"]) is int and actual["oid"] > 0
+    assert actual["owner"] == actual["session_user"] and actual["owner"]
+    assert actual["system_identifier"].isdigit() and int(actual["system_identifier"]) > 0
+    assert float(actual["postmaster_started_at"]) > 0
+    assert type(actual["port"]) is int and 0 < actual["port"] <= 65535
+    server_ip = ipaddress.ip_interface(actual["host"]).ip
+    private_networks = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7")
+    assert server_ip.is_loopback or any(
+        server_ip in ipaddress.ip_network(network) for network in private_networks
+    ), "unauthorized server address"
+
+
 def capture_pipeline_evidence(engine: Engine, env, recorder, run_id: int, pipeline_id: int) -> None:
     """Fresh committed durable facts; no terminal-status helper or output selector."""
     from sqlalchemy import select
@@ -44,6 +123,11 @@ def capture_pipeline_evidence(engine: Engine, env, recorder, run_id: int, pipeli
     from app.models.tables import BackgroundJob, PipelineDependency, PipelineRun, PipelineStep
     from app.services.configuration_delivery import binding_reference, load_configuration_delivery
 
+    with engine.connect() as connection:
+        database_server = dict(connection.execute(text(
+            POSTGRES_DATABASE_IDENTITY_SQL + "current_database()"
+        )).mappings().one())
+        database_connection = postgresql_client_identity(connection.connection.driver_connection)
     with Session(engine) as db:
         pipeline = db.get(PipelineRun, pipeline_id)
         anchor = binding_reference(db, pipeline_run_id=pipeline_id)
@@ -64,11 +148,9 @@ def capture_pipeline_evidence(engine: Engine, env, recorder, run_id: int, pipeli
             "run_id": run_id,
             "pipeline_id": pipeline_id,
             "fresh_committed_session": True,
-            "database": query_rows(
-                engine,
-                "select current_database() as name, inet_server_addr()::text as host, "
-                "inet_server_port() as port",
-            )[0],
+            "database": {key: database_server[key] for key in ("name", "host", "port")},
+            "database_server": database_server,
+            "database_connection": database_connection,
             "pipeline": _project_fields(
                 pipeline,
                 (
@@ -328,19 +410,10 @@ def evaluate_pipeline_evidence(
     )
     check(
         "disposable_postgresql",
-        lambda: (
-            same(
-                {
-                    **native["database"],
-                    "host": str(ipaddress.ip_interface(native["database"]["host"]).ip),
-                },
-                identity["database"],
-            ),
-            same(bundle["environment.json"]["database_name"], identity["database"]["name"]),
-            same(identity["database"]["host"], "127.0.0.1"),
-            same(identity["database"]["name"].startswith("swinglens_pytest_cert_"), True),
+        lambda: verify_disposable_postgresql(
+            identity, contract, native, bundle["environment.json"],
         ),
-        evidence="pipeline-evidence.json#database",
+        evidence="pipeline-evidence.json#database; certificate-contract.json#database_ownership",
     )
     jobs = native.get("jobs", [])
     full = sorted((j for j in jobs if j["job_type"] == "FULL_PIPELINE"), key=lambda j: j["id"])

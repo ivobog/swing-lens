@@ -57,6 +57,7 @@ from app.services.winner_probability.market_data_obligation_service import (
 from app.services.winner_probability.trading_session_service import next_regular_session
 from single_run_certification.evidence import (
     build_run_evidence_graph,
+    capture_database_ownership,
     database_integrity_checks,
     query_rows,
 )
@@ -206,6 +207,12 @@ def certification_environment(
             "database": {"name": database_name, "host": database_identity.host,
                          "port": database_identity.port or 5432},
         })
+        contract["database_ownership"] = capture_database_ownership(
+            admin, database_name=database_name, client=contract["identity"]["database"],
+            execution_id=execution_id,
+            invocation_id=contract["identity"]["invocation_id"],
+            source_fingerprint=contract["identity"]["source_fingerprint"],
+        )
         (artifact_dir / "certificate-contract.json").write_text(
             json.dumps(contract, indent=2, sort_keys=True), encoding="utf-8")
     server_log = artifact_dir / "logs" / "uvicorn.log"
@@ -407,6 +414,9 @@ def certification_environment(
             "csv_hash": csv_hash,
             "database_name": database_name,
             "database_engine": "PostgreSQL",
+            "database_safety_context": env["SWINGLENS_DATABASE_SAFETY_CONTEXT"],
+            "runtime_mode": env["RUNTIME_MODE"],
+            "database_ownership": contract["database_ownership"] if golden_expected else None,
             "python": sys.version,
             "feature_flags": {key: value for key, value in env.items() if _is_feature_flag(key)},
             "canonical_tickers": list(certification_tickers),

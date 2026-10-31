@@ -48,6 +48,17 @@ def specimen(request):
         "database": {"name": "swinglens_pytest_cert_specimen", "host": "127.0.0.1", "port": 28344},
     }
     contract = pipeline_contract(manifest, identity)
+    server = {**identity["database"], "oid": 16384, "owner": "postgres",
+              "session_user": "postgres", "system_identifier": "1234567890123456789",
+              "postmaster_started_at": "1793066400.123456"}
+    ownership = {"schema": "a04.postgresql-ownership.v1",
+                 **{key: identity[key] for key in
+                    ("execution_id", "invocation_id", "source_fingerprint")},
+                 "client": dict(identity["database"]),
+                 "admin_connection": {"host": "127.0.0.1", "hostaddr": "127.0.0.1",
+                                      "port": 28344, "name": "postgres"},
+                 "created_database": server}
+    contract["database_ownership"] = ownership
     invocation = {
         "invocation_id": identity["invocation_id"],
         "selected": list(EXACT_TEST_IDS),
@@ -113,7 +124,9 @@ def specimen(request):
         "run_id": 3,
         "pipeline_id": 2,
         "fresh_committed_session": True,
-        "database": identity["database"],
+        "database": dict(identity["database"]),
+        "database_server": dict(server),
+        "database_connection": {**identity["database"], "hostaddr": "127.0.0.1"},
         "pipeline": {
             "id": 2,
             "upload_run_id": 3,
@@ -300,6 +313,9 @@ def specimen(request):
             "execution_id": identity["execution_id"],
             "working_tree_fingerprint": identity["source_fingerprint"],
             "database_name": identity["database"]["name"],
+            "database_safety_context": "DISPOSABLE_TEST",
+            "runtime_mode": "CERTIFICATION",
+            "database_ownership": ownership,
         },
         "pipeline-evidence.json": native,
         "db-results/production-worker-fidelity.json": fidelity,
@@ -596,3 +612,68 @@ def test_current_invocation_revision_is_strictly_bound_without_historical_pin(sp
     specimen["identity"]["source_revision"] = "x" * 40
     specimen["contract"]["identity"]["source_revision"] = "x" * 40
     assert evaluate(specimen).gate_results["identity"]["status"] == "FAILED"
+
+
+@pytest.mark.parametrize("server_host,server_port", [("172.19.0.9", 5432), ("10.89.0.2", 5432)])
+def test_owned_docker_server_is_distinct_from_authorized_client(specimen, server_host, server_port):
+    # The mapped client port is deliberately different from the server port.
+    native = specimen["bundle"]["pipeline-evidence.json"]
+    created = specimen["contract"]["database_ownership"]["created_database"]
+    created.update(host=server_host, port=server_port)
+    native["database_server"].update(host=server_host, port=server_port)
+    native["database"].update(host=server_host, port=server_port)
+    specimen["bundle"]["environment.json"]["database_ownership"] = copy.deepcopy(
+        specimen["contract"]["database_ownership"]
+    )
+    result = evaluate(specimen)
+    assert result.verdict == "CERTIFIED"
+    assert len(result.gate_results) == 620
+
+
+@pytest.mark.parametrize("defect", [
+    "database", "client", "client_port", "remote_admin", "public_server", "server_oid",
+    "server_system", "server_start", "owner", "missing_ownership", "contradiction",
+    "invocation", "source", "runtime", "safety_context",
+])
+def test_disposable_database_requires_exact_owned_context(specimen, defect):
+    native = specimen["bundle"]["pipeline-evidence.json"]
+    ownership = specimen["contract"]["database_ownership"]
+    environment = specimen["bundle"]["environment.json"]
+    if defect == "database":
+        native["database_server"]["name"] = "swinglens_production"
+    elif defect == "client":
+        native["database_connection"]["host"] = "db.example.invalid"
+    elif defect == "client_port":
+        native["database_connection"]["port"] += 1
+    elif defect == "remote_admin":
+        ownership["admin_connection"].update(host="10.0.0.10", hostaddr="10.0.0.10")
+    elif defect == "public_server":
+        ownership["created_database"]["host"] = "8.8.8.8"
+        native["database_server"]["host"] = "8.8.8.8"
+        native["database"]["host"] = "8.8.8.8"
+    elif defect == "server_oid":
+        native["database_server"]["oid"] += 1
+    elif defect == "server_system":
+        native["database_server"]["system_identifier"] = "987654321"
+    elif defect == "server_start":
+        native["database_server"]["postmaster_started_at"] = "1793066401.123456"
+    elif defect == "owner":
+        native["database_server"]["owner"] = "unrelated_role"
+    elif defect == "missing_ownership":
+        specimen["contract"].pop("database_ownership")
+    elif defect == "contradiction":
+        environment["database_ownership"] = copy.deepcopy(ownership)
+        environment["database_ownership"]["created_database"]["oid"] += 1
+    elif defect == "invocation":
+        ownership["invocation_id"] = "foreign-invocation"
+    elif defect == "source":
+        ownership["source_fingerprint"] = "0" * 64
+    elif defect == "runtime":
+        environment["runtime_mode"] = "NORMAL"
+    elif defect == "safety_context":
+        environment["database_safety_context"] = "NORMAL"
+    if defect not in {"contradiction", "missing_ownership"}:
+        environment["database_ownership"] = copy.deepcopy(ownership)
+    result = evaluate(specimen)
+    assert result.verdict == "FAILED"
+    assert result.gate_results["disposable_postgresql"]["status"] == "FAILED"
