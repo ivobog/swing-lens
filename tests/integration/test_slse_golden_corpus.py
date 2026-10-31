@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from alembic.config import Config
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
@@ -26,6 +27,7 @@ from app.models.tables import (
     SetupLifecycleEvent,
     SetupSignalSnapshot,
     SetupSignalSnapshotCurrentSelection,
+    SetupSignalSnapshotSelectionEvent,
     SignalAlertEvent,
     SignalAlertRule,
     SignalChangeEvent,
@@ -66,6 +68,7 @@ from app.services.sector_rotation_config import (
     sector_rotation_config_hash,
 )
 from app.services.setup_lifecycle.decision_evidence import _SETUP_PROJECTION_FIELDS
+from app.services.setup_lifecycle.errors import SetupCaptureHandoffError
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
 from app.services.setup_lifecycle.export_service import export_alerts_csv, export_changes_csv
 from app.services.setup_lifecycle.maintenance_service import SetupLifecycleMaintenanceService
@@ -814,11 +817,25 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
             "GRTY",
             SourceDay(date(2026, 8, 3), setup_score=7.8, close=99),
         )
-        _evaluate_seeded_run(evaluator, db, retry_run)
+        original = _evaluate_seeded_run(evaluator, db, retry_run)
         db.commit()
         before_retry = _domain_counts(db, "GRTY")
-        _evaluate_seeded_run(evaluator, db, retry_run)
-        db.commit()
+        committed = _committed_retry_state(engine, retry_run, "GRTY")
+        # Completed exact-handoff replay validates the original publication and
+        # returns its identity; it performs no new capture or evaluation work.
+        with Session(engine) as retry_db:
+            replay = _evaluate_seeded_run(evaluator, retry_db, retry_run)
+            retry_db.commit()
+        assert original.status == replay.status == "COMPLETED"
+        assert replay.evaluation_run_id == original.evaluation_run_id
+        assert replay.canonical_snapshot_ids == original.canonical_snapshot_ids
+        assert (
+            replay.canonical_changed,
+            replay.change_events,
+            replay.lifecycle_transitions,
+            replay.alerts,
+        ) == (0, 0, 0, 0)
+        assert _committed_retry_state(engine, retry_run, "GRTY") == committed
         assert _domain_counts(db, "GRTY") == before_retry
         assert (
             db.scalar(
@@ -826,7 +843,7 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
                 .select_from(SetupLifecycleEvaluationRun)
                 .where(SetupLifecycleEvaluationRun.source_run_id == retry_run)
             )
-            == 2
+            == 1
         )
 
         canonical_first = _seed_source_day(
@@ -879,6 +896,109 @@ def test_special_golden_sequences_cover_absence_revisions_and_retry(
         assert next_changes
         assert {row.previous_snapshot_id for row in next_changes} == {selected_revision.id}
     engine.dispose()
+
+
+def test_completed_retry_rejects_foreign_handoff_and_retains_failed_attempt(
+    disposable_postgres_database: str,
+) -> None:
+    """Reuse only the exact completed publication; failures remain durable audits."""
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    service = SetupLifecycleEvaluationService()
+    try:
+        with Session(engine) as db:
+            first_run = _seed_source_day(
+                db, "GISO", SourceDay(date(2026, 8, 3), setup_score=7.8, close=99)
+            )
+            first = _evaluate_seeded_run(service, db, first_run)
+            db.commit()
+            other_run = _seed_source_day(
+                db,
+                "GISO",
+                SourceDay(date(2026, 8, 3), setup_score=8.1, close=99, add_bar=False),
+            )
+            other = _evaluate_seeded_run(service, db, other_run)
+            db.commit()
+        assert first.status == other.status == "COMPLETED"
+        assert first.evaluation_run_id != other.evaluation_run_id
+        assert first.canonical_snapshot_ids != other.canonical_snapshot_ids
+        before = _committed_retry_state(engine, first_run, "GISO")
+
+        with Session(engine) as db:
+            pipeline = db.scalar(select(PipelineRun).where(PipelineRun.upload_run_id == first_run))
+            delivery = load_configuration_delivery(
+                db, binding_reference(db, pipeline_run_id=pipeline.id)
+            )
+            with configuration_delivery_scope(delivery):
+                with pytest.raises(SetupCaptureHandoffError) as rejected:
+                    service.evaluate_run(
+                        db,
+                        first_run,
+                        snapshot_ids=other.canonical_snapshot_ids,
+                        market_cutoff=market_context_for_pipeline(db, pipeline),
+                        pipeline_run_id=pipeline.id,
+                    )
+            assert rejected.value.diagnostics["reason"] == "RUN_MISMATCH"
+            # A caller catching the refusal and committing cannot publish its
+            # staged evaluation or erase the separately committed failure audit.
+            db.commit()
+        refused = _committed_retry_state(engine, first_run, "GISO")
+        assert refused["business"] == before["business"]
+        assert refused["evaluations"][0] == before["evaluations"][0]
+        assert len(refused["evaluations"]) == 2
+        failed = refused["evaluations"][-1]
+        assert failed["status"] == "FAILED" and failed["failed_count"] == 1
+        assert failed["error_summary_json"]["system"]["reason"] == "RUN_MISMATCH"
+
+        with Session(engine) as db:
+            replay = _evaluate_seeded_run(service, db, first_run)
+            db.commit()
+        assert replay.evaluation_run_id == first.evaluation_run_id
+        assert replay.evaluation_run_id != other.evaluation_run_id
+        assert replay.canonical_snapshot_ids == first.canonical_snapshot_ids
+        assert _committed_retry_state(engine, first_run, "GISO") == refused
+    finally:
+        engine.dispose()
+
+
+def _committed_retry_state(engine, run_id: int, ticker: str) -> dict:
+    """Compare actual committed values through a separate connection, not ORM objects."""
+    models = (
+        SetupSignalSnapshot,
+        SetupSignalSnapshotCurrentSelection,
+        SetupSignalSnapshotSelectionEvent,
+        SetupLifecycleEpisode,
+        SetupLifecycleEvent,
+        SignalChangeEvent,
+        SignalAlertEvent,
+    )
+    with Session(engine) as db:
+        business = {
+            model.__tablename__: [
+                dict(row)
+                for row in db.execute(
+                    select(model.__table__).where(model.ticker == ticker).order_by(model.id)
+                ).mappings()
+            ]
+            for model in models
+        }
+        business["core_calculation_evidence"] = [
+            dict(row)
+            for row in db.execute(
+                select(CoreCalculationEvidence.__table__)
+                .where(CoreCalculationEvidence.run_id == run_id)
+                .order_by(CoreCalculationEvidence.id)
+            ).mappings()
+        ]
+        evaluations = [
+            dict(row)
+            for row in db.execute(
+                select(SetupLifecycleEvaluationRun.__table__)
+                .where(SetupLifecycleEvaluationRun.source_run_id == run_id)
+                .order_by(SetupLifecycleEvaluationRun.id)
+            ).mappings()
+        ]
+        return {"business": business, "evaluations": evaluations}
 
 
 def _upgrade(database_url: str) -> None:

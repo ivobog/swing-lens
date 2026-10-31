@@ -37,6 +37,35 @@ def test_eodhd_symbol_maps_us_share_class_to_provider_notation() -> None:
     assert canonical_ticker_from_eodhd_symbol("MOG-A.US") == "MOG.A"
 
 
+@pytest.mark.parametrize("dataset", ["estimates", "earnings"])
+@pytest.mark.parametrize("returned_code", ["MSFT.US", None, {"symbol": "AAPL.US"}])
+def test_eodhd_does_not_relabel_mismatched_or_invalid_response_identity(
+    dataset, returned_code,
+) -> None:
+    """Synthetic transport drift: a scoped request must not relabel another issuer."""
+    payload = [{"code": returned_code, "period": "0q", "date": "2026-09-30",
+                "report_date": "2026-08-01", "earningsEstimateAvg": 2.0, "actual": 2.0}]
+    client = EodhdHttpClient(
+        EodhdClientConfig(api_key="fixture"), transport=lambda *_args: payload,
+    )
+    provider = EodhdCeriProvider(client=client, clock=lambda: datetime(2026, 8, 8, tzinfo=UTC))
+    def fetch():
+        if dataset == "estimates":
+            return list(provider.fetch_estimate_snapshots(EstimateRequest(
+                None, "AAPL", (CeriMetric.EPS_DILUTED,), (CeriPeriodType.CURRENT_QUARTER,),
+            )))
+        return list(provider.fetch_earnings_actuals(EarningsRequest(None, "AAPL")))
+    payload[0]["code"] = "AAPL.US"
+    accepted = fetch()
+    assert len(accepted) == 1
+    assert accepted[0].payload["ticker"] == "AAPL"
+    assert accepted[0].payload["provider_company_id"] == "AAPL.US"
+    payload[0]["code"] = returned_code
+    assert fetch() == []
+    del payload[0]["code"]
+    assert len(fetch()) == 1  # Existing symbol-scoped code-absent schema stays supported.
+
+
 def test_eodhd_default_transport_buffers_body_before_response_closes(monkeypatch) -> None:
     response = _ContextResponse({"earnings": [{"code": "AAPL.US"}]})
     monkeypatch.setattr(

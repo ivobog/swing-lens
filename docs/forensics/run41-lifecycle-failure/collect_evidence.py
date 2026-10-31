@@ -1,6 +1,14 @@
 """Collect bounded Run 41 evidence. Production connections enforce read-only mode."""
 from __future__ import annotations
 
+# A10 lifecycle restriction; original source and hashes are retained in the A10 evidence.
+# ruff: noqa: E402
+raise SystemExit(
+    "HISTORICAL_EXECUTION_ARCHIVED: retained incident evidence is not current "
+    "release certification; see docs/testing/historical_tool_policy.md"
+)
+
+
 import hashlib
 import json
 import re

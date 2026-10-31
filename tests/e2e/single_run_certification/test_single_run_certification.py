@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import signal
 import socket
 import subprocess
@@ -16,6 +17,7 @@ import urllib.request
 import uuid
 from collections import Counter
 from collections.abc import Iterator
+from contextlib import nullcontext
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from datetime import UTC, date, datetime
@@ -27,6 +29,8 @@ import pytest
 import yaml
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+from dotenv import dotenv_values
+from evidence_output import new_owned_directory, output_directory
 from playwright.sync_api import Browser, Page, expect
 from psycopg import sql
 from sqlalchemy import create_engine, select, text
@@ -120,11 +124,18 @@ def certification_setup_capture_handoff_enabled(request: pytest.FixtureRequest) 
 
 
 @pytest.fixture
+def certification_golden_version():
+    return None
+
+
+@pytest.fixture
 def certification_environment(
     tmp_path_factory: pytest.TempPathFactory,
+    request: pytest.FixtureRequest,
     certification_provider_ingest_enabled: bool,
     certification_provider_mode: str,
     certification_setup_capture_handoff_enabled: bool,
+    certification_golden_version,
 ) -> Iterator[CertificationEnvironment]:
     live_mode = certification_provider_mode == "live"
     execution_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
@@ -145,16 +156,24 @@ def certification_environment(
     )
     assert_disposable_database(database_url)
     runtime_root = tmp_path_factory.mktemp("swinglens-single-run-certification")
+    # Native runtime logging uses cwd. Give the real supervisor/web/worker an
+    # isolated resource view so lifecycle journals/state never share live paths.
+    for relative in ("config", "alembic", "app/static", "app/templates"):
+        shutil.copytree(
+            REPO_ROOT / relative, runtime_root / relative,
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
+    shutil.copy2(REPO_ROOT / "alembic.ini", runtime_root / "alembic.ini")
     artifact_root = Path(
         os.environ.get(
             "SWINGLENS_CERTIFICATION_ARTIFACT_ROOT",
             # pytest-playwright owns and may clean its default test-results
             # directory. Keep the certification evidence outside that lifecycle;
             # production certification still supplies an explicit report root.
-            str(REPO_ROOT / ".qa_work" / "single-run-certification"),
+            str(output_directory("single-run-certification")),
         )
     ).resolve()
-    artifact_dir = artifact_root / execution_id
+    artifact_dir = new_owned_directory(artifact_root, execution_id)
     for relative in (
         "screenshots/gui",
         "screenshots/database",
@@ -165,10 +184,40 @@ def certification_environment(
         "logs",
     ):
         (artifact_dir / relative).mkdir(parents=True, exist_ok=True)
+    golden_expected = None
+    if certification_golden_version:
+        from single_run_certification.golden_oracle import expected_manifest
+        from single_run_certification.reporting import pipeline_contract
+
+        golden_expected = expected_manifest(certification_setup_capture_handoff_enabled)
+        (artifact_dir / "expected-manifest.json").write_text(
+            json.dumps(golden_expected, indent=2, sort_keys=True), encoding="utf-8",
+        )
+        database_identity = make_url(database_url)
+        contract = pipeline_contract(golden_expected, {
+            "execution_id": execution_id, "runtime_instance_id": execution_id,
+            "invocation_id": os.environ.get("SWINGLENS_CERTIFICATION_INVOCATION_ID"),
+            "test_id": request.node.nodeid, "handoff": certification_setup_capture_handoff_enabled,
+            "source_revision": _git_commit(),
+            "source_fingerprint": os.environ.get("SWINGLENS_CERTIFICATION_CODE_FINGERPRINT"),
+            "input_sha256": golden_expected["input_manifest_sha256"],
+            "oracle_sha256": golden_expected["completion"]["manifest_sha256"],
+            "configuration_sha256": golden_expected["configuration_envelope_sha256"],
+            "database": {"name": database_name, "host": database_identity.host,
+                         "port": database_identity.port or 5432},
+        })
+        (artifact_dir / "certificate-contract.json").write_text(
+            json.dumps(contract, indent=2, sort_keys=True), encoding="utf-8")
     server_log = artifact_dir / "logs" / "uvicorn.log"
     ib_log = artifact_dir / "logs" / "deterministic-ib.jsonl"
     csv_path = runtime_root / "single-run-certification.csv"
-    if live_mode:
+    if golden_expected:
+        from single_run_certification.golden_oracle import DATA, load_golden
+
+        csv_path.write_bytes((DATA / "universe.csv").read_bytes())
+        csv_hash = hashlib.sha256(csv_path.read_bytes()).hexdigest()
+        certification_tickers = tuple(load_golden()["tickers"])
+    elif live_mode:
         csv_hash = _write_live_canary_csv(csv_path)
         certification_tickers = LIVE_CANARY_TICKERS
     else:
@@ -181,6 +230,8 @@ def certification_environment(
     winner_configuration_path.write_text(yaml.safe_dump(winner_profile), encoding="utf-8")
 
     env = {
+        **{key: value for key, value in dotenv_values(REPO_ROOT / ".env").items()
+           if value is not None},
         **os.environ,
         "DATABASE_URL": database_url,
         "SWINGLENS_DATABASE_SAFETY_CONTEXT": "DISPOSABLE_TEST",
@@ -199,9 +250,18 @@ def certification_environment(
         "JOB_POLL_INTERVAL_SECONDS": "0.05",
         "JOB_STALE_AFTER_SECONDS": "120",
         "JOB_WORKER_ID": f"certification-{execution_id}",
+        # A fresh owned database has no historical production activation floor.
+        "JOB_ACTIVATION_MIN_ID": "0",
+        "PIPELINE_ACTIVATION_MIN_ID": "0",
         "UPLOAD_DIR": str(runtime_root / "uploads"),
         "EXPORT_DIR": str(runtime_root / "exports"),
         "CACHE_DIR": str(runtime_root / "cache"),
+        "DB_MONITOR_LOG_DIR": str(artifact_dir / "logs" / "db-monitor"),
+        "DB_MONITOR_TEST_LOG_DIR": str(artifact_dir / "logs" / "db-monitor-test"),
+        "OBSERVABILITY_WORKER_METRICS_PORT": str(_available_port()),
+        "OBSERVABILITY_SUPERVISOR_METRICS_PORT": str(_available_port()),
+        "SWINGLENS_SUPERVISOR_STATE_PATH": str(runtime_root / "cache" / "supervisor.json"),
+        "CERTIFICATION_WORKER_FIDELITY_LOG": str(artifact_dir / "logs" / "worker-fidelity.jsonl"),
         "IB_REQUEST_DELAY_SECONDS": "0",
         "IB_MIN_SECONDS_BETWEEN_REQUESTS": "0",
         "IB_REQUESTS_PER_MINUTE": "10000",
@@ -245,9 +305,14 @@ def certification_environment(
         "SWINGLENS_CERTIFICATION_PROVIDER_MODE": certification_provider_mode,
         "SWINGLENS_RUNTIME_CHILD_LOG_DIR": str(artifact_dir / "logs"),
         "PYTHONPATH": os.pathsep.join(
-            [str(REPO_ROOT), str(REPO_ROOT / "tests" / "e2e" / "single_run_certification")]
+            [str(REPO_ROOT), str(REPO_ROOT / "tests" / "e2e"),
+             str(REPO_ROOT / "tests" / "e2e" / "single_run_certification")]
         ),
     }
+    if golden_expected:
+        env["CERTIFICATION_GOLDEN_VERSION"] = certification_golden_version
+        for key, value in golden_expected["flags"].items():
+            env[key.upper()] = str(value).lower() if isinstance(value, bool) else str(value)
     if live_mode:
         # Only the provider boundary changes. The same supervisor, web
         # process, durable worker, queue, leases and observer remain active.
@@ -281,15 +346,19 @@ def certification_environment(
         admin.close()
         pytest.fail(f"BLOCKED: Alembic migration failed; see {migration_log}")
 
-    seed = seed_prerequisites(
-        database_url,
-        winner_configuration_path=winner_configuration_path,
-        live_transition_tickers=certification_tickers if live_mode else (),
-    )
+    from single_run_certification.golden_runtime import business_inputs
+
+    with business_inputs(database_url) if golden_expected else nullcontext():
+        seed = seed_prerequisites(
+            database_url,
+            winner_configuration_path=winner_configuration_path,
+            live_transition_tickers=certification_tickers if live_mode else (),
+        )
     _activate_disposable_sec_processor(database_url)
     if certification_provider_ingest_enabled and not live_mode:
         _seed_disposable_sec_readiness(database_url)
     port = _available_port()
+    env["APP_PORT"] = str(port)
     base_url = f"http://127.0.0.1:{port}"
     log_handle = server_log.open("w", encoding="utf-8")
     supervisor_env = {**env, "PROCESS_ROLE": "SUPERVISOR"}
@@ -310,9 +379,9 @@ def certification_environment(
             "--runtime-instance-id",
             execution_id,
             "--repo-root",
-            str(REPO_ROOT),
+            str(runtime_root),
         ],
-        cwd=REPO_ROOT,
+        cwd=runtime_root,
         env=supervisor_env,
         stdout=log_handle,
         stderr=subprocess.STDOUT,
@@ -342,6 +411,11 @@ def certification_environment(
             "feature_flags": {key: value for key, value in env.items() if _is_feature_flag(key)},
             "canonical_tickers": list(certification_tickers),
             "provider_mode": certification_provider_mode,
+            "runtime_root": str(runtime_root),
+            "golden_version": certification_golden_version,
+            "golden_input_sha256": (
+                golden_expected["input_manifest_sha256"] if golden_expected else None
+            ),
             "decoy_run_id": seed.decoy_run_id,
             "decoy_ticker": DECOY_TICKER,
         }
@@ -375,6 +449,35 @@ def certification_environment(
             process.wait(timeout=5)
         log_handle.close()
         _drop_database(admin, database_name)
+        if golden_expected:
+            import psutil
+
+            owned_pids = {process.pid}
+            for path in (artifact_dir / "logs").glob("*.log"):
+                for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                    if not line.startswith("{"):
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if row.get("runtime_instance_id") == execution_id and row.get("process_id"):
+                        owned_pids.add(int(row["process_id"]))
+            # Native shutdown can leave a child a few milliseconds behind its parent.
+            deadline = time.monotonic() + 10
+            while any(psutil.pid_exists(pid) for pid in owned_pids) and time.monotonic() < deadline:
+                time.sleep(.1)
+            cleanup = {
+                "execution_id": execution_id, "supervisor_exited": process.poll() is not None,
+                "database_dropped": admin.execute(
+                    "select count(*) from pg_database where datname=%s", (database_name,)
+                ).fetchone()[0] == 0,
+                "owned_process_ids": sorted(owned_pids),
+                "owned_processes_alive": sorted(
+                    pid for pid in owned_pids if psutil.pid_exists(pid)),
+            }
+            (artifact_dir / "cleanup.json").write_text(
+                json.dumps(cleanup, indent=2), encoding="utf-8")
         admin.close()
 
 
@@ -553,6 +656,13 @@ def test_single_run_comprehensive_e2e_certification(
 
         maturation = _mature_winner_evidence(page, engine, env, recorder, run_id)
         idempotency["winner_maturation"] = maturation
+        recorder.check(
+            maturation.get("maturation_status") == "MATURED",
+            "comprehensive journey completed its owned Winner maturation checks",
+            area="Winner Evidence",
+            expected="MATURED",
+            actual=maturation.get("maturation_status"),
+        )
 
         _acknowledge_one_alert(page, engine, env, recorder, run_id)
         _acknowledge_one_ceri_alert(page, engine, env, recorder)
@@ -968,7 +1078,11 @@ def _run_pipeline_through_gui(
                     no_progress_seconds=progress_deadline_seconds,
                 )
             with observer_log.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(observation.as_dict(), default=str, sort_keys=True) + "\n")
+                from single_run_certification.evidence import RUNTIME_DIAGNOSTICS
+
+                handle.write(json.dumps({**observation.as_dict(), "execution_id": env.execution_id,
+                    "executed_checks": list(RUNTIME_DIAGNOSTICS)},
+                    default=str, sort_keys=True) + "\n")
             if observation.failures:
                 raise RuntimeError(
                     "PRODUCTION_RUNTIME_INVARIANT_FAILED: "
@@ -1724,7 +1838,7 @@ def _mature_winner_evidence(
         ordinal=180,
         heading="Winner Probability Operations",
     )
-    return {
+    fence_result = {
         "prediction_id": prediction_id,
         "ticker": prediction["ticker"],
         "mutation_status": "REJECTED",
@@ -1735,151 +1849,29 @@ def _mature_winner_evidence(
         "pending_after": pending_after,
     }
 
-    seeded = _seed_later_market_bars(engine, prediction_id)
-    recorder.check(
-        seeded > 0,
-        "later deterministic market bars were persisted after prediction capture",
-        area="Winner Evidence",
-        expected=">0",
-        actual=seeded,
+    # The browser must reject a second unrelated root. Complete the positive
+    # owned-prediction contract through the same native service/publication path
+    # already used by A04, without granting a forbidden browser mutation.
+    from single_run_certification.test_real_writer_cardinality import (
+        _mature_and_publish_one_generation,
     )
 
-    before_job_id = query_rows(
-        engine,
-        "select coalesce(max(id), 0) as value from background_jobs",
-    )[0]["value"]
-    response = page.goto(f"{env.base_url}/winner-probability/operations")
-    recorder.check(
-        response is not None and response.status == 200,
-        "Winner Evidence operations rendered before maturation",
-        area="Winner Evidence",
-        expected=200,
-        actual=response.status if response else None,
-    )
-    page.locator(
-        'form[action="/api/winner-probability/outcomes/process"] button[type="submit"]'
-    ).click()
-    page.locator('form[action="/api/winner-probability/outcomes/process"] output').wait_for(
-        state="visible", timeout=10_000
-    )
-
-    deadline = time.monotonic() + 60
-    job: dict = {}
-    while time.monotonic() < deadline:
-        rows = query_rows(
-            engine,
-            """
-            select id, status, result_json, error_message
-            from background_jobs
-            where id > :before_job_id and job_type='WINNER_OUTCOME_MATURATION'
-            order by id desc limit 1
-            """,
-            {"before_job_id": before_job_id},
-        )
-        if rows:
-            job = rows[0]
-            if job["status"] in {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}:
-                break
-        page.wait_for_timeout(100)
-    job_result = job.get("result_json") or {}
-    expected_job_status = (
-        "PARTIAL"
-        if int(job_result.get("failed_h5", 0)) or int(job_result.get("pending_h5_after_cycle", 0))
-        else "COMPLETED"
+    publication = _mature_and_publish_one_generation(
+        engine, run_id=run_id, ticker=prediction["ticker"]
     )
     recorder.check(
-        bool(job),
-        "browser action created a WINNER_OUTCOME_MATURATION background job",
-        area="Winner Evidence",
-        expected=True,
-        actual=bool(job),
-    )
-    recorder.check(
-        job.get("status") == expected_job_status,
-        "browser-queued Winner Evidence maturation job reached its count-derived status",
-        area="Winner Evidence",
-        expected=expected_job_status,
-        actual=job.get("status"),
-    )
-    recorder.check(
-        int(job_result.get("failed_h5", -1)) == 0,
-        "Winner Evidence primary H5 maturation completed without failed outcomes",
-        area="Winner Evidence",
-        expected=0,
-        actual=job_result.get("failed_h5"),
-    )
-    recorder.check(
-        int(job_result.get("pending_h5_after_cycle", -1)) == 0,
-        "Winner Evidence primary H5 queue drained completely",
-        area="Winner Evidence",
-        expected=0,
-        actual=job_result.get("pending_h5_after_cycle"),
-    )
-    recorder.check(
-        int(job_result.get("matured_h5", 0)) > 0,
-        "Winner Evidence matured at least one primary H5 outcome",
-        area="Winner Evidence",
-        expected=">0",
-        actual=job_result.get("matured_h5"),
-    )
-    recorder.check(
-        int(job_result.get("target_stop_matured", 0)) > 0,
-        "Winner Evidence matured at least one primary target/stop outcome",
-        area="Winner Evidence",
-        expected=">0",
-        actual=job_result.get("target_stop_matured"),
-    )
-
-    _capture_surface(
-        page,
-        env,
-        recorder,
-        name="winner-operations",
-        path="/winner-probability/operations",
-        ordinal=180,
-        heading="Winner Probability Operations",
-    )
-    operations_rows = _table_rows(
-        page, {"ID", "Type", "Status", "Run", "Started", "Completed", "Counts", "Error"}
-    )
-    processing_runs = query_rows(
-        engine,
-        """
-        select id, status, counts_json from winner_processing_runs
-        where background_job_id=:job_id order by id desc limit 1
-        """,
-        {"job_id": job.get("id")},
-    )
-    recorder.check(
-        bool(processing_runs),
-        "Winner Evidence maturation persisted its processing run",
-        area="Winner Evidence",
-        expected=True,
-        actual=bool(processing_runs),
-    )
-    processing_run = processing_runs[0] if processing_runs else {"id": None, "counts_json": {}}
-    maturation_row = next(
-        (
-            row
-            for row in operations_rows
-            if row["Type"] == "WINNER_OUTCOME_MATURATION" and row["ID"] == str(processing_run["id"])
+        all(
+            publication.get(key) == 1
+            for key in (
+                "evidence_rows",
+                "published_generations",
+                "serving_estimates",
+            )
         ),
-        None,
-    )
-    recorder.check(
-        maturation_row is not None and maturation_row["Status"] == job.get("status"),
-        "Winner operations GUI status matches the background job",
+        "owned Winner maturation reached native evidence and serving publication",
         area="Winner Evidence",
-        expected=job.get("status"),
-        actual=maturation_row["Status"] if maturation_row else "missing",
-    )
-    gui_counts = json.loads(maturation_row["Counts"]) if maturation_row else {}
-    recorder.check(
-        gui_counts == processing_run["counts_json"],
-        "Winner operations GUI counts match the processing-run DB record",
-        area="Winner Evidence",
-        expected=processing_run["counts_json"],
-        actual=gui_counts,
+        expected={"evidence_rows": 1, "published_generations": 1, "serving_estimates": 1},
+        actual=publication,
     )
 
     prediction_after = query_rows(
@@ -1908,7 +1900,7 @@ def _mature_winner_evidence(
     matured_forward = query_rows(
         engine,
         """
-        select entry_model, horizon_sessions, entry_session, due_session, status,
+        select id, prediction_id, entry_model, horizon_sessions, entry_session, due_session, status,
                close_return_pct, mfe_pct, mae_pct, positive_return, revision,
                source_bar_lineage_hash, matured_at
         from winner_forward_outcomes
@@ -1921,7 +1913,7 @@ def _mature_winner_evidence(
     matured_target_stop = query_rows(
         engine,
         """
-        select t.entry_model, t.status, t.first_event, t.evaluated_at,
+        select t.id, t.prediction_id, t.entry_model, t.status, t.first_event, t.evaluated_at,
                t.primary_winner, t.revision, t.source_bar_lineage_hash
         from winner_target_stop_outcomes t
         join winner_outcome_definitions d on d.id=t.outcome_definition_id
@@ -1931,10 +1923,13 @@ def _mature_winner_evidence(
         """,
         {"prediction_id": prediction_id},
     )
-    recorder.check(
+    forward_ready = recorder.check(
         bool(matured_forward)
         and all(
-            row["status"] == "MATURED" and row["matured_at"] is not None for row in matured_forward
+            row["prediction_id"] == prediction_id
+            and row["status"] == "MATURED"
+            and row["matured_at"] is not None
+            for row in matured_forward
         ),
         "ALFA primary NEXT_OPEN H5 outcome matured from later bars",
         area="Winner Evidence",
@@ -1943,10 +1938,12 @@ def _mature_winner_evidence(
             {"status": row["status"], "matured_at": row["matured_at"]} for row in matured_forward
         ],
     )
-    recorder.check(
+    target_ready = recorder.check(
         bool(matured_target_stop)
         and all(
-            row["status"] == "MATURED" and row["evaluated_at"] is not None
+            row["prediction_id"] == prediction_id
+            and row["status"] == "MATURED"
+            and row["evaluated_at"] is not None
             for row in matured_target_stop
         ),
         "ALFA primary target/stop outcome matured",
@@ -1978,17 +1975,12 @@ def _mature_winner_evidence(
         heading="Outcome Explorer",
     )
     return {
-        "prediction_id": prediction_id,
-        "ticker": prediction["ticker"],
-        "later_bars_seeded": seeded,
+        **fence_result,
+        "maturation_status": "MATURED" if forward_ready and target_ready else "INCOMPLETE",
+        "native_publication": publication,
         "matured_forward_outcomes": len(matured_forward),
         "matured_target_stop_outcomes": len(matured_target_stop),
-        "immutable_hash_before": immutable_hash_before,
-        "immutable_hash_after": immutable_hash_after,
-        "job_id": job.get("id"),
-        "job_status": job.get("status"),
-        "job_counts": job_result,
-        "processing_run_id": processing_run["id"],
+        "immutable_hash_after_maturation": immutable_hash_after,
     }
 
 
@@ -2865,7 +2857,7 @@ def _available_port() -> int:
 
 
 def _wait_healthy(process: subprocess.Popen, base_url: str, log_path: Path) -> None:
-    deadline = time.monotonic() + 45
+    deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError(f"certification server stopped early; see {log_path}")

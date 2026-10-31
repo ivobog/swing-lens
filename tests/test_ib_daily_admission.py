@@ -1,7 +1,7 @@
 """Run 43 regression: provider endpoints do not expand admitted coverage."""
 
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 from test_ib_fetch_executor import FakeDb, FakeIB, FakeLimiter, _bar, _fetch_plan, _plan_item
@@ -9,7 +9,11 @@ from test_ib_fetch_executor import FakeDb, FakeIB, FakeLimiter, _bar, _fetch_pla
 import app.services.ib_fetch_executor as executor
 from app.services.bar_cache_service import BarUpsertSummary
 from app.services.ib_fetch_plan_service import FetchAction, fetch_plan_from_dict, fetch_plan_to_dict
-from app.services.ib_historical_request_scope import DAILY_BAR_ADMISSION_V2, STRICT_RESPONSE_V1
+from app.services.ib_historical_request_scope import (
+    DAILY_BAR_ADMISSION_V2,
+    DAILY_BAR_ADMISSION_V3,
+    STRICT_RESPONSE_V1,
+)
 from app.services.market_data_session_readiness import classify_session_readiness
 from app.services.us_market_calendar import next_us_trading_day
 from app.settings import Settings
@@ -187,6 +191,62 @@ def test_legacy_policy_and_serialized_plan_identity_are_preserved(monkeypatch):
     new_payload = fetch_plan_to_dict(_fetch_plan(plan))
     assert new_payload["items"][0]["response_admission_policy"] == DAILY_BAR_ADMISSION_V2
     assert fetch_plan_from_dict(new_payload).items[0] == plan
+
+
+def _receipt_clock(monkeypatch, instant):
+    class ReceiptClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
+
+    monkeypatch.setattr(executor, "datetime", ReceiptClock)
+
+
+def test_v3_discards_only_live_forming_adjusted_bar_and_records_both_exclusions(monkeypatch):
+    plan, bars = daily_case("ADJUSTED_LAST")
+    plan = replace(plan, response_admission_policy=DAILY_BAR_ADMISSION_V3)
+    bars.append(replace(bars[-1], bar_date=date(2026, 10, 19)))
+    _receipt_clock(monkeypatch, datetime(2026, 10, 19, 15, tzinfo=UTC))
+    item, persisted, _ = run_case(monkeypatch, plan, bars)
+    assert item.status == "SUCCESS", item.error_message
+    assert len(persisted) == 14
+    assert max(b.bar_date for b in persisted) == date(2026, 10, 16)
+    metadata = item.decision_metadata_json
+    assert metadata["received_bar_count"] == 16
+    assert metadata["admitted_bar_count"] == 14
+    assert metadata["discarded_early_bar_count"] == 1
+    assert metadata["discarded_unconfirmed_bar_count"] == 1
+    assert metadata["actual_end_date"] == "2026-10-19"
+    assert metadata["admitted_end_date"] == "2026-10-16"
+    serialized = fetch_plan_to_dict(_fetch_plan(plan))
+    assert fetch_plan_from_dict(serialized).items[0] == plan
+
+
+@pytest.mark.parametrize("case", [
+    "before_open", "after_close", "future_day", "duplicate", "wrong_feed", "missing_end",
+])
+def test_v3_never_uses_forming_exception_to_admit_invalid_or_incomplete_history(monkeypatch, case):
+    plan, bars = daily_case("ADJUSTED_LAST")
+    plan = replace(plan, response_admission_policy=DAILY_BAR_ADMISSION_V3)
+    forming = replace(bars[-1], bar_date=date(2026, 10, 19))
+    instant = datetime(2026, 10, 19, 15, tzinfo=UTC)
+    if case == "before_open":
+        instant = instant.replace(hour=12)
+    elif case == "after_close":
+        instant = instant.replace(hour=21)
+    elif case == "future_day":
+        forming = replace(forming, bar_date=date(2026, 10, 20))
+    elif case == "duplicate":
+        bars.append(forming)
+    elif case == "wrong_feed":
+        forming = replace(forming, what_to_show="TRADES")
+    elif case == "missing_end":
+        bars.pop()
+    bars.append(forming)
+    _receipt_clock(monkeypatch, instant)
+    item, persisted, _ = run_case(monkeypatch, plan, bars)
+    assert item.status == "FAILED" and persisted == []
+    assert item.decision_metadata_json["retryable"] is False
 
 
 @pytest.mark.integration

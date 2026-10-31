@@ -13,6 +13,11 @@ from app.models.tables import BackgroundJob, PipelineDependency, PipelineRun, Pi
 from app.observability.correlation import durable_job_causality
 from app.observability.transaction_metrics import publish_after_commit
 from app.services.background_job_service import JobStatus, enqueue_job
+from app.services.pipeline_execution_authority import (
+    job_execution_authority_predicate,
+    pipeline_activation_predicate,
+    pipeline_is_in_activation_scope,
+)
 from app.services.pipeline_state_machine import (
     TERMINAL_PIPELINE_STATES,
     transition_pipeline,
@@ -407,7 +412,11 @@ def reconcile_pipeline_job(db: Session, job_id: int) -> None:
 
     if not isinstance(db, Session):
         return
-    job = db.get(BackgroundJob, job_id)
+    job = db.scalar(
+        select(BackgroundJob).where(
+            BackgroundJob.id == job_id, job_execution_authority_predicate(),
+        )
+    )
     if job is None:
         return
     if job.pipeline_dependency_id is not None:
@@ -433,10 +442,14 @@ def mark_dependency_job_running(db: Session, job_id: int) -> None:
         db.flush()
 
 
-def reconcile_pending_dependency_enqueues(db: Session) -> tuple[int, ...]:
+def reconcile_pending_dependency_enqueues(
+    db: Session, *, pipeline_run_ids: tuple[int, ...] | None = None,
+) -> tuple[int, ...]:
     """Safely complete crash gaps between wait-state commit and child enqueue."""
 
     if not isinstance(db, Session):
+        return ()
+    if pipeline_run_ids == ():
         return ()
     bind = db.get_bind()
     if bind.dialect.name == "sqlite" and not inspect(bind).has_table(
@@ -449,6 +462,11 @@ def reconcile_pending_dependency_enqueues(db: Session) -> tuple[int, ...]:
             select(PipelineDependency.id)
             .join(PipelineRun, PipelineRun.id == PipelineDependency.pipeline_run_id)
             .where(PipelineDependency.state == "PENDING_ENQUEUE")
+            .where(pipeline_activation_predicate())
+            .where(
+                PipelineRun.id.in_(pipeline_run_ids)
+                if pipeline_run_ids is not None else True
+            )
             .where(
                 PipelineRun.execution_authority_state == "ACTIVE",
                 PipelineRun.status.not_in(TERMINAL_PIPELINE_STATES | {"CANCEL_REQUESTED"}),
@@ -465,23 +483,36 @@ def reconcile_pending_dependency_enqueues(db: Session) -> tuple[int, ...]:
     return tuple(created)
 
 
-def reconcile_safe_pipeline_invariants(db: Session) -> dict[str, tuple[int, ...]]:
+def reconcile_safe_pipeline_invariants(
+    db: Session, *, pipeline_run_ids: tuple[int, ...] | None = None,
+) -> dict[str, tuple[int, ...]]:
     """Repair only deterministic crash gaps; never rewrite ambiguous history."""
 
     if not isinstance(db, Session):
         return {"children_enqueued": (), "continuations_enqueued": (), "cancellations": ()}
-    children = reconcile_pending_dependency_enqueues(db)
+    if pipeline_run_ids == ():
+        return {"children_enqueued": (), "continuations_enqueued": (), "cancellations": ()}
+    children = (
+        reconcile_pending_dependency_enqueues(db)
+        if pipeline_run_ids is None
+        else reconcile_pending_dependency_enqueues(db, pipeline_run_ids=pipeline_run_ids)
+    )
     continuations: list[int] = []
     reconcilable_dependencies = list(
         db.scalars(
             select(PipelineDependency)
             .join(PipelineRun, PipelineRun.id == PipelineDependency.pipeline_run_id)
+            .where(pipeline_activation_predicate())
             .where(
                 PipelineDependency.state.in_(DEPENDENCY_ACTIVE_STATES | {"COMPLETED"}),
                 PipelineDependency.child_job_id.is_not(None),
                 PipelineDependency.continuation_job_id.is_(None),
                 PipelineRun.execution_authority_state == "ACTIVE",
                 PipelineRun.status.not_in(TERMINAL_PIPELINE_STATES | {"CANCEL_REQUESTED"}),
+            )
+            .where(
+                PipelineRun.id.in_(pipeline_run_ids)
+                if pipeline_run_ids is not None else True
             )
             .order_by(PipelineDependency.id)
             .with_for_update(skip_locked=True)
@@ -501,6 +532,11 @@ def reconcile_safe_pipeline_invariants(db: Session) -> dict[str, tuple[int, ...]
         db.scalars(
             select(PipelineRun)
             .where(PipelineRun.status == "CANCEL_REQUESTED")
+            .where(pipeline_activation_predicate())
+            .where(
+                PipelineRun.id.in_(pipeline_run_ids)
+                if pipeline_run_ids is not None else True
+            )
             .order_by(PipelineRun.id)
             .with_for_update(skip_locked=True)
         )
@@ -544,7 +580,7 @@ def _reconcile_dependency_job(db: Session, job: BackgroundJob) -> None:
     pipeline = db.scalar(
         select(PipelineRun).where(PipelineRun.id == dependency.pipeline_run_id).with_for_update()
     )
-    if pipeline is None:
+    if not pipeline_is_in_activation_scope(pipeline):
         return
     now = _utcnow()
     if job.id == dependency.child_job_id:
@@ -739,7 +775,7 @@ def _reconcile_pipeline_root_job(db: Session, job: BackgroundJob) -> None:
     if not pipeline_id:
         return
     pipeline = db.scalar(select(PipelineRun).where(PipelineRun.id == pipeline_id).with_for_update())
-    if pipeline is None or pipeline.status in TERMINAL_PIPELINE_STATES:
+    if not pipeline_is_in_activation_scope(pipeline) or pipeline.status in TERMINAL_PIPELINE_STATES:
         return
     if pipeline.status == "CANCEL_REQUESTED":
         # Cancellation is a control outcome, not an execution failure.  The

@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 
 from contextual_readiness_helpers import ibmi_feature
@@ -418,6 +418,9 @@ def _fundamental(
     label: str = "High-quality quant",
 ) -> FundamentalScore:
     return certified_fundamental(
+        source_backed=True,
+        # Synthetic calculation completed at the start of this scenario's day.
+        calculated_at=datetime.combine(TODAY, time.min, tzinfo=UTC),
         run_id=1,
         ticker=ticker,
         fundamental_score=Decimal(str(score)),

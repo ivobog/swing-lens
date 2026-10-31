@@ -300,6 +300,19 @@
     },
     {
       "method": "POST",
+      "path": "/api/market-sector-intelligence/refresh",
+      "function": "app.routers.market_sector_intelligence_routes.market_sector_refresh",
+      "domain": "market-sector-intelligence",
+      "mutation_capability": "NORMAL_ONLY",
+      "operation": "http.msi.sector_refresh",
+      "modes": {
+        "NORMAL": "ENABLED",
+        "CERTIFICATION": "DISABLED"
+      },
+      "writer_family": "HTTP_OPERATION"
+    },
+    {
+      "method": "POST",
       "path": "/api/runs/{run_id}/sector-rotation/recalculate",
       "function": "app.routers.sector_rotation_routes.recalculate_run_sector_rotation_api",
       "domain": "sector-rotation",
@@ -3109,6 +3122,79 @@
       "tests": [
         "tests/test_t14a_mutation_inventory.py"
       ]
+    },
+    {
+      "table": "market_sector_rotation_rows",
+      "model": "app.models.market_sector_intelligence_tables.MarketSectorRotationRow",
+      "domain": "Independent market-sector research",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-083"
+      ],
+      "authority": "Explicit typed NORMAL_ONLY CLI capture; configured CLI role; D2 insert guard; append-only DB triggers",
+      "transaction_family": "TX-29",
+      "tests": [
+        "tests/test_market_sector_intelligence_rotation_storage.py"
+      ]
+    },
+    {
+      "table": "market_sector_rotation_snapshots",
+      "model": "app.models.market_sector_intelligence_tables.MarketSectorRotationSnapshot",
+      "domain": "Independent market-sector research",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-083"
+      ],
+      "authority": "Explicit typed NORMAL_ONLY CLI capture; configured CLI role; D2 insert guard; append-only DB triggers",
+      "transaction_family": "TX-29",
+      "tests": [
+        "tests/test_market_sector_intelligence_rotation_storage.py"
+      ]
+    },
+    {
+      "table": "consumer_eligibility_decisions",
+      "model": "app.models.tables.ConsumerEligibilityDecisionRecord",
+      "domain": "Runtime/pipeline",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-080"
+      ],
+      "authority": "Append-only policy evidence; exact source/cutoff; ACTIVE/SHADOW mode bound to immutable readiness delivery; never grants execution authority",
+      "transaction_family": "TX-30",
+      "tests": [
+        "tests/integration/test_msi_operational_compatibility_postgresql.py",
+        "tests/integration/test_operational_admission_postgresql.py"
+      ]
+    },
+    {
+      "table": "eligibility_shadow_evaluations",
+      "model": "app.models.tables.EligibilityShadowEvaluationRecord",
+      "domain": "Runtime/pipeline",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-082"
+      ],
+      "authority": "Append-only policy evidence; exact source/cutoff; ACTIVE/SHADOW mode bound to immutable readiness delivery; never grants execution authority",
+      "transaction_family": "TX-30",
+      "tests": [
+        "tests/integration/test_msi_operational_compatibility_postgresql.py",
+        "tests/integration/test_operational_admission_postgresql.py"
+      ]
+    },
+    {
+      "table": "winner_acquisition_decisions",
+      "model": "app.models.tables.WinnerAcquisitionDecisionRecord",
+      "domain": "Winner",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-081"
+      ],
+      "authority": "Append-only Winner acquisition outcomes in native bounded capture/progress transactions; exact source identities, cutoff and policy version; never grants execution authority",
+      "transaction_family": "TX-30",
+      "tests": [
+        "tests/integration/test_msi_operational_compatibility_postgresql.py",
+        "tests/integration/test_operational_admission_postgresql.py"
+      ]
     }
   ],
   "writer_families": [
@@ -3177,7 +3263,7 @@
         "pipeline_runs",
         "pipeline_steps"
       ],
-      "functions": "fence_stalled_jobs, _interrupt_fenced_pipeline_steps, requeue_stalled_jobs",
+      "functions": "fence_stalled_jobs, _interrupt_fenced_pipeline_steps, requeue_stalled_jobs, _record_progress_recovery (private metadata helper under this boundary)",
       "entrypoints": "supervisor watchdog",
       "authority_transaction": "mandatory typed NORMAL/CERTIFICATION RecoveryAuthority; fencing uses exact-session live roots, requeue uses exact-session recoverable roots; TX-22/23"
     },
@@ -3188,7 +3274,7 @@
         "pipeline_runs",
         "pipeline_steps"
       ],
-      "functions": "reconcile_jobs_for_worker_loss, _interrupt_fenced_pipeline_steps",
+      "functions": "reconcile_jobs_for_worker_loss, _interrupt_fenced_pipeline_steps, _record_progress_recovery (private metadata helper under this boundary)",
       "entrypoints": "supervisor death/memory/shutdown",
       "authority_transaction": "mandatory typed authority + worker instance; unrelated certification lineage reported untouched; TX-22"
     },
@@ -3879,6 +3965,43 @@
       "functions": "pipeline_dependency_service dependency preparation, reconciliation, completion, and failure",
       "entrypoints": "FULL_PIPELINE CERI and SEC dependency orchestration",
       "authority_transaction": "pipeline execution token, dependency key/type, child job identity, and continuation request key"
+    },
+    {
+      "id": "WRITE-083",
+      "tables": [
+        "market_sector_rotation_snapshots",
+        "market_sector_rotation_rows"
+      ],
+      "functions": "MarketSectorRotationRepository.capture",
+      "entrypoints": "explicit local scripts/market_sector_intelligence_capture.py --capture only",
+      "authority_transaction": "MarketSectorCaptureAuthority; NORMAL_ONLY and CLI_OR_MAINTENANCE; exact config/current-session/material validation; immutable complete-only atomic TX-29"
+    },
+    {
+      "id": "WRITE-080",
+      "tables": [
+        "consumer_eligibility_decisions"
+      ],
+      "functions": "consumer_eligibility_ledger.persist_consumer_decision",
+      "entrypoints": "Combined/Ranking Fundamental consumer boundaries; explicit rollback-only ORM certification",
+      "authority_transaction": "append-only orthogonal readiness decision, source identity, cutoff and policy version; idempotent fingerprint"
+    },
+    {
+      "id": "WRITE-081",
+      "tables": [
+        "winner_acquisition_decisions"
+      ],
+      "functions": "consumer_eligibility_ledger.persist_winner_acquisition_decision",
+      "entrypoints": "Winner prediction acquisition",
+      "authority_transaction": "append-only per-source acquisition outcome in the native capture or exclusion/failure progress transaction; exact source identities and idempotent fingerprint"
+    },
+    {
+      "id": "WRITE-082",
+      "tables": [
+        "eligibility_shadow_evaluations"
+      ],
+      "functions": "consumer_eligibility_ledger.persist_shadow_evaluation",
+      "entrypoints": "non-authoritative policy shadow evaluation",
+      "authority_transaction": "frozen legacy/proposed comparison; data model rejects authoritative shadow decisions"
     }
   ],
   "writer_candidates": [
@@ -11548,6 +11671,29 @@
       "kind": "add",
       "writer_ids": [],
       "reason": "Run 41: seen.add only tracks exception identities in a bounded in-memory set; no database mutation."
+    },
+    {
+      "path": "app/services/market_sector_intelligence_rotation_repository.py",
+      "function": "capture",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-083"
+      ],
+      "reason": "D2-only complete capture; one header and eleven rows under typed CLI authority."
+    },
+    {
+      "path": "app/services/ib_fetch_executor.py",
+      "function": "_admit_returned_bars",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Reviewed in-memory seen set of bar dates; seen.add does not write database rows or mutate input bars. Persistence belongs to cache_bars (WRITE-030, TX-06) in the caller."
+    },
+    {
+      "path": "app/services/pipeline_outcome.py",
+      "function": "_integrity_hazards",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Reviewed in-memory hazards set, returned as a sorted list; hazards.add does not mutate the input result, database rows or pipeline state. No writer authority is granted."
     }
   ],
   "recovery_paths": [
@@ -11865,6 +12011,8 @@
   "recovery_candidate_functions": [
     "app/services/background_job_service.py:_finalize_recovery_cancellation",
     "app/services/background_job_service.py:_interrupt_fenced_pipeline_steps",
+    "app/services/background_job_service.py:_memory_recovery_identity",
+    "app/services/background_job_service.py:_record_progress_recovery",
     "app/services/background_job_service.py:_recover_jobs",
     "app/services/background_job_service.py:fence_job_execution",
     "app/services/background_job_service.py:fence_jobs_for_worker",
@@ -12097,6 +12245,27 @@
       "retained": "exact two-ticker/provider semantic scope, configuration anchor, market context, pipeline/root IDs and child graph",
       "revalidation": "certification session, schema head, isolated queue, exact payload permissions and retained scope membership",
       "continuation": "provider -> normalize -> one feature batch -> FEATURE_CERTIFIED; no finalizer"
+    },
+    {
+      "id": "TX-29",
+      "boundary": "explicit CLI preview read session closes before a fresh atomic D2-only capture transaction",
+      "retained": "one immutable header and exactly eleven rows; natural-key uniqueness and selected anchor/provenance hashes",
+      "revalidation": "typed NORMAL_ONLY CLI role, current completed market session, version/config, finite metrics, exact anchors, ranks and material digest; same-session conflict is never overwritten",
+      "continuation": "no scheduler, provider, pipeline, HTTP mutation or worker"
+    },
+    {
+      "id": "TX-30",
+      "boundary": "native Combined/Ranking bounded batch or Winner per-ticker publication appends immutable policy/acquisition evidence in the same caller-owned transaction",
+      "retained": "exact source identity, cutoff, run, policy version, mode and idempotent fingerprint",
+      "revalidation": "main native source/configuration/lease guards remain authoritative; no historical decision is reinterpreted or used to grant execution permission",
+      "continuation": "existing main progress/continuation interfaces only"
+    },
+    {
+      "id": "TX-31",
+      "boundary": "explicit Fundamental admission ORM certification uses a separate Session and rollback-only nested probe",
+      "retained": "actual persisted Fundamental source/evidence pointer with unloaded relationship",
+      "revalidation": "exact identity, source/run, immutable configured mode and canonical decision payload",
+      "continuation": "none; no committed business rows, provider work or operational probe executed by this task"
     }
   ],
   "transaction_sites": [
@@ -14815,6 +14984,83 @@
       "primitive": "rollback",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Run 41: discard staged recapture/publication writes on failure or cancellation before separately fenced audit bookkeeping."
+    },
+    {
+      "path": "app/services/market_sector_intelligence_rotation_repository.py",
+      "function": "capture",
+      "primitive": "begin",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "D2 TX-29 atomic complete capture; rollback before natural-key race re-read."
+    },
+    {
+      "path": "app/services/market_sector_intelligence_rotation_repository.py",
+      "function": "capture",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "D2 TX-29 atomic complete capture; rollback before natural-key race re-read."
+    },
+    {
+      "path": "app/services/market_sector_intelligence_rotation_repository.py",
+      "function": "capture",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "D2 TX-29 atomic complete capture; rollback before natural-key race re-read."
+    },
+    {
+      "path": "app/services/contextual_consumer_eligibility.py",
+      "function": "certify_fundamental_admission_orm_contract",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-31 explicit rollback-only bounded native ORM admission certification; no retained writes."
+    },
+    {
+      "path": "app/services/contextual_consumer_eligibility.py",
+      "function": "certify_fundamental_admission_orm_contract",
+      "primitive": "begin_nested",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-31 explicit rollback-only bounded native ORM admission certification; no retained writes."
+    },
+    {
+      "path": "app/services/contextual_consumer_eligibility.py",
+      "function": "certify_fundamental_admission_orm_contract",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-31 explicit rollback-only bounded native ORM admission certification; no retained writes."
+    },
+    {
+      "path": "app/services/contextual_consumer_eligibility.py",
+      "function": "certify_fundamental_admission_orm_contract",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "TX-31 explicit rollback-only bounded native ORM admission certification; no retained writes."
+    },
+    {
+      "path": "app/services/background_worker.py",
+      "function": "_post_job_recycle_required",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Read-only exact-worker-instance idle check; rollback only on read failure; never recovers or changes a job."
+    },
+    {
+      "path": "app/routers/market_sector_intelligence_routes.py",
+      "function": "market_sector_refresh",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Manual MSI admission only: fixed cohort, NORMAL/local-admin/CSRF, verified IB preflight, feature advisory lock; native fetch authority/run/job commit atomically, rollback on rejection."
+    },
+    {
+      "path": "app/routers/market_sector_intelligence_routes.py",
+      "function": "market_sector_refresh",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Manual MSI admission only: fixed cohort, NORMAL/local-admin/CSRF, verified IB preflight, feature advisory lock; native fetch authority/run/job commit atomically, rollback on rejection."
+    },
+    {
+      "path": "app/services/market_sector_refresh_service.py",
+      "function": "enqueue_sector_refresh",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Manual MSI admission only: fixed cohort, NORMAL/local-admin/CSRF, verified IB preflight, feature advisory lock; native fetch authority/run/job commit atomically, rollback on rejection."
     }
   ],
   "high_risk_tables": [
@@ -15181,6 +15427,11 @@
     {
       "table": "winner_training_outcome_replays",
       "model": "WinnerTrainingOutcomeReplay",
+      "reason": "Potentially large domain/evidence payload."
+    },
+    {
+      "table": "winner_acquisition_decisions",
+      "model": "WinnerAcquisitionDecisionRecord",
       "reason": "Potentially large domain/evidence payload."
     }
   ],
@@ -17944,6 +18195,30 @@
     ],
     "READ-026": [
       "tests/integration/test_aggregate_operability_postgresql.py"
+    ],
+    "TX-29": [
+      "tests/test_market_sector_intelligence_rotation_storage.py::test_complete_capture_is_atomic_and_exact_retry_has_no_dml",
+      "tests/test_market_sector_intelligence_rotation_storage.py::test_injected_row_failure_rolls_back_header_and_every_row",
+      "tests/integration/test_market_sector_intelligence_rotation_postgresql.py::test_full_postgresql_upgrade_capture_concurrency_and_immutability"
+    ],
+    "WRITE-082": [
+      "tests/integration/test_msi_operational_compatibility_postgresql.py",
+      "tests/integration/test_operational_admission_postgresql.py"
+    ],
+    "WRITE-081": [
+      "tests/integration/test_msi_operational_compatibility_postgresql.py",
+      "tests/integration/test_operational_admission_postgresql.py"
+    ],
+    "WRITE-080": [
+      "tests/integration/test_msi_operational_compatibility_postgresql.py",
+      "tests/integration/test_operational_admission_postgresql.py"
+    ],
+    "TX-30": [
+      "tests/integration/test_operational_admission_postgresql.py",
+      "tests/integration/test_msi_operational_compatibility_postgresql.py"
+    ],
+    "TX-31": [
+      "tests/integration/test_operational_admission_postgresql.py"
     ]
   },
   "exceptions": [],

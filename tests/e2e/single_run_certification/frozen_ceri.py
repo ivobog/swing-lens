@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+from dataclasses import replace
+from datetime import datetime
+
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
@@ -9,6 +13,26 @@ EXACT_TEN = ("BHE", "BLLN", "KLIC", "LSCC", "PDFS", "ACMR", "RDVT", "AVT", "DVN"
 
 def frozen_ceri_registry() -> CeriProviderRegistry:
     """Return deterministic external-provider responses for the retained-clone proof."""
+
+    from single_run_certification.golden_oracle import artifact
+    from single_run_certification.golden_runtime import current_manifest
+
+    if os.environ.get("CERTIFICATION_GOLDEN_VERSION") or current_manifest():
+        replay = artifact("provider-replay.json")
+
+        class GoldenProvider(ManualCeriProvider):
+            def _records_for_request(self, dataset, ticker):
+                for record in super()._records_for_request(dataset, ticker):
+                    yield replace(record, retrieved_at=datetime.fromisoformat(
+                        record.payload["retrieved_at"].replace("Z", "+00:00"),
+                    ))
+
+        providers = {}
+        for name in ("eodhd", "sec"):
+            provider = GoldenProvider(replay[name], provider_terms_version=replay["terms_version"])
+            provider.name = name
+            providers[name] = provider
+        return CeriProviderRegistry(providers=providers)
 
     tickers = tuple(dict.fromkeys((*EXACT_TEN, *(f"F{index:04d}" for index in range(90)))))
     observed = "2026-09-23T19:00:00Z"

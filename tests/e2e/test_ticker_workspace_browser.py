@@ -1,8 +1,8 @@
 from datetime import date, timedelta
-from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from evidence_output import artifact_path
 from playwright.sync_api import expect
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
@@ -178,7 +178,10 @@ def test_missing_chart_and_unavailable_decision_stay_usable(page, workspace_serv
 def test_workspace_visual_review(page, workspace_server):
     page.goto(workspace_server + "/tickers/EOG?run_id=7")
     expect(page.locator("[data-chart-summary]")).to_contain_text("240 daily bars")
-    Path("output/playwright").mkdir(parents=True, exist_ok=True)
-    page.screenshot(path="output/playwright/ticker-workspace-desktop.png", full_page=True)
+    page.screenshot(
+        path=artifact_path("output/playwright/ticker-workspace-desktop.png"), full_page=True
+    )
     page.set_viewport_size({"width": 390, "height": 844})
-    page.screenshot(path="output/playwright/ticker-workspace-mobile.png", full_page=True)
+    page.screenshot(
+        path=artifact_path("output/playwright/ticker-workspace-mobile.png"), full_page=True
+    )

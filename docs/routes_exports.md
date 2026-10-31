@@ -111,6 +111,17 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/api/market-regime/latest` | `latest_market_regime_api` |
 | GET | `/api/market-regime/run/{run_id}` | `run_market_regime_api` |
 | POST | `/api/market-regime/run/{run_id}/recalculate` | `recalculate_run_market_regime_api` |
+| GET | `/api/market-sector-intelligence/charts/price-series` | `market_sector_price_series` |
+| GET | `/api/market-sector-intelligence/coverage` | `market_sector_coverage` |
+| POST | `/api/market-sector-intelligence/refresh` | `market_sector_refresh` |
+| GET | `/api/market-sector-intelligence/refresh/active` | `market_sector_refresh_active` |
+| GET | `/api/market-sector-intelligence/refresh/{job_id}` | `market_sector_refresh_status` |
+| GET | `/api/market-sector-intelligence/rotation/history` | `market_sector_rotation_history` |
+| GET | `/api/market-sector-intelligence/rotation/latest` | `market_sector_rotation_latest` |
+| GET | `/api/market-sector-intelligence/rotation/preview` | `market_sector_rotation_preview` |
+| GET | `/api/market-sector-intelligence/rotation/snapshots/{snapshot_id}` | `market_sector_rotation_detail` |
+| GET | `/api/market-sector-intelligence/technicals/preview` | `market_sector_technicals_preview` |
+| GET | `/api/market-sector-intelligence/technicals/preview/{etf_symbol}` | `market_sector_technicals_detail` |
 | GET | `/api/runs/{run_id}/sector-rotation` | `api_sector_rotation` |
 | POST | `/api/runs/{run_id}/sector-rotation/recalculate` | `recalculate_run_sector_rotation_api` |
 | GET | `/api/runs/{run_id}/sector-rotation/{sector_slug}` | `api_sector_rotation_drilldown` |
@@ -147,6 +158,10 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/api/setup-lifecycle/tickers/{ticker}/timeline` | `setup_lifecycle_ticker_timeline` |
 | GET | `/api/system/operations` | `operations_api` |
 | GET | `/api/system/operations/causality/{root_correlation_id}` | `causality_api` |
+| GET | `/api/tickers/search` | `search` |
+| GET | `/api/tickers/{ticker}/chart-data` | `workspace_chart_data` |
+| GET | `/api/tickers/{ticker}/intelligence/{section}` | `workspace_intelligence` |
+| GET | `/api/tickers/{ticker}/summary` | `summary` |
 | POST | `/api/winner-probability/cohorts/refresh` | `queue_winner_cohort_refresh` |
 | GET | `/api/winner-probability/estimates/{estimate_id}/reproduction` | `winner_probability_estimate_reproduction` |
 | GET | `/api/winner-probability/estimates/{estimate_id}/reproduction/export.json` | `export_winner_probability_reproduction_json` |
@@ -239,6 +254,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/runs/{run_id}/tickers/{ticker}/details` | `ticker_detail_fragment` |
 | GET | `/runs/{run_id}/winner-probability` | `winner_probability_run_page` |
 | GET | `/scoring` | `scoring_page` |
+| GET | `/sector-rotation` | `market_sector_intelligence_page` |
 | GET | `/settings` | `settings_page` |
 | GET | `/setup-lifecycle` | `setup_lifecycle_page` |
 | GET | `/setup-lifecycle/alerts` | `setup_lifecycle_alerts_page` |
@@ -248,6 +264,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/setup-lifecycle/operations` | `setup_lifecycle_operations_page` |
 | GET | `/setup-lifecycle/ticker/{ticker}` | `setup_lifecycle_ticker_page` |
 | GET | `/system/operations` | `operations_page` |
+| GET | `/tickers/{ticker}` | `workspace` |
 | POST | `/uploads` | `upload_csv` |
 | GET | `/winner-probability/models` | `winner_probability_models_page` |
 | GET | `/winner-probability/operations` | `winner_probability_operations_page` |

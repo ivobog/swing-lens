@@ -35,6 +35,7 @@ from app.services.market_clock_service import (
     EXCHANGE_TIMEZONE,
     MarketCalculationCutoff,
     MarketClockService,
+    require_current_execution_calendar,
 )
 
 logger = logging.getLogger(__name__)
@@ -220,7 +221,9 @@ def market_context_for_pipeline(db: Session, pipeline: PipelineRun) -> MarketCal
             "PIPELINE_FROZEN_CONTEXT_REQUIRED: existing pipeline has no retained context; "
             "start a new calculation instead of reconstructing authority at execution."
         )
-    return cutoff_from_row(row)
+    cutoff = cutoff_from_row(row)
+    _require_execution_calendar(cutoff)
+    return cutoff
 
 
 def create_or_get_pipeline_ceri_context(
@@ -336,6 +339,7 @@ def resolve_pipeline_ceri_context(
         and cutoff.calendar_version != expected_calendar_version
     ):
         raise PipelineCalculationContextError("CERI payload calendar does not match its context.")
+    _require_execution_calendar(cutoff)
     return cutoff
 
 
@@ -918,7 +922,15 @@ def validate_pipeline_job_market_context(
     )
     if not compatibility.accepted:
         raise PipelineCalculationContextError(compatibility.diagnostic())
+    _require_execution_calendar(authoritative)
     return authoritative
+
+
+def _require_execution_calendar(cutoff: MarketCalculationCutoff) -> None:
+    try:
+        require_current_execution_calendar(cutoff)
+    except ValueError as exc:
+        raise PipelineCalculationContextError(str(exc)) from exc
 
 
 def standalone_market_context(

@@ -10,6 +10,7 @@ from app.services.bar_cache_service import DEFAULT_WHAT_TO_SHOW
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ib_historical_request_scope import (
     DAILY_BAR_ADMISSION_V2,
+    DAILY_BAR_ADMISSION_V3,
     STRICT_RESPONSE_V1,
     build_historical_request_scope,
     reviewed_start_for_duration,
@@ -361,6 +362,9 @@ def _build_plan_item(
 
     return FetchPlanItem(
         ticker=coverage_item.ticker,
+        response_admission_policy=(
+            DAILY_BAR_ADMISSION_V3 if what_to_show == "ADJUSTED_LAST" else DAILY_BAR_ADMISSION_V2
+        ),
         contract_status=contract_status,
         what_to_show=what_to_show,
         action=action,

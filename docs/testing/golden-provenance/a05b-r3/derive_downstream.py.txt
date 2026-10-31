@@ -1,0 +1,91 @@
+"""Fixed Setup/Winner semantic obligations from independently derived inputs."""
+from derive_core import DEST, D, combined, core, dump, load, ranks, tickers
+
+setups, episodes, events, acquisitions, predictions, forwards, targets, estimates = [], [], [], [], [], [], [], []
+sessions = load("calendar.json")["sessions"]
+winner_config = load("configuration.json")["winner_probability.yaml"]
+for ticker in tickers:
+    technical = core[ticker]
+    selected = min((row for row in ranks if row["ticker"] == ticker), key=lambda row: (row["profile_rank"], row["profile"]))
+    ready = technical["dual_score"] >= 7
+    state, phase = ("READY", "READY") if ready else ("DEVELOPING", "CANDIDATE")
+    action = "ACTIONABLE" if ready else "WATCH_ONLY"
+    # No supported adapter reaches its 5.5 setup-score floor (all are 5.4).
+    # Generic score >=5, ready >=7. Certified prior history is empty because
+    # the retained Oct23 baseline has no core evidence_id. Persistence=0.
+    confidence = 72  # round((1*.30+.875*.25+0*.20+1*.15+.5*.10)*100)
+    setups.append({"ticker": ticker, "timeframe": "1d", "data_as_of_date": "2026-10-26",
+                   "primary_setup_family": "GENERIC", "primary_phase": phase, "ranking_profile": selected["profile"],
+                   "lifecycle_state_candidate": state, "actionability_candidate": action,
+                   "confidence_score": confidence, "confidence_label": "NORMAL", "data_quality_label": "NORMAL",
+                   "context_completeness": ".5", "source_eligibility": {role:{"included":role!="sector", "status":"POLICY_UNDECIDED" if role=="sector" else "ELIGIBLE", "reasons":["DEGRADED_POLICY_UNDECIDED"] if role=="sector" else []} for role in ("regime","sector","combined","fundamental")},
+                   "required_feature_coverage": "1", "freshness_status": "FRESH", "is_canonical": True,
+                   "dual_score": technical["dual_score"], "setup_score": "5.4", "trigger_price": None,
+                   "pivot_price": None, "close_above_trigger": None, "high_above_trigger": None})
+    episodes.append({"ticker": ticker, "timeframe": "1d", "setup_family": "GENERIC", "status": "ACTIVE",
+                     "opened_on": "2026-10-26", "current_state": state, "current_phase": phase,
+                     "confidence_score": confidence, "current_actionability": action,
+                     "missing_observation_sessions": 0, "state_age_sessions": 0})
+    events.extend([{"ticker": ticker, "event_type": "CANONICAL_REVISION", "from_state": None,
+                    "to_state": "CANONICAL", "effective_date": "2026-10-26"},
+                   {"ticker": ticker, "event_type": "EPISODE_OPENED", "from_state": None,
+                    "to_state": state, "effective_date": "2026-10-26"}])
+    selected = min((row for row in ranks if row["ticker"] == ticker), key=lambda row: (row["profile_rank"], row["profile"]))
+    combination = next(row for row in combined if row["ticker"] == ticker)
+    acquisitions.append({"ticker": ticker, "acquisition_outcome": "INSERTED", "eligibility_reason": None,
+                         "decision_cutoff": "2026-10-26T20:33:00+00:00"})
+    feature = {"ticker": ticker, "prediction_as_of_date": "2026-10-26", "planned_entry_session": "2026-10-27",
+               "setup_family": selected["decision_label"], "trigger_state": technical["action_bias"],
+               "ranking_profile": selected["profile"], "fundamental_score": "9.1909",
+               "technical_score": technical["dual_score"], "combined_score": combination["final_score"],
+               "market_regime": "Bull trend", "market_regime_family": "Bull trend", "market_risk_state": "Green",
+               "sector_state": None, "sector_rank": None, "sector_leadership_bucket": None,
+               "reward_risk": technical["reward_risk"], "earnings_risk": "clear", "technical_data_quality": "high",
+               "fundamental_coverage": "10", "universe_provenance": "single-run-certification.csv",
+               "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.", "raw_sector": "Technology Services", "canonical_sector": "Technology",
+               "dual_score_band": "6_5_to_8", "score_band": "8_plus" if combination["final_score"] >= 8 else "6_5_to_8"}
+    predictions.append({"ticker": ticker, "prediction_as_of_date": "2026-10-26", "eligibility_status": "ELIGIBLE",
+                        "exclusion_reason": None, "entry_schedule_status": "RESOLVED", "entry_data_status": "NOT_DUE",
+                        "planned_entry_session": "2026-10-27", "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+                        "captured_at": "2026-10-26T20:33:00+00:00", "feature_schema_version": "owpe-features-1.0.0",
+                        "calculation_version": "owpe-calc-1.1.0", "warning_flags": ["missing_sector_rotation_context"], "features": feature,
+                        "source_eligibility": {role:{"included":role!="sector", "status":"POLICY_UNDECIDED" if role=="sector" else "ELIGIBLE", "requirement":"MANDATORY" if role in ("technical","ranking","combined") else "OPTIONAL", "reasons":["DEGRADED_POLICY_UNDECIDED"] if role=="sector" else []} for role in ("technical","ranking","combined","fundamental","regime","sector")}})
+    for model, entry in (("NEXT_OPEN", "2026-10-27"), ("SIGNAL_CLOSE_DIAGNOSTIC", "2026-10-26")):
+        for horizon in (1, 3, 5, 10, 20):
+            due = sessions[sessions.index(entry)+horizon-1]
+            forwards.append({"ticker": ticker, "entry_model": model, "horizon_sessions": horizon,
+                             "entry_session": entry, "due_session": due, "status": "PENDING",
+                             "revision": 1, "is_current_revision": True})
+    for definition in winner_config["outcome_definitions"]:
+        targets.append({"ticker": ticker, "definition": definition["id"], "entry_model": definition["entry_model"],
+                        "horizon_sessions": definition["horizon_sessions"], "target_pct": "2.5", "stop_pct": "2",
+                        "status": "PENDING", "revision": 1, "is_current_revision": True})
+    estimates.append({"ticker": ticker, "definition": "T2_5_S2_0_H5_NEXT_OPEN", "estimate_kind": "DECISION_TIME",
+                      "source": "INSUFFICIENT", "point_probability": None, "lower_bound": None, "upper_bound": None,
+                      "sample_n": 0, "effective_n": "0", "evidence_grade": "Insufficient",
+                      "insufficient_reasons": ["no_eligible_cohort"], "training_cutoff_at": "2026-10-26T20:30:00+00:00"})
+
+if __name__ == "__main__":
+    dump(DEST / "downstream-expected.json", {"setup": setups, "setup_episodes": episodes, "setup_events": events,
+         "setup_changes": [], "setup_alerts": [], "winner_acquisition": acquisitions, "winner": predictions,
+         "winner_forwards": forwards, "winner_targets": targets, "winner_estimates": estimates,
+         "handoff_variants": {"false": {"capture_path": "INTERNAL_RECAPTURE", "handoff_supplied": False, "capture_evaluation_count": 2, "publication_evaluation_count": 1},
+                              "true": {"capture_path": "STAGE_HANDOFF", "handoff_supplied": True, "capture_evaluation_count": 1, "publication_evaluation_count": 1}}})
+    dump(DEST / "downstream-derivations.json", {
+        "setup_policy_sources": ["family_adapters.py:40-88", "generic_adapter.py:34-99", "lifecycle_engine.py:174-223",
+                                 "confidence_service.py:33-72", "repository.py:1212-1260", "canonicalization.py:234-283",
+                                 "alert_service.py:714-744"],
+        "setup_derivation": "Supported families require setup>=5.5, but frozen score=5.4. Generic fallback technical>=5 always; six >=7 READY, four DEVELOPING. Generic trigger not applicable. Trend/RS/classification agreement1 and contraction.5 ->.875; context .5 because Sector risk-off readiness is DEGRADED/POLICY_UNDECIDED; confidence72 NORMAL. No certified earlier history/episode. Exactly ten episode openings, no state transitions or signal changes. Opening is EPISODE_OPENED, not STATE_TRANSITION; no NEW_READY alert.",
+        "canonical": "One captured source per exact (ticker,1d,Oct26) group with complete required bar/identity; optional Sector is excluded by policy. Select that source; preserve separate legacy Oct23 selections without treating them as certified lifecycle history.",
+        "handoff": "True supplies exact capture IDs; False requests internal recapture of the same sealed semantic facts. Both resolve to ten current canonical snapshots; evaluation audit, creator evaluation and capture references are checked relationally, never assumed equal to generated IDs.",
+        "winner_policy_sources": ["consumer_eligibility.py:68-139", "feature_extractor.py:184-198,316-384,555-624",
+                                  "repository.py:357-363", "pending_outcome_service.py:75-124,205-272",
+                                  "training_eligibility.py:115-132", "probability_estimator.py:604-619,897-953"],
+        "winner_derivation": "All mandatory Technical/Ranking/Combined sources are complete and eligible. Fundamental/Regime optional sources are included. Sector risk-off warning yields DEGRADED -> POLICY_UNDECIDED, so optional Sector is omitted with null fields and missing_sector_rotation_context warning. This is an explicit native omission policy, not an invented null. No Setup features are admitted. Feature exclusions test missing/incomplete sources, not trade desirability. Thus ten eligible captures, with no positive probability claim.",
+        "ranking_selection": "For each ticker choose smallest (profile_rank,profile_name), not a presumed default profile. Values are independently derived in core-expected.json.",
+        "insufficient": "No prior certified training-eligible evidence exists. Legacy decoy captures lack point_in_time_validated/training ledger; new target outcomes are pending. sample_n=effective_n=0, no cohort, probabilities/bounds null.",
+        "history_metadata_discrepancy": "Frozen history.json prose says18 decoy captures; its pinned prerequisites-source.py.txt _seed_winner_history defines20. Both are preserved; no decoy legacy row is training-eligible, so neither count supplies positive evidence.",
+        "dates": "Use only frozen calendar.sessions; NEXT_OPEN Oct27 and diagnostic Oct26 are session1; due=session[index(entry)+horizon-1]. Exactly100 pending forwards,20 target-stops,10 decision estimates.",
+        "precision": "Four-place persisted core scores; Winner feature numbers compare numerically; states/dates/semantic populations exact; generated IDs validate source ownership and foreign-key relationships."})
+    print("Setup generic READY",sum(r["lifecycle_state_candidate"] == "READY" for r in setups),
+          "Winner eligible",len(predictions),"pending children",len(forwards),len(targets))

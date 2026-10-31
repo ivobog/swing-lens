@@ -1,0 +1,2219 @@
+{
+  "constant_atr_note": "Decimal true range is2.1. Active binary64 Wilder recurrence and strict lag5 comparison independently yield ATR contraction for LSCC/RDVT. The worksheet records ulps before any production output comparison; no arbitrary equality epsilon is introduced.",
+  "input_manifest_sha256": "ffe8d308d0146fa6b6728b497554a907e5ac7cee3d0c15bc5d831efb726dcabe",
+  "policy_sources": [
+    "pine_replica_engine.py:82-398,433-612",
+    "technical_score_v4.py:208-263,634-651",
+    "relative_leadership.py:61-117",
+    "ranking_profile_components.py:14-120",
+    "ranking_profile_engine.py:98-241",
+    "combined_decision.py:470-708"
+  ],
+  "precision": "Analytical Decimal reductions; active profile binary64 accumulation order and four-place round recorded explicitly; persisted ratios/percentiles round4; comparison tolerance1e-8",
+  "ranking_arithmetic": [
+    {
+      "before_penalties": "8.4447",
+      "binary64_sum_hex": "0x1.c3c6a7ef9db23p+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.147ae147ae148p+1",
+        "0x1.6666666666667p+0",
+        "0x1.b2b020c49ba5ep-1",
+        "0x1.0000000000000p+0"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "7.05900000000000016342482922482304275035858154296875",
+      "profile": "clean_compounder_pullback",
+      "technical": "7.059",
+      "ticker": "BHE",
+      "weighted_binary64_hex": "0x1.0e3b44e50c5ebp+3"
+    },
+    {
+      "before_penalties": "8.4493",
+      "binary64_sum_hex": "0x1.d5916872b020cp+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.b2b020c49ba5ep-1",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.336999999999999744204615126363933086395263671875",
+      "profile": "defensive_quality",
+      "technical": "7.337",
+      "ticker": "BHE",
+      "weighted_binary64_hex": "0x1.0e60fe47991bcp+3"
+    },
+    {
+      "before_penalties": "7.784",
+      "binary64_sum_hex": "0x1.cb95e9e1b089ap+2",
+      "binary64_terms_hex": [
+        "0x1.774fdf3b645a1p+1",
+        "0x1.23d07c84b5dccp+0",
+        "0x1.849ba5e353f7cp-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.1810249999999999914734871708787977695465087890625",
+      "profile": "early_rocket",
+      "technical": "7.181",
+      "ticker": "BHE",
+      "weighted_binary64_hex": "0x1.f22c9081c2e34p+2"
+    },
+    {
+      "before_penalties": "7.9696",
+      "binary64_sum_hex": "0x1.be189374bc6a8p+2",
+      "binary64_terms_hex": [
+        "0x1.41b22d0e56041p+1",
+        "0x1.6a3d70a3d70a4p+0",
+        "0x1.4bc6a7ef9db23p+0",
+        "0x1.147ae147ae148p-1",
+        "0x1.03126e978d4fep-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.97025000000000005684341886080801486968994140625",
+      "profile": "momentum_swing",
+      "technical": "6.9703",
+      "ticker": "BHE",
+      "weighted_binary64_hex": "0x1.fe0d6f544bb1cp+2"
+    },
+    {
+      "before_penalties": "8.2488",
+      "binary64_sum_hex": "0x1.c63b645a1cac1p+2",
+      "binary64_terms_hex": [
+        "0x1.0c147ae147ae1p+1",
+        "0x1.6a3d70a3d70a4p+0",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.09737500000000043343106881366111338138580322265625",
+      "profile": "quality_momentum",
+      "technical": "7.0974",
+      "ticker": "BHE",
+      "weighted_binary64_hex": "0x1.07f65fd8adabap+3"
+    },
+    {
+      "before_penalties": "8.4452",
+      "binary64_sum_hex": "0x1.c3dbca9691a76p+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.147ae147ae148p+1",
+        "0x1.6666666666667p+0",
+        "0x1.b35935fc3b4f5p-1",
+        "0x1.0000000000000p+0"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "7.0602900000000001767830326571129262447357177734375",
+      "profile": "clean_compounder_pullback",
+      "technical": "7.0603",
+      "ticker": "BLLN",
+      "weighted_binary64_hex": "0x1.0e3eff1950332p+3"
+    },
+    {
+      "before_penalties": "8.4499",
+      "binary64_sum_hex": "0x1.d5a68b19a415fp+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.b35935fc3b4f5p-1",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.33828999999999975756281855865381658077239990234375",
+      "profile": "defensive_quality",
+      "technical": "7.3383",
+      "ticker": "BLLN",
+      "weighted_binary64_hex": "0x1.0e6540cc78e9fp+3"
+    },
+    {
+      "before_penalties": "7.7474",
+      "binary64_sum_hex": "0x1.c83c74fb549f9p+2",
+      "binary64_terms_hex": [
+        "0x1.7126e978d4fdfp+1",
+        "0x1.226809d495183p+0",
+        "0x1.8544bb1af3a15p-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.12868999999999974903630572953261435031890869140625",
+      "profile": "early_rocket",
+      "technical": "7.1287",
+      "ticker": "BLLN",
+      "weighted_binary64_hex": "0x1.efd4bf0995aaep+2"
+    },
+    {
+      "before_penalties": "7.9485",
+      "binary64_sum_hex": "0x1.bba60d4562e0ap+2",
+      "binary64_terms_hex": [
+        "0x1.3c6a7ef9db22dp+1",
+        "0x1.6aca57a786c22p+0",
+        "0x1.4bc6a7ef9db23p+0",
+        "0x1.147ae147ae148p-1",
+        "0x1.038327674d163p-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.9320100000000000051159076974727213382720947265625",
+      "profile": "momentum_swing",
+      "technical": "6.932",
+      "ticker": "BLLN",
+      "weighted_binary64_hex": "0x1.fcb44e50c5eb4p+2"
+    },
+    {
+      "before_penalties": "8.2343",
+      "binary64_sum_hex": "0x1.c42b6ae7d566dp+2",
+      "binary64_terms_hex": [
+        "0x1.07ae147ae147bp+1",
+        "0x1.6aca57a786c22p+0",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.06515000000000004121147867408581078052520751953125",
+      "profile": "quality_momentum",
+      "technical": "7.0652",
+      "ticker": "BLLN",
+      "weighted_binary64_hex": "0x1.077fac1d29dc7p+3"
+    },
+    {
+      "before_penalties": "8.4431",
+      "binary64_sum_hex": "0x1.c379fa97e132cp+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.147ae147ae148p+1",
+        "0x1.6666666666667p+0",
+        "0x1.b04ab606b7aa2p-1",
+        "0x1.0000000000000p+0"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "7.054320000000000590034687775187194347381591796875",
+      "profile": "clean_compounder_pullback",
+      "technical": "7.0543",
+      "ticker": "KLIC",
+      "weighted_binary64_hex": "0x1.0e2dcb1465e89p+3"
+    },
+    {
+      "before_penalties": "8.4475",
+      "binary64_sum_hex": "0x1.d544bb1af3a15p+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.b04ab606b7aa2p-1",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.33232000000000017081447367672808468341827392578125",
+      "profile": "defensive_quality",
+      "technical": "7.3323",
+      "ticker": "KLIC",
+      "weighted_binary64_hex": "0x1.0e5197a24894cp+3"
+    },
+    {
+      "before_penalties": "7.7807",
+      "binary64_sum_hex": "0x1.cb493c89f40a2p+2",
+      "binary64_terms_hex": [
+        "0x1.774fdf3b645a1p+1",
+        "0x1.23d07c84b5dccp+0",
+        "0x1.82363b256ffc1p-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.1763449999999995299049260211177170276641845703125",
+      "profile": "early_rocket",
+      "technical": "7.1763",
+      "ticker": "KLIC",
+      "weighted_binary64_hex": "0x1.f1f6a93f290acp+2"
+    },
+    {
+      "before_penalties": "7.9635",
+      "binary64_sum_hex": "0x1.bd65a9a804966p+2",
+      "binary64_terms_hex": [
+        "0x1.41b22d0e56041p+1",
+        "0x1.683e425aee632p+0",
+        "0x1.4bc6a7ef9db23p+0",
+        "0x1.147ae147ae148p-1",
+        "0x1.01797cc39ffd7p-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.9593299999999995719690559781156480312347412109375",
+      "profile": "momentum_swing",
+      "technical": "6.9593",
+      "ticker": "KLIC",
+      "weighted_binary64_hex": "0x1.fdaa4fca42aeep+2"
+    },
+    {
+      "before_penalties": "8.2453",
+      "binary64_sum_hex": "0x1.c5bb98c7e2824p+2",
+      "binary64_terms_hex": [
+        "0x1.0c147ae147ae1p+1",
+        "0x1.683e425aee632p+0",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.089574999999999960209606797434389591217041015625",
+      "profile": "quality_momentum",
+      "technical": "7.0896",
+      "ticker": "KLIC",
+      "weighted_binary64_hex": "0x1.07d99ed7c6fbdp+3"
+    },
+    {
+      "before_penalties": "8.4728",
+      "binary64_sum_hex": "0x1.c8e9a2c669058p+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.199999999999ap+1",
+        "0x1.6666666666667p+0",
+        "0x1.c74d1633482bep-1",
+        "0x1.0000000000000p+0"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "7.13926000000000016143530956469476222991943359375",
+      "profile": "clean_compounder_pullback",
+      "technical": "7.1393",
+      "ticker": "LSCC",
+      "weighted_binary64_hex": "0x1.0f21815a07b35p+3"
+    },
+    {
+      "before_penalties": "8.5143",
+      "binary64_sum_hex": "0x1.dff3e0370cdc8p+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.c28f5c28f5c2ap+0",
+        "0x1.c74d1633482bep-1",
+        "0x1.cccccccccccccp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.49925999999999959300112095661461353302001953125",
+      "profile": "defensive_quality",
+      "technical": "7.4993",
+      "ticker": "LSCC",
+      "weighted_binary64_hex": "0x1.1074d1633482cp+3"
+    },
+    {
+      "before_penalties": "7.8411",
+      "binary64_sum_hex": "0x1.d0cdc8754f377p+2",
+      "binary64_terms_hex": [
+        "0x1.7fef9db22d0e5p+1",
+        "0x1.28a71de69ad43p+0",
+        "0x1.822e5de15ca6dp-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.26255999999999968252950566238723695278167724609375",
+      "profile": "early_rocket",
+      "technical": "7.2626",
+      "ticker": "LSCC",
+      "weighted_binary64_hex": "0x1.f5d46b26bf876p+2"
+    },
+    {
+      "before_penalties": "8.1361",
+      "binary64_sum_hex": "0x1.d17a786c22681p+2",
+      "binary64_terms_hex": [
+        "0x1.4916872b020c5p+1",
+        "0x1.7b6ae7d566cf4p+0",
+        "0x1.51eb851eb851fp+0",
+        "0x1.3333333333334p-1",
+        "0x1.3333333333334p-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.27310000000000034248159863636828958988189697265625",
+      "profile": "momentum_swing",
+      "technical": "7.2731",
+      "ticker": "LSCC",
+      "weighted_binary64_hex": "0x1.045b035bd512fp+3"
+    },
+    {
+      "before_penalties": "8.3556",
+      "binary64_sum_hex": "0x1.d56a161e4f766p+2",
+      "binary64_terms_hex": [
+        "0x1.123d70a3d70a4p+1",
+        "0x1.7b6ae7d566cf4p+0",
+        "0x1.c28f5c28f5c2ap+0",
+        "0x1.cccccccccccccp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.3346000000000000085265128291212022304534912109375",
+      "profile": "quality_momentum",
+      "technical": "7.3346",
+      "ticker": "LSCC",
+      "weighted_binary64_hex": "0x1.0b60c9d9d3459p+3"
+    },
+    {
+      "before_penalties": "8.3423",
+      "binary64_sum_hex": "0x1.b10cdc8754f38p+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.147ae147ae148p+1",
+        "0x1.6666666666667p+0",
+        "0x1.b67b5f1bef49cp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "6.76641000000000047975845518521964550018310546875",
+      "profile": "clean_compounder_pullback",
+      "technical": "6.7664",
+      "ticker": "PDFS",
+      "weighted_binary64_hex": "0x1.0af4538ef34d6p+3"
+    },
+    {
+      "before_penalties": "8.4523",
+      "binary64_sum_hex": "0x1.d60ad03d9a954p+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.b67b5f1bef49cp-1",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.344409999999999882902557146735489368438720703125",
+      "profile": "defensive_quality",
+      "technical": "7.3444",
+      "ticker": "PDFS",
+      "weighted_binary64_hex": "0x1.0e793dd97f62bp+3"
+    },
+    {
+      "before_penalties": "7.4039",
+      "binary64_sum_hex": "0x1.a8d527e521577p+2",
+      "binary64_terms_hex": [
+        "0x1.3ef9db22d0e56p+1",
+        "0x1.0793dd97f62b7p+0",
+        "0x1.8866e43aa79bbp-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.63801000000000041012526708072982728481292724609375",
+      "profile": "early_rocket",
+      "technical": "6.638",
+      "ticker": "PDFS",
+      "weighted_binary64_hex": "0x1.d9d9018e75792p+2"
+    },
+    {
+      "before_penalties": "7.7716",
+      "binary64_sum_hex": "0x1.a70efdc9c4da9p+2",
+      "binary64_terms_hex": [
+        "0x1.116872b020c4ap+1",
+        "0x1.6d66cf41f212dp+0",
+        "0x1.4bc6a7ef9db23p+0",
+        "0x1.147ae147ae148p-1",
+        "0x1.0599ed7c6fbd3p-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.61028999999999999914734871708787977695465087890625",
+      "profile": "momentum_swing",
+      "technical": "6.6103",
+      "ticker": "PDFS",
+      "weighted_binary64_hex": "0x1.f161672324c84p+2"
+    },
+    {
+      "before_penalties": "8.1129",
+      "binary64_sum_hex": "0x1.b2e703afb7e91p+2",
+      "binary64_terms_hex": [
+        "0x1.c7ae147ae147bp+0",
+        "0x1.6d66cf41f212dp+0",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.79535000000000000142108547152020037174224853515625",
+      "profile": "quality_momentum",
+      "technical": "6.7954",
+      "ticker": "PDFS",
+      "weighted_binary64_hex": "0x1.039d14e3bcd36p+3"
+    },
+    {
+      "before_penalties": "8.4431",
+      "binary64_sum_hex": "0x1.c379fa97e132cp+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.147ae147ae148p+1",
+        "0x1.6666666666667p+0",
+        "0x1.b04ab606b7aa2p-1",
+        "0x1.0000000000000p+0"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "7.054320000000000590034687775187194347381591796875",
+      "profile": "clean_compounder_pullback",
+      "technical": "7.0543",
+      "ticker": "ACMR",
+      "weighted_binary64_hex": "0x1.0e2dcb1465e89p+3"
+    },
+    {
+      "before_penalties": "8.4475",
+      "binary64_sum_hex": "0x1.d544bb1af3a15p+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.b04ab606b7aa2p-1",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.33232000000000017081447367672808468341827392578125",
+      "profile": "defensive_quality",
+      "technical": "7.3323",
+      "ticker": "ACMR",
+      "weighted_binary64_hex": "0x1.0e5197a24894cp+3"
+    },
+    {
+      "before_penalties": "7.7807",
+      "binary64_sum_hex": "0x1.cb493c89f40a2p+2",
+      "binary64_terms_hex": [
+        "0x1.774fdf3b645a1p+1",
+        "0x1.23d07c84b5dccp+0",
+        "0x1.82363b256ffc1p-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.1763449999999995299049260211177170276641845703125",
+      "profile": "early_rocket",
+      "technical": "7.1763",
+      "ticker": "ACMR",
+      "weighted_binary64_hex": "0x1.f1f6a93f290acp+2"
+    },
+    {
+      "before_penalties": "7.9635",
+      "binary64_sum_hex": "0x1.bd65a9a804966p+2",
+      "binary64_terms_hex": [
+        "0x1.41b22d0e56041p+1",
+        "0x1.683e425aee632p+0",
+        "0x1.4bc6a7ef9db23p+0",
+        "0x1.147ae147ae148p-1",
+        "0x1.01797cc39ffd7p-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.9593299999999995719690559781156480312347412109375",
+      "profile": "momentum_swing",
+      "technical": "6.9593",
+      "ticker": "ACMR",
+      "weighted_binary64_hex": "0x1.fdaa4fca42aeep+2"
+    },
+    {
+      "before_penalties": "8.2453",
+      "binary64_sum_hex": "0x1.c5bb98c7e2824p+2",
+      "binary64_terms_hex": [
+        "0x1.0c147ae147ae1p+1",
+        "0x1.683e425aee632p+0",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.089574999999999960209606797434389591217041015625",
+      "profile": "quality_momentum",
+      "technical": "7.0896",
+      "ticker": "ACMR",
+      "weighted_binary64_hex": "0x1.07d99ed7c6fbdp+3"
+    },
+    {
+      "before_penalties": "8.4788",
+      "binary64_sum_hex": "0x1.c9ff972474539p+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.199999999999ap+1",
+        "0x1.6666666666667p+0",
+        "0x1.cffcb923a29c7p-1",
+        "0x1.0000000000000p+0"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "7.15622500000000005826450433232821524143218994140625",
+      "profile": "clean_compounder_pullback",
+      "technical": "7.1562",
+      "ticker": "RDVT",
+      "weighted_binary64_hex": "0x1.0f51f601797ccp+3"
+    },
+    {
+      "before_penalties": "8.521",
+      "binary64_sum_hex": "0x1.e109d495182a9p+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.c28f5c28f5c2ap+0",
+        "0x1.cffcb923a29c7p-1",
+        "0x1.cccccccccccccp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.51622499999999948983031572424806654453277587890625",
+      "profile": "defensive_quality",
+      "technical": "7.5162",
+      "ticker": "RDVT",
+      "weighted_binary64_hex": "0x1.10ac322291fb4p+3"
+    },
+    {
+      "before_penalties": "7.7628",
+      "binary64_sum_hex": "0x1.c9a71de69ad43p+2",
+      "binary64_terms_hex": [
+        "0x1.7126e978d4fdfp+1",
+        "0x1.25460aa64c2f8p+0",
+        "0x1.8ade00d1b7175p-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.15082500000000020889956431346945464611053466796875",
+      "profile": "early_rocket",
+      "technical": "7.1508",
+      "ticker": "RDVT",
+      "weighted_binary64_hex": "0x1.f0d234eb9a176p+2"
+    },
+    {
+      "before_penalties": "8.0972",
+      "binary64_sum_hex": "0x1.ccf3b645a1cacp+2",
+      "binary64_terms_hex": [
+        "0x1.3c6a7ef9db22dp+1",
+        "0x1.82a7ef9db22d1p+0",
+        "0x1.51eb851eb851fp+0",
+        "0x1.3333333333334p-1",
+        "0x1.3333333333334p-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.202374999999999971578290569595992565155029296875",
+      "profile": "momentum_swing",
+      "technical": "7.2024",
+      "ticker": "RDVT",
+      "weighted_binary64_hex": "0x1.031c779a6b50bp+3"
+    },
+    {
+      "before_penalties": "8.3312",
+      "binary64_sum_hex": "0x1.d1f1a9fbe76c9p+2",
+      "binary64_terms_hex": [
+        "0x1.07ae147ae147bp+1",
+        "0x1.82a7ef9db22d1p+0",
+        "0x1.c28f5c28f5c2ap+0",
+        "0x1.cccccccccccccp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "7.28037500000000026290081223123706877231597900390625",
+      "profile": "quality_momentum",
+      "technical": "7.2804",
+      "ticker": "RDVT",
+      "weighted_binary64_hex": "0x1.0a98fc504816fp+3"
+    },
+    {
+      "before_penalties": "8.3452",
+      "binary64_sum_hex": "0x1.b19210385c67ep+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.147ae147ae148p+1",
+        "0x1.6666666666667p+0",
+        "0x1.baa4fca42aed1p-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "6.7745400000000000062527760746888816356658935546875",
+      "profile": "clean_compounder_pullback",
+      "technical": "6.7745",
+      "ticker": "AVT",
+      "weighted_binary64_hex": "0x1.0b0b8cfbfc654p+3"
+    },
+    {
+      "before_penalties": "8.4555",
+      "binary64_sum_hex": "0x1.d69003eea209bp+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.baa4fca42aed1p-1",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.35254000000000029757529773632995784282684326171875",
+      "profile": "defensive_quality",
+      "technical": "7.3525",
+      "ticker": "AVT",
+      "weighted_binary64_hex": "0x1.0e93c89f40a28p+3"
+    },
+    {
+      "before_penalties": "7.4095",
+      "binary64_sum_hex": "0x1.a95a5b9628cbdp+2",
+      "binary64_terms_hex": [
+        "0x1.3ef9db22d0e56p+1",
+        "0x1.0793dd97f62b7p+0",
+        "0x1.8c9081c2e33efp-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.64613999999999993661958797019906342029571533203125",
+      "profile": "early_rocket",
+      "technical": "6.6461",
+      "ticker": "AVT",
+      "weighted_binary64_hex": "0x1.da35e74299d88p+2"
+    },
+    {
+      "before_penalties": "7.782",
+      "binary64_sum_hex": "0x1.a845cbbc2b94ep+2",
+      "binary64_terms_hex": [
+        "0x1.116872b020c4ap+1",
+        "0x1.70ded288ce704p+0",
+        "0x1.4bc6a7ef9db23p+0",
+        "0x1.147ae147ae148p-1",
+        "0x1.08605681ecd4bp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.6292600000000003745981302927248179912567138671875",
+      "profile": "momentum_swing",
+      "technical": "6.6293",
+      "ticker": "AVT",
+      "weighted_binary64_hex": "0x1.f20c9d9d3458dp+2"
+    },
+    {
+      "before_penalties": "8.119",
+      "binary64_sum_hex": "0x1.b3c504816f007p+2",
+      "binary64_terms_hex": [
+        "0x1.c7ae147ae147bp+0",
+        "0x1.70ded288ce704p+0",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.80890000000000039648284655413590371608734130859375",
+      "profile": "quality_momentum",
+      "technical": "6.8089",
+      "ticker": "AVT",
+      "weighted_binary64_hex": "0x1.03ced916872b0p+3"
+    },
+    {
+      "before_penalties": "8.346",
+      "binary64_sum_hex": "0x1.b1b866e43aa7ap+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.147ae147ae148p+1",
+        "0x1.6666666666667p+0",
+        "0x1.bbd7b2031ceafp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "6.7768800000000002370370566495694220066070556640625",
+      "profile": "clean_compounder_pullback",
+      "technical": "6.7769",
+      "ticker": "DVN",
+      "weighted_binary64_hex": "0x1.0b126e978d4fep+3"
+    },
+    {
+      "before_penalties": "8.4565",
+      "binary64_sum_hex": "0x1.d6b65a9a80496p+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.bbd7b2031ceafp-1",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.3548799999999996401811586110852658748626708984375",
+      "profile": "defensive_quality",
+      "technical": "7.3549",
+      "ticker": "DVN",
+      "weighted_binary64_hex": "0x1.0e9ba5e353f7cp+3"
+    },
+    {
+      "before_penalties": "7.4112",
+      "binary64_sum_hex": "0x1.a980b242070b9p+2",
+      "binary64_terms_hex": [
+        "0x1.3ef9db22d0e56p+1",
+        "0x1.0793dd97f62b7p+0",
+        "0x1.8dc33721d53cdp-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.64848000000000016740386854507960379123687744140625",
+      "profile": "early_rocket",
+      "technical": "6.6485",
+      "ticker": "DVN",
+      "weighted_binary64_hex": "0x1.da516db0dd830p+2"
+    },
+    {
+      "before_penalties": "7.785",
+      "binary64_sum_hex": "0x1.a89f40a2877efp+2",
+      "binary64_terms_hex": [
+        "0x1.116872b020c4ap+1",
+        "0x1.71de69ad42c3dp+0",
+        "0x1.4bc6a7ef9db23p+0",
+        "0x1.147ae147ae148p-1",
+        "0x1.092ccf6be37dfp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.63472000000000061703531173407100141048431396484375",
+      "profile": "momentum_swing",
+      "technical": "6.6347",
+      "ticker": "DVN",
+      "weighted_binary64_hex": "0x1.f23d46b26bf88p+2"
+    },
+    {
+      "before_penalties": "8.1208",
+      "binary64_sum_hex": "0x1.b404ea4a8c155p+2",
+      "binary64_terms_hex": [
+        "0x1.c7ae147ae147bp+0",
+        "0x1.71de69ad42c3dp+0",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.81280000000000018900436771218664944171905517578125",
+      "profile": "quality_momentum",
+      "technical": "6.8128",
+      "ticker": "DVN",
+      "weighted_binary64_hex": "0x1.03dd3996fa82ep+3"
+    },
+    {
+      "before_penalties": "8.3446",
+      "binary64_sum_hex": "0x1.b174d1633482cp+2",
+      "binary64_terms_hex": [
+        "0x1.a666666666666p+0",
+        "0x1.147ae147ae148p+1",
+        "0x1.6666666666667p+0",
+        "0x1.b9bb05faebc40p-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "pullback_health",
+        "trend_quality",
+        "risk_control",
+        "momentum_health",
+        "relative_strength"
+      ],
+      "exact_binary64_sum": "6.772755000000000080717654782347381114959716796875",
+      "profile": "clean_compounder_pullback",
+      "technical": "6.7728",
+      "ticker": "JNJ",
+      "weighted_binary64_hex": "0x1.0b06ad2dcb146p+3"
+    },
+    {
+      "before_penalties": "8.4549",
+      "binary64_sum_hex": "0x1.d672c5197a248p+2",
+      "binary64_terms_hex": [
+        "0x1.3999999999999p+1",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.b9bb05faebc40p-1",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.8000000000000p+0"
+      ],
+      "component_order": [
+        "risk_control",
+        "trend_quality",
+        "momentum_health",
+        "setup_quality",
+        "market_regime_alignment"
+      ],
+      "exact_binary64_sum": "7.35075499999999948386175674386322498321533203125",
+      "profile": "defensive_quality",
+      "technical": "7.3508",
+      "ticker": "JNJ",
+      "weighted_binary64_hex": "0x1.0e8e368f08462p+3"
+    },
+    {
+      "before_penalties": "7.4083",
+      "binary64_sum_hex": "0x1.a93d1cc100e6bp+2",
+      "binary64_terms_hex": [
+        "0x1.3ef9db22d0e56p+1",
+        "0x1.0793dd97f62b7p+0",
+        "0x1.8ba68b19a415fp-1",
+        "0x1.0000000000000p+0",
+        "0x1.4cccccccccccdp-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "trend_repair",
+        "breakout_quality",
+        "relative_strength_acceleration",
+        "volume_expansion",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.64435500000000001108446667785756289958953857421875",
+      "profile": "early_rocket",
+      "technical": "6.6444",
+      "ticker": "JNJ",
+      "weighted_binary64_hex": "0x1.da226809d4950p+2"
+    },
+    {
+      "before_penalties": "7.7797",
+      "binary64_sum_hex": "0x1.a8018e757928ep+2",
+      "binary64_terms_hex": [
+        "0x1.116872b020c4ap+1",
+        "0x1.701bda5119ce0p+0",
+        "0x1.4bc6a7ef9db23p+0",
+        "0x1.147ae147ae148p-1",
+        "0x1.07c45cbbc2b95p-1",
+        "0x1.6666666666667p-1"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "breakout_or_vcp_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.6250949999999999562305674771778285503387451171875",
+      "profile": "momentum_swing",
+      "technical": "6.6251",
+      "ticker": "JNJ",
+      "weighted_binary64_hex": "0x1.f1e6c4c5974e6p+2"
+    },
+    {
+      "before_penalties": "8.1177",
+      "binary64_sum_hex": "0x1.b394467381d7ep+2",
+      "binary64_terms_hex": [
+        "0x1.c7ae147ae147bp+0",
+        "0x1.701bda5119ce0p+0",
+        "0x1.ba5e353f7cedap+0",
+        "0x1.9eb851eb851ecp-1",
+        "0x1.0cccccccccccdp+0"
+      ],
+      "component_order": [
+        "momentum_strength",
+        "momentum_health",
+        "trend_quality",
+        "setup_quality",
+        "risk_control"
+      ],
+      "exact_binary64_sum": "6.8059250000000002245315045001916587352752685546875",
+      "profile": "quality_momentum",
+      "technical": "6.8059",
+      "ticker": "JNJ",
+      "weighted_binary64_hex": "0x1.03c3c9eecbfb2p+3"
+    }
+  ],
+  "ranking_components": {
+    "ACMR": {
+      "breakout_or_vcp_quality": "5.0288",
+      "breakout_quality": "5.0288",
+      "market_regime_alignment": "10",
+      "momentum_health": "5.6288",
+      "momentum_strength": "8.3775",
+      "pullback_health": "5.5",
+      "relative_strength": "10.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "5.4000",
+      "trend_quality": "8.6400",
+      "trend_repair": "5.6995",
+      "volume_expansion": "6.5"
+    },
+    "AVT": {
+      "breakout_or_vcp_quality": "5.1636",
+      "breakout_quality": "5.1636",
+      "market_regime_alignment": "10",
+      "momentum_health": "5.7636",
+      "momentum_strength": "7.1200",
+      "pullback_health": "5.5",
+      "relative_strength": "7.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "5.4000",
+      "trend_quality": "8.6400",
+      "trend_repair": "5.1480",
+      "volume_expansion": "6.5"
+    },
+    "BHE": {
+      "breakout_or_vcp_quality": "5.0600",
+      "breakout_quality": "5.0600",
+      "market_regime_alignment": "10",
+      "momentum_health": "5.6600",
+      "momentum_strength": "8.3775",
+      "pullback_health": "5.5",
+      "relative_strength": "10.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "5.4000",
+      "trend_quality": "8.6400",
+      "trend_repair": "5.6995",
+      "volume_expansion": "6.5"
+    },
+    "BLLN": {
+      "breakout_or_vcp_quality": "5.0686",
+      "breakout_quality": "5.0686",
+      "market_regime_alignment": "10",
+      "momentum_health": "5.6686",
+      "momentum_strength": "8.2400",
+      "pullback_health": "5.5",
+      "relative_strength": "10.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "5.4000",
+      "trend_quality": "8.6400",
+      "trend_repair": "5.6720",
+      "volume_expansion": "6.5"
+    },
+    "DVN": {
+      "breakout_or_vcp_quality": "5.1792",
+      "breakout_quality": "5.1792",
+      "market_regime_alignment": "10",
+      "momentum_health": "5.7792",
+      "momentum_strength": "7.1200",
+      "pullback_health": "5.5",
+      "relative_strength": "7.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "5.4000",
+      "trend_quality": "8.6400",
+      "trend_repair": "5.1480",
+      "volume_expansion": "6.5"
+    },
+    "JNJ": {
+      "breakout_or_vcp_quality": "5.1517",
+      "breakout_quality": "5.1517",
+      "market_regime_alignment": "10",
+      "momentum_health": "5.7517",
+      "momentum_strength": "7.1200",
+      "pullback_health": "5.5",
+      "relative_strength": "7.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "5.4000",
+      "trend_quality": "8.6400",
+      "trend_repair": "5.1480",
+      "volume_expansion": "6.5"
+    },
+    "KLIC": {
+      "breakout_or_vcp_quality": "5.0288",
+      "breakout_quality": "5.0288",
+      "market_regime_alignment": "10",
+      "momentum_health": "5.6288",
+      "momentum_strength": "8.3775",
+      "pullback_health": "5.5",
+      "relative_strength": "10.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "5.4000",
+      "trend_quality": "8.6400",
+      "trend_repair": "5.6995",
+      "volume_expansion": "6.5"
+    },
+    "LSCC": {
+      "breakout_or_vcp_quality": "6",
+      "breakout_quality": "5.0284",
+      "market_regime_alignment": "10",
+      "momentum_health": "5.9284",
+      "momentum_strength": "8.5700",
+      "pullback_health": "5.5",
+      "relative_strength": "10.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "6",
+      "trend_quality": "8.8000",
+      "trend_repair": "5.7940",
+      "volume_expansion": "6.5"
+    },
+    "PDFS": {
+      "breakout_or_vcp_quality": "5.1094",
+      "breakout_quality": "5.1094",
+      "market_regime_alignment": "10",
+      "momentum_health": "5.7094",
+      "momentum_strength": "7.1200",
+      "pullback_health": "5.5",
+      "relative_strength": "7.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "5.4000",
+      "trend_quality": "8.6400",
+      "trend_repair": "5.1480",
+      "volume_expansion": "6.5"
+    },
+    "RDVT": {
+      "breakout_or_vcp_quality": "6",
+      "breakout_quality": "5.1415",
+      "market_regime_alignment": "10",
+      "momentum_health": "6.0415",
+      "momentum_strength": "8.2400",
+      "pullback_health": "5.5",
+      "relative_strength": "10.0000",
+      "relative_strength_acceleration": "10",
+      "risk_control": "7",
+      "setup_quality": "6",
+      "trend_quality": "8.8000",
+      "trend_repair": "5.7280",
+      "volume_expansion": "6.5"
+    }
+  },
+  "technical": {
+    "ACMR": {
+      "absolute_atr_contracts": false,
+      "binary64_atr_five_bars_ago": "2.1000000000000014",
+      "binary64_atr_latest": "2.1000000000000014",
+      "box_width_pct": "4.711425206124852767962308598",
+      "close": "87.90",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.4547",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.3",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1.4",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.5",
+        "roc21": "0.3",
+        "roc63": "0.35",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "80.0",
+        "roc126": "85.00",
+        "roc21": "85.00",
+        "roc63": "85.00",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "2.249718785151856017997750281",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "77.95",
+      "sma50": "85.45",
+      "source": "market-data.json:cache:ACMR",
+      "step": "0.10",
+      "v4_parts": {
+        "execution": "8.2910",
+        "leadership": "7.4167",
+        "market": "9.5",
+        "momentum": "7.0500",
+        "risk_control": "7",
+        "setup": "5.4000",
+        "trend": "8.6400"
+      }
+    },
+    "AVT": {
+      "absolute_atr_contracts": false,
+      "binary64_atr_five_bars_ago": "2.1000000000000014",
+      "binary64_atr_latest": "2.1000000000000014",
+      "box_width_pct": "3.364171572750210260723296888",
+      "close": "121.90",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.8857",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.3",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.25",
+        "roc21": "0.3",
+        "roc63": "0.35",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "25.00",
+        "roc126": "40.0",
+        "roc21": "40.0",
+        "roc63": "40.0",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "1.627339300244100895036615134",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "111.95",
+      "sma50": "119.45",
+      "source": "market-data.json:cache:AVT",
+      "step": "0.10",
+      "v4_parts": {
+        "execution": "8.4203",
+        "leadership": "4.2500",
+        "market": "9.5",
+        "momentum": "6.4000",
+        "risk_control": "7",
+        "setup": "5.4000",
+        "trend": "8.6400"
+      }
+    },
+    "BHE": {
+      "absolute_atr_contracts": false,
+      "binary64_atr_five_bars_ago": "2.1000000000000014",
+      "binary64_atr_latest": "2.1000000000000014",
+      "box_width_pct": "4.400440044004400440044004400",
+      "close": "93.90",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.5534",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.3",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1.4",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.5",
+        "roc21": "0.3",
+        "roc63": "0.35",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "80.0",
+        "roc126": "70.0",
+        "roc21": "70.0",
+        "roc63": "70.0",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "2.107481559536354056902002107",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "83.95",
+      "sma50": "91.45",
+      "source": "market-data.json:cache:BHE",
+      "step": "0.10",
+      "v4_parts": {
+        "execution": "8.3206",
+        "leadership": "6.6667",
+        "market": "9.5",
+        "momentum": "7.0500",
+        "risk_control": "7",
+        "setup": "5.4000",
+        "trend": "8.6400"
+      }
+    },
+    "BLLN": {
+      "absolute_atr_contracts": false,
+      "binary64_atr_five_bars_ago": "2.1000000000000014",
+      "binary64_atr_latest": "2.100000000000002",
+      "box_width_pct": "4.313632030505243088655862726",
+      "close": "86.52",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.4300",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.3",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1.4",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.25",
+        "roc21": "0.3",
+        "roc63": "0.35",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "50.0",
+        "roc126": "60.0",
+        "roc21": "60.0",
+        "roc63": "60.0",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "2.307516563856522732465158785",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "78.56",
+      "sma50": "84.56",
+      "source": "market-data.json:cache:BLLN",
+      "step": "0.08",
+      "v4_parts": {
+        "execution": "8.2836",
+        "leadership": "5.6667",
+        "market": "9.5",
+        "momentum": "6.8000",
+        "risk_control": "7",
+        "setup": "5.4000",
+        "trend": "8.6400"
+      }
+    },
+    "DVN": {
+      "absolute_atr_contracts": false,
+      "binary64_atr_five_bars_ago": "2.1000000000000014",
+      "binary64_atr_latest": "2.100000000000002",
+      "box_width_pct": "3.207705975872065837463761339",
+      "close": "109.33",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.7576",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.3",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.25",
+        "roc21": "0.3",
+        "roc63": "0.35",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "25.00",
+        "roc126": "10.0",
+        "roc21": "10.0",
+        "roc63": "10.0",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "1.839434577745559985501993476",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "102.365",
+      "sma50": "107.615",
+      "source": "market-data.json:cache:DVN",
+      "step": "0.07",
+      "v4_parts": {
+        "execution": "8.3819",
+        "leadership": "2.7500",
+        "market": "9.5",
+        "momentum": "6.4000",
+        "risk_control": "7",
+        "setup": "5.4000",
+        "trend": "8.6400"
+      }
+    },
+    "JNJ": {
+      "absolute_atr_contracts": false,
+      "binary64_atr_five_bars_ago": "2.1000000000000014",
+      "binary64_atr_latest": "2.100000000000002",
+      "box_width_pct": "3.483448806774441878367975366",
+      "close": "106.52",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.7248",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.3",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.25",
+        "roc21": "0.3",
+        "roc63": "0.35",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "25.00",
+        "roc126": "30.0",
+        "roc21": "30.0",
+        "roc63": "30.0",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "1.878370838757671564069183560",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "98.56",
+      "sma50": "104.56",
+      "source": "market-data.json:cache:JNJ",
+      "step": "0.08",
+      "v4_parts": {
+        "execution": "8.3720",
+        "leadership": "3.7500",
+        "market": "9.5",
+        "momentum": "6.4000",
+        "risk_control": "7",
+        "setup": "5.4000",
+        "trend": "8.6400"
+      }
+    },
+    "KLIC": {
+      "absolute_atr_contracts": false,
+      "binary64_atr_five_bars_ago": "2.1000000000000014",
+      "binary64_atr_latest": "2.1000000000000014",
+      "box_width_pct": "4.711425206124852767962308598",
+      "close": "87.90",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.4547",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.3",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1.4",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.5",
+        "roc21": "0.3",
+        "roc63": "0.35",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "80.0",
+        "roc126": "85.00",
+        "roc21": "85.00",
+        "roc63": "85.00",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "2.249718785151856017997750281",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "77.95",
+      "sma50": "85.45",
+      "source": "market-data.json:cache:KLIC",
+      "step": "0.10",
+      "v4_parts": {
+        "execution": "8.2910",
+        "leadership": "7.4167",
+        "market": "9.5",
+        "momentum": "7.0500",
+        "risk_control": "7",
+        "setup": "5.4000",
+        "trend": "8.6400"
+      }
+    },
+    "LSCC": {
+      "absolute_atr_contracts": true,
+      "binary64_atr_five_bars_ago": "2.100000000000002",
+      "binary64_atr_latest": "2.1000000000000014",
+      "box_width_pct": "4.715762273901808785529715762",
+      "close": "96.28",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.5892",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.5",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1.4",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.5",
+        "roc21": "0.3",
+        "roc63": "0.7",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "100",
+        "roc126": "100",
+        "roc21": "100",
+        "roc63": "100",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "2.035780382479950647748303516",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "84.34",
+      "sma50": "93.34",
+      "source": "market-data.json:cache:LSCC",
+      "step": "0.12",
+      "v4_parts": {
+        "execution": "8.3314",
+        "leadership": "8.5000",
+        "market": "9.5",
+        "momentum": "7.4000",
+        "risk_control": "7",
+        "setup": "6",
+        "trend": "8.8000"
+      }
+    },
+    "PDFS": {
+      "absolute_atr_contracts": false,
+      "binary64_atr_five_bars_ago": "2.1000000000000005",
+      "binary64_atr_latest": "2.100000000000002",
+      "box_width_pct": "3.906438389197009886665059079",
+      "close": "85.14",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.4046",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.3",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.25",
+        "roc21": "0.3",
+        "roc63": "0.35",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "25.00",
+        "roc126": "20.0",
+        "roc21": "20.0",
+        "roc63": "20.0",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "2.367138547226734741239266651",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "79.17",
+      "sma50": "83.67",
+      "source": "market-data.json:cache:PDFS",
+      "step": "0.06",
+      "v4_parts": {
+        "execution": "8.2760",
+        "leadership": "3.2500",
+        "market": "9.5",
+        "momentum": "6.4000",
+        "risk_control": "7",
+        "setup": "5.4000",
+        "trend": "8.6400"
+      }
+    },
+    "RDVT": {
+      "absolute_atr_contracts": true,
+      "binary64_atr_five_bars_ago": "2.100000000000003",
+      "binary64_atr_latest": "2.100000000000001",
+      "box_width_pct": "3.584566686628454102147317991",
+      "close": "120.09",
+      "entry_gate_passed": false,
+      "execution_terms": {
+        "entry_risk": "8.8689",
+        "liquidity": "10",
+        "reward_risk": "6.4417",
+        "valid_stop": "10"
+      },
+      "local_trend_terms": {
+        "above_previous_close20": "0.5",
+        "adx_rising": "0",
+        "adx_trend": "0.7",
+        "high_52w_position": "0.8",
+        "higher_pivots": "0",
+        "ma_relationships": "3.0",
+        "mid_slope_atr": "0.5",
+        "mid_vs_slow_slope": "0",
+        "near_52w_high": "0.7",
+        "positive_direction": "0.7",
+        "positive_dm_rising": "0.3",
+        "positive_slopes": "0.9",
+        "slow_slope_atr": "0.4"
+      },
+      "momentum_terms": {
+        "beats_market": "0.7",
+        "breakout_volume_dry_up_strong_close": "0",
+        "bullish_volume_bar": "0.4",
+        "green_volume": "0.45",
+        "obv_rising": "0.45",
+        "price_rising_and_above_fast": "0.6",
+        "relative_strength_bucket": "1.4",
+        "rising_rs_and_new_high": "1.6",
+        "roc126": "0.25",
+        "roc21": "0.3",
+        "roc63": "0.35",
+        "rsi_bucket_and_rising": "0",
+        "rsi_pullback_low": "0.3"
+      },
+      "peer_percentiles": {
+        "benchmark_rs_score": "55.00",
+        "dual_score": "60.0",
+        "roc126": "50.0",
+        "roc21": "50.0",
+        "roc63": "50.0",
+        "setup_score": "55.00"
+      },
+      "pullback_depth_pct": "1.643541460191608853650479022",
+      "regime_weights": {
+        "execution": "0.06",
+        "leadership": "0.14",
+        "market": "0.08",
+        "momentum": "0.2",
+        "risk_control": "0.1",
+        "setup": "0.2",
+        "trend": "0.22"
+      },
+      "reward_risk_formula": "3.15/1.63",
+      "setup_terms": {
+        "above_close10": "0.4",
+        "above_ema10": "0.4",
+        "above_ema20_sma50_rising": "1.5",
+        "atr_safe": "0.2",
+        "extension_safe": "0.8",
+        "no_red_no_distribution_no_failure": "1",
+        "red_volume_nonincreasing": "0.3",
+        "support": "0.8"
+      },
+      "sma200": "109.145",
+      "sma50": "117.395",
+      "source": "market-data.json:cache:RDVT",
+      "step": "0.11",
+      "v4_parts": {
+        "execution": "8.4153",
+        "leadership": "5.3333",
+        "market": "9.5",
+        "momentum": "6.8000",
+        "risk_control": "7",
+        "setup": "6",
+        "trend": "8.8000"
+      }
+    }
+  }
+}

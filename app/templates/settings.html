@@ -27,6 +27,57 @@
   </div>
 </section>
 
+<section class="panel section-gap" aria-labelledby="market-sector-heading">
+  <div class="panel-header compact-header">
+    <div>
+      <h2 id="market-sector-heading">Market Sector Intelligence (Independent)</h2>
+      <p>Fixed market ETF universe, independent of uploaded stock runs. Read-only cache coverage;
+         freshness does not establish sector leadership or sufficient history for V4/V5.</p>
+    </div>
+  </div>
+  {% if market_sector_error %}
+    <p role="alert">Independent sector configuration unavailable: {{ market_sector_error }}</p>
+  {% else %}
+    <dl class="compact-dl">
+      <dt>Enabled</dt><dd>{{ 'Yes (default)' if market_sector.enabled else 'No' }}</dd>
+      <dt>Benchmark</dt><dd>{{ market_sector.benchmark_symbol }}</dd>
+      <dt>Timeframe</dt><dd>{{ market_sector.timeframe }}</dd>
+      <dt>Universe</dt><dd>{{ market_sector.sectors | length }} sector ETFs</dd>
+      <dt>Configuration version</dt><dd>{{ market_sector.version }}</dd>
+      <dt>Configuration digest</dt>
+      <dd><abbr title="{{ market_sector.configuration_digest }}">{{ market_sector.configuration_digest[:12] }}</abbr></dd>
+      <dt>Legacy run-sector ETF blending</dt>
+      <dd>{{ 'On' if market_sector.legacy_etf_blending_enabled else 'Off' }} (separate policy)</dd>
+    </dl>
+    <p>Enablement makes this independent view available. It does not acquire data or change stock scoring.</p>
+    <p><a class="button-link secondary" href="/api/market-sector-intelligence/coverage">Inspect ETF data coverage</a></p>
+    <h3>Sector taxonomy / ETF crosswalk</h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Sector taxonomy crosswalk; scroll horizontally for all columns">
+      <table>
+        <caption>TradingView label normalization is retained for run history. Standard market names are
+          display labels used for ETF analysis. Missing or unmapped source labels retain the existing
+          Unknown handling and receive no inferred ETF.</caption>
+        <thead><tr>
+          <th scope="col">Source label</th><th scope="col">Mapping type</th>
+          <th scope="col">SwingLens canonical</th><th scope="col">Standard market sector</th>
+          <th scope="col">ETF</th>
+        </tr></thead>
+        <tbody>
+        {% for row in market_sector.crosswalk %}
+          <tr>
+            <th scope="row">{{ row.source_label }}</th>
+            <td>{{ {'canonical': 'Canonical', 'tradingview_map': 'TradingView mapping', 'alias': 'Alias'}[row.source_kind] }}{% if not row.etf_symbol %} (no ETF){% endif %}</td>
+            <td>{{ row.run_canonical_sector }}</td>
+            <td>{{ row.standard_market_sector or '—' }}</td>
+            <td>{{ row.etf_symbol or '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+
 <section class="panel section-gap">
   <div class="panel-header compact-header">
     <div>

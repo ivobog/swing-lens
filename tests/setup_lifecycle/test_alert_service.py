@@ -364,14 +364,22 @@ def test_score_acceleration_requires_window_amount_crossing_and_real_confidence(
         signal_key="technical_score",
         source_event_key="score-no-cross",
     )
-    no_tracking_cross.evidence_json["velocity"]["3"].update(
-        {"old_value": 7.1, "new_value": 7.8}
-    )
+    no_tracking_cross.evidence_json["velocity"]["3"].update({"old_value": 7.1, "new_value": 7.8})
 
     assert service.evaluate_signal_change_events(object(), [valid]).created == 1
-    assert service.evaluate_signal_change_events(object(), [missing_confidence]).created == 0
-    assert service.evaluate_signal_change_events(object(), [too_small]).created == 0
-    assert service.evaluate_signal_change_events(object(), [no_tracking_cross]).created == 0
+    assert repository.alerts[0].signal_change_event_id == valid.id
+    for invalid in (missing_confidence, too_small, no_tracking_cross):
+        # A prior valid alert must not let cooldown hide a missing matcher guard.
+        isolated = FakeAlertRepository.with_seeded_rules()
+        outcome = SetupLifecycleAlertService(repository=isolated).evaluate_signal_change_events(
+            object(), [invalid]
+        )
+        assert outcome.created == 0
+        # Missing source confidence is an explicit pre-cooldown suppression;
+        # matcher failures never reach persistence.
+        assert outcome.suppressed == int(invalid is missing_confidence)
+        assert outcome.event_ids == ()
+        assert isolated.alerts == []
 
 
 def test_sector_acceleration_uses_improvement_and_sector_confidence() -> None:
@@ -398,8 +406,15 @@ def test_sector_acceleration_uses_improvement_and_sector_confidence() -> None:
     )
 
     assert service.evaluate_signal_change_events(object(), [valid]).created == 1
-    assert service.evaluate_signal_change_events(object(), [low_confidence]).created == 0
-    assert service.evaluate_signal_change_events(object(), [wrong_direction]).created == 0
+    assert repository.alerts[0].signal_change_event_id == valid.id
+    for invalid in (low_confidence, wrong_direction):
+        isolated = FakeAlertRepository.with_seeded_rules()
+        outcome = SetupLifecycleAlertService(repository=isolated).evaluate_signal_change_events(
+            object(), [invalid]
+        )
+        assert outcome.created == 0
+        assert outcome.suppressed == 0
+        assert isolated.alerts == []
 
 
 def test_alert_market_restrictions_are_enforced() -> None:

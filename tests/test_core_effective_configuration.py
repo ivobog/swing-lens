@@ -371,6 +371,11 @@ def test_anchored_stage_rejects_changed_configuration_before_calculation(index, 
         if index == 0:
             fundamental_score_service.recalculate_run_fundamentals(SourceDb(row), 7, **kwargs)
         elif index == 1:
+            from app.services.market_clock_service import MarketClockService
+
+            cutoff = MarketClockService().cutoff_for(
+                cutoff.cutoff_at, reason="TEST_CURRENT_TECHNICAL_RETRY"
+            ).with_context_id(cutoff.context_id)
             technical_score_service.score_run_technicals(
                 FakeDb(), 7, tickers=["ACME"], market_cutoff=cutoff, **kwargs
             )

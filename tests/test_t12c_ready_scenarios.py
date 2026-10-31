@@ -63,6 +63,9 @@ def test_ready_liquidity_all_profiles_preserve_full_population(profile):
     )
     assert [decision.profile_rank for decision in decisions] == [1, 2, 3]
     assert all(decision.penalties["ibkr_tradeability"] == 0.75 for decision in decisions)
+    assert all(
+        decision.has_fundamental and decision.fundamental_score == 8 for decision in decisions
+    )
 
 
 def ready_ceri_sources(monkeypatch):

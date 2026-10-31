@@ -1,6 +1,5 @@
 """Measure native capture and durable pipeline delivery at real populations."""
 
-import os
 import sys
 from collections import Counter
 from datetime import UTC, datetime
@@ -9,10 +8,12 @@ from time import perf_counter
 
 import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
-from sqlalchemy import event, select
+from alembic.config import Config
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session
 from test_ceri_batched_workflow_v2 import _execute_handler, _new_job
 
+from alembic import command
 from app.models.ceri_tables import CeriChangeEvent, CeriScoreSnapshot
 from app.models.tables import PipelineRun, RawCompanyRow, UploadRun
 from app.services.background_job_service import JobStatus
@@ -29,13 +30,55 @@ contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 
 CAPTURE_POPULATIONS = (
-    [1, 10, 25, 50, 107] if os.getenv("RUN_RUN8_REMEDIATION_BENCHMARK") == "1" else [1, 50]
+    1,
+    pytest.param(10, marks=pytest.mark.extended_scale),
+    pytest.param(25, marks=pytest.mark.extended_scale),
+    pytest.param(50, marks=pytest.mark.extended_scale),
+    pytest.param(107, marks=pytest.mark.extended_scale),
 )
 
 
 @pytest.fixture(scope="module")
 def capture_authority_measurements():
     return {}
+
+
+@pytest.fixture
+def capture_authority_baseline(
+    contextual_engine,
+    disposable_postgres_database_factory,
+    capture_authority_measurements,
+    record_property,
+):
+    def baseline(delivery):
+        needs_setup = delivery not in capture_authority_measurements
+        record_property("baseline_setup_performed", needs_setup)
+        record_property("baseline_population", 1)
+        record_property("baseline_delivery", delivery)
+        if needs_setup:
+            started = perf_counter()
+            # Reproduce the original one-company measurement in its own fresh
+            # database. No business rows or timing counters enter the target case.
+            with disposable_postgres_database_factory() as database_url:
+                config = Config("alembic.ini")
+                config.attributes["database_url"] = database_url
+                command.upgrade(config, "head")
+                command.check(config)
+                engine = create_engine(database_url)
+                try:
+                    assert engine.url != contextual_engine.url
+                    record_property("baseline_database_distinct", True)
+                    with pytest.MonkeyPatch.context() as baseline_patch:
+                        measured = _measure_capture_population(
+                            engine, 1, delivery, baseline_patch, lambda *_args: None
+                        )
+                finally:
+                    engine.dispose()
+            capture_authority_measurements[delivery] = measured
+            record_property("baseline_setup_seconds", perf_counter() - started)
+        return capture_authority_measurements[delivery]
+
+    return baseline
 
 
 @pytest.mark.parametrize("population", CAPTURE_POPULATIONS)
@@ -47,6 +90,25 @@ def test_capture_authority_scaling(
     monkeypatch,
     record_property,
     capture_authority_measurements,
+    capture_authority_baseline,
+):
+    baseline = capture_authority_baseline(delivery) if population != 1 else None
+    measured = _measure_capture_population(
+        contextual_engine, population, delivery, monkeypatch, record_property
+    )
+    if population == 1:
+        baseline = capture_authority_measurements.setdefault(delivery, measured)
+    assert measured == baseline, {
+        "baseline": baseline,
+        "measured": measured,
+        "population": population,
+        "delivery": delivery,
+    }
+    record_property("baseline_authority_selects", baseline)
+
+
+def _measure_capture_population(
+    contextual_engine, population, delivery, monkeypatch, record_property
 ):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "e2e"))
     from single_run_certification import fixtures
@@ -291,14 +353,6 @@ def test_capture_authority_scaling(
             # authority reads do not grow with the captured population.
             authority_budgets = {"capture": 27, "pipeline": 68, "material": 27}
             assert authority_selects <= authority_budgets[delivery], dict(authority)
-            if population == CAPTURE_POPULATIONS[0]:
-                capture_authority_measurements[delivery] = authority_selects
-            else:
-                assert authority_selects == capture_authority_measurements[delivery], {
-                    "baseline": capture_authority_measurements[delivery],
-                    "measured": authority_selects,
-                    "population": population,
-                    "authority_by_function": dict(authority),
-                }
+            return authority_selects
     finally:
         get_settings.cache_clear()

@@ -44,6 +44,10 @@ from app.models.ib_market_intelligence_tables import (
     IBTradeEpisode,
     IBTradeResearchLink,
 )
+from app.models.market_sector_intelligence_tables import (
+    MarketSectorRotationRow,
+    MarketSectorRotationSnapshot,
+)
 from app.models.tables import (
     CombinedResult,
     CoreCalculationCurrentProjection,
@@ -74,6 +78,8 @@ from app.models.tables import (
 )
 
 __all__ = [
+    "MarketSectorRotationRow",
+    "MarketSectorRotationSnapshot",
     "CeriAlertEvent",
     "CeriAlertRule",
     "CeriCatalystEvent",

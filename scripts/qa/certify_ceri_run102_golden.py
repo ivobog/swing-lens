@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+# A10 lifecycle restriction; original source and hashes are retained in the A10 evidence.
+# ruff: noqa: E402
+if __name__ == "__main__":
+    raise SystemExit(
+        "HISTORICAL_EXECUTION_ARCHIVED: retained incident evidence is not current "
+        "release certification; see docs/testing/historical_tool_policy.md"
+    )
+
+
 import argparse
 import hashlib
 import json
@@ -236,13 +245,15 @@ def certify_golden_cohort(traces: list[dict[str, Any]]) -> dict[str, Any]:
         if (stages.get("coverage") or {}).get("minimum_required_pct") != 60.0:
             failures.append(f"{trace.get('cohort_id')}: coverage threshold changed")
     return {
+        "certification_scope": "CONSTRUCTED_EXAMPLE_ONLY",
+        "current_release_certificate": False,
         "status": "PASS" if not failures else "FAIL",
         "cohort_size": len(traces),
         "failures": failures,
         "minimum_opportunity_coverage_pct": 60.0,
         "confidence_hard_gate_unchanged": True,
         "missing_evidence_zero_filled": False,
-        "certified_as_of": date(2026, 8, 14).isoformat(),
+        "example_as_of": date(2026, 8, 14).isoformat(),
         "broad_200_ticker_recertification_authorized": False,
         "authorization_blockers": [
             "Apply migration 0043 to the target deployment.",
@@ -262,11 +273,11 @@ def write_artifacts(output_dir: Path) -> dict[str, Any]:
     _write_json(output_dir / "vertical_traces.json", traces)
     _write_json(output_dir / "certification_summary.json", summary)
     (output_dir / "README.md").write_text(
-        "# CERI Run 102 Golden 10 Certification\n\n"
+        "# CERI Run 102 constructed example checks\n\n"
         f"Status: **{summary['status']}**\n\n"
-        "The deterministic code/fixture gate passes. Broad 200-ticker recertification "
-        "remains unauthorized until migration 0043 and a targeted live post-deploy "
-        "capture are verified. See `vertical_traces.json` for all 12 stages.\n",
+        "These checks validate constructed dictionary shapes. They do not execute the "
+        "production pipeline or provide a current release certificate. "
+        "See `vertical_traces.json` for the example stages.\n",
         encoding="utf-8",
     )
     return summary

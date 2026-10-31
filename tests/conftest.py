@@ -12,6 +12,7 @@ from typing import Any
 
 import psycopg
 import pytest
+from evidence_output import install_evidence_write_protection
 from fastapi.testclient import TestClient
 from psycopg import sql
 from sqlalchemy.engine import make_url
@@ -22,6 +23,10 @@ from app.settings import Settings
 
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
 DISPOSABLE_DATABASE_PREFIX = "swinglens_pytest_"
+
+
+def pytest_configure() -> None:
+    install_evidence_write_protection()
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:

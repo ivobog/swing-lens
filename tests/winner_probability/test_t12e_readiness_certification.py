@@ -303,6 +303,18 @@ def universe(monkeypatch, context, *, omit=None):
     "status", [state for state in ReadinessStatus if state is not ReadinessStatus.READY]
 )
 def test_every_policy_controls_actual_numeric_consumption(monkeypatch, policy, status):
+    if getattr(policy, "producer", None) == "FUNDAMENTAL" and policy.consumer in {
+        "COMBINED",
+        "RANKING",
+    }:
+        # These named v1 policies are retained LEGACY regressions. ACTIVE's
+        # independent financial admission is exercised separately below.
+        from app.settings import FundamentalAdmissionMode, get_settings
+
+        settings = get_settings().model_copy(
+            update={"fundamental_admission_mode": FundamentalAdmissionMode.LEGACY}
+        )
+        monkeypatch.setattr("app.settings.get_settings", lambda: settings)
     context, cutoff = ready_identity_context()
     ticker = context.tickers[0]
     source = {
@@ -364,6 +376,8 @@ def test_every_policy_controls_actual_numeric_consumption(monkeypatch, policy, s
     elif policy.consumer == "COMBINED":
         args = (ticker.raw_row, ticker.fundamental_score, ticker.technical_score)
         result = combine_row_decision(*args, config=_config())
+        if producer == "FUNDAMENTAL":
+            _assert_legacy_fundamental_refusal(result.debug_evidence, status)
         missing = combine_row_decision(
             args[0],
             None if producer == "FUNDAMENTAL" else args[1],
@@ -393,6 +407,8 @@ def test_every_policy_controls_actual_numeric_consumption(monkeypatch, policy, s
             assert ready_result.penalties["ibkr_tradeability"] == 0.75
             kwargs["liquidity_feature"] = source
         result = rank_single_row(**kwargs)
+        if producer == "FUNDAMENTAL":
+            _assert_legacy_fundamental_refusal(result.debug, status)
         kwargs[
             {"TECHNICAL": "technical", "FUNDAMENTAL": "fundamental", "IBMI": "liquidity_feature"}[
                 producer
@@ -520,6 +536,62 @@ def test_every_policy_controls_actual_numeric_consumption(monkeypatch, policy, s
     assert frozen_source.payload_json == original_payload
 
 
+def _assert_legacy_fundamental_refusal(debug, status):
+    permission = debug[CONTEXTUAL_ELIGIBILITY_KEY]["fundamental"]
+    assert permission.get("fundamental_admission_mode", "LEGACY") == "LEGACY"
+    assert permission["included"] is False
+    if status in {
+        ReadinessStatus.ERROR,
+        ReadinessStatus.STALE,
+        ReadinessStatus.INSUFFICIENT_EVIDENCE,
+    }:
+        expected = "PRODUCER_READINESS_BLOCKED"
+    elif status is ReadinessStatus.DEGRADED:
+        expected = "DEGRADED_POLICY_UNDECIDED"
+    else:
+        expected = "PRODUCER_READINESS_UNKNOWN"
+    assert permission["decision"]["reasons"] == [expected]
+
+
+@pytest.mark.parametrize("consumer", ["COMBINED", "RANKING"])
+def test_active_financial_admission_is_independent_of_legacy_readiness(consumer):
+    context, _ = ready_identity_context()
+    ticker = context.tickers[0]
+    stored_state(ticker.fundamental_score, ReadinessStatus.DEGRADED)
+    if consumer == "COMBINED":
+        result = combine_row_decision(
+            ticker.raw_row, ticker.fundamental_score, ticker.technical_score, config=_config()
+        )
+        debug = result.debug_evidence
+    else:
+        result = rank_single_row(
+            profile=_profile("momentum_swing"),
+            row=ticker.raw_row,
+            fundamental=ticker.fundamental_score,
+            technical=ticker.technical_score,
+            config=_config(),
+        )
+        debug = result.debug
+    permission = debug[CONTEXTUAL_ELIGIBILITY_KEY]["fundamental"]
+    assert permission["fundamental_admission_mode"] == "ACTIVE"
+    assert permission["decision"]["status"] == "POLICY_UNDECIDED"
+    assert permission["orthogonal_decision"]["eligibility"] == "INCLUDED"
+    assert permission["included"] is True and result.has_fundamental
+    assert result.fundamental_score == float(ticker.fundamental_score.fundamental_score)
+
+
+@pytest.mark.parametrize("source", ["combined", "ranking"])
+def test_missing_mandatory_winner_source_is_refused_with_healthy_fundamental(source):
+    context, cutoff = ready_identity_context()
+    ticker = context.tickers[0]
+    changed = replace(
+        ticker, **({"combined_result": None} if source == "combined" else {"ranking_results": ()})
+    )
+    with pytest.raises(WinnerSourceEligibilityError) as caught:
+        _acquire(replace(context, tickers=(changed,)), cutoff)
+    assert source in caught.value.sources
+
+
 def test_same_world_cannot_regain_actionability_after_all_sources_change(monkeypatch):
     context, cutoff = ready_identity_context()
     ticker = context.tickers[0]
@@ -630,6 +702,12 @@ def test_same_world_cannot_regain_actionability_after_all_sources_change(monkeyp
         liquidity_features={"MSFT": features["LIQUIDITY"]},
     )
     assert combined.has_technical and ranking[0].has_technical
+    assert combined.has_fundamental and ranking[0].has_fundamental
+    assert (
+        combined.fundamental_score
+        == ranking[0].fundamental_score
+        == float(ticker.fundamental_score.fundamental_score)
+    )
     assert ranking[0].debug[CONTEXTUAL_ELIGIBILITY_KEY]["ibmi_liquidity"]["included"]
     # A native liquidity penalty also warns/degrades Ranking, so W1's READY
     # prerequisite uses GOOD liquidity. The all-policy attack above separately

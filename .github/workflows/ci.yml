@@ -1,5 +1,8 @@
 name: CI
 
+# PR code never receives a repository-write GITHUB_TOKEN.
+permissions: read-all
+
 on:
   pull_request:
   push:
@@ -9,9 +12,47 @@ on:
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
+    inputs:
+      run_extended_scale:
+        description: Run the retained E2E and CERI population scale matrices
+        type: boolean
+        default: false
 
 jobs:
+  release-plan:
+    name: Prepare source-bound release plan
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_pytest_release_unopened
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - name: Report source-contract change impact without executing tests
+        run: >-
+          uv run python scripts/qa/check_certification_registry.py --check --ci-impact
+          --impact-output test-results/release-plan/source-impact.json
+      - name: Prepare release plan without executing tests
+        run: >-
+          uv run python -m scripts.production_runtime_certification --prepare-release
+          --release-profile core --impact-plan test-results/release-plan/source-impact.json
+          --release-plan test-results/release-plan/plan.json
+          --ci-run-id "${{ github.run_id }}" --ci-run-attempt "${{ github.run_attempt }}"
+          --ci-event "${{ github.event_name }}" --extended-scale "${{ inputs.run_extended_scale || false }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-release-plan
+          path: test-results/release-plan/*.json
+          if-no-files-found: error
+
   lint-test-migrations:
+    needs: release-plan
     name: Lint, Test, and Migration Gates
     runs-on: ubuntu-latest
 
@@ -52,8 +93,17 @@ jobs:
       - name: Sync dependencies
         run: uv sync --locked --extra dev
 
+      - name: Download source-bound release plan
+        uses: actions/download-artifact@v4
+        with:
+          name: full-release-plan
+          path: test-results/release-plan
+
       - name: Check generated architecture closure registry
         run: uv run python scripts/check_architecture_registry.py --check
+
+      - name: Check active certification registry and tool lifecycles
+        run: uv run python scripts/qa/check_certification_registry.py --check
 
       - name: Install PostgreSQL client tools
         run: |
@@ -94,25 +144,157 @@ jobs:
       - name: Check SQLAlchemy metadata drift
         run: uv run alembic check
 
+      - name: Collect release migration-harness
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "migration-harness"
+          SWINGLENS_RELEASE_CAPTURE: "collection"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/migration-harness"
+        run: >-
+          uv run pytest -q --collect-only tests/test_migration_remediation.py
+
       - name: Clean PostgreSQL migration harness
-        run: uv run pytest tests/test_migration_remediation.py -q
+        id: release_migration_harness
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "migration-harness"
+          SWINGLENS_RELEASE_CAPTURE: "execution"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/migration-harness"
+        run: uv run pytest tests/test_migration_remediation.py -q --junitxml=test-results/release/migration-harness/results.xml
+
+      - name: Record release migration-harness
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p test-results/release/migration-harness
+          uv run python -m scripts.production_runtime_certification --record-release-lane migration-harness --release-plan test-results/release-plan/plan.json --report-dir test-results/release/migration-harness --job-result "${{ steps.release_migration_harness.outcome }}"
+
+      - name: Collect release populated-restore
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "populated-restore"
+          SWINGLENS_RELEASE_CAPTURE: "collection"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/populated-restore"
+        run: >-
+          uv run pytest -q --collect-only tests/integration/test_populated_restore.py
 
       - name: Populated backup and restore evidence gate
+        id: release_populated_restore
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "populated-restore"
+          SWINGLENS_RELEASE_CAPTURE: "execution"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/populated-restore"
         run: >-
           uv run pytest tests/integration/test_populated_restore.py -q
           --junitxml="$RUNNER_TEMP/swinglens-qa/populated-restore.xml"
 
+      - name: Record release populated-restore
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p test-results/release/populated-restore
+          if [ -f "$RUNNER_TEMP/swinglens-qa/populated-restore.xml" ]; then cp "$RUNNER_TEMP/swinglens-qa/populated-restore.xml" "test-results/release/populated-restore/results.xml"; fi
+          uv run python -m scripts.production_runtime_certification --record-release-lane populated-restore --release-plan test-results/release-plan/plan.json --report-dir test-results/release/populated-restore --job-result "${{ steps.release_populated_restore.outcome }}"
+
+      - name: Collect release python-regressions
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "python-regressions"
+          SWINGLENS_RELEASE_CAPTURE: "collection"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/python-regressions"
+        run: |
+          uv run python -m scripts.production_runtime_certification --release-selectors python-regressions --release-plan test-results/release-plan/plan.json > "$RUNNER_TEMP/python-regressions-selectors.txt"
+          mapfile -t selected < "$RUNNER_TEMP/python-regressions-selectors.txt"
+          test "${#selected[@]}" -gt 0
+          uv run pytest -q --collect-only "${selected[@]}" -m "not e2e and not external and not extended_scale" --ignore=tests/integration/test_populated_restore.py
+
       - name: Unit and service tests with coverage
+        id: release_python_regressions
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "python-regressions"
+          SWINGLENS_RELEASE_CAPTURE: "execution"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/python-regressions"
+        run: |
+          uv run python -m scripts.production_runtime_certification --release-selectors python-regressions --release-plan test-results/release-plan/plan.json > "$RUNNER_TEMP/python-regressions-selectors.txt"
+          mapfile -t selected < "$RUNNER_TEMP/python-regressions-selectors.txt"
+          test "${#selected[@]}" -gt 0
+          uv run pytest -q "${selected[@]}" -m "not e2e and not external and not extended_scale" --ignore=tests/integration/test_populated_restore.py --junitxml="$RUNNER_TEMP/swinglens-qa/pytest.xml" --cov=app --cov-report=term-missing --cov-report="xml:$RUNNER_TEMP/swinglens-qa/coverage.xml"
+
+      - name: Record release python-regressions
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p test-results/release/python-regressions
+          if [ -f "$RUNNER_TEMP/swinglens-qa/pytest.xml" ]; then cp "$RUNNER_TEMP/swinglens-qa/pytest.xml" "test-results/release/python-regressions/results.xml"; fi
+          uv run python -m scripts.production_runtime_certification --record-release-lane python-regressions --release-plan test-results/release-plan/plan.json --report-dir test-results/release/python-regressions --job-result "${{ steps.release_python_regressions.outcome }}"
+
+      - name: Collect release ceri-extended
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_extended_scale)
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "ceri-extended"
+          SWINGLENS_RELEASE_CAPTURE: "collection"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/ceri-extended"
         run: >-
-          uv run pytest -q -m "not e2e and not external"
-          --ignore=tests/integration/test_populated_restore.py
-          --junitxml="$RUNNER_TEMP/swinglens-qa/pytest.xml"
-          --cov=app
-          --cov-report=term-missing
-          --cov-report="xml:$RUNNER_TEMP/swinglens-qa/coverage.xml"
+          uv run pytest -q --collect-only tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py -m extended_scale
+
+      - name: Run extended CERI capture authority matrix
+        id: release_ceri_extended
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_extended_scale)
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "ceri-extended"
+          SWINGLENS_RELEASE_CAPTURE: "execution"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/ceri-extended"
+        run: >-
+          uv run pytest tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py -q
+          -m extended_scale
+          --junitxml="$RUNNER_TEMP/swinglens-qa/ceri-capture-authority-extended.xml"
+
+      - name: Record release ceri-extended
+        if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_extended_scale))
+        shell: bash
+        run: |
+          mkdir -p test-results/release/ceri-extended
+          if [ -f "$RUNNER_TEMP/swinglens-qa/ceri-capture-authority-extended.xml" ]; then cp "$RUNNER_TEMP/swinglens-qa/ceri-capture-authority-extended.xml" "test-results/release/ceri-extended/results.xml"; fi
+          uv run python -m scripts.production_runtime_certification --record-release-lane ceri-extended --release-plan test-results/release-plan/plan.json --report-dir test-results/release/ceri-extended --job-result "${{ steps.release_ceri_extended.outcome }}"
+
+      - name: Collect release golden-scoring
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "golden-scoring"
+          SWINGLENS_RELEASE_CAPTURE: "collection"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/golden-scoring"
+        run: >-
+          uv run pytest -q --collect-only tests/test_golden_pipeline.py tests/test_ranking_profiles_golden.py
 
       - name: Golden scoring gate
-        run: uv run pytest tests/test_golden_pipeline.py tests/test_ranking_profiles_golden.py -q
+        id: release_golden_scoring
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "golden-scoring"
+          SWINGLENS_RELEASE_CAPTURE: "execution"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/golden-scoring"
+        run: uv run pytest tests/test_golden_pipeline.py tests/test_ranking_profiles_golden.py -q --junitxml=test-results/release/golden-scoring/results.xml
+
+      - name: Record release golden-scoring
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p test-results/release/golden-scoring
+          uv run python -m scripts.production_runtime_certification --record-release-lane golden-scoring --release-plan test-results/release-plan/plan.json --report-dir test-results/release/golden-scoring --job-result "${{ steps.release_golden_scoring.outcome }}"
 
       - name: Publish test and coverage reports
         if: always()
@@ -122,7 +304,17 @@ jobs:
           path: ${{ runner.temp }}/swinglens-qa/
           if-no-files-found: warn
 
+      - name: Publish source-bound release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-lint-test-migrations
+          path: test-results/release/
+          if-no-files-found: error
+
+
   browser-smoke:
+    needs: release-plan
     name: Chromium and Firefox Smoke
     runs-on: ubuntu-latest
 
@@ -163,14 +355,83 @@ jobs:
       - name: Sync dependencies
         run: uv sync --locked --extra dev
 
+      - name: Download source-bound release plan
+        uses: actions/download-artifact@v4
+        with:
+          name: full-release-plan
+          path: test-results/release-plan
+
       - name: Install browser engines
         run: uv run playwright install --with-deps chromium firefox
 
+      - name: Collect release browser-smoke
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "browser-smoke"
+          SWINGLENS_RELEASE_CAPTURE: "collection"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/browser-smoke"
+        run: |
+          uv run python -m scripts.production_runtime_certification --release-selectors browser-smoke --release-plan test-results/release-plan/plan.json > "$RUNNER_TEMP/browser-smoke-selectors.txt"
+          mapfile -t selected < "$RUNNER_TEMP/browser-smoke-selectors.txt"
+          test "${#selected[@]}" -gt 0
+          uv run pytest -q --collect-only "${selected[@]}" -m "not extended_scale and not live_provider" --ignore=tests/e2e/test_windows_durable_worker_recovery.py --ignore=tests/e2e/test_windows_lifecycle_persistence.py --browser chromium --browser firefox
+
       - name: Run browser smoke
+        id: release_browser_smoke
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "browser-smoke"
+          SWINGLENS_RELEASE_CAPTURE: "execution"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/browser-smoke"
+        run: |
+          uv run python -m scripts.production_runtime_certification --release-selectors browser-smoke --release-plan test-results/release-plan/plan.json > "$RUNNER_TEMP/browser-smoke-selectors.txt"
+          mapfile -t selected < "$RUNNER_TEMP/browser-smoke-selectors.txt"
+          test "${#selected[@]}" -gt 0
+          uv run pytest "${selected[@]}" -q -m "not extended_scale and not live_provider" --browser chromium --browser firefox --junitxml=test-results/browser-smoke.xml --ignore=tests/e2e/test_windows_durable_worker_recovery.py --ignore=tests/e2e/test_windows_lifecycle_persistence.py
+
+      - name: Record release browser-smoke
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p test-results/release/browser-smoke
+          if [ -f "test-results/browser-smoke.xml" ]; then cp "test-results/browser-smoke.xml" "test-results/release/browser-smoke/results.xml"; fi
+          uv run python -m scripts.production_runtime_certification --record-release-lane browser-smoke --release-plan test-results/release-plan/plan.json --report-dir test-results/release/browser-smoke --job-result "${{ steps.release_browser_smoke.outcome }}"
+
+      - name: Collect release population-extended
+        if: github.event_name == 'workflow_dispatch' && inputs.run_extended_scale
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "population-extended"
+          SWINGLENS_RELEASE_CAPTURE: "collection"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/population-extended"
         run: >-
-          uv run pytest tests/e2e -q
+          uv run pytest -q --collect-only tests/e2e/single_run_certification/test_real_writer_cardinality.py -m extended_scale --browser chromium --browser firefox
+
+      - name: Run extended native population matrix
+        id: release_population_extended
+        if: github.event_name == 'workflow_dispatch' && inputs.run_extended_scale
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "population-extended"
+          SWINGLENS_RELEASE_CAPTURE: "execution"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/population-extended"
+        run: >-
+          uv run pytest tests/e2e/single_run_certification/test_real_writer_cardinality.py -q
+          -m extended_scale
           --browser chromium --browser firefox
-          --junitxml=test-results/browser-smoke.xml
+          --junitxml=test-results/extended-native-scale.xml
+
+      - name: Record release population-extended
+        if: always() && (github.event_name == 'workflow_dispatch' && inputs.run_extended_scale)
+        shell: bash
+        run: |
+          mkdir -p test-results/release/population-extended
+          if [ -f "test-results/extended-native-scale.xml" ]; then cp "test-results/extended-native-scale.xml" "test-results/release/population-extended/results.xml"; fi
+          uv run python -m scripts.production_runtime_certification --record-release-lane population-extended --release-plan test-results/release-plan/plan.json --report-dir test-results/release/population-extended --job-result "${{ steps.release_population_extended.outcome }}"
 
       - name: Publish browser report
         if: always()
@@ -179,6 +440,15 @@ jobs:
           name: browser-smoke-report
           path: test-results/
           if-no-files-found: warn
+
+      - name: Publish source-bound release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-browser-smoke
+          path: test-results/release/
+          if-no-files-found: error
+
 
   performance-advisory:
     name: Nightly Performance Baseline
@@ -203,6 +473,7 @@ jobs:
       - name: Run repeatable performance checks
         run: >-
           uv run pytest -q -m performance
+          --ignore=tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py
           --junitxml=test-results/performance.xml
 
       - name: Publish performance report
@@ -214,10 +485,11 @@ jobs:
           if-no-files-found: warn
 
   windows-durable-worker-recovery:
+    needs: release-plan
     name: Windows Durable Worker Recovery Gate
     runs-on: windows-latest
     env:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/postgres
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_ci_windows
       SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
     steps:
@@ -235,22 +507,54 @@ jobs:
           enable-cache: true
 
       - name: Set up PostgreSQL
-        uses: ikalnytskyi/action-setup-postgres@v8
+        uses: ikalnytskyi/action-setup-postgres@v9
         with:
           username: postgres
           password: postgres
-          database: postgres
+          database: swinglens_ci_windows
+          postgres-version: "18"
           port: 5432
 
       - name: Sync dependencies
         run: uv sync --locked --extra dev
 
+      - name: Download source-bound release plan
+        uses: actions/download-artifact@v4
+        with:
+          name: full-release-plan
+          path: test-results/release-plan
+
+      - name: Collect release windows-recovery
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "windows-recovery"
+          SWINGLENS_RELEASE_CAPTURE: "collection"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/windows-recovery"
+        run: >-
+          uv run pytest -q --collect-only tests/e2e/test_windows_durable_worker_recovery.py tests/e2e/test_windows_lifecycle_persistence.py
+
       - name: Run Windows worker recovery and lifecycle persistence gates
+        id: release_windows_recovery
+        env:
+          PYTEST_PLUGINS: "scripts.qa.release_evidence"
+          SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
+          SWINGLENS_RELEASE_LANE: "windows-recovery"
+          SWINGLENS_RELEASE_CAPTURE: "execution"
+          SWINGLENS_RELEASE_RECORD_DIR: "${{ github.workspace }}/test-results/release/windows-recovery"
         run: >-
           uv run pytest -q
           tests/e2e/test_windows_durable_worker_recovery.py
           tests/e2e/test_windows_lifecycle_persistence.py
           --junitxml=test-results/windows-durable-worker-recovery.xml
+
+      - name: Record release windows-recovery
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p test-results/release/windows-recovery
+          if [ -f "test-results/windows-durable-worker-recovery.xml" ]; then cp "test-results/windows-durable-worker-recovery.xml" "test-results/release/windows-recovery/results.xml"; fi
+          uv run python -m scripts.production_runtime_certification --record-release-lane windows-recovery --release-plan test-results/release-plan/plan.json --report-dir test-results/release/windows-recovery --job-result "${{ steps.release_windows_recovery.outcome }}"
 
       - name: Publish recovery evidence
         if: always()
@@ -258,4 +562,164 @@ jobs:
         with:
           name: windows-durable-worker-recovery
           path: test-results/
+          if-no-files-found: error
+
+      - name: Publish source-bound release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-windows-durable-worker-recovery
+          path: test-results/release/
+          if-no-files-found: error
+
+
+  cross-language:
+    name: Native Node and PromQL gates
+    needs: release-plan
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_pytest_release_unopened
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Download source-bound release plan
+        uses: actions/download-artifact@v4
+        with:
+          name: full-release-plan
+          path: test-results/release-plan
+
+      - name: Begin release node
+        run: uv run python -m scripts.production_runtime_certification --begin-release-lane node --release-plan test-results/release-plan/plan.json --report-dir test-results/release/node
+      - name: Run Node regressions
+        id: release_node
+        run: |
+          node --version > test-results/release/node/version.txt
+          node --test --test-reporter=junit tests/market_sector_intelligence_dashboard.test.cjs tests/market_sector_refresh.test.cjs > test-results/release/node/results.xml
+      - name: Record release node
+        if: always()
+        run: uv run python -m scripts.production_runtime_certification --record-release-lane node --release-plan test-results/release-plan/plan.json --report-dir test-results/release/node --job-result "${{ steps.release_node.outcome }}"
+      - name: Begin release promql
+        run: uv run python -m scripts.production_runtime_certification --begin-release-lane promql --release-plan test-results/release-plan/plan.json --report-dir test-results/release/promql
+      - name: Run PromQL rule tests
+        id: release_promql
+        run: >-
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m
+          --memory=256m --cpus=0.5 --pids-limit=64 --entrypoint /bin/sh
+          --mount type=bind,source=${{ github.workspace }}/monitoring/prometheus,target=/rules,readonly
+          --mount type=bind,source=${{ github.workspace }}/test-results/release/promql,target=/evidence
+          --workdir /rules
+          prom/prometheus@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996
+          -c '/bin/promtool --version > /evidence/version.txt && exec /bin/promtool test rules --junit=/evidence/results.xml review2_alert_tests.yml'
+      - name: Record release promql
+        if: always()
+        run: uv run python -m scripts.production_runtime_certification --record-release-lane promql --release-plan test-results/release-plan/plan.json --report-dir test-results/release/promql --job-result "${{ steps.release_promql.outcome }}"
+      - name: Publish source-bound release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-cross-language
+          path: test-results/release/
+          if-no-files-found: error
+
+  production-runtime-certification:
+    name: Supported deterministic A04 certificate
+    needs: release-plan
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: swinglens_pytest_release_control
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_pytest_release_control
+      SWINGLENS_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
+      SWINGLENS_RELEASE_PLAN: ${{ github.workspace }}/test-results/release-plan/plan.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - name: Download source-bound release plan
+        uses: actions/download-artifact@v4
+        with:
+          name: full-release-plan
+          path: test-results/release-plan
+
+      - run: uv run playwright install --with-deps chromium
+      - name: Run supported deterministic A04 certification
+        id: release_a04
+        run: uv run python -m scripts.production_runtime_certification --provider-mode deterministic --report-dir test-results/release/a04/a04
+      - name: Record release a04
+        if: always()
+        run: uv run python -m scripts.production_runtime_certification --record-release-lane a04 --release-plan test-results/release-plan/plan.json --report-dir test-results/release/a04 --job-result "${{ steps.release_a04.outcome }}"
+      - name: Publish source-bound release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-production-runtime-certification
+          path: test-results/release/
+          if-no-files-found: error
+
+  full-release:
+    name: Core-release certification verdict
+    if: always()
+    needs: [release-plan, lint-test-migrations, browser-smoke, windows-durable-worker-recovery, cross-language, production-runtime-certification]
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/swinglens_pytest_release_unopened
+      SWINGLENS_DATABASE_SAFETY_CONTEXT: DISPOSABLE_TEST
+      RELEASE_JOB_RESULTS: ${{ toJSON(needs) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --extra dev
+      - name: Download source-bound release plan
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: full-release-plan
+          path: test-results/release-plan
+
+      - name: Download required lane evidence
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: release-evidence-*
+          path: test-results/release
+          merge-multiple: true
+      - name: Record actual required job conclusions
+        run: python -c "import os,pathlib; pathlib.Path('test-results/release-jobs.json').write_text(os.environ['RELEASE_JOB_RESULTS'], encoding='utf-8')"
+      - name: Aggregate full-release certification
+        if: always()
+        run: uv run python -m scripts.production_runtime_certification --aggregate-release --release-plan test-results/release-plan/plan.json --evidence-root test-results/release --job-results test-results/release-jobs.json --report-dir test-results/full-release
+      - name: Publish terminal full-release verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-release-certification
+          path: |
+            test-results/full-release/
+            test-results/release-plan/
+            test-results/release-jobs.json
           if-no-files-found: error

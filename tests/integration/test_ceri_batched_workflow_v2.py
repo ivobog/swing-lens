@@ -27,6 +27,7 @@ from app.models.ceri_tables import (
     CeriFeatureSourceManifest,
     CeriIngestionRun,
     CeriIngestionRunSourceRecord,
+    CeriPriceResponseFeature,
     CeriRevisionFeature,
     CeriScoreSnapshot,
     CeriSourceRecord,
@@ -1076,6 +1077,29 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
+
+    def lineage_state():
+        with Session(engine) as committed:
+            return {
+                model.__tablename__: list(
+                    committed.execute(
+                        select(
+                            model.id,
+                            model.calculation_context_id,
+                            model.ownership_mode,
+                            model.calculation_cutoff_at,
+                            model.calendar_version,
+                        ).order_by(model.id)
+                    ).all()
+                )
+                for model in (
+                    CeriRevisionFeature,
+                    CeriDerivedFeature,
+                    CeriPriceResponseFeature,
+                    CeriFeatureBuildState,
+                )
+            }
+
     statements: list[str] = []
     authority_reads: list[str] = []
 
@@ -1120,6 +1144,10 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
         db.commit()
         first_selects = statements.count("SELECT")
         first_authority_reads = len(authority_reads)
+        first_lineage = lineage_state()
+        assert all(first_lineage.values()), (
+            "retry coverage requires nonempty artifacts in all four domains"
+        )
         first_counts = (
             db.scalar(select(func.count()).select_from(CeriRevisionFeature)),
             db.scalar(select(func.count()).select_from(CeriDerivedFeature)),
@@ -1148,6 +1176,7 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
         assert second.companies_skipped_unchanged == 1
         assert second_counts == first_counts
         assert second_hashes == first_hashes
+        assert lineage_state() == first_lineage
 
     engine.dispose()
 

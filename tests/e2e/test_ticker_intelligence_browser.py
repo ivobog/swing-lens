@@ -1,6 +1,5 @@
-from pathlib import Path
-
 import pytest
+from evidence_output import artifact_path
 from playwright.sync_api import expect
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -204,5 +203,6 @@ def test_missing_sources_keyboard_narrow_layout_and_dock(page, intelligence_serv
     expect(page.get_by_role("option")).not_to_have_count(0)
     field.press("Escape")
     expect(page.locator("#ticker-search")).to_be_hidden()
-    Path("output/playwright").mkdir(parents=True, exist_ok=True)
-    page.screenshot(path="output/playwright/ticker-intelligence-mobile.png", full_page=True)
+    page.screenshot(
+        path=artifact_path("output/playwright/ticker-intelligence-mobile.png"), full_page=True
+    )

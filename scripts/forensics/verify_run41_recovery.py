@@ -6,6 +6,24 @@ stored under .codex-tmp, outside the reviewable remediation evidence directory.
 
 from __future__ import annotations
 
+# A10 lifecycle restriction; original source and hashes are retained in the A10 evidence.
+# ruff: noqa: E402
+import sys as _a10_sys
+from pathlib import Path as _a10_Path
+
+if __name__ != "__main__":
+    raise SystemExit("HISTORICAL_MANUAL_IMPORT_REFUSED: use the authorized manual CLI")
+_a10_sys.path.insert(0, str(_a10_Path(__file__).resolve().parents[2]))
+
+from scripts.forensics.historical_tool_safety import authorize_manual_tool as _a10_authorize
+
+_a10_authorize(
+    "scripts/forensics/verify_run41_recovery.py",
+    operations={"prepare": True, "verify": True, "finalize": True, "cleanup": True},
+    clone_required=True,
+)
+
+
 import argparse
 import hashlib
 import json
@@ -76,7 +94,7 @@ def prepare():
             stderr=log,
             check=True,
         )
-    name = "swinglens_pytest_run41_" + uuid.uuid4().hex[:12]
+    name = os.environ["SWINGLENS_HISTORICAL_DISPOSABLE_TARGET"]
     target = source.set(database=name)
     metadata = {
         "database": name,
@@ -126,6 +144,9 @@ def verify():
     from app.settings import get_settings
 
     metadata = json.loads((OUT / "production-clone.json").read_text())
+    from scripts.forensics.historical_tool_safety import require_clone_target
+
+    require_clone_target(metadata["database"])
     assert metadata.get("restored")
     source = make_url(get_settings().database_url)
     target = source.set(database=metadata["database"])
@@ -308,6 +329,9 @@ def finalize():
     from app.settings import get_settings
 
     meta = json.loads((OUT / "production-clone.json").read_text())
+    from scripts.forensics.historical_tool_safety import require_clone_target
+
+    require_clone_target(meta["database"])
     source = make_url(get_settings().database_url)
     target = source.set(database=meta["database"])
     assert_disposable_database(target, active_database_url=source)
@@ -329,6 +353,9 @@ def cleanup():
     from app.settings import get_settings
 
     metadata = json.loads((OUT / "production-clone.json").read_text())
+    from scripts.forensics.historical_tool_safety import require_clone_target
+
+    require_clone_target(metadata["database"])
     source = make_url(get_settings().database_url)
     target = source.set(database=metadata["database"])
     assert_disposable_database(target, active_database_url=source)

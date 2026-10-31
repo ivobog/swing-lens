@@ -6,7 +6,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.models.ceri_tables import CeriIngestionRun, CeriProcessingRun, CeriSourceRecord
 from app.models.tables import BackgroundJob
 from app.services.background_job_service import JobStatus, job_result_status
-from app.services.background_worker import default_job_handlers
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.feature_flags import CeriFeatureFlags
 from app.services.ceri.job_handlers import (
@@ -14,7 +13,6 @@ from app.services.ceri.job_handlers import (
     CERI_PROVIDER_INGEST,
     execute_normalize_job,
     execute_provider_ingest_job,
-    implemented_ceri_job_handlers,
 )
 from app.services.ceri.orchestration import (
     CeriIngestionCancelled,
@@ -156,15 +154,6 @@ def test_ingestion_propagates_database_write_errors_without_finishing_run() -> N
         )
 
     assert source_records.finished is False
-
-
-def test_ceri_job_handlers_are_registered_with_default_worker() -> None:
-    handlers = default_job_handlers()
-
-    assert CERI_PROVIDER_INGEST in implemented_ceri_job_handlers()
-    assert CERI_NORMALIZE in implemented_ceri_job_handlers()
-    assert CERI_PROVIDER_INGEST in handlers
-    assert CERI_NORMALIZE in handlers
 
 
 def test_provider_ingest_job_marks_partial_when_ingestion_has_failures(

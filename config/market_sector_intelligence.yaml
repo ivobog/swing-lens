@@ -1,0 +1,19 @@
+# Independent, read-only ETF cache inspection. This does not enable acquisition
+# or the legacy run-sector ETF blending policy.
+version: "1.0.0"
+enabled: true
+benchmark_symbol: SPY
+timeframe: "1 day"
+standard_market_labels:
+  Consumer Cyclical: Consumer Discretionary
+  Consumer Defensive: Consumer Staples
+  Financial Services: Financials
+  Healthcare: Health Care
+  Basic Materials: Materials
+rotation_engine:
+  algorithm_version: market-rotation-v1
+  benchmark_symbol: SPY
+  timeframe: "1 day"
+  session_offsets: [0, 5, 21, 42, 63]
+  primary_rank_metric: rs_63_pct
+  max_history_limit: 100

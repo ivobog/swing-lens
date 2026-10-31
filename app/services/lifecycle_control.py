@@ -29,6 +29,8 @@ CRITICAL_SETTING_FIELDS = {
     "DURABLE_WORKER_PROCESS_ENABLED": "durable_worker_process_enabled",
     "EMBEDDED_JOB_WORKER_ENABLED": "embedded_job_worker_enabled",
     "JOB_WORKER_ENABLED": "job_worker_enabled",
+    "JOB_ACTIVATION_MIN_ID": "job_activation_min_id",
+    "PIPELINE_ACTIVATION_MIN_ID": "pipeline_activation_min_id",
     "RUNTIME_MODE": "runtime_mode",
     "APP_HOST": "app_host",
     "APP_PORT": "app_port",

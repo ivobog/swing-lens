@@ -43,6 +43,11 @@ from app.services.market_clock_service import MarketClockService
 from app.services.technical_indicators import load_pine_defaults
 from app.services.us_market_calendar import previous_us_trading_day
 from app.services.winner_probability.config import load_winner_probability_config
+from single_run_certification.golden_runtime import (
+    business_now,
+    current_manifest,
+    frozen_cache_bars,
+)
 
 FIXTURE_VERSION = "single-run-certification-1.0.0"
 CANONICAL_TICKERS = ("ALFA", "BRAV", "CHAR", "DELT", "ECHO", "FOXT", "GOLF", "RISK")
@@ -366,7 +371,7 @@ def _csv_row(ticker: str, company: str, sector: str, *values: Any) -> dict[str, 
 
 def certification_as_of_session(reference_timestamp: datetime | None = None) -> date:
     """Select the fixture session through SwingLens's canonical exchange clock."""
-    reference = reference_timestamp or datetime.now(UTC)
+    reference = reference_timestamp or business_now()
     return (
         MarketClockService()
         .cutoff_for(
@@ -471,7 +476,7 @@ def _seed_native_fundamental_contract_sample(db: Session, *, run_id: int) -> Non
     pipeline = PipelineRun(upload_run_id=run_id, status="RUNNING")
     db.add(pipeline)
     db.flush()
-    cutoff = create_pipeline_market_context(db, pipeline, cutoff_at=datetime.now(UTC))
+    cutoff = create_pipeline_market_context(db, pipeline, cutoff_at=business_now())
     configs = (config, *resolve_readiness_configurations())
     anchor = persist_configuration_anchor(
         db, {item.snapshot.family.namespace: item for item in configs}
@@ -672,11 +677,16 @@ def _seed_price_bars(
                         data_hash=hashlib.sha256(
                             f"{ticker}:{what_to_show}:{bar['date']}".encode()
                         ).hexdigest(),
+                        **({name: business_now()-timedelta(minutes=4)
+                            for name in ("created_at", "first_seen_at", "last_seen_at")}
+                           if current_manifest() else {}),
                     )
                 )
 
 
 def _ohlcv(ticker: str, count: int, *, as_of_session: date) -> list[dict[str, Any]]:
+    if current_manifest():
+        return frozen_cache_bars(ticker, count)
     seed = sum(ord(char) for char in ticker)
     dates: list[date] = []
     current = as_of_session
@@ -961,6 +971,7 @@ def _seed_ceri_manual_evidence(
                     dataset=dataset,
                     ticker=ticker,
                     request_key=f"certification:{FIXTURE_VERSION}:{dataset.value}:{ticker}",
+                    business_cutoff=business_now().date() if current_manifest() else None,
                 ),
             )
             db.flush()
@@ -1062,6 +1073,7 @@ def _seed_ceri_baseline_snapshot(
                     dataset=dataset,
                     ticker=ticker,
                     request_key=f"certification:{FIXTURE_VERSION}:pre-run:{dataset.value}:{ticker}",
+                    business_cutoff=business_now().date() if current_manifest() else None,
                 ),
             )
             processing = CeriProcessingRun(
@@ -1081,7 +1093,7 @@ def _seed_ceri_baseline_snapshot(
             assert normalized.failed == 0, normalized
     db.flush()
     cutoff = MarketClockService().cutoff_for(
-        datetime.now(UTC), reason="CERTIFICATION_NATIVE_BASELINE"
+        business_now(), reason="CERTIFICATION_NATIVE_BASELINE"
     )
     rebuilt = CeriFeatureRebuildService().rebuild(
         db,
@@ -1133,6 +1145,10 @@ def _seed_ceri_baseline_snapshot(
 
 
 def _fixture_hash(counts: dict[str, int]) -> str:
+    if current_manifest():
+        from single_run_certification.golden_oracle import canonical_hash
+
+        return canonical_hash(current_manifest())
     payload = {
         "version": FIXTURE_VERSION,
         "tickers": CANONICAL_TICKERS,

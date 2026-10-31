@@ -1,0 +1,63 @@
+{
+  "artifacts": {
+    "DERIVATIONS.md": "b14880efa374c9e37afc90b72b70ea10788fd8c1d0417b7da9f04ceda559fb92",
+    "calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
+    "configuration.json": "dfc5fe41d7e665662f2233b48642fbe422db94933b6412aff3d4a6e99a01ada9",
+    "expected-results.json": "3db5cced44c96cd46d59583617ff306052ee28e13f5e9d0ddc4ef11d8c462376",
+    "financial-source.json": "f46da1fe44b3ac01fce2d654ad1ed04f003b79a1dc1d7ef998754fbdfef1e32a",
+    "fundamental-derivation.json": "02c867000316d33048fff2d5444d0d812af10d233b319012450a71e5e206635f",
+    "history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
+    "instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
+    "market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+    "negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
+    "prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
+    "provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
+    "runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
+    "universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990"
+  },
+  "business_time": {
+    "ceri_cutoff": "2026-10-26T20:32:00+00:00",
+    "decision_at": "2026-10-26T20:33:00+00:00",
+    "market_cutoff": "2026-10-26T20:30:00+00:00"
+  },
+  "config_sources": {
+    "config/ceri.yaml": "c1ce6f065cddb239cc9774533d3b9238855083ab62754daaa821190527ead7e7",
+    "config/ceri_catalyst_taxonomy.yaml": "dfbac62e23d72b8ccabd884cb812947bea3af1eba146f03dec6a82330e0a4a66",
+    "config/column_aliases.yaml": "1970327843247b206cda082014fe7f55abf13602f1c69d14c0744f2bb8c2c840",
+    "config/fundamentals_v2.yaml": "2f228e931f0ce2bdc545a06badfe07854c2f1dfdf038881473b745739eb22db3",
+    "config/ib_market_intelligence.yaml": "9d9dba1499294d15fbb8a0a3af6a29af58e7d96e93df7ce85b8797c608ea5430",
+    "config/market_regime_command_center.yaml": "adafd4e6d6621cf7dfbbbac9769a06f7c3b7762e03ba327f05d74e816bb1e917",
+    "config/market_sector_intelligence.yaml": "5d544cf086c90b98cbbb0a286c63b9fdd9c067d76f84518197b7389b3ee658b0",
+    "config/pine_defaults.yaml": "a1ea36a5ff75bd9252c485005e5c9adcc72bf81c0a99d7c3e1db419acf6eacb4",
+    "config/ranking_profiles.yaml": "4d4d3b1e0a9a04de72f5bae2eedae974c8df30e6e2312801eef517476c7fce01",
+    "config/scoring_weights.yaml": "c205b1c69f190bb9ed839568424350c4e490b16ff767930ee8eabee606788c0f",
+    "config/sector_rotation.yaml": "1c01f19698c1778d008047cf26bcbfa77a930b32c65c57a32ee199f904540415",
+    "config/setup_lifecycle.yaml": "97efedb71ac4c6e5784bbe7025984d380bc3492a270ebb6d2f4e1c4c89e642eb",
+    "config/technical_scoring_v4.yaml": "b696b44c66c5494b29833f92585e5004c8f135c33b96295698d71c3098488da0",
+    "config/technical_scoring_v5.yaml": "0796b7c7f71709eec8291c1678eafba6039cc4027dc9604fd707a2f0e02d7dcd",
+    "config/technical_v51_research.yaml": "64b0ecbacf27fbee542b8156a2b938388630f977199651d5d7a16d7c9f005f01",
+    "config/winner_probability.yaml": "9cfae4719d312718e24ec5c882d4cc94ba19cc262460ad71297b3f51bd4a8c7a"
+  },
+  "configuration_normalization": "JSON UTF-8 sorted keys, compact separators, ensure_ascii=True; arrays preserve order; variant flags included",
+  "historical_source_policy": "CSV has no provider time/revision proof; do not invent it. Explicit replay receipt facts are fixture facts, not historical vendor-availability claims.",
+  "source_availability": {
+    "processed_at": "2026-10-26T20:29:00+00:00",
+    "projection_at": "2026-10-26T20:30:00+00:00",
+    "source_received_at": "2026-10-26T20:29:00+00:00",
+    "upload_at": "2026-10-26T20:28:00+00:00"
+  },
+  "supersedes": "a05-v2 (UTF-8 input-header correction; financial values and expectations unchanged)",
+  "tickers": [
+    "BHE",
+    "BLLN",
+    "KLIC",
+    "LSCC",
+    "PDFS",
+    "ACMR",
+    "RDVT",
+    "AVT",
+    "DVN",
+    "JNJ"
+  ],
+  "version": "a05-v3"
+}

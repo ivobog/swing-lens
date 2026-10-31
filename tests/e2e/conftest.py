@@ -13,6 +13,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from evidence_output import output_directory
 from playwright.sync_api import Browser, Page, sync_playwright
 from psycopg import sql
 from sqlalchemy.engine import make_url
@@ -51,7 +52,7 @@ def _available_port() -> int:
         return int(listener.getsockname()[1])
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def live_server_url(
     tmp_path_factory: pytest.TempPathFactory, browser_name: str
 ) -> Iterator[str]:
@@ -108,7 +109,7 @@ def live_server_url(
 
     port = _available_port()
     base_url = f"http://127.0.0.1:{port}"
-    artifact_dir = REPO_ROOT / "output" / "playwright"
+    artifact_dir = output_directory(f"browser-server/{browser_name}")
     artifact_dir.mkdir(parents=True, exist_ok=True)
     log_path = artifact_dir / f"uvicorn-browser-{browser_name}.log"
     log_handle = log_path.open("w", encoding="utf-8")
@@ -161,7 +162,7 @@ def live_server_url(
         _LIVE_SERVER_DATABASE_URL = None
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def live_server_database_url(live_server_url: str) -> str:
     del live_server_url
     if _LIVE_SERVER_DATABASE_URL is None:

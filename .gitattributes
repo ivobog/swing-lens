@@ -6,3 +6,24 @@ docs/remediation/run41-lifecycle/** -text whitespace=cr-at-eol
 # Preserve patch context and captured traceback whitespace in sealed evidence.
 docs/forensics/run41-lifecycle-failure/reviewed-working-tree.diff -whitespace
 docs/remediation/run41-lifecycle/full-pipeline.xml -whitespace
+# Preserve the existing sealed oracle and byte-identical A05B authoring archives.
+tests/e2e/single_run_certification/golden/** -text
+docs/testing/golden-provenance/a05b-r3/** -text
+
+# Preserve exact bytes of the existing independently sealed financial configuration.
+/config/ceri.yaml -text
+/config/ceri_catalyst_taxonomy.yaml -text
+/config/column_aliases.yaml -text
+/config/fundamentals_v2.yaml -text
+/config/ib_market_intelligence.yaml -text
+/config/market_regime_command_center.yaml -text
+/config/market_sector_intelligence.yaml -text
+/config/pine_defaults.yaml -text
+/config/ranking_profiles.yaml -text
+/config/scoring_weights.yaml -text
+/config/sector_rotation.yaml -text
+/config/setup_lifecycle.yaml -text
+/config/technical_scoring_v4.yaml -text
+/config/technical_scoring_v5.yaml -text
+/config/technical_v51_research.yaml -text
+/config/winner_probability.yaml -text

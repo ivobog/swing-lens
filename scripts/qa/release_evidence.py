@@ -1,0 +1,957 @@
+"""Evidence adapter for the existing certification CLI and native test runners.
+
+GitHub Actions schedules jobs; pytest, Node and promtool execute tests. This
+module records and validates their evidence. A04 owns every pipeline decision.
+"""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import os
+import platform
+import re
+import shutil
+import tempfile
+import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
+from fnmatch import fnmatchcase
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+BASE_LANES = {
+    "migration-harness",
+    "populated-restore",
+    "python-regressions",
+    "golden-scoring",
+    "browser-smoke",
+    "windows-recovery",
+    "node",
+    "promql",
+    "a04",
+}
+CATEGORIES = ("passed", "failed", "errored", "skipped", "blocked", "incomplete")
+
+
+class EvidenceError(ValueError):
+    pass
+
+
+def digest(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def file_digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_json(path: Path, value: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def read_json(path: Path) -> dict:
+    if not path.is_file() or path.is_symlink():
+        raise EvidenceError("missing or linked evidence: " + str(path))
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise EvidenceError("evidence must be an object: " + str(path))
+    return value
+
+
+def identity() -> dict:
+    from scripts.production_runtime_certification import _git, _working_tree_identity
+
+    fingerprint, dirty = _working_tree_identity()
+    return {"revision": _git("rev-parse", "HEAD"), "fingerprint": fingerprint, "dirty": dirty}
+
+
+def policy() -> dict:
+    value = read_json(ROOT / "config/certification_registry.json")["full_release"]
+    validate_policy(value)
+    return value
+
+
+def core_policy(impact: dict) -> dict:
+    """Apply reviewed selection to the original lanes, never to their pass rules."""
+    from scripts.qa.check_certification_registry import source_impact_plan
+
+    manifest = read_json(ROOT / "config/certification_registry.json")
+    selection = manifest["test_selection"]
+    if set(selection["profiles"]) != {
+        "core",
+        "affected",
+        "extended",
+        "diagnostic",
+        "live-authorized",
+    }:
+        raise EvidenceError("reviewed selection profiles missing")
+    expected = source_impact_plan(
+        manifest, impact["changed_paths"], baseline_known=impact["baseline_known"]
+    )
+    if expected != impact or impact["review_required"]:
+        raise EvidenceError("source impact is stale or requires review")
+    rows = selection["entries"]
+    core_contracts = {
+        r["contract"] for r in rows if r["tier"] in {"RELEASE_CORE", "NATIVE_A04_PRODUCER"}
+    }
+    if (
+        not {c["id"] for c in manifest["source_contracts"]["contracts"] if c["risk"] == "P0"}
+        <= core_contracts
+    ):
+        raise EvidenceError("required P0 core contract omitted")
+    mapped = {t["id"]: t for c in manifest["source_contracts"]["contracts"] for t in c["tests"]}
+    separate = {"MIGRATION", "DB_RESTORE", "NUMERIC_GOLDENS", "WINDOWS_RECOVERY", "NODE", "PROMQL"}
+    python = {
+        r["exact_test_id"]
+        for r in rows
+        if r["tier"] == "RELEASE_CORE" and r["contract"] not in separate
+    }
+    python.update(t for t in impact["direct_fast_tests"] if mapped[t]["tier"] == "FAST")
+    python.update(
+        t for t in impact["required_native_browser_tests"] if mapped[t]["tier"] == "NATIVE"
+    )
+    python.update(selection["policy_controls"])
+    browser = {r["exact_test_id"] for r in rows if r["tier"] == "RELEASE_CORE_BROWSER"}
+    dispositions = []
+    for row in rows:
+        tier, node = row["tier"], row["exact_test_id"]
+        triggered = any(
+            fnmatchcase(p, pattern)
+            for p in impact["changed_paths"]
+            for pattern in row["trigger_paths"]
+        )
+        if triggered and tier == "EXTENDED_TRIGGERED":
+            raise EvidenceError(
+                "affected specialized prerequisite requires explicit execution: " + node
+            )
+        if triggered and tier in {
+            "CHANGE_AFFECTED_NATIVE",
+            "CHANGE_AFFECTED_RECOVERY",
+            "CHANGE_AFFECTED_BROWSER",
+        }:
+            if (
+                "BROWSER" in tier
+                or "RECOVERY" in tier
+                or mapped.get(node, {}).get("tier") == "BROWSER"
+            ):
+                browser.add(node)
+            else:
+                python.add(node)
+        selected = (
+            tier in {"RELEASE_CORE", "RELEASE_CORE_BROWSER", "NATIVE_A04_PRODUCER"}
+            or node in python
+            or node in browser
+        )
+        dispositions.append(
+            {
+                **row,
+                "selected": selected,
+                "triggered": triggered,
+                "outcome": "NOT_RUN" if selected else row["deferred_outcome"],
+            }
+        )
+    value = copy.deepcopy(policy())
+    value["profile"] = "core"
+    value["scope"] = (
+        "Curated core and reviewed source-impact contracts; not full-release or live promotion"
+    )
+    value["base_lanes"]["python-regressions"]["selectors"] = sorted(python)
+    value["base_lanes"]["browser-smoke"]["selectors"] = sorted(browser)
+    value["selection_manifest"] = {
+        "profiles": selection["profiles"],
+        "entries": dispositions,
+        "affected_T0_T1": sorted(python),
+        "source_impact": impact,
+        "deferred_is_pass": False,
+    }
+    validate_policy(value)
+    return value
+
+
+def prepare_core_plan(run_id: str, attempt: str, event: str, extended: bool, impact: dict) -> dict:
+    contract = core_policy(impact)
+    plan = prepare_plan(run_id, attempt, event, extended)
+    plan.pop("plan_sha256")
+    plan.update(
+        profile="core",
+        source_impact=impact,
+        policy_sha256=digest(contract),
+        selection_manifest=contract["selection_manifest"],
+    )
+    plan["required_lanes"].update(copy.deepcopy(contract["base_lanes"]))
+    plan["plan_sha256"] = digest(plan)
+    return plan
+
+
+def validate_policy(value: dict) -> None:
+    if set(value["base_lanes"]) != BASE_LANES:
+        raise EvidenceError("required release lane omitted or downgraded")
+    for name, lane in value["base_lanes"].items():
+        if lane.get("required") is not True or not lane.get("job") or not lane.get("kind"):
+            raise EvidenceError("required lane applicability missing: " + name)
+    if value["base_lanes"]["browser-smoke"].get("browsers") != ["chromium", "firefox"]:
+        raise EvidenceError("both required browser engines must survive")
+    for name in ("node", "promql"):
+        cases = value["base_lanes"][name].get("case_ids", [])
+        if not cases or len(cases) != len(set(cases)):
+            raise EvidenceError("native cross-language identities missing: " + name)
+    if set(value["conditional_lanes"]) != {"ceri-extended", "population-extended"}:
+        raise EvidenceError("extended tier registration changed")
+
+
+def prepare_plan(run_id: str, attempt: str, event: str, extended: bool) -> dict:
+    if (
+        not run_id
+        or not attempt
+        or event not in {"local", "push", "pull_request", "schedule", "workflow_dispatch"}
+    ):
+        raise EvidenceError("explicit execution identity/event required")
+    contract = policy()
+    lanes = copy.deepcopy(contract["base_lanes"])
+    if event == "schedule" or (event == "workflow_dispatch" and extended):
+        lanes["ceri-extended"] = copy.deepcopy(contract["conditional_lanes"]["ceri-extended"])
+    if event == "workflow_dispatch" and extended:
+        lanes["population-extended"] = copy.deepcopy(
+            contract["conditional_lanes"]["population-extended"]
+        )
+    plan = {
+        "schema": "swinglens.full-release-plan.v1",
+        "execution_id": run_id,
+        "attempt": attempt,
+        "event": event,
+        "extended_scale": extended,
+        "created_at": datetime.now(UTC).isoformat(),
+        "source": identity(),
+        "policy_sha256": digest(contract),
+        "required_lanes": lanes,
+        "not_applicable": {
+            name: {"status": "NOT_RUN", "reason": "existing trigger does not apply", **spec}
+            for name, spec in contract["conditional_lanes"].items()
+            if name not in lanes
+        },
+        "advisory_manual": contract["advisory_manual"],
+        "verdict": "NOT_RUN",
+    }
+    plan["plan_sha256"] = digest(plan)
+    return plan
+
+
+def validate_plan(plan: dict, *, current: bool = False) -> None:
+    payload = {k: v for k, v in plan.items() if k != "plan_sha256"}
+    if plan.get("schema") != "swinglens.full-release-plan.v1" or digest(payload) != plan.get(
+        "plan_sha256"
+    ):
+        raise EvidenceError("invalid release plan seal")
+    contract = core_policy(plan["source_impact"]) if plan.get("profile") == "core" else policy()
+    if digest(contract) != plan["policy_sha256"]:
+        raise EvidenceError("release policy changed")
+    expected = copy.deepcopy(contract["base_lanes"])
+    if plan["event"] == "schedule" or (
+        plan["event"] == "workflow_dispatch" and plan["extended_scale"]
+    ):
+        expected["ceri-extended"] = contract["conditional_lanes"]["ceri-extended"]
+    if plan["event"] == "workflow_dispatch" and plan["extended_scale"]:
+        expected["population-extended"] = contract["conditional_lanes"]["population-extended"]
+    if plan["required_lanes"] != expected:
+        raise EvidenceError("release selection differs from reviewed policy")
+    if (
+        plan.get("profile") == "core"
+        and plan.get("selection_manifest") != contract["selection_manifest"]
+    ):
+        raise EvidenceError("selected/deferred scope differs from reviewed policy")
+    if current and identity() != plan["source"]:
+        raise EvidenceError("source changed since release plan")
+
+
+def context(plan: dict, lane: str) -> dict:
+    return {
+        "execution_id": plan["execution_id"],
+        "attempt": plan["attempt"],
+        "plan_sha256": plan["plan_sha256"],
+        "source": plan["source"],
+        "lane": lane,
+    }
+
+
+def safe_file(root: Path, relative: str) -> Path:
+    path = root / relative
+    if (
+        Path(relative).is_absolute()
+        or ".." in Path(relative).parts
+        or not path.is_file()
+        or path.is_symlink()
+        or not path.resolve().is_relative_to(root.resolve())
+    ):
+        raise EvidenceError("missing or unsafe artifact: " + relative)
+    return path
+
+
+def junit_cases(path: Path, kind: str) -> dict[str, str]:
+    tree = ET.parse(path)
+    cases = list(tree.getroot().iter("testcase"))
+    if not cases:
+        raise EvidenceError("zero-test report cannot certify")
+    result = {}
+    for case in cases:
+        name = case.attrib["name"]
+        key = (
+            case.attrib.get("classname", "") + "::" + name
+            if kind == "pytest"
+            else kind + "::" + name
+        )
+        if key in result:
+            raise EvidenceError("duplicate test identity")
+        status = (
+            "errored"
+            if case.find("error") is not None
+            else "failed"
+            if case.find("failure") is not None
+            else "skipped"
+            if case.find("skipped") is not None
+            else "passed"
+        )
+        result[key] = status
+    for suite in tree.getroot().iter("testsuite"):
+        descendants = list(suite.iter("testcase"))
+        if "tests" in suite.attrib and int(suite.attrib["tests"]) != len(descendants):
+            raise EvidenceError("inconsistent report test count")
+        for attribute, tag in (
+            ("failures", "failure"),
+            ("errors", "error"),
+            ("skipped", "skipped"),
+        ):
+            if attribute in suite.attrib and int(suite.attrib[attribute]) != sum(
+                c.find(tag) is not None for c in descendants
+            ):
+                raise EvidenceError("inconsistent report outcome count")
+    # Node's native reporter emits totals as comments rather than suite attributes.
+    for field, expected in (
+        ("tests", len(cases)),
+        ("fail", sum(v == "failed" for v in result.values())),
+        ("skipped", sum(v == "skipped" for v in result.values())),
+    ):
+        match = re.search(r"<!-- " + field + r" (\d+) -->", path.read_text(encoding="utf-8"))
+        if match and int(match[1]) != expected:
+            raise EvidenceError("inconsistent native report total")
+    return result
+
+
+def environment_profile() -> dict:
+    import importlib.metadata
+    from urllib.parse import urlsplit
+
+    database = urlsplit(os.environ.get("DATABASE_URL", ""))
+    return {
+        "platform": platform.platform(),
+        "python": platform.python_version(),
+        "pytest": importlib.metadata.version("pytest"),
+        "database": {
+            "host": database.hostname,
+            "port": database.port,
+            "name": database.path.lstrip("/"),
+        },
+        "database_safety_context": os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT"),
+        "provider_mode": os.environ.get("SWINGLENS_CERTIFICATION_PROVIDER_MODE", "deterministic"),
+    }
+
+
+def junit_key(nodeid: str) -> str:
+    base, bracket, parameters = nodeid.partition("[")
+    parts = base.split("::")
+    return (
+        ".".join([parts[0].removesuffix(".py").replace("/", "."), *parts[1:-1]])
+        + "::"
+        + parts[-1]
+        + bracket
+        + parameters
+    )
+
+
+def _selection(config) -> dict:
+    def relative(value):
+        path, *suffix = str(value).split("::")
+        p = Path(path)
+        if p.is_absolute():
+            path = p.relative_to(ROOT).as_posix()
+        return "::".join([path.replace("\\", "/"), *suffix])
+
+    if (
+        config.option.keyword
+        or config.option.deselect
+        or config.option.ignore_glob
+        or getattr(config.option, "lf", False)
+    ):
+        raise EvidenceError("undeclared partial pytest selection")
+    return {
+        "selectors": [relative(p) for p in config.args],
+        "markers": config.option.markexpr,
+        "ignores": sorted(relative(p) for p in (config.option.ignore or [])),
+        "browsers": config.getoption("browser", default=[]) or [],
+    }
+
+
+_capture: dict = {}
+
+
+def pytest_sessionstart(session):
+    global _capture
+    path = os.environ.get("SWINGLENS_RELEASE_PLAN")
+    if not path:
+        _capture = {}
+        return
+    plan = read_json(Path(path))
+    validate_plan(plan, current=True)
+    lane = os.environ["SWINGLENS_RELEASE_LANE"]
+    spec = plan["required_lanes"][lane]
+    if spec["kind"] != "pytest" or _selection(session.config) != {
+        key: spec[key] for key in ("selectors", "markers", "ignores", "browsers")
+    }:
+        raise EvidenceError("pytest command differs from declared lane")
+    mode = os.environ["SWINGLENS_RELEASE_CAPTURE"]
+    if mode not in {"collection", "execution"} or session.config.option.collectonly != (
+        mode == "collection"
+    ):
+        raise EvidenceError("independent collection/execution phase required")
+    directory = Path(os.environ["SWINGLENS_RELEASE_RECORD_DIR"])
+    profile = environment_profile()
+    if spec.get("postgres_major"):
+        if (
+            profile["database_safety_context"] != "DISPOSABLE_TEST"
+            or profile["database"]["host"] not in {"127.0.0.1", "localhost", "::1"}
+            or not profile["database"]["name"].startswith(("swinglens_ci_", "swinglens_pytest_"))
+        ):
+            raise EvidenceError("owned disposable native database required")
+        import psycopg
+
+        with psycopg.connect(
+            os.environ["DATABASE_URL"].replace("postgresql+psycopg://", "postgresql://"),
+            connect_timeout=5,
+        ) as db:
+            if db.info.server_version // 10000 != spec["postgres_major"]:
+                raise EvidenceError("PostgreSQL tool version mismatch")
+            profile["postgresql"] = {
+                "version": db.execute("select version()").fetchone()[0],
+                "database": db.execute("select current_database()").fetchone()[0],
+                "postmaster_started_at": str(
+                    db.execute("select pg_postmaster_start_time()").fetchone()[0]
+                ),
+            }
+    _capture = {
+        "context": context(plan, lane),
+        "mode": mode,
+        "directory": directory,
+        "selected": [],
+        "started": [],
+        "phases": {},
+        "environment": profile,
+        "browsers_observed": {},
+        "plan": plan,
+    }
+
+
+def pytest_collection_finish(session):
+    if not _capture:
+        return
+    _capture["selected"] = [item.nodeid for item in session.items]
+    if _capture["mode"] == "collection":
+        write_json(
+            _capture["directory"] / "collection.json",
+            {
+                "context": _capture["context"],
+                "selected": _capture["selected"],
+                "selection": _selection(session.config),
+                "collect_only": True,
+                "environment": _capture["environment"],
+            },
+        )
+
+
+def pytest_runtest_logstart(nodeid, location):
+    if _capture:
+        _capture["started"].append(nodeid)
+
+
+def pytest_runtest_call(item):
+    if _capture and "browser" in item.funcargs:
+        browser = item.funcargs["browser"]
+        name = item.funcargs.get("browser_name")
+        if name:
+            _capture["browsers_observed"][name] = browser.version
+
+
+def pytest_runtest_logreport(report):
+    if _capture:
+        _capture["phases"].setdefault(report.nodeid, {})[report.when] = {
+            "outcome": report.outcome,
+            "seconds": report.duration,
+            "wasxfail": bool(getattr(report, "wasxfail", False)),
+        }
+
+
+def pytest_sessionfinish(session, exitstatus):
+    if not _capture:
+        return
+    errors = []
+    try:
+        validate_plan(_capture["plan"], current=True)
+    except (EvidenceError, OSError, ValueError) as exc:
+        errors.append(str(exc))
+        session.exitstatus = 1
+    if _capture["mode"] == "collection":
+        path = _capture["directory"] / "collection.json"
+        if path.is_file():
+            value = read_json(path)
+            value.update({"exit_code": int(exitstatus), "errors": errors})
+            write_json(path, value)
+    else:
+        write_json(
+            _capture["directory"] / "execution.json",
+            {key: value for key, value in _capture.items() if key not in {"directory", "plan"}}
+            | {"exit_code": int(exitstatus), "errors": errors, "session_finished": True},
+        )
+
+
+def _pytest_results(root: Path, plan: dict, lane: str, observed: dict) -> dict:
+    collection = read_json(root / "collection.json")
+    execution = read_json(root / "execution.json")
+    expected = context(plan, lane)
+    if collection.get("context") != expected or execution.get("context") != expected:
+        raise EvidenceError("stale/foreign collection or execution")
+    selected = collection["selected"]
+    if collection.get("selection") != {
+        key: plan["required_lanes"][lane][key]
+        for key in ("selectors", "markers", "ignores", "browsers")
+    }:
+        raise EvidenceError("intended collection used a different selection rule")
+    if (
+        not selected
+        or len(selected) != len(set(selected))
+        or collection.get("exit_code") != 0
+        or collection.get("errors")
+    ):
+        raise EvidenceError("invalid independent intended collection")
+    if execution["selected"] != selected or len(execution["started"]) != len(
+        set(execution["started"])
+    ):
+        raise EvidenceError("intended test never collected or duplicate start")
+    if execution.get("errors") or not execution.get("session_finished"):
+        raise EvidenceError("pytest process/session did not finish")
+    if set(observed) != {junit_key(node) for node in selected}:
+        raise EvidenceError("JUnit omitted or substituted an intended test")
+    categories = {key: [] for key in CATEGORIES}
+    for node in selected:
+        phases = execution["phases"].get(node, {})
+        if any(p.get("wasxfail") for p in phases.values()):
+            status = "skipped"
+        elif any(phases.get(p, {}).get("outcome") == "failed" for p in ("setup", "teardown")):
+            status = "errored"
+        elif any(p.get("outcome") == "skipped" for p in phases.values()):
+            status = "skipped"
+        elif set(phases) != {"setup", "call", "teardown"}:
+            status = "incomplete"
+        else:
+            status = "passed" if phases["call"]["outcome"] == "passed" else "failed"
+        if observed[junit_key(node)] != status:
+            raise EvidenceError("JUnit and native phase outcomes disagree")
+        categories[status].append(node)
+    spec = plan["required_lanes"][lane]
+    profile = execution["environment"]
+    if (
+        not profile.get("python", "").startswith("3.12.")
+        or not profile.get("pytest")
+        or profile.get("provider_mode") != "deterministic"
+    ):
+        raise EvidenceError("required Python/pytest/provider environment identity missing")
+    if spec.get("postgres_major") and (
+        profile.get("database_safety_context") != "DISPOSABLE_TEST"
+        or profile.get("database", {}).get("host") not in {"127.0.0.1", "localhost", "::1"}
+        or not profile.get("database", {})
+        .get("name", "")
+        .startswith(("swinglens_ci_", "swinglens_pytest_"))
+        or not profile.get("postgresql", {})
+        .get("version", "")
+        .startswith("PostgreSQL " + str(spec["postgres_major"]) + ".")
+        or not profile.get("postgresql", {}).get("postmaster_started_at")
+    ):
+        raise EvidenceError("required native PostgreSQL environment identity missing")
+    if spec["browsers"] and (
+        set(execution["browsers_observed"]) != set(spec["browsers"])
+        or not all(execution["browsers_observed"].values())
+    ):
+        raise EvidenceError("required actual browser engine omitted")
+    return {
+        "selected": selected,
+        "collected": execution["selected"],
+        "executed": execution["started"],
+        "body_executed": [node for node in selected if "call" in execution["phases"].get(node, {})],
+        **categories,
+        "process_exit_code": execution["exit_code"],
+        "environment": execution["environment"],
+        "browsers_observed": execution["browsers_observed"],
+        "phases": execution["phases"],
+    }
+
+
+def a04_results(root: Path, plan: dict, lane: str) -> dict:
+    """Consume A04 through its original finalizer; never rewrite sealed inputs."""
+    from single_run_certification.reporting import EXACT_TEST_IDS, finalize_pipeline_certificate
+
+    from scripts.qa.golden_provenance import verify_baseline
+
+    verify_baseline(ROOT)
+
+    report = read_json(root / "a04" / "report.json")
+    if report.get("release_context") != context(plan, lane):
+        raise EvidenceError("stale or foreign A04 release context")
+    if (
+        report.get("working_tree_fingerprint") != plan["source"]["fingerprint"]
+        or report.get("git_sha") != plan["source"]["revision"]
+    ):
+        raise EvidenceError("A04 source mismatch")
+    invocation = report["invocation"]
+    if (
+        report.get("verdict") != "CERTIFIED"
+        or invocation.get("exit_code") != 0
+        or invocation.get("failed")
+    ):
+        raise EvidenceError("A04 child is noncertified")
+    if any(
+        invocation.get(key) != list(EXACT_TEST_IDS) for key in ("selected", "collected", "executed")
+    ):
+        raise EvidenceError("incomplete A04 invocation")
+    certificates = report["certificates"]
+    if (
+        report.get("provider_mode") != "deterministic"
+        or len(certificates) != 2
+        or {c["test_id"] for c in certificates} != set(EXACT_TEST_IDS)
+        or len({c["execution_id"] for c in certificates}) != 2
+        or any(c.get("verdict") != "CERTIFIED" for c in certificates)
+    ):
+        raise EvidenceError("A04 protected variant omitted")
+    proofs = []
+    for item in certificates:
+        original = safe_file(root / "a04", item["path"])
+        certificate = read_json(original)
+        expected = {
+            **certificate["identity"],
+            "source_fingerprint": plan["source"]["fingerprint"],
+            "source_revision": plan["source"]["revision"],
+            "invocation_id": report["execution_id"],
+            "test_id": item["test_id"],
+            "handoff": item["test_id"] == EXACT_TEST_IDS[1],
+            "execution_id": item["execution_id"],
+            "runtime_instance_id": item["execution_id"],
+        }
+        with tempfile.TemporaryDirectory(prefix="swinglens-a16-recheck-") as temporary:
+            copied = Path(temporary) / "evidence"
+            if any(
+                p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction())
+                for p in original.parent.rglob("*")
+            ):
+                raise EvidenceError("linked A04 evidence prohibited")
+            shutil.copytree(original.parent, copied, symlinks=False)
+            checked = finalize_pipeline_certificate(
+                copied, invocation=invocation, expected_identity=expected
+            )
+        if checked != certificate or checked["verdict"] != "CERTIFIED":
+            raise EvidenceError("A04 finalizer rejects child/gates/artifact seal")
+        proofs.append(
+            {
+                "path": "a04/" + item["path"].replace("\\", "/"),
+                "execution_id": item["execution_id"],
+                "sha256": file_digest(original),
+                "identity": certificate["identity"],
+            }
+        )
+    return {
+        "selected": list(EXACT_TEST_IDS),
+        "collected": list(EXACT_TEST_IDS),
+        "executed": list(EXACT_TEST_IDS),
+        "body_executed": list(EXACT_TEST_IDS),
+        **{key: list(EXACT_TEST_IDS) if key == "passed" else [] for key in CATEGORIES},
+        "process_exit_code": 0,
+        "a04_certificates": proofs,
+    }
+
+
+def begin_native(root: Path, plan: dict, lane: str) -> None:
+    validate_plan(plan, current=True)
+    if (
+        plan["required_lanes"][lane]["kind"] not in {"node", "promql"}
+        or (root / "native-start.json").exists()
+    ):
+        raise EvidenceError("native evidence start must be unique")
+    write_json(
+        root / "native-start.json",
+        {
+            "context": context(plan, lane),
+            "started_at": datetime.now(UTC).isoformat(),
+            "platform": platform.platform(),
+        },
+    )
+
+
+def _native_results(root: Path, plan: dict, lane: str, observed: dict) -> dict:
+    spec = plan["required_lanes"][lane]
+    start = read_json(root / "native-start.json")
+    if start["context"] != context(plan, lane):
+        raise EvidenceError("stale native invocation")
+    if datetime.fromtimestamp((root / "results.xml").stat().st_mtime, UTC) < datetime.fromisoformat(
+        start["started_at"]
+    ):
+        raise EvidenceError("native result predates invocation")
+    version = safe_file(root, "version.txt").read_text(encoding="utf-8").strip()
+    if not re.search(spec["tool_version_pattern"], version):
+        raise EvidenceError("required native tool version missing/mismatched")
+    if set(observed) != set(spec["case_ids"]):
+        raise EvidenceError("native test missing, uncollected or unexpected")
+    return {
+        "selected": spec["case_ids"],
+        "collected": list(observed),
+        "executed": list(observed),
+        "body_executed": [
+            node for node, status in observed.items() if status in {"passed", "failed"}
+        ],
+        "process_exit_code": 0,
+        **{key: [node for node, status in observed.items() if status == key] for key in CATEGORIES},
+        "environment": {
+            "tool_version": version,
+            "platform": start["platform"],
+            "declared_configuration": spec.get("configuration", {}),
+        },
+    }
+
+
+def evaluate_lane(root: Path, plan: dict, lane: str, job_result: str) -> dict:
+    spec = plan["required_lanes"][lane]
+    reasons = []
+    empty = {key: [] for key in ("selected", "collected", "executed", "body_executed", *CATEGORIES)}
+    result = empty
+    if job_result != "success":
+        reasons.append("required CI test step did not succeed: " + job_result)
+    try:
+        if spec["kind"] == "a04":
+            result = a04_results(root, plan, lane)
+        else:
+            observed = junit_cases(safe_file(root, "results.xml"), spec["kind"])
+            result = (
+                _pytest_results(root, plan, lane, observed)
+                if spec["kind"] == "pytest"
+                else _native_results(root, plan, lane, observed)
+            )
+        if (
+            result.get("process_exit_code") != 0
+            or not result["selected"]
+            or set(result["selected"]) != set(result["passed"])
+            or any(result[key] for key in CATEGORIES if key != "passed")
+        ):
+            reasons.append("required selected cases failed/errored/skipped/blocked/incomplete")
+        if set(result["executed"]) != set(result["selected"]):
+            reasons.append("selected execution incomplete")
+    except (EvidenceError, KeyError, TypeError, ValueError, OSError, ET.ParseError) as exc:
+        reasons.append(str(exc))
+        # Preserve observations even when a consistency check fails. Unavailable
+        # evidence is explicitly unknown, never evidence of zero successful tests.
+        result = _partial_results(root, plan, lane, spec, empty)
+    if spec["kind"] in {"node", "promql"}:
+        result["process_exit_code"] = 0 if job_result == "success" else None
+    if job_result in {"skipped", "cancelled"}:
+        result["blocked"] = [n for n in result["selected"] if n not in result["executed"]]
+        result["incomplete"] = [n for n in result["incomplete"] if n not in result["blocked"]]
+    files = {}
+    for path in root.rglob("*"):
+        if path.is_file() and path.name != "lane.json":
+            if path.is_symlink():
+                reasons.append("linked evidence prohibited")
+            else:
+                files[path.relative_to(root).as_posix()] = file_digest(path)
+    return {
+        "schema": "swinglens.release-lane.v1",
+        "context": context(plan, lane),
+        "job_result": job_result,
+        "kind": spec["kind"],
+        "results": result,
+        "counts": {
+            key: len(result[key])
+            for key in ("selected", "collected", "executed", "body_executed", *CATEGORIES)
+        },
+        "artifacts": files,
+        "reasons": reasons,
+        "verdict": "NONCERTIFIED" if reasons else "CERTIFIED",
+    }
+
+
+def _partial_results(root: Path, plan: dict, lane: str, spec: dict, empty: dict) -> dict:
+    result = {**empty, "evidence_complete": False}
+    if spec["kind"] in {"node", "promql"}:
+        result["selected"] = spec["case_ids"]
+        result["incomplete"] = spec["case_ids"]
+    elif spec["kind"] == "a04":
+        try:
+            report = read_json(root / "a04/report.json")
+            result.update(
+                {
+                    key: report.get("invocation", {}).get(key, [])
+                    for key in ("selected", "collected", "executed")
+                }
+            )
+            result["incomplete"] = result["selected"]
+            result["unverified_a04_references"] = report.get("certificates", [])
+        except (EvidenceError, KeyError, TypeError, OSError):
+            pass
+    else:
+        try:
+            intended = read_json(root / "collection.json")
+            if intended.get("context") == context(plan, lane):
+                result["selected"] = intended["selected"]
+                result["incomplete"] = intended["selected"]
+            execution = read_json(root / "execution.json")
+            if execution.get("context") == context(plan, lane):
+                result["collected"] = execution["selected"]
+                result["executed"] = execution["started"]
+                result["body_executed"] = [
+                    node for node, phases in execution["phases"].items() if "call" in phases
+                ]
+                result["process_exit_code"] = execution["exit_code"]
+                result["environment"] = execution["environment"]
+        except (EvidenceError, KeyError, TypeError, OSError):
+            pass
+    try:
+        if spec["kind"] != "a04" and (root / "results.xml").is_file():
+            try:
+                raw = junit_cases(root / "results.xml", spec["kind"])
+                result.update(
+                    {
+                        **{
+                            key: [node for node, status in raw.items() if status == key]
+                            for key in CATEGORIES
+                        },
+                    }
+                )
+                if spec["kind"] in {"node", "promql"}:
+                    result["collected"] = result["executed"] = list(raw)
+                    result["incomplete"] = [n for n in result["selected"] if n not in raw]
+                if spec["kind"] == "pytest" and (root / "collection.json").is_file():
+                    intended = read_json(root / "collection.json")
+                    if intended.get("context") == context(plan, lane):
+                        names = {junit_key(node): node for node in intended["selected"]}
+                        raw = {
+                            names.get(node, "UNDECLARED_JUNIT::" + node): status
+                            for node, status in raw.items()
+                        }
+                        result.update(
+                            {
+                                **{
+                                    key: [node for node, status in raw.items() if status == key]
+                                    for key in CATEGORIES
+                                },
+                            }
+                        )
+                        result["selected"] = intended["selected"]
+                        result["incomplete"] = [
+                            node for node in intended["selected"] if node not in raw
+                        ]
+            except (EvidenceError, KeyError, TypeError, ValueError, OSError, ET.ParseError):
+                pass
+    except (EvidenceError, KeyError, TypeError, ValueError, OSError, ET.ParseError):
+        pass
+    if not result["selected"]:
+        result["intended_selection_unknown"] = True
+    return result
+
+
+def record_lane(root: Path, plan: dict, lane: str, job_result: str) -> dict:
+    validate_plan(plan, current=True)
+    if (root / "lane.json").exists():
+        raise EvidenceError("refuse to replace a terminal lane receipt")
+    value = evaluate_lane(root, plan, lane, job_result)
+    write_json(root / "lane.json", value)
+    return value
+
+
+def aggregate(plan: dict, root: Path, jobs: dict) -> dict:
+    validate_plan(plan, current=True)
+    reasons = []
+    lanes = {}
+    required_jobs = {"release-plan", *(row["job"] for row in plan["required_lanes"].values())}
+    for name in sorted(required_jobs):
+        if jobs.get(name, {}).get("result") != "success":
+            reasons.append("required job missing/failed/skipped/cancelled: " + name)
+    for name in plan["required_lanes"]:
+        directory = root / name
+        checked = None
+        try:
+            # Keep actual observed cases in a noncertified manifest too.
+            checked = evaluate_lane(directory, plan, name, "unknown")
+            receipt = read_json(directory / "lane.json")
+            if receipt.get("context") != context(plan, name):
+                raise EvidenceError("stale/substituted lane receipt")
+            for relative, expected in receipt["artifacts"].items():
+                if file_digest(safe_file(directory, relative)) != expected:
+                    raise EvidenceError("artifact seal invalid: " + relative)
+            checked = evaluate_lane(directory, plan, name, receipt["job_result"])
+            if checked != receipt or checked["verdict"] != "CERTIFIED":
+                raise EvidenceError("lane results are inconsistent or noncertified")
+            lanes[name] = receipt
+        except (EvidenceError, KeyError, TypeError, ValueError, OSError, ET.ParseError) as exc:
+            reasons.append(name + ": " + str(exc))
+            lanes[name] = {
+                **(checked or {}),
+                "verdict": "NONCERTIFIED",
+                "validation_error": str(exc),
+            }
+    verdict = "NONCERTIFIED" if reasons else "CERTIFIED"
+    result = {
+        "schema": "swinglens.full-release-certification.v1",
+        "execution_id": plan["execution_id"],
+        "attempt": plan["attempt"],
+        "scope": "main CI full-release regressions; separate live promotion",
+        "provider_mode": "deterministic",
+        "git_sha": plan["source"]["revision"],
+        "working_tree_fingerprint": plan["source"]["fingerprint"],
+        "plan": plan,
+        "plan_sha256": plan["plan_sha256"],
+        "jobs": jobs,
+        "lanes": lanes,
+        "reasons": reasons,
+        "verdict": verdict,
+        "gates": {
+            "FULL_RELEASE_REGRESSIONS": "PASS" if verdict == "CERTIFIED" else "FAIL",
+            "EXACT_PIPELINE_CERTIFICATION": "PASS"
+            if lanes.get("a04", {}).get("verdict") == "CERTIFIED"
+            else "FAIL",
+            "SMALL_LIVE_PROVIDER_CANARY": "NOT_RUN",
+        },
+        "safe_for_normal_run": False,
+        "advisory_manual": {
+            name: {"status": "NOT_RUN", **value} for name, value in plan["advisory_manual"].items()
+        },
+        "not_applicable": plan["not_applicable"],
+    }
+    if plan.get("profile") == "core":
+        result.update(
+            schema="swinglens.core-release-certification.v1",
+            scope=(
+                "Curated core and declared affected contracts; not full-release or live promotion"
+            ),
+            core_verdict="CORE_RELEASE_FAILED" if reasons else "CORE_RELEASE_CERTIFIED",
+            selection_manifest=plan["selection_manifest"],
+        )
+        result["gates"]["CORE_RELEASE_REGRESSIONS"] = result["gates"]["FULL_RELEASE_REGRESSIONS"]
+        result["gates"]["FULL_RELEASE_REGRESSIONS"] = "NOT_RUN"
+        result["selection_manifest"] = {
+            **plan["selection_manifest"],
+            "source": plan["source"],
+            "actual_lane_cases": {
+                name: {
+                    "process_exit_code": receipt.get("results", {}).get("process_exit_code"),
+                    **{key: receipt.get("results", {}).get(key, []) for key in CATEGORIES},
+                }
+                for name, receipt in lanes.items()
+            },
+        }
+    return result

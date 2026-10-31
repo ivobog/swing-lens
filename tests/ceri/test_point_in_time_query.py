@@ -14,17 +14,28 @@ UTC = ZoneInfo("UTC")
 def test_as_known_returns_only_evidence_effective_at_or_before_cutoff() -> None:
     old = _estimate(1, 101, date(2026, 8, 1), Decimal("10"))
     future = _estimate(2, 102, date(2026, 8, 4), Decimal("12"))
-    query = CeriPointInTimeQuery(snapshots=[old, future])
-
-    rows = query.eligible_estimates(
-        FakeDb(),
-        company_id=42,
-        metric="EPS_DILUTED",
-        cutoff_at=datetime(2026, 8, 3, 21, tzinfo=UTC),
-        mode=HistoricalViewMode.AS_KNOWN,
-    )
-
-    assert rows == [old]
+    future.known_at = future.retrieved_at = old.known_at
+    late_known = _estimate(3, 103, date(2026, 8, 2), Decimal("13"))
+    late_known.known_at = late_known.retrieved_at = datetime(2026, 8, 4, tzinfo=UTC)
+    for decoy in (future, late_known):
+        query = CeriPointInTimeQuery(snapshots=[old, decoy])
+        rows = query.eligible_estimates(
+            FakeDb(),
+            company_id=42,
+            metric="EPS_DILUTED",
+            cutoff_at=datetime(2026, 8, 3, 21, tzinfo=UTC),
+            mode=HistoricalViewMode.AS_KNOWN,
+        )
+        assert rows == [old]
+        # Each candidate is otherwise admissible once its own boundary elapses.
+        later = CeriPointInTimeQuery(snapshots=[decoy]).eligible_estimates(
+            FakeDb(),
+            company_id=42,
+            metric="EPS_DILUTED",
+            cutoff_at=datetime(2026, 8, 5, 21, tzinfo=UTC),
+            mode=HistoricalViewMode.AS_KNOWN,
+        )
+        assert [row.id for row in later] == [decoy.id]
 
 
 def test_late_correction_does_not_displace_version_known_at_cutoff() -> None:

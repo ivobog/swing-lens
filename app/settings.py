@@ -36,6 +36,12 @@ class RuntimeMode(StrEnum):
     CERTIFICATION = "CERTIFICATION"
 
 
+class FundamentalAdmissionMode(StrEnum):
+    LEGACY = "LEGACY"
+    SHADOW = "SHADOW"
+    ACTIVE = "ACTIVE"
+
+
 class ProcessRole(StrEnum):
     SUPERVISOR = "SUPERVISOR"
     WEB = "WEB"
@@ -96,6 +102,7 @@ class Settings(BaseSettings):
     use_durable_pipeline: bool = True
     runtime_mode: RuntimeMode = RuntimeMode.NORMAL
     process_role: ProcessRole = ProcessRole.CLI_OR_MAINTENANCE
+    fundamental_admission_mode: FundamentalAdmissionMode = FundamentalAdmissionMode.ACTIVE
     # The canonical lifecycle creates a fresh value for every runtime start and
     # propagates it to supervised children.  In CERTIFICATION mode it is also
     # the authorization epoch used by the durable claim fence.
@@ -299,11 +306,16 @@ class Settings(BaseSettings):
     job_worker_heartbeat_timeout_seconds: int = 30
     job_control_lock_timeout_seconds: float = Field(default=3.0, ge=0.1, le=30.0)
     job_worker_id: str = "local-worker-1"
+    # Fixed deployment boundary, retained across restarts. Zero preserves the
+    # existing unrestricted behavior. Never advance these per worker/start.
+    job_activation_min_id: int = Field(default=0, ge=0)
+    pipeline_activation_min_id: int = Field(default=0, ge=0)
     job_progress_timeout_seconds: int = Field(default=300, ge=30, le=86_400)
     job_market_data_progress_timeout_seconds: int = Field(default=360, ge=30, le=86_400)
     job_long_stage_progress_timeout_seconds: int = Field(default=1800, ge=60, le=86_400)
     job_max_identical_progress_recoveries: int = Field(default=3, ge=1, le=20)
     job_watchdog_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
+    worker_memory_recycle_mb: int = Field(default=2048, ge=256)
     worker_memory_warning_mb: int = Field(default=4096, ge=128)
     worker_memory_critical_mb: int = Field(default=6144, ge=256)
     worker_memory_profile_interval_items: int = Field(default=25, ge=1, le=10_000)
@@ -417,6 +429,15 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_local_runtime_boundary(self) -> "Settings":
+        if bool(self.job_activation_min_id) != bool(self.pipeline_activation_min_id):
+            raise ValueError("job and pipeline activation boundaries must be configured together")
+        if (
+            self.fundamental_admission_mode is FundamentalAdmissionMode.SHADOW
+            and self.runtime_mode is not RuntimeMode.CERTIFICATION
+        ):
+            raise ValueError(
+                "FUNDAMENTAL_ADMISSION_MODE=SHADOW requires RUNTIME_MODE=CERTIFICATION"
+            )
         if self.job_worker_enabled and not self.durable_worker_process_enabled:
             if "durable_worker_process_enabled" in self.model_fields_set:
                 raise ValueError(

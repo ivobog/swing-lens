@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from evidence_output import artifact_path
 from playwright.sync_api import Page, expect
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -54,7 +55,9 @@ def test_populated_market_changes_and_alert_center_contract(
     ).to_be_visible()
     expect(page.locator('input[name="as_of"]')).to_have_value("")
     page.screenshot(
-        path=REPO_ROOT / "output" / "playwright" / "slse-market-changes-populated.png",
+        path=artifact_path(
+            REPO_ROOT / "output" / "playwright" / "slse-market-changes-populated.png"
+        ),
         full_page=True,
     )
 
@@ -115,7 +118,7 @@ def test_populated_market_changes_and_alert_center_contract(
     expect(page.get_by_text("SIGNAL_CHANGE_EVENT", exact=True).last).to_be_visible()
     expect(page.get_by_text("UNREAD", exact=True).last).to_be_visible()
     page.screenshot(
-        path=REPO_ROOT / "output" / "playwright" / "slse-alert-center-populated.png",
+        path=artifact_path(REPO_ROOT / "output" / "playwright" / "slse-alert-center-populated.png"),
         full_page=True,
     )
 
@@ -123,7 +126,7 @@ def test_populated_market_changes_and_alert_center_contract(
     trigger_row.get_by_role("button", name="Acknowledge").click()
     expect(trigger_row.locator("[data-slse-alert-status]")).to_have_text("ACKNOWLEDGED")
     page.screenshot(
-        path=REPO_ROOT / "output" / "playwright" / "slse-alert-acknowledged.png",
+        path=artifact_path(REPO_ROOT / "output" / "playwright" / "slse-alert-acknowledged.png"),
         full_page=True,
     )
 

@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from pathlib import Path
 
@@ -215,6 +215,9 @@ def _row(
 
 def _fundamental(ticker: str, score: float) -> FundamentalScore:
     return certified_fundamental(
+        source_backed=True,
+        # Synthetic calculation completed at the start of this scenario's day.
+        calculated_at=datetime.combine(TODAY, time.min, tzinfo=UTC),
         run_id=1,
         ticker=ticker,
         fundamental_score=Decimal(str(score)),

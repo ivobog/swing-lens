@@ -7,10 +7,29 @@ The schema intentionally omits unrelated foreign keys; no production data is cop
 
 from __future__ import annotations
 
+# A10 lifecycle restriction; original source and hashes are retained in the A10 evidence.
+# ruff: noqa: E402
+import sys as _a10_sys
+from pathlib import Path as _a10_Path
+
+if __name__ != "__main__":
+    raise SystemExit("HISTORICAL_MANUAL_IMPORT_REFUSED: use the authorized manual CLI")
+_a10_sys.path.insert(0, str(_a10_Path(__file__).resolve().parents[3]))
+
+from scripts.forensics.historical_tool_safety import authorize_manual_tool as _a10_authorize
+
+_a10_authorize(
+    "docs/forensics/run40-lifecycle-failure/reproduce_watchdog_lock.py",
+    operations={"reproduce": True},
+    default_operation="reproduce",
+    clone_required=True,
+)
+
+
 import json
 import sys
 import time
-import uuid
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -35,7 +54,7 @@ from app.services.runtime_mutation_authority import RecoveryAuthority
 
 
 def run() -> dict:
-    database_name = "swinglens_pytest_run40_" + uuid.uuid4().hex[:12]
+    database_name = os.environ["SWINGLENS_HISTORICAL_DISPOSABLE_TARGET"]
     admin_url = resolve_test_postgres_admin_url()
     database_url = make_url(admin_url).set(
         drivername="postgresql+psycopg", database=database_name

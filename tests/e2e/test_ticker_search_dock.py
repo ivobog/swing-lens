@@ -1,6 +1,5 @@
-from pathlib import Path
-
 import pytest
+from evidence_output import artifact_path
 from playwright.sync_api import Page, expect
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
@@ -286,5 +285,4 @@ def test_narrow_layout_and_global_shared_shell(page, ticker_server):
         page.get_by_role("button", name="Close ticker search").click()
     page.set_viewport_size({"width": 1440, "height": 1000})
     select_eog(page, ticker_server)
-    Path("output/playwright").mkdir(parents=True, exist_ok=True)
-    page.screenshot(path="output/playwright/ticker-search-dock.png", full_page=True)
+    page.screenshot(path=artifact_path("output/playwright/ticker-search-dock.png"), full_page=True)

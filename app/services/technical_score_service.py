@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime
 from decimal import Decimal
+from functools import wraps
 from inspect import Parameter, signature
 from time import perf_counter
 from typing import Any
@@ -41,7 +42,10 @@ from app.services.market_calculation_context_service import (
     market_context_for_upload_run,
     standalone_market_context,
 )
-from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.market_clock_service import (
+    MarketCalculationCutoff,
+    require_current_execution_calendar,
+)
 from app.services.operational_metrics import operational_metrics
 from app.services.pine_replica_engine import (
     ENGINE_VERSION,
@@ -139,11 +143,6 @@ def score_run_technicals(
     checkpoint_callback: Callable[..., None] | None = None,
     frozen_tickers: tuple[str, ...] | None = None,
 ) -> list[TechnicalScore]:
-    should_cancel = should_cancel or (lambda: False)
-    _technical_checkpoint(
-        checkpoint_callback, should_cancel, phase="PREPARING", processed=0, total=0
-    )
-    input_started = perf_counter()
     if isinstance(db, Session) and (
         market_cutoff is None or pipeline_run_id is None or effective_configuration is None
     ):
@@ -158,11 +157,7 @@ def score_run_technicals(
         or market_context_for_upload_run(db, run_id)
         or standalone_market_context(reason="STANDALONE_TECHNICAL_SCORING")
     )
-    symbols = _normalize_tickers(
-        list(frozen_tickers)
-        if frozen_tickers is not None
-        else (tickers or _tickers_for_run(db, run_id))
-    )
+    require_current_execution_calendar(market_cutoff)
     settings = deepcopy(get_settings())
     effective_configuration = effective_configuration or resolve_technical_configuration(
         pine=load_pine_defaults(),
@@ -179,6 +174,16 @@ def score_run_technicals(
     pine_params, v4_params, v5_params = resolved["pine"], resolved["v4"], resolved["v5"]
     for flag in ("v5_enabled", "v5_shadow_compare_enabled", "v5_persist_shadow_results"):
         setattr(settings, f"technical_{flag}", resolved[flag])
+    should_cancel = should_cancel or (lambda: False)
+    _technical_checkpoint(
+        checkpoint_callback, should_cancel, phase="PREPARING", processed=0, total=0
+    )
+    input_started = perf_counter()
+    symbols = _normalize_tickers(
+        list(frozen_tickers)
+        if frozen_tickers is not None
+        else (tickers or _tickers_for_run(db, run_id))
+    )
     benchmark_price = _call_price_frame(db, benchmark_ticker, market_cutoff)
     market_features = _market_features(benchmark_price, benchmark_ticker, pine_params, v4_params)
     sector_price = _sector_benchmark_price(db, pine_params, market_cutoff=market_cutoff)
@@ -320,6 +325,7 @@ def preview_run_technicals(
     state.
     """
 
+    require_current_execution_calendar(market_cutoff)
     symbols = _normalize_tickers(tickers or _tickers_for_run(db, run_id))
     v4_params = load_technical_scoring_v4_config()
     v5_params = load_technical_scoring_v5_config()
@@ -386,6 +392,43 @@ def preview_run_technicals(
     )
 
 
+def _guard_finalization_calendar(writer):
+    parameters = signature(writer)
+    preview_writer = core_writer_transaction(writer)
+
+    @wraps(writer)
+    def guarded(*args, **kwargs):
+        arguments = parameters.bind(*args, **kwargs).arguments
+        cutoff = arguments.get("market_cutoff")
+        if cutoff is not None:
+            require_current_execution_calendar(cutoff)
+        pipeline_run_id = arguments.get("pipeline_run_id")
+        configuration = arguments.get("effective_configuration")
+        if (
+            isinstance(arguments["db"], Session)
+            and arguments.get("persist", True)
+            and (cutoff is None or pipeline_run_id is None or configuration is None)
+        ):
+            raise ValueError("TECHNICAL_MUTATION_AUTHORITY_REQUIRED")
+        if pipeline_run_id is not None and configuration is None:
+            raise ValueError(
+                "certified Technical finalization requires configuration frozen "
+                "before feature construction"
+            )
+        if configuration is not None:
+            configuration.require_family("core.technical")
+        if pipeline_run_id is not None and cutoff is None:
+            raise ValueError("Technical identity production requires an explicit market_cutoff")
+        # Persistent publication keeps main's bounded writer transactions. The
+        # nonpersistent path retains the certified caller-owned savepoint/rollback.
+        execute = writer if arguments.get("persist", True) else preview_writer
+        return execute(*args, **kwargs)
+
+    return guarded
+
+
+# Admission precedes bounded publication helpers and their automatic pending flushes.
+@_guard_finalization_calendar
 def finalize_technical_scores(
     db: Session,
     run_id: int,
@@ -404,20 +447,8 @@ def finalize_technical_scores(
     checkpoint_callback: Callable[..., None] | None = None,
 ) -> list[TechnicalScore]:
     should_cancel = should_cancel or (lambda: False)
-    if (
-        isinstance(db, Session)
-        and persist
-        and (market_cutoff is None or pipeline_run_id is None or effective_configuration is None)
-    ):
-        raise ValueError("TECHNICAL_MUTATION_AUTHORITY_REQUIRED")
-    if pipeline_run_id is not None and effective_configuration is None:
-        raise ValueError(
-            "certified Technical finalization requires configuration frozen "
-            "before feature construction"
-        )
     settings = settings or get_settings()
     if effective_configuration is not None:
-        effective_configuration.require_family("core.technical")
         resolved = effective_configuration.values
         pine_params, v4_params, v5_params = resolved["pine"], resolved["v4"], resolved["v5"]
         settings = deepcopy(settings)
@@ -588,8 +619,6 @@ def finalize_technical_scores(
     source_manifest_digest = None
     technical_identity = None
     if pipeline_run_id is not None:
-        if market_cutoff is None:
-            raise ValueError("Technical identity production requires an explicit market_cutoff")
         source_manifest_payload = _canonical_technical_source_manifest(
             scores,
             run_id=run_id,
@@ -1022,6 +1051,7 @@ class TechnicalScoringOverlapCoordinator:
             or market_context_for_upload_run(db, run_id)
             or standalone_market_context(reason="STANDALONE_TECHNICAL_OVERLAP")
         )
+        require_current_execution_calendar(self.market_cutoff)
         self.effective_configuration = effective_configuration or resolve_technical_configuration(
             pine=load_pine_defaults(),
             v4=load_technical_scoring_v4_config(),
@@ -1954,6 +1984,7 @@ def _artifact_cache_context(
         input_as_of_session=input_as_of_session,
         calculation_cutoff_at=market_cutoff.cutoff_at if market_cutoff else None,
         source_manifest_hash=config_hash(source_manifests) if source_manifests else None,
+        calendar_version=market_cutoff.calendar_version if market_cutoff else None,
     )
     if not cache_reads:
         return key, None

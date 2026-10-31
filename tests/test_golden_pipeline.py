@@ -17,7 +17,7 @@ from app.services.market_clock_service import MarketCalculationCutoff
 FIXTURE_PATH = Path("tests/fixtures/golden_pipeline.json")
 
 
-def test_golden_pipeline_scoring_regression() -> None:
+def _golden_pipeline_scenario():
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     db = GoldenFakeDb(fixture)
     cutoff = MarketCalculationCutoff(
@@ -63,6 +63,18 @@ def test_golden_pipeline_scoring_regression() -> None:
         market_cutoff=cutoff,
         pipeline_run_id=11,
     )
+    return fixture, db, fundamentals, combined
+
+
+def test_golden_pipeline_scoring_regression(monkeypatch) -> None:
+    """Preserve the Phase-3 v1 readiness golden under supported LEGACY mode."""
+    from app.settings import FundamentalAdmissionMode, get_settings
+
+    settings = get_settings().model_copy(
+        update={"fundamental_admission_mode": FundamentalAdmissionMode.LEGACY}
+    )
+    monkeypatch.setattr("app.settings.get_settings", lambda: settings)
+    fixture, db, fundamentals, combined = _golden_pipeline_scenario()
     expected = fixture["expected"]
 
     assert len(fundamentals) == 1
@@ -86,6 +98,40 @@ def test_golden_pipeline_scoring_regression() -> None:
     assert db.executed_statements.index("UPDATE winner_prediction_snapshots") < (
         db.executed_statements.index("DELETE FROM combined_results")
     )
+
+
+def test_active_bounded_gap_matches_independent_pre_phase3_golden(monkeypatch) -> None:
+    """ACTIVE admits the bounded gap; the retained earlier specimen is independent."""
+    from app.settings import FundamentalAdmissionMode, get_settings
+
+    settings = get_settings().model_copy(
+        update={"fundamental_admission_mode": FundamentalAdmissionMode.ACTIVE}
+    )
+    monkeypatch.setattr("app.settings.get_settings", lambda: settings)
+    fixture, _db, fundamentals, combined = _golden_pipeline_scenario()
+    expected = fixture["expected_before_phase3"]
+    result = combined[0]
+    permission = result.debug_json["contextual_consumer_eligibility"]["fundamental"]
+    assert permission["fundamental_admission_mode"] == "ACTIVE"
+    assert permission["included"] is True
+    assert permission["orthogonal_decision"]["eligibility"] == "INCLUDED"
+    assert permission["orthogonal_decision"]["reason_codes"] == [
+        "noncritical_missing_with_bounded_component_support"
+    ]
+    assert fundamentals[0].debug_json["coverage"]["available_scoring_fields"] == 77
+    assert fundamentals[0].fundamental_score == Decimal(expected["fundamental_score"])
+    assert fundamentals[0].fundamental_label == expected["fundamental_label"]
+    assert result.has_fundamental and result.is_complete
+    assert result.fundamental_score == fundamentals[0].fundamental_score
+    # Independent policy arithmetic: .55 Fundamental + .45 Technical - .3 earnings.
+    weighted = Decimal(expected["fundamental_score"]) * Decimal(".55") + Decimal("8.44") * Decimal(
+        ".45"
+    )
+    assert (weighted - Decimal(".3")).quantize(Decimal(".0001")) == Decimal(expected["final_score"])
+    assert result.final_score == Decimal(expected["final_score"])
+    assert result.combined_decision == expected["combined_decision"]
+    assert result.position_size_hint == expected["position_size_hint"]
+    assert result.warning_flags_json == expected["warning_flags"]
 
 
 class FakeScalarResult:

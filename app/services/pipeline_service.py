@@ -1940,10 +1940,12 @@ def _pipeline_request_key(
     step_names: tuple[str, ...],
     market_data_policy: MarketDataPolicy = MarketDataPolicy.REQUIRE_IB,
 ) -> str:
-    return (
+    key = (
         f"full-pipeline:run:{upload_run_id}:policy:{market_data_policy.value}:"
         f"steps:{','.join(step_names)}"
     )
+    minimum = getattr(get_settings(), "pipeline_activation_min_id", 0)
+    return f"{key}:activation:{minimum}" if minimum else key
 
 
 def _authoritative_pipeline_for_run(
@@ -1967,6 +1969,10 @@ def _authoritative_pipeline_for_run(
             ).all()
         )
     for pipeline in sorted(rows, key=lambda row: int(row.id or 0), reverse=True):
+        from app.services.pipeline_execution_authority import pipeline_is_in_activation_scope
+
+        if not pipeline_is_in_activation_scope(pipeline):
+            continue
         if pipeline.status not in PIPELINE_TERMINAL_STATUSES or _is_recoverable_sec_block(pipeline):
             return pipeline
     return None

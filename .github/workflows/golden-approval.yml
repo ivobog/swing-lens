@@ -1,0 +1,30 @@
+name: Golden approval
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions: read-all
+
+jobs:
+  authenticated-golden-approval:
+    name: Authenticated golden approval
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted base code only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, verified repository tag
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Verify live review and protection through the existing A13 adapter
+        env:
+          # The default token cannot read every administrative predicate. Missing
+          # access fails closed. An administrator may supply an EXISTING identity
+          # scoped only to read the needed repository/protection/review/CI APIs.
+          GOLDEN_REVIEW_READ_TOKEN: ${{ secrets.GOLDEN_REVIEW_READ_TOKEN || github.token }}
+        run: python -c "from scripts.qa.golden_provenance import github_actions_check; github_actions_check()"

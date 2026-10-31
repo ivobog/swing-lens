@@ -603,7 +603,10 @@ def _ticker_context(
     ranking = _ranking(ticker)
     return TickerSourceContext(
         raw_row=raw,
-        fundamental_score=_fundamental(ticker)
+        fundamental_score=_fundamental(
+            ticker,
+            calculated_at=market_cutoff.cutoff_at if market_cutoff else upload.processed_at,
+        )
         if fundamental_score is _MISSING
         else fundamental_score,
         technical_score=_technical(ticker=ticker)
@@ -652,8 +655,9 @@ def _raw_row(ticker: str) -> RawCompanyRow:
     )
 
 
-def _fundamental(ticker: str) -> FundamentalScore:
+def _fundamental(ticker: str, *, calculated_at: datetime | None = None) -> FundamentalScore:
     return certified_fundamental(
+        calculated_at=calculated_at,
         id=201 if ticker == "MSFT" else 202,
         run_id=7,
         ticker=ticker,

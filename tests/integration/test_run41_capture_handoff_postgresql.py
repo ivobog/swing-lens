@@ -56,6 +56,7 @@ def _artifact_pins(db):
                 SetupSignalSnapshot.evidence_id,
                 CoreCalculationEvidence.payload_fingerprint,
                 CoreCalculationEvidence.payload_json,
+                func.to_jsonb(CoreCalculationEvidence.__table__.table_valued()),
             )
             .join(
                 CoreCalculationEvidence,
@@ -65,6 +66,85 @@ def _artifact_pins(db):
             .order_by(SetupSignalSnapshot.id)
         )
     ]
+
+
+def test_native_decision_sources_match_handoff_and_material_tamper_preserves_rows(
+    run41_engine, record_property
+):
+    """Fresh native equivalent of the Run153 loader/manifest witnesses; no incident data."""
+    from app.models.tables import PriceBar
+    from app.services.setup_lifecycle.repository import SetupLifecycleRepository
+    from app.services.setup_lifecycle.snapshot_builder import (
+        SetupLifecycleSnapshotBuilder,
+        build_run_context_snapshots,
+    )
+    from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
+    from app.services.transition_preflight_plan_service import (
+        TransitionPreflightError,
+        freeze_transition_decision_handoff_manifest,
+        reconstruct_transition_decision_manifests,
+    )
+
+    tables = (
+        "setup_signal_snapshots",
+        "setup_signal_snapshot_current_selections",
+        "setup_signal_snapshot_selection_events",
+    )
+
+    def business_rows(db):
+        return {
+            table: list(db.scalars(text(f"select to_jsonb(t) from {table} t order by id")))
+            for table in tables
+        }
+
+    with Session(run41_engine) as db:
+        cutoff, _ = _seed(db)
+        original = _capture(db, 702, cutoff)
+        db.commit()
+        assert original.snapshot_ids
+        # Prospective technical previews intentionally precede committed evidence
+        # IDs. Compare the persisted post-upstream handoff with that same phase.
+        handoff = freeze_transition_decision_handoff_manifest(
+            db, upload_run_id=702, market_cutoff=cutoff
+        )
+        assert handoff is not None
+        db.commit()
+        repository = SetupLifecycleRepository()
+        context = SetupLifecycleSourceLoader().load_run_context(
+            db, 702, market_cutoff=cutoff, tickers={"R041"}
+        )
+        built = build_run_context_snapshots(
+            db, context, builder=SetupLifecycleSnapshotBuilder(), repository=repository
+        )
+        actual = reconstruct_transition_decision_manifests(
+            db, market_cutoff=cutoff, built_rows=built, repository=repository, tickers={"R041"}
+        )
+        assert actual == handoff.manifest_json["decision_manifests"]
+        record_property("a10_native_same_phase_manifest_equal", True)
+        before = business_rows(db)
+        assert before["setup_signal_snapshots"]
+        target = next(bar for ticker in context.tickers for bar in ticker.price_bars if bar.id)
+        target_id = target.id
+        db.execute(
+            text(
+                "update price_bars set volume=volume+1, "
+                "data_hash='a10-material-tamper' where id=:id"
+            ),
+            {"id": target.id},
+        )
+        db.expire_all()
+        with pytest.raises(TransitionPreflightError) as rejected:
+            SetupLifecycleSnapshotCaptureService().capture_snapshots_for_run(
+                db, 702, market_cutoff=cutoff, frozen_tickers=("R041",)
+            )
+        assert rejected.value.code == "DECISION_MANIFEST_MISMATCH"
+        record_property("a10_native_material_tamper_rejection", rejected.value.code)
+        record_property("a10_nonempty_business_rows_before", sum(map(len, before.values())))
+        assert business_rows(db) == before
+        db.rollback()
+    with Session(run41_engine) as db:
+        assert business_rows(db) == before
+        assert db.get(PriceBar, target_id).data_hash != "a10-material-tamper"
 
 
 @pytest.mark.parametrize("handoff_enabled", [False, True])

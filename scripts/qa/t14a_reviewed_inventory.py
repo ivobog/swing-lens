@@ -94,6 +94,17 @@ PROJECTIONS = frozenset(
 # Exact reviewed exceptions to syntactic type inference. Generic repositories are
 # mechanisms: their semantic callers, separately inventoried, own domain meaning.
 OVERRIDES = {
+    # Concrete model= bindings at these semantic callers feed _insert_once.
+    # The shared SQL helper is a mechanism, not a fourth semantic writer.
+    "app/services/consumer_eligibility_ledger.py:persist_consumer_decision": [
+        "ConsumerEligibilityDecisionRecord"
+    ],
+    "app/services/consumer_eligibility_ledger.py:persist_winner_acquisition_decision": [
+        "WinnerAcquisitionDecisionRecord"
+    ],
+    "app/services/consumer_eligibility_ledger.py:persist_shadow_evaluation": [
+        "EligibilityShadowEvaluationRecord"
+    ],
     "app/services/winner_probability/model_registry.py:ModelRegistry.promote_model": [
         "WinnerModelVersion"
     ],

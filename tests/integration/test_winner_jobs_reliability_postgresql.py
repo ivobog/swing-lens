@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from threading import Barrier, Event, get_ident
 from time import perf_counter
 
 import pytest
+from evidence_output import output_directory
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, func, insert, select, text
 from sqlalchemy.exc import IntegrityError
@@ -27,6 +29,8 @@ from app.models.tables import (
     BackgroundJob,
     BackgroundWorker,
     EstimateLifecycleStatus,
+    PriceBar,
+    PriceBarRevision,
     RefreshCycleRecord,
     UploadRun,
     WinnerCohortGeneration,
@@ -56,7 +60,12 @@ from app.services.background_job_service import (
     recover_stale_jobs,
 )
 from app.services.background_worker import JobDeferred, run_worker_once
-from app.services.bar_cache_service import cache_bars
+from app.services.bar_cache_service import (
+    _to_price_bar,
+    _to_price_bar_revision,
+    bar_data_hash,
+    cache_bars,
+)
 from app.services.calculation_identity import (
     AlgorithmIdentity,
     CalculationContextIdentity,
@@ -79,6 +88,7 @@ from app.services.decision_effective_configuration import (
 from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
 from app.services.ib_data_fetcher import HistoricalBar
 from app.services.ib_market_intelligence.journal import _serving_winner_estimate
+from app.services.market_clock_service import MarketClockService
 from app.services.runtime_mutation_authority import RecoveryAuthority
 from app.services.winner_probability.api_service import WinnerProbabilityApiService
 from app.services.winner_probability.cohort_generation_service import (
@@ -117,7 +127,7 @@ from app.services.winner_probability.market_data_obligation_service import (
     MarketDataObligationService,
     required_outcome_sessions,
 )
-from app.services.winner_probability.outcome_authority import outcome_body
+from app.services.winner_probability.outcome_authority import outcome_body, price_manifest
 from app.services.winner_probability.outcome_orchestration_service import (
     H5DrainResult,
     H5NextOpenOrchestrationService,
@@ -1050,11 +1060,14 @@ def test_incident_968_partial_result_terminalizes_once_and_enqueues_one_child(
         assert child.parent_job_id == parent.id
         assert child.continuation_depth == 1
         assert child.trigger_source == "CONTINUATION"
-        assert db.scalar(
-            select(func.count(WinnerProcessingRun.id)).where(
-                WinnerProcessingRun.background_job_id == parent.id
+        assert (
+            db.scalar(
+                select(func.count(WinnerProcessingRun.id)).where(
+                    WinnerProcessingRun.background_job_id == parent.id
+                )
             )
-        ) == 1
+            == 1
+        )
     engine.dispose()
 
 
@@ -1129,14 +1142,20 @@ def test_incident_968_zero_progress_blocks_after_owner_fenced_terminalization(
         assert job.result_json["reason_code"] == "ZERO_PROGRESS_BLOCKED"
         assert job.operational_metadata_json["attempt_count"] == 1
         assert job.operational_metadata_json["last_attempt"]["status"] == JobStatus.BLOCKED
-        assert db.scalar(
-            select(func.count(WinnerProcessingRun.id)).where(
-                WinnerProcessingRun.background_job_id == root_id
+        assert (
+            db.scalar(
+                select(func.count(WinnerProcessingRun.id)).where(
+                    WinnerProcessingRun.background_job_id == root_id
+                )
             )
-        ) == 1
-        assert db.scalar(
-            select(func.count(BackgroundJob.id)).where(BackgroundJob.parent_job_id == root_id)
-        ) == 0
+            == 1
+        )
+        assert (
+            db.scalar(
+                select(func.count(BackgroundJob.id)).where(BackgroundJob.parent_job_id == root_id)
+            )
+            == 0
+        )
     engine.dispose()
 
 
@@ -1211,11 +1230,14 @@ def test_acquisition_wait_rediscovered_by_future_session_and_matures_exactly_onc
         assert waiting_job.result_json["acquisition_pending"] == 1
         assert waiting_job.result_json["maturation_ready"] == 0
         assert waiting_job.operational_metadata_json["attempt_count"] == 1
-        assert db.scalar(
-            select(func.count(BackgroundJob.id)).where(
-                BackgroundJob.parent_job_id == waiting_job_id
+        assert (
+            db.scalar(
+                select(func.count(BackgroundJob.id)).where(
+                    BackgroundJob.parent_job_id == waiting_job_id
+                )
             )
-        ) == 0
+            == 0
+        )
         assert db.get(WinnerForwardOutcome, outcome_id).status == "PENDING"
 
         outcome = db.get(WinnerForwardOutcome, outcome_id)
@@ -1313,11 +1335,14 @@ def test_acquisition_wait_rediscovered_by_future_session_and_matures_exactly_onc
         assert outcome.source_bar_lineage_hash
         assert db.scalar(select(func.count(WinnerForwardOutcome.id))) == original_forward_count
         assert db.scalar(select(func.count(WinnerTargetStopOutcome.id))) == original_target_count
-        assert db.scalar(
-            select(func.count(BackgroundJob.id)).where(
-                BackgroundJob.job_type.in_(("MARKET_DATA_PREWARM", "IB_FETCH"))
+        assert (
+            db.scalar(
+                select(func.count(BackgroundJob.id)).where(
+                    BackgroundJob.job_type.in_(("MARKET_DATA_PREWARM", "IB_FETCH"))
+                )
             )
-        ) == acquisition_job_count
+            == acquisition_job_count
+        )
         first_lineage = outcome.source_bar_lineage_hash
 
     with Session(engine) as db:
@@ -1472,6 +1497,155 @@ def test_concurrent_refresh_requests_coalesce_without_losing_desired_state(
             )
             == 1
         )
+    engine.dispose()
+
+
+def test_material_price_knowledge_time_and_revision_authority_on_postgresql(
+    disposable_postgres_database: str,
+) -> None:
+    """Real retained prices/validator; each invalid attempt preserves committed Winner state."""
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    observed = datetime(2026, 10, 17, 12, 0, tzinfo=UTC)
+    config = _enabled_winner_config()
+    clock = MarketClockService().cutoff_for(observed, reason="WINNER_KNOWLEDGE_TIME_CONTROL")
+    protected = (
+        WinnerForwardOutcome,
+        WinnerTargetStopOutcome,
+        WinnerCohortRefreshState,
+        WinnerCohortGeneration,
+        WinnerCohortStatistic,
+        WinnerEvidenceManifest,
+        WinnerProbabilityEstimate,
+        WinnerEstimatePublicationRequest,
+    )
+
+    def retained_state(db):
+        return Canonical.dumps(
+            {
+                model.__tablename__: [
+                    dict(row)
+                    for row in db.execute(
+                        select(model.__table__).order_by(*model.__table__.primary_key)
+                    ).mappings()
+                ]
+                for model in protected
+            }
+        )
+
+    with Session(engine) as db:
+        definition = _seed_material_evidence(db, observed=observed - timedelta(minutes=3))
+        _append_material_revision(db, definition.id, observed - timedelta(minutes=2))
+        advance = EvidenceWatermarkService().advance_to_current_material_evidence(
+            db,
+            outcome_definition=definition,
+            config=config,
+            observed_at=observed - timedelta(minutes=1),
+        )
+        CohortGenerationService().capture_or_resume(
+            db,
+            state=advance.state,
+            contract=contract_for(definition, config),
+            requested_at=observed - timedelta(minutes=1) + timedelta(microseconds=1),
+            config=config,
+        )
+        db.commit()
+        baseline = retained_state(db)
+
+    temporal_error = "MUTATION_WINNER_OUTCOME_PRICE_NOT_KNOWN_AT_OPERATION"
+    exact_revision_error = "MUTATION_WINNER_OUTCOME_EXACT_PRICE_REVISION_REQUIRED"
+    cases = {
+        "known_before": None,
+        "created_after": temporal_error,
+        "first_known_after": temporal_error,
+        "revision_after": temporal_error,
+        "revision_observed_after": exact_revision_error,
+        "revision_created_after": "MUTATION_WINNER_OUTCOME_RETAINED_PRICE_REVISION_MISMATCH",
+        "future_session": temporal_error,
+        "foreign_revision": exact_revision_error,
+        "mismatched_revision": exact_revision_error,
+    }
+    for case, error in cases.items():
+        with Session(engine) as db:
+            row = db.scalar(select(PriceBar).where(PriceBar.ticker == "TEST").order_by(PriceBar.id))
+            revised_bar = HistoricalBar(
+                ticker=row.ticker,
+                bar_date=row.bar_date,
+                timeframe=row.timeframe,
+                what_to_show=row.what_to_show,
+                open=100,
+                high=101,
+                low=90,
+                close=100,
+                volume=100_000,
+                source=row.source,
+                adjustment_type=row.adjustment_type,
+            )
+            _acquire_synthetic_material_bars(
+                db, [revised_bar], acquired_at=observed - timedelta(seconds=30)
+            )
+            db.flush()
+            revision = db.scalar(
+                select(PriceBarRevision).where(PriceBarRevision.price_bar_id == row.id)
+            )
+            assert revision is not None
+            after = observed + timedelta(seconds=1)
+            if case in {"created_after", "first_known_after", "revision_after"}:
+                field = {
+                    "created_after": "created_at",
+                    "first_known_after": "first_seen_at",
+                    "revision_after": "revised_at",
+                }[case]
+                setattr(row, field, after)
+            elif case == "revision_observed_after":
+                revision.observed_at = after
+            elif case == "revision_created_after":
+                revision.created_at = after
+            elif case == "future_session":
+                row.bar_date = date(2026, 10, 19)
+            elif case == "foreign_revision":
+                revision.price_bar_id = db.scalar(
+                    select(PriceBar.id).where(PriceBar.ticker == "SPY").order_by(PriceBar.id)
+                )
+            elif case == "mismatched_revision":
+                revision.new_values_json = {**revision.new_values_json, "close": "999"}
+            db.flush()
+            row_id, revision_id = row.id, revision.id
+            db.expire_all()
+            row = db.get(PriceBar, row_id)
+            if error is None:
+                manifest = price_manifest(db, [row], clock=clock)
+                assert manifest[0]["price_bar_revision_id"] == revision_id
+                assert manifest[0]["revision_identity_status"] == "EXACT"
+                forward = db.scalar(
+                    select(WinnerForwardOutcome).where(
+                        WinnerForwardOutcome.is_current_revision.is_(True)
+                    )
+                )
+                result = OutcomeMaturationService().process_current_revisions(
+                    db, now=observed, forward_outcome_ids=(forward.id,)
+                )
+                assert result.processed == 1
+            else:
+                with pytest.raises(ValueError, match=error):
+                    price_manifest(db, [row], clock=clock)
+                # A future bar outside the outcome window is independently refused
+                # by price authority above; the other cases reach the real writer.
+                if case != "future_session":
+                    forward = db.scalar(
+                        select(WinnerForwardOutcome).where(
+                            WinnerForwardOutcome.is_current_revision.is_(True)
+                        )
+                    )
+                    with pytest.raises(ValueError, match=error):
+                        OutcomeMaturationService().process_current_revisions(
+                            db, now=observed, forward_outcome_ids=(forward.id,)
+                        )
+                assert retained_state(db) == baseline, case
+            db.rollback()
+        with Session(engine) as fresh:
+            assert retained_state(fresh) == baseline, case
+            assert fresh.scalar(select(func.count(PriceBarRevision.id))) == 0
     engine.dispose()
 
 
@@ -2222,6 +2396,7 @@ def test_controlled_materialization_can_stop_at_ready_without_serving(
 @pytest.mark.performance
 def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
     disposable_postgres_database: str,
+    record_property,
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
@@ -2292,6 +2467,23 @@ def test_390_row_42_cohort_heartbeat_commits_have_bounded_selects(
                 )
                 or 0
             )
+            observation = {
+                "result": result.__dict__,
+                "checkpoint": generation.__dict__.get("checkpoint_json"),
+                "metrics": generation.__dict__.get("metrics_json"),
+                "ownership_and_status": {
+                    key: value for key, value in generation.__dict__.items()
+                    if any(part in key for part in ("owner", "lease", "status", "group"))
+                },
+                "elapsed_seconds": elapsed,
+                "original_wall_limit_seconds": 45,
+                "prediction_selects": prediction_selects,
+                "total_selects": len(selects),
+                "generation_memberships": generation_memberships,
+            }
+            encoded = json.dumps(observation, default=str, indent=2)
+            (output_directory("cohort-slice") / "observation.json").write_text(encoded)
+            record_property("cohort_slice_observation", encoded)
             assert manifest_memberships == 0
             assert result.status == CohortGenerationStatus.PUBLISHED
             assert result.evidence_rows_loaded == 390
@@ -2953,7 +3145,9 @@ def _append_material_revision(db: Session, definition_id: int, observed: datetim
                     adjustment_type=None,
                 )
             )
-    cache_bars(db, bars)
+    # This adapter models a synthetic acquisition immediately before the fixed
+    # operation, not a present-day fetch of historical production evidence.
+    _acquire_synthetic_material_bars(db, bars, acquired_at=observed - timedelta(microseconds=1))
     db.flush()
     db.expire_all()
     result = OutcomeMaturationService().process_current_revisions(
@@ -2970,6 +3164,68 @@ def _append_material_revision(db: Session, definition_id: int, observed: datetim
         )
     )
     assert revised_target.revision == next_revision
+
+
+def _acquire_synthetic_material_bars(
+    db: Session, bars: list[HistoricalBar], *, acquired_at: datetime
+) -> None:
+    """Construct fixture acquisition events with the production value/hash mappings.
+
+    Explicit timestamps belong to these synthetic events from birth; no retained
+    production row is backdated and no application or database clock is mocked.
+    """
+    clock = MarketClockService().cutoff_for(acquired_at, reason="SYNTHETIC_WINNER_ACQUISITION")
+    for bar in bars:
+        assert bar.bar_date <= clock.latest_completed_session
+        current = db.scalar(
+            select(PriceBar).where(
+                PriceBar.ticker == bar.ticker,
+                PriceBar.bar_date == bar.bar_date,
+                PriceBar.timeframe == bar.timeframe,
+                PriceBar.what_to_show == bar.what_to_show,
+            )
+        )
+        data_hash = bar_data_hash(bar)
+        acquired = _to_price_bar(bar, data_hash, acquired_at)
+        acquired.created_at = acquired_at
+        if current is None:
+            db.add(acquired)
+            continue
+        assert (
+            max(
+                current.created_at,
+                current.first_seen_at,
+                current.revised_at or current.first_seen_at,
+            )
+            <= acquired_at
+        )
+        if current.data_hash != data_hash:
+            revision = _to_price_bar_revision(
+                current,
+                bar,
+                revision_number=current.revision_count + 1,
+                previous_data_hash=current.data_hash,
+                new_data_hash=data_hash,
+                observed_at=acquired_at,
+                fetch_run_id=None,
+                fetch_item_id=None,
+            )
+            revision.created_at = acquired_at
+            db.add(revision)
+            for field in (
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "source",
+                "adjustment_type",
+                "data_hash",
+            ):
+                setattr(current, field, getattr(acquired, field))
+            current.revision_count += 1
+            current.revised_at = acquired_at
+        current.last_seen_at = acquired_at
 
 
 def _upgrade(database_url: str, revision: str = "head") -> None:

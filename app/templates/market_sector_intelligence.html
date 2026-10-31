@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Market Sector Intelligence · SwingLens{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', path='/market_sector_intelligence.css') }}">
+<div class="msi-dashboard" id="msi-dashboard">
+  <header class="msi-heading">
+    <div><p class="msi-eyebrow">MARKET RESEARCH / ELEVEN SECTORS</p>
+      <h1>Market Sector Intelligence</h1>
+      <p id="msi-freshness" class="msi-freshness" role="status" aria-live="polite" data-status="UNKNOWN">UNKNOWN · Checking stored sector evidence…</p>
+      <details class="msi-freshness-evidence"><summary>Stored session and affected ETF data</summary>
+        <p id="msi-freshness-detail" class="msi-caption"></p></details>
+      <p class="msi-subtitle">Where leadership stands. Where momentum is moving.</p>
+    </div>
+    <div class="msi-actions"><a href="/settings#market-sector-heading">Sector mapping ↗</a>
+      <button type="button" id="msi-refresh" aria-describedby="msi-refresh-status">Refresh Sector</button>
+      <button type="button" id="msi-reload">Reload cached reads</button></div>
+  </header>
+  <p id="msi-refresh-status" class="msi-refresh-status" role="status" aria-live="polite"></p>
+  <p class="msi-scope">Independent ETF evidence against SPY. No CSV or run required. Research diagnostics; stock models applied to ETFs.</p>
+  {% if configuration_error %}<p role="alert" class="msi-notice">{{ configuration_error }}</p>{% endif %}
+  <noscript><p class="msi-notice">Enable JavaScript to load the read-only data panels. <a href="/api/market-sector-intelligence/coverage">Inspect coverage JSON</a>.</p></noscript>
+  <div id="msi-notice" role="status" aria-live="polite" class="msi-notice" hidden></div>
+  <div class="msi-status-grid" aria-label="Independent evidence sources">
+    {% for key, label in [('rotation', 'Current rotation'), ('archive', 'Saved rotation'), ('technical', 'Current technicals'), ('chart', 'Cached price history')] %}
+    <section class="msi-status"><p class="msi-eyebrow">{{ label }}</p><div id="msi-status-{{ key }}" role="status" aria-live="polite">Loading…</div></section>
+    {% endfor %}
+  </div>
+  <p id="msi-coverage" class="msi-coverage" role="status">Checking ETF + SPY cache coverage…</p>
+  <p id="msi-mismatch" class="msi-notice" role="status" hidden></p>
+  <section class="msi-panel msi-overview" aria-labelledby="msi-summary-title">
+    <div class="msi-panel-header"><h2 id="msi-summary-title">Market at a glance</h2><p id="msi-summary-coverage" class="msi-badge" role="status">Checking eleven-sector evidence…</p></div>
+    <p id="msi-summary-source" class="msi-provenance">Loading current rotation…</p>
+    <div class="msi-overview-grid">
+      <div><h3>Rotation quadrants</h3><dl id="msi-quadrants" class="msi-quadrants" aria-label="Eligible sector quadrant counts"></dl></div>
+      <div><h3>Strongest sectors</h3><p class="msi-caption">Top three by the authoritative D2 rank · RS63 shown.</p><ul id="msi-strongest" class="msi-highlights"></ul></div>
+      <div><h3>Fastest-improving sectors</h3><p class="msi-caption">Highest positive D2 relative momentum (PP); ties follow D2 rank.</p><ul id="msi-improvers" class="msi-highlights"></ul></div>
+    </div>
+    <p id="msi-summary-note" class="msi-notice" role="status" hidden></p>
+  </section>
+  <section class="msi-panel" aria-labelledby="msi-rotation-title">
+    <div class="msi-panel-header"><div><p class="msi-eyebrow">01 / ROTATION</p><h2 id="msi-rotation-title">Leadership in motion</h2></div>
+      <div class="msi-controls"><label>Rotation source <select id="msi-snapshot"><option value="">Current preview</option></select></label>
+      <label>Saved captures <select id="msi-history-limit"><option value="8">Latest 8</option><option value="12">Latest 12</option></select></label>
+      <label class="msi-check"><input id="msi-trails" type="checkbox" checked> Show selected ETF trails</label></div>
+    </div>
+    <p class="msi-caption">Custom SPY-relative axes: X = RS63 (%), Y = relative momentum (percentage points). RRG-inspired, not proprietary JdK RRG. States and ranks come from D2.</p>
+    <p id="msi-rotation-source" class="msi-provenance">Loading current preview…</p>
+    <div id="msi-scatter" class="msi-chart" aria-label="Sector rotation map"></div>
+    <p id="msi-chart-tooltip" role="status" class="msi-tooltip">Focus or tap a sector marker to inspect its exact saved or preview values.</p>
+    <p id="msi-trail-focus" class="msi-caption" role="status"></p>
+    <p id="msi-history-note" class="msi-caption">Loading actual saved captures…</p>
+    <div class="msi-table-scroll" tabindex="0" role="region" aria-label="Sector rotation values, scroll horizontally"><table id="msi-ranks"><caption>All eleven sectors · authoritative D2 rank (select a sector for detail)</caption>
+      <thead><tr><th scope="col" aria-sort="ascending"><button data-sort="rank" type="button">Rank ↕</button></th><th scope="col"><button data-sort="sector" type="button">Sector ↕</button></th><th scope="col">State</th><th scope="col">RS5 %</th><th scope="col">RS21 %</th><th scope="col">RS63 %</th><th scope="col">Momentum PP</th><th scope="col">ETF 63 %</th><th scope="col">Last session / reason</th></tr></thead><tbody></tbody></table></div>
+  </section>
+  <section class="msi-panel" aria-labelledby="msi-performance-title">
+    <div class="msi-panel-header"><div><p class="msi-eyebrow">02 / PRICE PERFORMANCE</p><h2 id="msi-performance-title">The market behind the movement</h2></div>
+    <label>Heatmap measure <select id="msi-mode"><option value="relative">SPY-relative ratio return</option><option value="absolute">ETF absolute price return</option></select></label></div>
+    <p id="msi-price-source" class="msi-provenance">Loading cached prices…</p>
+    <p class="msi-caption">Price returns, not certified total returns. Relative = 100 × ((ETF now / SPY now) / (ETF then / SPY then) − 1). Missing values stay N/A.</p>
+    <div class="msi-price-grid"><div class="msi-table-scroll" tabindex="0" role="region" aria-label="Return heatmap, scroll horizontally"><table id="msi-heatmap"><caption>Exact completed trading-session windows · approximate calendar labels</caption><thead><tr><th scope="col">Sector ETF</th><th scope="col">1W · 5</th><th scope="col">1M · 21</th><th scope="col">3M · 63</th><th scope="col">6M · 126</th></tr></thead><tbody></tbody></table></div>
+      <div><div class="msi-controls"><label>Line horizon <select id="msi-horizon"><option value="5">1W · 5 sessions</option><option value="21">1M · 21 sessions</option><option value="63">3M · 63 sessions</option><option value="126">6M · 126 sessions</option></select></label><label class="msi-check"><input id="msi-spy" type="checkbox" checked> Show SPY</label></div>
+      <div id="msi-lines" class="msi-chart" aria-label="Normalized cached price comparison"></div>
+      <p id="msi-line-tooltip" role="status" class="msi-tooltip">Focus a line endpoint or inspect its session values below.</p><p id="msi-line-note" class="msi-caption"></p>
+      <details><summary>Accessible line values (common start = 100)</summary><div class="msi-table-scroll" tabindex="0" role="region" aria-label="Normalized price data"><table id="msi-line-values"><caption>Actual cached session observations</caption><thead></thead><tbody></tbody></table></div></details></div>
+    </div>
+    <fieldset id="msi-selection" class="msi-selection"><legend>Compare ETF lines and saved trails</legend>{% for sector in sectors %}<label><input type="checkbox" value="{{ sector.etf_symbol }}"> {{ sector.etf_symbol }} <span>{{ sector.standard_market_sector }}</span></label>{% endfor %}</fieldset>
+  </section>
+  <section class="msi-panel" aria-labelledby="msi-technicals-title">
+    <div class="msi-panel-header"><div><p class="msi-eyebrow">03 / MODEL DIAGNOSTICS</p><h2 id="msi-technicals-title">Two models. Their own interpretations.</h2></div><span class="msi-badge">CURRENT ONLY · RESEARCH</span></div>
+    <p class="msi-caption">Native stock models applied to ETFs; not ETF-calibrated forecasts or trading recommendations. Rotation rank, V4 and V5 remain separate. The raw score delta is descriptive and never blended into rank. Model confidence describes evidence quality, not a calibrated probability of future returns.</p>
+    <p id="msi-technical-source" class="msi-provenance">Loading current technical preview…</p><p id="msi-cohort" class="msi-notice" role="status" hidden></p>
+    <p class="msi-caption">Paired native scores, 0–10 display axis: solid green = V4 final; outlined purple = V5 raw composite. Distinct models, not interchangeable calibrated scales. Missing evidence is N/A. Confidence-adjusted V5 and exact classifications remain in the table below.</p>
+    <div id="msi-technical-chart" class="msi-chart" aria-label="Eleven sector ETFs, paired native V4 and V5 scores"></div>
+    <p id="msi-technical-tooltip" role="status" class="msi-tooltip">Focus or tap an ETF label to compare its native scores, classifications, confidence and descriptive disagreement.</p>
+    <div class="msi-table-scroll" tabindex="0" role="region" aria-label="Technical V4 V5 diagnostics, scroll horizontally"><table id="msi-technicals"><caption>Current V4 / V5 · native scores, classifications, action and confidence</caption><thead><tr><th scope="col">Sector ETF</th><th scope="col">V4 final / confidence</th><th scope="col">V4 classification / action</th><th scope="col">V5 raw / adjusted</th><th scope="col">V5 classification / action / confidence</th><th scope="col">V5 leadership</th><th scope="col">Raw V5 − V4</th><th scope="col">Readiness</th></tr></thead><tbody></tbody></table></div>
+  </section>
+  <section class="msi-panel msi-detail" aria-labelledby="msi-detail-title"><div class="msi-panel-header"><div><p class="msi-eyebrow">04 / SECTOR EVIDENCE</p><h2 id="msi-detail-title">Inspect a sector</h2></div><label>Sector <select id="msi-focus">{% for sector in sectors %}<option value="{{ sector.etf_symbol }}">{{ sector.etf_symbol }} · {{ sector.standard_market_sector }}</option>{% endfor %}</select></label></div>
+    <div id="msi-detail"></div>
+  </section>
+  <footer class="msi-footer">Cached history is visible as of each current read cutoff. Saved rotation signals exist only where explicitly captured. Current V4/V5 previews have no historical archive. <a href="/settings#market-sector-heading">Read-only taxonomy and ETF crosswalk ↗</a></footer>
+</div>
+<script type="application/json" id="msi-bootstrap">{{ {'sectors': sectors, 'initial': initial_state, 'csrf_token': csrf_token}|tojson }}</script>
+<script src="{{ url_for('static', path='/market_sector_refresh.js') }}" defer></script>
+<script src="{{ url_for('static', path='/market_sector_intelligence.js') }}" defer></script>
+{% endblock %}

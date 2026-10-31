@@ -1082,6 +1082,7 @@ def fence_stalled_jobs(
         select(BackgroundJob)
         .where(BackgroundJob.status == JobStatus.RUNNING)
         .where(BackgroundJob.last_progress_at.is_not(None))
+        .where(_job_execution_authority_predicate())
     )
     if worker_id is not None:
         candidate_query = candidate_query.where(BackgroundJob.worker_id == worker_id)

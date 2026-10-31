@@ -1,0 +1,287 @@
+"""One-specimen A05B worksheet. Stdlib only; never reads production outputs.
+
+This is an authoring record, not a replacement scoring implementation. All
+shortcuts below are proved for the fixed increasing arithmetic input series.
+"""
+from decimal import Decimal as D, ROUND_HALF_EVEN
+import hashlib
+import importlib.abc
+import json
+from pathlib import Path
+import sys
+
+
+class RefuseApplication(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "app" or fullname.startswith("app."):
+            raise AssertionError("Production import forbidden in independent worksheet")
+
+
+sys.meta_path.insert(0, RefuseApplication())
+OUT = Path(__file__).resolve().parent
+ROOT = OUT.parents[2]
+INPUT = ROOT / "tests/e2e/single_run_certification/golden/v3"
+DEST = INPUT / "oracle-completion"
+
+
+def load(name):
+    return json.loads((INPUT / name).read_text(encoding="utf-8"), parse_float=D)
+
+
+def q(value):
+    return max(D(0), min(D(10), D(value))).quantize(D(".0001"), rounding=ROUND_HALF_EVEN)
+
+
+def text(value):
+    return str(value)
+
+
+config = load("configuration.json")
+market = load("market-data.json")["cache"]
+tickers = load("manifest.json")["tickers"]
+fundamental = D("9.1909")
+core, worksheets = {}, {}
+
+
+def roc(ticker, n):
+    bars = market[ticker]
+    return (D(bars[-1]["close"])/D(bars[-1-n]["close"])-1)*100
+
+
+def percentile(values, current):
+    # The frozen peer policy uses average ranks for ties, divided by N.
+    less = sum(value < current for value in values)
+    same = sum(value == current for value in values)
+    return (D(less)+(D(same)+1)/2)/len(values)*100
+
+
+for ticker in tickers:
+    bars = market[ticker]
+    closes = [D(row["close"]) for row in bars]
+    step = closes[-1]-closes[-2]
+    assert len(closes) == 320 and all(b-a == step > 0 for a, b in zip(closes, closes[1:]))
+    assert all(D(row["high"])-D(row["close"]) == D("1.1") and (
+        D(row["close"])-D(row["low"]) == 1) for row in bars)
+    close = closes[-1]
+    sma50 = sum(closes[-50:])/50
+    sma200 = sum(closes[-200:])/200
+    stop = close-D("1.63")  # latest low - .30 * constant ATR 2.1
+    target = close+D("3.15")  # ATR target: 1.5 * 2.1
+    rr = D("3.15")/D("1.63")
+    entry_risk = D("1.63")/close*100
+    depth = (D("2.1")-step)/(close-step+D("1.1"))*100
+    assert depth < 3 and (close/sma50-1)*100 < 8 and D("2.1")/close*100 < 6
+    assert rr < 2  # configured reward/risk entry gate refuses all ten
+    # Monotonic prices imply no internal 3/3 pivots, no red distribution bars,
+    # no high breakout (prior high exceeds latest close by 1.1 - step), RSI=100,
+    # ADX=100 with no ADX increase, and increasing positive DM/OBV/volume.
+    rs_values = {}
+    for peer in ("SPY", "QQQ"):
+        stronger = step/D(bars[0]["close"]) > (
+            (D(market[peer][1]["close"])-D(market[peer][0]["close"]))/D(market[peer][0]["close"]))
+        # A ratio of two increasing affine functions is strictly monotone;
+        # all eight relative-strength predicates agree in this specimen.
+        rs_values[peer] = D(10) if stronger else D(0)
+    combined_rs = q(rs_values["SPY"]*D(".7")+rs_values["QQQ"]*D(".3"))
+    returns = {n: roc(ticker, n) for n in (21, 63, 126)}
+    local_terms = {
+        "ma_relationships": D("3.0"), "positive_slopes": D(".9"),
+        "mid_slope_atr": D(".5") if step*10/D("2.1") > D(".5") else D(".3"),
+        "slow_slope_atr": D(".4"), "mid_vs_slow_slope": D(0),
+        "adx_trend": D(".7"), "positive_direction": D(".7"),
+        "adx_rising": D(0), "positive_dm_rising": D(".3"),
+        "high_52w_position": D(".8"), "near_52w_high": D(".7"),
+        "higher_pivots": D(0), "above_previous_close20": D(".5"),
+    }
+    local = q(sum(local_terms.values()))
+    trend = q(local*D(".8")+D(10)*D(".2"))
+    momentum_terms = {
+        "relative_strength_bucket": D("1.4") if combined_rs >= 8 else (
+            D(1) if combined_rs >= D("6.5") else D(".5") if combined_rs >= 5 else D(0)),
+        "rising_rs_and_new_high": D("1.6") if rs_values["SPY"] else D(0),
+        "roc21": D(".6") if returns[21] > 3 else D(".3"),
+        "roc63": D(".7") if returns[63] > 8 else D(".35"),
+        "roc126": D(".5") if returns[126] > 15 else D(".25"),
+        "beats_market": D(".7") if rs_values["SPY"] else D(0),
+        "rsi_bucket_and_rising": D(0), "rsi_pullback_low": D(".3"),
+        "green_volume": D(".45"), "obv_rising": D(".45"),
+        "bullish_volume_bar": D(".4"), "breakout_volume_dry_up_strong_close": D(0),
+        "price_rising_and_above_fast": D(".6"),
+    }
+    momentum = q(sum(momentum_terms.values()))
+    setup_terms = {"support": D(".8"), "red_volume_nonincreasing": D(".3"),
+                   "above_ema20_sma50_rising": D("1.5"), "above_close10": D(".4"),
+                   "above_ema10": D(".4"), "extension_safe": D(".8"),
+                   "atr_safe": D(".2"), "no_red_no_distribution_no_failure": D(1)}
+    setup = q(sum(setup_terms.values()))
+    risk = q(D("2.2") + (D(1) if combined_rs < D("4.5") else (
+        D(".4") if combined_rs < 7 else D(0))) + (D(".7") if rs_values["QQQ"] < 5 else D(0)))
+    base = q(sum(x*w for x, w in zip((trend, momentum, setup, 10-risk, D(10), combined_rs, D(10)),
+                                    map(D, (".25", ".25", ".20", ".10", ".08", ".08", ".04")))))
+    # Priorities: RSI100 excludes buyable pullbacks; no fresh breakout;
+    # momentum <8 excludes continuation; >=7 then satisfies overheating.
+    assert momentum < 8
+    classification = "Overheated momentum" if momentum >= 7 else "No trade"
+    box_low = close-step*20-1
+    box_width = (step*19+D("2.1"))/box_low*100
+    box_tightness = q((1-box_width/15)*10)
+    breakout_quality = q(D(4)+box_tightness/D(10)*D("1.5"))
+    # The active indicator policy operates on binary64 prices. Independently
+    # evaluate the Wilder recurrence from those raw inputs, including its strict
+    # five-bar contraction predicate. Decimal ATR is exactly2.1; binary64 can
+    # differ by a few ulps, which is financially amplified by this native rule.
+    atr64, previous_atr = [], None
+    alpha = 1/14
+    for bar in bars:
+        true_range = float(bar["high"])-float(bar["low"])
+        previous_atr = true_range if previous_atr is None else (1-alpha)*previous_atr+alpha*true_range
+        atr64.append(previous_atr)
+    absolute_atr_contracts = atr64[-1] < atr64[-6]
+    vcp = D(5)+int(absolute_atr_contracts)
+    core[ticker] = {
+        "ticker": ticker, "local_trend_score": local, "trend_score": trend,
+        "momentum_score": momentum, "setup_score": setup, "risk_score": risk,
+        "market_score": D(10), "relative_strength_score": rs_values["SPY"],
+        "sector_relative_strength_score": rs_values["QQQ"], "combined_relative_strength_score": combined_rs,
+        "htf_score": D(10), "base_dual_score": base, "classification": classification,
+        "technical_confidence": "high", "data_quality_score": D(10), "insufficient_data": False,
+        "stage": "Stage 2", "market_regime": "Bull trend", "technical_engine_version": "4.0.0",
+        "pullback_health": "Mixed", "warning_flags_json": [], "suggested_stop": q(stop) if stop <= 10 else stop,
+        "suggested_target": target, "reward_risk": rr, "entry_risk_pct": entry_risk,
+        "vcp_score": vcp, "box_tightness_score": box_tightness,
+        "breakout_quality_score": breakout_quality, "climax_risk_score": D(3),
+        "atr_percentile_252": D(100)/252, "volume_percentile_252": D(100),
+        "range_percentile_252": D(100)/252, "extension_percentile_252": D(100)/252,
+    }
+    worksheets[ticker] = {"source": "market-data.json:cache:"+ticker, "close": close, "step": step,
+                          "sma50": sma50, "sma200": sma200, "pullback_depth_pct": depth,
+                          "local_trend_terms": local_terms, "momentum_terms": momentum_terms,
+                          "setup_terms": setup_terms, "box_width_pct": box_width,
+                          "reward_risk_formula": "3.15/1.63", "entry_gate_passed": False,
+                          "binary64_atr_latest": repr(atr64[-1]), "binary64_atr_five_bars_ago": repr(atr64[-6]),
+                          "absolute_atr_contracts": absolute_atr_contracts}
+
+for ticker, row in core.items():
+    peer_fields = {"roc21": [roc(t, 21) for t in tickers], "roc63": [roc(t, 63) for t in tickers],
+                   "roc126": [roc(t, 126) for t in tickers],
+                   "benchmark_rs_score": [core[t]["relative_strength_score"] for t in tickers],
+                   "dual_score": [core[t]["base_dual_score"] for t in tickers],
+                   "setup_score": [core[t]["setup_score"] for t in tickers]}
+    own = [roc(ticker, n) for n in (21, 63, 126)] + [
+        row["relative_strength_score"], row["base_dual_score"], row["setup_score"]]
+    percentiles = {key: percentile(values, value) for (key, values), value in zip(peer_fields.items(), own)}
+    leadership = q(sum(percentiles.values())/60)
+    execution_terms = {"reward_risk": q(row["reward_risk"]/3*10),
+                       "entry_risk": q((12-row["entry_risk_pct"])/12*10),
+                       "liquidity": D(10), "valid_stop": D(10)}
+    execution = q(sum(x*w for x, w in zip(execution_terms.values(), map(D, (".35", ".30", ".20", ".15")))))
+    v4_parts = {"trend": row["trend_score"], "momentum": row["momentum_score"],
+                "setup": max(row["setup_score"], row["vcp_score"], row["breakout_quality_score"]),
+                "leadership": leadership, "risk_control": 10-max(row["risk_score"], D(3)),
+                "market": D("9.5"), "execution": execution}
+    weights = config["technical_scoring_v4.yaml"]["regime_weights"]["bull_trend"]
+    row["dual_score"] = q(sum(v4_parts[key]*D(weights[key]) for key in v4_parts))
+    row["leadership_score"] = leadership
+    row["action_bias"] = "Overheated, avoid chasing" if row["classification"] == "Overheated momentum" else "No clear trade"
+    worksheets[ticker].update(peer_percentiles=percentiles, v4_parts=v4_parts,
+                              execution_terms=execution_terms, regime_weights=weights)
+
+# Literal accumulation order from the content-pinned ranking_profiles.yaml.
+# Binary64 round is a reviewed persistence policy; Decimal-only ties were wrong.
+profile_order = {
+ "momentum_swing": "momentum_strength momentum_health trend_quality setup_quality breakout_or_vcp_quality risk_control".split(),
+ "quality_momentum": "momentum_strength momentum_health trend_quality setup_quality risk_control".split(),
+ "early_rocket": "momentum_strength trend_repair breakout_quality relative_strength_acceleration volume_expansion risk_control".split(),
+ "clean_compounder_pullback": "pullback_health trend_quality risk_control momentum_health relative_strength".split(),
+ "defensive_quality": "risk_control trend_quality momentum_health setup_quality market_regime_alignment".split(),
+}
+def fq(value):
+    return D(str(round(float(value), 4)))
+
+# _to_decimal applies four places even to unbounded Numeric ratio/percentile columns.
+# Keep raw analytical values in earlier worksheets; project only at this boundary.
+for row in core.values():
+    for field in ("atr_percentile_252", "range_percentile_252", "extension_percentile_252",
+                  "reward_risk", "entry_risk_pct"):
+        row[field] = fq(row[field])
+
+combined, ranks, profile_parts, profile_arithmetic = [], [], {}, []
+for ticker, row in core.items():
+    penalty = D("1.5") if row["classification"] == "Overheated momentum" else D(0)
+    score = q(fundamental*D(".55")+row["dual_score"]*D(".45")-penalty)
+    decision = "Strong candidate" if score >= 8 else "Candidate" if score >= D("6.8") else "Watchlist" if score >= D("5.5") else "Avoid"
+    combined.append({"ticker": ticker, "fundamental_score": fundamental, "dual_score": row["dual_score"],
+                     "final_score": score, "technical_classification": row["classification"],
+                     "combined_decision": decision, "is_complete": True, "has_warning": False,
+                     "warning_flags": [], "upcoming_earnings_date": "2026-09-15", "days_until_earnings": -41,
+                     "earnings_risk_level": "clear", "position_size_hint": "Half starter" if decision in (
+                         "Candidate", "Strong candidate") else "Small probe"})
+    strength = q(row["momentum_score"]*D(".55")+row["combined_relative_strength_score"]*D(".3")+(
+        D("1.5") if row["relative_strength_score"] else D(0)))
+    health = q(row["vcp_score"]*D(".3")+row["box_tightness_score"]*D(".15")+D("3.1"))
+    parts = {"momentum_strength": strength, "momentum_health": health, "trend_quality": row["trend_score"],
+             "setup_quality": max(row["setup_score"], row["vcp_score"], row["breakout_quality_score"]),
+             "breakout_or_vcp_quality": max(row["vcp_score"], row["breakout_quality_score"]),
+             "risk_control": 10-max(row["risk_score"], D(3)), "breakout_quality": row["breakout_quality_score"],
+             "relative_strength_acceleration": D(10) if row["relative_strength_score"] else D(0),
+             "volume_expansion": D("6.5"), "pullback_health": D("5.5"),
+             "relative_strength": row["combined_relative_strength_score"], "market_regime_alignment": D(10),
+             "trend_repair": q(row["trend_score"]*D(".35")+strength*D(".2")+row["combined_relative_strength_score"]*D(".1"))}
+    profile_parts[ticker] = parts
+    for name, profile in config["ranking_profiles.yaml"]["profiles"].items():
+        terms = [float(parts[key])*float(profile["technical_components"][key]) for key in profile_order[name]]
+        binary_sum = sum(terms)
+        technical = fq(binary_sum)
+        weighted = (float(technical)*float(profile["weights"]["technical"])
+                    +float(fundamental)*float(profile["weights"]["fundamental"]))
+        before = fq(weighted)
+        profile_arithmetic.append({"ticker":ticker,"profile":name,"component_order":profile_order[name],
+            "binary64_terms_hex":[term.hex() for term in terms],"binary64_sum_hex":binary_sum.hex(),
+            "exact_binary64_sum":str(D.from_float(binary_sum)),"technical":technical,
+            "weighted_binary64_hex":weighted.hex(),"before_penalties":before})
+        penalty = D(profile["penalties"].get("overheated_momentum", 0)) if row["classification"] == "Overheated momentum" else D(0)
+        score = fq(float(before)-float(penalty))
+        thresholds = profile["thresholds"]
+        decision = "Strong candidate" if score >= D(thresholds["strong_candidate_min_score"]) else (
+            "Candidate" if score >= D(thresholds["candidate_min_score"]) else (
+                "Watchlist" if score >= D(thresholds["watch_min_score"]) else "Avoid"))
+        gates = {"earnings_block": False, "danger_gate": False, "data_quality": True}
+        if "fundamental_floor" in profile["gates"]:
+            gates["fundamental_floor"] = {"passed": True, "min_score": profile["gates"]["fundamental_floor"]["min_score"]}
+        if name == "defensive_quality":
+            gates["liquidity_cap"] = False
+        ranks.append({"ticker": ticker, "profile": name, "technical_profile_score": technical,
+                      "profile_score": score, "decision_label": decision, "gates": gates,
+                      "penalties": {"overheated_momentum": penalty} if penalty else {},
+                      "has_warning": bool(penalty), "is_complete": True,
+                      "warning_flags": ["overheated_momentum"] if penalty else []})
+for name in config["ranking_profiles.yaml"]["profiles"]:
+    peers = [r for r in ranks if r["profile"] == name]
+    peers.sort(key=lambda r: (3 if r["decision_label"] == "Avoid" else int(r["has_warning"]),
+                              -r["profile_score"], -r["technical_profile_score"], r["ticker"]))
+    for position, row in enumerate(peers, 1):
+        row["profile_rank"] = position
+
+for position, row in enumerate(sorted(combined, key=lambda r: (-r["final_score"], r["ticker"])), 1):
+    # All complete rows' decision buckets follow the same score thresholds.
+    row.update(final_rank=position, has_fundamental=True, has_technical=True)
+
+
+def dump(path, value):
+    path.write_text(json.dumps(value, indent=2, sort_keys=True, default=text)+"\n", encoding="utf-8")
+
+
+if __name__ == "__main__":
+    DEST.mkdir(exist_ok=True)
+    dump(DEST / "core-expected.json", {"technical": list(core.values()), "combined": combined, "ranking": ranks,
+         "technical_contributions": [{"ticker": ticker, **worksheet["v4_parts"]} for ticker, worksheet in worksheets.items()]})
+    dump(DEST / "core-derivations.json", {"technical": worksheets, "ranking_components": profile_parts, "ranking_arithmetic": profile_arithmetic,
+         "policy_sources": ["pine_replica_engine.py:82-398,433-612", "technical_score_v4.py:208-263,634-651",
+                            "relative_leadership.py:61-117", "ranking_profile_components.py:14-120",
+                            "ranking_profile_engine.py:98-241", "combined_decision.py:470-708"],
+         "input_manifest_sha256": hashlib.sha256((INPUT / "manifest.json").read_bytes()).hexdigest(),
+         "precision": "Analytical Decimal reductions; active profile binary64 accumulation order and four-place round recorded explicitly; persisted ratios/percentiles round4; comparison tolerance1e-8",
+         "constant_atr_note": "Decimal true range is2.1. Active binary64 Wilder recurrence and strict lag5 comparison independently yield ATR contraction for LSCC/RDVT. The worksheet records ulps before any production output comparison; no arbitrary equality epsilon is introduced."})
+    print(json.dumps({ticker: {key: text(value) for key, value in row.items() if key in (
+        "dual_score", "classification", "momentum_score", "trend_score", "setup_score", "risk_score")}
+                      for ticker, row in core.items()}, indent=2))

@@ -153,6 +153,10 @@ class CeriRunCaptureService:
         expected_calculation_identity=None,
         progress_callback: Callable[[str, int, int], None] | None = None,
     ) -> CeriRunCaptureResult:
+        if market_cutoff is not None:
+            from app.services.market_clock_service import require_current_execution_calendar
+
+            require_current_execution_calendar(market_cutoff)
         from copy import deepcopy
 
         from app.services.configuration_delivery import current_delivery

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from evidence_output import output_directory
 from sqlalchemy import event, func, insert, select, text
 from sqlalchemy.orm import Session
 
@@ -53,11 +54,7 @@ from app.services.setup_lifecycle.snapshot_builder import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REPORT_PATH = (
-    REPO_ROOT
-    / "docs"
-    / "slse_review"
-    / "evidence"
-    / "slse_performance_certification_2026-08-12.json"
+    output_directory("slse-performance") / "slse_performance_certification_2026-08-12.json"
 )
 PERFORMANCE_DATE = date(2026, 8, 11)
 SCALE_DATES = {

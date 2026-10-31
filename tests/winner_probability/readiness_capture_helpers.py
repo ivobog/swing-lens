@@ -3,12 +3,7 @@
 from itertools import count
 
 from contextual_readiness_helpers import seal_contextual
-from sqlalchemy import inspect
-
-from app.models.tables import CoreCalculationEvidence
-from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
-from app.services.contextual_calculation_identity import artifact_identity
-from app.services.producer_readiness import normalize_producer_readiness
+from core_readiness_helpers import populate_fundamental_source, seal_core
 
 _ids = count(300000)
 
@@ -16,28 +11,7 @@ _ids = count(300000)
 def seal_winner_source(row, kind, *, evidence_id=None):
     if kind in {"REGIME", "SECTOR"}:
         raise ValueError("Use contextual sealing for snapshots")
-    payload = Canonical.canonicalize(
-        {
-            item.key: getattr(row, item.key)
-            for item in inspect(type(row)).column_attrs
-            if item.key not in {"id", "evidence_id", "created_at", "updated_at"}
-        }
-    )
-    identity = artifact_identity(row)
-    fingerprint = str(identity.fingerprint())
-    readiness = normalize_producer_readiness(kind, payload, identity_fingerprint=fingerprint)
-    payload["producer_readiness"] = readiness.canonical_payload()
-    row.evidence_id = evidence_id or next(_ids)
-    row.calculation_evidence = CoreCalculationEvidence(
-        id=row.evidence_id,
-        artifact_kind=kind,
-        run_id=row.run_id,
-        ticker=row.ticker.upper(),
-        ranking_profile=getattr(row, "ranking_profile", None),
-        calculation_identity_fingerprint=fingerprint,
-        payload_json=payload,
-    )
-    return row
+    return seal_core(row, kind, evidence_id=evidence_id or next(_ids))
 
 
 def ready_identity_context(**kwargs):
@@ -45,6 +19,7 @@ def ready_identity_context(**kwargs):
 
     context, cutoff = _identity_context(**kwargs)
     ticker = context.tickers[0]
+    populate_fundamental_source(ticker.fundamental_score, raw_row=ticker.raw_row)
     seal_winner_source(
         ticker.fundamental_score, "FUNDAMENTAL", evidence_id=ticker.fundamental_score.evidence_id
     )

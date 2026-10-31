@@ -11,6 +11,7 @@ from app.services.us_market_calendar import (
 
 STRICT_RESPONSE_V1 = "ib-response-strict-v1"
 DAILY_BAR_ADMISSION_V2 = "ib-daily-reviewed-subset-v2"
+DAILY_BAR_ADMISSION_V3 = "ib-daily-completed-subset-v3"
 
 
 class HistoricalEndMode(StrEnum):

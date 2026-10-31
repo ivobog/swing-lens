@@ -135,6 +135,8 @@ class EodhdCeriProvider:
         requested_periods = {value.value for value in request.period_types}
         requested_metrics = {value.value for value in request.metrics}
         for row in rows:
+            if not _matches_requested_symbol(row, symbol):
+                continue
             ptype = period_type(row.get("period"))
             fiscal_end = provider_date(row.get("date"))
             if (
@@ -283,6 +285,8 @@ class EodhdCeriProvider:
         policy_kind: str,
         seen: set[str],
     ) -> Iterable[RawProviderRecord]:
+        if not _matches_requested_symbol(row, symbol):
+            return
         report_date = provider_date(_first_present(row, "report_date", "reportDate", "date"))
         if report_date is None:
             return
@@ -467,6 +471,14 @@ class EodhdCeriProvider:
             source_timestamp=_datetime(payload.get("source_timestamp"))
             or _datetime(payload.get("provider_observed_at")),
         )
+
+
+def _matches_requested_symbol(row: dict[str, Any], symbol: str) -> bool:
+    # Some supported scoped payloads omit code. A supplied identity must agree;
+    # never relabel a different issuer (or a malformed code) as the request.
+    return "code" not in row or (
+        isinstance(row["code"], str) and row["code"].strip().upper() == symbol
+    )
 
 
 def _rows(value: Any) -> list[dict[str, Any]]:

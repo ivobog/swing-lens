@@ -72,6 +72,10 @@ def test_market_regime_page_renders_template_in_app(monkeypatch) -> None:
     assert "Market Regime Command Center" in response.text
     assert "Bull trend" in response.text
     assert "Market Permission Layer" in response.text
+    assert "Sector Leadership: based on the uploaded stock universe." in response.text
+    assert "This is not ETF-based market sector rotation." in response.text
+    assert '<a href="/sector-rotation">Open independent Sector Rotation</a>' in response.text
+    assert "Uploaded-stock-cohort sector leadership inputs" in response.text
 
 
 def test_latest_api_returns_snapshot_payload(monkeypatch) -> None:
@@ -125,17 +129,7 @@ def test_run_api_404s_missing_snapshot(monkeypatch) -> None:
     assert exc.value.status_code == 404
 
 
-def test_recalculate_run_api_commits_and_returns_snapshot(monkeypatch) -> None:
-    db = RouteFakeDb()
-    with pytest.raises(HTTPException) as error:
-        market_regime_routes.recalculate_run_market_regime_api(run_id=7, db=db)
-    assert error.value.status_code == 409
-    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
-    assert db.commits == 0
-    assert db.rollbacks == 0
-
-
-def test_recalculate_run_api_rolls_back_service_error(monkeypatch) -> None:
+def test_recalculate_run_api_refuses_retired_mutation(monkeypatch) -> None:
     db = RouteFakeDb()
     with pytest.raises(HTTPException) as error:
         market_regime_routes.recalculate_run_market_regime_api(run_id=7, db=db)

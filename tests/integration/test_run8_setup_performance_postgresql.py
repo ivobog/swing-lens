@@ -210,7 +210,7 @@ def test_setup_capture_run8_scale_is_bounded(
         assert evidence_writes == population
         assert evidence_loads <= 3 * population
         assert configuration_loads <= 8 * population
-        assert progress[-1][1:] == (population, population, "EVIDENCE")
+        assert progress[-1][1:] == (population, population, "EVIDENCE_BATCH_PERSISTED")
         assert query_count <= 250 + (45 * population)
     finally:
         event.remove(engine, "before_cursor_execute", before_cursor)

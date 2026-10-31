@@ -11,9 +11,10 @@ from app.services.adaptive_technical_features import add_adaptive_features
 from app.services.box_breakout import add_box_features
 from app.services.climax_risk import add_climax_risk_features
 from app.services.configuration_source_values import SourcedConfigurationValues, winning_sources
+from app.services.market_clock_service import MarketClockService
 from app.services.stage_analysis import add_stage_features
 from app.services.technical_scoring_config import load_technical_scoring_v4_config
-from app.services.us_market_calendar import is_us_trading_day
+from app.services.us_market_calendar import CALENDAR_VERSION, is_us_trading_day
 from app.services.volatility_contraction import add_contraction_features
 
 REQUIRED_COLUMNS = ("date", "open", "high", "low", "close", "volume")
@@ -54,11 +55,16 @@ def calculate_technical_features(
     params: dict[str, Any] | None = None,
     v4_params: dict[str, Any] | None = None,
     expected_session: date | None = None,
+    *,
+    calendar_version: str = CALENDAR_VERSION,
 ) -> TechnicalFeatureResult:
+    MarketClockService(calendar_version=calendar_version)
     params = params or load_pine_defaults()
     v4_params = v4_params or load_technical_scoring_v4_config()
     df = prepare_ohlcv_frame(price_df, trades_df)
-    missing_data = _missing_data(df, params, expected_session=expected_session)
+    missing_data = _missing_data(
+        df, params, expected_session=expected_session, calendar_version=calendar_version
+    )
     insufficient_data = bool(missing_data["insufficient_history"])
 
     if df.empty:
@@ -297,16 +303,15 @@ def calculate_htf_trend_features(
     params: dict[str, Any] | None = None,
     *,
     latest_completed_session: date | None = None,
+    calendar_version: str = CALENDAR_VERSION,
 ) -> dict[str, Any]:
+    clock = MarketClockService(calendar_version=calendar_version)
     params = params or load_pine_defaults()
     htf = params["htf"]
     daily = prepare_ohlcv_frame(price_df)
     weekly = resample_weekly_ohlcv(daily)
     if weekly.empty:
         return {"htf_insufficient_confirmed_history": True, "htf_confirmed": False}
-    from app.services.market_clock_service import MarketClockService
-
-    clock = MarketClockService()
     completed = latest_completed_session or pd.Timestamp(daily["date"].iloc[-1]).date()
     daily_sessions = {pd.Timestamp(value).date() for value in daily["date"]}
     confirmed_mask = []
@@ -849,13 +854,15 @@ def _missing_data(
     params: dict[str, Any],
     *,
     expected_session: date | None = None,
+    calendar_version: str = CALENDAR_VERSION,
 ) -> dict[str, Any]:
     slow_len = int(params["trend"]["smaSlowLen"])
     high_low_len = int(params["trend"]["highLow52Len"])
     roc_long_len = int(params["market_rs"]["rocLongLen"])
     required = max(slow_len, high_low_len, roc_long_len)
     bar_quality = _bar_quality_summary(
-        df, required_rows=required, expected_session=expected_session
+        df, required_rows=required, expected_session=expected_session,
+        calendar_version=calendar_version,
     )
     return {
         "row_count": len(df),
@@ -908,6 +915,7 @@ def _bar_quality_summary(
     *,
     required_rows: int | None = None,
     expected_session: date | None = None,
+    calendar_version: str = CALENDAR_VERSION,
 ) -> dict[str, Any]:
     sorted_dates = pd.to_datetime(df["date"]).sort_values()
     gaps = sorted_dates.diff().dt.days.dropna()
@@ -921,7 +929,10 @@ def _bar_quality_summary(
         if expected_session is not None and expected_session > end:
             end = expected_session
         while current <= end:
-            if is_us_trading_day(current) and current not in present:
+            if (
+                is_us_trading_day(current, calendar_version=calendar_version)
+                and current not in present
+            ):
                 missing_sessions.append(current.isoformat())
             current = date.fromordinal(current.toordinal() + 1)
     return {

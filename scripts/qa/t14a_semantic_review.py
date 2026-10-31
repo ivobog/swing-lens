@@ -240,6 +240,11 @@ non_edges(
     "Explicit subprocess module import executes git rev-parse for repository metadata; it is not a repository run() semantic writer.",
 )
 non_edges(
+    "scripts/forensics/verify_run41_recovery.py:prepare",
+    ("subprocess.run",),
+    "Reviewed explicit stdlib subprocess import: prepare invokes resolved pg_dump/pg_restore binaries with guarded clone arguments. These are external database operations, not repository run() dispatch. The A10 manual/import guard and original raw candidates remain intact; this non-edge grants no execution authorization.",
+)
+non_edges(
     "app/services/ib_market_intelligence/flex.py:IBFlexClient.get_statement app/services/ib_market_intelligence/flex.py:IBFlexClient.send_request app/services/ib_market_intelligence/flex.py:import_flex_report app/services/ib_market_intelligence/request_budget.py:WeightedWindowBudget.acquire app/services/setup_lifecycle/source_loader.py:SetupLifecycleSourceLoader._load_price_bars",
     ("operational_metrics.observe",),
     "The module-bound operational_metrics singleton exposes latency telemetry only; observe records no ORM state and cannot dispatch to a business writer.",
@@ -395,6 +400,41 @@ def tables(names, domain, owner, classification, disposition, proof):
     for name in names.split():
         assert name not in TABLE_REVIEWS, name
         TABLE_REVIEWS[name] = TableReview(domain, owner, classification, disposition, proof)
+
+
+# Current writer review is separate from the immutable T14A-D historical inputs.
+tables(
+    "market_sector_rotation_snapshots market_sector_rotation_rows",
+    "SECTOR",
+    "app/services/market_sector_intelligence_rotation_repository.py:MarketSectorRotationRepository.capture",
+    "BUSINESS_SEMANTIC",
+    "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
+    "Independent MSI history, not legacy SectorRotation snapshots: typed CLI NORMAL_ONLY capability, fresh caller session, complete current input revalidation, exact transaction/evidence insert seal, atomic one-header/eleven-row capture, immutable history and idempotent natural key. Exact sources and current family ownership are pinned in T14_R01_current_writer_review.json.",
+)
+tables(
+    "consumer_eligibility_decisions",
+    "FUNDAMENTAL",
+    "app/services/consumer_eligibility_ledger.py:persist_consumer_decision",
+    "DOMAIN_SUPPORTING_STATE",
+    "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
+    "Append-only admission/shadow decision audit, not a financial score or a current projection. Concrete persist_consumer_decision and persist_shadow_evaluation bind their model explicitly to _insert_once, retain source/cutoff/policy/fingerprint, and share caller commit/rollback. Shadow decisions cannot be authoritative; ORM/DB append-only enforcement is separate from caller delivery.",
+)
+tables(
+    "eligibility_shadow_evaluations",
+    "FUNDAMENTAL",
+    "app/services/consumer_eligibility_ledger.py:persist_shadow_evaluation",
+    "DOMAIN_SUPPORTING_STATE",
+    "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
+    "Concrete model-bound shadow audit in the caller transaction; proposed decisions must be non-authoritative, source/edge identities must match, frozen-input and evaluation fingerprints are retained, and ORM/DB update/delete guards forbid rewriting history. No source eligibility is granted by this supporting ledger.",
+)
+tables(
+    "winner_acquisition_decisions",
+    "WINNER_PREDICTION",
+    "app/services/consumer_eligibility_ledger.py:persist_winner_acquisition_decision",
+    "DOMAIN_SUPPORTING_STATE",
+    "SUPPORTED_DISTINCT_SEMANTICS_NO_CHANGE",
+    "Append-only Winner acquisition trace retains source/decision/prediction identities in the existing caller transaction. It neither creates a prediction nor grants source eligibility. Concrete model binding is reviewed; immutable ORM/DB evidence and idempotent fingerprint remain enforced.",
+)
 
 
 tables(

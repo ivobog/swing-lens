@@ -1,0 +1,58 @@
+"""Independent fixed-universe context worksheet; imports only A05B arithmetic."""
+from derive_core import DEST, D, combined, config, core, dump, q, ranks, tickers
+
+average = lambda rows: D(str(round(sum(map(float, rows))/len(rows), 4)))
+default = [row for row in ranks if row["profile"] == "momentum_swing"]
+danger = sum(row["classification"] == "No trade" for row in core.values())
+overheated = len(tickers)-danger
+assert danger == 6 and overheated == 4
+parts = {"average_technical_score": average([r["dual_score"] for r in core.values()]),
+         "average_profile_score": average([r["profile_score"] for r in default]),
+         "top_candidate_share": D(5), "setup_density": D(0),
+         "risk_control": q(10-D(danger)/10*7)}
+sector_score = q(sum(parts[key]*D(weight) for key, weight in config["sector_rotation.yaml"]["universe_score"]["weights"].items()))
+market = {"as_of_date": "2026-10-26", "regime": "Bull trend", "risk_state": "Green",
+          "score": "9.5000", "risk_off": False, "gate_ok": True, "confidence": "normal",
+          "calculation_version": "mrcc-1.0.0", "config_version": "2026-07-28", "reasons": [],
+          "input_symbols": {"primary_market":"SPY", "risk_proxy":"QQQ", "use_risk_proxy":True}, "constituents": tickers,
+          "participation": {"ticker_count": 10, "technical_count": 10,
+                            "average_technical_score": parts["average_technical_score"],
+                            "clean_pullback_count": 0, "fresh_breakout_count": 0,
+                            "vcp_count": 0, "danger_count": 0,
+                            "market_risk_warning_count": 0, "above_sma50_pct": "100.00",
+                            "above_sma200_pct": None,
+                            "ranking_profile_average_scores": {}}}
+
+sector = {"sector": "Technology", "sector_slug": "technology", "current_rank": 1,
+          "as_of_date": "2026-10-26", "constituents": tickers, "ticker_count": 10,
+          "sector_final_score": sector_score, "universe_leadership_score": sector_score,
+          "etf_rotation_score": None, "rotation_state": "Risk-off", "permission": "avoid_new_longs",
+          "position_size_multiplier": "0", "confidence": "high", "producer_readiness": "DEGRADED", "consumer_permission": "POLICY_UNDECIDED", "previous_rank": None,
+          "rank_change": None, "score_change": None, "universe_share": "1",
+          "average_fundamental_score": "9.1909", "average_technical_score": parts["average_technical_score"],
+          "average_final_score": average([r["final_score"] for r in combined]),
+          "average_profile_score": parts["average_profile_score"], "component_scores": parts,
+          "top_counts": {"top_10": 10, "top_25": 10, "top_50": 10}, "buyable_count": 0,
+          "watch_count": 0, "danger_count": danger, "extended_or_overheated_count": overheated,
+          "missing_fundamental_count": 0, "missing_technical_count": 0,
+          "setup_distribution": {"No trade": danger, "Overheated momentum": overheated}}
+
+if __name__ == "__main__":
+    dump(DEST / "context-expected.json", {"market_regime": [market], "sector": [sector]})
+    dump(DEST / "context-derivations.json", {
+        "policy_sources": ["market_regime.py:95-154", "market_regime_command_center.py:100-170",
+                           "market_participation_service.py:38-80,149-164", "sector_universe_service.py:302-551",
+                           "sector_rotation_policy.py:121-181"],
+        "market_formula": "(2.5+2+1.5+1.5+1+1)*(.65+.35)=9.5; both indices above rising SMA50/SMA200; no distribution/breakout",
+        "sector_mapping": "All ten raw rows have Technology Services -> frozen alias Technology; symbols are not sector proxies",
+        "top_candidate_formula": "(10/10)/min(1,25/10)*5=5",
+        "risk_control_formula": "10-(6/10*7+0*3)=5.8; No trade is a configured sector danger label",
+        "sector_components": parts, "sector_weights": config["sector_rotation.yaml"]["universe_score"]["weights"],
+        "consumer_exclusion": "Risk-off emits sector_risk_off; producer_readiness.py degrades Sector warnings; contextual_consumer_eligibility.py:76-77 gives POLICY_UNDECIDED and includedFalse. Setup/Winner optional context is omitted.",
+        "state_formula": "6/10 >= .30 -> Risk-off before score thresholds; supportive market maps to avoid_new_longs",
+        "missing_sma200_participation": "MarketParticipation expects derived.sma200 or derived.above_sma200; active Pine derived only supplies above_slow, so this field is legitimately null",
+        "evidence_relationships": {"market": ["SPY", "QQQ", "all target Technical rows", "no profile cohort yet: stage5 precedes stage7"],
+                                   "sector": ["same run/session/cutoff Regime snapshot", "ten raw rows", "ten Fundamental/Technical/Combined rows", "fifty Ranking rows"]},
+        "opaque_ids": "Resolve the above semantic sources after execution; primary keys, content-addressed implementation hashes and publication timing are relationships, not invented literal numbers",
+        "precision": "Native binary64 mean then round4; sector weighted score round4; participation percent 2 places; semantic identities exact"})
+    print("independent sector score", sector_score)

@@ -579,6 +579,30 @@ class SetupLifecycleRepository:
         from app.services.setup_lifecycle.decision_evidence import persist_setup_evidence
 
         snapshots = list(by_identity.values())
+        # Session identity maps hold weak references. Keep this batch's immutable
+        # inputs alive across the independent declaration and authority checks;
+        # otherwise each check reloads the same evidence. No validation is cached.
+        retained_source_evidence = ()
+        if isinstance(db, Session):
+            from app.models.tables import CoreCalculationEvidence
+
+            evidence_ids = {
+                value
+                for snapshot in snapshots
+                for key, value in (
+                    (snapshot.source_lineage_json or {}).get("source_ids") or {}
+                ).items()
+                if key.endswith("_evidence_id") and isinstance(value, int)
+            }
+            if evidence_ids:
+                with db.no_autoflush:
+                    retained_source_evidence = tuple(
+                        db.scalars(
+                            select(CoreCalculationEvidence).where(
+                                CoreCalculationEvidence.id.in_(sorted(evidence_ids))
+                            )
+                        )
+                    )
         for index, snapshot in enumerate(snapshots, start=1):
             if should_cancel is not None and should_cancel():
                 from app.services.setup_lifecycle.snapshot_builder import (
@@ -593,6 +617,7 @@ class SetupLifecycleRepository:
             if progress_callback is not None:
                 progress_callback(snapshot.ticker, index, len(snapshots), phase="EVIDENCE")
 
+        del retained_source_evidence
         return [
             by_identity[
                 self.snapshot_identity_key(

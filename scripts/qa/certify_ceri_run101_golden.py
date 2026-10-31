@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+# A10 lifecycle restriction; original source and hashes are retained in the A10 evidence.
+# ruff: noqa: E402
+if __name__ == "__main__":
+    raise SystemExit(
+        "HISTORICAL_EXECUTION_ARCHIVED: retained incident evidence is not current "
+        "release certification; see docs/testing/historical_tool_policy.md"
+    )
+
+
 import argparse
 import hashlib
 import json
@@ -223,12 +232,14 @@ def certify_golden_cohort(traces: list[dict[str, Any]]) -> dict[str, Any]:
         if (stages.get("alert") or {}).get("emitted"):
             failures.append(f"{trace.get('cohort_id')}: first observation emitted alert")
     return {
+        "certification_scope": "CONSTRUCTED_EXAMPLE_ONLY",
+        "current_release_certificate": False,
         "status": "PASS" if not failures else "FAIL",
         "cohort_size": len(traces),
         "passed": len(traces) if not failures else len(traces) - len(failures),
         "failures": failures,
         "calculation_version": "ceri-1.2.0",
-        "certified_as_of": date(2026, 8, 13).isoformat(),
+        "example_as_of": date(2026, 8, 13).isoformat(),
         "code_gate_passed": not failures,
         "broad_run_authorized": False,
         "authorization_blockers": (
@@ -254,14 +265,14 @@ def write_artifacts(
     _write_json(output_dir / "vertical_traces.json", traces)
     _write_json(output_dir / "certification_summary.json", summary)
     report = [
-        "# CERI Run 101 Golden 10 Certification",
+        "# CERI Run 101 constructed example checks",
         "",
         f"Status: **{summary['status']}**",
         "",
         f"Calculation version: `{summary['calculation_version']}`",
         "",
-        "This is a deterministic fixture certification. It does not perform licensed "
-        "provider network calls and does not mutate the research database.",
+        "These checks validate constructed dictionary shapes. They do not execute the "
+        "production pipeline or provide a current release certificate.",
         "",
         "| Cohort | Scenario | Result |",
         "|---|---|---|",

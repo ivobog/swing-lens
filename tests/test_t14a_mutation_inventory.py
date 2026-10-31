@@ -1,115 +1,60 @@
 """Guard discovery against omissions and distinguish proof from candidates."""
 
+import hashlib
 import json
+import subprocess
+from functools import lru_cache
 
 import pytest
 
 from scripts.qa.t14a_mutation_inventory import ROOT, discover
 from scripts.qa.t14a_reviewed_inventory import export_inventory, handler_registry, route_registry
 
-CURRENT_RELEASE_MISSING_OR_STALE_DELTAS = [
-    "app/main.py",
-    "app/models/tables.py",
-    "app/observability/metrics.py",
-    "app/routers/ceri_routes.py",
-    "app/routers/ib_market_intelligence_routes.py",
-    "app/routers/ib_routes.py",
-    "app/routers/market_data_routes.py",
-    "app/routers/market_regime_routes.py",
-    "app/routers/run_routes.py",
-    "app/routers/sector_rotation_routes.py",
-    "app/routers/setup_lifecycle_routes.py",
-    "app/routers/upload_routes.py",
-    "app/routers/winner_probability_routes.py",
-    "app/serve.py",
-    "app/services/background_job_service.py",
-    "app/services/background_worker.py",
-    "app/services/bar_cache_service.py",
-    "app/services/canonical_evidence.py",
-    "app/services/ceri/alert_service.py",
-    "app/services/ceri/backfill_service.py",
-    "app/services/ceri/batched_job_handlers.py",
-    "app/services/ceri/batched_workflow.py",
-    "app/services/ceri/capture_service.py",
-    "app/services/ceri/change_authority.py",
-    "app/services/ceri/change_detection_service.py",
-    "app/services/ceri/change_rebuild_service.py",
-    "app/services/ceri/decision_evidence.py",
-    "app/services/ceri/deployment_identity.py",
-    "app/services/ceri/evidence_eligibility.py",
-    "app/services/ceri/feature_rebuild_service.py",
-    "app/services/ceri/identity_resolver.py",
-    "app/services/ceri/job_handlers.py",
-    "app/services/ceri/normalization_service.py",
-    "app/services/ceri/price_response_service.py",
-    "app/services/ceri/processing_run_service.py",
-    "app/services/ceri/purge_service.py",
-    "app/services/ceri/sec/readiness_repair.py",
-    "app/services/ceri/source_record_service.py",
-    "app/services/ceri/surprise_feature_service.py",
-    "app/services/combined_decision.py",
-    "app/services/configuration_delivery.py",
-    "app/services/core_calculation_evidence.py",
-    "app/services/core_mutation_authority.py",
-    "app/services/decision_mutation_authority.py",
-    "app/services/domain_write_fence.py",
-    "app/services/ib_contract_resolver.py",
-    "app/services/ib_fetch_executor.py",
-    "app/services/ib_gateway_health_service.py",
-    "app/services/ib_market_intelligence/journal.py",
-    "app/services/market_calculation_context_service.py",
-    "app/services/market_data_prewarm_service.py",
-    "app/services/market_regime_command_center.py",
-    "app/services/pipeline_executor.py",
-    "app/services/pipeline_service.py",
-    "app/services/pre_enqueue_operational_gate.py",
-    "app/services/ranking_profile_service.py",
-    "app/services/scope_refresh_adoption.py",
-    "app/services/sector_rotation_repository.py",
-    "app/services/sector_rotation_service.py",
-    "app/services/setup_lifecycle/change_detector.py",
-    "app/services/setup_lifecycle/decision_evidence.py",
-    "app/services/setup_lifecycle/episode_service.py",
-    "app/services/setup_lifecycle/evaluation_service.py",
-    "app/services/setup_lifecycle/job_handlers.py",
-    "app/services/setup_lifecycle/maintenance_service.py",
-    "app/services/setup_lifecycle/repository.py",
-    "app/services/setup_lifecycle/snapshot_builder.py",
-    "app/services/source_mutation_authority.py",
-    "app/services/technical_indicators.py",
-    "app/services/technical_score_service.py",
-    "app/services/transition_preflight_plan_service.py",
-    "app/services/winner_probability/capture_service.py",
-    "app/services/winner_probability/cohort_authority.py",
-    "app/services/winner_probability/cohort_generation_service.py",
-    "app/services/winner_probability/cohort_refresh_planner.py",
-    "app/services/winner_probability/episode_service.py",
-    "app/services/winner_probability/job_handlers.py",
-    "app/services/winner_probability/market_data_obligation_service.py",
-    "app/services/winner_probability/outcome_orchestration_service.py",
-    "app/services/winner_probability/outcome_service.py",
-    "app/services/winner_probability/probability_estimator.py",
-    "app/services/winner_probability/repository.py",
-    "app/services/winner_probability/scheduler.py",
-    "app/services/winner_probability/scope_refresh.py",
-    "app/templates/run_detail.html",
-    "app/worker_supervisor.py",
-    "scripts/ops/restore_postgres.ps1",
-    "scripts/qa/t13e_deployed_probe.py",
-    "scripts/qa/t14a_reviewed_inventory.py",
-]
-CURRENT_RELEASE_STALE_SOURCE_DELTAS = [
-    path
-    for path in CURRENT_RELEASE_MISSING_OR_STALE_DELTAS
-    if path
-    not in {
-        "app/observability/metrics.py",
-        "app/serve.py",
-        "app/services/canonical_evidence.py",
-        "app/services/ib_gateway_health_service.py",
-        "app/worker_supervisor.py",
+
+@lru_cache(maxsize=1)
+def current_source_review_deltas():
+    """Independently compare immutable review inputs with current Git-filtered bytes.
+
+    This discovers stale identities; it never approves or rewrites a source pin.
+    A fixed list from an older release cannot be the oracle for later source.
+    """
+    from scripts.qa.reconcile_phase5_release import CURRENT_DERIVATIVE, RELEASE
+    from scripts.qa.t14a_semantic_families import CURRENT_REVIEW_FILE, REVIEW_FILE
+
+    derivative = json.loads((RELEASE / CURRENT_DERIVATIVE).read_text())
+    pins = json.loads((REVIEW_FILE.parent / "T14D_semantic_review_source_pins.json").read_text())
+    recorded = {row["path"]: row for row in derivative["source_pin_reconciliation"]}
+    assert set(recorded) == set(pins["sources"])
+
+    def blob(relative):
+        return subprocess.check_output(
+            ["git", "hash-object", "--path=" + relative, relative],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+
+    current = {relative: blob(relative) for relative in recorded}
+    missing_or_stale = sorted(
+        relative
+        for relative, row in recorded.items()
+        if row["historical_pin_sha256"] != pins["sources"][relative]
+        or row["release_worktree_blob_id"] != current[relative]
+    )
+    historical = json.loads(REVIEW_FILE.read_text())["source_pins"]
+    stale = {
+        relative
+        for relative in historical
+        if relative not in recorded
+        or recorded[relative]["release_worktree_blob_id"] != current[relative]
     }
-]
+    current_review = json.loads(CURRENT_REVIEW_FILE.read_text())
+    stale.update(
+        relative
+        for relative, expected in current_review["source_pins"].items()
+        if hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() != expected
+    )
+    assert missing_or_stale and stale  # Current historical derivative is not recertified.
+    return missing_or_stale, sorted(stale)
 
 
 def write_surface(root, path, source):
@@ -242,6 +187,111 @@ def test_writer_table_reverse_coverage(inventory_pair):
     )
 
 
+@pytest.mark.parametrize(
+    "function,model,table",
+    [
+        (
+            "persist_consumer_decision",
+            "ConsumerEligibilityDecisionRecord",
+            "consumer_eligibility_decisions",
+        ),
+        (
+            "persist_winner_acquisition_decision",
+            "WinnerAcquisitionDecisionRecord",
+            "winner_acquisition_decisions",
+        ),
+        (
+            "persist_shadow_evaluation",
+            "EligibilityShadowEvaluationRecord",
+            "eligibility_shadow_evaluations",
+        ),
+    ],
+)
+def test_model_bound_ledger_writers_match_actual_production_arguments(
+    inventory_pair,
+    function,
+    model,
+    table,
+):
+    import ast
+
+    from scripts.qa.t14a_reviewed_inventory import OVERRIDES
+
+    relative = "app/services/consumer_eligibility_ledger.py"
+    tree = ast.parse((ROOT / relative).read_text())
+    owner = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == function)
+    bound_models = [
+        keyword.value.id
+        for n in ast.walk(owner)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "_insert_once"
+        for keyword in n.keywords
+        if keyword.arg == "model"
+    ]
+    address = relative + ":" + function
+    assert OVERRIDES[address] == bound_models == [model]
+    inventory, _, _ = inventory_pair
+    assert address in inventory["reverse_index"][table]["writers"]
+    assert inventory["reverse_index"][table]["status"] == "KNOWN_WRITERS"
+    assert inventory["reverse_index"][table]["canonical_writer"] == address
+
+
+@pytest.mark.parametrize(
+    "site",
+    [
+        "app/services/market_sector_intelligence_rotation_repository.py:MarketSectorRotationRepository.capture",
+        "app/services/consumer_eligibility_ledger.py:persist_consumer_decision",
+        "app/services/consumer_eligibility_ledger.py:persist_winner_acquisition_decision",
+        "app/services/consumer_eligibility_ledger.py:persist_shadow_evaluation",
+    ],
+)
+def test_removing_current_writer_review_is_a_hard_failure(inventory_pair, site):
+    from scripts.qa.t14a_semantic_families import load_review, normalize
+
+    inventory, _, _ = inventory_pair
+    review = load_review()
+    assert site in review["sink_reviews"]
+    del review["sink_reviews"][site]
+    result = normalize(inventory, review)
+    assert site in result["blockers"]["unknown_writer_sinks"]
+    assert result["verdict"] == "FAIL"
+
+
+def test_current_review_does_not_approve_changed_source_identity(inventory_pair):
+    from scripts.qa.t14a_semantic_families import load_review, normalize
+
+    inventory, _, _ = inventory_pair
+    review = load_review()
+    relative = "app/services/market_sector_intelligence_rotation_repository.py"
+    assert (
+        review["current_source_pins"][relative]
+        == hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+    )
+    review["current_source_pins"][relative] = "0" * 64
+    result = normalize(inventory, review)
+    assert relative in result["blockers"]["stale_source_reviews"]
+    assert result["verdict"] == "FAIL"
+
+
+def test_run41_non_edge_is_exact_and_keeps_unreviewed_calls_visible(source_tree):
+    from scripts.qa.t14a_reviewed_inventory import graph
+
+    write_surface(source_tree, "app/services/writer.py", "def run(db):\n    db.add(Score())\n")
+    write_surface(
+        source_tree,
+        "scripts/forensics/verify_run41_recovery.py",
+        "import subprocess\ndef prepare():\n    subprocess.run(['pg_dump'])\n"
+        "def unreviewed():\n    subprocess.run(['unreviewed'])\n",
+    )
+    edges, unresolved, _, _ = graph(discover(source_tree), source_tree)
+    rows = {r["caller"]: r for r in unresolved if r["call"] == "subprocess.run"}
+    reviewed = "scripts/forensics/verify_run41_recovery.py:prepare"
+    other = "scripts/forensics/verify_run41_recovery.py:unreviewed"
+    assert rows[reviewed]["review_status"] == "FALSE_POSITIVE"
+    assert rows[reviewed]["candidates"] == ["app/services/writer.py:run"]
+    assert "review_status" not in rows[other]
+    assert not edges[reviewed] and not edges[other]
+
+
 def test_scope_and_transient_review_are_not_filename_suppression(inventory_pair):
     inventory, _, _ = inventory_pair
     entries = {row["entrypoint"]: row for row in inventory["entrypoints"]}
@@ -266,8 +316,9 @@ def test_foundation_does_not_certify_caller_authority(inventory_pair):
     # The historical derivative must fail closed when current release source
     # changes. Its original reviewed pins are not rewritten by this release.
     assert inventory["certification"]["verdict"] == "FAIL"
-    assert inventory["semantic_completeness"]["blockers"]["missing_or_stale_source_review"] == (
-        CURRENT_RELEASE_MISSING_OR_STALE_DELTAS
+    assert (
+        inventory["semantic_completeness"]["blockers"]["missing_or_stale_source_review"]
+        == (current_source_review_deltas()[0])
     )
     assert inventory["semantic_completeness"]["caller_authority_adoption_is_pass_gate"] is False
     assert inventory["semantic_completeness"]["raw_path_or_edge_count_is_pass_gate"] is False
@@ -362,14 +413,14 @@ def test_source_change_invalidates_review_pin(tmp_path):
 def test_incomplete_writer_review_remains_a_hard_foundation_gate(inventory_pair):
     from copy import deepcopy
 
-    from scripts.qa.t14a_semantic_families import REVIEW_FILE, normalize
+    from scripts.qa.t14a_semantic_families import load_review, normalize
 
     inventory, _, _ = inventory_pair
     assert not inventory["unknown_writers"]
     completeness = inventory["semantic_completeness"]
     assert completeness["verdict"] == "FAIL"
-    assert completeness["blockers"]["stale_source_reviews"] == (CURRENT_RELEASE_STALE_SOURCE_DELTAS)
-    review = deepcopy(json.loads(REVIEW_FILE.read_text()))
+    assert completeness["blockers"]["stale_source_reviews"] == (current_source_review_deltas()[1])
+    review = deepcopy(load_review())
     review["writer_families"]["WF_FUNDAMENTAL_RECALCULATION"]["semantic_review_complete"] = False
     result = normalize(inventory, review)
     assert result["verdict"] == "FAIL"
@@ -378,8 +429,9 @@ def test_incomplete_writer_review_remains_a_hard_foundation_gate(inventory_pair)
     ]
     assert not completeness["blockers"]["unknown_writer_sinks"]
     assert not completeness["blockers"]["unowned_business_artifacts"]
-    assert completeness["blockers"]["missing_or_stale_source_review"] == (
-        CURRENT_RELEASE_MISSING_OR_STALE_DELTAS
+    assert (
+        completeness["blockers"]["missing_or_stale_source_review"]
+        == (current_source_review_deltas()[0])
     )
 
 
@@ -427,10 +479,10 @@ def test_finite_writer_sink_artifact_and_raw_edge_ownership_is_closed(inventory_
 def test_adoption_pending_callers_preserve_ownership_but_not_stale_source_pins(inventory_pair):
     from copy import deepcopy
 
-    from scripts.qa.t14a_semantic_families import REVIEW_FILE, normalize
+    from scripts.qa.t14a_semantic_families import load_review, normalize
 
     inventory, _, _ = inventory_pair
-    review = json.loads(REVIEW_FILE.read_text())
+    review = load_review()
     provisional = next(
         fid for fid, f in review["entry_families"].items() if not f["semantic_review_complete"]
     )
@@ -438,17 +490,17 @@ def test_adoption_pending_callers_preserve_ownership_but_not_stale_source_pins(i
     changed["entry_families"][provisional]["status"] = "POTENTIAL_BYPASS"
     result = normalize(inventory, changed)
     assert result["verdict"] == "FAIL"
-    assert result["blockers"]["stale_source_reviews"] == CURRENT_RELEASE_STALE_SOURCE_DELTAS
+    assert result["blockers"]["stale_source_reviews"] == current_source_review_deltas()[1]
     assert result["counts"]["caller_authority_reviews_pending"] > 0
 
 
 def test_unknown_caller_disposition_is_a_foundation_failure(inventory_pair):
     from copy import deepcopy
 
-    from scripts.qa.t14a_semantic_families import REVIEW_FILE, normalize
+    from scripts.qa.t14a_semantic_families import load_review, normalize
 
     inventory, _, _ = inventory_pair
-    review = deepcopy(json.loads(REVIEW_FILE.read_text()))
+    review = deepcopy(load_review())
     fid = next(iter(review["entry_families"]))
     review["entry_families"][fid]["disposition"] = "UNASSIGNED"
     result = normalize(inventory, review)
@@ -459,10 +511,10 @@ def test_unknown_caller_disposition_is_a_foundation_failure(inventory_pair):
 def test_orphan_writer_family_reference_is_a_closure_failure(inventory_pair):
     from copy import deepcopy
 
-    from scripts.qa.t14a_semantic_families import REVIEW_FILE, normalize
+    from scripts.qa.t14a_semantic_families import load_review, normalize
 
     inventory, _, _ = inventory_pair
-    review = deepcopy(json.loads(REVIEW_FILE.read_text()))
+    review = deepcopy(load_review())
     sink = next(iter(review["sink_reviews"]))
     review["sink_reviews"][sink]["family_id"] = "UNKNOWN_WRITER_FAMILY"
     result = normalize(inventory, review)

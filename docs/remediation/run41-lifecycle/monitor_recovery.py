@@ -2,6 +2,24 @@
 
 from __future__ import annotations
 
+# A10 lifecycle restriction; original source and hashes are retained in the A10 evidence.
+# ruff: noqa: E402
+import sys as _a10_sys
+from pathlib import Path as _a10_Path
+
+if __name__ != "__main__":
+    raise SystemExit("HISTORICAL_MANUAL_IMPORT_REFUSED: use the authorized manual CLI")
+_a10_sys.path.insert(0, str(_a10_Path(__file__).resolve().parents[3]))
+from scripts.forensics.historical_tool_safety import authorize_manual_tool as _a10_authorize
+
+_a10_authorize(
+    "docs/remediation/run41-lifecycle/monitor_recovery.py",
+    operations={"monitor": True},
+    default_operation="monitor",
+    clone_required="clone" in _a10_sys.argv[1:],
+)
+
+
 import argparse
 import json
 import sys
@@ -26,6 +44,9 @@ def main(scope, job_id):
     target = source
     if scope == "clone":
         meta = json.loads((OUT / "production-clone.json").read_text())
+        from scripts.forensics.historical_tool_safety import require_clone_target
+
+        require_clone_target(meta["database"])
         target = source.set(database=meta["database"])
         assert_disposable_database(target, active_database_url=source)
     engine = create_engine(

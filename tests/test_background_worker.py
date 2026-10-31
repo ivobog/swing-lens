@@ -68,7 +68,7 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
     class Db:
         def scalar(self, _statement):
-            return "0091_readiness_constraints"
+            return "0093_market_sector_rotation"
 
     settings = Settings(
         _env_file=None,
@@ -83,6 +83,7 @@ def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
         summary = log_worker_startup_configuration(Db(), settings=settings, worker_id="worker-test")
 
     assert summary["sec_incremental_mode"] == "OFF"
+    assert summary["database_schema_revision"] == "0093_market_sector_rotation"
     assert summary["sec_processor_signature"].startswith("sec-guidance:")
     assert summary["worker_id"] == "worker-test"
     assert summary["worker_process_id"] > 0
@@ -256,6 +257,32 @@ def test_active_pipeline_control_heartbeat_renews_without_progress(
     assert len(calls) == 1
     assert calls[0]["job_id"] == 23
     assert "progress" not in calls[0]
+
+
+@pytest.mark.parametrize("suppressed", (False, True), ids=("cancelled", "continuation-suppressed"))
+def test_original_full_pipeline_handler_converts_native_cancellation(monkeypatch, suppressed):
+    job = BackgroundJob(
+        id=23, job_type="FULL_PIPELINE", status=JobStatus.RUNNING,
+        payload_json={"pipeline_run_id": 17}, execution_token="token-23",
+    )
+    pipeline = SimpleNamespace(id=17)
+    db = SimpleNamespace(get=lambda *_args: pipeline)
+    monkeypatch.setattr("app.services.scope_refresh_adoption.validate_same_authority",
+                        lambda *_args: None)
+    monkeypatch.setattr(
+        "app.services.market_calculation_context_service.validate_pipeline_job_market_context",
+        lambda *_args, **_kwargs: SimpleNamespace(context_id=31),
+    )
+    error = (pipeline_executor.PipelineContinuationSuppressed(17, "CANCELLED") if suppressed
+             else pipeline_executor.PipelineCancelled("requested"))
+
+    def refuse(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(pipeline_executor, "execute_full_pipeline", refuse)
+    with pytest.raises(CancelRequested) as caught:
+        _execute_full_pipeline_job(db, job)
+    assert caught.value.__cause__ is error
 
 
 def test_cancellation_can_stop_handler_before_next_bounded_batch() -> None:

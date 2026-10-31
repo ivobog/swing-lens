@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+# A10 lifecycle restriction; original source and hashes are retained in the A10 evidence.
+# ruff: noqa: E402
+raise SystemExit(
+    "HISTORICAL_EXECUTION_RETIRED: retained incident evidence is not current "
+    "release certification; see docs/testing/historical_tool_policy.md"
+)
+
+
 import argparse
 import csv
 import hashlib

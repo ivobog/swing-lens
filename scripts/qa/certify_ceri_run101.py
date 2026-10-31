@@ -7,6 +7,14 @@ before evidence is queried.  The only writes are CSV/JSON files under docs/qa.
 
 from __future__ import annotations
 
+# A10 lifecycle restriction; original source and hashes are retained in the A10 evidence.
+# ruff: noqa: E402
+raise SystemExit(
+    "HISTORICAL_EXECUTION_ARCHIVED: retained incident evidence is not current "
+    "release certification; see docs/testing/historical_tool_policy.md"
+)
+
+
 import csv
 import json
 import math

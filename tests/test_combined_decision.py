@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 
 import pytest
@@ -47,10 +47,16 @@ def test_combined_decision_danger_classification_overrides_score() -> None:
 
 
 def test_combined_decision_treats_v4_danger_as_avoid() -> None:
+    # The historical placeholder was neutral to Combined, but is not an
+    # admitted producer label. Use the existing supported non-risk specimen.
+    fundamental = _fundamental("TSLA", "Clean compounder", "8.7")
+    technical = _technical("TSLA", "Climax reversal risk", "8.2", risk_score="4.0")
+    technical.technical_engine_version = "4.0.0"
+    seal_technical(technical)
     decision = combine_row_decision(
         _row("TSLA"),
-        _fundamental("TSLA", "Quality growth", "8.7"),
-        _technical("TSLA", "Climax reversal risk", "8.2", risk_score="4.0"),
+        fundamental,
+        technical,
         config=_config(),
     )
 
@@ -58,6 +64,40 @@ def test_combined_decision_treats_v4_danger_as_avoid() -> None:
     assert decision.combined_decision == "Avoid"
     assert decision.position_size_hint == "Avoid"
     assert "climax reversal risk" in decision.notes
+    _assert_fundamental_consumed(decision, fundamental)
+    assert decision.has_technical and decision.is_complete
+    assert decision.technical_classification == "Climax reversal risk"
+    assert decision.dual_score == 8.2
+    assert technical.calculation_evidence.payload_json["technical_engine_version"] == "4.0.0"
+    assert (
+        decision.debug_evidence["technical_consumer_eligibility"]["decision"]["status"]
+        == "ELIGIBLE"
+    )
+    assert decision.debug_evidence["penalty_breakdown"] == {"danger_classification": 3.0}
+
+    # Same admitted scores: 8.7 * .55 + 8.2 * .45 = 8.475, without danger.
+    technical.classification = "Prime clean pullback"
+    seal_technical(technical)
+    safe = combine_row_decision(_row("TSLA"), fundamental, technical, config=_config())
+    _assert_fundamental_consumed(safe, fundamental)
+    assert safe.technical_classification == "Prime clean pullback"
+    assert safe.final_score == 8.475
+    assert safe.combined_decision == "Strong candidate"
+    assert safe.position_size_hint == "Half starter"  # Native risk remains 4.0.
+    assert safe.debug_evidence["penalty_breakdown"] == {}
+
+    # At 10 * .55 + 10 * .45 - 3 = 7, the danger gate still overrides Candidate.
+    high_fundamental = _fundamental("TSLA", "Clean compounder", "10.0")
+    technical.classification = "Climax reversal risk"
+    technical.dual_score = Decimal("10.0")
+    seal_technical(technical)
+    gated = combine_row_decision(_row("TSLA"), high_fundamental, technical, config=_config())
+    _assert_fundamental_consumed(gated, high_fundamental)
+    assert gated.final_score == 7.0
+    assert gated.combined_decision == "Avoid"
+    assert gated.position_size_hint == "Avoid"
+    assert gated.technical_classification == "Climax reversal risk"
+    assert gated.debug_evidence["penalty_breakdown"] == {"danger_classification": 3.0}
 
 
 def test_combined_decision_treats_v4_buyable_as_full_starter() -> None:
@@ -231,9 +271,10 @@ def test_v5_shadow_display_does_not_change_combined_decision_semantics() -> None
 
 
 def test_combined_decision_missing_technical_waits_for_data() -> None:
+    fundamental = _fundamental("ADBE", "Clean compounder", "8.0")
     decision = combine_row_decision(
         _row("ADBE"),
-        _fundamental("ADBE", "Quality growth", "8.0"),
+        fundamental,
         None,
         config=_config(),
     )
@@ -245,6 +286,20 @@ def test_combined_decision_missing_technical_waits_for_data() -> None:
     assert decision.warning_flags == ["incomplete_data", "missing_technical"]
     assert not decision.is_complete
     assert decision.sort_bucket == 50
+    _assert_fundamental_consumed(decision, fundamental)
+    assert decision.has_technical is False and decision.dual_score is None
+    assert decision.debug_evidence["weighted_score_before_penalties"] == 8.0
+    assert decision.debug_evidence["penalty_breakdown"] == {"missing_technical": 1.0}
+
+    missing_both = combine_row_decision(_row("ADBE"), None, None, config=_config())
+    assert missing_both.has_fundamental is False
+    assert missing_both.final_score == 0.0
+    assert missing_both.combined_decision == "Incomplete data"
+    assert missing_both.warning_flags == [
+        "incomplete_data",
+        "missing_fundamental",
+        "missing_technical",
+    ]
 
 
 def test_complete_candidate_sorts_above_higher_scoring_incomplete_result() -> None:
@@ -403,6 +458,19 @@ def test_combined_decision_model_persists_reconstructable_debug_evidence() -> No
     assert reconstruct_combined_score_from_debug(model.debug_json) == float(model.final_score)
 
 
+def _assert_fundamental_consumed(decision, fundamental) -> None:
+    permission = decision.debug_evidence["contextual_consumer_eligibility"]["fundamental"]
+    assert permission["fundamental_admission_mode"] == "ACTIVE"
+    assert permission["included"] is True
+    assert permission["orthogonal_decision"]["eligibility"] == "INCLUDED"
+    assert permission["orthogonal_decision"]["source_evidence_id"] == fundamental.evidence_id
+    assert decision.has_fundamental is True
+    assert decision.fundamental_score == float(fundamental.fundamental_score)
+    assert (
+        fundamental.debug_json["synthetic_consumer_source"]["producer_label"] == "Clean compounder"
+    )
+
+
 def _row(
     ticker: str,
     earnings_date: date | None = None,
@@ -428,6 +496,9 @@ def _fundamental(
     score: str,
 ) -> FundamentalScore:
     return certified_fundamental(
+        source_backed=True,
+        # Synthetic calculation completed at the start of this scenario's day.
+        calculated_at=datetime.combine(TODAY, time.min, tzinfo=UTC),
         run_id=1,
         ticker=ticker,
         fundamental_label=label,

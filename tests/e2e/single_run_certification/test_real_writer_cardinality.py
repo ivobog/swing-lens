@@ -2,6 +2,7 @@
 
 import csv
 import json
+from contextlib import nullcontext
 from dataclasses import replace
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
@@ -11,7 +12,11 @@ from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    BackgroundJob,
+    BackgroundWorker,
     IBContract,
+    PipelineDependency,
+    PipelineRun,
     WinnerCohortGeneration,
     WinnerCohortRefreshState,
     WinnerCohortStatistic,
@@ -74,10 +79,25 @@ def certification_provider_ingest_enabled() -> bool:
     return True
 
 
+@pytest.fixture
+def certification_golden_version(request, certification_provider_mode):  # noqa: F811
+    from single_run_certification.golden_oracle import VERSION
+
+    return (VERSION if request.node.callspec.params["size"] == 10
+            and certification_provider_mode == "deterministic" else None)
+
+
 @pytest.mark.e2e
 @pytest.mark.slow
 @pytest.mark.destructive
-@pytest.mark.parametrize("size", (10, 88, 100))
+@pytest.mark.parametrize(
+    "size",
+    (
+        10,
+        pytest.param(88, marks=pytest.mark.extended_scale),
+        pytest.param(100, marks=pytest.mark.extended_scale),
+    ),
+)
 @pytest.mark.parametrize(
     "certification_setup_capture_handoff_enabled", (False, True), indirect=True
 )
@@ -87,6 +107,7 @@ def test_frozen_real_writer_cardinality(
     size,
 ):
     env = certification_environment
+    golden = env.environment.get("golden_version")
     tickers = EXACT_TEN + tuple(f"F{index:04d}" for index in range(size - len(EXACT_TEN)))
     with env.csv_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -98,10 +119,18 @@ def test_frozen_real_writer_cardinality(
         for ticker in tickers:
             row = {**exemplar, "Symbol": ticker, "Description": f"{ticker} frozen fixture"}
             writer.writerow(row)
+    if golden:
+        from single_run_certification.golden_oracle import DATA, load_golden
+
+        load_golden()
+        env.csv_path.write_bytes((DATA / "universe.csv").read_bytes())
 
     engine = create_engine(env.database_url)
     try:
-        with Session(engine) as db:
+        from single_run_certification.golden_runtime import business_inputs
+
+        clock = business_inputs(env.database_url) if golden else nullcontext()
+        with Session(engine) as db, clock:
             db.add_all(
                 IBContract(
                     ticker=ticker,
@@ -130,7 +159,8 @@ def test_frozen_real_writer_cardinality(
 
         recorder = CertificationRecorder(execution_id=env.execution_id)
         run_id = _launch_run_through_gui(certification_page, env, recorder)
-        _seed_retained_provider_history(engine, tickers=tickers)
+        with business_inputs(env.database_url) if golden else nullcontext():
+            _seed_retained_provider_history(engine, tickers=tickers)
         pipeline_id, status = _run_pipeline_through_gui(
             certification_page,
             env,
@@ -140,6 +170,8 @@ def test_frozen_real_writer_cardinality(
             progress_deadline_seconds=900 if size >= 88 else 180,
             admission_deadline_seconds=600 if size == 100 else 300,
         )
+        if size == 10:
+            _retain_terminal_status_evidence(engine, env, run_id, pipeline_id)
         if status != "COMPLETED":
             with engine.connect() as diagnostic_db:
                 pipeline_diagnostics = (
@@ -358,6 +390,16 @@ def test_frozen_real_writer_cardinality(
                 encoding="utf-8",
             )
         if size == 10:
+            if env.provider_mode == "deterministic":
+                _assert_production_worker_fidelity(engine, env, run_id, pipeline_id)
+            if golden:
+                _assert_independent_golden_subset(engine, env, run_id, pipeline_id)
+                from single_run_certification.golden_assertions import assert_completed_oracle
+
+                assert_completed_oracle(engine, env, run_id, pipeline_id)
+                from single_run_certification.evidence import capture_pipeline_evidence
+
+                capture_pipeline_evidence(engine, env, recorder, run_id, pipeline_id)
             publication = _mature_and_publish_one_generation(engine, run_id=run_id)
             assert publication == {
                 "evidence_rows": 1,
@@ -365,8 +407,297 @@ def test_frozen_real_writer_cardinality(
                 "published_generations": 1,
                 "serving_estimates": 1,
             }
+            if golden:
+                contract = json.loads((env.artifact_dir / "certificate-contract.json").read_text())
+                (env.artifact_dir / "checks-reached.json").write_text(json.dumps({
+                    "execution_id": env.execution_id, "test_id": contract["identity"]["test_id"],
+                    "all_test_checks_reached": True,
+                }, indent=2), encoding="utf-8")
     finally:
         engine.dispose()
+
+
+def _retain_terminal_status_evidence(engine, env, run_id, pipeline_id) -> None:
+    """Read committed predicate sources before fixture cleanup, for either outcome."""
+    queries = {
+        "pipeline": "select * from pipeline_runs where id=:pipeline_id",
+        "steps": (
+            "select * from pipeline_steps where pipeline_run_id=:pipeline_id order by step_order"
+        ),
+        "jobs": (
+            "select id,job_type,status,error_message,result_json from background_jobs "
+            "where related_run_id=:run_id order by id"
+        ),
+        "fetch_runs": "select * from ib_fetch_runs where run_id=:run_id order by id",
+        "fetch_items": (
+            "select i.id,i.fetch_run_id,i.ticker,i.what_to_show,i.status,i.error_message,"
+            "i.decision_metadata_json from ib_fetch_items i join ib_fetch_runs r "
+            "on r.id=i.fetch_run_id where r.run_id=:run_id order by i.id"
+        ),
+        "combined": (
+            "select id,ticker,evidence_id,is_complete,has_warning,warning_flags_json "
+            "from combined_results where run_id=:run_id order by id"
+        ),
+        "technicals": (
+            "select id,ticker,evidence_id,technical_confidence,insufficient_data,"
+            "warning_flags_json "
+            "from technical_scores where run_id=:run_id order by id"
+        ),
+        "regime": (
+            "select id,evidence_id,confidence,warnings_json from market_regime_snapshots "
+            "where run_id=:run_id order by id"
+        ),
+        "ceri": (
+            "select id,ticker,calculation_context_id,evidence_id from ceri_score_snapshots "
+            "where run_id=:run_id order by id"
+        ),
+    }
+    with engine.connect() as db:
+        retained = {
+            name: [
+                dict(row)
+                for row in db.execute(
+                    text(query), {"run_id": run_id, "pipeline_id": pipeline_id}
+                ).mappings()
+            ]
+            for name, query in queries.items()
+        }
+    (env.artifact_dir / "db-results" / "terminal-status-sources.json").write_text(
+        json.dumps(retained, indent=2, default=str), encoding="utf-8"
+    )
+
+
+def _assert_production_worker_fidelity(engine, env, run_id, pipeline_id) -> None:
+    """Reconcile observations of untouched code with native committed lineage."""
+    from app.services.configuration_delivery import (
+        binding_reference,
+        execution_configuration_reference,
+    )
+
+    log_path = env.artifact_dir / "logs" / "worker-fidelity.jsonl"
+    records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    entered = [row for row in records if row.get("pipeline_id") == pipeline_id
+               and row["event"] == "native_handler_entered"]
+    returned = [row for row in records if row.get("pipeline_id") == pipeline_id
+                and row["event"] == "native_handler_returned"]
+    with Session(engine) as db:
+        pipeline = db.get(PipelineRun, pipeline_id)
+        jobs = list(db.scalars(select(BackgroundJob).where(BackgroundJob.related_run_id == run_id)))
+        full_jobs = sorted((job for job in jobs if job.job_type == "FULL_PIPELINE"),
+                           key=lambda job: job.id)
+        dependencies = list(db.scalars(select(PipelineDependency).where(
+            PipelineDependency.pipeline_run_id == pipeline_id,
+            PipelineDependency.dependency_type == "CERI_WORKFLOW",
+        )))
+        anchor = binding_reference(db, pipeline_run_id=pipeline_id)
+        worker = db.get(BackgroundWorker, entered[0]["worker_id"]) if entered else None
+        native_handler = "app.services.background_worker._execute_full_pipeline_job"
+        evidence = {
+            "execution_id": env.execution_id,
+            "database_name": env.database_name,
+            "run_id": run_id,
+            "pipeline_id": pipeline_id,
+            "pipeline_status": pipeline.status,
+            "handler_entries": entered,
+            "handler_returns": returned,
+            "executor_entries": [
+                row for row in records if row["event"] == "native_executor_entered"
+            ],
+            "worker": {
+                "worker_id": worker.worker_id,
+                "instance_id": worker.instance_id,
+                "process_id": worker.process_id,
+                "heartbeat_at": worker.heartbeat_at,
+                "control_loop_heartbeat_at": worker.control_loop_heartbeat_at,
+            } if worker else None,
+            "jobs": [{
+                "id": job.id, "job_type": job.job_type, "status": job.status,
+                "parent_job_id": job.parent_job_id, "root_job_id": job.root_job_id,
+                "scope_id": job.scope_id, "refresh_cycle_id": job.refresh_cycle_id,
+                "certification_session_id": job.payload_json.get("certification_session_id"),
+                "authorized": job.payload_json.get("certification_authorized"),
+                "progress_sequence": job.progress_sequence,
+                "configuration_anchor": execution_configuration_reference(db, job)["fingerprint"],
+                "lease_events": job.operational_metadata_json.get("lease_events", []),
+            } for job in jobs],
+            "dependencies": [{
+                "id": dep.id, "state": dep.state, "root_job_id": dep.root_job_id,
+                "child_job_id": dep.child_job_id, "continuation_job_id": dep.continuation_job_id,
+                "result": dep.result_json,
+            } for dep in dependencies],
+        }
+        (env.artifact_dir / "db-results" / "production-worker-fidelity.json").write_text(
+            json.dumps(evidence, indent=2, sort_keys=True, default=str), encoding="utf-8",
+        )
+        assert len(full_jobs) == len(entered) == len(returned) == 2, evidence
+        assert {row["job_id"] for row in entered} == {job.id for job in full_jobs}, evidence
+        assert {row["job_id"] for row in returned} == {job.id for job in full_jobs}, evidence
+        assert all(row["registered_original"] and row["native_worker_dispatch"]
+                   and row["handler"] == native_handler for row in entered), evidence
+        assert len({row["worker_instance_id"] for row in entered}) == 1, evidence
+        assert len({row["execution_token_hash"] for row in entered}) == 2, evidence
+        for job in jobs:
+            assert job.status == "COMPLETED", evidence
+            assert job.payload_json["certification_session_id"] == env.execution_id, evidence
+            assert job.payload_json["certification_authorized"] is True, evidence
+            assert (job.scope_id, job.refresh_cycle_id, job.acquisition_plan_id) == (
+                pipeline.scope_id, pipeline.refresh_cycle_id, pipeline.acquisition_plan_id,
+            ), evidence
+            assert execution_configuration_reference(db, job) == anchor, evidence
+        for row in entered:
+            job = next(job for job in full_jobs if job.id == row["job_id"])
+            worker = db.get(BackgroundWorker, row["worker_id"])
+            assert worker.instance_id == row["worker_instance_id"], evidence
+            assert worker.process_id == row["pid"], evidence
+            assert worker.heartbeat_at is not None and worker.control_loop_heartbeat_at is not None
+            assert row["configuration_anchor"] == anchor["fingerprint"], evidence
+            # Terminal jobs clear their token and redact sensitive metadata.
+            # Reconcile the committed claim by worker; compare token hashes at
+            # the untouched handler/executor boundary below.
+            assert row["execution_token_hash"] and any(
+                event["event_type"] == "CLAIMED" and event["worker_id"] == row["worker_id"]
+                for event in job.operational_metadata_json["lease_events"]
+            ), evidence
+            executor = [event for event in records if event["event"] == "native_executor_entered"
+                        and event["job_id"] == job.id]
+            assert len(executor) == 1 and executor[0]["independent_control_factory"], evidence
+            assert executor[0]["execution_token_hash"] == row["execution_token_hash"], evidence
+            assert all(name == f"_execute_full_pipeline_job.<locals>.{key}"
+                       for key, name in executor[0]["callbacks"].items()), evidence
+            completed = next(event for event in returned if event["job_id"] == job.id)
+            assert all(completed["callback_calls"].get(name, 0) > 0
+                       for name in ("lease_guard", "should_cancel", "progress_callback")), evidence
+        root, continuation = full_jobs
+        assert root.result_json["status"] == "WAITING_FOR_CERI_COMPLETION", evidence
+        assert continuation.result_json["status"] == pipeline.status == "COMPLETED", evidence
+        assert len(dependencies) == 1, evidence
+        dependency = dependencies[0]
+        assert dependency.state == "COMPLETED" and dependency.root_job_id == root.id, evidence
+        assert dependency.continuation_job_id == continuation.id, evidence
+        assert dependency.child_job_id == continuation.parent_job_id, evidence
+        assert continuation.pipeline_dependency_id == dependency.id, evidence
+        assert continuation.payload_json["resume_from_step"] == "FREEZING_DECISION_HANDOFF_MANIFEST"
+        assert continuation.trigger_source == "CERI_COMPLETION_BARRIER", evidence
+        assert dependency.result_json["workflow_key"] == (
+            pipeline.result_json["ceri_provider_workflow_key"]
+        ), evidence
+
+
+def _assert_independent_golden_subset(engine, env, run_id, pipeline_id):
+    """Check only independently established fields; never issue a certificate."""
+    from app.models.ceri_tables import CeriIngestionRun, CeriSourceRecord
+    from app.models.tables import (
+        CombinedResult,
+        FundamentalScore,
+        PipelineStep,
+        PriceBar,
+        RankingResult,
+        RawCompanyRow,
+        TechnicalScore,
+        TransitionDecisionHandoffManifest,
+    )
+    from single_run_certification.golden_oracle import (
+        compare_records,
+        expected_manifest,
+    )
+
+    expected = json.loads((env.artifact_dir / "expected-manifest.json").read_text())
+    assert expected == expected_manifest(expected["flags"]["setup_capture_handoff_enabled"])
+    actual = {}
+    with Session(engine) as db:
+        pipeline = db.get(PipelineRun, pipeline_id)
+        for domain, model in (("raw", RawCompanyRow), ("combined_members", CombinedResult)):
+            rows = list(db.scalars(select(model).where(model.run_id == run_id)))
+            actual[domain] = [{"ticker": row.ticker, **(
+                {"row_number": row.row_number} if domain == "raw" else {}
+            )} for row in rows]
+        fundamental_fields = expected["domains"]["fundamental"][0]
+        actual["fundamental"] = [{
+            key: row.v2_warning_flags_json["flags"] if key == "warning_flags"
+            else getattr(row, key)
+            for key in fundamental_fields
+        } for row in db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run_id))]
+        indicator_fields = expected["domains"]["technical_indicators"][0]
+        actual["technical_indicators"] = []
+        for row in db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run_id)):
+            identity = row.debug_json["calculation_identity"]
+            assert identity["ownership"]["run_id"]["value"] == run_id
+            assert identity["ownership"]["pipeline_id"]["value"] == pipeline_id
+            derived = row.debug_json["derived"]
+            observed = {key: derived[key] for key in indicator_fields
+                        if key not in {"ticker", "session", "bar_count", "insufficient_data"}}
+            observed.update(
+                ticker=row.ticker,
+                session=identity["temporal"]["as_of_session"]["value"],
+                bar_count=db.scalar(select(func.count()).select_from(PriceBar).where(
+                    PriceBar.ticker == row.ticker,
+                    PriceBar.what_to_show == "ADJUSTED_LAST",
+                )),
+                insufficient_data=row.insufficient_data,
+            )
+            actual["technical_indicators"].append(observed)
+        actual["rank_members"] = [{"ticker": row.ticker, "profile": row.ranking_profile}
+                                  for row in db.scalars(select(RankingResult).where(
+                                      RankingResult.run_id == run_id,
+                                  ))]
+        actual["stages"] = [{"order": row.step_order, "name": row.step_name}
+                            for row in db.scalars(select(PipelineStep).where(
+                                PipelineStep.pipeline_run_id == pipeline_id,
+                            ))]
+        sources = db.scalars(select(CeriSourceRecord).where(
+            CeriSourceRecord.provider.in_(("eodhd", "sec")),
+            CeriSourceRecord.restricted_normalized_json["ticker"].astext.in_(EXACT_TEN),
+        ))
+        actual["ceri_sources"] = [{
+            "provider": row.provider, "dataset": row.dataset,
+            "ticker": row.restricted_normalized_json["ticker"],
+            "record_key": row.provider_record_id,
+            "known_at": row.retrieved_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+        } for row in sources]
+        handoff = db.scalar(select(TransitionDecisionHandoffManifest).where(
+            TransitionDecisionHandoffManifest.pipeline_run_id == pipeline_id,
+        ))
+        actual["business_time"] = {
+            "market_cutoff": pipeline.market_calculation_context.cutoff_at.isoformat(),
+            "ceri_cutoff": pipeline.result_json["ceri_calculation_cutoff_at"],
+            "decision_at": handoff.created_at.isoformat(),
+        }
+        full_jobs = sorted(db.scalars(select(BackgroundJob).where(
+            BackgroundJob.related_run_id == run_id, BackgroundJob.job_type == "FULL_PIPELINE",
+        )), key=lambda row: row.id)
+        claims = [next(
+            event["occurred_at"] for event in row.operational_metadata_json["lease_events"]
+            if event["event_type"] == "CLAIMED"
+        ) for row in full_jobs]
+        ingestion = list(db.scalars(select(CeriIngestionRun).where(
+            CeriIngestionRun.scope_json["run_id"].astext == str(run_id),
+        )))
+        actual["operational_ingestion_clock"] = {
+            "initial_claim_at": claims[0], "continuation_claim_at": claims[1],
+            "ingestion_started_at": [row.started_at.isoformat() for row in ingestion],
+        }
+    # Persist mismatches before asserting; never rewrite reviewed expectations.
+    path = env.artifact_dir / "db-results" / "independent-golden-subset.json"
+    path.write_text(json.dumps({"expected": expected, "actual": actual,
+                                "claim": "INDEPENDENT_SUBSET_ONLY",
+                                "unresolved": expected["unresolved"]},
+                               indent=2, sort_keys=True, default=str), encoding="utf-8")
+    for domain in ("raw", "combined_members", "fundamental", "technical_indicators"):
+        compare_records(expected["domains"][domain], actual[domain], keys=("ticker",),
+                        tolerance="0.00000001" if domain == "technical_indicators" else "0")
+    for domain, keys in (("rank_members", ("profile", "ticker")), ("stages", ("order",)),
+                         ("ceri_sources", ("provider", "dataset", "record_key"))):
+        compare_records(expected["domains"][domain], actual[domain], keys=keys)
+    for name, value in expected["business_time"].items():
+        assert datetime.fromisoformat(actual["business_time"][name].replace("Z", "+00:00")) == (
+            datetime.fromisoformat(value)
+        )
+    operational = actual["operational_ingestion_clock"]
+    assert operational["ingestion_started_at"]
+    assert all(datetime.fromisoformat(operational["initial_claim_at"]) <= (
+        datetime.fromisoformat(value)
+    ) <= datetime.fromisoformat(operational["continuation_claim_at"])
+               for value in operational["ingestion_started_at"])
 
 
 def _seed_retained_provider_history(engine, *, tickers: tuple[str, ...]) -> None:
@@ -377,6 +708,8 @@ def _seed_retained_provider_history(engine, *, tickers: tuple[str, ...]) -> None
     clone therefore needs already-known provider history; the in-pipeline async
     DAG still performs a real refresh and deduplicates these frozen responses.
     """
+
+    from single_run_certification.golden_runtime import business_now, current_manifest
 
     service = CeriIngestionService(
         registry=frozen_ceri_registry(),
@@ -402,6 +735,7 @@ def _seed_retained_provider_history(engine, *, tickers: tuple[str, ...]) -> None
                                 f"certification-retained:{provider}:{dataset.value}:{ticker}"
                             ),
                             scope={"ticker": ticker, "retained_clone": True},
+                            business_cutoff=business_now().date() if current_manifest() else None,
                         ),
                     )
                     assert result.failed == 0 and result.quarantined == 0, result.as_dict()
@@ -432,7 +766,9 @@ def _seed_retained_provider_history(engine, *, tickers: tuple[str, ...]) -> None
         db.commit()
 
 
-def _mature_and_publish_one_generation(engine, *, run_id: int) -> dict[str, int]:
+def _mature_and_publish_one_generation(
+    engine, *, run_id: int, ticker: str = EXACT_TEN[0]
+) -> dict[str, int]:
     """Continue the exact provider lineage through positive serving publication."""
 
     config = load_winner_probability_config()
@@ -442,7 +778,7 @@ def _mature_and_publish_one_generation(engine, *, run_id: int) -> dict[str, int]
         prediction = db.scalar(
             select(WinnerPredictionSnapshot).where(
                 WinnerPredictionSnapshot.run_id == run_id,
-                WinnerPredictionSnapshot.ticker == EXACT_TEN[0],
+                WinnerPredictionSnapshot.ticker == ticker,
             )
         )
         assert prediction is not None

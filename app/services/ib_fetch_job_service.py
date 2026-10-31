@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -337,7 +338,7 @@ def execute_durable_fetch_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         execution_token=execution_token,
         memory_probe=memory_probe,
     )
-    return fetch_progress(fetch_run)
+    return jsonable_encoder(fetch_progress(fetch_run))
 
 
 def _admit_fetch_authority(

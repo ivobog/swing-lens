@@ -280,6 +280,7 @@ def _row(row_id: int, ticker: str, row_number: int) -> RawCompanyRow:
 
 def _fundamental(ticker: str, score: float) -> FundamentalScore:
     return certified_fundamental(
+        source_backed=True,
         id=201 if ticker == "MOMO" else 202,
         run_id=7,
         ticker=ticker,
@@ -343,6 +344,9 @@ def _attach_identities(
     for row in rows:
         rows_by_ticker.setdefault(row.ticker, row)
     for score in fundamentals:
+        from core_readiness_helpers import populate_fundamental_source
+
+        populate_fundamental_source(score, raw_row=rows_by_ticker[score.ticker])
         identity = build_fundamental_score_identity(
             score,
             raw_row=rows_by_ticker[score.ticker],

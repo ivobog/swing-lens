@@ -223,17 +223,7 @@ def test_sector_rotation_snapshot_api_returns_rows(monkeypatch) -> None:
     assert payload["rows"][0]["sector"] == "Technology"
 
 
-def test_recalculate_api_commits_and_returns_dto(monkeypatch) -> None:
-    db = RouteFakeDb()
-    with pytest.raises(HTTPException) as error:
-        sector_rotation_routes.recalculate_run_sector_rotation_api(run_id=7, db=db)
-    assert error.value.status_code == 409
-    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
-    assert db.commits == 0
-    assert db.rollbacks == 0
-
-
-def test_recalculate_api_rolls_back_value_error(monkeypatch) -> None:
+def test_recalculate_api_refuses_retired_mutation(monkeypatch) -> None:
     db = RouteFakeDb()
     with pytest.raises(HTTPException) as error:
         sector_rotation_routes.recalculate_run_sector_rotation_api(run_id=7, db=db)

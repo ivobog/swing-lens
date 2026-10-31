@@ -25,6 +25,9 @@ if DECISION_REVIEW_FILE.exists():
 CALLER_REVIEW_FILE = ROOT / "docs/remediation/calculation-lineage/T14D_semantic_family_review.json"
 if CALLER_REVIEW_FILE.exists():
     REVIEW_FILE = CALLER_REVIEW_FILE
+CURRENT_REVIEW_FILE = (
+    ROOT / "docs/remediation/calculation-lineage/T14_R01_current_writer_review.json"
+)
 DISPOSITIONS = {
     "T14B",
     "T14C",
@@ -88,9 +91,22 @@ def source_definitions(path):
     return definitions
 
 
+def load_review():
+    """Extend current foundation ownership without rewriting historical certificates."""
+    review = json.loads(REVIEW_FILE.read_text(encoding="utf-8"))
+    current = json.loads(CURRENT_REVIEW_FILE.read_text(encoding="utf-8"))
+    for kind in ("writer_families", "entry_families", "sink_reviews"):
+        overlap = set(review[kind]) & set(current[kind])
+        if overlap:
+            raise ValueError(f"Current review cannot replace historical {kind}: {sorted(overlap)}")
+        review[kind].update(current[kind])
+    review["current_source_pins"] = current["source_pins"]
+    return review
+
+
 def normalize(inventory, review=None):
     if review is None:
-        review = json.loads(REVIEW_FILE.read_text(encoding="utf-8"))
+        review = load_review()
     families = review["writer_families"]
     entries = review["entry_families"]
     sinks = review["sink_reviews"]
@@ -169,6 +185,11 @@ def normalize(inventory, review=None):
             source = ROOT / path
             if not source.exists() or hashlib.sha256(source.read_bytes()).hexdigest() != expected:
                 stale.append(path)
+    for relative, expected in review.get("current_source_pins", {}).items():
+        source = ROOT / relative
+        if not source.exists() or hashlib.sha256(source.read_bytes()).hexdigest() != expected:
+            stale.append(relative)
+    stale = sorted(set(stale))
     definitions = {}
     missing_owner_declarations = []
     for fid, family in families.items():

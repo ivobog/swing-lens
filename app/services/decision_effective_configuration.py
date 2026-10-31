@@ -338,7 +338,12 @@ def current_code_policy(namespace):
         }
     if namespace in {"decision.alerts.ceri", "decision.ceri.changes"}:
         family = "alerts" if namespace == "decision.alerts.ceri" else "changes"
-        return {"algorithm_version": "ceri-" + family + "-v1"}
+        policy = {"algorithm_version": "ceri-" + family + "-v1"}
+        if family == "alerts":
+            from app.services.ceri.actionability import CERI_ACTIONABILITY_POLICY_VERSION
+
+            policy["opportunity_actionability"] = CERI_ACTIONABILITY_POLICY_VERSION
+        return policy
     if namespace.startswith("decision.winner."):
         family = namespace.rsplit(".", 1)[1]
         policy = {"algorithm_version": family + "-v1"}
@@ -402,6 +407,7 @@ def resolve_ceri_decision_configuration(config=None, *, family="alerts", enabled
     values = asdict(config)
     selected = {key: values[key] for key in roots}
     selected = json.loads(json.dumps(selected, default=str))
+    policy = current_code_policy(namespace)
     return freeze_decision_configuration(
         namespace,
         {
@@ -422,7 +428,7 @@ def resolve_ceri_decision_configuration(config=None, *, family="alerts", enabled
             ]
             if family == "alerts"
             else [],
-            "policy": {"algorithm_version": "ceri-" + family + "-v1"},
+            "policy": policy,
         },
         ("config", "enabled", "policy", "rules"),
         source=_native_source(config),
@@ -509,20 +515,45 @@ def _verified_configuration_snapshot(serialized_payload):
     return _configuration_from_payload(json.loads(serialized_payload)).snapshot
 
 
-@lru_cache(maxsize=64)
 def resolve_readiness_policy_configuration(policy):
+    from app.settings import FundamentalAdmissionMode, get_settings
+
+    mode = FundamentalAdmissionMode.LEGACY
+    if getattr(policy, "producer", None) == "FUNDAMENTAL" and policy.consumer in {
+        "COMBINED", "RANKING",
+    }:
+        mode = get_settings().fundamental_admission_mode
+    return _resolve_readiness_policy_configuration(policy, mode.value)
+
+
+@lru_cache(maxsize=64)
+def _resolve_readiness_policy_configuration(policy, admission_mode):
     producer = getattr(policy, "producer", "TECHNICAL")
     module = getattr(policy, "module", None)
     namespace = "decision.readiness." + producer.lower() + "." + policy.consumer.lower()
     if module:
         namespace += "." + module.lower()
+    values = {
+        "policy": asdict(policy),
+        "algorithm": "immutable-policy-version-strict-ready-blocked-degraded-unknown-v1",
+    }
+    if producer == "FUNDAMENTAL" and policy.consumer in {"COMBINED", "RANKING"}:
+        from app.services.fundamental_admission_policy import (
+            FUNDAMENTAL_ADMISSION_POLICY_VERSION,
+            FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
+        )
+        if admission_mode != "LEGACY":
+            values["fundamental_admission"] = {
+                "mode": admission_mode,
+                "policy_version": FUNDAMENTAL_ADMISSION_POLICY_VERSION,
+                "shadow_policy_version": FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
+            }
     return freeze_decision_configuration(
         namespace,
-        {
-            "policy": asdict(policy),
-            "algorithm": "immutable-policy-version-strict-ready-blocked-degraded-unknown-v1",
-        },
-        ("policy", "algorithm"),
+        values,
+        ("policy", "algorithm") + (
+            ("fundamental_admission",) if "fundamental_admission" in values else ()
+        ),
         source=ConfigurationSource(SourceKind.CODE_DEFAULT, "phase3-named-consumer-policy"),
     )
 

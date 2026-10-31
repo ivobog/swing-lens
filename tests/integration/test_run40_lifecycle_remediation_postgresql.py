@@ -16,6 +16,7 @@ from time import perf_counter, sleep
 
 import pandas as pd
 import pytest
+from evidence_output import output_directory
 from native_mutation_support import bound_pipeline, seed_price_frame
 from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.exc import DataError
@@ -615,9 +616,7 @@ def _certify_native_publication(
         "progress_phases": [item["phase"] for item in progress],
     }
     record_property("run40_measurement", json.dumps(measurement))
-    directory = Path(
-        os.environ.get("RUN40_ARTIFACT_DIR", "docs/remediation/run40-lifecycle/evidence")
-    )
+    directory = Path(os.environ.get("RUN40_ARTIFACT_DIR", str(output_directory("run40"))))
     directory.mkdir(parents=True, exist_ok=True)
     mode = os.environ.get("RUN40_BENCHMARK_LABEL", "after")
     if profile is not None:
@@ -805,7 +804,7 @@ def test_native_winner_continuation_fixture_contract(
             logger.removeHandler(handler)
         db.commit()
         if winner.failed:
-            artifact = Path("docs/remediation/run40-lifecycle/evidence/winner-history-stack.txt")
+            artifact = output_directory("run40") / "winner-history-stack.txt"
             artifact.write_text(errors.getvalue())
         assert winner.failed == 0 and winner.inserted == 1, errors.getvalue() or {
             "exclusions": winner.as_dict()["exclusion_reasons"],

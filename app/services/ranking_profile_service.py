@@ -37,6 +37,11 @@ from app.services.combined_ranking_identity import (
     technical_score_identity,
     validate_ibmi_liquidity_for_ranking,
 )
+from app.services.contextual_consumer_eligibility import (
+    CONTEXTUAL_ELIGIBILITY_KEY,
+    FUNDAMENTAL_TO_RANKING,
+    record_fundamental_admission,
+)
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
     EvidenceUnavailableError,
@@ -503,6 +508,14 @@ def _persist_ranking_profile_batch(
                 last_completed_item=request["current_row"].ticker,
             ),
         )
+        for result in persisted:
+            source = (source_rows or {})[result.ticker.upper()].fundamental
+            identity = calculation_identity_from_debug(result.debug_json)
+            record_fundamental_admission(
+                db, row=source, policy=FUNDAMENTAL_TO_RANKING,
+                permission=result.debug_json[CONTEXTUAL_ELIGIBILITY_KEY]["fundamental"],
+                pipeline_run_id=identity.ownership.pipeline_id.value,
+            )
     return persisted
 
 

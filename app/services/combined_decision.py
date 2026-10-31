@@ -28,6 +28,7 @@ from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.combined_ranking_identity import (
     COMBINED_INPUT_COMPATIBILITY,
     build_combined_result_identity,
+    calculation_identity_from_debug,
     cohort_identity_fingerprint,
     embed_calculation_identity,
     fundamental_score_identity,
@@ -41,6 +42,7 @@ from app.services.contextual_consumer_eligibility import (
     CONTEXTUAL_ELIGIBILITY_KEY,
     FUNDAMENTAL_TO_COMBINED,
     contextual_decision_input,
+    record_fundamental_admission,
 )
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
@@ -435,6 +437,15 @@ def _persist_combined_batch(
             last_completed_item=request["current_row"].ticker,
         ),
     )
+
+    for result in results:
+        source = (fundamentals or {})[result.ticker.upper()]
+        identity = calculation_identity_from_debug(result.debug_json)
+        record_fundamental_admission(
+            db, row=source, policy=FUNDAMENTAL_TO_COMBINED,
+            permission=result.debug_json[CONTEXTUAL_ELIGIBILITY_KEY]["fundamental"],
+            pipeline_run_id=identity.ownership.pipeline_id.value,
+        )
 
 
 def _report_combined_progress(

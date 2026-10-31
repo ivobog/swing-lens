@@ -45,8 +45,11 @@ def test_matching_deterministic_report_requires_same_fingerprint_and_passed_gate
         "execution_id": "candidate",
         "provider_mode": "deterministic",
         "working_tree_fingerprint": "candidate-fingerprint",
+        "verdict": "CERTIFIED",
         "gates": {
             "PRODUCTION_RUNTIME_CERTIFICATION": "PASS",
+            "EXACT_PIPELINE_CERTIFICATION": "PASS",
+            "FULL_RELEASE_REGRESSIONS": "PASS",
             "SMALL_LIVE_PROVIDER_CANARY": "NOT_RUN",
         },
     }
@@ -88,3 +91,68 @@ def test_live_certification_fails_closed_before_runtime_when_sec_identity_is_inv
     assert report["verdict"] == "BLOCKED"
     assert report["gates"]["SMALL_LIVE_PROVIDER_CANARY"] == "BLOCKED"
     assert report["safe_for_normal_run"] is False
+
+
+def _exact_invocation():
+    return {
+        "selected": list(certification.EXACT_TEST_IDS),
+        "collected": list(certification.EXACT_TEST_IDS),
+        "executed": list(certification.EXACT_TEST_IDS),
+        "failed": [],
+        "exit_code": 0,
+    }
+
+
+def test_exact_selector_includes_both_collected_handoff_modes_and_no_larger_case():
+    runtime = dict(certification.TEST_GROUPS)["production-runtime"]
+    assert runtime == certification.EXACT_TEST_IDS
+    assert all(node.endswith("-10]") for node in runtime)
+    assert "chromium-False-10" in runtime[0] and "chromium-True-10" in runtime[1]
+
+
+def test_wrapper_rejects_missing_duplicate_stale_zero_and_failed_scenario_results():
+    import copy
+
+    invocation = _exact_invocation()
+    certificates = [
+        {"test_id": node, "verdict": "CERTIFIED"} for node in certification.EXACT_TEST_IDS
+    ]
+    assert certification.invocation_verdict(invocation, certificates, []) == "CERTIFIED"
+    for reports in (
+        [],
+        certificates[:1],
+        certificates + certificates[:1],
+        [{**certificates[0], "test_id": "stale"}, certificates[1]],
+    ):
+        assert certification.invocation_verdict(invocation, reports, []) == "FAILED"
+    for key, value in (
+        ("selected", []),
+        ("collected", []),
+        ("executed", []),
+        ("exit_code", 1),
+        ("failed", ["pytest failure"]),
+    ):
+        invalid = {**copy.deepcopy(invocation), key: value}
+        assert certification.invocation_verdict(invalid, certificates, []) == "FAILED"
+    assert certification.verdict_exit_code("CERTIFIED") == 0
+    assert all(
+        certification.verdict_exit_code(state) != 0 for state in ("FAILED", "BLOCKED", "INCOMPLETE")
+    )
+
+
+def test_empty_runtime_diagnostics_cannot_pass():
+    assert not certification._runtime_invariants_pass([])
+
+
+def test_junit_execution_accounts_for_skips_and_actual_node_ids(tmp_path):
+    path = tmp_path / "result.xml"
+    path.write_text(
+        '<testsuites><testsuite><testcase classname="tests.e2e.single_run_certification.'
+        'test_real_writer_cardinality" name="test_frozen_real_writer_cardinality'
+        '[chromium-False-10]"/><testcase classname="tests.e2e.single_run_certification.'
+        'test_real_writer_cardinality" name="test_frozen_real_writer_cardinality'
+        '[chromium-True-10]"><skipped/></testcase></testsuite></testsuites>'
+    )
+    execution = certification._junit_execution(path)
+    assert execution["executed"] == list(certification.EXACT_TEST_IDS)
+    assert execution["failed"] == [certification.EXACT_TEST_IDS[1]]

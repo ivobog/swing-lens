@@ -1,0 +1,2438 @@
+{
+  "schema": "swinglens.certification-registry.v1",
+  "source_digest_policy": "sha256-crlf-to-lf-v1",
+  "approval_scope": "Step2-A02 governance of existing A04/native and current CI boundaries; no operational execution approval. A16 adds explicit source-bound full-release aggregation; implementation verification is separate from actual release readiness.",
+  "standalone_registry": "docs/testing/standalone_lifecycle.csv",
+  "baseline_entry_count": 156,
+  "historical_entry_count": 29,
+  "baseline_catalog_sha256": "065cc2a2f5c140dd630c3e90018fa8a81fc50ea60fb419c70e20ddb625a74125",
+  "baseline_entry_points_sha256": "cf8e04ac5d78b1965f82424112252961306ec5299b7168d5fee7393539b51b58",
+  "additional_entries": [
+    {
+      "entry_point": "scripts/qa/check_certification_registry.py",
+      "target_lifecycle": "ACTIVE_RELEASE_CERTIFICATION",
+      "scope": "Registration-only static check introduced by A02; outside the frozen 156 baseline."
+    }
+  ],
+  "gates": [
+    {
+      "id": "ARCHITECTURE_CLOSURE",
+      "entry_point": "scripts/check_architecture_registry.py",
+      "command": [
+        "python",
+        "scripts/check_architecture_registry.py",
+        "--check"
+      ],
+      "scope": "Checked architecture registry/source closure only; no runtime or financial result.",
+      "required": true,
+      "lane": "ci-lint-test-migrations",
+      "evidence_format": "stdout + process exit; no pipeline certificate",
+      "verdict_semantics": {
+        "PASS": "checked registry matches source",
+        "FAIL": "closure/source mismatch"
+      },
+      "exit_semantics": {
+        "0": "PASS",
+        "1": "FAIL"
+      },
+      "dependencies": [
+        "repository source and declared input artifacts"
+      ],
+      "prerequisites": [
+        "checked repository checkout; no historical report reuse"
+      ],
+      "ownership": "SwingLens test/release infrastructure",
+      "safety": [
+        "STATIC_SOURCE_CHECK",
+        "APPLICATION_IMPORT",
+        "CHECK_MODE_ONLY"
+      ],
+      "automatic": true,
+      "certificate_authority": "NONE",
+      "source_sha256": "54cff5af7e4c8f7a4d02e9ecf45b9ff0d09622c3dd9aba1426e137826bb39faf",
+      "ci_command": "uv run python scripts/check_architecture_registry.py --check"
+    },
+    {
+      "id": "ROUTE_INVENTORY",
+      "entry_point": "scripts/docs/check_route_inventory.py",
+      "command": [
+        "python",
+        "scripts/docs/check_route_inventory.py"
+      ],
+      "scope": "Route/export documentation equality only; imports current app routing, does not run pipeline.",
+      "required": true,
+      "lane": "ci-lint-test-migrations",
+      "evidence_format": "stdout + process exit; no pipeline certificate",
+      "verdict_semantics": {
+        "PASS": "inventory text matches routes",
+        "FAIL": "documentation drift"
+      },
+      "exit_semantics": {
+        "0": "PASS",
+        "1": "FAIL"
+      },
+      "dependencies": [
+        "repository source and declared input artifacts"
+      ],
+      "prerequisites": [
+        "checked repository checkout; no historical report reuse"
+      ],
+      "ownership": "SwingLens test/release infrastructure",
+      "safety": [
+        "APPLICATION_IMPORT",
+        "NO_WRITE_FLAG_IN_APPROVED_COMMAND"
+      ],
+      "automatic": true,
+      "certificate_authority": "NONE",
+      "source_sha256": "ff28047322bd5dd516626127354e53f98dbe8b36e1f418936895343c0821c168",
+      "ci_command": "uv run python scripts/docs/check_route_inventory.py"
+    },
+    {
+      "id": "TRACKED_SECRET_SCAN",
+      "entry_point": "scripts/qa/scan_tracked_secrets.py",
+      "command": [
+        "python",
+        "scripts/qa/scan_tracked_secrets.py"
+      ],
+      "scope": "Credential-shaped patterns in tracked text only; no complete security or pipeline certificate.",
+      "required": true,
+      "lane": "ci-lint-test-migrations",
+      "evidence_format": "stdout + process exit; no pipeline certificate",
+      "verdict_semantics": {
+        "PASS": "no configured pattern findings",
+        "FAIL": "configured secret pattern found"
+      },
+      "exit_semantics": {
+        "0": "PASS",
+        "1": "FAIL"
+      },
+      "dependencies": [
+        "repository source and declared input artifacts"
+      ],
+      "prerequisites": [
+        "checked repository checkout; no historical report reuse"
+      ],
+      "ownership": "SwingLens test/release infrastructure",
+      "safety": [
+        "STATIC_TRACKED_SOURCE_SCAN",
+        "NO_DATABASE"
+      ],
+      "automatic": true,
+      "certificate_authority": "NONE",
+      "source_sha256": "9363a265301d8ad0fec5c95839593dcd5935f2713de893addea97611d22e5195",
+      "ci_command": "uv run python scripts/qa/scan_tracked_secrets.py"
+    },
+    {
+      "id": "CERTIFICATION_REGISTRY",
+      "entry_point": "scripts/qa/check_certification_registry.py",
+      "command": [
+        "python",
+        "scripts/qa/check_certification_registry.py",
+        "--check"
+      ],
+      "scope": "Certification membership, lifecycle conservation and source/CI registration only.",
+      "required": true,
+      "lane": "ci-lint-test-migrations",
+      "evidence_format": "swinglens.certification-registry-check.v1; pipeline_result=NOT_EVALUATED",
+      "verdict_semantics": {
+        "VALID": "registration checks passed",
+        "INVALID": "missing/duplicate/unapproved registration"
+      },
+      "exit_semantics": {
+        "0": "VALID_REGISTRY_ONLY",
+        "1": "INVALID_REGISTRY"
+      },
+      "dependencies": [
+        "repository source and declared input artifacts"
+      ],
+      "prerequisites": [
+        "checked repository checkout; no historical report reuse"
+      ],
+      "ownership": "SwingLens test/release infrastructure",
+      "safety": [
+        "STATIC_SOURCE_AND_SEALED_EXPECTATION_READS",
+        "NO_TOOL_EXECUTION"
+      ],
+      "automatic": true,
+      "certificate_authority": "NONE",
+      "source_sha256": "96729d71cc3334289dccd4301817cebdfe8e23b6eff438d88487bb7ffa0c75d5",
+      "ci_command": "uv run python scripts/qa/check_certification_registry.py --check"
+    },
+    {
+      "id": "EXACT_PIPELINE_CERTIFICATION",
+      "entry_point": "scripts/production_runtime_certification.py",
+      "command": [
+        "python",
+        "-m",
+        "scripts.production_runtime_certification",
+        "--provider-mode",
+        "deterministic"
+      ],
+      "scope": "Deterministic frozen-provider, native-worker, ten-ticker pipeline certification",
+      "required": true,
+      "lane": "native-owned-disposable-postgresql",
+      "evidence_format": "swinglens.production-runtime-certification.v2 + per-variant swinglens.exact-pipeline-certificate.v1",
+      "verdict_semantics": {
+        "CERTIFIED": "all declared applicable A04 obligations executed and passed",
+        "FAILED": "proven required violation; precedence over blockers",
+        "BLOCKED": "prerequisite unavailable without a proven violation",
+        "INCOMPLETE": "started execution or final evidence remains pending"
+      },
+      "exit_semantics": {
+        "0": "CERTIFIED",
+        "1": "FAILED",
+        "2": "BLOCKED",
+        "3": "INCOMPLETE"
+      },
+      "dependencies": [
+        "A03 original-handler/native-worker observations",
+        "A05 golden v3 inputs",
+        "A05B reviewed sealed oracle",
+        "A04 CertificationRecorder/pipeline_gate_inventory/evaluate_pipeline_evidence/finalizer",
+        "exact collection, JUnit, committed state, diagnostics, teardown and artifact seals"
+      ],
+      "prerequisites": [
+        "explicit owned loopback PostgreSQL endpoint",
+        "supported Chromium engine",
+        "both exact handoff selectors",
+        "current matching source/input/oracle/config/session evidence"
+      ],
+      "ownership": "SwingLens test/release infrastructure",
+      "safety": [
+        "OWNED_DISPOSABLE_POSTGRESQL",
+        "FROZEN_PROVIDERS",
+        "NATIVE_WORKER",
+        "NO_LIVE_PROVIDERS"
+      ],
+      "automatic": true,
+      "certificate_authority": "A04_FINALIZER",
+      "source_sha256": "9723f4c37454cf98b3fa6ee3bfe65fa44f838ab2f093fd9b9191d1ac71bd39b9",
+      "ci_command": "",
+      "selectors": [
+        "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
+        "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]"
+      ]
+    },
+    {
+      "id": "FULL_RELEASE_REGRESSIONS",
+      "entry_point": "scripts/production_runtime_certification.py",
+      "command": [
+        "python",
+        "-m",
+        "scripts.production_runtime_certification",
+        "--aggregate-release",
+        "--release-plan",
+        "test-results/release-plan/plan.json",
+        "--evidence-root",
+        "test-results/release",
+        "--job-results",
+        "test-results/release-jobs.json",
+        "--report-dir",
+        "test-results/full-release"
+      ],
+      "scope": "Source-bound full-release evidence aggregation; A04 owns pipeline correctness",
+      "required": true,
+      "lane": "full-release",
+      "evidence_format": "swinglens.full-release-certification.v1",
+      "verdict_semantics": {
+        "CERTIFIED": "Every required applicable lane and evidence validated",
+        "NONCERTIFIED": "Any required job/test/evidence failed, skipped, missing, stale or incomplete",
+        "NOT_RUN": "Plan prepared without aggregate attempt"
+      },
+      "exit_semantics": {
+        "0": "CERTIFIED",
+        "1": "NONCERTIFIED"
+      },
+      "dependencies": [
+        "A02 reviewed policy",
+        "Required actual CI conclusions and source-bound lane artifacts",
+        "Original A04 finalizer"
+      ],
+      "prerequisites": [
+        "Same declared source/run/attempt",
+        "Independent expected collection",
+        "Native terminal evidence and all artifact seals"
+      ],
+      "ownership": "SwingLens test/release infrastructure",
+      "safety": [
+        "EVIDENCE_READ_ONLY",
+        "NO_LIVE_PROVIDER",
+        "A04_VALIDATION_IN_DISPOSABLE_COPY"
+      ],
+      "automatic": true,
+      "certificate_authority": "NONE",
+      "source_sha256": "9723f4c37454cf98b3fa6ee3bfe65fa44f838ab2f093fd9b9191d1ac71bd39b9",
+      "ci_command": "uv run python -m scripts.production_runtime_certification --aggregate-release --release-plan test-results/release-plan/plan.json --evidence-root test-results/release --job-results test-results/release-jobs.json --report-dir test-results/full-release",
+      "selectors": [
+        "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
+        "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]"
+      ],
+      "core_profile_output": {
+        "schema": "swinglens.core-release-certification.v1",
+        "gate": "CORE_RELEASE_REGRESSIONS",
+        "full_release_credit": "NONE"
+      }
+    },
+    {
+      "id": "SMALL_LIVE_PROVIDER_CANARY",
+      "entry_point": "scripts/production_runtime_certification.py",
+      "command": [
+        "python",
+        "-m",
+        "scripts.production_runtime_certification",
+        "--provider-mode",
+        "live"
+      ],
+      "scope": "Separate live-provider promotion boundary; deterministic A04 alone cannot open NORMAL promotion.",
+      "required": true,
+      "lane": "explicit-authorized-live-provider",
+      "evidence_format": "swinglens.production-runtime-certification.v1 live report + canary report/runtime diagnostics",
+      "verdict_semantics": {
+        "PASS": "live boundary and separate promotion prerequisites pass",
+        "FAIL": "live or promotion checks fail",
+        "BLOCKED": "required provider identity/capability or current deterministic candidate absent"
+      },
+      "exit_semantics": {
+        "0": "SAFE_FOR_NORMAL_RUN only when every required separate promotion gate passes",
+        "1": "FAIL",
+        "2": "BLOCKED"
+      },
+      "dependencies": [
+        "EXACT_PIPELINE_CERTIFICATION",
+        "FULL_RELEASE_REGRESSIONS",
+        "SEC/EODHD/IB preflight",
+        "runtime diagnostics"
+      ],
+      "prerequisites": [
+        "explicit authorization to contact live providers",
+        "matching current source candidate",
+        "separate full-release and live-provider evidence; historical PASS is insufficient"
+      ],
+      "ownership": "SwingLens test/release infrastructure",
+      "safety": [
+        "EXTERNAL_PROVIDER",
+        "EXPLICIT_HUMAN_AUTHORIZATION",
+        "DISPOSABLE_CANARY_DATABASE"
+      ],
+      "automatic": false,
+      "certificate_authority": "NONE",
+      "source_sha256": "9723f4c37454cf98b3fa6ee3bfe65fa44f838ab2f093fd9b9191d1ac71bd39b9",
+      "ci_command": ""
+    }
+  ],
+  "a04_authority": {
+    "factory": "tests/e2e/single_run_certification/reporting.py::pipeline_gate_inventory",
+    "evaluator": "tests/e2e/single_run_certification/evidence.py::evaluate_pipeline_evidence",
+    "finalizer": "tests/e2e/single_run_certification/reporting.py::finalize_pipeline_certificate",
+    "required_gate_count": 620,
+    "input_sha256": "6217a219eea1d954bad0f5e6503f71188e5d82a7e411919aa703935c36118591",
+    "oracle_sha256": "bebee63caf04d69a27c3a92dba67b0620c96ac272759a846785ea5b31122689a",
+    "regression_selectors": [
+      "tests/test_production_runtime_certification.py",
+      "tests/test_certification_runtime.py",
+      "tests/e2e/single_run_certification/test_exact_pipeline_certification.py",
+      "tests/e2e/single_run_certification/test_golden_completion.py",
+      "tests/e2e/single_run_certification/test_golden_oracle.py"
+    ],
+    "rule": "Reference A04 obligations directly; do not create a second pipeline verdict or financial oracle."
+  },
+  "promotion_requirements": [
+    {
+      "id": "EXACT_PIPELINE_CERTIFICATION",
+      "required": true,
+      "producer": "EXACT_PIPELINE_CERTIFICATION",
+      "scope": "fixed deterministic native ten-ticker profile",
+      "absence": "cannot certify deterministic profile"
+    },
+    {
+      "id": "FULL_RELEASE_REGRESSIONS",
+      "required": true,
+      "producer": "FULL_RELEASE_REGRESSIONS",
+      "source_registration": "scripts/production_runtime_certification.py::TEST_GROUPS",
+      "state": "SEPARATE_SOURCE_BOUND_AGGREGATE",
+      "scope": "All applicable required CI lanes and A04 on one declared source/run/attempt",
+      "absence": "NONCERTIFIED; A04 alone still leaves this gate NOT_RUN"
+    },
+    {
+      "id": "SMALL_LIVE_PROVIDER_CANARY",
+      "required": true,
+      "producer": "SMALL_LIVE_PROVIDER_CANARY",
+      "scope": "separately authorized live-provider promotion evidence",
+      "absence": "promotion closed"
+    }
+  ],
+  "historical_disposition_counts": {
+    "ARCHIVE_FORENSIC": 10,
+    "EXTRACT_REUSABLE_REGRESSION": 9,
+    "RESTRICT_MANUAL_OPERATION": 6,
+    "ARCHIVE_HISTORICAL_RUNNER": 2,
+    "RESTRICT_MANUAL_DIAGNOSTIC": 1,
+    "RETIRE_EXECUTABLE_CANDIDATE": 1
+  },
+  "noncertifying_ci_lanes": [
+    {
+      "workflow": ".github/workflows/ci.yml",
+      "lane": "unit-service-coverage",
+      "selection": "pytest -m \"not e2e and not external and not extended_scale\"; testpaths=tests; populated restore separately",
+      "evidence": "JUnit/coverage; ordinary regression, no independent full-pipeline certificate"
+    },
+    {
+      "workflow": ".github/workflows/ci.yml",
+      "lane": "migration-and-populated-restore",
+      "selection": [
+        "tests/test_migration_remediation.py",
+        "tests/integration/test_populated_restore.py"
+      ],
+      "evidence": "pytest/JUnit; isolated migration/restore contract"
+    },
+    {
+      "workflow": ".github/workflows/ci.yml",
+      "lane": "golden-scoring",
+      "selection": [
+        "tests/test_golden_pipeline.py",
+        "tests/test_ranking_profiles_golden.py"
+      ],
+      "evidence": "pytest; bounded scoring regressions"
+    },
+    {
+      "workflow": ".github/workflows/ci.yml",
+      "lane": "browser-smoke",
+      "selection": "tests/e2e -m \"not extended_scale\"; Chromium + Firefox; all ten-ticker variants retained",
+      "evidence": "JUnit; raw pytest PASS cannot substitute for the A04 supported runner/finalizer"
+    },
+    {
+      "workflow": ".github/workflows/ci.yml",
+      "lane": "performance-advisory",
+      "selection": "pytest -m performance --ignore=tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py",
+      "evidence": "advisory JUnit; extended performance, not pipeline certification",
+      "exclusion_reason": "CERI capture authority is executed in the PostgreSQL-equipped routine/extended job."
+    },
+    {
+      "workflow": ".github/workflows/ci.yml",
+      "lane": "windows-recovery",
+      "selection": [
+        "tests/e2e/test_windows_durable_worker_recovery.py",
+        "tests/e2e/test_windows_lifecycle_persistence.py"
+      ],
+      "evidence": "JUnit; scoped recovery/persistence"
+    },
+    {
+      "workflow": ".github/workflows/slse-closure.yml",
+      "lane": "slse-semantic-postgres-golden",
+      "selection": [
+        "tests/setup_lifecycle",
+        "tests/integration/test_slse_market_alert_vertical.py",
+        "tests/integration/test_slse_golden_corpus.py",
+        "tests/test_config_files.py"
+      ],
+      "evidence": "JUnit; scoped lifecycle closure"
+    },
+    {
+      "workflow": ".github/workflows/slse-closure.yml",
+      "lane": "slse-browser-accessibility",
+      "selection": [
+        "tests/e2e/test_slse_populated_browser.py",
+        "tests/e2e/test_browser_smoke.py"
+      ],
+      "evidence": "JUnit; scoped browser/accessibility"
+    },
+    {
+      "workflow": ".github/workflows/slse-closure.yml",
+      "lane": "slse-explicit-performance",
+      "selection": [
+        "tests/integration/test_slse_performance_certification.py"
+      ],
+      "evidence": "opt-in JUnit/performance report; no full-pipeline authority"
+    },
+    {
+      "workflow": ".github/workflows/ci.yml",
+      "lane": "extended-native-scale",
+      "selection": "tests/e2e/single_run_certification/test_real_writer_cardinality.py -m extended_scale --browser chromium --browser firefox",
+      "applicability": "workflow_dispatch with run_extended_scale=true; direct pytest selection also supported",
+      "evidence": "JUnit and native metrics; scale-only PASS has no A04 certificate authority"
+    },
+    {
+      "workflow": ".github/workflows/ci.yml",
+      "lane": "ceri-capture-authority-extended",
+      "selection": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py -m extended_scale",
+      "applicability": "daily scheduled CI; also workflow_dispatch with run_extended_scale=true",
+      "prerequisites": "existing lint-test-migrations PostgreSQL18 service; isolated disposable baseline per delivery available on demand",
+      "evidence": "JUnit and native SQL/authority/capture metrics; no independent full-pipeline certificate authority"
+    }
+  ],
+  "maintenance": {
+    "registration": "Edit this manifest explicitly and run the checker/tests; no filename discovery.",
+    "lifecycle": "One primary target disposition per frozen baseline entry; KEEP in Phase1B does not approve a gate.",
+    "historical_helpers": "Existing canonical helper imports remain regressions; extract before approving moves/removal.",
+    "physical_cleanup": "None authorized by A02. Separate approval and dependency resolution required.",
+    "source_changes": "Refresh reviewed source digest only after review; no automatic hash acceptance."
+  },
+  "e2e_matrix_policy": {
+    "module": "tests/e2e/single_run_certification/test_real_writer_cardinality.py",
+    "routine_marker_expression": "not extended_scale and not live_provider",
+    "extended_marker_expression": "extended_scale",
+    "default_browsers": [
+      "chromium",
+      "firefox"
+    ],
+    "scale_batch_sizes": {
+      "provider": 25,
+      "normalization": 50,
+      "feature": 50
+    },
+    "scale_batch_prerequisite": "Reviewed default configuration; alternate batch settings require separate boundary assessment.",
+    "case_removals": [],
+    "cases": [
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
+        "population": 10,
+        "browser": "chromium",
+        "handoff": false,
+        "disposition": "KEEP_ACTIVE_CERTIFICATION",
+        "lane": "routine-browser-smoke",
+        "certificate_authority": "A04_FINALIZER"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-88]",
+        "population": 88,
+        "browser": "chromium",
+        "handoff": false,
+        "disposition": "KEEP_EXTENDED_SCALE",
+        "lane": "explicit-extended-native-scale",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-100]",
+        "population": 100,
+        "browser": "chromium",
+        "handoff": false,
+        "disposition": "KEEP_EXTENDED_SCALE",
+        "lane": "explicit-extended-native-scale",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]",
+        "population": 10,
+        "browser": "chromium",
+        "handoff": true,
+        "disposition": "KEEP_ACTIVE_CERTIFICATION",
+        "lane": "routine-browser-smoke",
+        "certificate_authority": "A04_FINALIZER"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-88]",
+        "population": 88,
+        "browser": "chromium",
+        "handoff": true,
+        "disposition": "KEEP_EXTENDED_SCALE",
+        "lane": "explicit-extended-native-scale",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-100]",
+        "population": 100,
+        "browser": "chromium",
+        "handoff": true,
+        "disposition": "KEEP_EXTENDED_SCALE",
+        "lane": "explicit-extended-native-scale",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-False-10]",
+        "population": 10,
+        "browser": "firefox",
+        "handoff": false,
+        "disposition": "KEEP_ORDINARY_REGRESSION",
+        "lane": "routine-browser-smoke",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-False-88]",
+        "population": 88,
+        "browser": "firefox",
+        "handoff": false,
+        "disposition": "KEEP_EXTENDED_SCALE",
+        "lane": "explicit-extended-native-scale",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-False-100]",
+        "population": 100,
+        "browser": "firefox",
+        "handoff": false,
+        "disposition": "KEEP_EXTENDED_SCALE",
+        "lane": "explicit-extended-native-scale",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-True-10]",
+        "population": 10,
+        "browser": "firefox",
+        "handoff": true,
+        "disposition": "KEEP_ORDINARY_REGRESSION",
+        "lane": "routine-browser-smoke",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-True-88]",
+        "population": 88,
+        "browser": "firefox",
+        "handoff": true,
+        "disposition": "KEEP_EXTENDED_SCALE",
+        "lane": "explicit-extended-native-scale",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-True-100]",
+        "population": 100,
+        "browser": "firefox",
+        "handoff": true,
+        "disposition": "KEEP_EXTENDED_SCALE",
+        "lane": "explicit-extended-native-scale",
+        "certificate_authority": "NONE"
+      }
+    ]
+  },
+  "ceri_capture_authority_matrix": {
+    "module": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py",
+    "populations": [
+      1,
+      10,
+      25,
+      50,
+      107
+    ],
+    "deliveries": [
+      "capture",
+      "pipeline",
+      "material"
+    ],
+    "routine_marker_expression": "not e2e and not external and not extended_scale",
+    "extended_marker_expression": "extended_scale",
+    "baseline_population": 1,
+    "baseline_contract": "Measured natively in a separate disposable database when the mode cache is empty; no prior test/order prerequisite.",
+    "authority_select_budgets": {
+      "capture": 27,
+      "pipeline": 68,
+      "material": 27
+    },
+    "measurement": "authority SELECT equality to one-company baseline plus unchanged mode cap; wall/SQL seconds are recorded without timing thresholds",
+    "case_removals": [],
+    "cases": [
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[capture-1]",
+        "delivery": "capture",
+        "population": 1,
+        "disposition": "ROUTINE_CORRECTNESS_INTEGRATION",
+        "lane": "routine-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[capture-10]",
+        "delivery": "capture",
+        "population": 10,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[capture-25]",
+        "delivery": "capture",
+        "population": 25,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[capture-50]",
+        "delivery": "capture",
+        "population": 50,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[capture-107]",
+        "delivery": "capture",
+        "population": 107,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[pipeline-1]",
+        "delivery": "pipeline",
+        "population": 1,
+        "disposition": "ROUTINE_CORRECTNESS_INTEGRATION",
+        "lane": "routine-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[pipeline-10]",
+        "delivery": "pipeline",
+        "population": 10,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[pipeline-25]",
+        "delivery": "pipeline",
+        "population": 25,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[pipeline-50]",
+        "delivery": "pipeline",
+        "population": 50,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[pipeline-107]",
+        "delivery": "pipeline",
+        "population": 107,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[material-1]",
+        "delivery": "material",
+        "population": 1,
+        "disposition": "ROUTINE_CORRECTNESS_INTEGRATION",
+        "lane": "routine-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[material-10]",
+        "delivery": "material",
+        "population": 10,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[material-25]",
+        "delivery": "material",
+        "population": 25,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[material-50]",
+        "delivery": "material",
+        "population": 50,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      },
+      {
+        "selector": "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py::test_capture_authority_scaling[material-107]",
+        "delivery": "material",
+        "population": 107,
+        "disposition": "EXTENDED_INTEGRATION_PERFORMANCE",
+        "lane": "daily-or-explicit-extended-native-postgresql",
+        "certificate_authority": "NONE"
+      }
+    ]
+  },
+  "full_release": {
+    "schema": "swinglens.full-release-policy.v1",
+    "scope": "Existing main CI lanes; SLSE correctness/browser selectors remain covered by Python/browser lanes; separate scoped workflow executions are not inferred.",
+    "adapter": "scripts/qa/release_evidence.py",
+    "base_lanes": {
+      "migration-harness": {
+        "kind": "pytest",
+        "required": true,
+        "job": "lint-test-migrations",
+        "step": "Clean PostgreSQL migration harness",
+        "selectors": [
+          "tests/test_migration_remediation.py"
+        ],
+        "markers": "",
+        "ignores": [],
+        "browsers": [],
+        "postgres_major": 18
+      },
+      "populated-restore": {
+        "kind": "pytest",
+        "required": true,
+        "job": "lint-test-migrations",
+        "step": "Populated backup and restore evidence gate",
+        "selectors": [
+          "tests/integration/test_populated_restore.py"
+        ],
+        "markers": "",
+        "ignores": [],
+        "browsers": [],
+        "postgres_major": 18
+      },
+      "python-regressions": {
+        "kind": "pytest",
+        "required": true,
+        "job": "lint-test-migrations",
+        "step": "Unit and service tests with coverage",
+        "selectors": [
+          "tests"
+        ],
+        "markers": "not e2e and not external and not extended_scale",
+        "ignores": [
+          "tests/integration/test_populated_restore.py"
+        ],
+        "browsers": [],
+        "postgres_major": 18
+      },
+      "golden-scoring": {
+        "kind": "pytest",
+        "required": true,
+        "job": "lint-test-migrations",
+        "step": "Golden scoring gate",
+        "selectors": [
+          "tests/test_golden_pipeline.py",
+          "tests/test_ranking_profiles_golden.py"
+        ],
+        "markers": "",
+        "ignores": [],
+        "browsers": [],
+        "postgres_major": 18
+      },
+      "browser-smoke": {
+        "kind": "pytest",
+        "required": true,
+        "job": "browser-smoke",
+        "step": "Run browser smoke",
+        "selectors": [
+          "tests/e2e"
+        ],
+        "markers": "not extended_scale and not live_provider",
+        "ignores": [
+          "tests/e2e/test_windows_durable_worker_recovery.py",
+          "tests/e2e/test_windows_lifecycle_persistence.py"
+        ],
+        "browsers": [
+          "chromium",
+          "firefox"
+        ],
+        "postgres_major": 18
+      },
+      "windows-recovery": {
+        "kind": "pytest",
+        "required": true,
+        "job": "windows-durable-worker-recovery",
+        "step": "Run Windows worker recovery and lifecycle persistence gates",
+        "selectors": [
+          "tests/e2e/test_windows_durable_worker_recovery.py",
+          "tests/e2e/test_windows_lifecycle_persistence.py"
+        ],
+        "markers": "",
+        "ignores": [],
+        "browsers": [],
+        "postgres_major": 18
+      },
+      "a04": {
+        "kind": "a04",
+        "required": true,
+        "job": "production-runtime-certification",
+        "step": "Run supported deterministic A04 certification",
+        "producer": "EXACT_PIPELINE_CERTIFICATION",
+        "certificate_authority": "A04_FINALIZER",
+        "required_variants": 2
+      },
+      "node": {
+        "kind": "node",
+        "required": true,
+        "job": "cross-language",
+        "step": "Run Node regressions",
+        "case_ids": [
+          "node::zero, one, adjacent and sparse captures never synthesize historical points",
+          "node::configuration, version and basis boundaries are never connected",
+          "node::incomplete cohort stays blocked even if a stale row contains a V5 number",
+          "node::sort preserves authoritative rank, missing values and unrounded zero coordinates",
+          "node::different sessions and bases prohibit cross-panel interpretation",
+          "node::shared configuration mismatch covers D2 versus D3 and chart schemas",
+          "node::equal shared lineage permits legitimately different native model methods",
+          "node::missing shared configuration metadata does not imply verified compatibility",
+          "node::calendar material identities and calendar adjacency never cross versions",
+          "node::overview counts use authoritative states and strongest sectors use unchanged D2 ranks",
+          "node::fastest improvers use positive unrounded momentum and deterministic D2 rank ties",
+          "node::partial stale missing or disabled evidence never supplies cohort-wide highlights",
+          "node::duplicate symbols and missing ranks cannot masquerade as a complete summary",
+          "node::paired technical series uses exact native raw values and supplied diagnostic delta",
+          "node::paired chart suppresses blocked V5 and nonready or nonfinite native scores without zero defaults",
+          "node::stored rank movement compares only consecutive compatible saved captures",
+          "node::chart focus identity distinguishes ETF observations and chart sources without changing evidence",
+          "node::initial load is GET only and leaves no polling timer when idle",
+          "node::deliberate click posts once, follows exact ID and actual counters, reloads once",
+          "node::known operation resumes GET observation after navigating back without a new POST",
+          "node::active server operation from another tab is recovered with GET",
+          "node::gateway rejection enables retry without claiming success",
+          "node::partial refresh reloads cached panels and retains precise warning",
+          "node::FAILED does not reload cached evidence",
+          "node::CANCELLED does not reload cached evidence",
+          "node::transient status failure retries GET without another POST",
+          "node::bounded failures enable check-status retry for same job",
+          "node::unknown operation recovery remains GET-only when checking again",
+          "node::concurrent admission or uncertain POST recovers via GET, never repeats POST",
+          "node::wrong status ID cannot trigger a reload",
+          "node::page unload cancels polling and late completion cannot reload",
+          "node::browser back-forward cache restoration resumes GET observation",
+          "node::persistently unknown server status has bounded retries",
+          "node::CURRENT requires complete evidence for all eleven ETFs in both bases",
+          "node::STALE uses trading-session lag and discloses affected bases and missingness",
+          "node::MISSING does not invent a session lag",
+          "node::UNKNOWN does not invent a session lag"
+        ],
+        "tool_version_pattern": "^v22[.]",
+        "configuration": {
+          "files": [
+            "tests/market_sector_intelligence_dashboard.test.cjs",
+            "tests/market_sector_refresh.test.cjs"
+          ]
+        }
+      },
+      "promql": {
+        "kind": "promql",
+        "required": true,
+        "job": "cross-language",
+        "step": "Run PromQL rule tests",
+        "case_ids": [
+          "promql::web target disappears",
+          "promql::worker target disappears",
+          "promql::supervisor target disappears",
+          "promql::worker claim loop freezes while process remains up",
+          "promql::supervisor loop freezes while process remains up",
+          "promql::system collector freezes while web remains up",
+          "promql::database capacity has unused configured overflow",
+          "promql::database base pool is empty",
+          "promql::database base pool is partially used",
+          "promql::database overflow is in use but capacity remains",
+          "promql::database configured capacity is exhausted",
+          "promql::database pool timeout is observed",
+          "promql::database p95 pool wait increases above one second"
+        ],
+        "tool_version_pattern": "promtool, version 3[.]5[.]0 ",
+        "configuration": {
+          "rules": "monitoring/prometheus/review2_alert_tests.yml",
+          "image": "prom/prometheus@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996",
+          "network": "none",
+          "memory": "256m",
+          "cpus": "0.5",
+          "pids": 64
+        }
+      }
+    },
+    "conditional_lanes": {
+      "ceri-extended": {
+        "kind": "pytest",
+        "required": true,
+        "job": "lint-test-migrations",
+        "step": "Run extended CERI capture authority matrix",
+        "selectors": [
+          "tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py"
+        ],
+        "markers": "extended_scale",
+        "ignores": [],
+        "browsers": [],
+        "postgres_major": 18
+      },
+      "population-extended": {
+        "kind": "pytest",
+        "required": true,
+        "job": "browser-smoke",
+        "step": "Run extended native population matrix",
+        "selectors": [
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
+        ],
+        "markers": "extended_scale",
+        "ignores": [],
+        "browsers": [
+          "chromium",
+          "firefox"
+        ],
+        "postgres_major": 18
+      }
+    },
+    "advisory_manual": {
+      "performance-advisory": {
+        "tier": "advisory",
+        "trigger": "schedule or workflow_dispatch; existing job remains unchanged"
+      },
+      "slse-closure-workflow": {
+        "tier": "scoped corroborating workflow",
+        "trigger": "existing path filter/dispatch; its cases remain in required main selections; no execution inferred"
+      },
+      "slse-large-performance": {
+        "tier": "explicit opt-in",
+        "trigger": "run_performance=true in existing scoped workflow"
+      },
+      "historical-operational": {
+        "tier": "manual-only/forensic",
+        "trigger": "No automatic execution; A02 lifecycle decisions retained"
+      },
+      "live-provider-canary": {
+        "tier": "separate required promotion gate",
+        "trigger": "Explicit human authorization; never auto-enabled"
+      },
+      "a09-e2e-timing": {
+        "tier": "unresolved A09 measurement",
+        "trigger": "A09 remains PARTIAL; no A16 timing equivalence claimed"
+      }
+    },
+    "preflight_steps": [
+      "Check generated architecture closure registry",
+      "Check active certification registry and tool lifecycles",
+      "Lint",
+      "Scan tracked files for credential-shaped secrets",
+      "Check route inventory docs",
+      "Alembic head graph",
+      "Upgrade CI database",
+      "Verify current Alembic revision",
+      "Check SQLAlchemy metadata drift"
+    ],
+    "evidence_rule": "Independent intended collection + actual execution/terminal phases + native JUnit + source/run/attempt context + artifact hashes; required skips/xfail/block/incomplete never certify.",
+    "actual_release_rule": "Contract-test success does not establish hosted or full-release execution."
+  },
+  "golden_update_policy": {
+    "schema": "swinglens.golden-update-policy.v1",
+    "policy_document": "docs/testing/golden_update_policy.md",
+    "automatic_update": "DENIED",
+    "local_approval": "NEVER_AUTHORIZES",
+    "new_version_authority": "EXTERNAL_AUTHENTICATED_REVIEW_REQUIRED",
+    "authenticated_approval_enforcement": "NOT_VERIFIED",
+    "authoring_archive": "docs/testing/golden-provenance/a05b-r3",
+    "scope": "Existing A05 v3 / A05B r3 content only. No new golden version approved by A13.",
+    "baseline_integrity": "Reuse existing A05/A05B manifest constants and original completeness checks.",
+    "verification_consumers": [
+      "CERTIFICATION_REGISTRY",
+      "EXACT_PIPELINE_CERTIFICATION",
+      "FULL_RELEASE_REGRESSIONS"
+    ],
+    "historical_policy": "Preserve original versions, rejected candidates and old execution evidence; never overwrite originals."
+  },
+  "historical_tool_policy": {
+    "schema": "swinglens.historical-tool-policy.v1",
+    "policy_document": "docs/testing/historical_tool_policy.md",
+    "entry_points_sha256": "07ce923dca6e8ed5b158f96640283e0a22965bdbe8963a059426977375590e7b",
+    "category_counts": {
+      "A": 12,
+      "C": 7,
+      "B": 9,
+      "D": 1
+    },
+    "manual_guard": "scripts/forensics/historical_tool_safety.py",
+    "manual_guard_sha256": "c247c4210def50006a129251db8cc69a2a335c4572b069dacf52d3f747707095",
+    "historical_outputs_current_release_authority": "NONE",
+    "source_archives": "Original bytes and incident evidence seals are retained in the Step2 A10 audit evidence; existing incident artifacts are never regenerated.",
+    "provisional_history": "historical_decision retains A02 provisional history; historical_final_category records the original-assessment A10 reconciliation."
+  },
+  "source_contracts": {
+    "schema": "swinglens.source-contracts.v1",
+    "scope": "Ten representative critical contracts; not a whole-suite or executed-coverage catalog.",
+    "review_checklist": "docs/testing/source_contract_policy.md",
+    "high_risk_roots": [
+      "app/",
+      "alembic/",
+      "config/",
+      "scripts/",
+      ".github/"
+    ],
+    "selection_policy_paths": [
+      "pyproject.toml",
+      "uv.lock",
+      ".gitattributes",
+      ".github/workflows/ci.yml",
+      "config/certification_registry.json",
+      "tests/conftest.py",
+      "scripts/qa/release_evidence.py",
+      "scripts/production_runtime_certification.py",
+      "scripts/qa/check_certification_registry.py",
+      "tests/test_core_release_selection_policy.py",
+      "docs/testing/source_contract_policy.md",
+      "docs/testing/standalone_lifecycle.csv"
+    ],
+    "contracts": [
+      {
+        "id": "CORE_CONFIGURATION",
+        "owner": "Core calculation and configuration maintainers",
+        "risk": "P0",
+        "behavior": "Retained calculation/configuration authority cannot borrow newer live YAML, wrong identity or future source evidence.",
+        "sources": [
+          {
+            "path": "app/services/core_effective_configuration.py",
+            "symbol": "resolve_fundamental_configuration"
+          },
+          {
+            "path": "app/services/core_calculation_evidence.py",
+            "symbol": "persist_core_evidence"
+          }
+        ],
+        "impact_patterns": [
+          "app/services/core_*",
+          "app/services/*configuration*.py",
+          "app/services/fundamental*.py",
+          "config/scoring_weights.yaml",
+          "config/ranking_profiles.yaml",
+          "config/column_aliases.yaml"
+        ],
+        "tests": [
+          {
+            "id": "tests/test_core_readiness_helpers.py::test_future_source_cannot_satisfy_earlier_consumer_identity",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Known retained cutoff is derived exactly.",
+            "negative": "Future source cannot satisfy earlier authority.",
+            "reviewed_test_sha256": "413e06fe51d84138f48bf109f4c51ac4d5df881409d58109a73a79aa92e97844"
+          },
+          {
+            "id": "tests/integration/test_core_legacy_configuration_postgresql.py::test_core_legacy_config_noninheritance_after_native_authority",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Four native Core families preserve retained authority.",
+            "negative": "Unbound legacy rows cannot inherit current configuration.",
+            "reviewed_test_sha256": "49154f07ba10a01e106821307427cb1b3e1a7f4e9a6c624ea50beb8a62570f85"
+          }
+        ],
+        "oracle": "A05B independent values and canonical immutable evidence; fixture helpers are not independent financial truth.",
+        "incidents": [
+          "A07 Core fixture/legacy boundaries"
+        ],
+        "limitations": "Fast helpers use synthetic/DTO boundaries; PostgreSQL proof is required for native persistence and SQL claims.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
+        "review_sha256": "37290ede9fe9ae762d1954f4636a03e9b48e93a596ebb42ed77f8e9afc7591cc"
+      },
+      {
+        "id": "IB_ADMISSION",
+        "owner": "IB acquisition and market-data maintainers",
+        "risk": "P0",
+        "behavior": "Only reviewed closed daily coverage enters persistence and frozen contexts; invalid responses produce no writes.",
+        "sources": [
+          {
+            "path": "app/services/ib_fetch_executor.py",
+            "symbol": "execute_fetch_plan"
+          },
+          {
+            "path": "app/services/ib_gateway_health_service.py",
+            "symbol": "check_status"
+          }
+        ],
+        "impact_patterns": [
+          "app/services/ib_*.py",
+          "app/services/bar_cache_service.py",
+          "app/services/market_data*.py",
+          "app/services/price_bar*.py",
+          "tests/test_provider_replay_contracts.py"
+        ],
+        "tests": [
+          {
+            "id": "tests/test_ib_daily_admission.py::test_rejects_invalid_response_without_any_persistence",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed response shape is admitted in companion cases.",
+            "negative": "Invalid/future/missing coverage produces zero persistence.",
+            "reviewed_test_sha256": "2c7381fe4b6a5d730dea5df2363500d57e105d9341b867fb058f8138fa5b9846"
+          },
+          {
+            "id": "tests/test_ib_daily_admission.py::test_persisted_subset_and_frozen_context_visibility",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Exact native subset is visible through frozen context.",
+            "negative": "Disallowed response members never become eligible rows.",
+            "reviewed_test_sha256": "2c7381fe4b6a5d730dea5df2363500d57e105d9341b867fb058f8138fa5b9846"
+          },
+          {
+            "id": "tests/test_provider_replay_contracts.py::test_ib_actual_golden_replay_reaches_daily_adapter",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged extracted deterministic IB adapter and v3 fixture reach real daily conversion for both feeds.",
+            "negative": "Exact retained bar identities/values must match and order API use is forbidden; no live claim.",
+            "reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3"
+          },
+          {
+            "id": "tests/test_provider_replay_contracts.py::test_ib_health_live_allowlist_excludes_account_sync_and_always_disconnects",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Successful low-level handshake/current-time probe is API ready and disconnects.",
+            "negative": "Timeout is unavailable and disconnects; any account-sync or other method fails the test allowlist.",
+            "reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3"
+          }
+        ],
+        "oracle": "Literal reviewed request dates and independent expected subset; FakeIB response boundary.",
+        "incidents": [
+          "Run43"
+        ],
+        "limitations": "No real IB connection or live-provider reliability claim; native subset uses FakeIB with PostgreSQL. A15 transport tripwires are offline adapter doubles; no current live compatibility or endpoint completeness is claimed.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
+        "review_sha256": "fa9b78797d719bd028215dd0698caf91ad53cf4068074db61f4bb75499a82e96"
+      },
+      {
+        "id": "CERI_TEMPORAL_LINEAGE",
+        "owner": "CERI temporal selection and lineage maintainers",
+        "risk": "P0",
+        "behavior": "Effective/known-at selection, currency identity and committed retry lineage preserve the correct frozen world.",
+        "sources": [
+          {
+            "path": "app/services/ceri/point_in_time_query.py",
+            "symbol": "CeriPointInTimeQuery"
+          },
+          {
+            "path": "app/services/ceri/batched_job_handlers.py",
+            "symbol": "execute_feature_batch_job"
+          },
+          {
+            "path": "app/services/ceri/providers/eodhd_provider.py",
+            "symbol": "EodhdCeriProvider"
+          },
+          {
+            "path": "app/services/ceri/sec/provider.py",
+            "symbol": "SecCeriProvider"
+          }
+        ],
+        "impact_patterns": [
+          "app/services/ceri/*.py",
+          "app/services/market_calculation_context_service.py",
+          "tests/test_provider_replay_contracts.py"
+        ],
+        "tests": [
+          {
+            "id": "tests/ceri/test_point_in_time_query.py::test_late_correction_does_not_displace_version_known_at_cutoff",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Eligible version remains selected at cutoff.",
+            "negative": "Late correction cannot displace the known version.",
+            "reviewed_test_sha256": "2f42d12a2901f89bbc15b3cd85ec3cc6e160a294f3dadb586e68e640eb70aa46"
+          },
+          {
+            "id": "tests/integration/test_ceri_batched_workflow_v2.py::test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Nonempty four-domain committed lineage is identical on retry.",
+            "negative": "Wrong owner/context/cutoff and duplicate retry effects are excluded.",
+            "reviewed_test_sha256": "723cc6bdf97785e6a7f4fd88c22ce708bf3d18de7fbbb35a308796c8a04206a5"
+          },
+          {
+            "id": "tests/ceri/test_eodhd_provider.py::test_eodhd_does_not_relabel_mismatched_or_invalid_response_identity",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Existing scoped matching-code and code-absent payloads retain canonical identities.",
+            "negative": "A supplied different, null or object code cannot be relabeled as the requested issuer.",
+            "reviewed_test_sha256": "c253c867e25be64dd7b29181a920b890f1aec22f9f47f943394b33742d89d8ba"
+          },
+          {
+            "id": "tests/test_provider_replay_contracts.py::test_sec_type_and_unsupported_pagination_drift_are_detected",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Supported SEC recent arrays yield the exact independent accession witness.",
+            "negative": "Non-object JSON is rejected; a cursor-only replacement yields no witness and is detected as incomplete.",
+            "reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3"
+          }
+        ],
+        "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
+        "incidents": [
+          "Run101/102 constructed examples",
+          "Run153"
+        ],
+        "limitations": "Fast FakeDb query sequences do not prove SQL; native retry is not a live SEC/EODHD or 88/100-ticker proof. A15 transport tripwires are offline adapter doubles; no current live compatibility or endpoint completeness is claimed.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
+        "review_sha256": "af993cbd638146a3329a7cd762affdbfb75273d7cf7b311ab4c3c62ec64f406e"
+      },
+      {
+        "id": "REGIME_SECTOR_SELECTION",
+        "owner": "Market Regime and Sector Rotation maintainers",
+        "risk": "P0",
+        "behavior": "Exact eligible Regime/Sector financial context is selected by run/scope/mode/configuration/effective/known cutoffs.",
+        "sources": [
+          {
+            "path": "app/services/market_regime_repository.py",
+            "symbol": "MarketRegimeRepository.latest_for_run"
+          },
+          {
+            "path": "app/services/sector_rotation_repository.py",
+            "symbol": "SectorRotationRepository.get_previous_snapshot"
+          }
+        ],
+        "impact_patterns": [
+          "app/services/market_regime*.py",
+          "app/services/sector_rotation*.py",
+          "config/market_regime_command_center.yaml",
+          "config/sector_rotation.yaml"
+        ],
+        "tests": [
+          {
+            "id": "tests/integration/test_contextual_sql_selectors_postgresql.py::test_regime_sql_latest_current_and_asof_isolation",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Exact eligible row/evidence IDs match native SQL.",
+            "negative": "Newer but foreign, wrong configuration or future rows cannot substitute.",
+            "reviewed_test_sha256": "7ea427450c6b07952489fa59f094f19287c6ccc683f30b01a1d1b5971342c386"
+          },
+          {
+            "id": "tests/integration/test_contextual_sql_selectors_postgresql.py::test_sector_sql_prior_scope_mode_config_and_order",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Native prior snapshot and order match declared scope.",
+            "negative": "Cross-scope/mode/configuration or later evidence is excluded.",
+            "reviewed_test_sha256": "7ea427450c6b07952489fa59f094f19287c6ccc683f30b01a1d1b5971342c386"
+          }
+        ],
+        "oracle": "Explicit competing rows and expected IDs; A05B financial vectors remain separate.",
+        "incidents": [
+          "A07.8 native SQL closure"
+        ],
+        "limitations": "Selection proof does not certify every Regime/Sector formula, backend or provider.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
+        "review_sha256": "6144ff70ef4288b7e76bb982e4b6af8a67c359d69e6abf8ef5d2fe3a8db6a5c1"
+      },
+      {
+        "id": "SETUP_PUBLICATION",
+        "owner": "Setup lifecycle publication maintainers",
+        "risk": "P0",
+        "behavior": "Recapture/handoff preserve published evidence; meaningful material drift and invalid alert acceleration are rejected.",
+        "sources": [
+          {
+            "path": "app/services/setup_lifecycle/snapshot_builder.py",
+            "symbol": "SetupLifecycleSnapshotCaptureService"
+          },
+          {
+            "path": "app/services/setup_lifecycle/alert_service.py",
+            "symbol": "_sector_acceleration_matches"
+          }
+        ],
+        "impact_patterns": [
+          "app/services/setup_lifecycle/*.py",
+          "app/services/transition_preflight_plan_service.py",
+          "config/setup_lifecycle.yaml"
+        ],
+        "tests": [
+          {
+            "id": "tests/setup_lifecycle/test_alert_service.py::test_sector_acceleration_uses_improvement_and_sector_confidence",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Valid improvement/confidence produces one alert.",
+            "negative": "Insufficient improvement/missing confidence produces none.",
+            "reviewed_test_sha256": "726eb19a8df6baa4d21f08b07bf25e9fc313d6b8f0a42fbc160cf3d46e843b5f"
+          },
+          {
+            "id": "tests/integration/test_run41_capture_handoff_postgresql.py::test_native_decision_sources_match_handoff_and_material_tamper_preserves_rows",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Real committed handoff equals reconstructed decision source.",
+            "negative": "Material bar tamper raises DECISION_MANIFEST_MISMATCH and full business rows survive rollback.",
+            "reviewed_test_sha256": "e6ba055b34ddf2a6892fc14dc46c47189067162b0561497aaddeaff41e574cbf"
+          }
+        ],
+        "oracle": "Literal alert truth table, immutable publication pins and committed-row comparison.",
+        "incidents": [
+          "Run41",
+          "Run153",
+          "A08 sector-confidence mutation"
+        ],
+        "limitations": "Fast alert repositories are doubles; prospective preview is not equated to committed evidence-ID phase.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
+        "review_sha256": "787ee5a7ac0224d2a8e88778219b55462aaed6f4b54cba8fdddc17c4677e4e61"
+      },
+      {
+        "id": "WINNER_EVIDENCE_MATURATION",
+        "owner": "Winner evidence and maturation maintainers",
+        "risk": "P0",
+        "behavior": "Frozen source evidence gates Winner consumption; native maturation produces the expected immutable forward and target-stop outcomes.",
+        "sources": [
+          {
+            "path": "app/services/winner_probability/outcome_service.py",
+            "symbol": "OutcomeMaturationService.process_due_outcomes"
+          }
+        ],
+        "impact_patterns": [
+          "app/services/winner_probability/*.py",
+          "config/winner_probability.yaml"
+        ],
+        "tests": [
+          {
+            "id": "tests/winner_probability/test_t12e_readiness_certification.py::test_missing_mandatory_winner_source_is_refused_with_healthy_fundamental",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Healthy fundamental alone does not hide another mandatory source.",
+            "negative": "Missing mandatory source is refused.",
+            "reviewed_test_sha256": "bab90fdc10a52a7a4b594e801ecb78603b2c08977e058ad2c6d1553e04612e4f"
+          },
+          {
+            "id": "tests/e2e/single_run_certification/test_single_run_certification.py::test_single_run_comprehensive_e2e_certification",
+            "tier": "BROWSER",
+            "fidelity": "DETERMINISTIC_NATIVE_WORKER_BROWSER",
+            "lane": "browser-smoke",
+            "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
+            "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
+            "reviewed_test_sha256": "8afebf7f6daf557fdb3ddfea71a73da225864e5caaa2eebe62483ea6466dd044"
+          }
+        ],
+        "oracle": "A05B expected Winner identities/outcomes and retained A08 reached-assertion/omission evidence.",
+        "incidents": [
+          "A07 Winner knowledge time",
+          "A08 unreachable maturation",
+          "A14 missing eligible Winner row"
+        ],
+        "limitations": "Comprehensive helper calls native service/publication; it does not prove a browser-created maturation job or global queue drain.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
+        "review_sha256": "5b43d903538f8339f4f38c1b3cd9e0d7b909c662d80458a6dbf5a0be46e5397b",
+        "review_addenda": [
+          {
+            "task": "FR02",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "reviewed_utc": "2026-10-30T13:12:53.635437+00:00",
+            "source_before_metadata_update": "f3944a722f63032807ee85daa42596ae70ef0340bc135aaf2cc5a69cd813861b",
+            "evidence": ".qa_work/test-intelligence-phase1b-3a78cfb/fr02-evidence/source-review.json",
+            "bindings": [
+              {
+                "test_id": "tests/e2e/single_run_certification/test_single_run_certification.py::test_single_run_comprehensive_e2e_certification",
+                "old_reviewed_test_sha256": "875463b426e47f67ce42d52aeaf4b0131af3b65db9b64e7805565871b34e7768",
+                "new_reviewed_test_sha256": "8afebf7f6daf557fdb3ddfea71a73da225864e5caaa2eebe62483ea6466dd044",
+                "review_scope": "Output ownership/routing changes only; all original assertions retained. Native service maturation assertions and independent oracle unchanged. No new comprehensive execution claim."
+              }
+            ],
+            "claim": "STATIC_INTENT only. Original review identities/owners and historical source fields retained. No execution, human approval, golden approval or release certification inferred."
+          }
+        ]
+      },
+      {
+        "id": "WORKER_SUPERVISOR_RECOVERY",
+        "owner": "Native worker and supervisor maintainers",
+        "risk": "P0",
+        "behavior": "Original handlers retain authority/configuration across death, watchdog fencing, bounded retry, permanent failure and cancellation.",
+        "sources": [
+          {
+            "path": "app/services/background_worker.py",
+            "symbol": "_execute_full_pipeline_job"
+          },
+          {
+            "path": "app/worker_supervisor.py",
+            "symbol": "_supervise_once"
+          }
+        ],
+        "impact_patterns": [
+          "app/services/background_job*.py",
+          "app/services/background_worker.py",
+          "app/worker*.py",
+          "app/services/pipeline_execution_authority.py",
+          "app/services/domain_write_fence.py"
+        ],
+        "tests": [
+          {
+            "id": "tests/test_background_worker.py::test_original_full_pipeline_handler_converts_native_cancellation",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Original handler receives independent control dependencies.",
+            "negative": "Cancellation/continuation suppression converts to CancelRequested.",
+            "reviewed_test_sha256": "d51e7a033fcd57ab94b1729b6fe3c37f01b800e135ee525925dbe635b9f13734"
+          },
+          {
+            "id": "tests/e2e/single_run_certification/test_native_worker_recovery.py::test_original_pipeline_worker_fault_recovery[chromium-death]",
+            "tier": "BROWSER",
+            "fidelity": "DETERMINISTIC_NATIVE_WORKER_BROWSER",
+            "lane": "browser-smoke",
+            "positive": "Verified owned worker death leads to native supervisor recovery and exact financial evidence.",
+            "negative": "Old token cannot publish and stale update is refused.",
+            "reviewed_test_sha256": "18ba0a1c9f5ca5654d2d10125478a5afd5f6f01b13d88b1bc218095017dd91bf"
+          }
+        ],
+        "oracle": "A11 actual process/transaction observations and unchanged A05B exact expected vectors.",
+        "incidents": [
+          "Run40",
+          "Run161",
+          "A11 R1-R4"
+        ],
+        "limitations": "Recovery is in the existing browser-smoke selection, separate from the supported A04 exact pair. A11 retained proofs concern the documented Windows ten-ticker runtime only.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
+        "review_sha256": "cc5170c55ddf938fcce76a50cc025b9e660502aebe9455f23a98eb498b80decc",
+        "review_addenda": [
+          {
+            "task": "FR02",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "reviewed_utc": "2026-10-30T13:12:53.636437+00:00",
+            "source_before_metadata_update": "f3944a722f63032807ee85daa42596ae70ef0340bc135aaf2cc5a69cd813861b",
+            "evidence": ".qa_work/test-intelligence-phase1b-3a78cfb/fr02-evidence/source-review.json",
+            "bindings": [
+              {
+                "test_id": "tests/e2e/single_run_certification/test_native_worker_recovery.py::test_original_pipeline_worker_fault_recovery[chromium-death]",
+                "old_reviewed_test_sha256": "6d317af968984c86b907910f50ac847cf0ecaa14dd0b7b3da8562abbc6289438",
+                "new_reviewed_test_sha256": "18ba0a1c9f5ca5654d2d10125478a5afd5f6f01b13d88b1bc218095017dd91bf",
+                "review_scope": "Safe numeric process diagnostics and watchdog-only profile added. Death parameter retains ordinary settings and original assertions. Existing identity equality observes stable additional fields. Current watchdog passes do not claim a current death execution."
+              }
+            ],
+            "claim": "STATIC_INTENT only. Original review identities/owners and historical source fields retained. No execution, human approval, golden approval or release certification inferred."
+          }
+        ]
+      },
+      {
+        "id": "NATIVE_PIPELINE_CERTIFICATION",
+        "owner": "Pipeline certification and stage-contract maintainers",
+        "risk": "P0",
+        "behavior": "Both fresh 10-ticker variants traverse original handlers, freeze authority and satisfy all 620 financial/runtime gates.",
+        "sources": [
+          {
+            "path": "app/services/pipeline_executor.py",
+            "symbol": "execute_full_pipeline"
+          },
+          {
+            "path": "app/services/background_worker.py",
+            "symbol": "_execute_full_pipeline_job"
+          },
+          {
+            "path": "scripts/production_runtime_certification.py",
+            "symbol": "main"
+          }
+        ],
+        "impact_patterns": [
+          "app/services/pipeline*.py",
+          "tests/e2e/single_run_certification/*.py",
+          "tests/e2e/single_run_certification/golden/*",
+          "alembic/*",
+          "app/models/*.py",
+          "app/settings.py"
+        ],
+        "tests": [
+          {
+            "id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
+            "tier": "BROWSER",
+            "fidelity": "DETERMINISTIC_NATIVE_WORKER_BROWSER",
+            "lane": "a04",
+            "positive": "402 exact rows/26 sections, 541 relations and 15 jobs satisfy 620 gates.",
+            "negative": "A14 semantic faults reject missing eligible child, changed ancestry and terminal quality mismatch.",
+            "reviewed_test_sha256": "3a886b890df5b3a07d4123fee46d52bd18d5c5f8aaa1b8b4cefbada6a7b7940b"
+          },
+          {
+            "id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]",
+            "tier": "BROWSER",
+            "fidelity": "DETERMINISTIC_NATIVE_WORKER_BROWSER",
+            "lane": "a04",
+            "positive": "Same original authority with retained Setup handoff enabled.",
+            "negative": "Same controlled A14 violations reject at intended gates.",
+            "reviewed_test_sha256": "3a886b890df5b3a07d4123fee46d52bd18d5c5f8aaa1b8b4cefbada6a7b7940b"
+          }
+        ],
+        "oracle": "Only original A04 finalizer plus A05B independent oracle; 13 required evidence seals.",
+        "incidents": [
+          "A01-A05B",
+          "A14 M1/M2/M3"
+        ],
+        "limitations": "Deterministic providers, native PostgreSQL/workers/Chromium and ten tickers; no live-provider, full-release or 88/100 scale claim.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
+        "review_sha256": "677dbfffc746e809adc064571c99ad7fcb8970aa850aa2d64a0bbeee265142fc"
+      },
+      {
+        "id": "GOLDEN_INTEGRITY",
+        "owner": "Independent financial oracle and provenance maintainers",
+        "risk": "P0",
+        "behavior": "Expected financial truth stays independent; changed inputs/configuration/derivations and unauthenticated updates fail closed.",
+        "sources": [
+          {
+            "path": "scripts/qa/golden_provenance.py",
+            "symbol": "verify_baseline"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/golden_oracle.py",
+            "symbol": "expected_manifest"
+          }
+        ],
+        "impact_patterns": [
+          "docs/testing/golden-provenance/*",
+          "tests/e2e/single_run_certification/golden/*",
+          "tests/e2e/single_run_certification/golden_*.py",
+          "config/*.yaml"
+        ],
+        "tests": [
+          {
+            "id": "tests/test_golden_update_governance.py::test_current_oracle_provenance_and_scope_remain_unchanged",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Existing 45-artifact baseline remains valid.",
+            "negative": "A companion mutation case rejects each unauthorized change.",
+            "reviewed_test_sha256": "7fd1ce73f20488f0eba79eb14110ed30cb68fb94b6d231657b0a4e98ce76c727"
+          },
+          {
+            "id": "tests/test_golden_update_governance.py::test_unauthorized_baseline_changes_fail_at_the_intended_boundary",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Existing 45-artifact baseline remains valid.",
+            "negative": "Altered baseline inputs/outputs/derivations/config fail intended provenance checks.",
+            "reviewed_test_sha256": "7fd1ce73f20488f0eba79eb14110ed30cb68fb94b6d231657b0a4e98ce76c727"
+          },
+          {
+            "id": "tests/test_golden_update_governance.py::test_valid_proposal_hashes_cannot_supply_approval_authority",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Consistent proposal hashes establish content only.",
+            "negative": "Editable approval labels cannot activate a new version.",
+            "reviewed_test_sha256": "7fd1ce73f20488f0eba79eb14110ed30cb68fb94b6d231657b0a4e98ce76c727"
+          }
+        ],
+        "oracle": "A05 v3 plus A05B-r3 content seals and independent derivations; A13 external authenticated review remains unverified.",
+        "incidents": [
+          "A13 PARTIAL authenticated review"
+        ],
+        "limitations": "Hashes and passing tests cannot create authenticated human approval. No universal time TTL is inferred.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
+        "review_sha256": "cde4201670ed1e9d3d0bd4c4d484efe79c82f6e48c630e93a77e942cb93fa275"
+      },
+      {
+        "id": "CI_RELEASE_GOVERNANCE",
+        "owner": "Test/release infrastructure and authority-domain maintainers",
+        "risk": "P0",
+        "behavior": "Required lanes, exact execution identity and evidence semantics prevent stale or partial evidence becoming a release verdict.",
+        "sources": [
+          {
+            "path": "scripts/qa/release_evidence.py",
+            "symbol": "aggregate"
+          },
+          {
+            "path": "scripts/qa/check_certification_registry.py",
+            "symbol": "validate_source_contracts"
+          }
+        ],
+        "impact_patterns": [
+          "scripts/qa/*.py",
+          "scripts/forensics/historical_tool_safety.py",
+          "tests/test_source_contract_governance.py",
+          "config/certification_registry.json",
+          "config/architecture_registry.json",
+          ".github/*"
+        ],
+        "tests": [
+          {
+            "id": "tests/test_full_release_certification.py::test_required_violations_never_certify",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Complete synthetic contract aggregates only within its specimen.",
+            "negative": "Missing/stale/wrong identity, failures, skips or incomplete lanes never certify.",
+            "reviewed_test_sha256": "1b423952d30a3469b78f7c9d20f47eaaa1569fa159f166261b700850db179daa"
+          },
+          {
+            "id": "tests/test_certification_registry.py::test_historical_or_ordinary_pass_does_not_replace_a04_evidence",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Original A04 oracle remains required.",
+            "negative": "Historical or ordinary PASS cannot replace native independent evidence.",
+            "reviewed_test_sha256": "f639e715a686808b5906fa0f5c1345d92c6082db7c7f1dffdf6c77d26d0e9716"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_unsupported_execution_claims_are_rejected",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Explicit test-side execution specimen passes its declared schema.",
+            "negative": "Static-only, stale, assertion-free or inflated fidelity claims are refused.",
+            "reviewed_test_sha256": "3269a691098d191b20263ce4f07d40d9f8e6268f3ee800d214e4a9d7dfdc01e5"
+          }
+        ],
+        "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
+        "incidents": [
+          "A10 archive/manual exclusion",
+          "Inherited T14 authority census: 7 unresolved failures"
+        ],
+        "limitations": "Synthetic aggregator tests do not establish an actual green full release. T14 owns unreviewed writers/call authority; A18 does not close it.",
+        "coverage_claim": "STATIC_INTENT",
+        "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
+        "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
+        "review_sha256": "732cb9ad9c78cc611239d0945fd338a2c97fc723b6ea6dbb1ddd4a8d186e0e9d"
+      }
+    ]
+  },
+  "test_lifecycle_reviews": [
+    {
+      "work_package": "A17",
+      "old_test_id": "tests/test_ranking_profile_routes.py::test_refresh_one_ranking_profile_route_commits",
+      "disposition": "MERGE",
+      "retained_test_id": "tests/test_ranking_profile_routes.py::test_refresh_one_ranking_profile_route_refuses_retired_mutation",
+      "owner": "SwingLens route authority maintainers",
+      "baseline_source_fingerprint": "50e9d942822c1eb7853c542ebcf9219aa1b3684ea009a63bc1fe3547dfa05148",
+      "evidence": ".qa_work/test-intelligence-phase1b-3a78cfb/STEP2_A17_SURGICAL_DUPLICATE_CLEANUP_REPORT.md",
+      "scope": "Reviewed ordinary regression subsumption; mandatory CI lane and certificate authority unchanged."
+    },
+    {
+      "work_package": "A17",
+      "old_test_id": "tests/test_ranking_profile_routes.py::test_refresh_ranking_profile_route_rolls_back_service_error",
+      "disposition": "MERGE",
+      "retained_test_id": "tests/test_ranking_profile_routes.py::test_refresh_one_ranking_profile_route_refuses_retired_mutation",
+      "owner": "SwingLens route authority maintainers",
+      "baseline_source_fingerprint": "50e9d942822c1eb7853c542ebcf9219aa1b3684ea009a63bc1fe3547dfa05148",
+      "evidence": ".qa_work/test-intelligence-phase1b-3a78cfb/STEP2_A17_SURGICAL_DUPLICATE_CLEANUP_REPORT.md",
+      "scope": "Reviewed ordinary regression subsumption; mandatory CI lane and certificate authority unchanged."
+    },
+    {
+      "work_package": "A17",
+      "old_test_id": "tests/test_sector_rotation_routes.py::test_recalculate_api_commits_and_returns_dto",
+      "disposition": "MERGE",
+      "retained_test_id": "tests/test_sector_rotation_routes.py::test_recalculate_api_refuses_retired_mutation",
+      "owner": "SwingLens route authority maintainers",
+      "baseline_source_fingerprint": "50e9d942822c1eb7853c542ebcf9219aa1b3684ea009a63bc1fe3547dfa05148",
+      "evidence": ".qa_work/test-intelligence-phase1b-3a78cfb/STEP2_A17_SURGICAL_DUPLICATE_CLEANUP_REPORT.md",
+      "scope": "Reviewed ordinary regression subsumption; mandatory CI lane and certificate authority unchanged."
+    },
+    {
+      "work_package": "A17",
+      "old_test_id": "tests/test_sector_rotation_routes.py::test_recalculate_api_rolls_back_value_error",
+      "disposition": "MERGE",
+      "retained_test_id": "tests/test_sector_rotation_routes.py::test_recalculate_api_refuses_retired_mutation",
+      "owner": "SwingLens route authority maintainers",
+      "baseline_source_fingerprint": "50e9d942822c1eb7853c542ebcf9219aa1b3684ea009a63bc1fe3547dfa05148",
+      "evidence": ".qa_work/test-intelligence-phase1b-3a78cfb/STEP2_A17_SURGICAL_DUPLICATE_CLEANUP_REPORT.md",
+      "scope": "Reviewed ordinary regression subsumption; mandatory CI lane and certificate authority unchanged."
+    },
+    {
+      "work_package": "A17",
+      "old_test_id": "tests/test_market_regime_routes.py::test_recalculate_run_api_commits_and_returns_snapshot",
+      "disposition": "MERGE",
+      "retained_test_id": "tests/test_market_regime_routes.py::test_recalculate_run_api_refuses_retired_mutation",
+      "owner": "SwingLens route authority maintainers",
+      "baseline_source_fingerprint": "50e9d942822c1eb7853c542ebcf9219aa1b3684ea009a63bc1fe3547dfa05148",
+      "evidence": ".qa_work/test-intelligence-phase1b-3a78cfb/STEP2_A17_SURGICAL_DUPLICATE_CLEANUP_REPORT.md",
+      "scope": "Reviewed ordinary regression subsumption; mandatory CI lane and certificate authority unchanged."
+    },
+    {
+      "work_package": "A17",
+      "old_test_id": "tests/test_market_regime_routes.py::test_recalculate_run_api_rolls_back_service_error",
+      "disposition": "MERGE",
+      "retained_test_id": "tests/test_market_regime_routes.py::test_recalculate_run_api_refuses_retired_mutation",
+      "owner": "SwingLens route authority maintainers",
+      "baseline_source_fingerprint": "50e9d942822c1eb7853c542ebcf9219aa1b3684ea009a63bc1fe3547dfa05148",
+      "evidence": ".qa_work/test-intelligence-phase1b-3a78cfb/STEP2_A17_SURGICAL_DUPLICATE_CLEANUP_REPORT.md",
+      "scope": "Reviewed ordinary regression subsumption; mandatory CI lane and certificate authority unchanged."
+    },
+    {
+      "work_package": "A17",
+      "old_test_id": "tests/ceri/test_ingestion_orchestration.py::test_ceri_job_handlers_are_registered_with_default_worker",
+      "disposition": "RETIRE",
+      "retained_test_id": "tests/ceri/test_ceri_orchestration.py::test_phase_7_job_handlers_are_registered",
+      "owner": "SwingLens CERI worker maintainers",
+      "baseline_source_fingerprint": "50e9d942822c1eb7853c542ebcf9219aa1b3684ea009a63bc1fe3547dfa05148",
+      "evidence": ".qa_work/test-intelligence-phase1b-3a78cfb/STEP2_A17_SURGICAL_DUPLICATE_CLEANUP_REPORT.md",
+      "scope": "Reviewed ordinary regression subsumption; mandatory CI lane and certificate authority unchanged."
+    }
+  ],
+  "test_selection": {
+    "schema": "swinglens.test-selection-policy.v1",
+    "default_profile": "core",
+    "approval": "User explicitly authorized SwingLens_One_Implementation_Handoff.md on 2026-10-30",
+    "profiles": {
+      "core": "Curated P0 plus affected T0/T1; nine retained lane kinds and original A04 producer; selected SKIP/ERROR/FAIL/missing evidence blocks",
+      "affected": "Existing A18 impact map; affected native/UI contracts required; relevant specialized prerequisite blocks core until separately supplied",
+      "extended": "Explicit changed-contract or scheduled scale/recovery/performance; original assertions and flags retained",
+      "diagnostic": "Original full Python/browser selectors retained under full_release; no default broad execution",
+      "live-authorized": "Separate explicit human authorization; no live calls from core"
+    },
+    "entries": [
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CORE_CONFIGURATION",
+        "exact_test_id": "tests/test_core_readiness_helpers.py::test_future_source_cannot_satisfy_earlier_consumer_identity",
+        "reason": "Retained calculation/configuration authority cannot borrow newer live YAML, wrong identity or future source evidence.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CORE_CONFIGURATION",
+        "exact_test_id": "tests/integration/test_core_legacy_configuration_postgresql.py::test_core_legacy_config_noninheritance_after_native_authority",
+        "reason": "Retained calculation/configuration authority cannot borrow newer live YAML, wrong identity or future source evidence.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "IB_ADMISSION",
+        "exact_test_id": "tests/test_ib_daily_admission.py::test_rejects_invalid_response_without_any_persistence",
+        "reason": "Only reviewed closed daily coverage enters persistence and frozen contexts; invalid responses produce no writes.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "IB_ADMISSION",
+        "exact_test_id": "tests/test_ib_daily_admission.py::test_persisted_subset_and_frozen_context_visibility",
+        "reason": "Only reviewed closed daily coverage enters persistence and frozen contexts; invalid responses produce no writes.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/ceri/test_point_in_time_query.py::test_late_correction_does_not_displace_version_known_at_cutoff",
+        "reason": "Effective/known-at selection, currency identity and committed retry lineage preserve the correct frozen world.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/integration/test_ceri_batched_workflow_v2.py::test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded",
+        "reason": "Effective/known-at selection, currency identity and committed retry lineage preserve the correct frozen world.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "REGIME_SECTOR_SELECTION",
+        "exact_test_id": "tests/integration/test_contextual_sql_selectors_postgresql.py::test_regime_sql_latest_current_and_asof_isolation",
+        "reason": "Exact eligible Regime/Sector financial context is selected by run/scope/mode/configuration/effective/known cutoffs.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "REGIME_SECTOR_SELECTION",
+        "exact_test_id": "tests/integration/test_contextual_sql_selectors_postgresql.py::test_sector_sql_prior_scope_mode_config_and_order",
+        "reason": "Exact eligible Regime/Sector financial context is selected by run/scope/mode/configuration/effective/known cutoffs.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "SETUP_PUBLICATION",
+        "exact_test_id": "tests/setup_lifecycle/test_alert_service.py::test_sector_acceleration_uses_improvement_and_sector_confidence",
+        "reason": "Recapture/handoff preserve published evidence; meaningful material drift and invalid alert acceleration are rejected.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "SETUP_PUBLICATION",
+        "exact_test_id": "tests/integration/test_run41_capture_handoff_postgresql.py::test_native_decision_sources_match_handoff_and_material_tamper_preserves_rows",
+        "reason": "Recapture/handoff preserve published evidence; meaningful material drift and invalid alert acceleration are rejected.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "WINNER_EVIDENCE_MATURATION",
+        "exact_test_id": "tests/winner_probability/test_t12e_readiness_certification.py::test_missing_mandatory_winner_source_is_refused_with_healthy_fundamental",
+        "reason": "Frozen source evidence gates Winner consumption; native maturation produces the expected immutable forward and target-stop outcomes.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "CHANGE_AFFECTED_NATIVE",
+        "contract": "WINNER_EVIDENCE_MATURATION",
+        "exact_test_id": "tests/e2e/single_run_certification/test_single_run_certification.py::test_single_run_comprehensive_e2e_certification",
+        "reason": "Frozen source evidence gates Winner consumption; native maturation produces the expected immutable forward and target-stop outcomes.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [
+          "app/services/setup_lifecycle/*",
+          "app/services/winner_probability/*",
+          "app/services/pipeline*",
+          "tests/e2e/single_run_certification/test_single_run_certification.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "WORKER_SUPERVISOR_RECOVERY",
+        "exact_test_id": "tests/test_background_worker.py::test_original_full_pipeline_handler_converts_native_cancellation",
+        "reason": "Original handlers retain authority/configuration across death, watchdog fencing, bounded retry, permanent failure and cancellation.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "CHANGE_AFFECTED_RECOVERY",
+        "contract": "WORKER_SUPERVISOR_RECOVERY",
+        "exact_test_id": "tests/e2e/single_run_certification/test_native_worker_recovery.py::test_original_pipeline_worker_fault_recovery[chromium-death]",
+        "reason": "Original handlers retain authority/configuration across death, watchdog fencing, bounded retry, permanent failure and cancellation.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [
+          "app/services/background_worker*",
+          "app/services/*supervisor*",
+          "app/services/pipeline*",
+          "tests/e2e/single_run_certification/test_native_worker_recovery.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "NATIVE_A04_PRODUCER",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
+        "reason": "Both fresh 10-ticker variants traverse original handlers, freeze authority and satisfy all 620 financial/runtime gates.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "NATIVE_A04_PRODUCER",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]",
+        "reason": "Both fresh 10-ticker variants traverse original handlers, freeze authority and satisfy all 620 financial/runtime gates.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "GOLDEN_INTEGRITY",
+        "exact_test_id": "tests/test_golden_update_governance.py::test_current_oracle_provenance_and_scope_remain_unchanged",
+        "reason": "Expected financial truth stays independent; changed inputs/configuration/derivations and unauthenticated updates fail closed.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "GOLDEN_INTEGRITY",
+        "exact_test_id": "tests/test_golden_update_governance.py::test_unauthorized_baseline_changes_fail_at_the_intended_boundary",
+        "reason": "Expected financial truth stays independent; changed inputs/configuration/derivations and unauthenticated updates fail closed.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "GOLDEN_INTEGRITY",
+        "exact_test_id": "tests/test_golden_update_governance.py::test_valid_proposal_hashes_cannot_supply_approval_authority",
+        "reason": "Expected financial truth stays independent; changed inputs/configuration/derivations and unauthenticated updates fail closed.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_full_release_certification.py::test_required_violations_never_certify",
+        "reason": "Required lanes, exact execution identity and evidence semantics prevent stale or partial evidence becoming a release verdict.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_certification_registry.py::test_historical_or_ordinary_pass_does_not_replace_a04_evidence",
+        "reason": "Required lanes, exact execution identity and evidence semantics prevent stale or partial evidence becoming a release verdict.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_source_contract_governance.py::test_unsupported_execution_claims_are_rejected",
+        "reason": "Required lanes, exact execution identity and evidence semantics prevent stale or partial evidence becoming a release verdict.",
+        "source": "A18_SOURCE_CONTRACT_COVERAGE_MATRIX.csv",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "MIGRATION",
+        "exact_test_id": "tests/test_migration_remediation.py",
+        "reason": "Seven migration tests actually certified in FR01.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": "FILE_OR_LANE",
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "DB_RESTORE",
+        "exact_test_id": "tests/integration/test_populated_restore.py",
+        "reason": "Real populated PostgreSQL restore; FR01 passed.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": "FILE_OR_LANE",
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NUMERIC_GOLDENS",
+        "exact_test_id": "tests/test_golden_pipeline.py",
+        "reason": "Independent expected numerical outcomes; FR01 passed.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": "FILE_OR_LANE",
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NUMERIC_GOLDENS",
+        "exact_test_id": "tests/test_ranking_profiles_golden.py",
+        "reason": "Ranking goldens; FR01 passed.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": "FILE_OR_LANE",
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "WINDOWS_RECOVERY",
+        "exact_test_id": "tests/e2e/test_windows_durable_worker_recovery.py",
+        "reason": "Real Windows recovery; FR01 lane passed.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": "FILE_OR_LANE",
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "WINDOWS_RECOVERY",
+        "exact_test_id": "tests/e2e/test_windows_lifecycle_persistence.py",
+        "reason": "Windows lifecycle restart; FR01 lane passed.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": "FILE_OR_LANE",
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NODE",
+        "exact_test_id": "EXISTING_A16_NODE_37_CASE_LANE",
+        "reason": "A16 original Node 37-case lane; FR01 certified.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": "FILE_OR_LANE",
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "PROMQL",
+        "exact_test_id": "EXISTING_A16_PROMQL_13_CASE_LANE",
+        "reason": "A16 original PromQL 13-case lane; FR01 certified.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": "FILE_OR_LANE",
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE_BROWSER",
+        "contract": "TICKER_SEARCH",
+        "exact_test_id": "tests/e2e/test_ticker_search_dock.py::test_dock_nonmodal_original_controls_keyboard_and_preview[chromium]",
+        "reason": "Search dock primary journey; existing strong audit.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE_BROWSER",
+        "contract": "TICKER_SEARCH",
+        "exact_test_id": "tests/e2e/test_ticker_search_dock.py::test_dock_nonmodal_original_controls_keyboard_and_preview[firefox]",
+        "reason": "Cross-engine critical search journey.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE_BROWSER",
+        "contract": "TICKER_INTELLIGENCE",
+        "exact_test_id": "tests/e2e/test_ticker_intelligence_browser.py::test_run_change_refreshes_rankings_winner_and_retains_current_labels[chromium]",
+        "reason": "Run identity/current label nonmixing.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE_BROWSER",
+        "contract": "TICKER_INTELLIGENCE",
+        "exact_test_id": "tests/e2e/test_ticker_intelligence_browser.py::test_run_change_refreshes_rankings_winner_and_retains_current_labels[firefox]",
+        "reason": "Cross-engine source/run identity.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "CHANGE_AFFECTED_BROWSER",
+        "contract": "SECTOR_UI",
+        "exact_test_id": "tests/test_market_sector_intelligence_browser.py::test_vision_overview_and_paired_chart_match_actual_native_responses",
+        "reason": "One real MSI native response/visual correlation. Run on MSI/sector code changes, not every unrelated release; preserve known timing defect.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/market_sector*",
+          "app/static/market_sector*",
+          "app/templates/*sector*",
+          "tests/test_market_sector_intelligence_browser.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE_BROWSER",
+        "contract": "SLSE_ALERTS",
+        "exact_test_id": "tests/e2e/test_slse_populated_browser.py::test_populated_market_changes_and_alert_center_contract[chromium]",
+        "reason": "One actual historic selection and alert center journey; FR02 fixed module isolation.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "CHANGE_AFFECTED_BROWSER",
+        "contract": "MSI_XSS",
+        "exact_test_id": "tests/test_market_sector_intelligence_browser.py::test_native_chart_classifications_render_as_safe_text_on_mobile",
+        "reason": "Required when MSI frontend changes.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/market_sector*",
+          "app/static/market_sector*",
+          "app/templates/*sector*",
+          "tests/test_market_sector_intelligence_browser.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "CHANGE_AFFECTED_BROWSER",
+        "contract": "MSI_FRESHNESS",
+        "exact_test_id": "tests/test_market_sector_intelligence_browser.py::test_stored_rank_movement_and_transient_hover_use_actual_saved_evidence",
+        "reason": "Required when MSI source/refresh/ranking changes.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/market_sector*",
+          "app/static/market_sector*",
+          "app/templates/*sector*",
+          "tests/test_market_sector_intelligence_browser.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "CHANGE_AFFECTED_BROWSER",
+        "contract": "SEARCH_STALE_RESPONSE",
+        "exact_test_id": "tests/e2e/test_ticker_search_dock.py::test_obsolete_search_and_preview_responses_cannot_overwrite[chromium]",
+        "reason": "Search/navigation race regression.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/static/*ticker*",
+          "app/services/*ticker*",
+          "app/routers/*ticker*",
+          "tests/e2e/test_ticker_search_dock.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "WINNER_HISTORY",
+        "exact_test_id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_lifecycle_interruption_replay_and_scale[2]",
+        "reason": "Small actual interruption/replay protection; use on lifecycle recovery changes.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/setup_lifecycle/*",
+          "app/services/winner_probability/*",
+          "app/services/pipeline*",
+          "tests/integration/test_run40_lifecycle_remediation_postgresql.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "WINNER_88",
+        "exact_test_id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_lifecycle_interruption_replay_and_scale[88]",
+        "reason": "Long incident scale test; not ordinary release blocker unless history/recovery changed.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/setup_lifecycle/*",
+          "app/services/winner_probability/*",
+          "app/services/pipeline*",
+          "tests/integration/test_run40_lifecycle_remediation_postgresql.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "ARCHIVE_BLOCKED",
+        "contract": "RUN40_RETAINED_DUMP",
+        "exact_test_id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_retained_native_88_fixture_on_final_runtime",
+        "reason": "Authentic dump/checksum absent; maintain test and explicit blocked archival state.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [],
+        "deferred_outcome": "ARCHIVAL_BLOCKED"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "WINNER_COHORT_PERF",
+        "exact_test_id": "tests/integration/test_winner_jobs_reliability_postgresql.py::test_390_row_42_cohort_heartbeat_commits_have_bounded_selects",
+        "reason": "Performance slice/time sensitive; only on cohort and batch changes or scheduled performance.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/winner_probability/cohort*",
+          "app/services/winner_probability/prediction_authority.py",
+          "app/services/canonical_evidence.py",
+          "tests/integration/test_winner_jobs_reliability_postgresql.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "SLSE_SCALE",
+        "exact_test_id": "tests/integration/test_slse_performance_certification.py::test_slse_phase_12_performance_certification",
+        "reason": "Scale performance; fixture cutoff invalid as of STOP, must not be mandatory routine.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/setup_lifecycle/*",
+          "app/services/setup_lifecycle*",
+          "tests/integration/test_slse_performance_certification.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "RUN8_10",
+        "exact_test_id": "tests/integration/test_run8_setup_performance_postgresql.py::test_setup_capture_run8_scale_is_bounded[10]",
+        "reason": "SQL budget check after Setup/SQL changes.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/setup_lifecycle/*",
+          "app/services/setup_lifecycle*",
+          "tests/integration/test_run8_setup_performance_postgresql.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "RUN8_25",
+        "exact_test_id": "tests/integration/test_run8_setup_performance_postgresql.py::test_setup_capture_run8_scale_is_bounded[25]",
+        "reason": "Batch-tail 25 SQL budget.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/setup_lifecycle/*",
+          "app/services/setup_lifecycle*",
+          "tests/integration/test_run8_setup_performance_postgresql.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "RUN8_107",
+        "exact_test_id": "tests/integration/test_run8_setup_performance_postgresql.py::test_setup_capture_run8_scale_is_bounded[107]",
+        "reason": "107 SQL and memory shape.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/setup_lifecycle/*",
+          "app/services/setup_lifecycle*",
+          "tests/integration/test_run8_setup_performance_postgresql.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "OBSERVABILITY_LOAD",
+        "exact_test_id": "tests/integration/test_observability_remediation_postgresql.py::test_operations_plans_at_representative_isolated_volumes",
+        "reason": "Million-row representative load; opt-in scale.",
+        "source": "Phase1B catalog; A16; FR01; FR02; STOP reports",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/*observability*",
+          "app/services/*monitor*",
+          "monitoring/*",
+          "tests/integration/test_observability_remediation_postgresql.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "SCALE_88_100",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-88]",
+        "reason": "A09 established positive native 88/100 correctness; retain all eight, run only on scale/pipeline boundary changes.",
+        "source": "A09-R04",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/pipeline*",
+          "app/services/winner_probability/*",
+          "app/services/setup_lifecycle/*",
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "SCALE_88_100",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-100]",
+        "reason": "A09 established positive native 88/100 correctness; retain all eight, run only on scale/pipeline boundary changes.",
+        "source": "A09-R04",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/pipeline*",
+          "app/services/winner_probability/*",
+          "app/services/setup_lifecycle/*",
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "SCALE_88_100",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-88]",
+        "reason": "A09 established positive native 88/100 correctness; retain all eight, run only on scale/pipeline boundary changes.",
+        "source": "A09-R04",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/pipeline*",
+          "app/services/winner_probability/*",
+          "app/services/setup_lifecycle/*",
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "SCALE_88_100",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-100]",
+        "reason": "A09 established positive native 88/100 correctness; retain all eight, run only on scale/pipeline boundary changes.",
+        "source": "A09-R04",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/pipeline*",
+          "app/services/winner_probability/*",
+          "app/services/setup_lifecycle/*",
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "SCALE_88_100",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-False-88]",
+        "reason": "A09 established positive native 88/100 correctness; retain all eight, run only on scale/pipeline boundary changes.",
+        "source": "A09-R04",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/pipeline*",
+          "app/services/winner_probability/*",
+          "app/services/setup_lifecycle/*",
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "SCALE_88_100",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-False-100]",
+        "reason": "A09 established positive native 88/100 correctness; retain all eight, run only on scale/pipeline boundary changes.",
+        "source": "A09-R04",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/pipeline*",
+          "app/services/winner_probability/*",
+          "app/services/setup_lifecycle/*",
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "SCALE_88_100",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-True-88]",
+        "reason": "A09 established positive native 88/100 correctness; retain all eight, run only on scale/pipeline boundary changes.",
+        "source": "A09-R04",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/pipeline*",
+          "app/services/winner_probability/*",
+          "app/services/setup_lifecycle/*",
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "EXTENDED_TRIGGERED",
+        "contract": "SCALE_88_100",
+        "exact_test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[firefox-True-100]",
+        "reason": "A09 established positive native 88/100 correctness; retain all eight, run only on scale/pipeline boundary changes.",
+        "source": "A09-R04",
+        "in_original_catalog": true,
+        "trigger_paths": [
+          "app/services/pipeline*",
+          "app/services/winner_probability/*",
+          "app/services/setup_lifecycle/*",
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
+        ],
+        "deferred_outcome": "NOT_RUN"
+      }
+    ],
+    "policy_controls": [
+      "tests/test_core_release_selection_policy.py"
+    ],
+    "proof_limit": "Selection policy is static intent; deferred never means passed; CORE does not establish FULL_RELEASE or SAFE_FOR_NORMAL_RUN"
+  }
+}

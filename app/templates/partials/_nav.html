@@ -7,6 +7,7 @@
   <a href="/" class="{{ 'active' if active_nav == 'dashboard' else '' }}" {{ 'aria-current=page' if active_nav == 'dashboard' else '' }}>Dashboard</a>
   <a href="/runs" class="{{ 'active' if active_nav == 'runs' else '' }}" {{ 'aria-current=page' if active_nav == 'runs' else '' }}>Runs</a>
   <a href="/market-regime" class="{{ 'active' if active_nav == 'market-regime' else '' }}" {{ 'aria-current=page' if active_nav == 'market-regime' else '' }}>Market Regime</a>
+  <a href="/sector-rotation" class="{{ 'active' if active_nav == 'market-sector-intelligence' else '' }}" {{ 'aria-current=page' if active_nav == 'market-sector-intelligence' else '' }}>Market Sector Intelligence</a>
   <a href="/setup-lifecycle" class="{{ 'active' if active_nav == 'setup-lifecycle' else '' }}" {{ 'aria-current=page' if active_nav == 'setup-lifecycle' else '' }}>Market Changes</a>
   <a href="/setup-lifecycle/alerts" class="{{ 'active' if active_nav == 'setup-lifecycle-alerts' else '' }}" {{ 'aria-current=page' if active_nav == 'setup-lifecycle-alerts' else '' }}>Alerts</a>
   {% if app_settings and app_settings.ceri_enabled and app_settings.ceri_ui_enabled %}

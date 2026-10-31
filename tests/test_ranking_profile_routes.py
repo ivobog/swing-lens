@@ -41,17 +41,7 @@ def test_refresh_all_ranking_profiles_route_can_redirect_for_browser(monkeypatch
     assert db.rollbacks == 0
 
 
-def test_refresh_one_ranking_profile_route_commits(monkeypatch) -> None:
-    db = RouteFakeDb()
-    with pytest.raises(HTTPException) as error:
-        run_routes.refresh_ranking_profile_action(run_id=7, profile_name="momentum_swing", db=db)
-    assert error.value.status_code == 409
-    assert error.value.detail["code"] == "STANDALONE_MUTATION_RETIRED"
-    assert db.commits == 0
-    assert db.rollbacks == 0
-
-
-def test_refresh_ranking_profile_route_rolls_back_service_error(monkeypatch) -> None:
+def test_refresh_one_ranking_profile_route_refuses_retired_mutation(monkeypatch) -> None:
     db = RouteFakeDb()
     with pytest.raises(HTTPException) as error:
         run_routes.refresh_ranking_profile_action(run_id=7, profile_name="momentum_swing", db=db)
