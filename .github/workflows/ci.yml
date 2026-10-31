@@ -6,7 +6,7 @@ permissions: read-all
 # pytest-playwright removes its output directory at session start. Keep that
 # owned scratch lifecycle separate from source-bound plans and lane receipts.
 env:
-  PYTEST_ADDOPTS: --output="${{ runner.temp }}/swinglens-playwright-output"
+  PYTEST_ADDOPTS: --output=test-results/playwright-scratch
 
 on:
   pull_request:
