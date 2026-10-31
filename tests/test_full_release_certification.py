@@ -533,3 +533,48 @@ def test_actual_pytest_terminal_observer(experiment, tmp_path, monkeypatch, faul
         assert receipt["counts"]["errored"] == 1
     if fault in {"missing_collection", "interrupted"}:
         assert receipt["counts"]["incomplete"] >= 1
+
+
+
+def test_real_playwright_session_cleanup_keeps_source_bound_plan(experiment, tmp_path):
+    import subprocess
+    import sys
+
+    import yaml
+
+    workspace = tmp_path / "cleanup-workspace"
+    workspace.mkdir()
+    original = release.ROOT
+    workflow = yaml.load(
+        (original / ".github/workflows/ci.yml").read_text(), Loader=yaml.BaseLoader
+    )
+    scratch = tmp_path / "owned runner temp"
+    addopts = workflow["env"]["PYTEST_ADDOPTS"].replace("${{ runner.temp }}", str(scratch))
+    plan_path = workspace / "test-results/release-plan/plan.json"
+    plan_path.parent.mkdir(parents=True)
+    plan_bytes = json.dumps(experiment.plan, sort_keys=True).encode()
+    release.validate_plan(experiment.plan)
+    plan_path.write_bytes(plan_bytes)
+    output = scratch / "swinglens-playwright-output"
+    output.mkdir(parents=True)
+    stale = output / "prior-scratch-marker"
+    stale.write_text("owned scratch only")
+    (workspace / "test_cleanup_probe.py").write_text(
+        "from pathlib import Path\n"
+        "def test_plan_is_still_available_after_session_cleanup():\n"
+        "    assert Path('test-results/release-plan/plan.json').is_file()\n"
+    )
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith(("SWINGLENS_RELEASE_", "SWINGLENS_TEST_OUTPUT_"))
+           and k not in {"PYTEST_PLUGINS", "PYTEST_ADDOPTS"}}
+    env["PYTEST_ADDOPTS"] = addopts
+    for collect in (True, False):
+        args = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                "test_cleanup_probe.py"]
+        if collect:
+            args.append("--collect-only")
+        child = subprocess.run(args, cwd=workspace, env=env, capture_output=True,
+                               text=True, timeout=45)
+        assert child.returncode == 0, child.stdout + child.stderr
+        assert plan_path.read_bytes() == plan_bytes
+    assert not stale.exists(), "The real Playwright session cleanup must have executed"

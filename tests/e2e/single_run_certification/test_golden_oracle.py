@@ -321,3 +321,38 @@ def test_fixture_identity_uses_frozen_content_manifest():
     with business_inputs("postgresql://unused@127.0.0.1/swinglens_pytest_cert_identity_only"):
         assert _fixture_hash({"count": 10}) == canonical_hash(load_golden())
         assert _fixture_hash({"count": 10}) == _fixture_hash({"count": 999})
+
+
+
+def test_allowlisted_child_installs_frozen_business_scope_without_freezing_liveness(tmp_path):
+    code = """
+import time
+from datetime import UTC, datetime
+before = datetime.now(UTC)
+import certification_server
+from app.services import background_worker, market_calculation_context_service as contexts
+from single_run_certification.golden_runtime import current_manifest
+assert current_manifest()["version"] == "a05-v3"
+cutoff = contexts.MarketClockService().cutoff_for(
+    datetime.now(UTC), reason="TRANSITION_PREFLIGHT_RESERVED")
+assert cutoff.cutoff_at.isoformat() == "2026-10-26T20:30:00+00:00"
+assert cutoff.latest_completed_session.isoformat() == "2026-10-26"
+assert background_worker.datetime is datetime
+assert background_worker.datetime.now(UTC) >= before
+start = time.monotonic()
+time.sleep(max(.05, 2 * time.get_clock_info("monotonic").resolution))
+assert time.monotonic() > start
+"""
+    env = {**os.environ,
+           "DATABASE_URL": "postgresql+psycopg://unused@127.0.0.1/swinglens_pytest_cert_child_clock",
+           "SWINGLENS_DATABASE_SAFETY_CONTEXT": "DISPOSABLE_TEST",
+           "RUNTIME_MODE": "CERTIFICATION", "CERTIFICATION_GOLDEN_VERSION": "a05-v3",
+           "CERTIFICATION_WINNER_CONFIGURATION": str(ROOT / "config/winner_probability.yaml"),
+           "CERTIFICATION_FROZEN_CERI_PROVIDERS": "true",
+           "CERTIFICATION_OUTCOME_NOW": "2027-01-15T22:00:00+00:00",
+           "CERTIFICATION_IB_LOG": str(tmp_path / "unused-provider-log.jsonl"),
+           "PYTHONPATH": os.pathsep.join((str(ROOT), str(ROOT / "tests/e2e"),
+                                         str(ROOT / "tests/e2e/single_run_certification")))}
+    child = subprocess.run([sys.executable, "-c", code], env=env, cwd=ROOT,
+                           capture_output=True, text=True, timeout=45)
+    assert child.returncode == 0, child.stdout + child.stderr

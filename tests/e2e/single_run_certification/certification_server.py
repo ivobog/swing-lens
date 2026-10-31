@@ -55,6 +55,10 @@ class DeterministicReadOnlyIB:
         if not self._connected:
             raise RuntimeError("deterministic IB is not connected")
         self._record("current_time", {})
+        if os.environ.get("CERTIFICATION_GOLDEN_VERSION"):
+            from single_run_certification.golden_oracle import load_golden
+
+            return datetime.fromisoformat(load_golden()["business_time"]["market_cutoff"])
         return datetime.now(UTC)
 
     def qualifyContracts(self, contract):  # noqa: N802 - matches ib-insync
@@ -89,6 +93,12 @@ class DeterministicReadOnlyIB:
 
 
 def _bars_for_ticker(ticker: str) -> list[SimpleNamespace]:
+    if os.environ.get("CERTIFICATION_GOLDEN_VERSION"):
+        from single_run_certification.golden_oracle import artifact
+
+        return [SimpleNamespace(date=date.fromisoformat(row["date"]), **{
+            key: float(row[key]) for key in ("open", "high", "low", "close", "volume")
+        }) for row in artifact("market-data.json")["ib_replay"][ticker]]
     seed = sum(ord(char) for char in ticker)
     end = latest_completed_us_trading_day(datetime.now(UTC))
     dates: list[date] = []
@@ -114,146 +124,218 @@ def _bars_for_ticker(ticker: str) -> list[SimpleNamespace]:
 
 
 def _install_deterministic_fetch_dependency() -> None:
-    from sqlalchemy.orm import sessionmaker
+    """Replace client creation only; retain the original production handler."""
+    from sqlalchemy.engine import make_url
 
-    from app.models.tables import BackgroundJob
-    from app.services import background_worker
-    from app.services.background_job_service import (
-        JobStatus,
-        heartbeat_job,
-        is_cancel_requested,
-        record_job_progress,
+    from app.services import (
+        background_worker,
+        ib_connection,
+        ib_fetch_executor,
+        ib_gateway_health_service,
+        ib_historical_capability,
     )
-    from app.services.ceri.artifact_lineage import CeriArtifactOwnership
-    from app.services.ceri.feature_rebuild_service import (
-        CeriFeatureRebuildRequest,
-        CeriFeatureRebuildService,
-    )
-    from app.services.domain_write_fence import control_plane_transaction
-    from app.services.ib_fetch_executor import execute_fetch_plan as real_execute_fetch_plan
-    from app.services.ib_gateway_health_service import check_status as real_check_status
-    from app.services.ib_historical_capability import (
-        check_historical_data_capability as real_check_historical_data_capability,
-    )
-    from app.services.market_calculation_context_service import (
-        validate_pipeline_job_market_context,
-    )
-    from app.services.pipeline_executor import (
-        PipelineCancelled,
-        PipelineExecutionDependencies,
-        close_pipeline_read_transaction,
-        commit_pipeline_mutation_checkpoint,
-        execute_full_pipeline,
-    )
-    from app.settings import get_settings
+    from app.settings import RuntimeMode, get_settings
 
-    def deterministic_execute_fetch_plan(**kwargs):
-        return real_execute_fetch_plan(
-            **kwargs,
-            ib_client_factory=DeterministicReadOnlyIB,
-        )
+    settings = get_settings()
+    database = make_url(settings.database_url)
+    if (
+        settings.runtime_mode is not RuntimeMode.CERTIFICATION
+        or os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT") != "DISPOSABLE_TEST"
+        or not (database.database or "").startswith("swinglens_pytest_cert_")
+        or database.host not in {"127.0.0.1", "localhost", "::1"}
+    ):
+        raise RuntimeError("DETERMINISTIC_ADAPTER_REQUIRES_DISPOSABLE_CERTIFICATION")
 
-    def deterministic_check_status():
-        return real_check_status(ib_factory=DeterministicReadOnlyIB)
+    original_handler = background_worker._execute_full_pipeline_job
+    if (
+        original_handler.__module__ != "app.services.background_worker"
+        or original_handler.__qualname__ != "_execute_full_pipeline_job"
+        or background_worker.default_job_handlers()["FULL_PIPELINE"] is not original_handler
+    ):
+        raise RuntimeError("CERTIFICATION_FULL_PIPELINE_HANDLER_REPLACED")
 
-    def deterministic_check_historical_capability():
-        return real_check_historical_data_capability(ib_factory=DeterministicReadOnlyIB)
+    # The native functions have imported aliases and IB-valued default arguments.
+    # Invoke the saved factory to retain its event-loop setup, supplying only the
+    # external client. No health/capability/fetch or executor callable is changed.
+    native_create_client = ib_connection.create_ib_client
 
-    def execute_full_pipeline_job(db, job):
-        pipeline_run_id = job.payload_json.get("pipeline_run_id")
-        if pipeline_run_id is None:
-            raise ValueError("FULL_PIPELINE job payload is missing pipeline_run_id.")
-        market_cutoff = validate_pipeline_job_market_context(
-            db,
-            pipeline_run_id=int(pipeline_run_id),
-            payload=job.payload_json,
-        )
-        if os.environ.get("CERTIFICATION_FROZEN_CERI_PROVIDERS") != "true":
-            feature_result = CeriFeatureRebuildService().rebuild(
-                db,
-                CeriFeatureRebuildRequest(
-                    as_of_session=market_cutoff.latest_completed_session,
-                    cutoff_at=market_cutoff.cutoff_at,
-                    mode="AS_KNOWN",
-                    calculation_context_id=market_cutoff.context_id,
-                    calendar_version=market_cutoff.calendar_version,
-                    ownership_mode=CeriArtifactOwnership.PIPELINE.value,
-                ),
+    def deterministic_create_client(_ib_factory=None):
+        return native_create_client(DeterministicReadOnlyIB)
+
+    for module in (
+        ib_connection,
+        ib_gateway_health_service,
+        ib_historical_capability,
+        ib_fetch_executor,
+    ):
+        module.create_ib_client = deterministic_create_client
+
+    # Deny Python provider sockets (including a live IB on loopback). PostgreSQL
+    # and this web listener are the only permitted application endpoints.
+    import socket
+
+    allowed_ports = {database.port or 5432, settings.app_port}
+    socketpair_code = getattr(socket.socketpair, "__code__", None)
+
+    def network_guard(event, args):
+        if event not in {"socket.connect", "socket.getaddrinfo"}:
+            return
+        address = args[1] if event == "socket.connect" else args[:2]
+        caller = sys._getframe(1)
+        # Windows implements socketpair using a just-created loopback listener.
+        # Permit only that exact stdlib frame/listener, never arbitrary local IB.
+        if event == "socket.connect" and caller.f_code is socketpair_code:
+            listener = caller.f_locals.get("lsock")
+            if listener is not None and listener.getsockname()[:2] == address[:2]:
+                return
+        if (
+            not isinstance(address, tuple)
+            or len(address) < 2
+            or address[0] not in {"127.0.0.1", "localhost", "::1"}
+            or address[1] not in allowed_ports
+        ):
+            raise RuntimeError("CERTIFICATION_UNEXPECTED_NETWORK_ACCESS")
+
+    import sys
+
+    sys.addaudithook(network_guard)
+    _observe_production_handler(original_handler)
+
+
+def _observe_production_handler(original_handler) -> None:
+    """Observe native code objects without wrapping/rebinding any worker code."""
+    log_path = os.environ.get("CERTIFICATION_WORKER_FIDELITY_LOG")
+    if not log_path:
+        return
+    import sys
+    from collections import Counter
+    from types import CodeType
+
+    from app.services import background_worker, pipeline_executor
+    from app.services.configuration_delivery import current_delivery
+    from app.services.redaction import redacted_token_metadata
+
+    output = Path(log_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    callback_codes = {
+        code: code.co_name
+        for code in original_handler.__code__.co_consts
+        if isinstance(code, CodeType)
+        and code.co_name in {"lease_guard", "should_cancel", "progress_callback", "memory_probe"}
+    }
+    calls = {}
+    callbacks = {}
+    executor_code = pipeline_executor.execute_full_pipeline.__wrapped__.__code__
+    final_status_code = pipeline_executor._final_pipeline_status.__code__
+
+    def write(record):
+        with output.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"pid": os.getpid(), **record}, sort_keys=True) + "\n")
+
+    def started(code, _offset):
+        frame = sys._getframe(1)
+        if code is final_status_code:
+            # Observe the exact deciding object without wrapping production code
+            # or accessing its transaction. Public results omit three inputs.
+            values = json.loads(json.dumps(frame.f_locals["result"], default=str))
+            partial_keys = (
+                "incomplete_rows", "warning_rows", "ib_failure_count",
+                "technical_error_count", "fetch_failed", "market_regime_low_confidence",
+                "ceri_failed", "setup_lifecycle_failed", "winner_prediction_failed",
             )
-            if feature_result.failed:
-                raise RuntimeError(
-                    "disposable certification CERI feature preparation failed: "
-                    f"{feature_result.errors}"
-                )
-
-        def lease_guard() -> None:
-            heartbeat = getattr(job, "_heartbeat", None)
-            if callable(heartbeat):
-                heartbeat()
-
-        execution_token = str(job.execution_token or "")
-        control_job = BackgroundJob(
-            id=job.id,
-            status=JobStatus.RUNNING,
-            execution_token=execution_token,
-            worker_id=job.worker_id,
-        )
-        settings = get_settings()
-        control_factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
-
-        def should_cancel() -> bool:
-            with control_factory() as control_db:
-                with control_plane_transaction(control_db):
-                    heartbeat_job(
-                        control_db,
-                        control_job,
-                        lease_seconds=settings.job_stale_after_seconds,
-                        execution_token=execution_token,
+            write({
+                "event": "native_final_status_inputs", "result": values,
+                "partial_predicates": {key: bool(values[key]) for key in partial_keys},
+                "first_partial_predicate": next((key for key in partial_keys if values[key]), None),
+            })
+            return
+        if code in callback_codes:
+            owner = frame.f_back
+            while owner is not None and owner.f_code is not original_handler.__code__:
+                owner = owner.f_back
+            if owner is not None:
+                callbacks.setdefault(id(owner), Counter())[callback_codes[code]] += 1
+            return
+        if code is executor_code:
+            values = frame.f_locals
+            write({
+                "event": "native_executor_entered",
+                "job_id": values["execution_job_id"],
+                **redacted_token_metadata(values["execution_token"]),
+                "callbacks": {
+                    name: getattr(values[name], "__qualname__", None)
+                    for name in (
+                        "lease_guard", "should_cancel", "progress_callback", "memory_probe",
                     )
-                    return is_cancel_requested(control_db, job.id)
+                },
+                "independent_control_factory": dict(zip(
+                    values["should_cancel"].__code__.co_freevars,
+                    (cell.cell_contents for cell in values["should_cancel"].__closure__),
+                    strict=True,
+                )).get("control_factory") is not None,
+            })
+            return
+        job = frame.f_locals["job"]
+        values = job.__dict__
+        delivery = current_delivery()
+        ancestors = []
+        caller = frame.f_back
+        while caller is not None:
+            ancestors.append(caller.f_code.co_name)
+            caller = caller.f_back
+        record = {
+            "event": "native_handler_entered",
+            "job_id": values["id"],
+            "pipeline_id": values["payload_json"]["pipeline_run_id"],
+            "resume_from_step": values["payload_json"].get("resume_from_step"),
+            "worker_id": values.get("worker_id"),
+            "worker_instance_id": values.get("worker_instance_id"),
+            "certification_session_id": values["payload_json"].get("certification_session_id"),
+            "scope_id": values.get("scope_id"),
+            "refresh_cycle_id": values.get("refresh_cycle_id"),
+            "configuration_anchor": delivery.anchor["fingerprint"] if delivery else None,
+            "handler": original_handler.__module__ + "." + original_handler.__qualname__,
+            "registered_original": (
+                background_worker.default_job_handlers()["FULL_PIPELINE"] is original_handler
+                and background_worker._execute_full_pipeline_job is original_handler
+            ),
+            "native_worker_dispatch": "execute_job" in ancestors and "run_worker_once" in ancestors,
+            **redacted_token_metadata(values.get("execution_token")),
+        }
+        calls[id(frame)] = record
+        write(record)
 
-        def progress_callback(_progress_db, **progress) -> None:
-            if progress.pop("commit_mutation_transaction", False):
-                commit_pipeline_mutation_checkpoint(_progress_db)
-            if progress.pop("close_read_transaction", False):
-                close_pipeline_read_transaction(_progress_db)
-            with control_factory() as control_db:
-                with control_plane_transaction(control_db):
-                    heartbeat_job(
-                        control_db,
-                        control_job,
-                        lease_seconds=settings.job_stale_after_seconds,
-                        execution_token=execution_token,
-                    )
-                    record_job_progress(
-                        control_db,
-                        job_id=job.id,
-                        execution_token=execution_token,
-                        **progress,
-                    )
+    def finished(_code, _offset, result):
+        if _code is final_status_code:
+            write({"event": "native_final_status_returned", "status": result})
+            return
+        call_id = id(sys._getframe(1))
+        write({
+            **calls.pop(call_id),
+            "event": "native_handler_raised" if isinstance(result, BaseException)
+            else "native_handler_returned",
+            "pipeline_status": result.get("status") if isinstance(result, dict) else None,
+            "error_type": type(result).__name__ if isinstance(result, BaseException) else None,
+            "callback_calls": dict(callbacks.pop(call_id, {})),
+        })
 
-        try:
-            result = execute_full_pipeline(
-                db=db,
-                pipeline_run_id=int(pipeline_run_id),
-                should_cancel=should_cancel,
-                lease_guard=lease_guard,
-                resume_from_step=job.payload_json.get("resume_from_step"),
-                progress_callback=progress_callback,
-                execution_token=execution_token,
-                execution_job_id=job.id,
-                dependencies=PipelineExecutionDependencies(
-                    execute_fetch_plan=deterministic_execute_fetch_plan,
-                    check_ib_gateway=deterministic_check_status,
-                    check_ib_historical_capability=(deterministic_check_historical_capability),
-                    market_cutoff=market_cutoff,
-                ),
-            )
-        except PipelineCancelled as exc:
-            raise background_worker.CancelRequested(str(exc)) from exc
-        return result.__dict__
-
-    background_worker._execute_full_pipeline_job = execute_full_pipeline_job
+    # Local CPython monitoring events incur no per-frame trace/profile hook and
+    # leave the production functions, registration and call path untouched.
+    tool_id = next(index for index in range(6) if sys.monitoring.get_tool(index) is None)
+    sys.monitoring.use_tool_id(tool_id, "certification-worker-fidelity")
+    sys.monitoring.register_callback(tool_id, sys.monitoring.events.PY_START, started)
+    sys.monitoring.register_callback(tool_id, sys.monitoring.events.PY_RETURN, finished)
+    for code in (original_handler.__code__, executor_code, *callback_codes):
+        sys.monitoring.set_local_events(tool_id, code, sys.monitoring.events.PY_START)
+    sys.monitoring.set_local_events(
+        tool_id, original_handler.__code__,
+        sys.monitoring.events.PY_START | sys.monitoring.events.PY_RETURN,
+    )
+    sys.monitoring.set_local_events(
+        tool_id, final_status_code,
+        sys.monitoring.events.PY_START | sys.monitoring.events.PY_RETURN,
+    )
+    write({"event": "native_handler_registered", "registered_original": True})
 
 
 def _install_frozen_ceri_providers() -> None:
@@ -384,22 +466,19 @@ def _install_native_configuration_profile() -> None:
 _install_native_configuration_profile()
 _install_frozen_ceri_providers()
 _install_deterministic_fetch_dependency()
+if os.environ.get("CERTIFICATION_GOLDEN_VERSION"):
+    from app.settings import get_settings as _golden_settings
+    from single_run_certification.golden_oracle import VERSION as _golden_version
+    from single_run_certification.golden_runtime import business_inputs
+
+    if os.environ["CERTIFICATION_GOLDEN_VERSION"] != _golden_version:
+        raise RuntimeError("UNSUPPORTED_CERTIFICATION_GOLDEN_VERSION")
+    _golden_business_scope = business_inputs(_golden_settings().database_url)
+    _golden_business_scope.__enter__()
 _install_deterministic_outcome_clock()
 _install_pipeline_profiler()
 
 from app.main import app  # noqa: E402  (environment and dependency must be installed first)
-from app.routers import ib_gateway_admin_routes, run_routes  # noqa: E402
-from app.services import pre_enqueue_operational_gate  # noqa: E402
-from app.services.ib_gateway_health_service import check_status as real_check_status  # noqa: E402
-
-
-def _deterministic_route_check_status(*, settings=None):
-    return real_check_status(settings=settings, ib_factory=DeterministicReadOnlyIB)
-
-
-run_routes.check_status = _deterministic_route_check_status
-ib_gateway_admin_routes.check_status = _deterministic_route_check_status
-pre_enqueue_operational_gate.check_status = _deterministic_route_check_status
 
 __all__ = ["app"]
 

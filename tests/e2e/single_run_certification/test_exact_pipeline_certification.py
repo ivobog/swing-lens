@@ -576,3 +576,23 @@ def test_file_finalizer_requires_current_complete_artifacts(specimen, tmp_path):
         tmp_path, invocation=specimen["invocation"], expected_identity=specimen["identity"]
     )
     assert result["verdict"] == "INCOMPLETE", result["reasons"]
+
+
+
+def test_current_invocation_revision_is_strictly_bound_without_historical_pin(specimen):
+    current = "b" * 40
+    specimen["identity"]["source_revision"] = current
+    specimen["contract"]["identity"]["source_revision"] = current
+    result = evaluate(specimen)
+    assert result.verdict == "CERTIFIED"
+    assert len(result.gate_results) == 620
+    # Neither a stale certificate nor a changed independently supplied revision
+    # may inherit the current invocation's authority.
+    specimen["contract"]["identity"]["source_revision"] = PINNED_SOURCE
+    assert evaluate(specimen).gate_results["identity"]["status"] == "FAILED"
+    specimen["contract"]["identity"]["source_revision"] = current
+    specimen["identity"]["source_revision"] = "c" * 40
+    assert evaluate(specimen).gate_results["identity"]["status"] == "FAILED"
+    specimen["identity"]["source_revision"] = "x" * 40
+    specimen["contract"]["identity"]["source_revision"] = "x" * 40
+    assert evaluate(specimen).gate_results["identity"]["status"] == "FAILED"

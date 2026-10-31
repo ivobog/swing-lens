@@ -1646,7 +1646,7 @@
             "lane": "python-regressions",
             "positive": "Complete synthetic contract aggregates only within its specimen.",
             "negative": "Missing/stale/wrong identity, failures, skips or incomplete lanes never certify.",
-            "reviewed_test_sha256": "1b423952d30a3469b78f7c9d20f47eaaa1569fa159f166261b700850db179daa"
+            "reviewed_test_sha256": "2c3139f4530a45eeee0720ee4e0269ceff2152d477f5d8750c7d81229b03b08a"
           },
           {
             "id": "tests/test_certification_registry.py::test_historical_or_ordinary_pass_does_not_replace_a04_evidence",
@@ -1676,7 +1676,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "732cb9ad9c78cc611239d0945fd338a2c97fc723b6ea6dbb1ddd4a8d186e0e9d"
+        "review_sha256": "e00d639010af6f715d2c05977f6d14897f668b727aef5c4ee4252c83f54966c1"
       }
     ]
   },

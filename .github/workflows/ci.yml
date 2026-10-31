@@ -3,6 +3,11 @@ name: CI
 # PR code never receives a repository-write GITHUB_TOKEN.
 permissions: read-all
 
+# pytest-playwright removes its output directory at session start. Keep that
+# owned scratch lifecycle separate from source-bound plans and lane receipts.
+env:
+  PYTEST_ADDOPTS: --output="${{ runner.temp }}/swinglens-playwright-output"
+
 on:
   pull_request:
   push:
@@ -612,7 +617,7 @@ jobs:
       - name: Run PromQL rule tests
         id: release_promql
         run: >-
-          docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m
+          docker run --rm --network none --read-only --user "$(id -u):$(id -g)" --tmpfs /tmp:rw,noexec,nosuid,size=64m
           --memory=256m --cpus=0.5 --pids-limit=64 --entrypoint /bin/sh
           --mount type=bind,source=${{ github.workspace }}/monitoring/prometheus,target=/rules,readonly
           --mount type=bind,source=${{ github.workspace }}/test-results/release/promql,target=/evidence

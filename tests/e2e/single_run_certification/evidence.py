@@ -234,7 +234,6 @@ def evaluate_pipeline_evidence(
     )
     from single_run_certification.reporting import (
         EXACT_TEST_IDS,
-        PINNED_SOURCE,
         REQUIRED_ARTIFACTS,
         CertificationRecorder,
         pipeline_gate_inventory,
@@ -296,7 +295,11 @@ def evaluate_pipeline_evidence(
             same(identity["runtime_instance_id"], identity["execution_id"]),
             same(bool(identity["invocation_id"]), True),
             same(len(identity["source_fingerprint"]), 64),
-            same(identity["source_revision"], PINNED_SOURCE),
+            # The supported producer freezes HEAD independently of the artifact.
+            # Historical oracle provenance is not the current invocation revision.
+            same(len(expected_identity["source_revision"]), 40),
+            same(all(c in "0123456789abcdef" for c in expected_identity["source_revision"]), True),
+            same(identity["source_revision"], expected_identity["source_revision"]),
             same(identity["input_sha256"], manifest["input_manifest_sha256"]),
             same(identity["oracle_sha256"], manifest["completion"]["manifest_sha256"]),
             same(identity["configuration_sha256"], manifest["configuration_envelope_sha256"]),
