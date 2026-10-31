@@ -127,7 +127,8 @@
       "entry_point": "scripts/qa/check_certification_registry.py",
       "command": [
         "python",
-        "scripts/qa/check_certification_registry.py",
+        "-m",
+        "scripts.qa.check_certification_registry",
         "--check"
       ],
       "scope": "Certification membership, lifecycle conservation and source/CI registration only.",
@@ -156,7 +157,7 @@
       "automatic": true,
       "certificate_authority": "NONE",
       "source_sha256": "96729d71cc3334289dccd4301817cebdfe8e23b6eff438d88487bb7ffa0c75d5",
-      "ci_command": "uv run python scripts/qa/check_certification_registry.py --check"
+      "ci_command": "uv run python -m scripts.qa.check_certification_registry --check"
     },
     {
       "id": "EXACT_PIPELINE_CERTIFICATION",

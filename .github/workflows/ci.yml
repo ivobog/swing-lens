@@ -36,7 +36,7 @@ jobs:
       - run: uv sync --locked --extra dev
       - name: Report source-contract change impact without executing tests
         run: >-
-          uv run python scripts/qa/check_certification_registry.py --check --ci-impact
+          uv run python -m scripts.qa.check_certification_registry --check --ci-impact
           --impact-output test-results/release-plan/source-impact.json
       - name: Prepare release plan without executing tests
         run: >-
@@ -103,7 +103,7 @@ jobs:
         run: uv run python scripts/check_architecture_registry.py --check
 
       - name: Check active certification registry and tool lifecycles
-        run: uv run python scripts/qa/check_certification_registry.py --check
+        run: uv run python -m scripts.qa.check_certification_registry --check
 
       - name: Install PostgreSQL client tools
         run: |
@@ -709,7 +709,7 @@ jobs:
           path: test-results/release
           merge-multiple: true
       - name: Record actual required job conclusions
-        run: python -c "import os,pathlib; pathlib.Path('test-results/release-jobs.json').write_text(os.environ['RELEASE_JOB_RESULTS'], encoding='utf-8')"
+        run: python -c "import os,pathlib; pathlib.Path('test-results').mkdir(parents=True, exist_ok=True); pathlib.Path('test-results/release-jobs.json').write_text(os.environ['RELEASE_JOB_RESULTS'], encoding='utf-8')"
       - name: Aggregate full-release certification
         if: always()
         run: uv run python -m scripts.production_runtime_certification --aggregate-release --release-plan test-results/release-plan/plan.json --evidence-root test-results/release --job-results test-results/release-jobs.json --report-dir test-results/full-release
