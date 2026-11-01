@@ -164,6 +164,13 @@ class SyntheticGitHub:
     def get(self, path):
         self.calls.append(("get", path))
         prefix = f"/repos/{provenance.GITHUB_REPOSITORY}"
+        if path.endswith("/actions/permissions/workflow"):
+            return {
+                "default_workflow_permissions": "read",
+                "can_approve_pull_request_reviews": False,
+            }
+        if "/check-runs?per_page=1" in path:
+            return {"check_runs": copy.deepcopy(self.checks), "total_count": len(self.checks)}
         if path == prefix:
             return {
                 "full_name": "other/repo" if self.wrong_repo else provenance.GITHUB_REPOSITORY,
@@ -463,5 +470,139 @@ def test_missing_administration_read_is_not_a_local_snapshot(synthetic_remote):
         return original(path)
 
     remote.get = deny
+    with pytest.raises(provenance.ProvenanceError, match="^GITHUB_AUTHORITY_UNAVAILABLE_HTTP_403$"):
+        provenance.verify_github_update(7, root=remote.root)
+
+
+@pytest.fixture
+def target_context(tmp_path, monkeypatch):
+    """Replay the observed R11 run/PR schema; this is not a live approval."""
+    base, head = "c" * 40, "b" * 40
+    pr = {
+        "number": 76,
+        "head": {"sha": head},
+        "base": {"sha": base, "ref": "main", "repo": {"full_name": provenance.GITHUB_REPOSITORY}},
+    }
+    association = {"number": 76, "head": {"sha": head}, "base": {"sha": base, "ref": "main"}}
+    run = {
+        "event": "pull_request_target",
+        "path": provenance.GITHUB_WORKFLOW,
+        "head_sha": head,
+        "status": "in_progress",
+        "pull_requests": [association],
+    }
+    event = {"number": 76, "pull_request": copy.deepcopy(pr)}
+    event_path = tmp_path / "event.json"
+    event_path.write_bytes(encoded(event))
+    for key, value in {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "pull_request_target",
+        "GITHUB_REPOSITORY": provenance.GITHUB_REPOSITORY,
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_EVENT_PATH": str(event_path),
+        "GITHUB_API_URL": "https://api.github.com",
+    }.items():
+        monkeypatch.setenv(key, value)
+    state = {"checkout": base, "dirty": False, "pr": pr, "run": run, "verifier": True}
+
+    def git(args, **kwargs):
+        return (
+            state["checkout"] + "\n"
+            if args[1:3] == ["rev-parse", "HEAD"]
+            else ("modified" if state["dirty"] else "")
+        )
+
+    class ContextAPI:
+        def get(self, path):
+            return copy.deepcopy(state["run"] if "/actions/runs/" in path else state["pr"])
+
+        def file(self, path, ref):
+            assert path == "scripts/qa/golden_provenance.py" and ref == base
+            return (
+                provenance.Path(provenance.__file__).read_bytes() if state["verifier"] else b"wrong"
+            )
+
+    monkeypatch.setattr(provenance.subprocess, "check_output", git)
+    return state, ContextAPI(), tmp_path
+
+
+def test_target_context_accepts_real_github_PR_head_with_trusted_base_checkout(target_context):
+    state, api, root = target_context
+    assert state["run"]["head_sha"] != state["checkout"]
+    assert provenance._trusted_github_context(api, 76, root) == state["pr"]
+
+
+@pytest.mark.parametrize(
+    "fault,code",
+    [
+        ("wrong_head", "GITHUB_TRUSTED_WORKFLOW_REQUIRED"),
+        ("run_bound_to_base", "GITHUB_TRUSTED_WORKFLOW_REQUIRED"),
+        ("wrong_PR", "GITHUB_TRUSTED_WORKFLOW_REQUIRED"),
+        ("missing_PR", "GITHUB_TRUSTED_WORKFLOW_REQUIRED"),
+        ("wrong_run_base", "GITHUB_TRUSTED_WORKFLOW_REQUIRED"),
+        ("wrong_workflow", "GITHUB_TRUSTED_WORKFLOW_REQUIRED"),
+        ("wrong_event", "GITHUB_TRUSTED_WORKFLOW_REQUIRED"),
+        ("completed_run", "GITHUB_TRUSTED_WORKFLOW_REQUIRED"),
+        ("checkout_PR_code", "GITHUB_TRUSTED_BASE_CHECKOUT_REQUIRED"),
+        ("dirty_base", "GITHUB_TRUSTED_BASE_CHECKOUT_REQUIRED"),
+        ("wrong_verifier", "GITHUB_TRUSTED_VERIFIER_SOURCE_REQUIRED"),
+    ],
+)
+def test_target_context_retains_source_and_PR_binding_failures(target_context, fault, code):
+    state, api, root = target_context
+    if fault == "wrong_head":
+        state["run"]["head_sha"] = "f" * 40
+    elif fault == "run_bound_to_base":
+        state["run"]["head_sha"] = state["checkout"]
+    elif fault == "wrong_PR":
+        state["run"]["pull_requests"][0]["number"] = 75
+    elif fault == "missing_PR":
+        state["run"]["pull_requests"] = []
+    elif fault == "wrong_run_base":
+        state["run"]["pull_requests"][0]["base"]["sha"] = "f" * 40
+    elif fault == "wrong_workflow":
+        state["run"]["path"] = ".github/workflows/untrusted.yml"
+    elif fault == "wrong_event":
+        state["run"]["event"] = "pull_request"
+    elif fault == "completed_run":
+        state["run"]["status"] = "completed"
+    elif fault == "checkout_PR_code":
+        state["checkout"] = state["pr"]["head"]["sha"]
+    elif fault == "dirty_base":
+        state["dirty"] = True
+    else:
+        state["verifier"] = False
+    with pytest.raises(provenance.ProvenanceError, match="^" + code + "$"):
+        provenance._trusted_github_context(api, 76, root)
+
+
+def test_non_golden_PR_proves_read_capability_without_financial_ack(synthetic_remote):
+    remote = synthetic_remote
+    remote.files = ["docs/testing/enforcement_pr_verification.md"]
+    remote.pr["changed_files"] = 1
+    remote.branch["protected"] = True
+    result = provenance.verify_github_update(7, root=remote.root)
+    assert result["owner_authorization"] == "NOT_APPLICABLE_NO_GOLDEN_CHANGE"
+    assert result["enforcement_api_readiness"] == {
+        "administration": "READ_CONFIRMED",
+        "checks": "READ_CONFIRMED",
+        "protection": "VERIFIED",
+    }
+    assert not result["activation_authorized"]
+
+
+def test_non_golden_PR_does_not_hide_a_missing_admin_read(synthetic_remote):
+    remote = synthetic_remote
+    remote.files = ["docs/testing/enforcement_pr_verification.md"]
+    remote.pr["changed_files"] = 1
+    remote.branch["protected"] = False
+    original = remote.get
+
+    def denied(path):
+        if path.endswith("/actions/permissions/workflow"):
+            raise provenance.ProvenanceError("GITHUB_AUTHORITY_UNAVAILABLE_HTTP_403")
+        return original(path)
+
+    remote.get = denied
     with pytest.raises(provenance.ProvenanceError, match="^GITHUB_AUTHORITY_UNAVAILABLE_HTTP_403$"):
         provenance.verify_github_update(7, root=remote.root)

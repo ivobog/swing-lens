@@ -759,7 +759,16 @@ def _trusted_github_context(api, number: int, root: Path) -> dict:
     _require(
         own.get("event") == "pull_request_target"
         and own.get("path") == GITHUB_WORKFLOW
-        and own.get("head_sha") == checked_out
+        # GitHub associates a target-workflow run with the PR head. The code
+        # checkout and verifier bytes remain bound independently to the base.
+        and own.get("head_sha") == pr["head"]["sha"]
+        and any(
+            item.get("number") == number
+            and item.get("head", {}).get("sha") == pr["head"]["sha"]
+            and item.get("base", {}).get("sha") == pr["base"]["sha"]
+            and item.get("base", {}).get("ref") == GITHUB_BRANCH
+            for item in own.get("pull_requests", [])
+        )
         and own.get("status") == "in_progress",
         "GITHUB_TRUSTED_WORKFLOW_REQUIRED",
     )
@@ -838,6 +847,17 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
         for n in changed
     )
     if not governance_change:
+        # Exercise the actual workflow credential before enabling protection.
+        # These are read-only capability checks, never financial authorization.
+        admin_read = api.get(prefix + "/actions/permissions/workflow")
+        checks_read = api.get(prefix + "/commits/" + pr["head"]["sha"] + "/check-runs?per_page=1")
+        _require(
+            admin_read.get("default_workflow_permissions") in {"read", "write"}
+            and isinstance(checks_read.get("check_runs"), list),
+            "GITHUB_ENFORCEMENT_READ_CAPABILITY_UNVERIFIED",
+        )
+        if branch.get("protected") is True:
+            _protected_branch(api, branch)
         _require(
             _pr_identity(api.get(prefix + f"/pulls/{number}")) == _pr_identity(pr),
             "GITHUB_PR_CHANGED_DURING_VERIFICATION",
@@ -847,6 +867,11 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
             "approval_model": "SOLE_OWNER",
             "activation_authorized": False,
             "source": "GITHUB_AUTHENTICATED_READ_ONLY",
+            "enforcement_api_readiness": {
+                "administration": "READ_CONFIRMED",
+                "checks": "READ_CONFIRMED",
+                "protection": "VERIFIED" if branch.get("protected") is True else "NOT_ENABLED",
+            },
         }
     # Non-golden PRs can establish the check's real GitHub association before
     # protection is enabled. They never authorize a financial update. Financial
