@@ -1003,7 +1003,9 @@
     "policy_document": "docs/testing/golden_update_policy.md",
     "automatic_update": "DENIED",
     "local_approval": "NEVER_AUTHORIZES",
-    "new_version_authority": "EXTERNAL_AUTHENTICATED_REVIEW_REQUIRED",
+    "new_version_authority": "AUTHENTICATED_SOLE_OWNER_ACK_REQUIRED",
+    "operator_exception": "A13-R10",
+    "independent_derivation": "REQUIRED",
     "authenticated_approval_enforcement": "NOT_VERIFIED",
     "authoring_archive": "docs/testing/golden-provenance/a05b-r3",
     "scope": "Existing A05 v3 / A05B r3 content only. No new golden version approved by A13.",
@@ -1568,6 +1570,14 @@
           {
             "path": "tests/e2e/single_run_certification/golden_oracle.py",
             "symbol": "expected_manifest"
+          },
+          {
+            "path": "scripts/qa/golden_provenance.py",
+            "symbol": "verify_github_update"
+          },
+          {
+            "path": "scripts/qa/golden_provenance.py",
+            "symbol": "_owner_acknowledgement"
           }
         ],
         "impact_patterns": [
@@ -1584,7 +1594,7 @@
             "lane": "python-regressions",
             "positive": "Existing 45-artifact baseline remains valid.",
             "negative": "A companion mutation case rejects each unauthorized change.",
-            "reviewed_test_sha256": "7fd1ce73f20488f0eba79eb14110ed30cb68fb94b6d231657b0a4e98ce76c727"
+            "reviewed_test_sha256": "9f30734918d9680686f0864c659e63714015f83ec6c1ba7c9ff49ca43771e6f4"
           },
           {
             "id": "tests/test_golden_update_governance.py::test_unauthorized_baseline_changes_fail_at_the_intended_boundary",
@@ -1593,7 +1603,7 @@
             "lane": "python-regressions",
             "positive": "Existing 45-artifact baseline remains valid.",
             "negative": "Altered baseline inputs/outputs/derivations/config fail intended provenance checks.",
-            "reviewed_test_sha256": "7fd1ce73f20488f0eba79eb14110ed30cb68fb94b6d231657b0a4e98ce76c727"
+            "reviewed_test_sha256": "9f30734918d9680686f0864c659e63714015f83ec6c1ba7c9ff49ca43771e6f4"
           },
           {
             "id": "tests/test_golden_update_governance.py::test_valid_proposal_hashes_cannot_supply_approval_authority",
@@ -1602,10 +1612,37 @@
             "lane": "python-regressions",
             "positive": "Consistent proposal hashes establish content only.",
             "negative": "Editable approval labels cannot activate a new version.",
-            "reviewed_test_sha256": "7fd1ce73f20488f0eba79eb14110ed30cb68fb94b6d231657b0a4e98ce76c727"
+            "reviewed_test_sha256": "9f30734918d9680686f0864c659e63714015f83ec6c1ba7c9ff49ca43771e6f4"
+          },
+          {
+            "id": "tests/test_golden_github_approval.py::test_owner_authorization_binds_complete_candidate_and_never_activates",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Complete current owner/head/digest authorizes review only; no activation.",
+            "negative": "Companion controls deny invalid authority and preserve all financial baselines.",
+            "reviewed_test_sha256": "95b877adfd78ee46c34c8c413b89bd1f0d986e038327ea2650e5db231210e113"
+          },
+          {
+            "id": "tests/test_golden_github_approval.py::test_owner_authorization_faults_fail_at_the_intended_boundary",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unauthorized/stale/missing owner evidence, derivation/history/oracle and genuine CI failures are rejected.",
+            "negative": "Companion controls deny invalid authority and preserve all financial baselines.",
+            "reviewed_test_sha256": "95b877adfd78ee46c34c8c413b89bd1f0d986e038327ea2650e5db231210e113"
+          },
+          {
+            "id": "tests/test_golden_github_approval.py::test_trusted_workflow_refreshes_on_description_and_head_changes",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Description/head events refresh trusted-base verification without executing PR code.",
+            "negative": "Companion controls deny invalid authority and preserve all financial baselines.",
+            "reviewed_test_sha256": "95b877adfd78ee46c34c8c413b89bd1f0d986e038327ea2650e5db231210e113"
           }
         ],
-        "oracle": "A05 v3 plus A05B-r3 content seals and independent derivations; A13 external authenticated review remains unverified.",
+        "oracle": "Unchanged A05 v3/A05B-r3 seals and independent derivations; A13-R10 requires live sole-owner acknowledgement, never automatic activation.",
         "incidents": [
           "A13 PARTIAL authenticated review"
         ],
@@ -1613,7 +1650,15 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "cde4201670ed1e9d3d0bd4c4d484efe79c82f6e48c630e93a77e942cb93fa275"
+        "review_sha256": "3a2f3766d18b5b5a53a3c00e1d845a8c239ce6144651b29ee6d86b9a7e44af5b",
+        "policy_amendment": {
+          "id": "A13-R10",
+          "date": "2026-11-01",
+          "operator_exception": "Single-owner authenticated acknowledgement replaces mandatory second-human review.",
+          "independent_financial_derivation": "REQUIRED",
+          "activation_authorized": false,
+          "coverage_claim": "STATIC_INTENT; execution recorded separately"
+        }
       },
       {
         "id": "CI_RELEASE_GOVERNANCE",
@@ -1664,7 +1709,7 @@
             "lane": "python-regressions",
             "positive": "Explicit test-side execution specimen passes its declared schema.",
             "negative": "Static-only, stale, assertion-free or inflated fidelity claims are refused.",
-            "reviewed_test_sha256": "3269a691098d191b20263ce4f07d40d9f8e6268f3ee800d214e4a9d7dfdc01e5"
+            "reviewed_test_sha256": "72ac85d0bc42c10b1f64f844c47f98e79845f31a3227ac0aac654572ea3daa70"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -1676,7 +1721,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "e00d639010af6f715d2c05977f6d14897f668b727aef5c4ee4252c83f54966c1"
+        "review_sha256": "7462c65b7c0bb98136722de5f8659c477be4d6ad19ab85b14a4bb5c8088815f9"
       }
     ]
   },
@@ -2428,6 +2473,36 @@
           "app/services/setup_lifecycle/*",
           "tests/e2e/single_run_certification/test_real_writer_cardinality.py"
         ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "GOLDEN_INTEGRITY",
+        "exact_test_id": "tests/test_golden_github_approval.py::test_owner_authorization_binds_complete_candidate_and_never_activates",
+        "reason": "A13-R10 sole-owner authorization regression; synthetic API control, not authenticated financial approval.",
+        "source": "A13-R10 operator-approved governance amendment",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "GOLDEN_INTEGRITY",
+        "exact_test_id": "tests/test_golden_github_approval.py::test_owner_authorization_faults_fail_at_the_intended_boundary",
+        "reason": "A13-R10 sole-owner authorization regression; synthetic API control, not authenticated financial approval.",
+        "source": "A13-R10 operator-approved governance amendment",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "GOLDEN_INTEGRITY",
+        "exact_test_id": "tests/test_golden_github_approval.py::test_trusted_workflow_refreshes_on_description_and_head_changes",
+        "reason": "A13-R10 sole-owner authorization regression; synthetic API control, not authenticated financial approval.",
+        "source": "A13-R10 operator-approved governance amendment",
+        "in_original_catalog": false,
+        "trigger_paths": [],
         "deferred_outcome": "NOT_RUN"
       }
     ],

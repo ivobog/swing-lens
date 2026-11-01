@@ -130,7 +130,7 @@ def test_current_oracle_provenance_and_scope_remain_unchanged():
     assert result["expected_rows"] == 402 and result["relationships"] == 541
     assert result["sections"] == 26 and len(result["contracts"]) == 7
     assert result["authenticated_update_approval"] == "NOT_VERIFIED"
-    assert result["new_version_activation"] == "BLOCKED_PENDING_AUTHENTICATED_REVIEW"
+    assert result["new_version_activation"] == "BLOCKED_PENDING_AUTHENTICATED_OWNER_ACK"
 
 
 @pytest.mark.parametrize(
@@ -205,9 +205,7 @@ def test_valid_proposal_hashes_cannot_supply_approval_authority(proposal):
     assert result["financial_equivalence"] == "NOT_EVALUATED"
     assert not result["activation_authorized"]
     assert result["authenticated_human_approval"] == "NOT_VERIFIED"
-    with pytest.raises(
-        provenance.ProvenanceError, match="AUTHENTICATED_INDEPENDENT_REVIEW_REQUIRED"
-    ):
+    with pytest.raises(provenance.ProvenanceError, match="AUTHENTICATED_OWNER_ACK_REQUIRED"):
         provenance.require_authorized_update(candidate, root=root)
 
 

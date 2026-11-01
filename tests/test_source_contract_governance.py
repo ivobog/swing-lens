@@ -235,6 +235,6 @@ def test_unknown_baseline_and_selection_policy_preserve_required_obligations(man
 
 def test_ci_emits_impact_plan_and_retains_original_a16_producer():
     workflow = (registry.ROOT / ".github/workflows/ci.yml").read_text()
-    assert "check_certification_registry.py --check --ci-impact" in workflow
+    assert "python -m scripts.qa.check_certification_registry --check --ci-impact" in workflow
     assert "--prepare-release" in workflow and "--aggregate-release" in workflow
     assert "path: test-results/release-plan/*.json" in workflow

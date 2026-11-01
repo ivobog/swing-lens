@@ -79,7 +79,9 @@ def _verify_baseline(root: Path, declaration: dict | None) -> dict:
         declaration.get("schema") != "swinglens.golden-update-policy.v1"
         or declaration.get("automatic_update") != "DENIED"
         or declaration.get("local_approval") != "NEVER_AUTHORIZES"
-        or declaration.get("new_version_authority") != "EXTERNAL_AUTHENTICATED_REVIEW_REQUIRED"
+        or declaration.get("new_version_authority") != "AUTHENTICATED_SOLE_OWNER_ACK_REQUIRED"
+        or declaration.get("operator_exception") != "A13-R10"
+        or declaration.get("independent_derivation") != "REQUIRED"
         or declaration.get("authenticated_approval_enforcement") != "NOT_VERIFIED"
     ):
         raise ProvenanceError("GOLDEN_APPROVAL_BOUNDARY_DOWNGRADED")
@@ -123,7 +125,7 @@ def _verify_baseline(root: Path, declaration: dict | None) -> dict:
         "expected_rows": sum(len(rows) for rows in supplement["domains"].values()),
         "relationships": len(completion.relationship_inventory({"completion": supplement})),
         "authenticated_update_approval": "NOT_VERIFIED",
-        "new_version_activation": "BLOCKED_PENDING_AUTHENTICATED_REVIEW",
+        "new_version_activation": "BLOCKED_PENDING_AUTHENTICATED_OWNER_ACK",
     }
 
 
@@ -307,7 +309,7 @@ def require_authorized_update(
 ) -> dict:
     inspect_proposal(proposal, root=root)
     if github_pr is None:
-        raise ProvenanceError("AUTHENTICATED_INDEPENDENT_REVIEW_REQUIRED: activation denied")
+        raise ProvenanceError("AUTHENTICATED_OWNER_ACK_REQUIRED: activation denied")
     result = verify_github_update(github_pr, root=root)
     if result.get("proposal_digest") != proposal_digest(proposal):
         raise ProvenanceError("GITHUB_REVIEW_CANDIDATE_MISMATCH")
@@ -374,7 +376,7 @@ class _NoRedirect(HTTPRedirectHandler):
 
 
 class _GitHubReader:
-    """GET-only authenticated client. No response snapshot is an authorization API."""
+    """Authenticated REST reads and one fixed GraphQL query; never a mutation."""
 
     def __init__(self, token: str):
         _require(bool(token) and "\n" not in token, "GITHUB_READ_CREDENTIAL_REQUIRED")
@@ -394,6 +396,42 @@ class _GitHubReader:
                 "User-Agent": "SwingLens-A13-provenance-verifier",
             },
         )
+        return self._read_request(request)
+
+    def owner_acknowledgement(self, number: int) -> dict:
+        # REST's PR author is not necessarily the actor who last edited its body.
+        # This fixed query authenticates that actor without accepting caller queries.
+        _require(type(number) is int and number > 0, "GITHUB_INVALID_PR_NUMBER")
+        query = """query OwnerAcknowledgement($number: Int!) {
+          repository(owner: "ivobog", name: "swing-lens") {
+            nameWithOwner owner { __typename login id }
+            pullRequest(number: $number) {
+              id number body headRefOid baseRefOid lastEditedAt
+              author { __typename login ... on User { id } }
+              editor { __typename login ... on User { id } }
+            }
+          }
+        }"""
+        request = Request(
+            "https://api.github.com/graphql",
+            data=json.dumps({"query": query, "variables": {"number": number}}).encode(),
+            method="POST",  # Read-only GraphQL queries use POST, not a mutation.
+            headers={
+                "Authorization": "Bearer " + self._token,
+                "Content-Type": "application/json",
+                "User-Agent": "SwingLens-A13-provenance-verifier",
+            },
+        )
+        result = self._read_request(request)
+        _require(
+            isinstance(result, dict) and not result.get("errors"),
+            "GITHUB_OWNER_IDENTITY_UNAVAILABLE",
+        )
+        repository = (result.get("data") or {}).get("repository")
+        _require(isinstance(repository, dict), "GITHUB_OWNER_IDENTITY_UNAVAILABLE")
+        return repository
+
+    def _read_request(self, request: Request):
         try:
             with self._opener.open(request, timeout=30) as response:
                 content = response.read(10 * 1024 * 1024 + 1)
@@ -472,22 +510,29 @@ def _codeowners(text: str, paths: set[str]) -> dict[str, set[str]]:
     return owners
 
 
-def _protected_branch(api, branch: dict) -> tuple[set[str], int]:
+def _protected_branch(api, branch: dict) -> set[str]:
     _require(branch.get("protected") is True, "GITHUB_TARGET_BRANCH_UNPROTECTED")
     protection = api.get(f"/repos/{GITHUB_REPOSITORY}/branches/{GITHUB_BRANCH}/protection")
-    review = protection.get("required_pull_request_reviews") or {}
+    review = protection.get("required_pull_request_reviews")
     _require(
         protection.get("enforce_admins", {}).get("enabled") is True,
         "GITHUB_PROTECTION_ADMIN_BYPASS",
     )
     _require(
-        review.get("required_approving_review_count", 0) >= 1
-        and review.get("require_code_owner_reviews") is True
-        and review.get("dismiss_stale_reviews") is True
-        and review.get("require_last_push_approval") is True,
-        "GITHUB_REVIEW_PROTECTION_INCOMPLETE",
+        review is None
+        or (
+            isinstance(review, dict)
+            and review.get("required_approving_review_count", 0) == 0
+            and not review.get("require_code_owner_reviews")
+            and not review.get("require_last_push_approval")
+        ),
+        "GITHUB_SOLO_OWNER_REVIEW_LOCKOUT",
     )
-    bypass = review.get("bypass_pull_request_allowances")
+    bypass = (
+        review.get("bypass_pull_request_allowances")
+        if review is not None
+        else {"users": [], "teams": [], "apps": []}
+    )
     _require(
         isinstance(bypass, dict)
         and set(bypass) >= {"users", "teams", "apps"}
@@ -511,60 +556,63 @@ def _protected_branch(api, branch: dict) -> tuple[set[str], int]:
     _require(
         set(REQUIRED_CHECKS) | {APPROVAL_CHECK} <= names, "GITHUB_REQUIRED_FINANCIAL_CHECK_MISSING"
     )
-    return names - {APPROVAL_CHECK}, review["required_approving_review_count"]
+    return names - {APPROVAL_CHECK}
 
 
-def _reviewer(api, pr: dict, reviews: list, owners: dict, digest: str, minimum: int = 1) -> str:
-    latest = {}
-    for review in sorted(reviews, key=lambda r: r["id"]):
-        if review.get("state") != "COMMENTED":
-            latest[review.get("user", {}).get("login", "").lower()] = review
-    _require(bool(latest), "GITHUB_REQUIRED_REVIEW_MISSING")
-    approvals = [r for r in latest.values() if r.get("state") == "APPROVED"]
-    _require(bool(approvals), "GITHUB_REQUIRED_REVIEW_MISSING")
-    author = pr["user"]["login"].lower()
+def _owner_acknowledgement(api, repo: dict, pr: dict, owners: dict, digest: str) -> str:
+    owner = repo.get("owner") or {}
+    login = GITHUB_REPOSITORY.split("/")[0]
     _require(
-        any(
-            r["user"]["login"].lower() != author and r["user"].get("type") == "User"
-            for r in approvals
-        ),
-        "GITHUB_SELF_OR_AUTOMATED_APPROVAL",
+        owner.get("type") == "User"
+        and owner.get("login", "").lower() == login
+        and bool(owner.get("node_id")),
+        "GITHUB_REPOSITORY_OWNER_REQUIRED",
     )
-    approvals = [
-        r
-        for r in approvals
-        if r["user"]["login"].lower() != author and r["user"].get("type") == "User"
+    live = api.owner_acknowledgement(pr["number"])
+    body = live.get("pullRequest") or {}
+    _require(
+        live.get("nameWithOwner") == GITHUB_REPOSITORY
+        and live.get("owner")
+        == {"__typename": "User", "login": owner["login"], "id": owner["node_id"]},
+        "GITHUB_REPOSITORY_OWNER_REQUIRED",
+    )
+    _require(
+        body.get("id") == pr.get("node_id")
+        and bool(pr.get("node_id"))
+        and body.get("number") == pr["number"]
+        and body.get("headRefOid") == pr["head"]["sha"]
+        and body.get("baseRefOid") == pr["base"]["sha"]
+        and body.get("body") == pr.get("body"),
+        "GITHUB_OWNER_ACK_PR_CHANGED",
+    )
+    actor = body.get("editor")
+    if actor is None:
+        _require(body.get("lastEditedAt") is None, "GITHUB_OWNER_EDITOR_UNVERIFIED")
+        actor = body.get("author") or {}
+    _require(
+        actor.get("__typename") == "User"
+        and actor.get("id") == owner["node_id"]
+        and actor.get("login", "").lower() == login,
+        "GITHUB_OWNER_ACK_UNAUTHORIZED_ACTOR",
+    )
+    permission = api.get(f"/repos/{GITHUB_REPOSITORY}/collaborators/{login}/permission")
+    _require(permission.get("permission") == "admin", "GITHUB_REPOSITORY_OWNER_REQUIRED")
+    _require(
+        all(login in allowed for allowed in owners.values()), "GITHUB_OWNER_CODEOWNERS_REQUIRED"
+    )
+    lines = [
+        line
+        for line in (body.get("body") or "").splitlines()
+        if line.startswith("A13-SOLO-OWNER-ACK")
     ]
-    _require(
-        any(r.get("commit_id") == pr["head"]["sha"] for r in approvals),
-        "GITHUB_REVIEW_OBSOLETE_COMMIT",
+    _require(len(lines) == 1, "GITHUB_OWNER_ACK_REQUIRED")
+    acknowledgement = re.fullmatch(
+        r"A13-SOLO-OWNER-ACK head:([0-9a-f]{40}) sha256:([0-9a-f]{64})", lines[0]
     )
-    approvals = [r for r in approvals if r.get("commit_id") == pr["head"]["sha"]]
-    statement = "A13-APPROVE sha256:" + digest
-    _require(
-        any(statement in (r.get("body") or "").splitlines() for r in approvals),
-        "GITHUB_REVIEW_CANDIDATE_MISMATCH",
-    )
-    authorized = []
-    for review in approvals:
-        if statement not in (review.get("body") or "").splitlines():
-            continue
-        login = review["user"]["login"]
-        permission = api.get(
-            f"/repos/{GITHUB_REPOSITORY}/collaborators/{quote(login, safe='')}/permission"
-        )
-        if permission.get("permission") not in {"write", "maintain", "admin"}:
-            continue
-        if not all(login.lower() in allowed for allowed in owners.values()):
-            continue
-        authorized.append(login)
-    _require(bool(authorized), "GITHUB_REVIEWER_NOT_AUTHORIZED_CODE_OWNER")
-    _require(len(authorized) >= minimum, "GITHUB_REQUIRED_REVIEW_MISSING")
-    _require(
-        not any(r.get("state") == "CHANGES_REQUESTED" for r in latest.values()),
-        "GITHUB_CHANGES_REQUESTED",
-    )
-    return sorted(authorized)[0]
+    _require(acknowledgement is not None, "GITHUB_OWNER_ACK_REQUIRED")
+    _require(acknowledgement[1] == pr["head"]["sha"], "GITHUB_OWNER_ACK_STALE_HEAD")
+    _require(acknowledgement[2] == digest, "GITHUB_OWNER_ACK_DIGEST_MISMATCH")
+    return login
 
 
 def _require_candidate_complete(proposal: dict, root: Path) -> None:
@@ -734,11 +782,12 @@ def _pr_identity(pr: dict) -> tuple:
         pr.get("state"),
         pr.get("draft"),
         pr.get("merged"),
+        pr.get("body"),
     )
 
 
 def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
-    """Live authenticated GETs from trusted base code; no offline receipt input.
+    """Live authenticated reads from trusted base code; no offline receipt input.
 
     This verifies review, never activates files or replaces the A04/A16 checks.
     Unit transport doubles establish only local behavior, not real approval.
@@ -763,7 +812,6 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
     )
     branch = api.get(prefix + "/branches/" + GITHUB_BRANCH)
     _require(branch["commit"]["sha"] == pr["base"]["sha"], "GITHUB_BASE_BRANCH_CHANGED")
-    required, review_count = _protected_branch(api, branch)
     errors = api.get(prefix + "/codeowners/errors?ref=" + pr["base"]["sha"])
     _require(errors.get("errors") == [], "GITHUB_CODEOWNERS_ERRORS_OR_UNKNOWN")
     # Never silently use the root file when GitHub uses a higher-priority file.
@@ -795,10 +843,15 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
             "GITHUB_PR_CHANGED_DURING_VERIFICATION",
         )
         return {
-            "authenticated_human_approval": "NOT_APPLICABLE_NO_GOLDEN_CHANGE",
+            "owner_authorization": "NOT_APPLICABLE_NO_GOLDEN_CHANGE",
+            "approval_model": "SOLE_OWNER",
             "activation_authorized": False,
-            "source": "GITHUB_AUTHENTICATED_GET_ONLY",
+            "source": "GITHUB_AUTHENTICATED_READ_ONLY",
         }
+    # Non-golden PRs can establish the check's real GitHub association before
+    # protection is enabled. They never authorize a financial update. Financial
+    # proposals still require every protected-branch predicate below.
+    required = _protected_branch(api, branch)
     _require(PROPOSAL_PATH in changed, "GITHUB_GOLDEN_PROPOSAL_REQUIRED")
     for path in ("CODEOWNERS", GITHUB_WORKFLOW, ".github/workflows/ci.yml"):
         _require(
@@ -871,8 +924,7 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
             target.write_bytes(content)
         inspect_proposal(proposal, root=staging)
         digest = proposal_digest(proposal)
-        reviews = api.pages(prefix + f"/pulls/{number}/reviews")
-        reviewer = _reviewer(api, pr, reviews, owners, digest, review_count)
+        owner = _owner_acknowledgement(api, repo, pr, owners, digest)
         _successful_checks(api, pr, required)
         _require_candidate_complete(proposal, staging)
     # Re-read live identities/reviews/protection. Never accept a raced receipt.
@@ -881,18 +933,19 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
     final_branch = api.get(prefix + "/branches/" + GITHUB_BRANCH)
     _require(
         final_branch["commit"]["sha"] == pr["base"]["sha"]
-        and _protected_branch(api, final_branch) == (required, review_count),
+        and _protected_branch(api, final_branch) == required,
         "GITHUB_PROTECTION_CHANGED_DURING_VERIFICATION",
     )
     _require(
-        _reviewer(
-            api, final, api.pages(prefix + f"/pulls/{number}/reviews"), owners, digest, review_count
-        )
-        == reviewer,
-        "GITHUB_REVIEW_CHANGED_DURING_VERIFICATION",
+        api.get(prefix).get("owner") == repo.get("owner")
+        and _owner_acknowledgement(api, repo, final, owners, digest) == owner,
+        "GITHUB_OWNER_ACK_CHANGED_DURING_VERIFICATION",
     )
     return {
-        "authenticated_human_approval": "VERIFIED_BY_LIVE_GITHUB_API",
+        "owner_authorization": "SOLO_OWNER_AUTHORIZED",
+        "approval_model": "SOLE_OWNER",
+        "independent_human_review": "NOT_CLAIMED",
+        "financial_equivalence": "NOT_EVALUATED",
         "review_authorized": True,
         "activation_authorized": False,
         "proposal_digest": digest,
@@ -900,7 +953,7 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
         "expectation_revision": proposal["candidate"]["expectation_revision"],
         "head_sha": pr["head"]["sha"],
         "base_sha": pr["base"]["sha"],
-        "reviewer": reviewer,
+        "owner": owner,
         "required_checks": sorted(required),
         "financial_certificate_authority": "ORIGINAL_A04_AND_A16_REMAIN_MANDATORY",
     }
@@ -916,7 +969,8 @@ def github_actions_check() -> None:
         print(
             json.dumps(
                 {
-                    "authenticated_human_approval": "NOT_VERIFIED",
+                    "owner_authorization": "NOT_VERIFIED",
+                    "approval_model": "SOLE_OWNER",
                     "activation_authorized": False,
                     "reason": code,
                 }
