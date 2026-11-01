@@ -510,7 +510,7 @@ def _codeowners(text: str, paths: set[str]) -> dict[str, set[str]]:
     return owners
 
 
-def _protected_branch(api, branch: dict) -> set[str]:
+def _protected_branch(api, branch: dict) -> tuple[set[str], str]:
     _require(branch.get("protected") is True, "GITHUB_TARGET_BRANCH_UNPROTECTED")
     protection = api.get(f"/repos/{GITHUB_REPOSITORY}/branches/{GITHUB_BRANCH}/protection")
     review = protection.get("required_pull_request_reviews")
@@ -519,26 +519,33 @@ def _protected_branch(api, branch: dict) -> set[str]:
         "GITHUB_PROTECTION_ADMIN_BYPASS",
     )
     _require(
-        review is None
-        or (
-            isinstance(review, dict)
-            and review.get("required_approving_review_count", 0) == 0
-            and not review.get("require_code_owner_reviews")
-            and not review.get("require_last_push_approval")
-        ),
+        isinstance(review, dict)
+        and review.get("required_approving_review_count") == 0
+        and not review.get("require_code_owner_reviews")
+        and not review.get("require_last_push_approval"),
         "GITHUB_SOLO_OWNER_REVIEW_LOCKOUT",
     )
-    bypass = (
-        review.get("bypass_pull_request_allowances")
-        if review is not None
-        else {"users": [], "teams": [], "apps": []}
-    )
-    _require(
-        isinstance(bypass, dict)
-        and set(bypass) >= {"users", "teams", "apps"}
-        and all(bypass[k] == [] for k in ("users", "teams", "apps")),
-        "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN",
-    )
+    if "bypass_pull_request_allowances" not in review:
+        repository = api.get(f"/repos/{GITHUB_REPOSITORY}")
+        owner = repository.get("owner") if isinstance(repository, dict) else None
+        _require(
+            isinstance(repository, dict)
+            and repository.get("full_name") == GITHUB_REPOSITORY
+            and isinstance(owner, dict)
+            and owner.get("type") == "User"
+            and owner.get("login") == GITHUB_REPOSITORY.split("/")[0],
+            "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN",
+        )
+        bypass_status = "NOT_APPLICABLE_PERSONAL_REPOSITORY"
+    else:
+        bypass = review["bypass_pull_request_allowances"]
+        _require(
+            isinstance(bypass, dict)
+            and set(bypass) >= {"users", "teams", "apps"}
+            and all(bypass[k] == [] for k in ("users", "teams", "apps")),
+            "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN",
+        )
+        bypass_status = "VERIFIED_EMPTY_BYPASS_LISTS"
     _require(
         protection.get("allow_force_pushes", {}).get("enabled") is False
         and protection.get("allow_deletions", {}).get("enabled") is False,
@@ -556,7 +563,7 @@ def _protected_branch(api, branch: dict) -> set[str]:
     _require(
         set(REQUIRED_CHECKS) | {APPROVAL_CHECK} <= names, "GITHUB_REQUIRED_FINANCIAL_CHECK_MISSING"
     )
-    return names - {APPROVAL_CHECK}
+    return names - {APPROVAL_CHECK}, bypass_status
 
 
 def _owner_acknowledgement(api, repo: dict, pr: dict, owners: dict, digest: str) -> str:
@@ -856,8 +863,9 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
             and isinstance(checks_read.get("check_runs"), list),
             "GITHUB_ENFORCEMENT_READ_CAPABILITY_UNVERIFIED",
         )
+        bypass_status = "NOT_EVALUATED_UNPROTECTED"
         if branch.get("protected") is True:
-            _protected_branch(api, branch)
+            _, bypass_status = _protected_branch(api, branch)
         _require(
             _pr_identity(api.get(prefix + f"/pulls/{number}")) == _pr_identity(pr),
             "GITHUB_PR_CHANGED_DURING_VERIFICATION",
@@ -867,6 +875,7 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
             "approval_model": "SOLE_OWNER",
             "activation_authorized": False,
             "source": "GITHUB_AUTHENTICATED_READ_ONLY",
+            "bypass_verification": bypass_status,
             "enforcement_api_readiness": {
                 "administration": "READ_CONFIRMED",
                 "checks": "READ_CONFIRMED",
@@ -876,7 +885,7 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
     # Non-golden PRs can establish the check's real GitHub association before
     # protection is enabled. They never authorize a financial update. Financial
     # proposals still require every protected-branch predicate below.
-    required = _protected_branch(api, branch)
+    required, bypass_status = _protected_branch(api, branch)
     _require(PROPOSAL_PATH in changed, "GITHUB_GOLDEN_PROPOSAL_REQUIRED")
     for path in ("CODEOWNERS", GITHUB_WORKFLOW, ".github/workflows/ci.yml"):
         _require(
@@ -958,7 +967,7 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
     final_branch = api.get(prefix + "/branches/" + GITHUB_BRANCH)
     _require(
         final_branch["commit"]["sha"] == pr["base"]["sha"]
-        and _protected_branch(api, final_branch) == required,
+        and _protected_branch(api, final_branch) == (required, bypass_status),
         "GITHUB_PROTECTION_CHANGED_DURING_VERIFICATION",
     )
     _require(
@@ -980,6 +989,7 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
         "base_sha": pr["base"]["sha"],
         "owner": owner,
         "required_checks": sorted(required),
+        "bypass_verification": bypass_status,
         "financial_certificate_authority": "ORIGINAL_A04_AND_A16_REMAIN_MANDATORY",
     }
 
