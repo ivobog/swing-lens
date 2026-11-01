@@ -1582,6 +1582,10 @@
           {
             "path": "scripts/qa/golden_provenance.py",
             "symbol": "_trusted_github_context"
+          },
+          {
+            "path": "scripts/qa/golden_provenance.py",
+            "symbol": "_protected_branch"
           }
         ],
         "impact_patterns": [
@@ -1625,7 +1629,7 @@
             "lane": "python-regressions",
             "positive": "Complete current owner/head/digest authorizes review only; no activation.",
             "negative": "Companion controls deny invalid authority and preserve all financial baselines.",
-            "reviewed_test_sha256": "c794c878997640fb552ee656639dc588fda4fac1ee0c72d5e0fba62aa61e83b9"
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
           },
           {
             "id": "tests/test_golden_github_approval.py::test_owner_authorization_faults_fail_at_the_intended_boundary",
@@ -1634,7 +1638,7 @@
             "lane": "python-regressions",
             "positive": "Unauthorized/stale/missing owner evidence, derivation/history/oracle and genuine CI failures are rejected.",
             "negative": "Companion controls deny invalid authority and preserve all financial baselines.",
-            "reviewed_test_sha256": "c794c878997640fb552ee656639dc588fda4fac1ee0c72d5e0fba62aa61e83b9"
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
           },
           {
             "id": "tests/test_golden_github_approval.py::test_trusted_workflow_refreshes_on_description_and_head_changes",
@@ -1643,7 +1647,7 @@
             "lane": "python-regressions",
             "positive": "Description/head events refresh trusted-base verification without executing PR code.",
             "negative": "Companion controls deny invalid authority and preserve all financial baselines.",
-            "reviewed_test_sha256": "c794c878997640fb552ee656639dc588fda4fac1ee0c72d5e0fba62aa61e83b9"
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
           },
           {
             "id": "tests/test_golden_github_approval.py::test_target_context_accepts_real_github_PR_head_with_trusted_base_checkout",
@@ -1652,7 +1656,7 @@
             "lane": "python-regressions",
             "positive": "Observed GitHub run/PR schema admits trusted base with separately bound PR head.",
             "negative": "Companion controls retain exact trusted-base/source/permission failure predicates.",
-            "reviewed_test_sha256": "c794c878997640fb552ee656639dc588fda4fac1ee0c72d5e0fba62aa61e83b9"
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
           },
           {
             "id": "tests/test_golden_github_approval.py::test_target_context_retains_source_and_PR_binding_failures",
@@ -1661,7 +1665,7 @@
             "lane": "python-regressions",
             "positive": "Wrong head/PR/base/workflow/event/status/checkout/verifier is rejected.",
             "negative": "Companion controls retain exact trusted-base/source/permission failure predicates.",
-            "reviewed_test_sha256": "c794c878997640fb552ee656639dc588fda4fac1ee0c72d5e0fba62aa61e83b9"
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
           },
           {
             "id": "tests/test_golden_github_approval.py::test_non_golden_PR_proves_read_capability_without_financial_ack",
@@ -1670,7 +1674,7 @@
             "lane": "python-regressions",
             "positive": "Read-only API capabilities and protected settings verified; no financial acknowledgement required.",
             "negative": "Companion controls retain exact trusted-base/source/permission failure predicates.",
-            "reviewed_test_sha256": "c794c878997640fb552ee656639dc588fda4fac1ee0c72d5e0fba62aa61e83b9"
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
           },
           {
             "id": "tests/test_golden_github_approval.py::test_non_golden_PR_does_not_hide_a_missing_admin_read",
@@ -1679,7 +1683,34 @@
             "lane": "python-regressions",
             "positive": "Missing actual administrative read remains a failing verification.",
             "negative": "Companion controls retain exact trusted-base/source/permission failure predicates.",
-            "reviewed_test_sha256": "c794c878997640fb552ee656639dc588fda4fac1ee0c72d5e0fba62aa61e83b9"
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
+          },
+          {
+            "id": "tests/test_golden_github_approval.py::test_protection_distinguishes_personal_omission_from_explicit_empty_lists",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Authenticated personal ownership permits only absent metadata; explicit empty arrays remain a distinct verified result.",
+            "negative": "No allowance for missing organization authority, malformed metadata or disabled existing safeguards.",
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
+          },
+          {
+            "id": "tests/test_golden_github_approval.py::test_personal_bypass_exception_retains_all_protection_rejections",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Nonempty/invalid/partial bypass, unknown or organization ownership, disabled PR/admin protection, destructive pushes and incorrect checks fail closed.",
+            "negative": "No allowance for missing organization authority, malformed metadata or disabled existing safeguards.",
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
+          },
+          {
+            "id": "tests/test_golden_github_approval.py::test_personal_repository_authority_is_reread_on_each_protection_validation",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Repository ownership is read afresh on every use of the personal-only omission exception.",
+            "negative": "No allowance for missing organization authority, malformed metadata or disabled existing safeguards.",
+            "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
           }
         ],
         "oracle": "Unchanged A05 v3/A05B-r3 seals and independent derivations; A13-R10 requires live sole-owner acknowledgement, never automatic activation.",
@@ -1690,7 +1721,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "b8dcd73dc5396c51bedf7d9fc3dab5fdc2157874da7d7ca3c31757a83f2469cb",
+        "review_sha256": "5f9d68431e22635d2bbad5dfe5f596c1c6d3cb218b88efaa5716f2eb59a36a8a",
         "policy_amendment": {
           "id": "A13-R10",
           "date": "2026-11-01",
@@ -2590,6 +2621,36 @@
         "exact_test_id": "tests/test_golden_github_approval.py::test_non_golden_PR_does_not_hide_a_missing_admin_read",
         "reason": "A13-R11 observed GitHub context compatibility and read-capability regression; no financial approval claim.",
         "source": "A13-R11 actual run 41322086451 and PR 76",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "GOLDEN_INTEGRITY",
+        "exact_test_id": "tests/test_golden_github_approval.py::test_protection_distinguishes_personal_omission_from_explicit_empty_lists",
+        "reason": "A13-R13 personal-repository protection compatibility with strict existing guards.",
+        "source": "A13-R12 authenticated personal-repository protection readback; deployed ec126632 verifier incompatibility.",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "GOLDEN_INTEGRITY",
+        "exact_test_id": "tests/test_golden_github_approval.py::test_personal_bypass_exception_retains_all_protection_rejections",
+        "reason": "A13-R13 personal-repository protection compatibility with strict existing guards.",
+        "source": "A13-R12 authenticated personal-repository protection readback; deployed ec126632 verifier incompatibility.",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "GOLDEN_INTEGRITY",
+        "exact_test_id": "tests/test_golden_github_approval.py::test_personal_repository_authority_is_reread_on_each_protection_validation",
+        "reason": "A13-R13 personal-repository protection compatibility with strict existing guards.",
+        "source": "A13-R12 authenticated personal-repository protection readback; deployed ec126632 verifier incompatibility.",
         "in_original_catalog": false,
         "trigger_paths": [],
         "deferred_outcome": "NOT_RUN"

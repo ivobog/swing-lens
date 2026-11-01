@@ -279,8 +279,15 @@ def synthetic_remote(proposal, monkeypatch):  # noqa: F811
     return remote
 
 
-def test_owner_authorization_binds_complete_candidate_and_never_activates(synthetic_remote):
+@pytest.mark.parametrize(
+    "bypass_status", ["VERIFIED_EMPTY_BYPASS_LISTS", "NOT_APPLICABLE_PERSONAL_REPOSITORY"]
+)
+def test_owner_authorization_binds_complete_candidate_and_never_activates(
+    synthetic_remote, bypass_status
+):
     remote = synthetic_remote
+    if bypass_status == "NOT_APPLICABLE_PERSONAL_REPOSITORY":
+        del remote.protection["required_pull_request_reviews"]["bypass_pull_request_allowances"]
     baseline = provenance.verify_baseline(remote.root)
     result = provenance.verify_github_update(7, root=remote.root)
     assert result["owner_authorization"] == "SOLO_OWNER_AUTHORIZED"
@@ -289,6 +296,7 @@ def test_owner_authorization_binds_complete_candidate_and_never_activates(synthe
     assert result["owner"] == "ivobog" == remote.pr["user"]["login"]
     assert result["review_authorized"] and not result["activation_authorized"]
     assert result["financial_equivalence"] == "NOT_EVALUATED"
+    assert result["bypass_verification"] == bypass_status
     assert result["proposal_digest"] == provenance.proposal_digest(remote.candidate)
     assert result["head_sha"] == remote.head and result["base_sha"] == remote.base
     assert provenance.verify_baseline(remote.root) == baseline
@@ -357,7 +365,7 @@ def test_owner_authorization_faults_fail_at_the_intended_boundary(synthetic_remo
     elif fault == "bypass":
         remote.protection["enforce_admins"]["enabled"] = False
     elif fault == "unknown_bypass":
-        del remote.protection["required_pull_request_reviews"]["bypass_pull_request_allowances"]
+        remote.protection["required_pull_request_reviews"]["bypass_pull_request_allowances"] = None
     elif fault == "failed_ci":
         remote.checks[0]["conclusion"] = "failure"
     elif fault == "missing_ci":
@@ -396,7 +404,6 @@ def test_owner_can_acknowledge_another_authors_pr_without_a_second_reviewer(synt
     remote.actor = {"__typename": "User", "login": "contributor", "id": "OTHER"}
     remote.editor = {"__typename": "User", "login": "ivobog", "id": remote.owner_node}
     remote.last_edited = "2026-11-01T12:00:00Z"
-    remote.protection["required_pull_request_reviews"] = None
     assert (
         provenance.verify_github_update(7, root=remote.root)["owner_authorization"]
         == "SOLO_OWNER_AUTHORIZED"
@@ -576,13 +583,21 @@ def test_target_context_retains_source_and_PR_binding_failures(target_context, f
         provenance._trusted_github_context(api, 76, root)
 
 
-def test_non_golden_PR_proves_read_capability_without_financial_ack(synthetic_remote):
+@pytest.mark.parametrize(
+    "bypass_status", ["VERIFIED_EMPTY_BYPASS_LISTS", "NOT_APPLICABLE_PERSONAL_REPOSITORY"]
+)
+def test_non_golden_PR_proves_read_capability_without_financial_ack(
+    synthetic_remote, bypass_status
+):
     remote = synthetic_remote
     remote.files = ["docs/testing/enforcement_pr_verification.md"]
     remote.pr["changed_files"] = 1
     remote.branch["protected"] = True
+    if bypass_status == "NOT_APPLICABLE_PERSONAL_REPOSITORY":
+        del remote.protection["required_pull_request_reviews"]["bypass_pull_request_allowances"]
     result = provenance.verify_github_update(7, root=remote.root)
     assert result["owner_authorization"] == "NOT_APPLICABLE_NO_GOLDEN_CHANGE"
+    assert result["bypass_verification"] == bypass_status
     assert result["enforcement_api_readiness"] == {
         "administration": "READ_CONFIRMED",
         "checks": "READ_CONFIRMED",
@@ -606,3 +621,184 @@ def test_non_golden_PR_does_not_hide_a_missing_admin_read(synthetic_remote):
     remote.get = denied
     with pytest.raises(provenance.ProvenanceError, match="^GITHUB_AUTHORITY_UNAVAILABLE_HTTP_403$"):
         provenance.verify_github_update(7, root=remote.root)
+
+
+@pytest.fixture
+def protected_repository():
+    """Protection/metadata transport doubles; never live enforcement evidence."""
+    state = {
+        "branch": {"protected": True},
+        "repository": {
+            "full_name": provenance.GITHUB_REPOSITORY,
+            "owner": {"login": "ivobog", "type": "User"},
+        },
+        "protection": {
+            "enforce_admins": {"enabled": True},
+            "allow_force_pushes": {"enabled": False},
+            "allow_deletions": {"enabled": False},
+            "required_pull_request_reviews": {
+                "required_approving_review_count": 0,
+                "require_code_owner_reviews": False,
+                "require_last_push_approval": False,
+            },
+            "required_status_checks": {
+                "strict": True,
+                "checks": [
+                    {"context": name, "app_id": provenance.GITHUB_ACTIONS_APP_ID}
+                    for name in (*provenance.REQUIRED_CHECKS, provenance.APPROVAL_CHECK)
+                ],
+            },
+        },
+        "calls": [],
+        "deny_metadata": False,
+    }
+
+    class ProtectionAPI:
+        def get(self, path):
+            state["calls"].append(path)
+            prefix = f"/repos/{provenance.GITHUB_REPOSITORY}"
+            if path == prefix:
+                if state["deny_metadata"]:
+                    raise provenance.ProvenanceError("GITHUB_AUTHORITY_UNAVAILABLE_HTTP_403")
+                return copy.deepcopy(state["repository"])
+            assert path == prefix + "/branches/main/protection"
+            return copy.deepcopy(state["protection"])
+
+    return state, ProtectionAPI()
+
+
+@pytest.mark.parametrize(
+    "owner_type,explicit,bypass_status",
+    [
+        ("User", False, "NOT_APPLICABLE_PERSONAL_REPOSITORY"),
+        ("User", True, "VERIFIED_EMPTY_BYPASS_LISTS"),
+        ("Organization", True, "VERIFIED_EMPTY_BYPASS_LISTS"),
+    ],
+)
+def test_protection_distinguishes_personal_omission_from_explicit_empty_lists(
+    protected_repository, owner_type, explicit, bypass_status
+):
+    state, api = protected_repository
+    state["repository"]["owner"]["type"] = owner_type
+    if explicit:
+        state["protection"]["required_pull_request_reviews"]["bypass_pull_request_allowances"] = {
+            "users": [],
+            "teams": [],
+            "apps": [],
+        }
+    required, actual = provenance._protected_branch(api, state["branch"])
+    assert required == set(provenance.REQUIRED_CHECKS)
+    assert actual == bypass_status
+    assert (f"/repos/{provenance.GITHUB_REPOSITORY}" in state["calls"]) is not explicit
+
+
+@pytest.mark.parametrize(
+    "fault,code",
+    [
+        ("organization", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("unknown_owner_type", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("wrong_repository", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("wrong_owner", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("missing_owner", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("invalid_owner", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("invalid_metadata", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("metadata_denied", "GITHUB_AUTHORITY_UNAVAILABLE_HTTP_403"),
+        ("null_bypass", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("empty_bypass", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("list_bypass", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("partial_users", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("partial_teams", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("partial_apps", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("bypass_users", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("bypass_teams", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("bypass_apps", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("invalid_users", "GITHUB_PROTECTION_BYPASS_OR_UNKNOWN"),
+        ("administrator_bypass", "GITHUB_PROTECTION_ADMIN_BYPASS"),
+        ("unprotected", "GITHUB_TARGET_BRANCH_UNPROTECTED"),
+        ("no_PR_requirement", "GITHUB_SOLO_OWNER_REVIEW_LOCKOUT"),
+        ("empty_PR_requirement", "GITHUB_SOLO_OWNER_REVIEW_LOCKOUT"),
+        ("human_review", "GITHUB_SOLO_OWNER_REVIEW_LOCKOUT"),
+        ("force_push", "GITHUB_PROTECTION_DESTRUCTIVE_PUSH_ALLOWED"),
+        ("deletion", "GITHUB_PROTECTION_DESTRUCTIVE_PUSH_ALLOWED"),
+        ("no_checks", "GITHUB_REQUIRED_CHECK_SOURCE_UNTRUSTED"),
+        ("wrong_app", "GITHUB_REQUIRED_CHECK_SOURCE_UNTRUSTED"),
+        ("loose_checks", "GITHUB_REQUIRED_CHECK_SOURCE_UNTRUSTED"),
+        ("missing_core_check", "GITHUB_REQUIRED_FINANCIAL_CHECK_MISSING"),
+        ("missing_golden_check", "GITHUB_REQUIRED_FINANCIAL_CHECK_MISSING"),
+    ],
+)
+def test_personal_bypass_exception_retains_all_protection_rejections(
+    protected_repository, fault, code
+):
+    state, api = protected_repository
+    protection = state["protection"]
+    review = protection["required_pull_request_reviews"]
+    checks = protection["required_status_checks"]
+    if fault == "organization":
+        state["repository"]["owner"]["type"] = "Organization"
+    elif fault == "unknown_owner_type":
+        del state["repository"]["owner"]["type"]
+    elif fault == "wrong_repository":
+        state["repository"]["full_name"] = "other/repo"
+    elif fault == "wrong_owner":
+        state["repository"]["owner"]["login"] = "other"
+    elif fault == "missing_owner":
+        del state["repository"]["owner"]
+    elif fault == "invalid_owner":
+        state["repository"]["owner"] = []
+    elif fault == "invalid_metadata":
+        state["repository"] = None
+    elif fault == "metadata_denied":
+        state["deny_metadata"] = True
+    elif fault in {"null_bypass", "empty_bypass", "list_bypass"}:
+        review["bypass_pull_request_allowances"] = {
+            "null_bypass": None,
+            "empty_bypass": {},
+            "list_bypass": [],
+        }[fault]
+    elif fault.startswith(("partial_", "bypass_", "invalid_")):
+        bypass = {"users": [], "teams": [], "apps": []}
+        action, key = fault.split("_", 1)
+        if action == "partial":
+            del bypass[key]
+        else:
+            bypass[key] = ["unapproved"] if action == "bypass" else "invalid"
+        review["bypass_pull_request_allowances"] = bypass
+    elif fault == "administrator_bypass":
+        protection["enforce_admins"]["enabled"] = False
+    elif fault == "unprotected":
+        state["branch"]["protected"] = False
+    elif fault in {"no_PR_requirement", "empty_PR_requirement"}:
+        protection["required_pull_request_reviews"] = None if fault == "no_PR_requirement" else {}
+    elif fault == "human_review":
+        review["required_approving_review_count"] = 1
+    elif fault in {"force_push", "deletion"}:
+        protection["allow_force_pushes" if fault == "force_push" else "allow_deletions"][
+            "enabled"
+        ] = True
+    elif fault == "no_checks":
+        checks["checks"] = []
+    elif fault == "wrong_app":
+        checks["checks"][0]["app_id"] = -1
+    elif fault == "loose_checks":
+        checks["strict"] = False
+    elif fault == "missing_core_check":
+        checks["checks"].pop(0)
+    else:
+        checks["checks"].pop()
+    with pytest.raises(provenance.ProvenanceError, match="^" + code + "$"):
+        provenance._protected_branch(api, state["branch"])
+
+
+def test_personal_repository_authority_is_reread_on_each_protection_validation(
+    protected_repository,
+):
+    state, api = protected_repository
+    assert (
+        provenance._protected_branch(api, state["branch"])[1]
+        == "NOT_APPLICABLE_PERSONAL_REPOSITORY"
+    )
+    state["repository"]["owner"]["type"] = "Organization"
+    with pytest.raises(provenance.ProvenanceError, match="^GITHUB_PROTECTION_BYPASS_OR_UNKNOWN$"):
+        provenance._protected_branch(api, state["branch"])
+    assert state["calls"].count(f"/repos/{provenance.GITHUB_REPOSITORY}") == 2
