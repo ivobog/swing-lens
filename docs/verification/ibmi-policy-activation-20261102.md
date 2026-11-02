@@ -38,8 +38,7 @@ IBMI configuration is version 1.0.2; budgets, thresholds and lookbacks are uncha
 
 313 distinct targeted automated cases passed, including PostgreSQL regressions,
 negative admission/assessment cases, frozen-policy retention, bearish gates,
-Setup/Winner restrictions, source identity and arithmetic. Publication validation
-must additionally run against the checkout integrated with current main.
+Setup/Winner restrictions, source identity and arithmetic.
 
 Final isolated native run 53 used real `ib_insync.ib`, fresh liquidity and
 volatility collection, normal workflow execution and no certification adapter.
@@ -69,6 +68,35 @@ ancestry, worker heartbeat and loaded configuration were verified through the
 supported lifecycle. Historical reused process IDs were never signalled.
 
 ## Deployment and operational limits
+
+### Publication integration checks
+
+The checkout integrated with main has 464 distinct passing local cases and seven
+expected live-provider smoke skips. The broad run contained 468 cases; its four
+failures came from legacy Fundamental fixture declarations. The corrected
+source-backed fixtures passed the full 41-case affected set. Three additional
+Chrome/browser cases passed, including manual sector refresh through the native
+worker and the existing mobile dashboard case. Two browser helpers now use
+main's owned test-output paths. No production admission condition was weakened.
+
+Ruff, architecture closure, tracked secret scanning and route inventory passed.
+The lifecycle tool's current source binding was reviewed and refreshed while
+retaining MANUAL_OPERATIONAL_RECOVERY and automatic execution DENIED.
+
+Publication PR #78 is blocked on release certification. GitHub Actions run
+41532232098 independently reproduced `PROVENANCE_ARTIFACT_HASH_MISMATCH` for
+`config/ib_market_intelligence.yaml` while preparing its source-bound release
+plan. The retained A05/A05B baseline seals the old configuration byte for byte;
+the approved IBMI version bump therefore needs resolution through the existing
+golden update/provenance workflow before a clean main merge. Dependent release
+lanes did not execute. The separate golden-approval check returned success,
+which does not establish a current A04/A16 financial certificate.
+
+No golden manifest, expectation, tolerance, approval rule or required gate was
+modified to make this failure pass. See `docs/testing/golden_update_policy.md`.
+Local test results do not substitute for the blocked full-release certificate.
+
+### Local activation
 
 Only `IB_MARKET_INTELLIGENCE_ENABLED`, `IB_LIQUIDITY_ENABLED` and
 `IB_VOLATILITY_INTELLIGENCE_ENABLED` were enabled in the local deployment.

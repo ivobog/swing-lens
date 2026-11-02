@@ -2,12 +2,12 @@
 
 import socket
 from datetime import UTC, datetime
-from pathlib import Path
 from threading import Thread
 from time import monotonic, sleep
 
 import pytest
 import uvicorn
+from evidence_output import output_directory
 from playwright.sync_api import expect, sync_playwright
 from sector_refresh_helpers import configure_stubs, execute_one, prepared_database
 from sqlalchemy import func, select
@@ -79,8 +79,7 @@ def test_manual_only_gateway_failure_native_completion_stale_persistence_and_url
         page = context.new_page()
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
-        evidence = Path("output/playwright/sector-refresh")
-        evidence.mkdir(parents=True, exist_ok=True)
+        evidence = output_directory("sector-refresh")
         url = base + "/sector-rotation?etf=XLF&mode=absolute&horizon=21&symbols=XLF,XLK"
         page.goto(url)
         expect(page.locator("#msi-reload")).to_be_enabled(timeout=60000)

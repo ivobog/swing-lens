@@ -14,6 +14,7 @@ from time import perf_counter
 from unittest.mock import Mock, patch
 
 import psutil
+from evidence_output import output_directory
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from market_sector_technical_helpers import CUTOFF
@@ -38,8 +39,7 @@ from app.settings import Settings
 
 
 def create_fixture_app():
-    evidence = Path("output/playwright/market-sector-intelligence-d4").resolve()
-    evidence.mkdir(parents=True, exist_ok=True)
+    evidence = output_directory("market-sector-intelligence-d4")
     temporary = TemporaryDirectory(prefix="browser-fixture-", dir=evidence)
     directory = Path(temporary.name).resolve()
     assert directory.parent == evidence
