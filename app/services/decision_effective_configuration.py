@@ -520,7 +520,8 @@ def resolve_readiness_policy_configuration(policy):
 
     mode = FundamentalAdmissionMode.LEGACY
     if getattr(policy, "producer", None) == "FUNDAMENTAL" and policy.consumer in {
-        "COMBINED", "RANKING",
+        "COMBINED",
+        "RANKING",
     }:
         mode = get_settings().fundamental_admission_mode
     return _resolve_readiness_policy_configuration(policy, mode.value)
@@ -537,11 +538,22 @@ def _resolve_readiness_policy_configuration(policy, admission_mode):
         "policy": asdict(policy),
         "algorithm": "immutable-policy-version-strict-ready-blocked-degraded-unknown-v1",
     }
+    if producer == "TECHNICAL" and policy.policy_version in {
+        "technical-to-combined-v2",
+        "technical-to-ranking-v2",
+    }:
+        from app.services.technical_research_admission import ALGORITHM, SUPPORTED, research_rules
+
+        if SUPPORTED.get(policy.consumer) != policy.policy_version:
+            raise ValueError("TECHNICAL_RESEARCH_POLICY_CONSUMER_MISMATCH")
+        values["algorithm"] = ALGORITHM
+        values["research_admission"] = research_rules()
     if producer == "FUNDAMENTAL" and policy.consumer in {"COMBINED", "RANKING"}:
         from app.services.fundamental_admission_policy import (
             FUNDAMENTAL_ADMISSION_POLICY_VERSION,
             FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
         )
+
         if admission_mode != "LEGACY":
             values["fundamental_admission"] = {
                 "mode": admission_mode,
@@ -551,9 +563,9 @@ def _resolve_readiness_policy_configuration(policy, admission_mode):
     return freeze_decision_configuration(
         namespace,
         values,
-        ("policy", "algorithm") + (
-            ("fundamental_admission",) if "fundamental_admission" in values else ()
-        ),
+        ("policy", "algorithm")
+        + (("research_admission",) if "research_admission" in values else ())
+        + (("fundamental_admission",) if "fundamental_admission" in values else ()),
         source=ConfigurationSource(SourceKind.CODE_DEFAULT, "phase3-named-consumer-policy"),
     )
 

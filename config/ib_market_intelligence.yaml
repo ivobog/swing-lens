@@ -1,7 +1,7 @@
 engine:
   enabled: true
-  calculation_version: ibmi-1.0.0
-  config_version: 2026-08-09
+  calculation_version: ibmi-1.0.2
+  config_version: 2026-11-02-freshness-and-certified-score-precision
   source_version: ibkr-tws-flex-v1
 
 request_budget:

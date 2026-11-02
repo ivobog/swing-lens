@@ -104,7 +104,15 @@ def rank_single_row(
     today: date | None = None,
     liquidity_feature: Any | None = None,
 ) -> RankingProfileDecision:
-    technical, eligibility = technical_decision_input(technical, TECHNICAL_TO_RANKING)
+    from app.services.technical_research_admission import (
+        policy_for_core_configuration,
+        research_only,
+    )
+
+    policy, policy_configuration = policy_for_core_configuration(config, TECHNICAL_TO_RANKING)
+    technical, eligibility = technical_decision_input(
+        technical, policy, policy_configuration=policy_configuration
+    )
     liquidity_feature, liquidity_permission = contextual_decision_input(
         liquidity_feature,
         IBMI_LIQUIDITY_TO_RANKING,
@@ -151,6 +159,18 @@ def rank_single_row(
         earnings_risk=earnings_risk,
         component_scores=component_scores,
     )
+    if research_only(eligibility):
+        from app.services.combined_decision import DANGER_CLASSIFICATIONS
+        from app.services.ranking_profile_gates import _cap_decision
+
+        gate_result = replace(
+            gate_result,
+            decision=_cap_decision(
+                gate_result.decision,
+                "Avoid" if technical.classification in DANGER_CLASSIFICATIONS else "Watchlist",
+            ),
+            gates={**gate_result.gates, "technical_research_only": True},
+        )
     warning_summary = build_combined_warning_flags(
         fundamental=fundamental,
         technical=technical,
@@ -190,7 +210,7 @@ def rank_single_row(
         decision_label=gate_result.decision,
         position_size_hint=(
             _position_size_hint(gate_result.decision, technical)
-            if technical is not None
+            if technical is not None and not research_only(eligibility)
             else "No new entry"
         ),
         notes=notes,

@@ -122,7 +122,7 @@ def test_residual_ceri_authority_persists_and_revision_does_not_reinterpret_old_
                 calculation_version="calc",
                 database_schema_revision=str(schema_revision),
             )
-            assert identity["database_schema_revision"] == "0091_readiness_constraints"
+            assert identity["database_schema_revision"] == "0093_market_sector_rotation"
             assert identity["ceri_evidence_schema_revision"] == "ceri-decision-evidence-v1"
             db.rollback()
     finally:
@@ -194,7 +194,7 @@ def _migrated_engine(database_url: str):
 
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
-    assert ScriptDirectory.from_config(config).get_heads() == ["0091_readiness_constraints"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0093_market_sector_rotation"]
     command.upgrade(config, "head")
     command.check(config)
     return create_engine(database_url)

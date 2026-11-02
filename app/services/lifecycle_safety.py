@@ -18,6 +18,14 @@ class LifecycleConflict(RuntimeError):
     """Identity evidence is missing, inconsistent, or ambiguous."""
 
 
+class LifecycleInspectionUnavailable(LifecycleConflict):
+    """Required process identity could not be inspected; ownership is unproven."""
+
+
+class LifecycleCheckoutMismatch(LifecycleConflict):
+    """An inspected process working directory disagrees with retained ownership."""
+
+
 def normalize_path(value: str | Path | None) -> str:
     if value is None:
         return ""
@@ -218,12 +226,14 @@ def inspect_process(process_id: int) -> dict[str, Any]:
     }
     try:
         report["commandLine"] = process.cmdline()
-    except (OSError, psutil.Error):
+    except (OSError, psutil.Error) as exc:
         report["commandLine"] = None
+        report.setdefault("inspectionErrors", {})["commandLine"] = type(exc).__name__
     try:
         report["cwd"] = process.cwd()
-    except (OSError, psutil.Error):
+    except (OSError, psutil.Error) as exc:
         report["cwd"] = None
+        report.setdefault("inspectionErrors", {})["cwd"] = type(exc).__name__
     return report
 
 
@@ -240,13 +250,21 @@ def validate_runtime_process(
     if abs((actual_time - expected_time).total_seconds()) > 0.01:
         raise LifecycleConflict("runtime process creation time changed (possible PID reuse)")
     command = [str(part) for part in actual.get("commandLine") or []]
+    if not command:
+        raise LifecycleInspectionUnavailable(
+            "runtime command line unavailable; ownership unverified"
+        )
     joined = " ".join(command)
     if f"-m {expected['module']}" not in joined:
         raise LifecycleConflict("runtime module does not match")
     if str(expected["runtimeInstanceId"]) not in command:
         raise LifecycleConflict("runtime instance identity does not match")
-    if normalize_path(expected["repoRoot"]) != normalize_path(actual.get("cwd")):
-        raise LifecycleConflict("runtime belongs to another repository checkout")
+    if not actual.get("cwd"):
+        raise LifecycleInspectionUnavailable(
+            "runtime working directory unavailable; checkout identity unverified"
+        )
+    if normalize_path(expected["repoRoot"]) != normalize_path(actual["cwd"]):
+        raise LifecycleCheckoutMismatch("runtime belongs to another repository checkout")
     if listener_pid is not None and int(expected["pid"]) != int(listener_pid):
         raise LifecycleConflict("runtime state PID does not own the expected listener")
 

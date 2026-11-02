@@ -53,7 +53,10 @@ class TechnicalConsumerPolicy:
         if readiness.producer != "TECHNICAL" or consumer not in {None, self.consumer}:
             raise ValueError("Technical eligibility policy producer/consumer mismatch")
         if config is not None and config.canonical_payload():
-            raise ValueError("Technical eligibility v1 has no configurable overrides")
+            if self.policy_version.endswith("-v1"):
+                raise ValueError("Technical eligibility v1 has no configurable overrides")
+        if self.policy_version in {"technical-to-combined-v2", "technical-to-ranking-v2"}:
+            return self._evaluate_research(readiness, config)
         status = ConsumerEligibilityStatus.POLICY_UNDECIDED
         reasons: tuple[EligibilityReason, ...] = ()
         if readiness.blocking_reasons or readiness.status in {
@@ -78,6 +81,48 @@ class TechnicalConsumerPolicy:
             readiness.evidence_id,
         )
 
+    def _evaluate_research(self, readiness, config):
+        from app.services.decision_effective_configuration import (
+            resolve_readiness_policy_configuration,
+        )
+        from app.services.technical_research_admission import decode_policy, research_qualification
+
+        payload = config.canonical_payload().get("configuration") if config else None
+        payload = payload or resolve_readiness_policy_configuration(self).snapshot.as_dict()
+        frozen = decode_policy(CanonicalEvidenceSerializer.dumps(payload))
+        if frozen.values["policy"] != {
+            "consumer": self.consumer,
+            "policy_version": self.policy_version,
+        }:
+            raise ValueError("TECHNICAL_RESEARCH_POLICY_IDENTITY_MISMATCH")
+        qualified, justification = research_qualification(readiness, frozen)
+        status = ConsumerEligibilityStatus.POLICY_UNDECIDED
+        reasons = (EligibilityReason.DEGRADED_POLICY_UNDECIDED,)
+        if readiness.blocking_reasons or readiness.status in {
+            ReadinessStatus.INSUFFICIENT_EVIDENCE,
+            ReadinessStatus.ERROR,
+            ReadinessStatus.STALE,
+        }:
+            status = ConsumerEligibilityStatus.INELIGIBLE
+            reasons = (EligibilityReason.PRODUCER_READINESS_BLOCKED,)
+        elif readiness.status is ReadinessStatus.READY and readiness.evidence_id is not None:
+            status, reasons = ConsumerEligibilityStatus.ELIGIBLE, ()
+        elif qualified:
+            status = ConsumerEligibilityStatus.ELIGIBLE
+            reasons = (EligibilityReason.CERTIFIED_STRATEGY_RESTRICTION_ONLY,)
+        elif readiness.status is not ReadinessStatus.DEGRADED:
+            reasons = (EligibilityReason.PRODUCER_READINESS_UNKNOWN,)
+        justification["research_only"] = bool(qualified)
+        return ConsumerEligibilityDecision(
+            self.consumer,
+            status,
+            reasons,
+            self.policy_version,
+            readiness.fingerprint(),
+            readiness.evidence_id,
+            NativeReadinessMetrics.freeze(justification),
+        )
+
 
 TECHNICAL_TO_COMBINED = TechnicalConsumerPolicy("COMBINED", "technical-to-combined-v1")
 TECHNICAL_TO_RANKING = TechnicalConsumerPolicy("RANKING", "technical-to-ranking-v1")
@@ -88,6 +133,8 @@ TECHNICAL_TO_SECTOR = TechnicalConsumerPolicy("SECTOR", "technical-to-sector-v1"
 def technical_decision_input(
     row: TechnicalScore | None,
     policy: TechnicalConsumerPolicy,
+    *,
+    policy_configuration=None,
 ) -> tuple[TechnicalScore | None, dict[str, Any]]:
     """Only eligible frozen values cross the boundary; mutable numerics are diagnostics.
 
@@ -129,7 +176,20 @@ def technical_decision_input(
         readiness = readiness_from_evidence(evidence)
     else:
         readiness = legacy_readiness("TECHNICAL")
-    decision = policy.evaluate(readiness)
+    decision = policy.evaluate(
+        readiness,
+        config=(
+            NativeReadinessMetrics.freeze(
+                {"configuration": policy_configuration.snapshot.as_dict()}
+            )
+            if policy_configuration
+            else None
+        ),
+    )
+    if EligibilityReason.CERTIFIED_STRATEGY_RESTRICTION_ONLY in decision.reasons:
+        from app.services.core_mutation_authority import _validate_evidence
+
+        _validate_evidence(evidence)
     frozen = {
         "decision": decision.to_dto(),
         "producer_readiness": readiness.to_dto(),

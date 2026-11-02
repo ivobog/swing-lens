@@ -51,6 +51,61 @@ def test_refresh_all_ranking_profiles_persists_enabled_profiles(monkeypatch) -> 
         assert {result.ticker for result in profile_results} == {"MOMO", "QUAL"}
 
 
+@pytest.mark.parametrize("overlay_enabled", [True, False])
+def test_collection_flags_off_require_profile_withdrawal_for_retained_liquidity(
+    monkeypatch, overlay_enabled
+):
+    from dataclasses import replace
+
+    from contextual_readiness_helpers import ibmi_feature
+
+    from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
+    from app.services.ranking_profile_config import get_ranking_profile
+    from app.settings import get_settings
+
+    assert not get_settings().ib_market_intelligence_enabled
+    db = FakeDb(upload_runs={7: UploadRun(id=7, filename="sample.csv", status="COMPLETED")})
+    _patch_run_inputs(monkeypatch)
+    config = load_ib_market_intelligence_config()
+    feature = ibmi_feature(
+        ticker="MOMO",
+        as_of_session=TODAY,
+        calendar_version="XNYS-2026a",
+        calculated_at=datetime(2026, 7, 7, 19, tzinfo=UTC),
+        calculation_cutoff_at=datetime(2026, 7, 7, 19, tzinfo=UTC),
+        calculation_version=config.calculation_version,
+        config_hash=config.config_hash,
+        source_version=config.source_version,
+    )
+    monkeypatch.setattr(
+        ranking_profile_service, "_load_liquidity_features", lambda *_: {"MOMO": feature}
+    )
+    profile = get_ranking_profile("momentum_swing")
+    profile = replace(
+        profile, tradeability_overlay=replace(profile.tradeability_overlay, enabled=overlay_enabled)
+    )
+    frozen = ranking_profile_service.resolve_ranking_configuration(profile, _config())
+    declared = {}
+    original = ranking_profile_service._declare_ranking_evidence_contexts
+
+    def record_sources(*args, **kwargs):
+        declared.update(kwargs["ibmi_sources"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        ranking_profile_service, "_declare_ranking_evidence_contexts", record_sources
+    )
+    results = refresh_ranking_profile(
+        db, 7, "momentum_swing", today=TODAY, effective_configuration=frozen
+    )
+    result = next(row for row in results if row.ticker == "MOMO")
+    permission = result.debug_json["contextual_consumer_eligibility"]["ibmi_liquidity"]
+    assert permission["included"] is overlay_enabled
+    assert permission["source_feature_id"] == (feature.id if overlay_enabled else None)
+    assert declared == ({("momentum_swing", "MOMO"): feature} if overlay_enabled else {})
+    assert (result.penalties_json.get("ibkr_tradeability", 0) > 0) is overlay_enabled
+
+
 def test_refresh_all_ranking_profiles_is_idempotent_at_service_boundary(monkeypatch) -> None:
     db = FakeDb(upload_runs={7: UploadRun(id=7, filename="sample.csv", status="COMPLETED")})
     _patch_run_inputs(monkeypatch)

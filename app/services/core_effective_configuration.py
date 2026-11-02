@@ -149,6 +149,16 @@ def freeze_core_configuration(
             display_keys.update({"v5_shadow_compare_enabled", "v5_persist_shadow_results"})
         elif not values.get("v5_shadow_compare_enabled"):
             display_keys.add("v5_persist_shadow_results")
+    # A nested snapshot contains literal dotted keys in its semantic ledger.
+    # Retain that verified contract as one typed value rather than flattening it.
+    leaves = list(_leaves({k: v for k, v in values.items() if k != "technical_admission"}))
+    if "technical_admission" in values:
+        leaves.append(("technical_admission", values["technical_admission"]))
+        sources = dict(sources or {})
+        sources.setdefault(
+            "technical_admission",
+            ConfigurationSource(SourceKind.CODE_DEFAULT, "technical-research-admission-v2"),
+        )
     entries = tuple(
         ConfigurationEntry(
             key,
@@ -159,7 +169,7 @@ def freeze_core_configuration(
             is SourceKind.CODE_DEFAULT,
             overridden=(sources or {}).get(key, ConfigurationSource()).kind is SourceKind.PROFILE,
         )
-        for key, value in _leaves(values)
+        for key, value in leaves
     )
     for entry in entries:
         replayed = ConfigurationEntry(
@@ -300,10 +310,21 @@ def resolve_combined_configuration(
     raw = config if supplied else _load_scoring_config()
     values = {key: raw[key] for key in ("combined_score", "penalties", "labels")}
     values["earnings_risk_gate"] = _merged_config(raw.get("earnings_risk_gate", {"enabled": False}))
+    from app.services.technical_research_admission import fresh_policy_payload
+
+    values["technical_admission"] = raw.get("technical_admission") or fresh_policy_payload(
+        "COMBINED"
+    )
+    values["technical_research_decision_ceiling"] = raw.get(
+        "technical_research_decision_ceiling", "preserve-stricter-v1"
+    )
     sources = dict(getattr(raw, "configuration_sources", ()))
     for key, _ in _leaves(values):
         if key not in dict(_leaves(raw)):
             sources[key] = ConfigurationSource(SourceKind.CODE_DEFAULT, "earnings-risk-defaults")
+    sources["technical_research_decision_ceiling"] = ConfigurationSource(
+        SourceKind.CODE_DEFAULT, "technical-research-decision-ceiling-v1"
+    )
     return freeze_core_configuration("core.combined", values, sources=sources)
 
 
@@ -323,6 +344,11 @@ def resolve_ranking_configuration(
         "profile": asdict(profile),
         "earnings_risk_gate": _merged_config(config.get("earnings_risk_gate", {"enabled": False})),
     }
+    from app.services.technical_research_admission import fresh_policy_payload
+
+    values["technical_admission"] = config.get("technical_admission") or fresh_policy_payload(
+        "RANKING"
+    )
     sources = {
         f"profile.{key}": source for key, source in getattr(profile, "_configuration_sources", ())
     }

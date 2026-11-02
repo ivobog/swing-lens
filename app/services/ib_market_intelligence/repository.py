@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import select
@@ -352,7 +352,12 @@ def persist_feature(
         calendar_version=CALENDAR_VERSION,
         module=feature.module,
         classification=feature.classification,
-        score=_decimal(feature.score),
+        # Freeze the same NUMERIC(12, 6) value that PostgreSQL will return.
+        score=(
+            _decimal(feature.score).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+            if feature.score is not None
+            else None
+        ),
         confidence=str(feature.confidence),
         freshness_status=str(feature.freshness_status),
         coverage_status=str(feature.coverage_status),

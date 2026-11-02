@@ -371,7 +371,9 @@ def calculate_volatility(
             if iv_availability == AvailabilityStatus.SUBSCRIPTION_REQUIRED
             else "IV_UNAVAILABLE"
         )
-    freshness_candidates = [item[1] for item in (*hv, *iv)]
+    # Historical observations remain inputs to change/percentile calculations.
+    # Freshness describes the latest usable observation in each source series.
+    freshness_candidates = [series[-1][1] for series in (hv, iv) if series]
     stale = any(
         _historical_freshness(last_date, as_of, config)[1] for last_date in freshness_candidates
     )

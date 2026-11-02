@@ -442,7 +442,9 @@ def _persist_combined_batch(
         source = (fundamentals or {})[result.ticker.upper()]
         identity = calculation_identity_from_debug(result.debug_json)
         record_fundamental_admission(
-            db, row=source, policy=FUNDAMENTAL_TO_COMBINED,
+            db,
+            row=source,
+            policy=FUNDAMENTAL_TO_COMBINED,
             permission=result.debug_json[CONTEXTUAL_ELIGIBILITY_KEY]["fundamental"],
             pipeline_run_id=identity.ownership.pipeline_id.value,
         )
@@ -480,7 +482,15 @@ def combine_row_decision(
     labels = config["labels"]
 
     diagnostic_technical = technical
-    technical, eligibility = technical_decision_input(technical, TECHNICAL_TO_COMBINED)
+    from app.services.technical_research_admission import (
+        policy_for_core_configuration,
+        research_only,
+    )
+
+    policy, policy_configuration = policy_for_core_configuration(config, TECHNICAL_TO_COMBINED)
+    technical, eligibility = technical_decision_input(
+        technical, policy, policy_configuration=policy_configuration
+    )
 
     fundamental, fundamental_permission = contextual_decision_input(
         fundamental, FUNDAMENTAL_TO_COMBINED
@@ -572,6 +582,15 @@ def combine_row_decision(
         technical_classification=technical_classification,
         technical=technical,
     )
+    if research_only(eligibility):
+        ceiling = config.get("technical_research_decision_ceiling")
+        if ceiling not in {None, "preserve-stricter-v1"}:
+            raise ValueError("TECHNICAL_RESEARCH_DECISION_CEILING_UNSUPPORTED")
+        if (
+            ceiling == "preserve-stricter-v1" and decision in {"Strong candidate", "Candidate"}
+        ) or (ceiling is None and decision not in {"Avoid", "Blocked by earnings gate"}):
+            decision = "Watchlist"
+        position_size = "No new entry"
     warnings = build_combined_warning_flags(
         fundamental=fundamental,
         technical=technical,

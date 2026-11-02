@@ -120,6 +120,19 @@ def classify_snapshot_comparison(prior: Any | None, current: Any) -> ComparisonS
         return ComparisonState.MODEL_VERSION_TRANSITION
     if getattr(prior, "config_hash", None) != getattr(current, "config_hash", None):
         return ComparisonState.CONFIG_TRANSITION
+    if (
+        getattr(prior, "evidence_id", None) is not None
+        or getattr(current, "evidence_id", None) is not None
+    ):
+        # The legacy YAML hash excludes consumer admission policy. Compare the
+        # actual sealed authority too, before selecting a financial predecessor.
+        # A detached/missing certified envelope cannot establish comparability.
+        prior_semantics = _certified_configuration_hash(prior)
+        current_semantics = _certified_configuration_hash(current)
+        if not prior_semantics or not current_semantics:
+            return ComparisonState.EVIDENCE_CONTRACT_TRANSITION
+        if prior_semantics != current_semantics:
+            return ComparisonState.CONFIG_TRANSITION
     prior_contract = getattr(prior, "evidence_contract_version", None)
     current_contract = getattr(current, "evidence_contract_version", None)
     if prior_contract is None and current_contract is None:
@@ -127,6 +140,27 @@ def classify_snapshot_comparison(prior: Any | None, current: Any) -> ComparisonS
     if prior_contract != current_contract or not prior_contract or not current_contract:
         return ComparisonState.EVIDENCE_CONTRACT_TRANSITION
     return ComparisonState.COMPARABLE
+
+
+def _certified_configuration_hash(snapshot: Any) -> str | None:
+    from sqlalchemy import inspect
+    from sqlalchemy.orm import object_session
+
+    from app.models.tables import CoreCalculationEvidence
+
+    if inspect(snapshot, raiseerr=False) is None:
+        return None
+    db = object_session(snapshot)
+    evidence_id = getattr(snapshot, "evidence_id", None)
+    if db is None or evidence_id is None:
+        return None
+    with db.no_autoflush:
+        evidence = db.get(CoreCalculationEvidence, evidence_id)
+    if evidence is None or evidence.artifact_kind != "CERI":
+        return None
+    configuration = (evidence.payload_json or {}).get("effective_configuration_at_creation") or {}
+    value = configuration.get("semantic_hash")
+    return value if isinstance(value, str) and value else None
 
 
 def select_prior_comparison(

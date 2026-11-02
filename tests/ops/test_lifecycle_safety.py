@@ -8,7 +8,9 @@ import psutil
 import pytest
 
 from app.services.lifecycle_safety import (
+    LifecycleCheckoutMismatch,
     LifecycleConflict,
+    LifecycleInspectionUnavailable,
     PostgresExpectation,
     atomic_write_json,
     read_runtime_state,
@@ -154,6 +156,71 @@ def test_atomic_runtime_state_replaces_complete_json(tmp_path) -> None:
     atomic_write_json(path, {"version": 2, "value": "new"})
     assert read_runtime_state(path) == {"value": "new", "version": 2}
     assert list(tmp_path.iterdir()) == [path]
+
+
+@pytest.mark.parametrize("field", ["cwd", "commandLine"])
+def test_unreadable_process_identity_is_unavailable_not_a_checkout_mismatch(tmp_path, field):
+    expected, actual = _runtime_identity(tmp_path)
+    actual[field] = None
+    # A self-declared checkout argument is corroboration, never a substitute
+    # for the required independent process inspection.
+    if field == "cwd":
+        actual["commandLine"].extend(["--repo-root", str(tmp_path)])
+    with pytest.raises(LifecycleInspectionUnavailable, match="unavailable"):
+        validate_runtime_process(expected, actual, listener_pid=123)
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_runtime_report_distinguishes_inspection_from_proven_checkout_mismatch_and_refuses_stop(
+    tmp_path, monkeypatch, unavailable
+):
+    expected, actual = _runtime_identity(tmp_path)
+    actual["cwd"] = None if unavailable else str(tmp_path / "other")
+    state_path = tmp_path / "runtime.json"
+    atomic_write_json(state_path, {"version": 3, "web": expected})
+    monkeypatch.setattr(lifecycle_probe, "RUNTIME_STATE", state_path)
+    monkeypatch.setattr(lifecycle_probe, "inspect_process", lambda _pid: actual)
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("An unverified runtime must not be signaled or rewritten")
+
+    monkeypatch.setattr(lifecycle_probe.os, "kill", forbidden)
+    monkeypatch.setattr(lifecycle_probe, "atomic_write_json", forbidden)
+    report = lifecycle_probe._runtime_state_report(listener_pid=123)
+    assert report["classification"] == (
+        "INSPECTION_UNAVAILABLE" if unavailable else "AMBIGUOUS_CONFLICT"
+    )
+    assert report["reasonCode"] == (
+        "PROCESS_INSPECTION_UNAVAILABLE" if unavailable else "CHECKOUT_MISMATCH"
+    )
+    assert report["checkoutMismatchProven"] is not unavailable
+    assert report["valid"] is report["stale"] is report["runtimeActive"] is False
+    assert report["conflict"] is True
+    assert lifecycle_probe._signal_break(123, 123)["signaled"] is False
+    assert read_runtime_state(state_path)["web"] == expected
+
+
+def test_genuine_checkout_mismatch_keeps_its_explicit_failure_type(tmp_path):
+    expected, actual = _runtime_identity(tmp_path)
+    actual["cwd"] = str(tmp_path / "other")
+    with pytest.raises(LifecycleCheckoutMismatch, match="another repository"):
+        validate_runtime_process(expected, actual, listener_pid=123)
+
+
+def test_os_access_denied_never_proves_mismatch_or_ownership(tmp_path, monkeypatch):
+    expected, _actual = _runtime_identity(tmp_path)
+    state_path = tmp_path / "runtime.json"
+    atomic_write_json(state_path, {"version": 3, "web": expected})
+    monkeypatch.setattr(lifecycle_probe, "RUNTIME_STATE", state_path)
+
+    def denied(_pid):
+        raise psutil.AccessDenied(123)
+
+    monkeypatch.setattr(lifecycle_probe, "inspect_process", denied)
+    report = lifecycle_probe._runtime_state_report(listener_pid=123)
+    assert report["classification"] == "INSPECTION_UNAVAILABLE"
+    assert report["checkoutMismatchProven"] is False
+    assert report["valid"] is report["stale"] is False
 
 
 @pytest.mark.parametrize("payload", ["{", "[]", "not-json"])

@@ -248,3 +248,20 @@ def classify_warnings(codes: Iterable[object]) -> tuple[ClassifiedWarning, ...]:
 def warnings_preserve_integrity_readiness(codes: Iterable[object]) -> bool:
     classified = classify_warnings(codes)
     return bool(classified) and all(not item.blocks_integrity_readiness for item in classified)
+
+
+def strategy_restriction_catalog() -> dict:
+    """Exact versioned definitions for freezing research admission authority."""
+    return {
+        "version": WARNING_TAXONOMY_VERSION,
+        "definitions": [
+            {
+                "code": row.code,
+                "category": row.category.value,
+                "blocks_integrity_readiness": row.blocks_integrity_readiness,
+            }
+            for row in sorted(WARNING_CATALOG.values(), key=lambda item: item.code)
+            if row.category is WarningCategory.STRATEGY_RESTRICTION
+            and not row.blocks_integrity_readiness
+        ],
+    }

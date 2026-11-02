@@ -638,24 +638,48 @@ def test_resume_from_ceri_propagates_frozen_context_to_setup_evaluation() -> Non
 @pytest.mark.parametrize("handoff_enabled", [False, True])
 def test_post_ceri_continuation_runs_handoff_setup_and_winner_without_upstream_replay(
     handoff_enabled,
+    monkeypatch,
 ) -> None:
+    from test_pipeline_service import FakeDb
+
+    from app.services.pipeline_service import start_pipeline
+
+    # Exercise the real admission boundary with Winner capture disabled, as in
+    # the native IBMI pilot. CERI still resumes at the actual handoff operation.
+    monkeypatch.setattr(
+        "app.services.pipeline_service.get_settings",
+        lambda: SimpleNamespace(
+            setup_lifecycle_pipeline_step_enabled=True,
+            winner_probability_capture_in_pipeline=False,
+        ),
+    )
+    admission = FakeDb(upload_runs={7: UploadRun(id=7, filename="native.csv", status="COMPLETED")})
+    admitted = start_pipeline(
+        admission,
+        upload_run_id=7,
+        ceri_run_capture_enabled=True,
+        ceri_provider_ingest_enabled=True,
+        setup_lifecycle_pipeline_step_enabled=True,
+    )
     db = PipelineExecutorFakeDb(
         tickers=["MSFT"],
         ceri_provider_ingest_enabled=True,
         setup_lifecycle_enabled=True,
     )
-    ceri_index = next(
-        index for index, step in enumerate(db.steps) if step.step_name == "CERI_PROVIDER_INGEST"
+    db.steps = [
+        PipelineStep(
+            id=step.id,
+            pipeline_run_id=db.pipeline.id,
+            step_name=step.step_name,
+            step_order=step.step_order,
+            status=PipelineStepStatus.PENDING,
+            retry_count=0,
+        )
+        for step in admission.pipeline_steps_for(admitted.id)
+    ]
+    handoff = next(
+        step for step in db.steps if step.step_name == "FREEZING_DECISION_HANDOFF_MANIFEST"
     )
-    handoff = PipelineStep(
-        id=99,
-        pipeline_run_id=3,
-        step_name="FREEZING_DECISION_HANDOFF_MANIFEST",
-        step_order=db.steps[ceri_index].step_order + 1,
-        status=PipelineStepStatus.PENDING,
-        retry_count=0,
-    )
-    db.steps.insert(ceri_index + 1, handoff)
     for index, step in enumerate(db.steps, start=1):
         step.step_order = index
         if step.step_name in {

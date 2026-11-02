@@ -817,14 +817,35 @@ def delivered_native(kind):
 
         return _restore(CeriConfig, delivered_configuration("execution.ceri").values["native"])
     if kind == "ibmi":
-        frozen = delivered_configuration("contextual.ibmi.liquidity")
+        modules = ("liquidity", "short_pressure", "volatility", "options_activity", "histogram")
+        configurations = {
+            module: delivered_configuration("contextual.ibmi." + module) for module in modules
+        }
+        frozen = configurations["liquidity"]
         config = ContextualEffectiveConfiguration(frozen.snapshot).ibmi_config()
         raw = dict(config.raw)
-        for module in ("short_pressure", "volatility", "options_activity", "histogram"):
-            raw.update(delivered_configuration("contextual.ibmi." + module).values["config"])
+        for module in modules[1:]:
+            raw.update(configurations[module].values["config"])
         from dataclasses import replace
 
-        return replace(config, raw=raw)
+        result = replace(config, raw=raw)
+        # dataclasses.replace does not retain the frozen adapters attached by
+        # ibmi_config. Consumers need each exact module's original authority.
+        object.__setattr__(result, "_effective_configuration", frozen)
+        object.__setattr__(result, "_effective_configurations", configurations)
+        object.__setattr__(
+            result,
+            "_configuration_sources",
+            tuple(
+                {
+                    entry.key.removeprefix("config."): entry.source
+                    for effective in configurations.values()
+                    for entry in effective.snapshot.entries
+                    if entry.key.startswith("config.")
+                }.items()
+            ),
+        )
+        return result
     raise ValueError("UNSUPPORTED_FROZEN_NATIVE_CONFIGURATION: " + kind)
 
 
@@ -848,6 +869,15 @@ def resolve_readiness_configurations():
             if isinstance(policy, policy_types):
                 frozen = resolve_readiness_policy_configuration(policy)
                 result[frozen.snapshot.family.namespace] = frozen
+    # Fresh bundles select v2 for the two research edges. Retained v1 anchors
+    # remain executable and are never reconstructed under current selection.
+    from app.services.technical_research_admission import SUPPORTED
+
+    for consumer, version in SUPPORTED.items():
+        frozen = resolve_readiness_policy_configuration(
+            technical_consumer_eligibility.TechnicalConsumerPolicy(consumer, version)
+        )
+        result[frozen.snapshot.family.namespace] = frozen
     return tuple(result.values())
 
 
