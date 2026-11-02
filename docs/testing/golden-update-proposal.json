@@ -1,0 +1,179 @@
+{
+  "affected_obligations": [
+    {
+      "authority": "A04",
+      "contracts": [
+        "ceri",
+        "combined",
+        "market_regime_sector",
+        "ranking",
+        "setup",
+        "technical",
+        "winner"
+      ],
+      "financial_rows": 402,
+      "obligations": 620,
+      "precision": {
+        "ceri_components": "0.000001",
+        "default": "0.00000001",
+        "revision_columns": "0"
+      },
+      "relationships": 541,
+      "selectors": "both original ten-ticker handoff variants"
+    },
+    {
+      "authority": "A16",
+      "requirements": "All current required source-bound release lanes and matching A04 candidate identities; no skipped or historical receipts"
+    },
+    {
+      "authority": "A13",
+      "requirements": "Existing authenticated sole-owner acknowledgement on exact final PR head/digest; no activation authority from candidate validation"
+    }
+  ],
+  "candidate": {
+    "artifacts": {
+      "tests/e2e/single_run_certification/golden/v4/DERIVATIONS.md": "096f44c04fa56df0227c72bedb95092f30a1c182f941688eb4a3b40df54173eb",
+      "tests/e2e/single_run_certification/golden/v4/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
+      "tests/e2e/single_run_certification/golden/v4/configuration.json": "caf5e2936ff3bd9e8fc7313549daa279988c2a2e0543e92c82549f951cd6dcdc",
+      "tests/e2e/single_run_certification/golden/v4/expected-results.json": "adbcd782752be4d851a173badfdff81013b4028b4b8f0370c43f1c7678f78191",
+      "tests/e2e/single_run_certification/golden/v4/financial-source.json": "f46da1fe44b3ac01fce2d654ad1ed04f003b79a1dc1d7ef998754fbdfef1e32a",
+      "tests/e2e/single_run_certification/golden/v4/fundamental-derivation.json": "02c867000316d33048fff2d5444d0d812af10d233b319012450a71e5e206635f",
+      "tests/e2e/single_run_certification/golden/v4/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
+      "tests/e2e/single_run_certification/golden/v4/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
+      "tests/e2e/single_run_certification/golden/v4/manifest.json": "8a32fb927bffbcb9d9cb5b4cd9913e8a3f14287dea91ae7a9b8dada07202989b",
+      "tests/e2e/single_run_certification/golden/v4/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+      "tests/e2e/single_run_certification/golden/v4/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/DERIVATIONS.md": "621f1c4f387da4fe9c1a02bd20fd31621099b5a8b984e8c69914a40022f541a6",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-derivations.json": "3269fa3190a54cd1b4261c5933688d97303ccf883d3d9ebd1225a1c7d3213b9c",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-expected.json": "9cfdcb92dd389c91c56f1263239e06b5d8107cb0083170936a1deaab60898e2f",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-expected.json": "651e28cc83a1f4500b5492e9572e99bd183c96846a7d702a58f64211dab400a7",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-derivations.json": "7c07f2fc649e0278e6fcd738793e5c9a543912884753d8c87a3acaf5137b37a8",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-expected.json": "58a4093c33e8926766a7fd576e8965c4972a205a7f0fc3cbcc154bbfa8a25044",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-expected.json": "d5ac9ae177f2d0de01a4378d217fa130a2323c2706dc5e600926c82d55e09601",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/manifest.json": "7489d95eeee8050a619e43cc8a39526b57c2162fced972edbccfd4805c9a8502",
+      "tests/e2e/single_run_certification/golden/v4/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
+      "tests/e2e/single_run_certification/golden/v4/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
+      "tests/e2e/single_run_certification/golden/v4/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
+      "tests/e2e/single_run_certification/golden/v4/universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990"
+    },
+    "completion_manifest": "tests/e2e/single_run_certification/golden/v4/oracle-completion/manifest.json",
+    "completion_manifest_sha256": "7489d95eeee8050a619e43cc8a39526b57c2162fced972edbccfd4805c9a8502",
+    "expectation_artifacts": {
+      "tests/e2e/single_run_certification/golden/v3/expected-results.json": "tests/e2e/single_run_certification/golden/v4/expected-results.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json": "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json": "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json": "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json": "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-expected.json"
+    },
+    "expectation_revision": "a05b-r4",
+    "input_identity": "5f60e708aee9fa97f7fdd56b36ef75abe1ad797230aa9e762be00a3040061595",
+    "input_manifest": "tests/e2e/single_run_certification/golden/v4/manifest.json",
+    "input_manifest_sha256": "8a32fb927bffbcb9d9cb5b4cd9913e8a3f14287dea91ae7a9b8dada07202989b",
+    "input_version": "a05-v4"
+  },
+  "contract_change": {
+    "configuration_sha256": {
+      "config/ceri.yaml": "c1ce6f065cddb239cc9774533d3b9238855083ab62754daaa821190527ead7e7",
+      "config/ceri_catalyst_taxonomy.yaml": "dfbac62e23d72b8ccabd884cb812947bea3af1eba146f03dec6a82330e0a4a66",
+      "config/column_aliases.yaml": "1970327843247b206cda082014fe7f55abf13602f1c69d14c0744f2bb8c2c840",
+      "config/fundamentals_v2.yaml": "2f228e931f0ce2bdc545a06badfe07854c2f1dfdf038881473b745739eb22db3",
+      "config/ib_market_intelligence_v1_0_2.yaml": "2224b11142570634ce70cf21e9ff06ea9bd97e24d7fc71342f383f15c16256bd",
+      "config/market_regime_command_center.yaml": "adafd4e6d6621cf7dfbbbac9769a06f7c3b7762e03ba327f05d74e816bb1e917",
+      "config/market_sector_intelligence.yaml": "5d544cf086c90b98cbbb0a286c63b9fdd9c067d76f84518197b7389b3ee658b0",
+      "config/pine_defaults.yaml": "a1ea36a5ff75bd9252c485005e5c9adcc72bf81c0a99d7c3e1db419acf6eacb4",
+      "config/ranking_profiles.yaml": "4d4d3b1e0a9a04de72f5bae2eedae974c8df30e6e2312801eef517476c7fce01",
+      "config/scoring_weights.yaml": "c205b1c69f190bb9ed839568424350c4e490b16ff767930ee8eabee606788c0f",
+      "config/sector_rotation.yaml": "1c01f19698c1778d008047cf26bcbfa77a930b32c65c57a32ee199f904540415",
+      "config/setup_lifecycle.yaml": "97efedb71ac4c6e5784bbe7025984d380bc3492a270ebb6d2f4e1c4c89e642eb",
+      "config/technical_scoring_v4.yaml": "b696b44c66c5494b29833f92585e5004c8f135c33b96295698d71c3098488da0",
+      "config/technical_scoring_v5.yaml": "0796b7c7f71709eec8291c1678eafba6039cc4027dc9604fd707a2f0e02d7dcd",
+      "config/technical_v51_research.yaml": "64b0ecbacf27fbee542b8156a2b938388630f977199651d5d7a16d7c9f005f01",
+      "config/winner_probability.yaml": "9cfae4719d312718e24ec5c882d4cc94ba19cc262460ad71297b3f51bd4a8c7a"
+    },
+    "reason": "Versioned IBMI1.0.2 configuration plus complete review of Technical research v2, preserve-stricter-v1 and all scoped activation fixes; explicit candidate financial validation preserves historical seals and existing authority.",
+    "source_revision": "dfdbc016795d7ae443edea437fa0e4bdb8bb71ae"
+  },
+  "expectation_changes": [
+    {
+      "after": "a05-v4",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "a05-v3",
+      "pointer": "/version",
+      "reason": "Distinct candidate contract identity after independent full-scope branch/formula review; all402 numerical vector rows remain unchanged, with no tolerance change."
+    }
+  ],
+  "historical_artifacts": {
+    "config/ceri.yaml": "c1ce6f065cddb239cc9774533d3b9238855083ab62754daaa821190527ead7e7",
+    "config/ceri_catalyst_taxonomy.yaml": "dfbac62e23d72b8ccabd884cb812947bea3af1eba146f03dec6a82330e0a4a66",
+    "config/column_aliases.yaml": "1970327843247b206cda082014fe7f55abf13602f1c69d14c0744f2bb8c2c840",
+    "config/fundamentals_v2.yaml": "2f228e931f0ce2bdc545a06badfe07854c2f1dfdf038881473b745739eb22db3",
+    "config/ib_market_intelligence.yaml": "9d9dba1499294d15fbb8a0a3af6a29af58e7d96e93df7ce85b8797c608ea5430",
+    "config/market_regime_command_center.yaml": "adafd4e6d6621cf7dfbbbac9769a06f7c3b7762e03ba327f05d74e816bb1e917",
+    "config/market_sector_intelligence.yaml": "5d544cf086c90b98cbbb0a286c63b9fdd9c067d76f84518197b7389b3ee658b0",
+    "config/pine_defaults.yaml": "a1ea36a5ff75bd9252c485005e5c9adcc72bf81c0a99d7c3e1db419acf6eacb4",
+    "config/ranking_profiles.yaml": "4d4d3b1e0a9a04de72f5bae2eedae974c8df30e6e2312801eef517476c7fce01",
+    "config/scoring_weights.yaml": "c205b1c69f190bb9ed839568424350c4e490b16ff767930ee8eabee606788c0f",
+    "config/sector_rotation.yaml": "1c01f19698c1778d008047cf26bcbfa77a930b32c65c57a32ee199f904540415",
+    "config/setup_lifecycle.yaml": "97efedb71ac4c6e5784bbe7025984d380bc3492a270ebb6d2f4e1c4c89e642eb",
+    "config/technical_scoring_v4.yaml": "b696b44c66c5494b29833f92585e5004c8f135c33b96295698d71c3098488da0",
+    "config/technical_scoring_v5.yaml": "0796b7c7f71709eec8291c1678eafba6039cc4027dc9604fd707a2f0e02d7dcd",
+    "config/technical_v51_research.yaml": "64b0ecbacf27fbee542b8156a2b938388630f977199651d5d7a16d7c9f005f01",
+    "config/winner_probability.yaml": "9cfae4719d312718e24ec5c882d4cc94ba19cc262460ad71297b3f51bd4a8c7a",
+    "docs/testing/golden-provenance/a05b-r3/derive_ceri.py.txt": "af5052cd2a7109352af1564d4ceacbc081808e754d1ba15e3dbb733de1584cda",
+    "docs/testing/golden-provenance/a05b-r3/derive_context.py.txt": "8e0e971800ba260356bbe194bb0f401dca439d953b9c27dcd8a7108759abb8f0",
+    "docs/testing/golden-provenance/a05b-r3/derive_core.py.txt": "c703a0625549e487c5d7e011ceb992173f82667f1c452286df9e0649aecfae4e",
+    "docs/testing/golden-provenance/a05b-r3/derive_downstream.py.txt": "90ec7e37770b2df4059bd80056f39b166a1db55bdd830a1d285f42045b78cda9",
+    "tests/e2e/single_run_certification/golden/v3/DERIVATIONS.md": "b14880efa374c9e37afc90b72b70ea10788fd8c1d0417b7da9f04ceda559fb92",
+    "tests/e2e/single_run_certification/golden/v3/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
+    "tests/e2e/single_run_certification/golden/v3/configuration.json": "dfc5fe41d7e665662f2233b48642fbe422db94933b6412aff3d4a6e99a01ada9",
+    "tests/e2e/single_run_certification/golden/v3/expected-results.json": "3db5cced44c96cd46d59583617ff306052ee28e13f5e9d0ddc4ef11d8c462376",
+    "tests/e2e/single_run_certification/golden/v3/financial-source.json": "f46da1fe44b3ac01fce2d654ad1ed04f003b79a1dc1d7ef998754fbdfef1e32a",
+    "tests/e2e/single_run_certification/golden/v3/fundamental-derivation.json": "02c867000316d33048fff2d5444d0d812af10d233b319012450a71e5e206635f",
+    "tests/e2e/single_run_certification/golden/v3/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
+    "tests/e2e/single_run_certification/golden/v3/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
+    "tests/e2e/single_run_certification/golden/v3/manifest.json": "ffe8d308d0146fa6b6728b497554a907e5ac7cee3d0c15bc5d831efb726dcabe",
+    "tests/e2e/single_run_certification/golden/v3/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+    "tests/e2e/single_run_certification/golden/v3/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/DERIVATIONS.md": "621f1c4f387da4fe9c1a02bd20fd31621099b5a8b984e8c69914a40022f541a6",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-derivations.json": "3269fa3190a54cd1b4261c5933688d97303ccf883d3d9ebd1225a1c7d3213b9c",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json": "9cfdcb92dd389c91c56f1263239e06b5d8107cb0083170936a1deaab60898e2f",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json": "651e28cc83a1f4500b5492e9572e99bd183c96846a7d702a58f64211dab400a7",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-derivations.json": "396332c5c807b4756ecf36e633a6ba8f778d00ebfcf6d01e8dac17b15d3d9f40",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json": "58a4093c33e8926766a7fd576e8965c4972a205a7f0fc3cbcc154bbfa8a25044",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json": "d5ac9ae177f2d0de01a4378d217fa130a2323c2706dc5e600926c82d55e09601",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/manifest.json": "bebee63caf04d69a27c3a92dba67b0620c96ac272759a846785ea5b31122689a",
+    "tests/e2e/single_run_certification/golden/v3/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
+    "tests/e2e/single_run_certification/golden/v3/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
+    "tests/e2e/single_run_certification/golden/v3/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
+    "tests/e2e/single_run_certification/golden/v3/universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990"
+  },
+  "independent_derivation": {
+    "artifacts": {
+      "docs/testing/golden-provenance/a05b-r4/REVIEW.md": "36009dbddcc0ff64856c4de9847fdfad0bf5458f4a9ab0420295403b534fbf73",
+      "docs/testing/golden-provenance/a05b-r4/authoring-record.py.txt": "aa6d8e60880ade94f7b06086b4afae67bdd8fa83bde16e2e5a712039b4709358",
+      "docs/testing/golden-provenance/a05b-r4/independent-review.json": "0c73a7bd0c51e7090e9c0cc9d1366196e0cdada677718629ff3bfadeb48af76f"
+    },
+    "method": "INDEPENDENT_FORMULA_REVIEW",
+    "production_outputs_used": false
+  },
+  "previous": {
+    "completion_manifest_sha256": "bebee63caf04d69a27c3a92dba67b0620c96ac272759a846785ea5b31122689a",
+    "expectation_revision": "a05b-r3",
+    "input_identity": "6217a219eea1d954bad0f5e6503f71188e5d82a7e411919aa703935c36118591",
+    "input_manifest_sha256": "ffe8d308d0146fa6b6728b497554a907e5ac7cee3d0c15bc5d831efb726dcabe",
+    "input_version": "a05-v3"
+  },
+  "review_request": {
+    "candidate_digest": "c883a6f4fc66254caf523cf1a03c7e8373d137db88e1751176685644af0004cb",
+    "expectation_revision": "a05b-r4",
+    "input_version": "a05-v4",
+    "producer": "INDEPENDENT_FORMULA_REVIEW",
+    "source_revision": "dfdbc016795d7ae443edea437fa0e4bdb8bb71ae",
+    "status": "PROPOSED"
+  },
+  "schema": "swinglens.golden-update-proposal.v1"
+}
