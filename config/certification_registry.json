@@ -1753,6 +1753,10 @@
           {
             "path": "scripts/qa/check_certification_registry.py",
             "symbol": "validate_source_contracts"
+          },
+          {
+            "path": "scripts/qa/golden_provenance.py",
+            "symbol": "_GitHubReader.file"
           }
         ],
         "impact_patterns": [
@@ -1790,6 +1794,78 @@
             "positive": "Explicit test-side execution specimen passes its declared schema.",
             "negative": "Static-only, stale, assertion-free or inflated fidelity claims are refused.",
             "reviewed_test_sha256": "72ac85d0bc42c10b1f64f844c47f98e79845f31a3227ac0aac654572ea3daa70"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_commit_bound_large_regular_artifact_uses_git_blob_and_preserves_bytes",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_small_contents_artifact_retains_single_read",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[nonregular]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[oversize]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[bad-sha]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[size]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[blob-sha]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[body]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -1801,7 +1877,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "7462c65b7c0bb98136722de5f8659c477be4d6ad19ab85b14a4bb5c8088815f9"
+        "review_sha256": "feae823630ddbd5985ac487611ce7e18d28e9a1c4a72c710b912686cf8de9845"
       }
     ]
   },

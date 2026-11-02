@@ -44,7 +44,7 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "tests", "tests/e2e"]
 addopts = "--strict-markers"
 markers = [
   "unit: fast isolated tests without external infrastructure",
