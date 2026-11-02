@@ -15,15 +15,19 @@ from sqlalchemy.orm import Session
 
 from app.models import ceri_tables as c
 from app.models import tables as m
-from single_run_certification.golden_completion import (
+from single_run_certification.candidate_validation import (
     COMPLETION,
+    OracleMismatch,
+    artifact,
+    require_complete,
+)
+from single_run_certification.golden_completion import (
     KEYS,
     compare_vector,
     references_match,
     relationship_inventory,
     relationship_key,
 )
-from single_run_certification.golden_oracle import OracleMismatch, artifact, require_complete
 
 
 def _project(row, fields, aliases=None):

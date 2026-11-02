@@ -303,16 +303,16 @@ def evaluate_pipeline_evidence(
     hashes: dict,
 ):
     """The authoritative four-state reconciliation, also used by mutation controls."""
+    from single_run_certification.candidate_validation import (
+        canonical_hash,
+        compare_records,
+        require_complete,
+    )
     from single_run_certification.golden_completion import (
         KEYS,
         compare_vector,
         relationship_inventory,
         relationship_key,
-    )
-    from single_run_certification.golden_oracle import (
-        canonical_hash,
-        compare_records,
-        require_complete,
     )
     from single_run_certification.reporting import (
         EXACT_TEST_IDS,

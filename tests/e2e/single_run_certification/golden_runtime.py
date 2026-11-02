@@ -9,7 +9,7 @@ from decimal import Decimal
 from unittest.mock import patch
 from urllib.parse import urlparse
 
-from single_run_certification.golden_oracle import artifact, load_golden
+from single_run_certification.candidate_validation import artifact, load_golden
 
 _active = ContextVar("certification_golden_inputs", default=None)
 

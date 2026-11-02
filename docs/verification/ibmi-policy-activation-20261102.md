@@ -83,7 +83,7 @@ Ruff, architecture closure, tracked secret scanning and route inventory passed.
 The lifecycle tool's current source binding was reviewed and refreshed while
 retaining MANUAL_OPERATIONAL_RECOVERY and automatic execution DENIED.
 
-Publication PR #78 is blocked on release certification. GitHub Actions run
+Publication PR #78 was initially blocked on release certification. GitHub Actions run
 41532232098 independently reproduced `PROVENANCE_ARTIFACT_HASH_MISMATCH` for
 `config/ib_market_intelligence.yaml` while preparing its source-bound release
 plan. The retained A05/A05B baseline seals the old configuration byte for byte;
@@ -92,9 +92,31 @@ golden update/provenance workflow before a clean main merge. Dependent release
 lanes did not execute. The separate golden-approval check returned success,
 which does not establish a current A04/A16 financial certificate.
 
-No golden manifest, expectation, tolerance, approval rule or required gate was
-modified to make this failure pass. See `docs/testing/golden_update_policy.md`.
-Local test results do not substitute for the blocked full-release certificate.
+The recertification correction retains all 45 historical seals and the original
+a05-v3/a05b-r3 files. The activated IBMI1.0.2 payload now has the distinct
+`config/ib_market_intelligence_v1_0_2.yaml` path, selected by Settings and the
+environment example. The historical configuration path retains its exact sealed
+1.0.0 bytes. No running deployment is modified by publication.
+
+The proposed a05-v4/a05b-r4 corpus uses the existing proposal contract. Independent
+formula/branch review retains all 402 financial rows, 541 relationships and
+tolerances. Its only expectation-file difference is the candidate version
+identity. See `docs/testing/golden-provenance/a05b-r4/REVIEW.md` and the exhaustive
+JSON-pointer inventory in `docs/testing/golden-update-proposal.json`.
+
+Candidate data is selected only by the supported native certifier. The original
+A04 comparisons/finalizer and all 620 obligations per handoff variant remain.
+A16 additionally requires the current proposal/input/oracle binding. The core
+planner now schedules the ten source-triggered recovery/scale prerequisites
+through that runner, with independent collection, body execution and environment
+evidence. Missing, skipped, stale or foreign evidence blocks certification.
+All nine original release lanes and both handoff variants remain required.
+
+104 recertification control cases passed during preparation. Current-source
+native financial and release certification still require the actual PR-associated
+GitHub runs. Local test counts do not substitute for those certificates.
+Owner authorization and promotion remain separate. No acknowledgement has been
+supplied for the prepared candidate. See `docs/testing/golden_update_policy.md`.
 
 ### Local activation
 

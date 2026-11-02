@@ -1,0 +1,46 @@
+{
+  "consumer_exclusion": "Risk-off emits sector_risk_off; producer_readiness.py degrades Sector warnings; contextual_consumer_eligibility.py:76-77 gives POLICY_UNDECIDED and includedFalse. Setup/Winner optional context is omitted.",
+  "evidence_relationships": {
+    "market": [
+      "SPY",
+      "QQQ",
+      "all target Technical rows",
+      "no profile cohort yet: stage5 precedes stage7"
+    ],
+    "sector": [
+      "same run/session/cutoff Regime snapshot",
+      "ten raw rows",
+      "ten Fundamental/Technical/Combined rows",
+      "fifty Ranking rows"
+    ]
+  },
+  "market_formula": "(2.5+2+1.5+1.5+1+1)*(.65+.35)=9.5; both indices above rising SMA50/SMA200; no distribution/breakout",
+  "missing_sma200_participation": "MarketParticipation expects derived.sma200 or derived.above_sma200; active Pine derived only supplies above_slow, so this field is legitimately null",
+  "opaque_ids": "Resolve the above semantic sources after execution; primary keys, content-addressed implementation hashes and publication timing are relationships, not invented literal numbers",
+  "policy_sources": [
+    "market_regime.py:95-154",
+    "market_regime_command_center.py:100-170",
+    "market_participation_service.py:38-80,149-164",
+    "sector_universe_service.py:302-551",
+    "sector_rotation_policy.py:121-181"
+  ],
+  "precision": "Native binary64 mean then round4; sector weighted score round4; participation percent 2 places; semantic identities exact",
+  "risk_control_formula": "10-(6/10*7+0*3)=5.8; No trade is a configured sector danger label",
+  "sector_components": {
+    "average_profile_score": "7.3197",
+    "average_technical_score": "7.0971",
+    "risk_control": "5.8000",
+    "setup_density": "0",
+    "top_candidate_share": "5"
+  },
+  "sector_mapping": "All ten raw rows have Technology Services -> frozen alias Technology; symbols are not sector proxies",
+  "sector_weights": {
+    "average_profile_score": "0.2",
+    "average_technical_score": "0.25",
+    "risk_control": "0.15",
+    "setup_density": "0.2",
+    "top_candidate_share": "0.2"
+  },
+  "state_formula": "6/10 >= .30 -> Risk-off before score thresholds; supportive market maps to avoid_new_longs",
+  "top_candidate_formula": "(10/10)/min(1,25/10)*5=5"
+}

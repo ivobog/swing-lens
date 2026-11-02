@@ -249,7 +249,9 @@ class Settings(BaseSettings):
     ib_scanner_enabled: bool = False
     ib_histogram_enabled: bool = False
     ib_flex_journal_enabled: bool = False
-    ib_intelligence_config_path: Path = Field(default=Path("config/ib_market_intelligence.yaml"))
+    ib_intelligence_config_path: Path = Field(
+        default=Path("config/ib_market_intelligence_v1_0_2.yaml")
+    )
     ib_intelligence_shortlist_limit: int = Field(default=25, ge=1, le=100)
     ib_intelligence_historical_requests_per_minute: int = Field(default=15, ge=1, le=60)
     ib_intelligence_historical_min_spacing_seconds: float = Field(default=3.0, ge=0.0, le=60.0)

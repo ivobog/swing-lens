@@ -49,6 +49,11 @@ def xml_report(path, cases, kind):
 
 @pytest.fixture
 def experiment(tmp_path, monkeypatch):
+    from single_run_certification import candidate_validation
+
+    # These controlled receipts describe the retained v3 oracle. They must not
+    # silently claim verification of the repository's current candidate.
+    monkeypatch.setattr(candidate_validation, "candidate_available", lambda: False)
     policy = copy.deepcopy(release.policy())
     for name, spec in policy["base_lanes"].items():
         if spec["kind"] == "pytest":
@@ -193,6 +198,69 @@ def test_all_required_evidence_certifies_only_the_synthetic_contract(experiment)
     assert not result["safe_for_normal_run"]
     assert result["gates"]["SMALL_LIVE_PROVIDER_CANARY"] == "NOT_RUN"
     assert all(row["status"] == "NOT_RUN" for row in result["advisory_manual"].values())
+
+
+def test_current_candidate_cannot_reuse_historical_a04_receipts(experiment, monkeypatch):
+    from single_run_certification import candidate_validation
+
+    monkeypatch.setattr(candidate_validation, "candidate_available", lambda: True)
+    receipt = release.record_lane(
+        experiment.root / "a04", experiment.plan, "a04", "success",
+    )
+    assert receipt["verdict"] != "CERTIFIED"
+    assert "candidate" in str(receipt["reasons"])
+
+
+@pytest.mark.parametrize("fault", ["skip", "no-body", "missing", "stale", "foreign"])
+def test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed(experiment, fault):
+    plan = release.prepare_core_plan(
+        "synthetic-prerequisite-control", "1", "local", False,
+        registry.source_impact_plan(
+            registry.load_manifest(), ["app/services/pipeline_service.py"],
+        ),
+    )
+    spec = plan["a04_prerequisites"]
+    assert len(spec["selectors"]) == 10
+    directory = experiment.root / "a04/a04/source-impact-prerequisites"
+    directory.mkdir(parents=True)
+    source = experiment.root / "python-regressions"
+    collection = release.read_json(source / "collection.json")
+    execution = release.read_json(source / "execution.json")
+    nodes = spec["selectors"]
+    scope = release.context(plan, "a04-prerequisites")
+    collection.update(
+        context=scope, selected=nodes,
+        selection={key: spec[key] for key in ("selectors", "markers", "ignores", "browsers")},
+    )
+    execution.update(
+        context=scope, selected=nodes, started=nodes,
+        browsers_observed={browser: True for browser in spec["browsers"]},
+        phases={node: {phase: {"outcome": "passed", "seconds": .001, "wasxfail": False}
+                       for phase in ("setup", "call", "teardown")} for node in nodes},
+    )
+    cases = {node: "passed" for node in nodes}
+    if fault == "skip":
+        execution["phases"][nodes[0]]["call"]["outcome"] = "skipped"
+        cases[nodes[0]] = "skipped"
+    elif fault == "no-body":
+        execution["phases"][nodes[0]].pop("call")
+    elif fault == "stale":
+        execution["context"] = {**scope, "attempt": "different-attempt"}
+    elif fault == "foreign":
+        collection["selected"] = ["tests/foreign.py::test_ok"]
+    release.write_json(directory / "collection.json", collection)
+    release.write_json(directory / "execution.json", execution)
+    xml_report(directory / "results.xml", cases, "pytest")
+    if fault == "missing":
+        (directory / "collection.json").unlink()
+    report_path = experiment.root / "a04/a04/report.json"
+    report = release.read_json(report_path)
+    report.update(
+        release_context=release.context(plan, "a04"), specialized_prerequisites=nodes,
+    )
+    release.write_json(report_path, report)
+    with pytest.raises(release.EvidenceError):
+        release.a04_results(experiment.root / "a04", plan, "a04")
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,152 @@
+"""One-time candidate authoring from retained reviewed literals, never actuals."""
+import copy
+import hashlib
+import json
+import shutil
+import sys
+from decimal import ROUND_HALF_EVEN, Decimal
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2] / ".codex-tmp/ibmi-main-publication-20261102"
+OLD = ROOT / "tests/e2e/single_run_certification/golden/v3"
+NEW = OLD.parent / "v4"
+REVIEW = ROOT / "docs/testing/golden-provenance/a05b-r4"
+
+
+def read(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def canonical(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=True).encode()).hexdigest()
+
+
+def write(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+
+
+assert not NEW.exists(), "Candidate must use a new path"
+shutil.copytree(OLD, NEW)
+REVIEW.mkdir(parents=True, exist_ok=True)
+configuration = read(OLD / "configuration.json")
+new_ibmi = yaml.safe_load((ROOT / "config/ib_market_intelligence_v1_0_2.yaml").read_text())
+old_ibmi = configuration["ib_market_intelligence.yaml"]
+before, after = copy.deepcopy(old_ibmi), copy.deepcopy(new_ibmi)
+for payload in (before, after):
+    payload["engine"].pop("calculation_version")
+    payload["engine"].pop("config_version")
+assert before == after, "Budgets, lookbacks, thresholds and all non-version fields must match"
+configuration["ib_market_intelligence.yaml"] = new_ibmi
+write(NEW / "configuration.json", configuration)
+
+expected = read(OLD / "expected-results.json")
+assert expected["version"] == "a05-v3"
+expected["version"] = "a05-v4"
+write(NEW / "expected-results.json", expected)
+core = read(OLD / "oracle-completion/core-expected.json")
+ledger = read(OLD / "oracle-completion/core-derivations.json")
+quantum = Decimal(".0001")
+
+# Re-reduce retained independent terms, without importing a production engine.
+worksheet = read(OLD / "fundamental-derivation.json")
+parts = {}
+for name, component in worksheet["components"].items():
+    numerator = sum(Decimal(t["normalized"]) * Decimal(t["weight"]) for t in component["terms"])
+    denominator = sum(Decimal(t["weight"]) for t in component["terms"])
+    reduced = max(Decimal(0), min(Decimal(10), numerator / denominator)).quantize(quantum)
+    reduced = max(Decimal(0), min(Decimal(10), reduced + Decimal(component["bonus"]))).quantize(quantum)
+    assert reduced == Decimal(component["expected"])
+    parts[name] = str(reduced)
+fundamental = sum(Decimal(parts[k]) * Decimal(str(w)) for k, w in worksheet["weights"].items())
+fundamental = fundamental.quantize(quantum, rounding=ROUND_HALF_EVEN)
+assert fundamental == Decimal(worksheet["expected"])
+
+technical = {r["ticker"]: r for r in core["technical"]}
+combined = {r["ticker"]: r for r in core["combined"]}
+reductions = []
+for ticker, terms in ledger["technical"].items():
+    source = technical[ticker]
+    assert source["warning_flags_json"] == [] and source["technical_confidence"] == "high"
+    # READY -> ELIGIBLE is shared by v1/v2. The research-only ceiling predicate is false.
+    composite = sum(float(terms["v4_parts"][key]) * float(weight)
+                    for key, weight in terms["regime_weights"].items())
+    dual = round(composite, 4)
+    assert Decimal(str(dual)) == Decimal(source["dual_score"]), (ticker, dual)
+    penalty = Decimal("1.5") if source["classification"] == "Overheated momentum" else Decimal(0)
+    score = Decimal(str(round(float(fundamental) * .55 + float(dual) * .45 - float(penalty), 4)))
+    assert score == Decimal(combined[ticker]["final_score"]), ticker
+    label = "Strong candidate" if score >= 8 else "Candidate" if score >= Decimal("6.8") else "Watchlist"
+    assert label == combined[ticker]["combined_decision"]
+    reductions.append({"ticker": ticker, "technical_composite": str(dual),
+                       "combined_score": str(score), "combined_label": label,
+                       "research_only": False, "warnings": []})
+ranking = {(r["profile"], r["ticker"]): r for r in core["ranking"]}
+ranking_reductions = []
+for terms in ledger["ranking_arithmetic"]:
+    profile, ticker = terms["profile"], terms["ticker"]
+    independently_summed = sum(float.fromhex(x) for x in terms["binary64_terms_hex"])
+    assert independently_summed.hex() == terms["binary64_sum_hex"]
+    assert round(independently_summed, 4) == float(terms["technical"])
+    row = ranking[profile, ticker]
+    penalty = sum(float(x) for x in row["penalties"].values())
+    final = round(float.fromhex(terms["weighted_binary64_hex"]) - penalty, 4)
+    assert Decimal(str(final)) == Decimal(row["profile_score"])
+    ranking_reductions.append({"profile": profile, "ticker": ticker,
+                               "technical": str(round(independently_summed, 4)),
+                               "penalty": str(penalty), "score": str(final)})
+flags = read(OLD / "runtime-settings.json")
+assert flags["ib_market_intelligence_enabled"] is False
+assert flags["ib_volatility_intelligence_enabled"] is False
+assert flags["ib_short_pressure_enabled"] is False
+assert all(r["is_complete"] for r in core["combined"] + core["ranking"])
+domain_rows = sum(len(v) for name in ("core", "context", "ceri", "downstream")
+                  for k, v in read(OLD / ("oracle-completion/" + name + "-expected.json")).items()
+                  if isinstance(v, list))
+review = {"schema": "swinglens.independent-contract-review.v1", "method": "INDEPENDENT_FORMULA_REVIEW",
+          "production_outputs_used": False, "historical_authoring_scripts_executed": False,
+          "source_revision": "b244579e639fa750c6c7168785bc094a51f3893b",
+          "input_artifacts": {str(p.relative_to(ROOT)).replace("\\", "/"): sha(p)
+                              for p in [OLD / "fundamental-derivation.json",
+                                        OLD / "oracle-completion/core-derivations.json",
+                                        OLD / "runtime-settings.json", OLD / "market-data.json"]},
+          "fundamental_components": parts, "fundamental_score": str(fundamental),
+          "technical_and_combined_reductions": reductions, "ranking_reductions": ranking_reductions,
+          "financial_vector_rows_retained": domain_rows, "numerical_changes": 0,
+          "policy_branch_review": {
+              "technical_v2": "All ten sealed native inputs have high confidence and no warnings; READY admission is unchanged. Risk-only permission/ceiling is false for every row.",
+              "combined_ceiling": "All required inputs are present and complete; preserve-stricter-v1 cannot change any row. Existing numerical penalties and bearish gates remain.",
+              "ibmi": "All collection/consumption flags are false in this specimen. Version-only config fields change identity; score precision and freshness branches have no feature rows.",
+              "ceri": "EPS inputs, event acceptance, secondary cap2/total cap10 and clocks are unchanged. No prior certified comparable capture exists; configuration comparison cannot fabricate a baseline.",
+              "handoff": "Winner and handoff were already required; both variants retain the same thirteen stages and exact semantic source memberships.",
+              "setup_winner": "Direct Technical v1 and Sector v2 restrictions are unchanged. No warning-free Technical is newly rejected/admitted. Ranking selection, generic Setup and pending Winner dates retain their independent literals.",
+              "lifecycle": "Inspection classification is diagnostic; no arithmetic, input, temporal default or pipeline terminal rule changes."}}
+write(REVIEW / "independent-review.json", review)
+old_derivation = (OLD / "DERIVATIONS.md").read_text()
+(NEW / "DERIVATIONS.md").write_text(old_derivation + "\n\nV4 candidate: see docs/testing/golden-provenance/a05b-r4/REVIEW.md and independent-review.json. Retained independent literals are proposed unchanged after the documented incremental branch/formula review; this is not owner authorization.\n", encoding="utf-8", newline="\n")
+manifest = read(OLD / "manifest.json")
+manifest["version"] = "a05-v4"
+manifest["supersedes"] = "a05-v3; explicit candidate validation for approved research admission, ceiling and versioned IBMI1.0.2; no numerical expectation changes"
+manifest["config_sources"].pop("config/ib_market_intelligence.yaml")
+manifest["config_sources"]["config/ib_market_intelligence_v1_0_2.yaml"] = sha(ROOT / "config/ib_market_intelligence_v1_0_2.yaml")
+manifest["artifacts"] = {n: sha(NEW / n) for n in manifest["artifacts"]}
+write(NEW / "manifest.json", manifest)
+completion = read(OLD / "oracle-completion/manifest.json")
+completion["base_input_identity"] = canonical(manifest)
+completion["expectation_revision"] = "a05b-r4"
+completion["candidate_review"] = "docs/testing/golden-provenance/a05b-r4/independent-review.json"
+new_core = read(NEW / "oracle-completion/core-derivations.json")
+new_core["input_manifest_sha256"] = sha(NEW / "manifest.json")
+write(NEW / "oracle-completion/core-derivations.json", new_core)
+completion["artifacts"] = {n: sha(NEW / "oracle-completion" / n) for n in completion["artifacts"]}
+write(NEW / "oracle-completion/manifest.json", completion)
+print(json.dumps({"input_identity": canonical(manifest), "input_manifest_sha256": sha(NEW / "manifest.json"),
+                  "completion_manifest_sha256": sha(NEW / "oracle-completion/manifest.json"),
+                  "reviewed_financial_rows": domain_rows, "numeric_changes": 0}))

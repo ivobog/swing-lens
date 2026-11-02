@@ -117,6 +117,7 @@ def core_policy(impact: dict) -> dict:
     python.update(selection["policy_controls"])
     browser = {r["exact_test_id"] for r in rows if r["tier"] == "RELEASE_CORE_BROWSER"}
     dispositions = []
+    specialized = []
     for row in rows:
         tier, node = row["tier"], row["exact_test_id"]
         triggered = any(
@@ -125,9 +126,7 @@ def core_policy(impact: dict) -> dict:
             for pattern in row["trigger_paths"]
         )
         if triggered and tier == "EXTENDED_TRIGGERED":
-            raise EvidenceError(
-                "affected specialized prerequisite requires explicit execution: " + node
-            )
+            specialized.append(node)
         if triggered and tier in {
             "CHANGE_AFFECTED_NATIVE",
             "CHANGE_AFFECTED_RECOVERY",
@@ -145,6 +144,7 @@ def core_policy(impact: dict) -> dict:
             tier in {"RELEASE_CORE", "RELEASE_CORE_BROWSER", "NATIVE_A04_PRODUCER"}
             or node in python
             or node in browser
+            or node in specialized
         )
         dispositions.append(
             {
@@ -161,6 +161,15 @@ def core_policy(impact: dict) -> dict:
     )
     value["base_lanes"]["python-regressions"]["selectors"] = sorted(python)
     value["base_lanes"]["browser-smoke"]["selectors"] = sorted(browser)
+    value["a04_prerequisites"] = {
+        "kind": "pytest", "required": True,
+        "selectors": sorted(specialized), "markers": "", "ignores": [],
+        "browsers": sorted({
+            browser for browser in ("chromium", "firefox")
+            if any("[" + browser + "-" in node for node in specialized)
+        }),
+        "postgres_major": 18,
+    }
     value["selection_manifest"] = {
         "profiles": selection["profiles"],
         "entries": dispositions,
@@ -181,6 +190,7 @@ def prepare_core_plan(run_id: str, attempt: str, event: str, extended: bool, imp
         source_impact=impact,
         policy_sha256=digest(contract),
         selection_manifest=contract["selection_manifest"],
+        a04_prerequisites=contract["a04_prerequisites"],
     )
     plan["required_lanes"].update(copy.deepcopy(contract["base_lanes"]))
     plan["plan_sha256"] = digest(plan)
@@ -258,6 +268,8 @@ def validate_plan(plan: dict, *, current: bool = False) -> None:
         expected["population-extended"] = contract["conditional_lanes"]["population-extended"]
     if plan["required_lanes"] != expected:
         raise EvidenceError("release selection differs from reviewed policy")
+    if plan.get("a04_prerequisites") != contract.get("a04_prerequisites"):
+        raise EvidenceError("specialized prerequisite selection differs from reviewed policy")
     if (
         plan.get("profile") == "core"
         and plan.get("selection_manifest") != contract["selection_manifest"]
@@ -275,6 +287,12 @@ def context(plan: dict, lane: str) -> dict:
         "source": plan["source"],
         "lane": lane,
     }
+
+
+def lane_spec(plan: dict, lane: str) -> dict:
+    if lane == "a04-prerequisites":
+        return plan["a04_prerequisites"]
+    return plan["required_lanes"][lane]
 
 
 def safe_file(root: Path, relative: str) -> Path:
@@ -406,7 +424,7 @@ def pytest_sessionstart(session):
     plan = read_json(Path(path))
     validate_plan(plan, current=True)
     lane = os.environ["SWINGLENS_RELEASE_LANE"]
-    spec = plan["required_lanes"][lane]
+    spec = lane_spec(plan, lane)
     if spec["kind"] != "pytest" or _selection(session.config) != {
         key: spec[key] for key in ("selectors", "markers", "ignores", "browsers")
     }:
@@ -523,7 +541,7 @@ def _pytest_results(root: Path, plan: dict, lane: str, observed: dict) -> dict:
         raise EvidenceError("stale/foreign collection or execution")
     selected = collection["selected"]
     if collection.get("selection") != {
-        key: plan["required_lanes"][lane][key]
+        key: lane_spec(plan, lane)[key]
         for key in ("selectors", "markers", "ignores", "browsers")
     }:
         raise EvidenceError("intended collection used a different selection rule")
@@ -558,7 +576,7 @@ def _pytest_results(root: Path, plan: dict, lane: str, observed: dict) -> dict:
         if observed[junit_key(node)] != status:
             raise EvidenceError("JUnit and native phase outcomes disagree")
         categories[status].append(node)
-    spec = plan["required_lanes"][lane]
+    spec = lane_spec(plan, lane)
     profile = execution["environment"]
     if (
         not profile.get("python", "").startswith("3.12.")
@@ -604,7 +622,17 @@ def a04_results(root: Path, plan: dict, lane: str) -> dict:
 
     verify_baseline(ROOT)
 
+    from single_run_certification import candidate_validation
+
+    required_candidate = (
+        candidate_validation.candidate_binding()
+        if candidate_validation.candidate_available()
+        else None
+    )
+
     report = read_json(root / "a04" / "report.json")
+    if report.get("candidate_validation") != required_candidate:
+        raise EvidenceError("A04 candidate proposal/input/oracle binding missing or stale")
     if report.get("release_context") != context(plan, lane):
         raise EvidenceError("stale or foreign A04 release context")
     if (
@@ -612,6 +640,21 @@ def a04_results(root: Path, plan: dict, lane: str) -> dict:
         or report.get("git_sha") != plan["source"]["revision"]
     ):
         raise EvidenceError("A04 source mismatch")
+    prerequisites = plan.get("a04_prerequisites", {}).get("selectors", [])
+    if report.get("specialized_prerequisites", []) != prerequisites:
+        raise EvidenceError("required specialized prerequisite omitted from A04")
+    prerequisite_proof = None
+    if prerequisites:
+        directory = root / "a04" / "source-impact-prerequisites"
+        observed = junit_cases(directory / "results.xml", "pytest")
+        prerequisite_proof = _pytest_results(directory, plan, "a04-prerequisites", observed)
+        if (
+            prerequisite_proof["process_exit_code"] != 0
+            or set(prerequisite_proof["passed"]) != set(prerequisites)
+            or set(prerequisite_proof["body_executed"]) != set(prerequisites)
+            or any(prerequisite_proof[key] for key in CATEGORIES if key != "passed")
+        ):
+            raise EvidenceError("specialized prerequisite failed, skipped or never executed")
     invocation = report["invocation"]
     if (
         report.get("verdict") != "CERTIFIED"
@@ -636,6 +679,8 @@ def a04_results(root: Path, plan: dict, lane: str) -> dict:
     for item in certificates:
         original = safe_file(root / "a04", item["path"])
         certificate = read_json(original)
+        if certificate.get("candidate_validation") != required_candidate:
+            raise EvidenceError("A04 candidate certificate binding missing or stale")
         expected = {
             **certificate["identity"],
             "source_fingerprint": plan["source"]["fingerprint"],
@@ -675,6 +720,7 @@ def a04_results(root: Path, plan: dict, lane: str) -> dict:
         **{key: list(EXACT_TEST_IDS) if key == "passed" else [] for key in CATEGORIES},
         "process_exit_code": 0,
         "a04_certificates": proofs,
+        **({"specialized_prerequisites": prerequisite_proof} if prerequisites else {}),
     }
 
 

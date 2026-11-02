@@ -1,0 +1,122 @@
+[
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500000,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "BHE",
+    "ticker": "BHE",
+    "valid_to": null
+  },
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500001,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "BLLN",
+    "ticker": "BLLN",
+    "valid_to": null
+  },
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500002,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "KLIC",
+    "ticker": "KLIC",
+    "valid_to": null
+  },
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500003,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "LSCC",
+    "ticker": "LSCC",
+    "valid_to": null
+  },
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500004,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "PDFS",
+    "ticker": "PDFS",
+    "valid_to": null
+  },
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500005,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "ACMR",
+    "ticker": "ACMR",
+    "valid_to": null
+  },
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500006,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "RDVT",
+    "ticker": "RDVT",
+    "valid_to": null
+  },
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500007,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "AVT",
+    "ticker": "AVT",
+    "valid_to": null
+  },
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500008,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "DVN",
+    "ticker": "DVN",
+    "valid_to": null
+  },
+  {
+    "currency": "USD",
+    "exchange": "SMART",
+    "ib_conid": 9500009,
+    "last_trading_date": null,
+    "primary_exchange": "NASDAQ",
+    "sec_type": "STK",
+    "status": "ACTIVE",
+    "symbol": "JNJ",
+    "ticker": "JNJ",
+    "valid_to": null
+  }
+]

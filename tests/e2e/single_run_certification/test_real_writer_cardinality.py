@@ -81,7 +81,7 @@ def certification_provider_ingest_enabled() -> bool:
 
 @pytest.fixture
 def certification_golden_version(request, certification_provider_mode):  # noqa: F811
-    from single_run_certification.golden_oracle import VERSION
+    from single_run_certification.candidate_validation import VERSION
 
     return (VERSION if request.node.callspec.params["size"] == 10
             and certification_provider_mode == "deterministic" else None)
@@ -120,7 +120,7 @@ def test_frozen_real_writer_cardinality(
             row = {**exemplar, "Symbol": ticker, "Description": f"{ticker} frozen fixture"}
             writer.writerow(row)
     if golden:
-        from single_run_certification.golden_oracle import DATA, load_golden
+        from single_run_certification.candidate_validation import DATA, load_golden
 
         load_golden()
         env.csv_path.write_bytes((DATA / "universe.csv").read_bytes())
@@ -596,7 +596,7 @@ def _assert_independent_golden_subset(engine, env, run_id, pipeline_id):
         TechnicalScore,
         TransitionDecisionHandoffManifest,
     )
-    from single_run_certification.golden_oracle import (
+    from single_run_certification.candidate_validation import (
         compare_records,
         expected_manifest,
     )

@@ -187,7 +187,7 @@ def certification_environment(
         (artifact_dir / relative).mkdir(parents=True, exist_ok=True)
     golden_expected = None
     if certification_golden_version:
-        from single_run_certification.golden_oracle import expected_manifest
+        from single_run_certification.candidate_validation import expected_manifest
         from single_run_certification.reporting import pipeline_contract
 
         golden_expected = expected_manifest(certification_setup_capture_handoff_enabled)
@@ -219,7 +219,7 @@ def certification_environment(
     ib_log = artifact_dir / "logs" / "deterministic-ib.jsonl"
     csv_path = runtime_root / "single-run-certification.csv"
     if golden_expected:
-        from single_run_certification.golden_oracle import DATA, load_golden
+        from single_run_certification.candidate_validation import DATA, load_golden
 
         csv_path.write_bytes((DATA / "universe.csv").read_bytes())
         csv_hash = hashlib.sha256(csv_path.read_bytes()).hexdigest()
