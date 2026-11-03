@@ -110,6 +110,7 @@ def _seed_universe(
     alert_configuration=None,
     technical_checkpoint_callback=None,
     ranking_checkpoint_callback=None,
+    large_current_gap=False,
 ):
     if not durable and alert_configuration is None:
         from app.services.setup_lifecycle.alert_service import SetupLifecycleAlertService
@@ -201,9 +202,13 @@ def _seed_universe(
     frame = _synthetic_frame()
     frame["date"] = pd.bdate_range(end=cutoff.latest_completed_session, periods=len(frame))
     if run_id == 702:
+        # Prior bars are immutable. A 20% jump and doubled volume deliberately
+        # produce climax/blowoff warnings, which Winner v1 must reject. The
+        # Winner-positive replay needs a genuine READY price/volume path.
+        winner_ready_prices = winner_config is not None and not large_current_gap
         for column in ("open", "high", "low", "close"):
-            frame[column] *= 1.2
-        frame["volume"] *= 2
+            frame[column] *= 1.02 if winner_ready_prices else 1.2
+        frame["volume"] *= 1.1 if winner_ready_prices else 2
     for ticker in (*tickers, "SPY", "QQQ", "XLK"):
         seed_price_frame(db, ticker, frame, cutoff.cutoff_at)
     args = dict(market_cutoff=cutoff, pipeline_run_id=pipeline_id)
@@ -418,6 +423,79 @@ def test_healthy_watchdog_delay_cannot_block_heartbeat_and_true_stall_still_fenc
         db.commit()
         assert db.get(BackgroundJob, 1).status == "STALLED"
         assert db.get(BackgroundJob, 1).execution_token is None
+
+
+@pytest.mark.parametrize("large_current_gap", [False, True])
+def test_native_winner_fixture_preserves_v1_readiness_boundary(run40_engine, large_current_gap):
+    """Research-eligible warned input cannot replace Winner v1 READY evidence."""
+    from app.services.technical_consumer_eligibility import technical_decision_input
+    from app.services.winner_probability.consumer_eligibility import TECHNICAL_TO_WINNER
+
+    tickers = ("R000", "R001")
+    with Session(run40_engine) as db:
+        prior_cutoff, prior_pipeline = _seed_universe(
+            db, run_id=801, tickers=tickers,
+            cutoff_at=datetime(2026, 9, 16, 21, tzinfo=UTC),
+        )
+        prior_capture = _capture(db, 801, prior_cutoff)
+        prior = SetupLifecycleEvaluationService().evaluate_run(
+            db, 801, capture_result=prior_capture, market_cutoff=prior_cutoff,
+            pipeline_run_id=prior_pipeline,
+        )
+        assert prior.failed == 0
+        db.commit()
+        config = load_winner_probability_config()
+        config = replace(config, engine=replace(config.engine, enabled=True))
+        cutoff, pipeline_id = _seed_universe(
+            db, run_id=702, tickers=tickers,
+            cutoff_at=datetime(2026, 9, 18, 21, tzinfo=UTC), winner_config=config,
+            large_current_gap=large_current_gap,
+        )
+        sources = list(db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == 702)))
+        assert len(sources) == len(tickers)
+        for source in sources:
+            _, permission = technical_decision_input(source, TECHNICAL_TO_WINNER)
+            assert permission["decision"]["policy_version"] == "technical-to-winner-v1"
+            if large_current_gap:
+                assert permission["producer_readiness"]["status"] == "DEGRADED"
+                assert permission["decision"]["status"] == "POLICY_UNDECIDED"
+                signals = permission["producer_readiness"]["native_signals"]
+                assert set(signals["warning_flags_json"]) >= {
+                    "blowoff_top", "climax_reversal_risk",
+                }
+            else:
+                assert permission["producer_readiness"]["status"] == "READY"
+                assert permission["decision"]["status"] == "ELIGIBLE"
+        capture = _capture(db, 702, cutoff)
+        result = SetupLifecycleEvaluationService().evaluate_run(
+            db, 702, capture_result=capture, market_cutoff=cutoff,
+            pipeline_run_id=pipeline_id,
+        )
+        assert result.failed == 0 and result.canonical_snapshots == len(tickers)
+        db.commit()
+        handoff = freeze_transition_decision_handoff_manifest(
+            db, upload_run_id=702, market_cutoff=cutoff,
+        )
+        handoff_id = handoff.id
+        db.commit()
+        winner = WinnerPredictionCaptureService().capture_run(
+            db, run_id=702, market_cutoff=cutoff, config=config,
+            decision_handoff_manifest_id=handoff_id,
+        )
+        db.commit()
+        assert winner.failed == 0
+        if large_current_gap:
+            assert winner.inserted == 0 and winner.excluded == len(tickers)
+            assert winner.exclusion_reasons == {"winner_readiness_undecided": len(tickers)}
+            for rejection in winner.readiness_rejections:
+                assert rejection["sources"] == ["technical"]
+                decisions = rejection["winner_consumer_eligibility"]
+                assert decisions["combined"]["included"] is True
+                assert decisions["ranking"]["included"] is True
+        else:
+            assert winner.excluded == 0 and winner.inserted == len(tickers), (
+                winner.exclusion_reasons,
+            )
 
 
 @pytest.mark.parametrize("population", [2, 88])

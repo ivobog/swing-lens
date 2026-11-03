@@ -2288,11 +2288,16 @@
           {
             "path": "app/services/winner_probability/outcome_service.py",
             "symbol": "OutcomeMaturationService.process_due_outcomes"
+          },
+          {
+            "path": "app/services/winner_probability/consumer_eligibility.py",
+            "symbol": "winner_decision_inputs"
           }
         ],
         "impact_patterns": [
           "app/services/winner_probability/*.py",
-          "config/winner_probability.yaml"
+          "config/winner_probability.yaml",
+          "tests/integration/test_run40_lifecycle_remediation_postgresql.py"
         ],
         "tests": [
           {
@@ -2312,6 +2317,24 @@
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
             "reviewed_test_sha256": "76f4812f84d23a932abeca0718deb655f90d107a21518b4f89b3635c5c1793e7"
+          },
+          {
+            "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[False]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Actual certified READY Technical inputs yield two native committed Winner predictions in the source-backed fixture.",
+            "negative": "The retained blowoff/climax input stays DEGRADED and Winner v1 undecided, with two exclusions and no predictions, even when Combined/Ranking v2 research admission permits their inputs.",
+            "reviewed_test_sha256": "85acef863d2d85301264aea892100a1264116ba77f5f03e45d1b1659584b45d9"
+          },
+          {
+            "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[True]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Actual certified READY Technical inputs yield two native committed Winner predictions in the source-backed fixture.",
+            "negative": "The retained blowoff/climax input stays DEGRADED and Winner v1 undecided, with two exclusions and no predictions, even when Combined/Ranking v2 research admission permits their inputs.",
+            "reviewed_test_sha256": "85acef863d2d85301264aea892100a1264116ba77f5f03e45d1b1659584b45d9"
           }
         ],
         "oracle": "A05B expected Winner identities/outcomes and retained A08 reached-assertion/omission evidence.",
@@ -2324,7 +2347,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "7bd32df99cf2850d50f31a41e49adb967aeb701a2916a08088bcba8f9489adb1",
+        "review_sha256": "01cc824a22fa0c592d23876002f86e78d927286fba982d6ee107a81b5f8189d7",
         "review_addenda": [
           {
             "task": "FR02",
