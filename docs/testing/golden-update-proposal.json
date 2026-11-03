@@ -93,7 +93,7 @@
       "config/winner_probability.yaml": "9cfae4719d312718e24ec5c882d4cc94ba19cc262460ad71297b3f51bd4a8c7a"
     },
     "reason": "Versioned IBMI1.0.2 configuration plus complete review of Technical research v2, preserve-stricter-v1 and all scoped activation fixes; explicit candidate financial validation preserves historical seals and existing authority.",
-    "source_revision": "dfdbc016795d7ae443edea437fa0e4bdb8bb71ae"
+    "source_revision": "109b2f4b8c0f53b7ee4d7099a85035ba3b6ecc60"
   },
   "expectation_changes": [
     {
@@ -168,11 +168,11 @@
     "input_version": "a05-v3"
   },
   "review_request": {
-    "candidate_digest": "c883a6f4fc66254caf523cf1a03c7e8373d137db88e1751176685644af0004cb",
+    "candidate_digest": "fb686ead81ef1500b15e97c10a36a2dc05dd51d0a65154fe78c1ef1cce8e5e12",
     "expectation_revision": "a05b-r4",
     "input_version": "a05-v4",
     "producer": "INDEPENDENT_FORMULA_REVIEW",
-    "source_revision": "dfdbc016795d7ae443edea437fa0e4bdb8bb71ae",
+    "source_revision": "109b2f4b8c0f53b7ee4d7099a85035ba3b6ecc60",
     "status": "PROPOSED"
   },
   "schema": "swinglens.golden-update-proposal.v1"
