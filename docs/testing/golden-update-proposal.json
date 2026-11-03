@@ -92,8 +92,8 @@
       "config/technical_v51_research.yaml": "64b0ecbacf27fbee542b8156a2b938388630f977199651d5d7a16d7c9f005f01",
       "config/winner_probability.yaml": "9cfae4719d312718e24ec5c882d4cc94ba19cc262460ad71297b3f51bd4a8c7a"
     },
-    "reason": "Versioned IBMI1.0.2 configuration plus complete review of Technical research v2, preserve-stricter-v1 and all scoped activation fixes; explicit candidate financial validation preserves historical seals and existing authority.",
-    "source_revision": "3355fefcf59982fcdfd3a138718f3923c0afb1a8"
+    "reason": "Versioned IBMI1.0.2 configuration plus complete review of Technical research v2, preserve-stricter-v1 and all scoped activation fixes; explicit candidate financial validation preserves historical seals and existing authority. The Run40 Winner-positive synthetic fixture is corrected to genuine READY input while retaining warned-input v1 rejection, unchanged 88-prediction/replay assertions and historical data; see docs/verification/ibmi-pr78-native-certification-20261103.md. Production rules and golden financial expectations are unchanged by this test-fixture correction.",
+    "source_revision": "1b260c393983d3664904bb8a7a39a78ccbaeeec5"
   },
   "expectation_changes": [
     {
@@ -168,11 +168,11 @@
     "input_version": "a05-v3"
   },
   "review_request": {
-    "candidate_digest": "b84f79b5d666bd12948a3f1974d83abbb0a295718ecc2d51b2ed64963fc401a8",
+    "candidate_digest": "2b6976ace5f4dca431e2dc71ecbfbb828f559c8fd484b0a977bfc781439f5007",
     "expectation_revision": "a05b-r4",
     "input_version": "a05-v4",
     "producer": "INDEPENDENT_FORMULA_REVIEW",
-    "source_revision": "3355fefcf59982fcdfd3a138718f3923c0afb1a8",
+    "source_revision": "1b260c393983d3664904bb8a7a39a78ccbaeeec5",
     "status": "PROPOSED"
   },
   "schema": "swinglens.golden-update-proposal.v1"
