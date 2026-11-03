@@ -283,6 +283,10 @@ def write_report(
     idempotency: dict[str, Any],
     exports: list[dict[str, Any]],
 ) -> None:
+    for surface in recorder.surfaces:
+        index = Path(surface["screenshot"]).with_suffix(".tiles.json")
+        if (artifact_dir / index).is_file():
+            surface["screenshot_index"] = index.as_posix()
     report = {
         "schema": "swinglens.single-run-certification-report.v1",
         "execution": environment,
@@ -313,7 +317,10 @@ def write_report(
     failure_lines = "\n".join(f"- {failure}" for failure in recorder.failures) or "None."
     warning_lines = "\n".join(f"- {warning}" for warning in recorder.warnings) or "None."
     surface_lines = "\n".join(
-        f"- [{item['name']}]({item['screenshot']}) - `{item['path']}`" for item in recorder.surfaces
+        f"- [{item['name']}]({item['screenshot']}) - `{item['path']}`"
+        + (f" — [all image tiles]({item['screenshot_index']})"
+           if "screenshot_index" in item else "")
+        for item in recorder.surfaces
     )
     step_lines = "\n".join(
         f"- {item['step_order']}. `{item['step_name']}`: {item['status']}"

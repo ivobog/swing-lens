@@ -643,6 +643,7 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     name = "source-impact-prerequisites"
     directory = report_dir / name
     spec = plan["a04_prerequisites"]
+    _prepare_prerequisite_browsers(report_dir, environment, spec["browsers"])
     plugins = environment.get("PYTEST_PLUGINS", "").split(",")
     plugins = [plugin for plugin in plugins if plugin]
     if "scripts.qa.release_evidence" not in plugins:
@@ -681,6 +682,23 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     ):
         raise release.EvidenceError("specialized prerequisite failed, skipped or never executed")
     return result
+
+
+def _prepare_prerequisite_browsers(report_dir: Path, environment: dict[str, str], browsers: list):
+    """The existing A04 CI job provisions Chromium; triggered cases also owe Firefox."""
+    from scripts.qa.release_evidence import EvidenceError
+
+    if not browsers or environment.get("GITHUB_ACTIONS") != "true":
+        return
+    if not set(browsers) <= {"chromium", "firefox"}:
+        raise EvidenceError("unreviewed prerequisite browser")
+    command = [sys.executable, "-m", "playwright", "install", "--with-deps", *browsers]
+    prepared = subprocess.run(command, cwd=REPO_ROOT, env=environment,
+                              capture_output=True, text=True, check=False)
+    (report_dir / "prerequisite-browser-install.stdout.log").write_text(prepared.stdout)
+    (report_dir / "prerequisite-browser-install.stderr.log").write_text(prepared.stderr)
+    if prepared.returncode:
+        raise EvidenceError("required prerequisite browser installation failed")
 
 
 def _read_runtime_report(path: Path, report_dir: Path) -> dict[str, object]:

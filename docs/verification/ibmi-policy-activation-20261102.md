@@ -118,6 +118,23 @@ GitHub runs. Local test counts do not substitute for those certificates.
 Owner authorization and promotion remain separate. No acknowledgement has been
 supplied for the prepared candidate. See `docs/testing/golden_update_policy.md`.
 
+Current-source CI run 41546333951 passed its release plan, Python/migration,
+Node/PromQL and Windows recovery jobs. Firefox smoke then reached its native PNG
+dimension limit on a long evidence page. The capture helper now writes bounded
+tiles and a complete geometry index; it retains every document region and all
+financial/GUI/database assertions. Both real Chromium and Firefox probes passed
+40,000-pixel page coverage, including device-pixel-ratio two. Seventeen focused
+capture/runner controls passed. Triggered A04 prerequisite cases also explicitly
+provision both reviewed browser engines in CI through locked Playwright; failed
+installation still blocks certification. No workflow or required lane is removed.
+
+Authenticated approval independently exposed a trusted-base transport limitation:
+GitHub Contents omits the base64 body for the retained 3,646,969-byte market-data
+artifact. The exact historical blob and SHA256 seals remain unchanged. A bounded,
+same-repository Git Blob reader fix is prepared separately for the trusted base;
+it does not supply owner acknowledgement or financial approval. Until that base
+prerequisite and fresh source-bound checks pass, this PR is not merge-ready.
+
 ### Local activation
 
 Only `IB_MARKET_INTELLIGENCE_ENABLED`, `IB_LIQUIDITY_ENABLED` and

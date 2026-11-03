@@ -74,6 +74,7 @@ from single_run_certification.reporting import (
     write_database_html,
     write_report,
 )
+from single_run_certification.screenshot_evidence import capture_page_evidence
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
@@ -1121,7 +1122,7 @@ def _run_pipeline_through_gui(
         actual=status,
     )
     screenshot = env.artifact_dir / "screenshots" / "gui" / "020-pipeline-progress.png"
-    page.screenshot(path=screenshot, full_page=True)
+    capture_page_evidence(page, screenshot)
     recorder.surfaces.append(
         {
             "name": "pipeline-progress",
@@ -1168,7 +1169,7 @@ def _capture_surface(
         actual="present" if DECOY_TICKER in body else "absent",
     )
     screenshot = env.artifact_dir / "screenshots" / "gui" / f"{ordinal:03d}-{name}.png"
-    page.screenshot(path=screenshot, full_page=True)
+    capture_page_evidence(page, screenshot)
     recorder.surfaces.append(
         {
             "name": name,
@@ -2384,9 +2385,8 @@ def _acknowledge_one_alert(page: Page, engine, env, recorder, run_id: int) -> No
         expected="UNREAD without timestamp",
         actual=db_status,
     )
-    page.screenshot(
-        path=env.artifact_dir / "screenshots" / "gui" / "085-alert-acknowledged.png",
-        full_page=True,
+    capture_page_evidence(
+        page, env.artifact_dir / "screenshots" / "gui" / "085-alert-acknowledged.png",
     )
 
 
@@ -2419,9 +2419,8 @@ def _acknowledge_one_ceri_alert(page: Page, engine, env, recorder) -> None:
         expected="UNREAD without timestamp",
         actual=db_status,
     )
-    page.screenshot(
-        path=env.artifact_dir / "screenshots" / "gui" / "107-ceri-alert-acknowledged.png",
-        full_page=True,
+    capture_page_evidence(
+        page, env.artifact_dir / "screenshots" / "gui" / "107-ceri-alert-acknowledged.png",
     )
 
 
@@ -2689,12 +2688,11 @@ def _capture_database_screenshots(page: Page, env, graph: dict) -> None:
     pages = write_database_html(env.artifact_dir, graph)
     for index, html_path in enumerate(pages, start=1):
         page.goto(html_path.as_uri())
-        page.screenshot(
-            path=env.artifact_dir
+        capture_page_evidence(
+            page, env.artifact_dir
             / "screenshots"
             / "database"
             / f"{index * 10:03d}-{graph['tables'][index - 1]['table']}.png",
-            full_page=True,
         )
 
 
