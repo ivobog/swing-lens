@@ -2787,6 +2787,10 @@
           {
             "path": "scripts/qa/check_certification_registry.py",
             "symbol": "validate_source_contracts"
+          },
+          {
+            "path": "scripts/qa/golden_provenance.py",
+            "symbol": "_GitHubReader.file"
           }
         ],
         "impact_patterns": [
@@ -2805,7 +2809,7 @@
             "lane": "python-regressions",
             "positive": "Complete synthetic contract aggregates only within its specimen.",
             "negative": "Missing/stale/wrong identity, failures, skips or incomplete lanes never certify.",
-            "reviewed_test_sha256": "c83ad9e7b7ec90aca0d42402d496ab19548d37a190e3fc09b6f70119f842f4f2"
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           },
           {
             "id": "tests/test_certification_registry.py::test_historical_or_ordinary_pass_does_not_replace_a04_evidence",
@@ -2832,7 +2836,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "c83ad9e7b7ec90aca0d42402d496ab19548d37a190e3fc09b6f70119f842f4f2"
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           },
           {
             "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[no-body]",
@@ -2841,7 +2845,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "c83ad9e7b7ec90aca0d42402d496ab19548d37a190e3fc09b6f70119f842f4f2"
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           },
           {
             "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[missing]",
@@ -2850,7 +2854,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "c83ad9e7b7ec90aca0d42402d496ab19548d37a190e3fc09b6f70119f842f4f2"
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           },
           {
             "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[stale]",
@@ -2859,7 +2863,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "c83ad9e7b7ec90aca0d42402d496ab19548d37a190e3fc09b6f70119f842f4f2"
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           },
           {
             "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[foreign]",
@@ -2868,7 +2872,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "c83ad9e7b7ec90aca0d42402d496ab19548d37a190e3fc09b6f70119f842f4f2"
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           },
           {
             "id": "tests/test_full_release_certification.py::test_current_candidate_cannot_reuse_historical_a04_receipts",
@@ -2877,7 +2881,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "c83ad9e7b7ec90aca0d42402d496ab19548d37a190e3fc09b6f70119f842f4f2"
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           },
           {
             "id": "tests/test_production_runtime_certification.py::test_extra_prerequisite_browser_preparation_is_confined_to_ci",
@@ -2896,6 +2900,87 @@
             "positive": "Triggered CI browsers are provisioned with the locked Playwright installation command.",
             "negative": "Failed or unreviewed browser provisioning blocks prerequisite execution; local certification does not install browsers implicitly.",
             "reviewed_test_sha256": "0aee6b050b3b084cdf9c7dd39fa3e7c7aa9b53da4a4f7e2bf8e07f4a4f09d4a0"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_commit_bound_large_regular_artifact_uses_git_blob_and_preserves_bytes",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_small_contents_artifact_retains_single_read",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[nonregular]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[oversize]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[bad-sha]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[size]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[blob-sha]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[body]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_real_playwright_session_cleanup_keeps_source_bound_plan",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The real Playwright plugin removes configured scratch output while preserving the byte-identical source-bound plan in both child invocations.",
+            "negative": "A retained stale marker, missing or altered plan, or unsuccessful child execution cannot satisfy cleanup evidence.",
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -2907,7 +2992,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "6e72af1fee22931b9c7af1c65279ea1fe0115798f4f128c02d29bb382a442d76"
+        "review_sha256": "0df5912ccb525e248a225914cc5cc5e223631d98e002a5058aeebdc08863cf3b"
       }
     ]
   },
