@@ -1851,7 +1851,7 @@
             "lane": "python-regressions",
             "positive": "Complete synthetic contract aggregates only within its specimen.",
             "negative": "Missing/stale/wrong identity, failures, skips or incomplete lanes never certify.",
-            "reviewed_test_sha256": "2c3139f4530a45eeee0720ee4e0269ceff2152d477f5d8750c7d81229b03b08a"
+            "reviewed_test_sha256": "c02d9c106777651ad89007a29aee662c45ff12780e07dbdeb213f278c1252038"
           },
           {
             "id": "tests/test_certification_registry.py::test_historical_or_ordinary_pass_does_not_replace_a04_evidence",
@@ -1942,6 +1942,15 @@
             "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
             "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
             "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_real_playwright_session_cleanup_keeps_source_bound_plan",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The real Playwright plugin removes configured scratch output while preserving the byte-identical source-bound plan in both child invocations.",
+            "negative": "A retained stale marker, missing or altered plan, or unsuccessful child execution cannot satisfy cleanup evidence.",
+            "reviewed_test_sha256": "c02d9c106777651ad89007a29aee662c45ff12780e07dbdeb213f278c1252038"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -1953,7 +1962,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "feae823630ddbd5985ac487611ce7e18d28e9a1c4a72c710b912686cf8de9845"
+        "review_sha256": "35d3a012a870f562c08b6ab2c5887394b1bfd64d7a5835048f659891a09714e0"
       }
     ]
   },
