@@ -2323,18 +2323,18 @@
             "tier": "NATIVE",
             "fidelity": "POSTGRESQL_SERVICE",
             "lane": "python-regressions",
-            "positive": "Actual certified READY Technical inputs yield two native committed Winner predictions in the source-backed fixture.",
+            "positive": "Actual certified READY Technical inputs for the late-arriving one/two-observation cohorts, against the older shared benchmark history, yield two native committed Winner predictions.",
             "negative": "The retained blowoff/climax input stays DEGRADED and Winner v1 undecided, with two exclusions and no predictions, even when Combined/Ranking v2 research admission permits their inputs.",
-            "reviewed_test_sha256": "85acef863d2d85301264aea892100a1264116ba77f5f03e45d1b1659584b45d9"
+            "reviewed_test_sha256": "5f01293937704252718c8b6c2dff24d17e5da966ca2d47b4dfc9eb64f2333525"
           },
           {
             "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[True]",
             "tier": "NATIVE",
             "fidelity": "POSTGRESQL_SERVICE",
             "lane": "python-regressions",
-            "positive": "Actual certified READY Technical inputs yield two native committed Winner predictions in the source-backed fixture.",
+            "positive": "Actual certified READY Technical inputs for the late-arriving one/two-observation cohorts, against the older shared benchmark history, yield two native committed Winner predictions.",
             "negative": "The retained blowoff/climax input stays DEGRADED and Winner v1 undecided, with two exclusions and no predictions, even when Combined/Ranking v2 research admission permits their inputs.",
-            "reviewed_test_sha256": "85acef863d2d85301264aea892100a1264116ba77f5f03e45d1b1659584b45d9"
+            "reviewed_test_sha256": "5f01293937704252718c8b6c2dff24d17e5da966ca2d47b4dfc9eb64f2333525"
           }
         ],
         "oracle": "A05B expected Winner identities/outcomes and retained A08 reached-assertion/omission evidence.",
@@ -2347,7 +2347,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "01cc824a22fa0c592d23876002f86e78d927286fba982d6ee107a81b5f8189d7",
+        "review_sha256": "486939ba6a55da8d084a31eed88686ffc259d07afc43db6d352e5c3827fe8229",
         "review_addenda": [
           {
             "task": "FR02",
