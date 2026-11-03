@@ -14,7 +14,7 @@ EXACT_TEN = ("BHE", "BLLN", "KLIC", "LSCC", "PDFS", "ACMR", "RDVT", "AVT", "DVN"
 def frozen_ceri_registry() -> CeriProviderRegistry:
     """Return deterministic external-provider responses for the retained-clone proof."""
 
-    from single_run_certification.golden_oracle import artifact
+    from single_run_certification.candidate_validation import artifact
     from single_run_certification.golden_runtime import current_manifest
 
     if os.environ.get("CERTIFICATION_GOLDEN_VERSION") or current_manifest():

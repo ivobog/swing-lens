@@ -207,7 +207,7 @@
       ],
       "automatic": true,
       "certificate_authority": "A04_FINALIZER",
-      "source_sha256": "9723f4c37454cf98b3fa6ee3bfe65fa44f838ab2f093fd9b9191d1ac71bd39b9",
+      "source_sha256": "2252ec0b67ad992e90657c77b8f5040f5c1e10a947d8ef6e8ba3af5bd0a9ef8d",
       "ci_command": "",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -262,7 +262,7 @@
       ],
       "automatic": true,
       "certificate_authority": "NONE",
-      "source_sha256": "9723f4c37454cf98b3fa6ee3bfe65fa44f838ab2f093fd9b9191d1ac71bd39b9",
+      "source_sha256": "2252ec0b67ad992e90657c77b8f5040f5c1e10a947d8ef6e8ba3af5bd0a9ef8d",
       "ci_command": "uv run python -m scripts.production_runtime_certification --aggregate-release --release-plan test-results/release-plan/plan.json --evidence-root test-results/release --job-results test-results/release-jobs.json --report-dir test-results/full-release",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -317,7 +317,7 @@
       ],
       "automatic": false,
       "certificate_authority": "NONE",
-      "source_sha256": "9723f4c37454cf98b3fa6ee3bfe65fa44f838ab2f093fd9b9191d1ac71bd39b9",
+      "source_sha256": "2252ec0b67ad992e90657c77b8f5040f5c1e10a947d8ef6e8ba3af5bd0a9ef8d",
       "ci_command": ""
     }
   ],
@@ -1080,7 +1080,13 @@
           "app/services/fundamental*.py",
           "config/scoring_weights.yaml",
           "config/ranking_profiles.yaml",
-          "config/column_aliases.yaml"
+          "config/column_aliases.yaml",
+          "app/services/technical_consumer_eligibility.py",
+          "app/services/technical_research_admission.py",
+          "app/services/producer_readiness.py",
+          "app/services/combined_decision.py",
+          "app/services/ranking_profile_engine.py",
+          "app/services/warning_taxonomy.py"
         ],
         "tests": [
           {
@@ -1100,6 +1106,249 @@
             "positive": "Four native Core families preserve retained authority.",
             "negative": "Unbound legacy rows cannot inherit current configuration.",
             "reviewed_test_sha256": "49154f07ba10a01e106821307427cb1b3e1a7f4e9a6c624ea50beb8a62570f85"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_only_two_versioned_research_edges_admit_risk_only_degradation[COMBINED]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_only_two_versioned_research_edges_admit_risk_only_degradation[RANKING]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_unknown_mixed_quality_and_non_strategy_warnings_do_not_gain_permission[flags0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_unknown_mixed_quality_and_non_strategy_warnings_do_not_gain_permission[flags1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_unknown_mixed_quality_and_non_strategy_warnings_do_not_gain_permission[flags2]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_unknown_mixed_quality_and_non_strategy_warnings_do_not_gain_permission[flags3]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_unknown_mixed_quality_and_non_strategy_warnings_do_not_gain_permission[flags4]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_unknown_mixed_quality_and_non_strategy_warnings_do_not_gain_permission[flags5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_independent_quality_history_temporal_and_certificate_requirements[missing_history]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_independent_quality_history_temporal_and_certificate_requirements[low_confidence]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_independent_quality_history_temporal_and_certificate_requirements[quality]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_independent_quality_history_temporal_and_certificate_requirements[session]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_independent_quality_history_temporal_and_certificate_requirements[uncertified]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_independent_quality_history_temporal_and_certificate_requirements[extra_reason]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_v2_preserves_non_ready_exclusions[ReadinessStatus.STALE]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_v2_preserves_non_ready_exclusions[ReadinessStatus.ERROR]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_v2_preserves_non_ready_exclusions[ReadinessStatus.INSUFFICIENT_EVIDENCE]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_v2_preserves_non_ready_exclusions[ReadinessStatus.UNKNOWN]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_v2_preserves_non_ready_exclusions[ReadinessStatus.LEGACY_UNKNOWN]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_retained_v1_authority_replays_original_decision_and_refuses_v2_substitution",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_research_ceiling_never_promotes_low_priority_or_incomplete_inputs[1-1-Prime clean pullback-Avoid-True-preserve-stricter-v1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_research_ceiling_never_promotes_low_priority_or_incomplete_inputs[None-9-Prime clean pullback-Incomplete data-False-preserve-stricter-v1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_research_ceiling_never_promotes_low_priority_or_incomplete_inputs[9-9-Prime clean pullback-Watchlist-True-preserve-stricter-v1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_research_ceiling_never_promotes_low_priority_or_incomplete_inputs[9-9-Climax reversal risk-Avoid-True-preserve-stricter-v1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_research_ceiling_never_promotes_low_priority_or_incomplete_inputs[None-9-Prime clean pullback-Watchlist-False-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/test_technical_research_admission_v2.py::test_new_ceiling_configuration_does_not_retrofit_frozen_consumers",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "e8b12d8db55644d3e59be4b7c2de602dce446c9500734350363b623cffc924d1"
+          },
+          {
+            "id": "tests/integration/test_technical_research_v2_postgresql.py::test_new_research_configuration_admits_but_never_grants_transitive_trading_authority",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "97f16ed33632c16127dfa25a38dfcb502df08fd4ff02392197c7f2f2457524a5"
           }
         ],
         "oracle": "A05B independent values and canonical immutable evidence; fixture helpers are not independent financial truth.",
@@ -1110,7 +1359,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "37290ede9fe9ae762d1954f4636a03e9b48e93a596ebb42ed77f8e9afc7591cc"
+        "review_sha256": "bc85df6651b3bd57697a9965258ce0686dc5c97b60b001b6118c5dec6013f82a"
       },
       {
         "id": "IB_ADMISSION",
@@ -1132,7 +1381,8 @@
           "app/services/bar_cache_service.py",
           "app/services/market_data*.py",
           "app/services/price_bar*.py",
-          "tests/test_provider_replay_contracts.py"
+          "tests/test_provider_replay_contracts.py",
+          "app/services/ib_market_intelligence/*.py"
         ],
         "tests": [
           {
@@ -1170,6 +1420,672 @@
             "positive": "Successful low-level handshake/current-time probe is API ready and disconnects.",
             "negative": "Timeout is unavailable and disconnects; any account-sync or other method fails the test allowlist.",
             "reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_advisory_acceptance_keeps_partial_and_grants_no_trading_authority",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_unknown_or_mixed_integrity_data_warnings_block[new_unknown_warning]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_unknown_or_mixed_integrity_data_warnings_block[stale_market_data]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_unknown_or_mixed_integrity_data_warnings_block[missing_technical]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_unknown_or_mixed_integrity_data_warnings_block[low_technical_confidence]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_unknown_or_mixed_integrity_data_warnings_block[insufficient_data]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_unknown_or_mixed_integrity_data_warnings_block[integrity_error]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[incomplete_rows]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[ib_failure_count]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[ceri_failed]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[setup_lifecycle_failed]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[winner_prediction_failed]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[ceri_stale]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[ceri_conflicted]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[ceri_quarantined]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[ceri_unrated]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[ceri_capture_skipped]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[setup_lifecycle_capture_skipped]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[setup_lifecycle_evaluation_skipped]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[winner_prediction_capture_skipped]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[technical_error_count]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[fetch_failed]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_any_real_failure_or_incompleteness_counter_blocks[market_regime_low_confidence]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_missing_required_proof_cannot_be_replaced_by_partial_label[certified_sources]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_missing_required_proof_cannot_be_replaced_by_partial_label[scope_complete]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_missing_required_proof_cannot_be_replaced_by_partial_label[fundamental_technical_admitted]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_missing_required_proof_cannot_be_replaced_by_partial_label[ranking_complete]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_missing_required_proof_cannot_be_replaced_by_partial_label[ibmi_included_fresh_compatible]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_missing_required_proof_cannot_be_replaced_by_partial_label[arithmetic_reconciled]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_missing_required_proof_cannot_be_replaced_by_partial_label[native_data_complete]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_missing_required_proof_cannot_be_replaced_by_partial_label[policy_exclusions_accounted]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_missing_required_proof_cannot_be_replaced_by_partial_label[partial_reasons_accounted]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_execution_and_unexplained_reasons_block[failed_stage]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_execution_and_unexplained_reasons_block[missing_stage]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_execution_and_unexplained_reasons_block[error_on_completed]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_execution_and_unexplained_reasons_block[unexplained]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/test_ibmi_activation_assessment.py::test_execution_and_unexplained_reasons_block[failed_business]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c1daee3d5774a66cc25000e78ebd850c1f67a3166004bf1021df84da115238f6"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_fresh_latest_preserves_long_history_change_percentile_and_evidence",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_each_latest_source_and_calendar_age_boundary_are_checked[0-6-True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_each_latest_source_and_calendar_age_boundary_are_checked[6-0-True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_each_latest_source_and_calendar_age_boundary_are_checked[5-5-False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_each_latest_source_and_calendar_age_boundary_are_checked[6-6-True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_missing_series_keeps_missing_values_and_unavailable_coverage[hv]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_missing_series_keeps_missing_values_and_unavailable_coverage[iv]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_missing_series_keeps_missing_values_and_unavailable_coverage[both]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_invalid_recent_values_do_not_hide_stale_latest_usable_source",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_subscription_failure_is_preserved_with_fresh_latest_values",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_latest_source_freshness_reaches_unchanged_ceri_readiness_policy[0-ELIGIBLE]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_volatility_freshness.py::test_latest_source_freshness_reaches_unchanged_ceri_readiness_policy[6-INELIGIBLE]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "11c59f4e7d56b01ae12589d53bceba8e89be0d3401a50d5f22b2bad236e35a36"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_frozen_ibmi_delivery.py::test_delivered_ibmi_keeps_each_module_authority_without_live_resolution",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "74be1b69e1bac72ab11a14b4c606d511fc7aaffc8c1cf0971b6d2878c7769cc2"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_score_publication_precision.py::test_score_is_database_precision_before_immutable_evidence_is_built[0.7382548704040581-0.738255]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "efd5f591634e9b741adac1eadea4e73bd5f6d024000d416c6aedb9dda9aaa1a7"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_score_publication_precision.py::test_score_is_database_precision_before_immutable_evidence_is_built[0.06134966242903328-0.061350]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "efd5f591634e9b741adac1eadea4e73bd5f6d024000d416c6aedb9dda9aaa1a7"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_score_publication_precision.py::test_score_is_database_precision_before_immutable_evidence_is_built[1.4285714285714286-1.428571]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "efd5f591634e9b741adac1eadea4e73bd5f6d024000d416c6aedb9dda9aaa1a7"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_score_publication_precision.py::test_score_is_database_precision_before_immutable_evidence_is_built[2.857142857142857-2.857143]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "efd5f591634e9b741adac1eadea4e73bd5f6d024000d416c6aedb9dda9aaa1a7"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_score_publication_precision.py::test_score_is_database_precision_before_immutable_evidence_is_built[1.2345665-1.234567]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "efd5f591634e9b741adac1eadea4e73bd5f6d024000d416c6aedb9dda9aaa1a7"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_score_publication_precision.py::test_score_is_database_precision_before_immutable_evidence_is_built[10-10.000000]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "efd5f591634e9b741adac1eadea4e73bd5f6d024000d416c6aedb9dda9aaa1a7"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_score_publication_precision.py::test_score_is_database_precision_before_immutable_evidence_is_built[None-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "efd5f591634e9b741adac1eadea4e73bd5f6d024000d416c6aedb9dda9aaa1a7"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_liquidity_profile_dollar_floor_and_grade_penalties[EXCELLENT-10000000-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_liquidity_profile_dollar_floor_and_grade_penalties[EXCELLENT-4000000-0.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_liquidity_profile_dollar_floor_and_grade_penalties[POOR-10000000-0.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_liquidity_profile_dollar_floor_and_grade_penalties[VERY_POOR-10000000-1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_options_marginal_contribution_recomputes_the_shared_secondary_cap[0-False-1.5-1.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_options_marginal_contribution_recomputes_the_shared_secondary_cap[1-False-1.5-1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_options_marginal_contribution_recomputes_the_shared_secondary_cap[2-False-1.5-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_options_marginal_contribution_recomputes_the_shared_secondary_cap[1-True-1.5-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_options_marginal_contribution_recomputes_the_shared_secondary_cap[0-False-0-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_short_pressure_changes_only_the_exact_context_reason",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_short_pressure_disclosure_warning_currently_blocks_ceri_even_with_live_data[None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_short_pressure_disclosure_warning_currently_blocks_ceri_even_with_live_data[1000000]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/ib_market_intelligence/test_activation_arithmetic.py::test_options_actual_marginal_is_limited_by_the_final_event_risk_cap",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "b1b8712bfa5a178975af185fbb1cff2474ffe7da52fb7fdc2ff4717066e71c86"
+          },
+          {
+            "id": "tests/integration/test_ibmi_score_precision_postgresql.py::test_postgresql_round_trip_matches_sealed_score_and_keeps_old_revision[0.7382548704040581-0.738255]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c9d64e6cf8cb04427b8a6bc9330f52803f1d32f8e40e038cd378febf52b4bfa1"
+          },
+          {
+            "id": "tests/integration/test_ibmi_score_precision_postgresql.py::test_postgresql_round_trip_matches_sealed_score_and_keeps_old_revision[1.2345665-1.234567]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c9d64e6cf8cb04427b8a6bc9330f52803f1d32f8e40e038cd378febf52b4bfa1"
+          },
+          {
+            "id": "tests/integration/test_ibmi_score_precision_postgresql.py::test_postgresql_round_trip_matches_sealed_score_and_keeps_old_revision[0-0.000000]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "c9d64e6cf8cb04427b8a6bc9330f52803f1d32f8e40e038cd378febf52b4bfa1"
+          },
+          {
+            "id": "tests/integration/test_ibmi_pipeline_admission_postgresql.py::test_native_admission_retains_real_handoff_with_winner_disabled",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "9c12599cf0b26ed8bb1d1188c7f1a66e498548822981f3d881770bc02bb93088"
           }
         ],
         "oracle": "Literal reviewed request dates and independent expected subset; FakeIB response boundary.",
@@ -1180,7 +2096,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "fa9b78797d719bd028215dd0698caf91ad53cf4068074db61f4bb75499a82e96"
+        "review_sha256": "9d0dd388b2d08a392909744b9234da413c8197b735f9c38de33e88d1d2a2af5e"
       },
       {
         "id": "CERI_TEMPORAL_LINEAGE",
@@ -1278,7 +2194,8 @@
           "app/services/market_regime*.py",
           "app/services/sector_rotation*.py",
           "config/market_regime_command_center.yaml",
-          "config/sector_rotation.yaml"
+          "config/sector_rotation.yaml",
+          "config/msi_operational_compatibility.env.example"
         ],
         "tests": [
           {
@@ -1308,7 +2225,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "6144ff70ef4288b7e76bb982e4b6af8a67c359d69e6abf8ef5d2fe3a8db6a5c1"
+        "review_sha256": "2a19fb586e153e7512373257398988486ecf115d80202bbef00696db44f50288"
       },
       {
         "id": "SETUP_PUBLICATION",
@@ -1371,11 +2288,16 @@
           {
             "path": "app/services/winner_probability/outcome_service.py",
             "symbol": "OutcomeMaturationService.process_due_outcomes"
+          },
+          {
+            "path": "app/services/winner_probability/consumer_eligibility.py",
+            "symbol": "winner_decision_inputs"
           }
         ],
         "impact_patterns": [
           "app/services/winner_probability/*.py",
-          "config/winner_probability.yaml"
+          "config/winner_probability.yaml",
+          "tests/integration/test_run40_lifecycle_remediation_postgresql.py"
         ],
         "tests": [
           {
@@ -1394,7 +2316,25 @@
             "lane": "browser-smoke",
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
-            "reviewed_test_sha256": "b327ba43efacfd398d63c20289ace556910df6ee0731a582e7285d53e6a87a3b"
+            "reviewed_test_sha256": "76f4812f84d23a932abeca0718deb655f90d107a21518b4f89b3635c5c1793e7"
+          },
+          {
+            "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[False]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Actual certified READY Technical inputs for the late-arriving one/two-observation cohorts, against the older shared benchmark history, yield two native committed Winner predictions.",
+            "negative": "The retained blowoff/climax input stays DEGRADED and Winner v1 undecided, with two exclusions and no predictions, even when Combined/Ranking v2 research admission permits their inputs.",
+            "reviewed_test_sha256": "5f01293937704252718c8b6c2dff24d17e5da966ca2d47b4dfc9eb64f2333525"
+          },
+          {
+            "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[True]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Actual certified READY Technical inputs for the late-arriving one/two-observation cohorts, against the older shared benchmark history, yield two native committed Winner predictions.",
+            "negative": "The retained blowoff/climax input stays DEGRADED and Winner v1 undecided, with two exclusions and no predictions, even when Combined/Ranking v2 research admission permits their inputs.",
+            "reviewed_test_sha256": "5f01293937704252718c8b6c2dff24d17e5da966ca2d47b4dfc9eb64f2333525"
           }
         ],
         "oracle": "A05B expected Winner identities/outcomes and retained A08 reached-assertion/omission evidence.",
@@ -1407,7 +2347,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "e9f6c19507acf84ef3733a2af41cab3f664e97d44658f55a683f6ceb8af0588c",
+        "review_sha256": "486939ba6a55da8d084a31eed88686ffc259d07afc43db6d352e5c3827fe8229",
         "review_addenda": [
           {
             "task": "FR02",
@@ -1447,7 +2387,9 @@
           "app/services/background_worker.py",
           "app/worker*.py",
           "app/services/pipeline_execution_authority.py",
-          "app/services/domain_write_fence.py"
+          "app/services/domain_write_fence.py",
+          "app/services/lifecycle_safety.py",
+          "scripts/ops/lifecycle_probe.py"
         ],
         "tests": [
           {
@@ -1466,7 +2408,7 @@
             "lane": "browser-smoke",
             "positive": "Verified owned worker death leads to native supervisor recovery and exact financial evidence.",
             "negative": "Old token cannot publish and stale update is refused.",
-            "reviewed_test_sha256": "18ba0a1c9f5ca5654d2d10125478a5afd5f6f01b13d88b1bc218095017dd91bf"
+            "reviewed_test_sha256": "3236b4c1d707e4ff628c1ea4c9c12eed6517edd05c67c709755fcb4bd3d8afb3"
           }
         ],
         "oracle": "A11 actual process/transaction observations and unchanged A05B exact expected vectors.",
@@ -1479,7 +2421,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "cc5170c55ddf938fcce76a50cc025b9e660502aebe9455f23a98eb498b80decc",
+        "review_sha256": "00f8180535345de1a9e7f7a152db48862505cb32231716af13c668924a0fea4e",
         "review_addenda": [
           {
             "task": "FR02",
@@ -1528,7 +2470,8 @@
           "tests/e2e/single_run_certification/golden/*",
           "alembic/*",
           "app/models/*.py",
-          "app/settings.py"
+          "app/settings.py",
+          "scripts/production_runtime_certification.py"
         ],
         "tests": [
           {
@@ -1538,7 +2481,7 @@
             "lane": "a04",
             "positive": "402 exact rows/26 sections, 541 relations and 15 jobs satisfy 620 gates.",
             "negative": "A14 semantic faults reject missing eligible child, changed ancestry and terminal quality mismatch.",
-            "reviewed_test_sha256": "3a886b890df5b3a07d4123fee46d52bd18d5c5f8aaa1b8b4cefbada6a7b7940b"
+            "reviewed_test_sha256": "d236edcc74f834da5afa921d60e9134fd9bba7f654a7ef2b31829b56c6e9e05f"
           },
           {
             "id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]",
@@ -1547,7 +2490,7 @@
             "lane": "a04",
             "positive": "Same original authority with retained Setup handoff enabled.",
             "negative": "Same controlled A14 violations reject at intended gates.",
-            "reviewed_test_sha256": "3a886b890df5b3a07d4123fee46d52bd18d5c5f8aaa1b8b4cefbada6a7b7940b"
+            "reviewed_test_sha256": "d236edcc74f834da5afa921d60e9134fd9bba7f654a7ef2b31829b56c6e9e05f"
           },
           {
             "id": "tests/test_screenshot_evidence_regions.py::test_bounded_regions_cover_the_entire_document_without_gaps[1440-1000-1]",
@@ -1631,7 +2574,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "e86421fb2c9e503e62d1506192a494eeec4fce7f0c517b4db376f290b612c2d0"
+        "review_sha256": "6961327160d1ceed8a8a088ecacf2462e7ed223707405e8390ba9ee244d72412"
       },
       {
         "id": "GOLDEN_INTEGRITY",
@@ -1668,7 +2611,9 @@
           "docs/testing/golden-provenance/*",
           "tests/e2e/single_run_certification/golden/*",
           "tests/e2e/single_run_certification/golden_*.py",
-          "config/*.yaml"
+          "config/*.yaml",
+          ".gitattributes",
+          ".env.example"
         ],
         "tests": [
           {
@@ -1787,6 +2732,42 @@
             "positive": "Repository ownership is read afresh on every use of the personal-only omission exception.",
             "negative": "No allowance for missing organization authority, malformed metadata or disabled existing safeguards.",
             "reviewed_test_sha256": "ff247efbdebe775e5a3955092b6d9aa7444c13b9449a91f8567caf7d562d5b95"
+          },
+          {
+            "id": "tests/test_ibmi_golden_recertification.py::test_versioned_runtime_config_preserves_every_historical_seal",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+          },
+          {
+            "id": "tests/test_ibmi_golden_recertification.py::test_proposal_does_not_select_or_authorize_a_golden",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+          },
+          {
+            "id": "tests/test_ibmi_golden_recertification.py::test_changed_candidate_literals_fail_even_after_prior_success",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+          },
+          {
+            "id": "tests/test_ibmi_golden_recertification.py::test_candidate_cannot_claim_promotion_or_reuse_another_binding",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
           }
         ],
         "oracle": "Unchanged A05 v3/A05B-r3 seals and independent derivations; A13-R10 requires live sole-owner acknowledgement, never automatic activation.",
@@ -1797,7 +2778,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "5f9d68431e22635d2bbad5dfe5f596c1c6d3cb218b88efaa5716f2eb59a36a8a",
+        "review_sha256": "b2048ad251f3faeefc883e8565c1fc0bbee8c5695d73a22973c6d173983e6500",
         "policy_amendment": {
           "id": "A13-R10",
           "date": "2026-11-01",
@@ -1851,7 +2832,7 @@
             "lane": "python-regressions",
             "positive": "Complete synthetic contract aggregates only within its specimen.",
             "negative": "Missing/stale/wrong identity, failures, skips or incomplete lanes never certify.",
-            "reviewed_test_sha256": "c02d9c106777651ad89007a29aee662c45ff12780e07dbdeb213f278c1252038"
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           },
           {
             "id": "tests/test_certification_registry.py::test_historical_or_ordinary_pass_does_not_replace_a04_evidence",
@@ -1870,6 +2851,78 @@
             "positive": "Explicit test-side execution specimen passes its declared schema.",
             "negative": "Static-only, stale, assertion-free or inflated fidelity claims are refused.",
             "reviewed_test_sha256": "72ac85d0bc42c10b1f64f844c47f98e79845f31a3227ac0aac654572ea3daa70"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[skip]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[no-body]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[missing]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[stale]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[foreign]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_current_candidate_cannot_reuse_historical_a04_receipts",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
+            "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
+          },
+          {
+            "id": "tests/test_production_runtime_certification.py::test_extra_prerequisite_browser_preparation_is_confined_to_ci",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Triggered CI browsers are provisioned with the locked Playwright installation command.",
+            "negative": "Failed or unreviewed browser provisioning blocks prerequisite execution; local certification does not install browsers implicitly.",
+            "reviewed_test_sha256": "0aee6b050b3b084cdf9c7dd39fa3e7c7aa9b53da4a4f7e2bf8e07f4a4f09d4a0"
+          },
+          {
+            "id": "tests/test_production_runtime_certification.py::test_failed_or_unreviewed_prerequisite_browser_preparation_blocks",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Triggered CI browsers are provisioned with the locked Playwright installation command.",
+            "negative": "Failed or unreviewed browser provisioning blocks prerequisite execution; local certification does not install browsers implicitly.",
+            "reviewed_test_sha256": "0aee6b050b3b084cdf9c7dd39fa3e7c7aa9b53da4a4f7e2bf8e07f4a4f09d4a0"
           },
           {
             "id": "tests/test_github_artifact_reader.py::test_commit_bound_large_regular_artifact_uses_git_blob_and_preserves_bytes",
@@ -1950,7 +3003,7 @@
             "lane": "python-regressions",
             "positive": "The real Playwright plugin removes configured scratch output while preserving the byte-identical source-bound plan in both child invocations.",
             "negative": "A retained stale marker, missing or altered plan, or unsuccessful child execution cannot satisfy cleanup evidence.",
-            "reviewed_test_sha256": "c02d9c106777651ad89007a29aee662c45ff12780e07dbdeb213f278c1252038"
+            "reviewed_test_sha256": "eb44f77ff0f1637f0dd8470d1a7846b5dbd44f32540f5e0a7a4eae61700a864e"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -1962,7 +3015,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "35d3a012a870f562c08b6ab2c5887394b1bfd64d7a5835048f659891a09714e0"
+        "review_sha256": "0df5912ccb525e248a225914cc5cc5e223631d98e002a5058aeebdc08863cf3b"
       }
     ]
   },

@@ -258,6 +258,9 @@ def _run_exact_deterministic(report_dir: Path, execution_id: str) -> int:
         }
         _write_report(report_dir, report)
         return 2
+    from single_run_certification import candidate_validation
+
+    environment.pop(candidate_validation.CANDIDATE_ENV, None)
     from single_run_certification.golden_oracle import expected_manifest, require_complete
 
     from scripts.qa.golden_provenance import verify_baseline
@@ -266,6 +269,10 @@ def _run_exact_deterministic(report_dir: Path, execution_id: str) -> int:
         verify_baseline(REPO_ROOT)
         for mode in (False, True):
             require_complete(expected_manifest(mode))
+            if candidate_validation.candidate_available():
+                candidate_validation.require_complete(
+                    candidate_validation.expected_manifest(mode, candidate=True)
+                )
     except Exception as exc:
         report = {
             "execution_id": execution_id,
@@ -302,6 +309,7 @@ def _run_exact_deterministic(report_dir: Path, execution_id: str) -> int:
     ]
     collection_valid = collected.returncode == 0 and ids == selected and bool(ids)
     results = []
+    specialized_prerequisites = []
     certificates = []
     reasons = []
     invocation = {
@@ -326,7 +334,30 @@ def _run_exact_deterministic(report_dir: Path, execution_id: str) -> int:
             ),
         )
         results.append(focused)
-        if focused.exit_code == 0:
+        prerequisites_passed = focused.exit_code == 0
+        if prerequisites_passed and os.environ.get("SWINGLENS_RELEASE_PLAN"):
+            from scripts.qa import release_evidence as release
+
+            prerequisite_plan = release.read_json(Path(os.environ["SWINGLENS_RELEASE_PLAN"]))
+            release.validate_plan(prerequisite_plan, current=True)
+            specialized_prerequisites = prerequisite_plan.get(
+                "a04_prerequisites", {}
+            ).get("selectors", [])
+            if specialized_prerequisites:
+                try:
+                    prerequisite = _run_impact_prerequisites(
+                        report_dir, environment, prerequisite_plan,
+                    )
+                    results.append(prerequisite)
+                    prerequisites_passed = prerequisite.exit_code == 0
+                except release.EvidenceError as exc:
+                    reasons.append("source-impact prerequisite evidence invalid: " + str(exc))
+                    prerequisites_passed = False
+                if not prerequisites_passed:
+                    reasons.append("required source-impact prerequisites failed")
+        if prerequisites_passed:
+            if candidate_validation.candidate_available():
+                environment[candidate_validation.CANDIDATE_ENV] = "1"
             native = _run_test_group(report_dir, environment, "production-runtime", tuple(selected))
             results.append(native)
             invocation.update(_junit_execution(report_dir / "production-runtime.xml"))
@@ -385,6 +416,9 @@ def _run_exact_deterministic(report_dir: Path, execution_id: str) -> int:
         "test_groups": [asdict(r) for r in results],
         "invocation": invocation,
         "certificates": certificates,
+        "specialized_prerequisites": specialized_prerequisites,
+        **({"candidate_validation": candidate_validation.candidate_binding()}
+           if environment.get(candidate_validation.CANDIDATE_ENV) == "1" else {}),
         "reasons": reasons,
         "gates": {
             "EXACT_PIPELINE_CERTIFICATION": verdict,
@@ -536,6 +570,13 @@ def _run_test_group(
     name: str,
     selectors: tuple[str, ...],
 ) -> TestGroupResult:
+    browsers = ["chromium"]
+    if environment.get("SWINGLENS_RELEASE_LANE") == "a04-prerequisites":
+        from scripts.qa import release_evidence as release
+
+        browsers = release.read_json(Path(environment["SWINGLENS_RELEASE_PLAN"]))[
+            "a04_prerequisites"
+        ]["browsers"]
     command = [
         sys.executable,
         "-m",
@@ -544,8 +585,7 @@ def _run_test_group(
         "-rs",
         "-p",
         "no:cacheprovider",
-        "--browser",
-        "chromium",
+        *(argument for browser in browsers for argument in ("--browser", browser)),
         "--output",
         str(report_dir / "browser-output"),
         "--junitxml",
@@ -594,6 +634,71 @@ runpy.run_module('pytest', run_name='__main__')
         stdout_log=stdout_path.name,
         stderr_log=stderr_path.name,
     )
+
+
+def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], plan: dict):
+    """Execute triggered retained cases with the original release evidence protocol."""
+    from scripts.qa import release_evidence as release
+
+    name = "source-impact-prerequisites"
+    directory = report_dir / name
+    spec = plan["a04_prerequisites"]
+    _prepare_prerequisite_browsers(report_dir, environment, spec["browsers"])
+    plugins = environment.get("PYTEST_PLUGINS", "").split(",")
+    plugins = [plugin for plugin in plugins if plugin]
+    if "scripts.qa.release_evidence" not in plugins:
+        plugins.append("scripts.qa.release_evidence")
+    child = {
+        **environment,
+        "PYTEST_PLUGINS": ",".join(plugins),
+        "SWINGLENS_RELEASE_PLAN": os.environ["SWINGLENS_RELEASE_PLAN"],
+        "SWINGLENS_RELEASE_LANE": "a04-prerequisites",
+        "SWINGLENS_RELEASE_CAPTURE": "collection",
+        "SWINGLENS_RELEASE_RECORD_DIR": str(directory),
+    }
+    command = [
+        sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
+        *(argument for browser in spec["browsers"] for argument in ("--browser", browser)),
+        "--output", str(report_dir / "prerequisite-browser-scratch"),
+        *spec["selectors"],
+    ]
+    collected = subprocess.run(
+        command, cwd=REPO_ROOT, env=child, capture_output=True, text=True, check=False,
+    )
+    (report_dir / (name + ".collection.stdout.log")).write_text(collected.stdout)
+    (report_dir / (name + ".collection.stderr.log")).write_text(collected.stderr)
+    if collected.returncode:
+        return TestGroupResult(name, "FAIL", collected.returncode, 0, command, "", "")
+    child["SWINGLENS_RELEASE_CAPTURE"] = "execution"
+    result = _run_test_group(report_dir, child, name, tuple(spec["selectors"]))
+    shutil.copyfile(report_dir / (name + ".xml"), directory / "results.xml")
+    observed = release.junit_cases(directory / "results.xml", "pytest")
+    proof = release._pytest_results(directory, plan, "a04-prerequisites", observed)
+    if (
+        proof["process_exit_code"] != 0
+        or set(proof["passed"]) != set(spec["selectors"])
+        or set(proof["body_executed"]) != set(spec["selectors"])
+        or any(proof[key] for key in release.CATEGORIES if key != "passed")
+    ):
+        raise release.EvidenceError("specialized prerequisite failed, skipped or never executed")
+    return result
+
+
+def _prepare_prerequisite_browsers(report_dir: Path, environment: dict[str, str], browsers: list):
+    """The existing A04 CI job provisions Chromium; triggered cases also owe Firefox."""
+    from scripts.qa.release_evidence import EvidenceError
+
+    if not browsers or environment.get("GITHUB_ACTIONS") != "true":
+        return
+    if not set(browsers) <= {"chromium", "firefox"}:
+        raise EvidenceError("unreviewed prerequisite browser")
+    command = [sys.executable, "-m", "playwright", "install", "--with-deps", *browsers]
+    prepared = subprocess.run(command, cwd=REPO_ROOT, env=environment,
+                              capture_output=True, text=True, check=False)
+    (report_dir / "prerequisite-browser-install.stdout.log").write_text(prepared.stdout)
+    (report_dir / "prerequisite-browser-install.stderr.log").write_text(prepared.stderr)
+    if prepared.returncode:
+        raise EvidenceError("required prerequisite browser installation failed")
 
 
 def _read_runtime_report(path: Path, report_dir: Path) -> dict[str, object]:

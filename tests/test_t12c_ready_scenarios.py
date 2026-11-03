@@ -82,6 +82,8 @@ def ready_ceri_sources(monkeypatch):
     )
     common = dict(
         config_hash=config.config_hash,
+        calculation_version=config.calculation_version,
+        source_version=config.source_version,
         calculation_cutoff_at=cutoff.cutoff_at,
         calendar_version=cutoff.calendar_version,
         as_of_session=cutoff.latest_completed_session,

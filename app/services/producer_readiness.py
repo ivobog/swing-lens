@@ -178,6 +178,7 @@ class EligibilityReason(Enum):
     PRODUCER_READINESS_BLOCKED = "PRODUCER_READINESS_BLOCKED"
     PRODUCER_READINESS_VERSION_UNSUPPORTED = "PRODUCER_READINESS_VERSION_UNSUPPORTED"
     DEGRADED_POLICY_UNDECIDED = "DEGRADED_POLICY_UNDECIDED"
+    CERTIFIED_STRATEGY_RESTRICTION_ONLY = "CERTIFIED_STRATEGY_RESTRICTION_ONLY"
 
 
 @dataclass(frozen=True)
@@ -188,6 +189,7 @@ class ConsumerEligibilityDecision:
     policy_version: str
     producer_readiness_fingerprint: str
     producer_evidence_id: int | None
+    justification: NativeReadinessMetrics = NativeReadinessMetrics()
 
     def __post_init__(self) -> None:
         if type(self.status) is not ConsumerEligibilityStatus:
@@ -204,6 +206,11 @@ class ConsumerEligibilityDecision:
             "policy_version": self.policy_version,
             "producer_readiness_fingerprint": self.producer_readiness_fingerprint,
             "producer_evidence_id": self.producer_evidence_id,
+            **(
+                {"justification": self.justification.canonical_payload()}
+                if self.justification.canonical_payload()
+                else {}
+            ),
         }
 
 

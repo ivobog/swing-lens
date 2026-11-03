@@ -16,6 +16,7 @@ docs/testing/golden-provenance/a05b-r3/** -text
 /config/column_aliases.yaml -text
 /config/fundamentals_v2.yaml -text
 /config/ib_market_intelligence.yaml -text
+/config/ib_market_intelligence_v1_0_2.yaml -text
 /config/market_regime_command_center.yaml -text
 /config/market_sector_intelligence.yaml -text
 /config/pine_defaults.yaml -text

@@ -1,0 +1,1416 @@
+{
+  "conditional_obligations": {
+    "ceri_batches": [
+      {
+        "batch": 1,
+        "dataset": "estimates",
+        "provider": "eodhd",
+        "request_key_template": "{workflow}:provider:eodhd:estimates:0001",
+        "role": "provider",
+        "tickers": [
+          "ACMR",
+          "AVT",
+          "BHE",
+          "BLLN",
+          "DVN",
+          "JNJ",
+          "KLIC",
+          "LSCC",
+          "PDFS",
+          "RDVT"
+        ]
+      },
+      {
+        "batch": 1,
+        "dataset": "earnings",
+        "provider": "eodhd",
+        "request_key_template": "{workflow}:provider:eodhd:earnings:0001",
+        "role": "provider",
+        "tickers": [
+          "ACMR",
+          "AVT",
+          "BHE",
+          "BLLN",
+          "DVN",
+          "JNJ",
+          "KLIC",
+          "LSCC",
+          "PDFS",
+          "RDVT"
+        ]
+      },
+      {
+        "batch": 1,
+        "dataset": "catalysts",
+        "provider": "eodhd",
+        "request_key_template": "{workflow}:provider:eodhd:catalysts:0001",
+        "role": "provider",
+        "tickers": [
+          "ACMR",
+          "AVT",
+          "BHE",
+          "BLLN",
+          "DVN",
+          "JNJ",
+          "KLIC",
+          "LSCC",
+          "PDFS",
+          "RDVT"
+        ]
+      },
+      {
+        "batch": 1,
+        "dataset": "guidance",
+        "provider": "sec",
+        "request_key_template": "{workflow}:provider:sec:guidance:0001",
+        "role": "provider",
+        "tickers": [
+          "ACMR",
+          "AVT",
+          "BHE",
+          "BLLN",
+          "DVN",
+          "JNJ",
+          "KLIC",
+          "LSCC",
+          "PDFS",
+          "RDVT"
+        ]
+      },
+      {
+        "batch": 1,
+        "dataset": "estimates",
+        "provider": "eodhd",
+        "request_key_template": "{workflow}:normalize:eodhd:estimates:0001",
+        "role": "normalize",
+        "tickers": [
+          "ACMR",
+          "AVT",
+          "BHE",
+          "BLLN",
+          "DVN",
+          "JNJ",
+          "KLIC",
+          "LSCC",
+          "PDFS",
+          "RDVT"
+        ]
+      },
+      {
+        "batch": 1,
+        "dataset": "earnings",
+        "provider": "eodhd",
+        "request_key_template": "{workflow}:normalize:eodhd:earnings:0001",
+        "role": "normalize",
+        "tickers": [
+          "ACMR",
+          "AVT",
+          "BHE",
+          "BLLN",
+          "DVN",
+          "JNJ",
+          "KLIC",
+          "LSCC",
+          "PDFS",
+          "RDVT"
+        ]
+      },
+      {
+        "batch": 1,
+        "dataset": "catalysts",
+        "provider": "eodhd",
+        "request_key_template": "{workflow}:normalize:eodhd:catalysts:0001",
+        "role": "normalize",
+        "tickers": [
+          "ACMR",
+          "AVT",
+          "BHE",
+          "BLLN",
+          "DVN",
+          "JNJ",
+          "KLIC",
+          "LSCC",
+          "PDFS",
+          "RDVT"
+        ]
+      },
+      {
+        "batch": 1,
+        "dataset": "guidance",
+        "provider": "sec",
+        "request_key_template": "{workflow}:normalize:sec:guidance:0001",
+        "role": "normalize",
+        "tickers": [
+          "ACMR",
+          "AVT",
+          "BHE",
+          "BLLN",
+          "DVN",
+          "JNJ",
+          "KLIC",
+          "LSCC",
+          "PDFS",
+          "RDVT"
+        ]
+      }
+    ],
+    "ceri_earnings": {
+      "failure": false,
+      "reason": "FROZEN_PROVIDER_EXPLICIT_NO_DATA",
+      "records": []
+    },
+    "pipeline_dependency": {
+      "continuation_count": 1,
+      "resume": "FREEZING_DECISION_HANDOFF_MANIFEST",
+      "root_role": "INITIAL_FULL_PIPELINE",
+      "terminal_child_type": "CERI_ALERT_REBUILD",
+      "type": "CERI_WORKFLOW"
+    },
+    "winner_eligible_children": {
+      "eligible_tickers": null,
+      "entry_models": [
+        "NEXT_OPEN",
+        "SIGNAL_CLOSE_DIAGNOSTIC"
+      ],
+      "estimate_kind": "DECISION_TIME",
+      "horizons": [
+        1,
+        3,
+        5,
+        10,
+        20
+      ],
+      "price_acquisition_horizon": 5,
+      "target_stop_definitions": [
+        "T2_5_S2_0_H5_NEXT_OPEN",
+        "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC"
+      ]
+    }
+  },
+  "domains": {
+    "ceri_sources": [
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BHE-eps-90d",
+        "ticker": "BHE"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BHE-eps-30d",
+        "ticker": "BHE"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BHE-eps-7d",
+        "ticker": "BHE"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BHE-eps-current",
+        "ticker": "BHE"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BLLN-eps-90d",
+        "ticker": "BLLN"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BLLN-eps-30d",
+        "ticker": "BLLN"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BLLN-eps-7d",
+        "ticker": "BLLN"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BLLN-eps-current",
+        "ticker": "BLLN"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "KLIC-eps-90d",
+        "ticker": "KLIC"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "KLIC-eps-30d",
+        "ticker": "KLIC"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "KLIC-eps-7d",
+        "ticker": "KLIC"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "KLIC-eps-current",
+        "ticker": "KLIC"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "LSCC-eps-90d",
+        "ticker": "LSCC"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "LSCC-eps-30d",
+        "ticker": "LSCC"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "LSCC-eps-7d",
+        "ticker": "LSCC"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "LSCC-eps-current",
+        "ticker": "LSCC"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "PDFS-eps-90d",
+        "ticker": "PDFS"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "PDFS-eps-30d",
+        "ticker": "PDFS"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "PDFS-eps-7d",
+        "ticker": "PDFS"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "PDFS-eps-current",
+        "ticker": "PDFS"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "ACMR-eps-90d",
+        "ticker": "ACMR"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "ACMR-eps-30d",
+        "ticker": "ACMR"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "ACMR-eps-7d",
+        "ticker": "ACMR"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "ACMR-eps-current",
+        "ticker": "ACMR"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "RDVT-eps-90d",
+        "ticker": "RDVT"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "RDVT-eps-30d",
+        "ticker": "RDVT"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "RDVT-eps-7d",
+        "ticker": "RDVT"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "RDVT-eps-current",
+        "ticker": "RDVT"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "AVT-eps-90d",
+        "ticker": "AVT"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "AVT-eps-30d",
+        "ticker": "AVT"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "AVT-eps-7d",
+        "ticker": "AVT"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "AVT-eps-current",
+        "ticker": "AVT"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "DVN-eps-90d",
+        "ticker": "DVN"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "DVN-eps-30d",
+        "ticker": "DVN"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "DVN-eps-7d",
+        "ticker": "DVN"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "DVN-eps-current",
+        "ticker": "DVN"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-06-26T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "JNJ-eps-90d",
+        "ticker": "JNJ"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-08-25T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "JNJ-eps-30d",
+        "ticker": "JNJ"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-17T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "JNJ-eps-7d",
+        "ticker": "JNJ"
+      },
+      {
+        "dataset": "estimates",
+        "known_at": "2026-09-24T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "JNJ-eps-current",
+        "ticker": "JNJ"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BHE-catalyst",
+        "ticker": "BHE"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "BLLN-catalyst",
+        "ticker": "BLLN"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "KLIC-catalyst",
+        "ticker": "KLIC"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "LSCC-catalyst",
+        "ticker": "LSCC"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "PDFS-catalyst",
+        "ticker": "PDFS"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "ACMR-catalyst",
+        "ticker": "ACMR"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "RDVT-catalyst",
+        "ticker": "RDVT"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "AVT-catalyst",
+        "ticker": "AVT"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "DVN-catalyst",
+        "ticker": "DVN"
+      },
+      {
+        "dataset": "catalysts",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "eodhd",
+        "record_key": "JNJ-catalyst",
+        "ticker": "JNJ"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "BHE-sec-guidance",
+        "ticker": "BHE"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "BLLN-sec-guidance",
+        "ticker": "BLLN"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "KLIC-sec-guidance",
+        "ticker": "KLIC"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "LSCC-sec-guidance",
+        "ticker": "LSCC"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "PDFS-sec-guidance",
+        "ticker": "PDFS"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "ACMR-sec-guidance",
+        "ticker": "ACMR"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "RDVT-sec-guidance",
+        "ticker": "RDVT"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "AVT-sec-guidance",
+        "ticker": "AVT"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "DVN-sec-guidance",
+        "ticker": "DVN"
+      },
+      {
+        "dataset": "guidance",
+        "known_at": "2026-09-23T19:00:00Z",
+        "provider": "sec",
+        "record_key": "JNJ-sec-guidance",
+        "ticker": "JNJ"
+      }
+    ],
+    "combined_members": [
+      {
+        "ticker": "BHE"
+      },
+      {
+        "ticker": "BLLN"
+      },
+      {
+        "ticker": "KLIC"
+      },
+      {
+        "ticker": "LSCC"
+      },
+      {
+        "ticker": "PDFS"
+      },
+      {
+        "ticker": "ACMR"
+      },
+      {
+        "ticker": "RDVT"
+      },
+      {
+        "ticker": "AVT"
+      },
+      {
+        "ticker": "DVN"
+      },
+      {
+        "ticker": "JNJ"
+      }
+    ],
+    "fundamental": [
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "BHE",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "BLLN",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "KLIC",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "LSCC",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "PDFS",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "ACMR",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "RDVT",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "AVT",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "DVN",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      },
+      {
+        "balance_sheet_quality_score": "9.2826",
+        "capital_efficiency_score": "10.0000",
+        "data_coverage_score": "10.0000",
+        "earnings_quality_score": "9.5500",
+        "fcf_quality_score": "8.9363",
+        "forward_quality_score": "10.0000",
+        "fundamental_label": "Clean compounder",
+        "fundamental_score": "9.1909",
+        "growth_quality_score": "9.4101",
+        "liquidity_risk_score": "9.4865",
+        "missing_data_penalty": "0.0000",
+        "profitability_quality_score": "10.0000",
+        "shareholder_quality_score": "7.9111",
+        "ticker": "JNJ",
+        "valuation_quality_score": "6.5515",
+        "warning_flags": []
+      }
+    ],
+    "rank_members": [
+      {
+        "profile": "momentum_swing",
+        "ticker": "BHE"
+      },
+      {
+        "profile": "momentum_swing",
+        "ticker": "BLLN"
+      },
+      {
+        "profile": "momentum_swing",
+        "ticker": "KLIC"
+      },
+      {
+        "profile": "momentum_swing",
+        "ticker": "LSCC"
+      },
+      {
+        "profile": "momentum_swing",
+        "ticker": "PDFS"
+      },
+      {
+        "profile": "momentum_swing",
+        "ticker": "ACMR"
+      },
+      {
+        "profile": "momentum_swing",
+        "ticker": "RDVT"
+      },
+      {
+        "profile": "momentum_swing",
+        "ticker": "AVT"
+      },
+      {
+        "profile": "momentum_swing",
+        "ticker": "DVN"
+      },
+      {
+        "profile": "momentum_swing",
+        "ticker": "JNJ"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "BHE"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "BLLN"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "KLIC"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "LSCC"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "PDFS"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "ACMR"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "RDVT"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "AVT"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "DVN"
+      },
+      {
+        "profile": "quality_momentum",
+        "ticker": "JNJ"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "BHE"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "BLLN"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "KLIC"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "LSCC"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "PDFS"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "ACMR"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "RDVT"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "AVT"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "DVN"
+      },
+      {
+        "profile": "early_rocket",
+        "ticker": "JNJ"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "BHE"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "BLLN"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "KLIC"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "LSCC"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "PDFS"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "ACMR"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "RDVT"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "AVT"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "DVN"
+      },
+      {
+        "profile": "clean_compounder_pullback",
+        "ticker": "JNJ"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "BHE"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "BLLN"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "KLIC"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "LSCC"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "PDFS"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "ACMR"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "RDVT"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "AVT"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "DVN"
+      },
+      {
+        "profile": "defensive_quality",
+        "ticker": "JNJ"
+      }
+    ],
+    "raw": [
+      {
+        "row_number": 1,
+        "ticker": "BHE"
+      },
+      {
+        "row_number": 2,
+        "ticker": "BLLN"
+      },
+      {
+        "row_number": 3,
+        "ticker": "KLIC"
+      },
+      {
+        "row_number": 4,
+        "ticker": "LSCC"
+      },
+      {
+        "row_number": 5,
+        "ticker": "PDFS"
+      },
+      {
+        "row_number": 6,
+        "ticker": "ACMR"
+      },
+      {
+        "row_number": 7,
+        "ticker": "RDVT"
+      },
+      {
+        "row_number": 8,
+        "ticker": "AVT"
+      },
+      {
+        "row_number": 9,
+        "ticker": "DVN"
+      },
+      {
+        "row_number": 10,
+        "ticker": "JNJ"
+      }
+    ],
+    "setup_capture_members": [
+      {
+        "session": "2026-10-26",
+        "ticker": "BHE",
+        "timeframe": "1d"
+      },
+      {
+        "session": "2026-10-26",
+        "ticker": "BLLN",
+        "timeframe": "1d"
+      },
+      {
+        "session": "2026-10-26",
+        "ticker": "KLIC",
+        "timeframe": "1d"
+      },
+      {
+        "session": "2026-10-26",
+        "ticker": "LSCC",
+        "timeframe": "1d"
+      },
+      {
+        "session": "2026-10-26",
+        "ticker": "PDFS",
+        "timeframe": "1d"
+      },
+      {
+        "session": "2026-10-26",
+        "ticker": "ACMR",
+        "timeframe": "1d"
+      },
+      {
+        "session": "2026-10-26",
+        "ticker": "RDVT",
+        "timeframe": "1d"
+      },
+      {
+        "session": "2026-10-26",
+        "ticker": "AVT",
+        "timeframe": "1d"
+      },
+      {
+        "session": "2026-10-26",
+        "ticker": "DVN",
+        "timeframe": "1d"
+      },
+      {
+        "session": "2026-10-26",
+        "ticker": "JNJ",
+        "timeframe": "1d"
+      }
+    ],
+    "stages": [
+      {
+        "name": "VALIDATING_RUN",
+        "order": 1
+      },
+      {
+        "name": "SCORING_FUNDAMENTALS",
+        "order": 2
+      },
+      {
+        "name": "FETCHING_MARKET_DATA",
+        "order": 3
+      },
+      {
+        "name": "SCORING_TECHNICALS",
+        "order": 4
+      },
+      {
+        "name": "MARKET_REGIME_SNAPSHOT",
+        "order": 5
+      },
+      {
+        "name": "COMBINING_RESULTS",
+        "order": 6
+      },
+      {
+        "name": "RANKING_PROFILES",
+        "order": 7
+      },
+      {
+        "name": "SECTOR_ROTATION_SNAPSHOT",
+        "order": 8
+      },
+      {
+        "name": "CERI_PROVIDER_INGEST",
+        "order": 9
+      },
+      {
+        "name": "FREEZING_DECISION_HANDOFF_MANIFEST",
+        "order": 10
+      },
+      {
+        "name": "CAPTURING_SETUP_SIGNALS",
+        "order": 11
+      },
+      {
+        "name": "EVALUATING_SETUP_LIFECYCLES",
+        "order": 12
+      },
+      {
+        "name": "CAPTURING_WINNER_PREDICTIONS",
+        "order": 13
+      }
+    ],
+    "technical_indicators": [
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "93.90",
+        "ema10": "93.45000000000000000000000000",
+        "ema20": "92.95000000000001294694458401",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "91.45",
+        "stock_roc10": "1.076426264800861141011840700",
+        "stock_roc_long": "15.49815498154981549815498150",
+        "stock_roc_medium": "7.191780821917808219178082200",
+        "stock_roc_short": "2.287581699346405228758169900",
+        "ticker": "BHE"
+      },
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "86.52",
+        "ema10": "86.16000000000000000000000000",
+        "ema20": "85.76000000000001035755566719",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "84.56",
+        "stock_roc10": "0.933271115258982734484367700",
+        "stock_roc_long": "13.18681318681318681318681320",
+        "stock_roc_medium": "6.185567010309278350515463900",
+        "stock_roc_short": "1.980198019801980198019802000",
+        "ticker": "BLLN"
+      },
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "87.90",
+        "ema10": "87.45000000000000000000000000",
+        "ema20": "86.95000000000001294694458399",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "85.45",
+        "stock_roc10": "1.150747986191024165707710000",
+        "stock_roc_long": "16.73306772908366533864541830",
+        "stock_roc_medium": "7.720588235294117647058823500",
+        "stock_roc_short": "2.447552447552447552447552400",
+        "ticker": "KLIC"
+      },
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "96.28",
+        "ema10": "95.74000000000000000000000000",
+        "ema20": "95.14000000000001553633350080",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "93.34",
+        "stock_roc10": "1.262095077829196466133782100",
+        "stock_roc_long": "18.62986692952193198620009860",
+        "stock_roc_medium": "8.521190261496844003606853000",
+        "stock_roc_short": "2.687713310580204778156996600",
+        "ticker": "LSCC"
+      },
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "85.14",
+        "ema10": "84.87000000000000000000000000",
+        "ema20": "84.57000000000000776816675042",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "83.67",
+        "stock_roc10": "0.709723207948899929027679200",
+        "stock_roc_long": "9.744779582366589327146171700",
+        "stock_roc_medium": "4.646017699115044247787610600",
+        "stock_roc_short": "1.502145922746781115879828300",
+        "ticker": "PDFS"
+      },
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "87.90",
+        "ema10": "87.45000000000000000000000000",
+        "ema20": "86.95000000000001294694458399",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "85.45",
+        "stock_roc10": "1.150747986191024165707710000",
+        "stock_roc_long": "16.73306772908366533864541830",
+        "stock_roc_medium": "7.720588235294117647058823500",
+        "stock_roc_short": "2.447552447552447552447552400",
+        "ticker": "ACMR"
+      },
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "120.09",
+        "ema10": "119.5950000000000000000000002",
+        "ema20": "119.0450000000000142416390425",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "117.395",
+        "stock_roc10": "0.924447432557357761156399700",
+        "stock_roc_long": "13.04716181869528381813047160",
+        "stock_roc_medium": "6.124072110286320254506892900",
+        "stock_roc_short": "1.961283749363219561895058600",
+        "ticker": "RDVT"
+      },
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "121.90",
+        "ema10": "121.4500000000000000000000002",
+        "ema20": "120.9500000000000129469445840",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "119.45",
+        "stock_roc10": "0.827129859387923904052936300",
+        "stock_roc_long": "11.52790484903934126258005490",
+        "stock_roc_medium": "5.449826989619377162629757800",
+        "stock_roc_short": "1.752921535893155258764607700",
+        "ticker": "AVT"
+      },
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "109.33",
+        "ema10": "109.0150000000000000000000002",
+        "ema20": "108.6650000000000090628612088",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "107.615",
+        "stock_roc10": "0.644389211083494430636104200",
+        "stock_roc_long": "8.775246244154810466620236800",
+        "stock_roc_medium": "4.203202439954250857796416300",
+        "stock_roc_short": "1.362877804561468570368996800",
+        "ticker": "DVN"
+      },
+      {
+        "atr": "2.1",
+        "bar_count": 320,
+        "close": "106.52",
+        "ema10": "106.1600000000000000000000002",
+        "ema20": "105.7600000000000103575556672",
+        "insufficient_data": false,
+        "rsi": "100",
+        "session": "2026-10-26",
+        "sma50": "104.56",
+        "stock_roc10": "0.756715853197124479757850900",
+        "stock_roc_long": "10.45209456656988801327250100",
+        "stock_roc_medium": "4.966495861253448955459203800",
+        "stock_roc_short": "1.602441816100724914154902700",
+        "ticker": "JNJ"
+      }
+    ],
+    "winner_acquisition_members": [
+      {
+        "ticker": "BHE"
+      },
+      {
+        "ticker": "BLLN"
+      },
+      {
+        "ticker": "KLIC"
+      },
+      {
+        "ticker": "LSCC"
+      },
+      {
+        "ticker": "PDFS"
+      },
+      {
+        "ticker": "ACMR"
+      },
+      {
+        "ticker": "RDVT"
+      },
+      {
+        "ticker": "AVT"
+      },
+      {
+        "ticker": "DVN"
+      },
+      {
+        "ticker": "JNJ"
+      }
+    ]
+  },
+  "numeric_tolerances": {
+    "fundamental": "0",
+    "technical_indicators": "0.00000001"
+  },
+  "provenance": "fundamental-derivation.json and DERIVATIONS.md; authored without application outputs",
+  "unresolved": [
+    {
+      "domain": "technical",
+      "missing": "Independent complete Pine v3/v4/v5 composite, classification, confidence and warning vector; only listed indicators/readiness independently derived."
+    },
+    {
+      "domain": "combined",
+      "missing": "Exact aggregate/decision needs independent Technical composite and warning inputs; membership alone does not certify numeric truth."
+    },
+    {
+      "domain": "ranking",
+      "missing": "Exact profile scores/order/gates require independent full Technical component vector; no observed ranks copied."
+    },
+    {
+      "domain": "market_regime_sector",
+      "missing": "Independent contextual composite/category/sector-rank vector and constituent contributions."
+    },
+    {
+      "domain": "ceri",
+      "missing": "Complete independently reviewed revision/derived-feature/capture/change/alert vectors; source identity/receipt and explicit empty earnings are defined."
+    },
+    {
+      "domain": "setup",
+      "missing": "Independent adapter selection, canonicalization, evaluation/transition/episode/alert vector under this exact history, for both handoff modes."
+    },
+    {
+      "domain": "winner",
+      "missing": "Exact mandatory acquisition outcomes and feature exclusions depend on independent upstream vectors; consequently eligible prediction/forward/target-stop/decision-estimate sets remain unresolved, rather than assuming every ticker is eligible."
+    }
+  ],
+  "variants": {
+    "handoff_false": {
+      "setup_capture_handoff_enabled": false
+    },
+    "handoff_true": {
+      "setup_capture_handoff_enabled": true
+    }
+  },
+  "version": "a05-v4"
+}

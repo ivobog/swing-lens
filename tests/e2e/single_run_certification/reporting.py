@@ -81,7 +81,7 @@ def pipeline_gate_inventory(manifest: dict) -> dict[str, str]:
 
 
 def pipeline_contract(manifest: dict, identity: dict) -> dict:
-    from single_run_certification.golden_oracle import canonical_hash, require_complete
+    from single_run_certification.candidate_validation import canonical_hash, require_complete
 
     require_complete(manifest)
     return {
@@ -90,6 +90,8 @@ def pipeline_contract(manifest: dict, identity: dict) -> dict:
         "identity": identity,
         "manifest_sha256": canonical_hash(manifest),
         "required_gates": pipeline_gate_inventory(manifest),
+        **({"candidate_validation": manifest["candidate_validation"]}
+           if "candidate_validation" in manifest else {}),
     }
 
 
@@ -97,12 +99,16 @@ def finalize_pipeline_certificate(
     artifact_dir: Path, *, invocation: dict, expected_identity: dict
 ) -> dict:
     """Re-evaluate artifacts, never accept a reported PASS/CERTIFIED as proof."""
+    from single_run_certification.candidate_validation import expected_manifest
     from single_run_certification.evidence import evaluate_pipeline_evidence
-    from single_run_certification.golden_oracle import expected_manifest
 
     contract = json.loads((artifact_dir / "certificate-contract.json").read_text())
     identity = contract["identity"]
-    manifest = expected_manifest(identity["handoff"])
+    manifest = expected_manifest(
+        identity["handoff"], candidate="candidate_validation" in contract,
+    )
+    if contract.get("candidate_validation") != manifest.get("candidate_validation"):
+        raise ValueError("CANDIDATE_CONTRACT_BINDING_MISMATCH")
     bundle = {}
     hashes = {}
     for relative in REQUIRED_ARTIFACTS:
@@ -131,6 +137,8 @@ def finalize_pipeline_certificate(
         "scope": PIPELINE_SCOPE,
         "identity": identity,
         "manifest_sha256": contract["manifest_sha256"],
+        **({"candidate_validation": manifest["candidate_validation"]}
+           if "candidate_validation" in manifest else {}),
         "required_gates": contract["required_gates"],
         "gates": recorder.gate_results,
         "verdict": recorder.verdict,

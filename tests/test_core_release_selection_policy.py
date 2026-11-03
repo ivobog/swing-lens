@@ -39,8 +39,22 @@ def test_unknown_high_risk_impact_cannot_certify_core():
 
 
 def test_changed_cohort_cannot_silently_defer_its_specialized_failure():
+    contract = release.core_policy(
+        impact("app/services/winner_probability/cohort_authority.py")
+    )
+    required = contract["a04_prerequisites"]["selectors"]
+    assert required and any("88" in node for node in required)
+    entries = contract["selection_manifest"]["entries"]
+    assert all(row["selected"] for row in entries if row["exact_test_id"] in required)
+    plan = release.prepare_core_plan(
+        "synthetic-prerequisite-only", "1", "local", False,
+        impact("app/services/winner_probability/cohort_authority.py"),
+    )
+    plan["a04_prerequisites"]["selectors"].pop()
+    plan.pop("plan_sha256")
+    plan["plan_sha256"] = release.digest(plan)
     with pytest.raises(release.EvidenceError, match="specialized prerequisite"):
-        release.core_policy(impact("app/services/winner_probability/cohort_authority.py"))
+        release.validate_plan(plan)
 
 
 def test_core_plan_cannot_accept_changed_selection_or_scope():

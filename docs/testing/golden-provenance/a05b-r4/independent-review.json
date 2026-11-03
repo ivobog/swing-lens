@@ -1,0 +1,471 @@
+{
+  "financial_vector_rows_retained": 402,
+  "fundamental_components": {
+    "balance_sheet_quality_score": "9.2826",
+    "capital_efficiency_score": "10.0000",
+    "earnings_quality_score": "9.5500",
+    "fcf_quality_score": "8.9363",
+    "forward_quality_score": "10.0000",
+    "growth_quality_score": "9.4101",
+    "liquidity_risk_score": "9.4865",
+    "profitability_quality_score": "10.0000",
+    "shareholder_quality_score": "7.9111",
+    "valuation_quality_score": "6.5515"
+  },
+  "fundamental_score": "9.1909",
+  "historical_authoring_scripts_executed": false,
+  "input_artifacts": {
+    "tests/e2e/single_run_certification/golden/v3/fundamental-derivation.json": "02c867000316d33048fff2d5444d0d812af10d233b319012450a71e5e206635f",
+    "tests/e2e/single_run_certification/golden/v3/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-derivations.json": "396332c5c807b4756ecf36e633a6ba8f778d00ebfcf6d01e8dac17b15d3d9f40",
+    "tests/e2e/single_run_certification/golden/v3/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f"
+  },
+  "method": "INDEPENDENT_FORMULA_REVIEW",
+  "numerical_changes": 0,
+  "policy_branch_review": {
+    "ceri": "EPS inputs, event acceptance, secondary cap2/total cap10 and clocks are unchanged. No prior certified comparable capture exists; configuration comparison cannot fabricate a baseline.",
+    "combined_ceiling": "All required inputs are present and complete; preserve-stricter-v1 cannot change any row. Existing numerical penalties and bearish gates remain.",
+    "handoff": "Winner and handoff were already required; both variants retain the same thirteen stages and exact semantic source memberships.",
+    "ibmi": "All collection/consumption flags are false in this specimen. Version-only config fields change identity; score precision and freshness branches have no feature rows.",
+    "lifecycle": "Inspection classification is diagnostic; no arithmetic, input, temporal default or pipeline terminal rule changes.",
+    "setup_winner": "Direct Technical v1 and Sector v2 restrictions are unchanged. No warning-free Technical is newly rejected/admitted. Ranking selection, generic Setup and pending Winner dates retain their independent literals.",
+    "technical_v2": "All ten sealed native inputs have high confidence and no warnings; READY admission is unchanged. Risk-only permission/ceiling is false for every row."
+  },
+  "production_outputs_used": false,
+  "ranking_reductions": [
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.4447",
+      "technical": "7.059",
+      "ticker": "BHE"
+    },
+    {
+      "penalty": "2.5",
+      "profile": "defensive_quality",
+      "score": "5.9493",
+      "technical": "7.337",
+      "ticker": "BHE"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.784",
+      "technical": "7.181",
+      "ticker": "BHE"
+    },
+    {
+      "penalty": "1.5",
+      "profile": "momentum_swing",
+      "score": "6.4696",
+      "technical": "6.9703",
+      "ticker": "BHE"
+    },
+    {
+      "penalty": "1.5",
+      "profile": "quality_momentum",
+      "score": "6.7488",
+      "technical": "7.0974",
+      "ticker": "BHE"
+    },
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.4452",
+      "technical": "7.0603",
+      "ticker": "BLLN"
+    },
+    {
+      "penalty": "0",
+      "profile": "defensive_quality",
+      "score": "8.4499",
+      "technical": "7.3383",
+      "ticker": "BLLN"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.7474",
+      "technical": "7.1287",
+      "ticker": "BLLN"
+    },
+    {
+      "penalty": "0",
+      "profile": "momentum_swing",
+      "score": "7.9485",
+      "technical": "6.932",
+      "ticker": "BLLN"
+    },
+    {
+      "penalty": "0",
+      "profile": "quality_momentum",
+      "score": "8.2343",
+      "technical": "7.0652",
+      "ticker": "BLLN"
+    },
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.4431",
+      "technical": "7.0543",
+      "ticker": "KLIC"
+    },
+    {
+      "penalty": "2.5",
+      "profile": "defensive_quality",
+      "score": "5.9475",
+      "technical": "7.3323",
+      "ticker": "KLIC"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.7807",
+      "technical": "7.1763",
+      "ticker": "KLIC"
+    },
+    {
+      "penalty": "1.5",
+      "profile": "momentum_swing",
+      "score": "6.4635",
+      "technical": "6.9593",
+      "ticker": "KLIC"
+    },
+    {
+      "penalty": "1.5",
+      "profile": "quality_momentum",
+      "score": "6.7453",
+      "technical": "7.0896",
+      "ticker": "KLIC"
+    },
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.4728",
+      "technical": "7.1393",
+      "ticker": "LSCC"
+    },
+    {
+      "penalty": "2.5",
+      "profile": "defensive_quality",
+      "score": "6.0143",
+      "technical": "7.4993",
+      "ticker": "LSCC"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.8411",
+      "technical": "7.2626",
+      "ticker": "LSCC"
+    },
+    {
+      "penalty": "1.5",
+      "profile": "momentum_swing",
+      "score": "6.6361",
+      "technical": "7.2731",
+      "ticker": "LSCC"
+    },
+    {
+      "penalty": "1.5",
+      "profile": "quality_momentum",
+      "score": "6.8556",
+      "technical": "7.3346",
+      "ticker": "LSCC"
+    },
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.3423",
+      "technical": "6.7664",
+      "ticker": "PDFS"
+    },
+    {
+      "penalty": "0",
+      "profile": "defensive_quality",
+      "score": "8.4523",
+      "technical": "7.3444",
+      "ticker": "PDFS"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.4039",
+      "technical": "6.638",
+      "ticker": "PDFS"
+    },
+    {
+      "penalty": "0",
+      "profile": "momentum_swing",
+      "score": "7.7716",
+      "technical": "6.6103",
+      "ticker": "PDFS"
+    },
+    {
+      "penalty": "0",
+      "profile": "quality_momentum",
+      "score": "8.1129",
+      "technical": "6.7954",
+      "ticker": "PDFS"
+    },
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.4431",
+      "technical": "7.0543",
+      "ticker": "ACMR"
+    },
+    {
+      "penalty": "2.5",
+      "profile": "defensive_quality",
+      "score": "5.9475",
+      "technical": "7.3323",
+      "ticker": "ACMR"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.7807",
+      "technical": "7.1763",
+      "ticker": "ACMR"
+    },
+    {
+      "penalty": "1.5",
+      "profile": "momentum_swing",
+      "score": "6.4635",
+      "technical": "6.9593",
+      "ticker": "ACMR"
+    },
+    {
+      "penalty": "1.5",
+      "profile": "quality_momentum",
+      "score": "6.7453",
+      "technical": "7.0896",
+      "ticker": "ACMR"
+    },
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.4788",
+      "technical": "7.1562",
+      "ticker": "RDVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "defensive_quality",
+      "score": "8.521",
+      "technical": "7.5162",
+      "ticker": "RDVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.7628",
+      "technical": "7.1508",
+      "ticker": "RDVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "momentum_swing",
+      "score": "8.0972",
+      "technical": "7.2024",
+      "ticker": "RDVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "quality_momentum",
+      "score": "8.3312",
+      "technical": "7.2804",
+      "ticker": "RDVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.3452",
+      "technical": "6.7745",
+      "ticker": "AVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "defensive_quality",
+      "score": "8.4555",
+      "technical": "7.3525",
+      "ticker": "AVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.4095",
+      "technical": "6.6461",
+      "ticker": "AVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "momentum_swing",
+      "score": "7.782",
+      "technical": "6.6293",
+      "ticker": "AVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "quality_momentum",
+      "score": "8.119",
+      "technical": "6.8089",
+      "ticker": "AVT"
+    },
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.346",
+      "technical": "6.7769",
+      "ticker": "DVN"
+    },
+    {
+      "penalty": "0",
+      "profile": "defensive_quality",
+      "score": "8.4565",
+      "technical": "7.3549",
+      "ticker": "DVN"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.4112",
+      "technical": "6.6485",
+      "ticker": "DVN"
+    },
+    {
+      "penalty": "0",
+      "profile": "momentum_swing",
+      "score": "7.785",
+      "technical": "6.6347",
+      "ticker": "DVN"
+    },
+    {
+      "penalty": "0",
+      "profile": "quality_momentum",
+      "score": "8.1208",
+      "technical": "6.8128",
+      "ticker": "DVN"
+    },
+    {
+      "penalty": "0",
+      "profile": "clean_compounder_pullback",
+      "score": "8.3446",
+      "technical": "6.7728",
+      "ticker": "JNJ"
+    },
+    {
+      "penalty": "0",
+      "profile": "defensive_quality",
+      "score": "8.4549",
+      "technical": "7.3508",
+      "ticker": "JNJ"
+    },
+    {
+      "penalty": "0",
+      "profile": "early_rocket",
+      "score": "7.4083",
+      "technical": "6.6444",
+      "ticker": "JNJ"
+    },
+    {
+      "penalty": "0",
+      "profile": "momentum_swing",
+      "score": "7.7797",
+      "technical": "6.6251",
+      "ticker": "JNJ"
+    },
+    {
+      "penalty": "0",
+      "profile": "quality_momentum",
+      "score": "8.1177",
+      "technical": "6.8059",
+      "ticker": "JNJ"
+    }
+  ],
+  "schema": "swinglens.independent-contract-review.v1",
+  "source_revision": "b244579e639fa750c6c7168785bc094a51f3893b",
+  "technical_and_combined_reductions": [
+    {
+      "combined_label": "Candidate",
+      "combined_score": "6.879",
+      "research_only": false,
+      "technical_composite": "7.3866",
+      "ticker": "ACMR",
+      "warnings": []
+    },
+    {
+      "combined_label": "Strong candidate",
+      "combined_score": "8.1244",
+      "research_only": false,
+      "technical_composite": "6.821",
+      "ticker": "AVT",
+      "warnings": []
+    },
+    {
+      "combined_label": "Candidate",
+      "combined_score": "6.8325",
+      "research_only": false,
+      "technical_composite": "7.2834",
+      "ticker": "BHE",
+      "warnings": []
+    },
+    {
+      "combined_label": "Strong candidate",
+      "combined_score": "8.246",
+      "research_only": false,
+      "technical_composite": "7.0912",
+      "ticker": "BLLN",
+      "warnings": []
+    },
+    {
+      "combined_label": "Strong candidate",
+      "combined_score": "8.0289",
+      "research_only": false,
+      "technical_composite": "6.6087",
+      "ticker": "DVN",
+      "warnings": []
+    },
+    {
+      "combined_label": "Strong candidate",
+      "combined_score": "8.0916",
+      "research_only": false,
+      "technical_composite": "6.7481",
+      "ticker": "JNJ",
+      "warnings": []
+    },
+    {
+      "combined_label": "Candidate",
+      "combined_score": "6.879",
+      "research_only": false,
+      "technical_composite": "7.3866",
+      "ticker": "KLIC",
+      "warnings": []
+    },
+    {
+      "combined_label": "Candidate",
+      "combined_score": "7.0496",
+      "research_only": false,
+      "technical_composite": "7.7659",
+      "ticker": "LSCC",
+      "warnings": []
+    },
+    {
+      "combined_label": "Strong candidate",
+      "combined_score": "8.0576",
+      "research_only": false,
+      "technical_composite": "6.6724",
+      "ticker": "PDFS",
+      "warnings": []
+    },
+    {
+      "combined_label": "Strong candidate",
+      "combined_score": "8.2984",
+      "research_only": false,
+      "technical_composite": "7.2076",
+      "ticker": "RDVT",
+      "warnings": []
+    }
+  ]
+}

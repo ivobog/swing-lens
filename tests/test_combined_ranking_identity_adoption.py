@@ -327,11 +327,14 @@ def test_optional_compatible_ibmi_is_used_and_included_in_identity(monkeypatch) 
 
     from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
 
+    config = load_ib_market_intelligence_config()
     ready = ibmi_feature(
         ticker="ACME",
         classification="POOR",
         components_json={"dollar_volume": 1000},
-        config_hash=load_ib_market_intelligence_config().config_hash,
+        config_hash=config.config_hash,
+        calculation_version=config.calculation_version,
+        source_version=config.source_version,
         as_of_session=cutoff.latest_completed_session,
         calendar_version=cutoff.calendar_version,
         calculated_at=cutoff.cutoff_at,

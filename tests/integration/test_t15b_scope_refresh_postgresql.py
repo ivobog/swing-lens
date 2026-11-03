@@ -88,7 +88,7 @@ def test_t15b_postgresql_scope_refresh_and_acquisition_certification(
 ) -> None:
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", disposable_postgres_database.replace("%", "%%"))
-    assert ScriptDirectory.from_config(config).get_heads() == ["0091_readiness_constraints"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0093_market_sector_rotation"]
     command.upgrade(config, "head")
     command.check(config)
     engine = create_engine(disposable_postgres_database)

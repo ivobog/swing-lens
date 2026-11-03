@@ -156,3 +156,39 @@ def test_junit_execution_accounts_for_skips_and_actual_node_ids(tmp_path):
     execution = certification._junit_execution(path)
     assert execution["executed"] == list(certification.EXACT_TEST_IDS)
     assert execution["failed"] == [certification.EXACT_TEST_IDS[1]]
+
+
+def test_extra_prerequisite_browser_preparation_is_confined_to_ci(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    calls = []
+
+    def prepare(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=0, stdout="prepared", stderr="")
+
+    monkeypatch.setattr(certification.subprocess, "run", prepare)
+    certification._prepare_prerequisite_browsers(tmp_path, {}, ["firefox"])
+    assert calls == []
+    certification._prepare_prerequisite_browsers(
+        tmp_path, {"GITHUB_ACTIONS": "true"}, ["chromium", "firefox"],
+    )
+    assert calls[0][1:] == ["-m", "playwright", "install", "--with-deps", "chromium", "firefox"]
+
+
+def test_failed_or_unreviewed_prerequisite_browser_preparation_blocks(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import pytest
+
+    from scripts.qa.release_evidence import EvidenceError
+
+    monkeypatch.setattr(
+        certification.subprocess, "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout="", stderr="failed"),
+    )
+    for browsers in (["firefox"], ["unreviewed"]):
+        with pytest.raises(EvidenceError):
+            certification._prepare_prerequisite_browsers(
+                tmp_path, {"GITHUB_ACTIONS": "true"}, browsers,
+            )

@@ -619,7 +619,27 @@ def _validate_permission(context, role, evidence):
 
         consumer = "WINNER"
     native = getattr(module, prefix + "_TO_" + consumer, None)
-    if native is None or native.evaluate(readiness) != supplied.decision:
+    policy_config = None
+    if prefix == "TECHNICAL" and consumer in {"COMBINED", "RANKING"}:
+        version = supplied.decision.policy_version
+        if version not in {
+            f"technical-to-{consumer.lower()}-v1",
+            f"technical-to-{consumer.lower()}-v2",
+        }:
+            raise ValueError("MUTATION_TECHNICAL_POLICY_VERSION_UNSUPPORTED")
+        native = technical.TechnicalConsumerPolicy(consumer, version)
+        justification = supplied.decision.justification.canonical_payload()
+        if justification:
+            from app.services.producer_readiness import NativeReadinessMetrics
+
+            policy_config = NativeReadinessMetrics.freeze(
+                {"configuration": justification["policy_configuration"]}
+            )
+    if (
+        native is None
+        or native.evaluate(readiness, **({"config": policy_config} if policy_config else {}))
+        != supplied.decision
+    ):
         raise ValueError("MUTATION_FROZEN_ELIGIBILITY_MISMATCH: " + role)
 
 
@@ -629,6 +649,7 @@ def mutation_eligibility(role: str, evidence, frozen: dict) -> MutationEligibili
         ConsumerEligibilityDecision,
         ConsumerEligibilityStatus,
         EligibilityReason,
+        NativeReadinessMetrics,
     )
 
     dto = frozen.get("decision") or {}
@@ -644,6 +665,7 @@ def mutation_eligibility(role: str, evidence, frozen: dict) -> MutationEligibili
         policy_version=dto["policy_version"],
         producer_readiness_fingerprint=dto["producer_readiness_fingerprint"],
         producer_evidence_id=dto["producer_evidence_id"],
+        justification=NativeReadinessMetrics.freeze(dto.get("justification") or {}),
     )
     return MutationEligibilityReference(
         role,
@@ -1086,6 +1108,16 @@ def artifact_mutation_context(
             )
             if not isinstance(frozen, dict):
                 raise ValueError("MUTATION_FROZEN_ELIGIBILITY_REQUIRED: " + role)
+            if role == "technical" and domain in {MutationDomain.COMBINED, MutationDomain.RANKING}:
+                from app.services.core_effective_configuration import CoreEffectiveConfiguration
+
+                core = CoreEffectiveConfiguration(getattr(configuration, "snapshot", configuration))
+                expected_policy = core.values.get("technical_admission")
+                observed_policy = ((frozen.get("decision") or {}).get("justification") or {}).get(
+                    "policy_configuration"
+                )
+                if Canonical.dumps(expected_policy) != Canonical.dumps(observed_policy):
+                    raise ValueError("MUTATION_TECHNICAL_POLICY_CORE_CONFIGURATION_MISMATCH")
             permissions.append(mutation_eligibility(role, evidence, frozen))
     context = core_mutation_context(
         db,

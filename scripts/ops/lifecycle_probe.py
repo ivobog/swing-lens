@@ -47,7 +47,9 @@ from app.services.lifecycle_quiesce import (
     worker_quiesce_identity,
 )
 from app.services.lifecycle_safety import (
+    LifecycleCheckoutMismatch,
     LifecycleConflict,
+    LifecycleInspectionUnavailable,
     PostgresExpectation,
     atomic_write_json,
     collect_windows_postgres_evidence,
@@ -76,6 +78,7 @@ class RuntimeStateClassification(StrEnum):
     ACTIVE_GENERATION_MISMATCH = "ACTIVE_GENERATION_MISMATCH"
     DEAD_STALE = "DEAD_STALE"
     AMBIGUOUS_CONFLICT = "AMBIGUOUS_CONFLICT"
+    INSPECTION_UNAVAILABLE = "INSPECTION_UNAVAILABLE"
     MISSING = "MISSING"
 
 
@@ -601,8 +604,14 @@ def _runtime_state_report(
             **diagnostics,
         }
     except (LifecycleConflict, OSError, psutil.Error, ValueError) as exc:
+        unavailable = isinstance(exc, (LifecycleInspectionUnavailable, psutil.AccessDenied))
+        checkout_mismatch = isinstance(exc, LifecycleCheckoutMismatch)
         report = {
-            "classification": RuntimeStateClassification.AMBIGUOUS_CONFLICT.value,
+            "classification": (
+                RuntimeStateClassification.INSPECTION_UNAVAILABLE.value
+                if unavailable
+                else RuntimeStateClassification.AMBIGUOUS_CONFLICT.value
+            ),
             "valid": False,
             "stale": False,
             "runtimeActive": False,
@@ -610,6 +619,14 @@ def _runtime_state_report(
             "staleStateReason": None,
             "state": state,
             "error": str(exc),
+            "reasonCode": (
+                "PROCESS_INSPECTION_UNAVAILABLE"
+                if unavailable
+                else "CHECKOUT_MISMATCH"
+                if checkout_mismatch
+                else "RUNTIME_IDENTITY_CONFLICT"
+            ),
+            "checkoutMismatchProven": checkout_mismatch,
         }
         if state is not None:
             report.update(_runtime_diagnostics(state))
@@ -721,8 +738,7 @@ def _retire_dead_generation_registrations(
                 )
                 if (
                     registered_supervisor is None
-                    or str(supervisor.get("instance_id") or "")
-                    != registered_supervisor.instance_id
+                    or str(supervisor.get("instance_id") or "") != registered_supervisor.instance_id
                     or int(supervisor.get("pid") or 0) != registered_supervisor.process_id
                 ):
                     return {

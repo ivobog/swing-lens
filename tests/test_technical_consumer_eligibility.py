@@ -3,6 +3,7 @@ from dataclasses import replace
 from decimal import Decimal
 
 import pytest
+from core_readiness_helpers import populate_fundamental_source, seal_core
 from readiness_helpers import seal_technical
 from setup_lifecycle.test_snapshot_builder import _ticker_context
 from test_combined_decision import _config
@@ -46,6 +47,10 @@ def _context(status: ReadinessStatus, *, ticker="MSFT", value="8.0"):
     context.raw_row.ticker = ticker
     context.technical_score.ticker = ticker
     context.fundamental_score.ticker = ticker
+    populate_fundamental_source(context.fundamental_score, raw_row=context.raw_row)
+    seal_core(
+        context.fundamental_score, calculated_at=context.raw_row.run.processed_at,
+    )
     context.technical_score.dual_score = Decimal(value)
     context.technical_score.technical_confidence = "normal"
     context.technical_score.insufficient_data = status is ReadinessStatus.INSUFFICIENT_EVIDENCE
@@ -181,10 +186,8 @@ def test_same_score_different_readiness_and_peer_population_isolation():
         fundamentals={"A": ready.fundamental_score, "B": bad.fundamental_score},
         technicals={"A": ready.technical_score, "B": bad.technical_score},
     )
-    from core_readiness_helpers import seal_core
-
     for source in kwargs["fundamentals"].values():
-        seal_core(source)
+        seal_core(source, calculated_at=source.calculation_evidence.calculated_at)
     alone = rank_profile(rows=[ready.raw_row], **kwargs)[0]
     together = rank_profile(rows=[bad.raw_row, ready.raw_row], **kwargs)
     assert together[0] == alone

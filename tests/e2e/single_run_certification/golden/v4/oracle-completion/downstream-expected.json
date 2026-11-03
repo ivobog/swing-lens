@@ -1,0 +1,3044 @@
+{
+  "handoff_variants": {
+    "false": {
+      "capture_evaluation_count": 2,
+      "capture_path": "INTERNAL_RECAPTURE",
+      "handoff_supplied": false,
+      "publication_evaluation_count": 1
+    },
+    "true": {
+      "capture_evaluation_count": 1,
+      "capture_path": "STAGE_HANDOFF",
+      "handoff_supplied": true,
+      "publication_evaluation_count": 1
+    }
+  },
+  "setup": [
+    {
+      "actionability_candidate": "ACTIONABLE",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "7.2834",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "READY",
+      "pivot_price": null,
+      "primary_phase": "READY",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "early_rocket",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "BHE",
+      "timeframe": "1d",
+      "trigger_price": null
+    },
+    {
+      "actionability_candidate": "ACTIONABLE",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "7.0912",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "READY",
+      "pivot_price": null,
+      "primary_phase": "READY",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "momentum_swing",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "BLLN",
+      "timeframe": "1d",
+      "trigger_price": null
+    },
+    {
+      "actionability_candidate": "ACTIONABLE",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "7.3866",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "READY",
+      "pivot_price": null,
+      "primary_phase": "READY",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "early_rocket",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "KLIC",
+      "timeframe": "1d",
+      "trigger_price": null
+    },
+    {
+      "actionability_candidate": "ACTIONABLE",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "7.7659",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "READY",
+      "pivot_price": null,
+      "primary_phase": "READY",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "early_rocket",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "LSCC",
+      "timeframe": "1d",
+      "trigger_price": null
+    },
+    {
+      "actionability_candidate": "WATCH_ONLY",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "6.6724",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "DEVELOPING",
+      "pivot_price": null,
+      "primary_phase": "CANDIDATE",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "defensive_quality",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "PDFS",
+      "timeframe": "1d",
+      "trigger_price": null
+    },
+    {
+      "actionability_candidate": "ACTIONABLE",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "7.3866",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "READY",
+      "pivot_price": null,
+      "primary_phase": "READY",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "early_rocket",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "ACMR",
+      "timeframe": "1d",
+      "trigger_price": null
+    },
+    {
+      "actionability_candidate": "ACTIONABLE",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "7.2076",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "READY",
+      "pivot_price": null,
+      "primary_phase": "READY",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "clean_compounder_pullback",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "RDVT",
+      "timeframe": "1d",
+      "trigger_price": null
+    },
+    {
+      "actionability_candidate": "WATCH_ONLY",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "6.8210",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "DEVELOPING",
+      "pivot_price": null,
+      "primary_phase": "CANDIDATE",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "defensive_quality",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "AVT",
+      "timeframe": "1d",
+      "trigger_price": null
+    },
+    {
+      "actionability_candidate": "WATCH_ONLY",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "6.6087",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "DEVELOPING",
+      "pivot_price": null,
+      "primary_phase": "CANDIDATE",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "defensive_quality",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "DVN",
+      "timeframe": "1d",
+      "trigger_price": null
+    },
+    {
+      "actionability_candidate": "WATCH_ONLY",
+      "close_above_trigger": null,
+      "confidence_label": "NORMAL",
+      "confidence_score": 72,
+      "context_completeness": ".5",
+      "data_as_of_date": "2026-10-26",
+      "data_quality_label": "NORMAL",
+      "dual_score": "6.7481",
+      "freshness_status": "FRESH",
+      "high_above_trigger": null,
+      "is_canonical": true,
+      "lifecycle_state_candidate": "DEVELOPING",
+      "pivot_price": null,
+      "primary_phase": "CANDIDATE",
+      "primary_setup_family": "GENERIC",
+      "ranking_profile": "defensive_quality",
+      "required_feature_coverage": "1",
+      "setup_score": "5.4",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "status": "POLICY_UNDECIDED"
+        }
+      },
+      "ticker": "JNJ",
+      "timeframe": "1d",
+      "trigger_price": null
+    }
+  ],
+  "setup_alerts": [],
+  "setup_changes": [],
+  "setup_episodes": [
+    {
+      "confidence_score": 72,
+      "current_actionability": "ACTIONABLE",
+      "current_phase": "READY",
+      "current_state": "READY",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "BHE",
+      "timeframe": "1d"
+    },
+    {
+      "confidence_score": 72,
+      "current_actionability": "ACTIONABLE",
+      "current_phase": "READY",
+      "current_state": "READY",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "BLLN",
+      "timeframe": "1d"
+    },
+    {
+      "confidence_score": 72,
+      "current_actionability": "ACTIONABLE",
+      "current_phase": "READY",
+      "current_state": "READY",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "KLIC",
+      "timeframe": "1d"
+    },
+    {
+      "confidence_score": 72,
+      "current_actionability": "ACTIONABLE",
+      "current_phase": "READY",
+      "current_state": "READY",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "LSCC",
+      "timeframe": "1d"
+    },
+    {
+      "confidence_score": 72,
+      "current_actionability": "WATCH_ONLY",
+      "current_phase": "CANDIDATE",
+      "current_state": "DEVELOPING",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "PDFS",
+      "timeframe": "1d"
+    },
+    {
+      "confidence_score": 72,
+      "current_actionability": "ACTIONABLE",
+      "current_phase": "READY",
+      "current_state": "READY",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "ACMR",
+      "timeframe": "1d"
+    },
+    {
+      "confidence_score": 72,
+      "current_actionability": "ACTIONABLE",
+      "current_phase": "READY",
+      "current_state": "READY",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "RDVT",
+      "timeframe": "1d"
+    },
+    {
+      "confidence_score": 72,
+      "current_actionability": "WATCH_ONLY",
+      "current_phase": "CANDIDATE",
+      "current_state": "DEVELOPING",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "AVT",
+      "timeframe": "1d"
+    },
+    {
+      "confidence_score": 72,
+      "current_actionability": "WATCH_ONLY",
+      "current_phase": "CANDIDATE",
+      "current_state": "DEVELOPING",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "DVN",
+      "timeframe": "1d"
+    },
+    {
+      "confidence_score": 72,
+      "current_actionability": "WATCH_ONLY",
+      "current_phase": "CANDIDATE",
+      "current_state": "DEVELOPING",
+      "missing_observation_sessions": 0,
+      "opened_on": "2026-10-26",
+      "setup_family": "GENERIC",
+      "state_age_sessions": 0,
+      "status": "ACTIVE",
+      "ticker": "JNJ",
+      "timeframe": "1d"
+    }
+  ],
+  "setup_events": [
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "BHE",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "BHE",
+      "to_state": "READY"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "BLLN",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "BLLN",
+      "to_state": "READY"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "KLIC",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "KLIC",
+      "to_state": "READY"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "LSCC",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "LSCC",
+      "to_state": "READY"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "PDFS",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "PDFS",
+      "to_state": "DEVELOPING"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "ACMR",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "ACMR",
+      "to_state": "READY"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "RDVT",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "RDVT",
+      "to_state": "READY"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "AVT",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "AVT",
+      "to_state": "DEVELOPING"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "DVN",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "DVN",
+      "to_state": "DEVELOPING"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "CANONICAL_REVISION",
+      "from_state": null,
+      "ticker": "JNJ",
+      "to_state": "CANONICAL"
+    },
+    {
+      "effective_date": "2026-10-26",
+      "event_type": "EPISODE_OPENED",
+      "from_state": null,
+      "ticker": "JNJ",
+      "to_state": "DEVELOPING"
+    }
+  ],
+  "winner": [
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "6.8325",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "early_rocket",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "6_5_to_8",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Candidate",
+        "technical_data_quality": "high",
+        "technical_score": "7.2834",
+        "ticker": "BHE",
+        "trigger_state": "Overheated, avoid chasing",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "BHE",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    },
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "8.2460",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "momentum_swing",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "8_plus",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Candidate",
+        "technical_data_quality": "high",
+        "technical_score": "7.0912",
+        "ticker": "BLLN",
+        "trigger_state": "No clear trade",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "BLLN",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    },
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "6.8790",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "early_rocket",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "6_5_to_8",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Candidate",
+        "technical_data_quality": "high",
+        "technical_score": "7.3866",
+        "ticker": "KLIC",
+        "trigger_state": "Overheated, avoid chasing",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "KLIC",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    },
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "7.0496",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "early_rocket",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "6_5_to_8",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Candidate",
+        "technical_data_quality": "high",
+        "technical_score": "7.7659",
+        "ticker": "LSCC",
+        "trigger_state": "Overheated, avoid chasing",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "LSCC",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    },
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "8.0576",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "defensive_quality",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "8_plus",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Strong candidate",
+        "technical_data_quality": "high",
+        "technical_score": "6.6724",
+        "ticker": "PDFS",
+        "trigger_state": "No clear trade",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "PDFS",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    },
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "6.8790",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "early_rocket",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "6_5_to_8",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Candidate",
+        "technical_data_quality": "high",
+        "technical_score": "7.3866",
+        "ticker": "ACMR",
+        "trigger_state": "Overheated, avoid chasing",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "ACMR",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    },
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "8.2984",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "clean_compounder_pullback",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "8_plus",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Strong candidate",
+        "technical_data_quality": "high",
+        "technical_score": "7.2076",
+        "ticker": "RDVT",
+        "trigger_state": "No clear trade",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "RDVT",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    },
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "8.1244",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "defensive_quality",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "8_plus",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Strong candidate",
+        "technical_data_quality": "high",
+        "technical_score": "6.8210",
+        "ticker": "AVT",
+        "trigger_state": "No clear trade",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "AVT",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    },
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "8.0289",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "defensive_quality",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "8_plus",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Strong candidate",
+        "technical_data_quality": "high",
+        "technical_score": "6.6087",
+        "ticker": "DVN",
+        "trigger_state": "No clear trade",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "DVN",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    },
+    {
+      "calculation_version": "owpe-calc-1.1.0",
+      "captured_at": "2026-10-26T20:33:00+00:00",
+      "eligibility_status": "ELIGIBLE",
+      "entry_data_status": "NOT_DUE",
+      "entry_schedule_status": "RESOLVED",
+      "exclusion_reason": null,
+      "feature_schema_version": "owpe-features-1.0.0",
+      "features": {
+        "canonical_sector": "Technology",
+        "combined_score": "8.0916",
+        "dual_score_band": "6_5_to_8",
+        "earnings_risk": "clear",
+        "fundamental_coverage": "10",
+        "fundamental_score": "9.1909",
+        "market_regime": "Bull trend",
+        "market_regime_family": "Bull trend",
+        "market_risk_state": "Green",
+        "planned_entry_session": "2026-10-27",
+        "prediction_as_of_date": "2026-10-26",
+        "ranking_profile": "defensive_quality",
+        "raw_sector": "Technology Services",
+        "reward_risk": "1.9325",
+        "score_band": "8_plus",
+        "screener_provenance": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+        "sector_leadership_bucket": null,
+        "sector_rank": null,
+        "sector_state": null,
+        "setup_family": "Strong candidate",
+        "technical_data_quality": "high",
+        "technical_score": "6.7481",
+        "ticker": "JNJ",
+        "trigger_state": "No clear trade",
+        "universe_provenance": "single-run-certification.csv"
+      },
+      "planned_entry_session": "2026-10-27",
+      "prediction_as_of_date": "2026-10-26",
+      "source_data_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "source_eligibility": {
+        "combined": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "fundamental": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "ranking": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        },
+        "regime": {
+          "included": true,
+          "reasons": [],
+          "requirement": "OPTIONAL",
+          "status": "ELIGIBLE"
+        },
+        "sector": {
+          "included": false,
+          "reasons": [
+            "DEGRADED_POLICY_UNDECIDED"
+          ],
+          "requirement": "OPTIONAL",
+          "status": "POLICY_UNDECIDED"
+        },
+        "technical": {
+          "included": true,
+          "reasons": [],
+          "requirement": "MANDATORY",
+          "status": "ELIGIBLE"
+        }
+      },
+      "ticker": "JNJ",
+      "warning_flags": [
+        "missing_sector_rotation_context"
+      ]
+    }
+  ],
+  "winner_acquisition": [
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "BHE"
+    },
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "BLLN"
+    },
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "KLIC"
+    },
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "LSCC"
+    },
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "PDFS"
+    },
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "ACMR"
+    },
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "RDVT"
+    },
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "AVT"
+    },
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "DVN"
+    },
+    {
+      "acquisition_outcome": "INSERTED",
+      "decision_cutoff": "2026-10-26T20:33:00+00:00",
+      "eligibility_reason": null,
+      "ticker": "JNJ"
+    }
+  ],
+  "winner_estimates": [
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "BHE",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "BLLN",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "KLIC",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "LSCC",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "PDFS",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "ACMR",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "RDVT",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "AVT",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "DVN",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "effective_n": "0",
+      "estimate_kind": "DECISION_TIME",
+      "evidence_grade": "Insufficient",
+      "insufficient_reasons": [
+        "no_eligible_cohort"
+      ],
+      "lower_bound": null,
+      "point_probability": null,
+      "sample_n": 0,
+      "source": "INSUFFICIENT",
+      "ticker": "JNJ",
+      "training_cutoff_at": "2026-10-26T20:30:00+00:00",
+      "upper_bound": null
+    }
+  ],
+  "winner_forwards": [
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BHE"
+    },
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "BLLN"
+    },
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "KLIC"
+    },
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "LSCC"
+    },
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "PDFS"
+    },
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "ACMR"
+    },
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "RDVT"
+    },
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "AVT"
+    },
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "DVN"
+    },
+    {
+      "due_session": "2026-10-27",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    },
+    {
+      "due_session": "2026-10-29",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    },
+    {
+      "due_session": "2026-11-02",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    },
+    {
+      "due_session": "2026-11-09",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    },
+    {
+      "due_session": "2026-11-23",
+      "entry_model": "NEXT_OPEN",
+      "entry_session": "2026-10-27",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    },
+    {
+      "due_session": "2026-10-26",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 1,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    },
+    {
+      "due_session": "2026-10-28",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 3,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    },
+    {
+      "due_session": "2026-10-30",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    },
+    {
+      "due_session": "2026-11-06",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 10,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    },
+    {
+      "due_session": "2026-11-20",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_session": "2026-10-26",
+      "horizon_sessions": 20,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "ticker": "JNJ"
+    }
+  ],
+  "winner_targets": [
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "BHE"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "BHE"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "BLLN"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "BLLN"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "KLIC"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "KLIC"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "LSCC"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "LSCC"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "PDFS"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "PDFS"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "ACMR"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "ACMR"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "RDVT"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "RDVT"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "AVT"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "AVT"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "DVN"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "DVN"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_NEXT_OPEN",
+      "entry_model": "NEXT_OPEN",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "JNJ"
+    },
+    {
+      "definition": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+      "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+      "horizon_sessions": 5,
+      "is_current_revision": true,
+      "revision": 1,
+      "status": "PENDING",
+      "stop_pct": "2",
+      "target_pct": "2.5",
+      "ticker": "JNJ"
+    }
+  ]
+}

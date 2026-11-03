@@ -102,8 +102,9 @@ def test_certified_capture_never_selects_legacy_score_as_change_predecessor() ->
 
     prior, state, excluded = select_prior_comparison(current, [legacy, certified_older])
     assert prior is certified_older
-    assert state is ComparisonState.COMPARABLE
-    assert excluded == 0
+    # An evidence address alone cannot prove a detached snapshot's semantics.
+    assert state is ComparisonState.EVIDENCE_CONTRACT_TRANSITION
+    assert excluded == 1
 
     prior, state, excluded = select_prior_comparison(current, [legacy])
     assert prior is None

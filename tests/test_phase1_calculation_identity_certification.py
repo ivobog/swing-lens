@@ -42,7 +42,7 @@ from app.services.contextual_calculation_identity import (
     expected_regime_identity,
 )
 from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
-from app.services.market_clock_service import MarketClockService
+from app.services.market_clock_service import CALENDAR_VERSION, MarketClockService
 from app.services.market_regime_policy import load_market_regime_command_center_config
 from app.services.sector_universe_service import _compatible_run_artifacts
 from app.services.setup_lifecycle.source_loader import (
@@ -529,7 +529,7 @@ def _ibmi_feature(
         as_of_session=date(2026, 9, 11),
         calculated_at=calculated_at,
         calculation_cutoff_at=cutoff,
-        calendar_version="swinglens-us-equities-v1",
+        calendar_version=CALENDAR_VERSION,
         module="VOLATILITY",
         classification="AVAILABLE",
         score=Decimal("5"),

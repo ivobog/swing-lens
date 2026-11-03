@@ -1338,7 +1338,7 @@ def _validate_handoff_temporal_lineage(
             except RequiredHandoffArtifactError as exc:
                 failures.append(str(exc))
         if sector is not None and market is not None:
-            if sector.market_regime_snapshot_id != market.id:
+            if not _sector_market_parent_matches(db, sector, market):
                 failures.append(f"{ticker}:sector_market_parent")
         if context.sector_rotation_row is not None and (
             sector is None or context.sector_rotation_row.snapshot_id != sector.id
@@ -1397,6 +1397,54 @@ def _validate_handoff_temporal_lineage(
             "decision artifacts do not descend from the frozen cutoff: "
             + ",".join(sorted(set(failures))[:25]),
         )
+
+
+def _sector_market_parent_matches(db: Session, sector, market) -> bool:
+    if sector.market_regime_snapshot_id == market.id:
+        return True
+    if sector.market_regime_snapshot_id is not None:
+        return False
+
+    # Sector clears the compatibility parent when Regime is policy-omitted.
+    # Its sealed graph must still pin the exact selected source and the frozen
+    # omission must agree with that source's certified readiness and policy.
+    from app.models.tables import CoreCalculationEvidence
+    from app.services.contextual_consumer_eligibility import (
+        REGIME_TO_SECTOR,
+        contextual_decision_input,
+    )
+    from app.services.core_calculation_evidence import (
+        CoreEvidenceKind,
+        get_certified_evidence_for_row,
+    )
+    from app.services.core_mutation_authority import _validate_evidence, validate_source_values
+
+    sector_evidence = get_certified_evidence_for_row(
+        db, kind=CoreEvidenceKind.SECTOR, current_row=sector
+    )
+    market_evidence = get_certified_evidence_for_row(
+        db, kind=CoreEvidenceKind.REGIME, current_row=market
+    )
+    for row, evidence in ((sector, sector_evidence), (market, market_evidence)):
+        if not isinstance(evidence, CoreCalculationEvidence):
+            return False
+        _validate_evidence(evidence)
+        validate_source_values(row, evidence, db=db)
+    pins = sector_evidence.source_evidence_ids_json or {}
+    if pins.get("regime") != market_evidence.id:
+        return False
+    frozen = (
+        (sector_evidence.payload_json.get("debug") or {}).get("contextual_consumer_eligibility")
+        or {}
+    ).get("regime")
+    admitted, permission = contextual_decision_input(market, REGIME_TO_SECTOR)
+    if admitted is not None or not isinstance(frozen, dict) or frozen.get("included") is not False:
+        return False
+    return all(
+        CanonicalEvidenceSerializer.dumps(frozen.get(key))
+        == CanonicalEvidenceSerializer.dumps(permission.get(key))
+        for key in ("included", "decision", "producer_readiness")
+    )
 
 
 def _temporal_artifact_matches(

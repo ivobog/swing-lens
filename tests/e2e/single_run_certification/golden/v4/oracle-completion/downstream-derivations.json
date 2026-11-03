@@ -1,0 +1,28 @@
+{
+  "canonical": "One captured source per exact (ticker,1d,Oct26) group with complete required bar/identity; optional Sector is excluded by policy. Select that source; preserve separate legacy Oct23 selections without treating them as certified lifecycle history.",
+  "dates": "Use only frozen calendar.sessions; NEXT_OPEN Oct27 and diagnostic Oct26 are session1; due=session[index(entry)+horizon-1]. Exactly100 pending forwards,20 target-stops,10 decision estimates.",
+  "handoff": "True supplies exact capture IDs; False requests internal recapture of the same sealed semantic facts. Both resolve to ten current canonical snapshots; evaluation audit, creator evaluation and capture references are checked relationally, never assumed equal to generated IDs.",
+  "history_metadata_discrepancy": "Frozen history.json prose says18 decoy captures; its pinned prerequisites-source.py.txt _seed_winner_history defines20. Both are preserved; no decoy legacy row is training-eligible, so neither count supplies positive evidence.",
+  "insufficient": "No prior certified training-eligible evidence exists. Legacy decoy captures lack point_in_time_validated/training ledger; new target outcomes are pending. sample_n=effective_n=0, no cohort, probabilities/bounds null.",
+  "precision": "Four-place persisted core scores; Winner feature numbers compare numerically; states/dates/semantic populations exact; generated IDs validate source ownership and foreign-key relationships.",
+  "ranking_selection": "For each ticker choose smallest (profile_rank,profile_name), not a presumed default profile. Values are independently derived in core-expected.json.",
+  "setup_derivation": "Supported families require setup>=5.5, but frozen score=5.4. Generic fallback technical>=5 always; six >=7 READY, four DEVELOPING. Generic trigger not applicable. Trend/RS/classification agreement1 and contraction.5 ->.875; context .5 because Sector risk-off readiness is DEGRADED/POLICY_UNDECIDED; confidence72 NORMAL. No certified earlier history/episode. Exactly ten episode openings, no state transitions or signal changes. Opening is EPISODE_OPENED, not STATE_TRANSITION; no NEW_READY alert.",
+  "setup_policy_sources": [
+    "family_adapters.py:40-88",
+    "generic_adapter.py:34-99",
+    "lifecycle_engine.py:174-223",
+    "confidence_service.py:33-72",
+    "repository.py:1212-1260",
+    "canonicalization.py:234-283",
+    "alert_service.py:714-744"
+  ],
+  "winner_derivation": "All mandatory Technical/Ranking/Combined sources are complete and eligible. Fundamental/Regime optional sources are included. Sector risk-off warning yields DEGRADED -> POLICY_UNDECIDED, so optional Sector is omitted with null fields and missing_sector_rotation_context warning. This is an explicit native omission policy, not an invented null. No Setup features are admitted. Feature exclusions test missing/incomplete sources, not trade desirability. Thus ten eligible captures, with no positive probability claim.",
+  "winner_policy_sources": [
+    "consumer_eligibility.py:68-139",
+    "feature_extractor.py:184-198,316-384,555-624",
+    "repository.py:357-363",
+    "pending_outcome_service.py:75-124,205-272",
+    "training_eligibility.py:115-132",
+    "probability_estimator.py:604-619,897-953"
+  ]
+}

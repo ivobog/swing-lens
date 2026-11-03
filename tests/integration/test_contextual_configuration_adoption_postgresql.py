@@ -265,6 +265,134 @@ def test_native_ceri_four_outputs_config_drift_and_history(contextual_engine):
         assert db.get(CoreCalculationEvidence, address).payload_json == original
 
 
+def test_ceri_comparison_uses_sealed_consumer_configuration_with_equal_yaml_hash(contextual_engine):
+    from datetime import timedelta
+
+    from app.models.ceri_tables import CeriScoreSnapshot
+    from app.services.ceri.change_authority import validate_score_comparison
+    from app.services.ceri.change_semantics import ComparisonState, select_prior_comparison
+
+    c1 = resolve_ceri_configuration()
+    consumer = {**c1.values["consumer"], "volatility_enabled": True, "ibmi_enabled": True}
+    c2 = resolve_ceri_configuration(c1.ceri_config(), consumer=consumer)
+    assert c1.ceri_config().config_hash == c2.ceri_config().config_hash
+    assert c1.snapshot.semantic_hash != c2.snapshot.semantic_hash
+    with Session(contextual_engine) as db:
+        db.add_all(
+            [
+                UploadRun(id=7, filename="prior.csv", status="COMPLETED"),
+                UploadRun(id=8, filename="current.csv", status="COMPLETED"),
+                UploadRun(id=9, filename="same-policy.csv", status="COMPLETED"),
+                CeriCompany(id=1, ticker="ACME"),
+            ]
+        )
+        db.flush()
+        rows = []
+        for index, frozen in enumerate((c1, c2, c2)):
+            run_id = 7 + index
+            cutoff = MarketClockService().cutoff_for(
+                datetime(2026, 9, 14, 21, tzinfo=UTC) + timedelta(minutes=index),
+                reason="CERI_TRANSITION",
+            )
+            config = frozen.ceri_config()
+            base = consumer_context_identity(
+                market_cutoff=cutoff, run_id=run_id, pipeline_id=None, ticker="ACME", company_id=1
+            )
+            identity = frozen.bind(
+                build_contextual_result_identity(
+                    base=base,
+                    namespace="ceri-context",
+                    config_hash=config.config_hash,
+                    calculation_version=config.engine.calculation_version,
+                    engine_version=config.engine.calculation_version,
+                    source_artifacts=(),
+                    source_payload={"explicit_unavailable_inputs": True},
+                    company_id=1,
+                )
+            )
+            service = CeriSnapshotService(effective_configuration=frozen)
+            row = service.build_snapshot(
+                run_id=run_id,
+                company_id=1,
+                ticker="ACME",
+                as_of_session=cutoff.latest_completed_session,
+                cutoff_at=cutoff.cutoff_at,
+                opportunity=CeriOpportunityScoreService(config).calculate(revision_features=[]),
+                event_risk=CeriEventRiskService(config).calculate(
+                    as_of_session=cutoff.latest_completed_session
+                ),
+                confidence=CeriConfidenceService(config).calculate(
+                    as_of_session=cutoff.latest_completed_session, revision_features=[]
+                ),
+                source_ids=[],
+                evidence_lineage={
+                    "historical_view_mode": "AS_KNOWN",
+                    **identity_metadata(identity, policy="CERI_TRANSITION_PG"),
+                },
+            )
+            service.persist_snapshot(db, row)
+            rows.append(row)
+        db.commit()
+        addresses = [row.id for row in rows]
+    # Reload from PostgreSQL; no test-supplied relationship or live config hash.
+    with Session(contextual_engine) as db:
+        prior, current, same = [db.get(CeriScoreSnapshot, address) for address in addresses]
+        selected, state, excluded = select_prior_comparison(current, [prior])
+        assert selected is prior and state is ComparisonState.CONFIG_TRANSITION and excluded == 1
+        validate_score_comparison(db, current=current, prior=prior, comparison_state=state)
+        with pytest.raises(ValueError, match="MUTATION_CERI_CHANGE_CORE_CONFIGURATION_TRANSITION"):
+            validate_score_comparison(
+                db, current=current, prior=prior, comparison_state=ComparisonState.COMPARABLE
+            )
+        selected, state, excluded = select_prior_comparison(same, [prior, current])
+        assert selected is current and state is ComparisonState.COMPARABLE and excluded == 0
+        validate_score_comparison(db, current=same, prior=current, comparison_state=state)
+
+
+def test_handoff_accepts_only_certified_policy_omitted_sector_parent(contextual_engine):
+    from test_technical_work import _synthetic_frame
+
+    from app.models.tables import MarketRegimeSnapshot, SectorRotationSnapshot
+    from app.services.transition_preflight_plan_service import _sector_market_parent_matches
+
+    c1 = resolve_sector_configuration()
+    regime = resolve_regime_configuration()
+    frame = _synthetic_frame()
+    for column in ("open", "high", "low", "close"):
+        frame[column] = frame[column].iloc[::-1].to_numpy()
+    with Session(contextual_engine) as seed_db:
+        cutoff, _, _ = seed_native_core(
+            seed_db, extra_configurations=(c1, regime), price_frame=frame
+        )
+    with Session(contextual_engine) as db:
+        MarketRegimeCommandCenterService().build_snapshot(
+            db, run_id=7, market_cutoff=cutoff, effective_configuration=regime
+        )
+        SectorRotationService().build_sector_rotation_snapshot(
+            db, 7, market_cutoff=cutoff, effective_configuration=c1
+        )
+        db.commit()
+        market = db.query(MarketRegimeSnapshot).filter_by(run_id=7).one()
+        sector = db.query(SectorRotationSnapshot).filter_by(run_id=7).one()
+        assert sector.market_regime_snapshot_id is None
+        assert _sector_market_parent_matches(db, sector, market)
+        sector.market_regime_snapshot_id = market.id + 100
+        assert not _sector_market_parent_matches(db, sector, market)
+        sector.market_regime_snapshot_id = None
+        evidence = db.get(CoreCalculationEvidence, sector.evidence_id)
+        original = deepcopy(evidence.payload_json)
+        changed = deepcopy(original)
+        changed["debug"]["contextual_consumer_eligibility"]["regime"]["included"] = True
+        evidence.payload_json = changed
+        with db.no_autoflush, pytest.raises(
+            ValueError, match="MUTATION_SOURCE_PAYLOAD_FINGERPRINT_MISMATCH"
+        ):
+            _sector_market_parent_matches(db, sector, market)
+        db.rollback()
+        assert _sector_market_parent_matches(db, sector, market)
+        db.rollback()
+
+
 def test_native_ibmi_liquidity_metric_drift_exact_constituents_history(contextual_engine):
     original = load_ib_market_intelligence_config()
     changed_raw = deepcopy(original.raw)

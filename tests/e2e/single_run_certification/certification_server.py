@@ -56,7 +56,7 @@ class DeterministicReadOnlyIB:
             raise RuntimeError("deterministic IB is not connected")
         self._record("current_time", {})
         if os.environ.get("CERTIFICATION_GOLDEN_VERSION"):
-            from single_run_certification.golden_oracle import load_golden
+            from single_run_certification.candidate_validation import load_golden
 
             return datetime.fromisoformat(load_golden()["business_time"]["market_cutoff"])
         return datetime.now(UTC)
@@ -94,7 +94,7 @@ class DeterministicReadOnlyIB:
 
 def _bars_for_ticker(ticker: str) -> list[SimpleNamespace]:
     if os.environ.get("CERTIFICATION_GOLDEN_VERSION"):
-        from single_run_certification.golden_oracle import artifact
+        from single_run_certification.candidate_validation import artifact
 
         return [SimpleNamespace(date=date.fromisoformat(row["date"]), **{
             key: float(row[key]) for key in ("open", "high", "low", "close", "volume")
@@ -468,7 +468,7 @@ _install_frozen_ceri_providers()
 _install_deterministic_fetch_dependency()
 if os.environ.get("CERTIFICATION_GOLDEN_VERSION"):
     from app.settings import get_settings as _golden_settings
-    from single_run_certification.golden_oracle import VERSION as _golden_version
+    from single_run_certification.candidate_validation import VERSION as _golden_version
     from single_run_certification.golden_runtime import business_inputs
 
     if os.environ["CERTIFICATION_GOLDEN_VERSION"] != _golden_version:

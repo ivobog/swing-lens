@@ -27,13 +27,13 @@ from app.services.background_job_service import (
 )
 from app.services.domain_write_fence import assert_current_execution_ownership, fence_domain_commits
 from app.services.runtime_mutation_authority import RecoveryAuthority
+from single_run_certification.candidate_validation import VERSION
 from single_run_certification.fixtures import (
     _seed_price_bars,
     _seed_setup_lifecycle_baseline,
     certification_as_of_session,
 )
 from single_run_certification.golden_assertions import assert_completed_oracle
-from single_run_certification.golden_oracle import VERSION
 from single_run_certification.golden_runtime import business_inputs
 from single_run_certification.reporting import CertificationRecorder
 from single_run_certification.test_real_writer_cardinality import (
