@@ -460,6 +460,24 @@ class _GitHubReader:
         _relative_data_path(path)
         _require(bool(re.fullmatch(r"[0-9a-f]{40}", ref)), "GITHUB_EXACT_COMMIT_REQUIRED")
         value = self.get(f"/repos/{GITHUB_REPOSITORY}/contents/{quote(path, safe='/')}?ref={ref}")
+        blob_sha = None
+        if value.get("type") == "file" and value.get("encoding") == "none":
+            # Contents omits bodies above 1 MiB. Read the exact commit-bound Git
+            # object instead; never follow download_url or an arbitrary host.
+            blob_sha = value.get("sha", "")
+            _require(
+                bool(re.fullmatch(r"[0-9a-f]{40}", blob_sha))
+                and type(value.get("size")) is int
+                and 0 <= value["size"] <= 10 * 1024 * 1024,
+                "GITHUB_INVALID_FILE_RESPONSE",
+            )
+            blob = self.get(f"/repos/{GITHUB_REPOSITORY}/git/blobs/{blob_sha}")
+            _require(
+                blob.get("sha") == blob_sha and blob.get("size") == value["size"]
+                and blob.get("encoding") == "base64",
+                "GITHUB_INVALID_FILE_RESPONSE",
+            )
+            value = {**value, "encoding": blob["encoding"], "content": blob.get("content")}
         _require(
             value.get("type") == "file" and value.get("encoding") == "base64",
             "GITHUB_REGULAR_DATA_FILE_REQUIRED",
@@ -470,6 +488,12 @@ class _GitHubReader:
         except (ValueError, KeyError):
             raise ProvenanceError("GITHUB_INVALID_FILE_RESPONSE") from None
         _require(len(content) == value["size"], "GITHUB_INVALID_FILE_RESPONSE")
+        if blob_sha is not None:
+            identity = b"blob " + str(len(content)).encode() + b"\0" + content
+            _require(
+                hashlib.sha1(identity, usedforsecurity=False).hexdigest() == blob_sha,
+                "GITHUB_INVALID_FILE_RESPONSE",
+            )
         return content
 
 

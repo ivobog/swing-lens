@@ -537,6 +537,7 @@ def test_actual_pytest_terminal_observer(experiment, tmp_path, monkeypatch, faul
 
 
 def test_real_playwright_session_cleanup_keeps_source_bound_plan(experiment, tmp_path):
+    import shlex
     import subprocess
     import sys
 
@@ -555,7 +556,12 @@ def test_real_playwright_session_cleanup_keeps_source_bound_plan(experiment, tmp
     plan_bytes = json.dumps(experiment.plan, sort_keys=True).encode()
     release.validate_plan(experiment.plan)
     plan_path.write_bytes(plan_bytes)
-    output = scratch / "swinglens-playwright-output"
+    output = Path(next(
+        option.removeprefix("--output=")
+        for option in shlex.split(addopts) if option.startswith("--output=")
+    ))
+    if not output.is_absolute():
+        output = workspace / output
     output.mkdir(parents=True)
     stale = output / "prior-scratch-marker"
     stale.write_text("owned scratch only")

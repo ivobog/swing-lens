@@ -1394,7 +1394,7 @@
             "lane": "browser-smoke",
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
-            "reviewed_test_sha256": "ac64530e1a98c78a134a15d174064ccda44380864584f85e73238e5f734edadf"
+            "reviewed_test_sha256": "b327ba43efacfd398d63c20289ace556910df6ee0731a582e7285d53e6a87a3b"
           }
         ],
         "oracle": "A05B expected Winner identities/outcomes and retained A08 reached-assertion/omission evidence.",
@@ -1407,7 +1407,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "1abececc25dd25fa16877165f9110d1b8b037b04426fad4f8d2502ac79690c59",
+        "review_sha256": "e9f6c19507acf84ef3733a2af41cab3f664e97d44658f55a683f6ceb8af0588c",
         "review_addenda": [
           {
             "task": "FR02",
@@ -1516,6 +1516,10 @@
           {
             "path": "scripts/production_runtime_certification.py",
             "symbol": "main"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/screenshot_evidence.py",
+            "symbol": "screenshot_regions"
           }
         ],
         "impact_patterns": [
@@ -1544,6 +1548,78 @@
             "positive": "Same original authority with retained Setup handoff enabled.",
             "negative": "Same controlled A14 violations reject at intended gates.",
             "reviewed_test_sha256": "3a886b890df5b3a07d4123fee46d52bd18d5c5f8aaa1b8b4cefbada6a7b7940b"
+          },
+          {
+            "id": "tests/test_screenshot_evidence_regions.py::test_bounded_regions_cover_the_entire_document_without_gaps[1440-1000-1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every document region is covered by dimension-bounded native PNG tiles.",
+            "negative": "Invalid geometry cannot claim complete image evidence; existing financial assertions remain mandatory.",
+            "reviewed_test_sha256": "f5b8767744a8ad692809d2c2c1b4a9de0325b6fc53ecb76ef172bc9c776d0278"
+          },
+          {
+            "id": "tests/test_screenshot_evidence_regions.py::test_bounded_regions_cover_the_entire_document_without_gaps[40000-700-1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every document region is covered by dimension-bounded native PNG tiles.",
+            "negative": "Invalid geometry cannot claim complete image evidence; existing financial assertions remain mandatory.",
+            "reviewed_test_sha256": "f5b8767744a8ad692809d2c2c1b4a9de0325b6fc53ecb76ef172bc9c776d0278"
+          },
+          {
+            "id": "tests/test_screenshot_evidence_regions.py::test_bounded_regions_cover_the_entire_document_without_gaps[700-40000-2]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every document region is covered by dimension-bounded native PNG tiles.",
+            "negative": "Invalid geometry cannot claim complete image evidence; existing financial assertions remain mandatory.",
+            "reviewed_test_sha256": "f5b8767744a8ad692809d2c2c1b4a9de0325b6fc53ecb76ef172bc9c776d0278"
+          },
+          {
+            "id": "tests/test_screenshot_evidence_regions.py::test_bounded_regions_cover_the_entire_document_without_gaps[17000-17000-1.25]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every document region is covered by dimension-bounded native PNG tiles.",
+            "negative": "Invalid geometry cannot claim complete image evidence; existing financial assertions remain mandatory.",
+            "reviewed_test_sha256": "f5b8767744a8ad692809d2c2c1b4a9de0325b6fc53ecb76ef172bc9c776d0278"
+          },
+          {
+            "id": "tests/test_screenshot_evidence_regions.py::test_invalid_geometry_never_claims_a_complete_capture[0-100-1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every document region is covered by dimension-bounded native PNG tiles.",
+            "negative": "Invalid geometry cannot claim complete image evidence; existing financial assertions remain mandatory.",
+            "reviewed_test_sha256": "f5b8767744a8ad692809d2c2c1b4a9de0325b6fc53ecb76ef172bc9c776d0278"
+          },
+          {
+            "id": "tests/test_screenshot_evidence_regions.py::test_invalid_geometry_never_claims_a_complete_capture[100--1-1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every document region is covered by dimension-bounded native PNG tiles.",
+            "negative": "Invalid geometry cannot claim complete image evidence; existing financial assertions remain mandatory.",
+            "reviewed_test_sha256": "f5b8767744a8ad692809d2c2c1b4a9de0325b6fc53ecb76ef172bc9c776d0278"
+          },
+          {
+            "id": "tests/test_screenshot_evidence_regions.py::test_invalid_geometry_never_claims_a_complete_capture[100-100-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every document region is covered by dimension-bounded native PNG tiles.",
+            "negative": "Invalid geometry cannot claim complete image evidence; existing financial assertions remain mandatory.",
+            "reviewed_test_sha256": "f5b8767744a8ad692809d2c2c1b4a9de0325b6fc53ecb76ef172bc9c776d0278"
+          },
+          {
+            "id": "tests/test_screenshot_evidence_regions.py::test_invalid_geometry_never_claims_a_complete_capture[inf-100-1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every document region is covered by dimension-bounded native PNG tiles.",
+            "negative": "Invalid geometry cannot claim complete image evidence; existing financial assertions remain mandatory.",
+            "reviewed_test_sha256": "f5b8767744a8ad692809d2c2c1b4a9de0325b6fc53ecb76ef172bc9c776d0278"
           }
         ],
         "oracle": "Only original A04 finalizer plus A05B independent oracle; 13 required evidence seals.",
@@ -1555,7 +1631,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "677dbfffc746e809adc064571c99ad7fcb8970aa850aa2d64a0bbeee265142fc"
+        "review_sha256": "e86421fb2c9e503e62d1506192a494eeec4fce7f0c517b4db376f290b612c2d0"
       },
       {
         "id": "GOLDEN_INTEGRITY",
@@ -1753,6 +1829,10 @@
           {
             "path": "scripts/qa/check_certification_registry.py",
             "symbol": "validate_source_contracts"
+          },
+          {
+            "path": "scripts/qa/golden_provenance.py",
+            "symbol": "_GitHubReader.file"
           }
         ],
         "impact_patterns": [
@@ -1771,7 +1851,7 @@
             "lane": "python-regressions",
             "positive": "Complete synthetic contract aggregates only within its specimen.",
             "negative": "Missing/stale/wrong identity, failures, skips or incomplete lanes never certify.",
-            "reviewed_test_sha256": "2c3139f4530a45eeee0720ee4e0269ceff2152d477f5d8750c7d81229b03b08a"
+            "reviewed_test_sha256": "c02d9c106777651ad89007a29aee662c45ff12780e07dbdeb213f278c1252038"
           },
           {
             "id": "tests/test_certification_registry.py::test_historical_or_ordinary_pass_does_not_replace_a04_evidence",
@@ -1790,6 +1870,87 @@
             "positive": "Explicit test-side execution specimen passes its declared schema.",
             "negative": "Static-only, stale, assertion-free or inflated fidelity claims are refused.",
             "reviewed_test_sha256": "72ac85d0bc42c10b1f64f844c47f98e79845f31a3227ac0aac654572ea3daa70"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_commit_bound_large_regular_artifact_uses_git_blob_and_preserves_bytes",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_small_contents_artifact_retains_single_read",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[nonregular]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[oversize]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[bad-sha]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[size]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[blob-sha]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_github_artifact_reader.py::test_invalid_or_substituted_blob_cannot_satisfy_the_artifact[body]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact commit-bound regular data bytes are retained across Contents/Git Blob responses.",
+            "negative": "Nonregular, oversized, mismatched or substituted data cannot satisfy the immutable object; no redirect or arbitrary URL is followed.",
+            "reviewed_test_sha256": "93a240a59ab238e50a02a1f125653044a5457dcb38dc38cf2e7ada24c41af022"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_real_playwright_session_cleanup_keeps_source_bound_plan",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The real Playwright plugin removes configured scratch output while preserving the byte-identical source-bound plan in both child invocations.",
+            "negative": "A retained stale marker, missing or altered plan, or unsuccessful child execution cannot satisfy cleanup evidence.",
+            "reviewed_test_sha256": "c02d9c106777651ad89007a29aee662c45ff12780e07dbdeb213f278c1252038"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -1801,7 +1962,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "7462c65b7c0bb98136722de5f8659c477be4d6ad19ab85b14a4bb5c8088815f9"
+        "review_sha256": "35d3a012a870f562c08b6ab2c5887394b1bfd64d7a5835048f659891a09714e0"
       }
     ]
   },
