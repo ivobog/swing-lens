@@ -64,6 +64,7 @@ class IBHistoricalMetricClient:
         guard: Callable[[], None] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         on_retry: Callable[[RetryEvent], None] | None = None,
+        acquisition_engine=None,
     ) -> None:
         self.ib = ib
         self.settings = settings or get_settings()
@@ -73,6 +74,7 @@ class IBHistoricalMetricClient:
         self.guard = guard
         self.sleep = sleep
         self.on_retry = on_retry
+        self.acquisition_engine = acquisition_engine
 
     def fetch(
         self,
@@ -100,16 +102,25 @@ class IBHistoricalMetricClient:
         def request() -> Any:
             if self.budget:
                 self.budget.acquire_historical(metric.value, guard=self.guard)
-            return self.ib.reqHistoricalData(
-                contract,
-                endDateTime=request_end,
-                durationStr=duration,
-                barSizeSetting=bar_size,
-                whatToShow=metric.value,
-                useRTH=self.settings.ib_use_rth,
-                formatDate=1,
-                keepUpToDate=False,
-            )
+            from app.services.ib_acquisition_gate import historical_request
+
+            with historical_request(
+                self.settings,
+                check=self.guard,
+                ib=self.ib,
+                weight=2 if metric.value == "BID_ASK" else 1,
+                engine=self.acquisition_engine,
+            ):
+                return self.ib.reqHistoricalData(
+                    contract,
+                    endDateTime=request_end,
+                    durationStr=duration,
+                    barSizeSetting=bar_size,
+                    whatToShow=metric.value,
+                    useRTH=self.settings.ib_use_rth,
+                    formatDate=1,
+                    keepUpToDate=False,
+                )
 
         raw_bars = retry_call(
             request,

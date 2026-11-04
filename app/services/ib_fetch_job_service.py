@@ -126,7 +126,7 @@ def submit_fetch_job(
     return job
 
 
-def cancel_fetch_job(db: Session, fetch_run_id: int) -> dict[str, Any]:
+def cancel_fetch_job(db: Session, fetch_run_id: int, *, expected_job_id=None) -> dict[str, Any]:
     fetch_run = _load_fetch_run(db, fetch_run_id)
     if fetch_run is None:
         raise ValueError(f"IB fetch run {fetch_run_id} was not found.")
@@ -135,6 +135,17 @@ def cancel_fetch_job(db: Session, fetch_run_id: int) -> dict[str, Any]:
         return fetch_progress(fetch_run)
 
     job = active_job_for_request_key(db, IB_FETCH_JOB_TYPE, _request_key(fetch_run_id))
+    if expected_job_id is not None:
+        target = db.get(BackgroundJob, expected_job_id)
+        if (
+            target is None
+            or int(target.payload_json.get("fetch_run_id", -1)) != fetch_run_id
+            or (job is not None and job.id != expected_job_id)
+        ):
+            raise ValueError("IB_FETCH_CANCEL_TARGET_CHANGED")
+        if target.status not in {"QUEUED", "RUNNING", "RECOVERING", "STALLED"}:
+            return fetch_progress(fetch_run)
+        job = target
     if job is not None:
         request_job_cancel(db, job.id)
     if fetch_run.status == "QUEUED":
@@ -336,6 +347,7 @@ def execute_durable_fetch_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         should_cancel=should_cancel,
         progress_callback=progress_callback,
         execution_token=execution_token,
+        execution_job_id=job.id,
         memory_probe=memory_probe,
     )
     return jsonable_encoder(fetch_progress(fetch_run))

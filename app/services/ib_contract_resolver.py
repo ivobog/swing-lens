@@ -62,6 +62,10 @@ def resolve_us_stock_contract(
     row = existing or IBContract(ticker=normalized_ticker, resolution_status="PENDING")
     if not existing:
         db.add(row)
+    # Release the cache lookup / pending-row transaction before provider IO.
+    # The enclosing domain authority fences the subsequent result commit.
+    if isinstance(db, Session):
+        db.commit()
 
     try:
         requested = Stock(symbol=normalized_ticker, exchange="SMART", currency="USD")

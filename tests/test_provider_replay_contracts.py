@@ -1,4 +1,5 @@
 """Offline A15 contract tripwires; synthetic mutations are never LIVE evidence."""
+
 from __future__ import annotations
 
 import ast
@@ -189,3 +190,16 @@ def test_ib_health_live_allowlist_excludes_account_sync_and_always_disconnects(f
     assert status.api_ready is (not fail)
     if not fail:
         assert status.status == IBGatewayHealthState.IB_API_READY
+
+
+@pytest.fixture(autouse=True)
+def isolated_historical_transport(monkeypatch):
+    """Provider DTO/error/replay doubles do not require database coordination.
+
+    Unpatched coordination is exercised by the PostgreSQL process suite.
+    """
+    from contextlib import nullcontext
+
+    monkeypatch.setattr(
+        "app.services.ib_data_fetcher.historical_request", lambda *_args, **_kwargs: nullcontext()
+    )

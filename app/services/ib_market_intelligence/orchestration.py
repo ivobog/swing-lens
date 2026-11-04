@@ -168,9 +168,18 @@ def execute_historical_refresh(
     counts = {**_counts(), **dict(resume.get("counts") or {})}
     ib = ib_factory() if ib_factory else create_ib_client()
     try:
+        job_identity = job.id
+        db.commit()
 
         def guard() -> None:
-            _job_guard(db, job)
+            if not isinstance(db, Session):
+                _job_guard(db, job)
+                return
+            from app.services.domain_write_fence import detached_control_plane_scope
+
+            with detached_control_plane_scope(), Session(db.get_bind()) as control:
+                if is_cancel_requested(control, job_identity):
+                    raise CancelRequested("IB market-intelligence job cancellation requested")
 
         _connect_with_retry(ib, settings, guard=guard)
         for ticker_index, ticker in enumerate(tickers):
@@ -271,6 +280,7 @@ def execute_historical_refresh(
                             request_family="HISTORICAL",
                             request_type=request_type,
                         )
+                        db.commit()
 
                     client = IBHistoricalMetricClient(
                         ib,
@@ -280,8 +290,10 @@ def execute_historical_refresh(
                         reconnect=lambda: _reconnect_ib(ib, settings),
                         guard=guard,
                         on_retry=on_retry,
+                        acquisition_engine=db.get_bind() if isinstance(db, Session) else None,
                     )
                     try:
+                        db.commit()
                         bars = client.fetch(
                             resolution.contract,
                             metric.value,

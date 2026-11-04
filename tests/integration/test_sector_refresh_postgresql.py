@@ -163,7 +163,7 @@ def test_native_durable_worker_updates_real_cache_and_read_only_freshness(
     disposable_postgres_database, monkeypatch
 ):
     engine, expected = prepared_database(disposable_postgres_database)
-    settings, _, calls = configure_stubs(monkeypatch, disposable_postgres_database)
+    settings, health, calls = configure_stubs(monkeypatch, disposable_postgres_database)
     try:
         with Session(engine) as db:
             assert (
@@ -172,6 +172,14 @@ def test_native_durable_worker_updates_real_cache_and_read_only_freshness(
             )
             result = service.enqueue_sector_refresh(db, settings=settings)
             db.commit()
+        connect_phases = []
+
+        def observe_connection():
+            with Session(engine) as observer:
+                job = observer.get(BackgroundJob, result["job_id"])
+                connect_phases.append(service.sector_refresh_status(observer, job)["phase"])
+
+        health.on_connect = observe_connection
         final = execute_one(engine)
         assert final["status"] == "COMPLETED", [
             (item["ticker"], item["what_to_show"], item["error_message"])
@@ -180,6 +188,8 @@ def test_native_durable_worker_updates_real_cache_and_read_only_freshness(
         ]
         assert final["completed_items"] == final["total_items"] == 26
         assert len(calls) == 26 and len(set(calls)) == 26
+        assert health.acquisition_client_ids == [30]
+        assert connect_phases == ["FETCHING"]
         statements = []
 
         def record(_c, _cur, sql, *_args):
@@ -214,4 +224,176 @@ def test_native_durable_worker_updates_real_cache_and_read_only_freshness(
             assert all(row.source == "IB" for row in rows)
             assert db.get(BackgroundJob, 183).status == "QUEUED"
     finally:
+        engine.dispose()
+
+
+def test_native_refresh_preserves_pipeline_spy_qqq_pit_manifests_during_revision(
+    disposable_postgres_database, monkeypatch
+):
+    from dataclasses import replace
+    from datetime import UTC, datetime
+    from time import sleep
+
+    from app.models.tables import MarketCalculationContext, PipelineRun, UploadRun
+    from app.services import ib_fetch_executor
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+    from app.services.market_calculation_context_service import create_pipeline_market_context
+    from app.services.price_bar_repository import load_price_bars_frame
+
+    engine, _ = prepared_database(disposable_postgres_database)
+    settings, _, _ = configure_stubs(monkeypatch, disposable_postgres_database)
+    try:
+        with Session(engine) as db:
+            admitted = service.enqueue_sector_refresh(db, settings=settings, request_id="initial")
+            db.commit()
+        assert execute_one(engine)["status"] == "COMPLETED"
+        with Session(engine, expire_on_commit=False) as db:
+            upload = UploadRun(filename="frozen-pipeline.csv", status="COMPLETED")
+            db.add(upload)
+            db.flush()
+            pipeline = PipelineRun(id=46, upload_run_id=upload.id, status="RUNNING")
+            db.add(pipeline)
+            db.flush()
+            cutoff = create_pipeline_market_context(db, pipeline, cutoff_at=datetime.now(UTC))
+            db.commit()
+            pipeline_before = {
+                column.name: getattr(pipeline, column.name)
+                for column in PipelineRun.__table__.columns
+            }
+            context = db.get(MarketCalculationContext, cutoff.context_id)
+            context_before = {
+                column.name: getattr(context, column.name)
+                for column in MarketCalculationContext.__table__.columns
+            }
+
+        def frozen():
+            with Session(engine) as db:
+                frames = {
+                    (symbol, basis): load_price_bars_frame(
+                        db,
+                        symbol,
+                        basis,
+                        max_session=cutoff.latest_completed_session,
+                        as_of=cutoff.cutoff_at,
+                        calculation_context_id=cutoff.context_id,
+                    )
+                    for symbol in ("SPY", "QQQ")
+                    for basis in ("TRADES", "ADJUSTED_LAST")
+                }
+                return {
+                    key: (
+                        frame.to_dict("records"),
+                        Canonical.fingerprint(frame.attrs["pit_source_manifest"]),
+                    )
+                    for key, frame in frames.items()
+                }
+
+        before = frozen()
+        original = ib_fetch_executor.fetch_daily_bars
+
+        def revised(*args, **kwargs):
+            values = original(*args, **kwargs)
+            return [
+                replace(bar, close=bar.close + 7, high=bar.high + 7)
+                if bar.ticker in {"SPY", "QQQ"}
+                else bar
+                for bar in values
+            ]
+
+        monkeypatch.setattr(ib_fetch_executor, "fetch_daily_bars", revised)
+        with Session(engine) as db:
+            created = db.get(BackgroundJob, admitted["job_id"]).created_at
+        remaining = service.RETRY_SECONDS - (datetime.now(UTC) - created).total_seconds()
+        if remaining > 0:
+            sleep(remaining)
+        with Session(engine) as db:
+            service.enqueue_sector_refresh(db, settings=settings, request_id="revision")
+            db.commit()
+        # Real native acquisition commits revisions while another Session reads
+        # the pipeline's immutable cutoff, including its exact source manifests.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            refresh = pool.submit(execute_one, engine)
+            while not refresh.done():
+                assert frozen() == before
+            assert refresh.result()["status"] == "COMPLETED"
+        assert frozen() == before
+        with Session(engine) as db:
+            pipeline = db.get(PipelineRun, 46)
+            context = db.get(MarketCalculationContext, cutoff.context_id)
+            assert {
+                column.name: getattr(pipeline, column.name)
+                for column in PipelineRun.__table__.columns
+            } == pipeline_before
+            assert {
+                column.name: getattr(context, column.name)
+                for column in MarketCalculationContext.__table__.columns
+            } == context_before
+            for symbol, basis in before:
+                current = load_price_bars_frame(db, symbol, basis)
+                assert current.iloc[-1]["close"] == before[symbol, basis][0][-1]["close"] + 7
+    finally:
+        engine.dispose()
+
+
+def test_expiry_after_broker_wait_preserves_original_plan_and_sends_zero_requests(
+    disposable_postgres_database, monkeypatch
+):
+    from copy import deepcopy
+    from time import monotonic, sleep
+
+    from sqlalchemy.orm import sessionmaker
+
+    from app.services.background_worker import run_worker_once
+    from app.services.ib_acquisition_gate import HistoricalSlot
+    from app.services.ib_fetch_job_service import execute_durable_fetch_job
+    from app.services.us_market_calendar import next_us_trading_day
+
+    engine, expected = prepared_database(disposable_postgres_database)
+    settings, _, calls = configure_stubs(monkeypatch, disposable_postgres_database)
+    holder = HistoricalSlot(engine, settings)
+    try:
+        with Session(engine) as db:
+            admitted = service.enqueue_sector_refresh(
+                db, settings=settings, request_id="expires-in-wait"
+            )
+            db.commit()
+            plan = deepcopy(db.get(BackgroundJob, admitted["job_id"]).payload_json)
+        holder.acquire_historical_slot()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            worker = pool.submit(
+                run_worker_once,
+                worker_id="expiry-sector",
+                operation_profile="sector_refresh",
+                stale_after_seconds=90,
+                heartbeat_interval_seconds=0.2,
+                session_factory=sessionmaker(bind=engine),
+                handlers={"IB_FETCH": execute_durable_fetch_job},
+            )
+            deadline = monotonic() + 60
+            try:
+                while monotonic() < deadline:
+                    with Session(engine) as db:
+                        if (
+                            db.get(BackgroundJob, admitted["job_id"]).progress_stage
+                            == "WAITING_FOR_IB_ACQUISITION"
+                        ):
+                            break
+                    sleep(0.05)
+                else:
+                    pytest.fail("sector worker did not reach broker wait")
+                monkeypatch.setattr(
+                    "app.services.ib_fetch_plan_service.latest_completed_us_trading_day",
+                    lambda: next_us_trading_day(expected),
+                )
+            finally:
+                holder.release_historical_slot()
+            assert worker.result(60)
+        assert calls == []
+        with Session(engine) as db:
+            job = db.get(BackgroundJob, admitted["job_id"])
+            assert job.status == "FAILED" and job.payload_json == plan
+            assert "REVIEW_SCOPE_EXPIRED" in job.error_message
+            assert db.get(IBFetchRun, admitted["fetch_run_id"]).status == "FAILED"
+    finally:
+        holder.release_historical_slot()
         engine.dispose()

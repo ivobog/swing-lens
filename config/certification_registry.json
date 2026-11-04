@@ -1382,7 +1382,8 @@
           "app/services/market_data*.py",
           "app/services/price_bar*.py",
           "tests/test_provider_replay_contracts.py",
-          "app/services/ib_market_intelligence/*.py"
+          "app/services/ib_market_intelligence/*.py",
+          "app/services/market_sector_refresh_service.py"
         ],
         "tests": [
           {
@@ -1392,7 +1393,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed response shape is admitted in companion cases.",
             "negative": "Invalid/future/missing coverage produces zero persistence.",
-            "reviewed_test_sha256": "2c7381fe4b6a5d730dea5df2363500d57e105d9341b867fb058f8138fa5b9846"
+            "reviewed_test_sha256": "0b4e0bb5d34d6f12f12141717a6aa15953c2a6cebb677ccbab76aef16054f6aa"
           },
           {
             "id": "tests/test_ib_daily_admission.py::test_persisted_subset_and_frozen_context_visibility",
@@ -1401,7 +1402,7 @@
             "lane": "python-regressions",
             "positive": "Exact native subset is visible through frozen context.",
             "negative": "Disallowed response members never become eligible rows.",
-            "reviewed_test_sha256": "2c7381fe4b6a5d730dea5df2363500d57e105d9341b867fb058f8138fa5b9846"
+            "reviewed_test_sha256": "0b4e0bb5d34d6f12f12141717a6aa15953c2a6cebb677ccbab76aef16054f6aa"
           },
           {
             "id": "tests/test_provider_replay_contracts.py::test_ib_actual_golden_replay_reaches_daily_adapter",
@@ -1410,7 +1411,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged extracted deterministic IB adapter and v3 fixture reach real daily conversion for both feeds.",
             "negative": "Exact retained bar identities/values must match and order API use is forbidden; no live claim.",
-            "reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3"
+            "reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed"
           },
           {
             "id": "tests/test_provider_replay_contracts.py::test_ib_health_live_allowlist_excludes_account_sync_and_always_disconnects",
@@ -1419,7 +1420,7 @@
             "lane": "python-regressions",
             "positive": "Successful low-level handshake/current-time probe is API ready and disconnects.",
             "negative": "Timeout is unavailable and disconnects; any account-sync or other method fails the test allowlist.",
-            "reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3"
+            "reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed"
           },
           {
             "id": "tests/test_ibmi_activation_assessment.py::test_advisory_acceptance_keeps_partial_and_grants_no_trading_authority",
@@ -2086,6 +2087,33 @@
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
             "reviewed_test_sha256": "9c12599cf0b26ed8bb1d1188c7f1a66e498548822981f3d881770bc02bb93088"
+          },
+          {
+            "id": "tests/integration/test_sector_refresh_concurrency.py::test_ibmi_transport_uses_same_gate_and_weighted_ledger",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "IBMI historical SDK request shares the durable broker gate and BID_ASK weight.",
+            "negative": "It issues no provider request while another live acquisition owns the slot.",
+            "reviewed_test_sha256": "88bba55eae088a9fca2de05c2c837e7c2425ba52eb5ce1cb4f58bc4facbc4885"
+          },
+          {
+            "id": "tests/integration/test_sector_refresh_postgresql.py::test_expiry_after_broker_wait_preserves_original_plan_and_sends_zero_requests",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Expired reviewed scope terminalizes through the original job.",
+            "negative": "Original payload retained with zero provider requests; no rebasing or automatic replacement.",
+            "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
+          },
+          {
+            "id": "tests/integration/test_sector_refresh_postgresql.py::test_native_refresh_preserves_pipeline_spy_qqq_pit_manifests_during_revision",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Concurrent native refresh updates benchmark cache revisions.",
+            "negative": "Pipeline frozen OHLCV/manifests, context and run fields remain unchanged.",
+            "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
           }
         ],
         "oracle": "Literal reviewed request dates and independent expected subset; FakeIB response boundary.",
@@ -2096,7 +2124,99 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "9d0dd388b2d08a392909744b9234da413c8197b735f9c38de33e88d1d2a2af5e"
+        "review_sha256": "2421dbbaf2fc54c4d674d934d12642baec26b75b85b587e1c1a3bf9948ce68e3",
+        "review_addenda": [
+          {
+            "task": "MSI-20261103",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/test_provider_replay_contracts.py::test_ib_actual_golden_replay_reaches_daily_adapter",
+                "old_reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3",
+                "new_reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed",
+                "review_scope": "MSI change review: native Session guard and transport-isolated unit doubles, new truthful expiry semantics, dynamic migration head and batched query-count bounds. Financial values, source manifests, failure/rollback assertions and authority requirements retained. This is static intent, not execution or owner approval."
+              },
+              {
+                "test_id": "tests/test_provider_replay_contracts.py::test_ib_health_live_allowlist_excludes_account_sync_and_always_disconnects",
+                "old_reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3",
+                "new_reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed",
+                "review_scope": "MSI change review: native Session guard and transport-isolated unit doubles, new truthful expiry semantics, dynamic migration head and batched query-count bounds. Financial values, source manifests, failure/rollback assertions and authority requirements retained. This is static intent, not execution or owner approval."
+              }
+            ],
+            "claim": "STATIC_INTENT only; existing owners, historical review identities, golden rules and all release gates retained."
+          },
+          {
+            "task": "MSI-20261103",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "scope": "Additive manual MSI worker/acquisition/read contracts only; original tests, financial expectations, release lanes and approval rules retained. Metadata makes no execution or live certification claim."
+          },
+          {
+            "task": "MSI-20261103-final-fixtures",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/test_ib_daily_admission.py::test_rejects_invalid_response_without_any_persistence",
+                "old_reviewed_test_sha256": "2c7381fe4b6a5d730dea5df2363500d57e105d9341b867fb058f8138fa5b9846",
+                "new_reviewed_test_sha256": "0b4e0bb5d34d6f12f12141717a6aa15953c2a6cebb677ccbab76aef16054f6aa",
+                "review_scope": "MSI static review: explicit fake worker profile/SQLite schema and frozen-session clock; new route/query counts; native sector client-ID and gate-to-fetch phase assertions. Original financial, rollback, lineage, refusal and permission assertions retained."
+              },
+              {
+                "test_id": "tests/test_ib_daily_admission.py::test_persisted_subset_and_frozen_context_visibility",
+                "old_reviewed_test_sha256": "2c7381fe4b6a5d730dea5df2363500d57e105d9341b867fb058f8138fa5b9846",
+                "new_reviewed_test_sha256": "0b4e0bb5d34d6f12f12141717a6aa15953c2a6cebb677ccbab76aef16054f6aa",
+                "review_scope": "MSI static review: explicit fake worker profile/SQLite schema and frozen-session clock; new route/query counts; native sector client-ID and gate-to-fetch phase assertions. Original financial, rollback, lineage, refusal and permission assertions retained."
+              },
+              {
+                "test_id": "tests/integration/test_sector_refresh_concurrency.py::test_ibmi_transport_uses_same_gate_and_weighted_ledger",
+                "old_reviewed_test_sha256": "6ca385de167448526c0a2749478e57dfd52de0c184ffb27b92606fcbfdb1f78a",
+                "new_reviewed_test_sha256": "92f02b9af6de3ad36501243922f20b86566e5f22c2c41720b50ca2dd03c02621",
+                "review_scope": "MSI static review: explicit fake worker profile/SQLite schema and frozen-session clock; new route/query counts; native sector client-ID and gate-to-fetch phase assertions. Original financial, rollback, lineage, refusal and permission assertions retained."
+              },
+              {
+                "test_id": "tests/integration/test_sector_refresh_postgresql.py::test_expiry_after_broker_wait_preserves_original_plan_and_sends_zero_requests",
+                "old_reviewed_test_sha256": "90ad9127af43a6f7149e71ac36d9c6cba08b9fe8bcd04702c22c4d2c1cd1bf2f",
+                "new_reviewed_test_sha256": "0b959baa3d1752dd9eebab127f74b7bf2de8d3ff53a76fb44ea7dcc5bda3ee27",
+                "review_scope": "MSI static review: explicit fake worker profile/SQLite schema and frozen-session clock; new route/query counts; native sector client-ID and gate-to-fetch phase assertions. Original financial, rollback, lineage, refusal and permission assertions retained."
+              },
+              {
+                "test_id": "tests/integration/test_sector_refresh_postgresql.py::test_native_refresh_preserves_pipeline_spy_qqq_pit_manifests_during_revision",
+                "old_reviewed_test_sha256": "90ad9127af43a6f7149e71ac36d9c6cba08b9fe8bcd04702c22c4d2c1cd1bf2f",
+                "new_reviewed_test_sha256": "0b959baa3d1752dd9eebab127f74b7bf2de8d3ff53a76fb44ea7dcc5bda3ee27",
+                "review_scope": "MSI static review: explicit fake worker profile/SQLite schema and frozen-session clock; new route/query counts; native sector client-ID and gate-to-fetch phase assertions. Original financial, rollback, lineage, refusal and permission assertions retained."
+              }
+            ],
+            "claim": "STATIC_INTENT only; no financial expectations, historical source pins or approval rules changed."
+          },
+          {
+            "task": "MSI-20261103-source-freeze",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/integration/test_sector_refresh_concurrency.py::test_ibmi_transport_uses_same_gate_and_weighted_ledger",
+                "old_reviewed_test_sha256": "92f02b9af6de3ad36501243922f20b86566e5f22c2c41720b50ca2dd03c02621",
+                "new_reviewed_test_sha256": "88bba55eae088a9fca2de05c2c837e7c2425ba52eb5ce1cb4f58bc4facbc4885",
+                "review_scope": "MSI static review: explicit historical-slot method names avoid unrelated budget-method inference; native old-schema retirement test and connection-boundary profile/phase assertions added. Original financial, cancellation, refusal, rollback and authority checks retained."
+              },
+              {
+                "test_id": "tests/integration/test_sector_refresh_postgresql.py::test_expiry_after_broker_wait_preserves_original_plan_and_sends_zero_requests",
+                "old_reviewed_test_sha256": "0b959baa3d1752dd9eebab127f74b7bf2de8d3ff53a76fb44ea7dcc5bda3ee27",
+                "new_reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5",
+                "review_scope": "MSI static review: explicit historical-slot method names avoid unrelated budget-method inference; native old-schema retirement test and connection-boundary profile/phase assertions added. Original financial, cancellation, refusal, rollback and authority checks retained."
+              },
+              {
+                "test_id": "tests/integration/test_sector_refresh_postgresql.py::test_native_refresh_preserves_pipeline_spy_qqq_pit_manifests_during_revision",
+                "old_reviewed_test_sha256": "0b959baa3d1752dd9eebab127f74b7bf2de8d3ff53a76fb44ea7dcc5bda3ee27",
+                "new_reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5",
+                "review_scope": "MSI static review: explicit historical-slot method names avoid unrelated budget-method inference; native old-schema retirement test and connection-boundary profile/phase assertions added. Original financial, cancellation, refusal, rollback and authority checks retained."
+              }
+            ],
+            "claim": "STATIC_INTENT only; no historical source-pin, financial expectation or approval rule changed."
+          }
+        ]
       },
       {
         "id": "CERI_TEMPORAL_LINEAGE",
@@ -2161,7 +2281,7 @@
             "lane": "python-regressions",
             "positive": "Supported SEC recent arrays yield the exact independent accession witness.",
             "negative": "Non-object JSON is rejected; a cursor-only replacement yields no witness and is detected as incomplete.",
-            "reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3"
+            "reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -2173,7 +2293,23 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "c9e4da215bf25dd99038aae9b0f16972b371feef6f6d4a2d504e2d6388260700"
+        "review_sha256": "6716a041a1b43475a514963cab46af8214de8884bcec0e744578d9974417ea78",
+        "review_addenda": [
+          {
+            "task": "MSI-20261103",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/test_provider_replay_contracts.py::test_sec_type_and_unsupported_pagination_drift_are_detected",
+                "old_reviewed_test_sha256": "fd38729fc74b8261fa1e8d32f6adebd724b72725980878cee08c3df6a5f4cda3",
+                "new_reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed",
+                "review_scope": "MSI change review: native Session guard and transport-isolated unit doubles, new truthful expiry semantics, dynamic migration head and batched query-count bounds. Financial values, source manifests, failure/rollback assertions and authority requirements retained. This is static intent, not execution or owner approval."
+              }
+            ],
+            "claim": "STATIC_INTENT only; existing owners, historical review identities, golden rules and all release gates retained."
+          }
+        ]
       },
       {
         "id": "REGIME_SECTOR_SELECTION",
@@ -2195,7 +2331,12 @@
           "app/services/sector_rotation*.py",
           "config/market_regime_command_center.yaml",
           "config/sector_rotation.yaml",
-          "config/msi_operational_compatibility.env.example"
+          "config/msi_operational_compatibility.env.example",
+          "app/services/market_sector_intelligence*.py",
+          "app/services/sector_read_budget.py",
+          "app/routers/market_sector_intelligence_routes.py",
+          "app/static/market_sector*.js",
+          "app/templates/market_sector_intelligence.html"
         ],
         "tests": [
           {
@@ -2215,6 +2356,15 @@
             "positive": "Native prior snapshot and order match declared scope.",
             "negative": "Cross-scope/mode/configuration or later evidence is excluded.",
             "reviewed_test_sha256": "7ea427450c6b07952489fa59f094f19287c6ccc683f30b01a1d1b5971342c386"
+          },
+          {
+            "id": "tests/integration/test_sector_refresh_postgresql.py::test_native_durable_worker_updates_real_cache_and_read_only_freshness",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Native manual operation persists 26 acquisitions and derives 22 ETF/basis freshness checks.",
+            "negative": "Read/status endpoints perform zero provider calls and cannot flush unrelated pending domain writes.",
+            "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
           }
         ],
         "oracle": "Explicit competing rows and expected IDs; A05B financial vectors remain separate.",
@@ -2225,7 +2375,43 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "2a19fb586e153e7512373257398988486ecf115d80202bbef00696db44f50288"
+        "review_sha256": "1acb38393fbf33fd0fd037aa082b0524b759be2139f2311f95ec7ff971a0aacd",
+        "review_addenda": [
+          {
+            "task": "MSI-20261103",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "scope": "Additive manual MSI worker/acquisition/read contracts only; original tests, financial expectations, release lanes and approval rules retained. Metadata makes no execution or live certification claim. The independent MSI Playwright harness is reported separately; it is not promoted to the catalog's A04-specific browser fidelity."
+          },
+          {
+            "task": "MSI-20261103-final-fixtures",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/integration/test_sector_refresh_postgresql.py::test_native_durable_worker_updates_real_cache_and_read_only_freshness",
+                "old_reviewed_test_sha256": "90ad9127af43a6f7149e71ac36d9c6cba08b9fe8bcd04702c22c4d2c1cd1bf2f",
+                "new_reviewed_test_sha256": "0b959baa3d1752dd9eebab127f74b7bf2de8d3ff53a76fb44ea7dcc5bda3ee27",
+                "review_scope": "MSI static review: explicit fake worker profile/SQLite schema and frozen-session clock; new route/query counts; native sector client-ID and gate-to-fetch phase assertions. Original financial, rollback, lineage, refusal and permission assertions retained."
+              }
+            ],
+            "claim": "STATIC_INTENT only; no financial expectations, historical source pins or approval rules changed."
+          },
+          {
+            "task": "MSI-20261103-source-freeze",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/integration/test_sector_refresh_postgresql.py::test_native_durable_worker_updates_real_cache_and_read_only_freshness",
+                "old_reviewed_test_sha256": "0b959baa3d1752dd9eebab127f74b7bf2de8d3ff53a76fb44ea7dcc5bda3ee27",
+                "new_reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5",
+                "review_scope": "MSI static review: explicit historical-slot method names avoid unrelated budget-method inference; native old-schema retirement test and connection-boundary profile/phase assertions added. Original financial, cancellation, refusal, rollback and authority checks retained."
+              }
+            ],
+            "claim": "STATIC_INTENT only; no historical source-pin, financial expectation or approval rule changed."
+          }
+        ]
       },
       {
         "id": "SETUP_PUBLICATION",
@@ -2389,7 +2575,10 @@
           "app/services/pipeline_execution_authority.py",
           "app/services/domain_write_fence.py",
           "app/services/lifecycle_safety.py",
-          "scripts/ops/lifecycle_probe.py"
+          "scripts/ops/lifecycle_probe.py",
+          "app/services/lifecycle_control.py",
+          "app/services/worker_registry.py",
+          "scripts/ops/SwingLensLifecycle.psm1"
         ],
         "tests": [
           {
@@ -2399,7 +2588,7 @@
             "lane": "python-regressions",
             "positive": "Original handler receives independent control dependencies.",
             "negative": "Cancellation/continuation suppression converts to CancelRequested.",
-            "reviewed_test_sha256": "d51e7a033fcd57ab94b1729b6fe3c37f01b800e135ee525925dbe635b9f13734"
+            "reviewed_test_sha256": "6d283ba7c0ffe01d0acf7d9989582af1d006bcfdca1491bd695bfa63c6dddbf7"
           },
           {
             "id": "tests/e2e/single_run_certification/test_native_worker_recovery.py::test_original_pipeline_worker_fault_recovery[chromium-death]",
@@ -2409,6 +2598,33 @@
             "positive": "Verified owned worker death leads to native supervisor recovery and exact financial evidence.",
             "negative": "Old token cannot publish and stale update is refused.",
             "reviewed_test_sha256": "3236b4c1d707e4ff628c1ea4c9c12eed6517edd05c67c709755fcb4bd3d8afb3"
+          },
+          {
+            "id": "tests/integration/test_sector_refresh_concurrency.py::test_original_ordering_sector_runs_while_pipeline_calculates_and_no_wait_locks",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Actual worker processes hand off broker ownership while pipeline calculations continue.",
+            "negative": "Waiting retains leases without genuine progress or job-row locks; normal worker cannot consume the MSI operation.",
+            "reviewed_test_sha256": "88bba55eae088a9fca2de05c2c837e7c2425ba52eb5ce1cb4f58bc4facbc4885"
+          },
+          {
+            "id": "tests/integration/test_sector_refresh_concurrency.py::test_process_death_releases_capacity_but_preserves_request_budget",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Proven OS death permits recovery with retained pacing ledger.",
+            "negative": "A live owner cannot be replaced by timeout.",
+            "reviewed_test_sha256": "88bba55eae088a9fca2de05c2c837e7c2425ba52eb5ce1cb4f58bc4facbc4885"
+          },
+          {
+            "id": "tests/test_sector_worker_configuration.py::test_sector_launcher_sets_explicit_profile_with_custom_worker_identity",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Explicit profile survives custom worker IDs and native launcher configuration.",
+            "negative": "Normal worker retains its own profile; sector client and metrics identity are distinct.",
+            "reviewed_test_sha256": "ca43d9cbfe751d2190eb952eb54484d6f4369b10868412d0a378d342c44ea818"
           }
         ],
         "oracle": "A11 actual process/transaction observations and unchanged A05B exact expected vectors.",
@@ -2421,7 +2637,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "00f8180535345de1a9e7f7a152db48862505cb32231716af13c668924a0fea4e",
+        "review_sha256": "e3a2c8821be96570f6666664d33eb07089b8825b86f2b8221f7072e8c5ea228f",
         "review_addenda": [
           {
             "task": "FR02",
@@ -2438,6 +2654,72 @@
               }
             ],
             "claim": "STATIC_INTENT only. Original review identities/owners and historical source fields retained. No execution, human approval, golden approval or release certification inferred."
+          },
+          {
+            "task": "MSI-20261103",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/test_background_worker.py::test_original_full_pipeline_handler_converts_native_cancellation",
+                "old_reviewed_test_sha256": "d51e7a033fcd57ab94b1729b6fe3c37f01b800e135ee525925dbe635b9f13734",
+                "new_reviewed_test_sha256": "6d283ba7c0ffe01d0acf7d9989582af1d006bcfdca1491bd695bfa63c6dddbf7",
+                "review_scope": "MSI change review: native Session guard and transport-isolated unit doubles, new truthful expiry semantics, dynamic migration head and batched query-count bounds. Financial values, source manifests, failure/rollback assertions and authority requirements retained. This is static intent, not execution or owner approval."
+              }
+            ],
+            "claim": "STATIC_INTENT only; existing owners, historical review identities, golden rules and all release gates retained."
+          },
+          {
+            "task": "MSI-20261103",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "scope": "Additive manual MSI worker/acquisition/read contracts only; original tests, financial expectations, release lanes and approval rules retained. Metadata makes no execution or live certification claim."
+          },
+          {
+            "task": "MSI-20261103-final-fixtures",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/integration/test_sector_refresh_concurrency.py::test_original_ordering_sector_runs_while_pipeline_calculates_and_no_wait_locks",
+                "old_reviewed_test_sha256": "6ca385de167448526c0a2749478e57dfd52de0c184ffb27b92606fcbfdb1f78a",
+                "new_reviewed_test_sha256": "92f02b9af6de3ad36501243922f20b86566e5f22c2c41720b50ca2dd03c02621",
+                "review_scope": "MSI static review: explicit fake worker profile/SQLite schema and frozen-session clock; new route/query counts; native sector client-ID and gate-to-fetch phase assertions. Original financial, rollback, lineage, refusal and permission assertions retained."
+              },
+              {
+                "test_id": "tests/integration/test_sector_refresh_concurrency.py::test_process_death_releases_capacity_but_preserves_request_budget",
+                "old_reviewed_test_sha256": "6ca385de167448526c0a2749478e57dfd52de0c184ffb27b92606fcbfdb1f78a",
+                "new_reviewed_test_sha256": "92f02b9af6de3ad36501243922f20b86566e5f22c2c41720b50ca2dd03c02621",
+                "review_scope": "MSI static review: explicit fake worker profile/SQLite schema and frozen-session clock; new route/query counts; native sector client-ID and gate-to-fetch phase assertions. Original financial, rollback, lineage, refusal and permission assertions retained."
+              },
+              {
+                "test_id": "tests/test_sector_worker_configuration.py::test_sector_launcher_sets_explicit_profile_with_custom_worker_identity",
+                "old_reviewed_test_sha256": "b5c8943607ec50af8029d7432d737fe62637eb793a349364365ce1cb4d385075",
+                "new_reviewed_test_sha256": "ca43d9cbfe751d2190eb952eb54484d6f4369b10868412d0a378d342c44ea818",
+                "review_scope": "MSI static review: explicit fake worker profile/SQLite schema and frozen-session clock; new route/query counts; native sector client-ID and gate-to-fetch phase assertions. Original financial, rollback, lineage, refusal and permission assertions retained."
+              }
+            ],
+            "claim": "STATIC_INTENT only; no financial expectations, historical source pins or approval rules changed."
+          },
+          {
+            "task": "MSI-20261103-source-freeze",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/integration/test_sector_refresh_concurrency.py::test_original_ordering_sector_runs_while_pipeline_calculates_and_no_wait_locks",
+                "old_reviewed_test_sha256": "92f02b9af6de3ad36501243922f20b86566e5f22c2c41720b50ca2dd03c02621",
+                "new_reviewed_test_sha256": "88bba55eae088a9fca2de05c2c837e7c2425ba52eb5ce1cb4f58bc4facbc4885",
+                "review_scope": "MSI static review: explicit historical-slot method names avoid unrelated budget-method inference; native old-schema retirement test and connection-boundary profile/phase assertions added. Original financial, cancellation, refusal, rollback and authority checks retained."
+              },
+              {
+                "test_id": "tests/integration/test_sector_refresh_concurrency.py::test_process_death_releases_capacity_but_preserves_request_budget",
+                "old_reviewed_test_sha256": "92f02b9af6de3ad36501243922f20b86566e5f22c2c41720b50ca2dd03c02621",
+                "new_reviewed_test_sha256": "88bba55eae088a9fca2de05c2c837e7c2425ba52eb5ce1cb4f58bc4facbc4885",
+                "review_scope": "MSI static review: explicit historical-slot method names avoid unrelated budget-method inference; native old-schema retirement test and connection-boundary profile/phase assertions added. Original financial, cancellation, refusal, rollback and authority checks retained."
+              }
+            ],
+            "claim": "STATIC_INTENT only; no historical source-pin, financial expectation or approval rule changed."
           }
         ]
       },
@@ -2462,6 +2744,10 @@
           {
             "path": "tests/e2e/single_run_certification/screenshot_evidence.py",
             "symbol": "screenshot_regions"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/screenshot_evidence.py",
+            "symbol": "capture_page_evidence"
           }
         ],
         "impact_patterns": [
@@ -2471,7 +2757,8 @@
           "alembic/*",
           "app/models/*.py",
           "app/settings.py",
-          "scripts/production_runtime_certification.py"
+          "scripts/production_runtime_certification.py",
+          "tests/e2e/single_run_certification/test_screenshot_evidence_browser.py"
         ],
         "tests": [
           {
@@ -2481,7 +2768,7 @@
             "lane": "a04",
             "positive": "402 exact rows/26 sections, 541 relations and 15 jobs satisfy 620 gates.",
             "negative": "A14 semantic faults reject missing eligible child, changed ancestry and terminal quality mismatch.",
-            "reviewed_test_sha256": "d236edcc74f834da5afa921d60e9134fd9bba7f654a7ef2b31829b56c6e9e05f"
+            "reviewed_test_sha256": "d6aeda9ffceae7d7d76cfba398bb30f4f581a2716a94b76da0b15a7c5c6de64c"
           },
           {
             "id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]",
@@ -2490,7 +2777,7 @@
             "lane": "a04",
             "positive": "Same original authority with retained Setup handoff enabled.",
             "negative": "Same controlled A14 violations reject at intended gates.",
-            "reviewed_test_sha256": "d236edcc74f834da5afa921d60e9134fd9bba7f654a7ef2b31829b56c6e9e05f"
+            "reviewed_test_sha256": "d6aeda9ffceae7d7d76cfba398bb30f4f581a2716a94b76da0b15a7c5c6de64c"
           },
           {
             "id": "tests/test_screenshot_evidence_regions.py::test_bounded_regions_cover_the_entire_document_without_gaps[1440-1000-1]",
@@ -2574,7 +2861,39 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "6961327160d1ceed8a8a088ecacf2462e7ed223707405e8390ba9ee244d72412"
+        "review_sha256": "2774ff48e020fc4cd9c0d06e30526eff367854d0d367963cb08104732a306a64",
+        "review_addenda": [
+          {
+            "task": "MSI-20261104-renderer",
+            "kind": "STATIC_RENDERER_SCOPE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "claim": "STATIC_INTENT only: complete viewport tiles replace Chromium beyond-viewport rasterization for large JSON. Existing timeouts, financial assertions, golden expectations, source pins and original handlers are retained. Standalone Chromium pixel tests are not promoted to A04 worker fidelity."
+          },
+          {
+            "task": "MSI-20261104-shared-browser-fixture",
+            "kind": "TEST_LOCATION_ONLY_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "claim": "Renderer test assertions and semantic AST are unchanged; only location and package import grouping change. Tests reuse the existing native browser/page fixture, avoiding nested session runtimes. Production/capture source, financial expectations and historical source pins are unchanged."
+          },
+          {
+            "task": "MSI-20261104-measured-budgets-and-fixture-clock",
+            "kind": "STATIC_ASSERTION_FIXTURE_REVIEW",
+            "evidence": "docs/verification/sector-refresh-remediation-20261103.md",
+            "bindings": [
+              {
+                "test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
+                "old_reviewed_test_sha256": "d236edcc74f834da5afa921d60e9134fd9bba7f654a7ef2b31829b56c6e9e05f",
+                "new_reviewed_test_sha256": "d6aeda9ffceae7d7d76cfba398bb30f4f581a2716a94b76da0b15a7c5c6de64c"
+              },
+              {
+                "test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]",
+                "old_reviewed_test_sha256": "d236edcc74f834da5afa921d60e9134fd9bba7f654a7ef2b31829b56c6e9e05f",
+                "new_reviewed_test_sha256": "d6aeda9ffceae7d7d76cfba398bb30f4f581a2716a94b76da0b15a7c5c6de64c"
+              }
+            ],
+            "claim": "STATIC_INTENT: real-writer assertions and all financial expected values are identical; only its operation clock is receipt-aware after UTC rollover. Read-budget tests retain 504/capacity protection and add the measured 50.4s case. Historical source pins and approval rules are unchanged."
+          }
+        ]
       },
       {
         "id": "GOLDEN_INTEGRITY",
@@ -2822,7 +3141,8 @@
           "tests/test_source_contract_governance.py",
           "config/certification_registry.json",
           "config/architecture_registry.json",
-          ".github/*"
+          ".github/*",
+          "scripts/qa/t14a_reviewed_inventory.py"
         ],
         "tests": [
           {
@@ -3015,7 +3335,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "0df5912ccb525e248a225914cc5cc5e223631d98e002a5058aeebdc08863cf3b"
+        "review_sha256": "e9248b1f490d9715bd90dee20f3854bad88d096798a8ba42bf447400a3811f2e"
       }
     ]
   },

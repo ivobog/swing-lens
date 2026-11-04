@@ -328,6 +328,10 @@ def test_persisted_subset_and_frozen_context_visibility(
             monkeypatch.setattr(
                 executor, "latest_completed_us_trading_day", lambda: plan_item.request_end_date
             )
+            monkeypatch.setattr(
+                "app.services.ib_fetch_plan_service.latest_completed_us_trading_day",
+                lambda: plan_item.request_end_date,
+            )
             result = executor.execute_fetch_plan(
                 db,
                 plan,

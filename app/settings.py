@@ -214,6 +214,11 @@ class Settings(BaseSettings):
     ib_host: str = "127.0.0.1"
     ib_port: int = 4002
     ib_client_id: int = 21
+    ib_sector_client_id: int = Field(default=30, ge=0, le=65535)
+    ib_acquisition_wait_seconds: float = Field(default=1800, ge=1, le=1800)
+    job_worker_profile: str = Field(default="general", pattern="^(general|sector_refresh)$")
+    observability_sector_worker_metrics_port: int = Field(default=9103, ge=0, le=65535)
+    sector_refresh_action_after_seconds: int = Field(default=300, ge=10, le=1800)
     # Health checks use short-lived, read-only sessions.  This is the base of
     # a four-ID process-role range, kept separate from the longer-lived
     # market-data client so probes cannot evict or collide with IB work.
@@ -484,8 +489,24 @@ class Settings(BaseSettings):
         }
         if not 0 <= self.ib_health_client_id <= 65_532:
             raise ValueError("ib_health_client_id must be between 0 and 65532")
-        if self.ib_client_id in range(self.ib_health_client_id, self.ib_health_client_id + 4):
-            raise ValueError("IB health client-ID range must not include ib_client_id")
+        if self.ib_health_client_id > 65528:
+            raise ValueError("IB health and historical capability range requires eight client IDs")
+        if self.ib_client_id in range(self.ib_health_client_id, self.ib_health_client_id + 8):
+            raise ValueError("IB health/capability client-ID range must not include ib_client_id")
+        if self.ib_sector_client_id == self.ib_client_id or self.ib_sector_client_id in range(
+            self.ib_health_client_id, self.ib_health_client_id + 8
+        ):
+            raise ValueError(
+                "Sector acquisition client ID must be distinct from acquisition/probes"
+            )
+        if self.observability_sector_worker_metrics_port and (
+            self.observability_sector_worker_metrics_port
+            in {
+                self.observability_worker_metrics_port,
+                self.observability_supervisor_metrics_port,
+            }
+        ):
+            raise ValueError("Sector worker metrics port must be distinct")
         for field_name, value in positive_fields.items():
             if value < 1:
                 raise ValueError(f"{field_name} must be positive")

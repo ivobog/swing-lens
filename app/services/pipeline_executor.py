@@ -600,10 +600,20 @@ def execute_full_pipeline(
             _apply_market_session_metadata(result, plan)
             if plan.estimated_request_count and not cache_fallback:
                 capability_check = dependencies.check_ib_historical_capability
-                historical_capability = (
-                    capability_check(fetch_plan=plan)
-                    if _accepts_keyword(capability_check, "fetch_plan")
-                    else capability_check()
+                from app.services.ib_acquisition_gate import coordinate_fetch
+
+                @coordinate_fetch
+                def probe(
+                    db, plan, should_cancel, progress_callback, execution_token, execution_job_id
+                ):
+                    return (
+                        capability_check(fetch_plan=plan)
+                        if _accepts_keyword(capability_check, "fetch_plan")
+                        else capability_check()
+                    )
+
+                historical_capability = probe(
+                    db, plan, should_cancel, progress_callback, execution_token, execution_job_id
                 )
                 capability_payload = _historical_capability_payload(historical_capability)
                 result["ib_historical_capability"] = capability_payload

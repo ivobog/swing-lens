@@ -26,7 +26,7 @@ from test_market_sector_intelligence_technical_pit import seed_cache
 
 from app.db import get_db
 from app.main import create_app
-from app.models.tables import PriceBar, PriceBarRevision, UploadRun
+from app.models.tables import BackgroundJob, PriceBar, PriceBarRevision, UploadRun
 from app.routers import market_sector_intelligence_routes as routes
 from app.services.market_clock_service import MarketClockService
 from app.services.market_sector_intelligence_chart_service import MarketSectorChartService
@@ -45,7 +45,7 @@ def create_fixture_app():
     assert directory.parent == evidence
     mode = ContextVar("d4_fixture_mode", default="ready")
     engines = {}
-    sql_counts, requests, observations = Counter(), Counter(), []
+    sql_counts, requests, successes, observations = Counter(), Counter(), Counter(), []
     guards = []
     for name in ("ready", "empty", "partial", "qqq", "unactivated"):
         engine = create_engine(
@@ -53,6 +53,19 @@ def create_fixture_app():
             connect_args={"check_same_thread": False},
         )
         engines[name] = engine
+        # Active refresh polling is a real read, even in this worker-free fixture.
+        Table(
+            BackgroundJob.__tablename__,
+            MetaData(),
+            *[
+                Column(
+                    column.name,
+                    JSON() if isinstance(column.type, JSONB) else column.type,
+                    primary_key=column.primary_key,
+                )
+                for column in BackgroundJob.__table__.columns
+            ],
+        ).create(engine)
         if name != "unactivated":
             apply_migration(engine)
         if name == "empty":
@@ -139,6 +152,9 @@ def create_fixture_app():
             return CUTOFF
 
     clock = FixtureClock()
+    # The dashboard sends an explicit common as_of for independent panels.
+    # Bind that route boundary to the same frozen fixture clock as direct reads.
+    guards.append(patch.object(routes, "_read_cutoff", lambda _as_of: {"cutoff": CUTOFF}))
     for attr, service in (
         ("MarketSectorIntelligenceCoverageService", MarketSectorIntelligenceCoverageService),
         ("MarketSectorRotationService", MarketSectorRotationService),
@@ -171,6 +187,8 @@ def create_fixture_app():
                         {"detail": {"code": "FIXTURE_UNAVAILABLE"}}, status_code=503
                     )
             response = await call_next(request)
+            if response.status_code == 200:
+                successes[request.url.path] += 1
             observations.append(
                 {
                     "path": request.url.path,
@@ -196,6 +214,7 @@ def create_fixture_app():
         return {
             "sql": dict(sql_counts),
             "requests": dict(requests),
+            "successes": dict(successes),
             "observations": observations[-100:],
             "rss_bytes": psutil.Process().memory_info().rss,
             "forbidden_calls": forbidden.call_count,

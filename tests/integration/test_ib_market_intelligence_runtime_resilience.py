@@ -259,7 +259,13 @@ def test_market_data_line_cap_is_observable_and_releases_capacity() -> None:
     assert capacity["active_lines"] == 0
 
 
-def test_historical_disconnect_uses_bounded_retry_and_respects_range() -> None:
+def test_historical_disconnect_uses_bounded_retry_and_respects_range(monkeypatch) -> None:
+    from contextlib import nullcontext
+
+    monkeypatch.setattr(
+        "app.services.ib_acquisition_gate.historical_request",
+        lambda *_args, **_kwargs: nullcontext(),
+    )
     contract = SimpleNamespace(symbol="AAPL", conId=1)
 
     class HistoricalIB:

@@ -66,9 +66,13 @@ def test_execute_job_dispatches_to_registered_handler() -> None:
 
 
 def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
+    from app.services.alembic_heads import repository_alembic_heads
+
+    current_head = next(iter(repository_alembic_heads()))
+
     class Db:
         def scalar(self, _statement):
-            return "0093_market_sector_rotation"
+            return current_head
 
     settings = Settings(
         _env_file=None,
@@ -83,7 +87,7 @@ def test_worker_startup_warns_when_provider_ingest_uses_sec_off(caplog) -> None:
         summary = log_worker_startup_configuration(Db(), settings=settings, worker_id="worker-test")
 
     assert summary["sec_incremental_mode"] == "OFF"
-    assert summary["database_schema_revision"] == "0093_market_sector_rotation"
+    assert summary["database_schema_revision"] == current_head
     assert summary["sec_processor_signature"].startswith("sec-guidance:")
     assert summary["worker_id"] == "worker-test"
     assert summary["worker_process_id"] > 0
@@ -831,6 +835,7 @@ def test_worker_control_loop_retries_with_bounded_backoff_then_recovers(
     )
     settings = SimpleNamespace(
         runtime_mode=RuntimeMode.CERTIFICATION,
+        job_worker_profile="general",
         worker_infrastructure_backoff_initial_seconds=1.0,
         worker_infrastructure_backoff_max_seconds=4.0,
         job_stale_after_seconds=60,
@@ -887,6 +892,7 @@ def test_worker_control_loop_caps_repeated_infrastructure_backoff(
     )
     settings = SimpleNamespace(
         runtime_mode=RuntimeMode.CERTIFICATION,
+        job_worker_profile="general",
         worker_infrastructure_backoff_initial_seconds=1.0,
         worker_infrastructure_backoff_max_seconds=4.0,
         job_stale_after_seconds=60,

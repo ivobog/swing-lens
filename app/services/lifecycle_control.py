@@ -36,6 +36,8 @@ CRITICAL_SETTING_FIELDS = {
     "APP_PORT": "app_port",
     "OBSERVABILITY_METRICS_HOST": "observability_metrics_host",
     "OBSERVABILITY_WORKER_METRICS_PORT": "observability_worker_metrics_port",
+    "OBSERVABILITY_SECTOR_WORKER_METRICS_PORT": "observability_sector_worker_metrics_port",
+    "IB_SECTOR_CLIENT_ID": "ib_sector_client_id",
     "OBSERVABILITY_SUPERVISOR_METRICS_PORT": "observability_supervisor_metrics_port",
     "SWINGLENS_POSTGRES_SERVICE": "swinglens_postgres_service",
     "SWINGLENS_POSTGRES_EXPECTED_MAJOR": "swinglens_postgres_expected_major",

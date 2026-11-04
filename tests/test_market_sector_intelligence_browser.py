@@ -26,7 +26,7 @@ def test_shared_configuration_warning_uses_real_schemas_and_safe_text(
     endpoint = "charts/price-series" if scenario == "chart" else "technicals/preview"
 
     def alter_metadata(route):
-        response = route.fetch()
+        response = route.fetch(timeout=95000)
         payload = response.json()
         if scenario == "technical":
             payload["d2_configuration_digest"] = malicious
@@ -113,6 +113,11 @@ def loaded(page, base, mode="ready"):
     try:
         page.goto(base + "/__fixture__/mode/" + mode)
         expect(page.locator("#msi-reload")).to_be_enabled(timeout=60000)
+        # Independent panels no longer share the reload button's loading lock.
+        for panel in ("rotation", "technical", "chart"):
+            expect(page.locator("#msi-status-" + panel)).not_to_contain_text(
+                "Loading", timeout=95000
+            )
     except Exception:
         # Record the blocked backend threads after the original deadline fails.
         with (output_directory("msi-readiness") / "threads.txt").open("w") as stream:
@@ -192,8 +197,10 @@ def test_desktop_keyboard_native_charts_history_deeplinks_and_no_technical_recal
     page.goto(base + "/sector-rotation?etf=XLK&horizon=21&snapshot_id=999")
     expect(page.locator("#msi-reload")).to_be_enabled(timeout=60000)
     assert "not been substituted" in page.locator("#msi-rotation-source").inner_text()
-    assert "Unavailable" in page.locator("#msi-status-archive").inner_text()
-    assert page.locator("#msi-lines polyline").count() > 0
+    expect(page.locator("#msi-status-archive")).to_contain_text(
+        "1 saved detail request(s) unavailable. No missing points were reconstructed."
+    )
+    expect(page.locator("#msi-lines polyline")).not_to_have_count(0, timeout=65000)
     page.get_by_role("link", name="Sector mapping ↗", exact=True).click()
     expect(page.locator("#market-sector-heading")).to_be_visible()
     context.close()
@@ -314,6 +321,7 @@ def test_browser_history_restores_default_explicit_and_optional_url_state(
         expect_etf("XLF")
         deep_link = page.url
         deep_entries = page.evaluate("history.length")
+        expect(page.locator("#msi-status-technical")).to_contain_text("11/11 V4", timeout=95000)
         deep_metrics = metrics(page, base)
         page.get_by_role("link", name="Sector mapping ↗", exact=True).click()
         expect(page.locator("#market-sector-heading")).to_be_visible()
@@ -323,17 +331,23 @@ def test_browser_history_restores_default_explicit_and_optional_url_state(
         assert page.url == deep_link
         expect_etf("XLF")
         assert observe("deep_link_back")["entries"] == deep_entries + 1
-        # A fresh document may load D3 once; same-document history never does.
+        # A fresh document computes D3 once; capacity retries are transport-only.
+        # Same-document controls above still make no technical requests.
+        expect(page.locator("#msi-status-technical")).to_contain_text("11/11 V4", timeout=95000)
         after = metrics(page, base)
         document_technical_reads = (
             after["requests"][TECHNICAL_PATH] - deep_metrics["requests"][TECHNICAL_PATH]
         )
-        assert 0 <= document_technical_reads <= 1
+        successful_technical_reads = (
+            after["successes"][TECHNICAL_PATH] - deep_metrics["successes"][TECHNICAL_PATH]
+        )
+        assert successful_technical_reads == 1
+        assert document_technical_reads >= successful_technical_reads
         assert page.evaluate(
             "performance.getEntriesByType('resource').filter(r => "
             "new URL(r.name).pathname === "
             "'/api/market-sector-intelligence/technicals/preview').length"
-        ) == 1
+        ) == document_technical_reads
         page.locator("#msi-focus").scroll_into_view_if_needed()
         page.screenshot(path=artifact_path(str(EVIDENCE / "history-deep-link-back.png")))
         assert after["forbidden_calls"] == 0 and set(after["sql"]) <= {"SELECT"}
@@ -391,9 +405,10 @@ def test_vision_overview_and_paired_chart_match_actual_native_responses(
 ):
     context = diagnostic_browser.new_context(viewport={"width": 1440, "height": 1100})
     page = context.new_page()
-    with page.expect_response("**/rotation/preview") as rotation_response, page.expect_response(
-        "**/technicals/preview"
-    ) as technical_response:
+    with (
+        page.expect_response("**/rotation/preview?*", timeout=95000) as rotation_response,
+        page.expect_response("**/technicals/preview?*", timeout=95000) as technical_response,
+    ):
         errors = loaded(page, browser_fixture_server)
     rotation, technical = rotation_response.value.json(), technical_response.value.json()
     expected_counts = {
@@ -536,12 +551,15 @@ def test_native_chart_classifications_render_as_safe_text_on_mobile(
     malicious = '<img data-msi-xss src=x onerror="window.msiInjected=true">' + "x" * 200
 
     def alter_classification(route):
-        response = route.fetch()
+        response = route.fetch(timeout=95000)
+        if not response.ok:
+            route.fulfill(response=response)
+            return
         payload = response.json()
         payload["rows"][0]["v4"]["classification"] = malicious
         route.fulfill(response=response, json=payload)
 
-    page.route("**/technicals/preview", alter_classification)
+    page.route("**/technicals/preview?*", alter_classification)
     errors = loaded(page, browser_fixture_server)
     expect(page.locator("#msi-technicals tbody")).to_contain_text(malicious)
     assert page.locator("img[data-msi-xss]").count() == 0

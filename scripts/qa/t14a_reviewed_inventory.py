@@ -26,6 +26,19 @@ from scripts.qa.t14a_semantic_review import (
 from scripts.qa.t14b_semantic_review import NON_EDGE_REVIEWS as ADOPTION_NON_EDGE_REVIEWS
 
 NON_EDGE_REVIEWS = {**NON_EDGE_REVIEWS, **ADOPTION_NON_EDGE_REVIEWS}
+REVIEWED_DISPATCH = {
+    **REVIEWED_DISPATCH,
+    (
+        "app/services/ib_market_intelligence/activation_assessment.py:assess_pipeline_activation",
+        "policy.evaluate",
+    ): (
+        "app/services/technical_consumer_eligibility.py:TechnicalConsumerPolicy.evaluate",
+        "policy_for_core_configuration returns TechnicalConsumerPolicy or the supplied "
+        "TECHNICAL_TO_COMBINED/TECHNICAL_TO_RANKING constants of that same class. "
+        "Retain this actual readiness-policy edge; similarly named lifecycle writers "
+        "are unrelated receivers. This binding grants no calculation or write authority.",
+    ),
+}
 
 DESTINATION = ROOT / "docs/remediation/calculation-lineage"
 # These exclusions have source-level database isolation, rather than a QA name.
@@ -68,6 +81,10 @@ OPERATIONAL_TABLES = frozenset(
         "background_job_fanout_roots",
         "background_workers",
         "background_supervisors",
+        # MSI transport coordination and manual request identity, never prices,
+        # calculation evidence, source eligibility or publication authority.
+        "ib_historical_gate",
+        "sector_refresh_requests",
         "ib_fetch_runs",
         "ib_fetch_items",
         "ceri_ingestion_runs",

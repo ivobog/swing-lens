@@ -197,6 +197,10 @@ def progress_timeout_seconds(
     market_data_timeout_seconds: int,
     long_stage_timeout_seconds: int,
 ) -> int:
+    if stage == "WAITING_FOR_IB_ACQUISITION":
+        # Gate wait is independently bounded at <=1800s and maintains native
+        # control heartbeats. Polling never advances the genuine progress clock.
+        return 1830
     execution_class = stage_metadata(stage).execution_class
     if execution_class is StageExecutionClass.MARKET_DATA:
         return market_data_timeout_seconds

@@ -25,14 +25,14 @@ def test_unsafe_route_inventory_requires_classification() -> None:
     app = create_app(Settings(_env_file=None, job_worker_enabled=False))
     registry = http_mutation_route_registry(app)
 
-    assert len(app.routes) == 214
+    assert len(app.routes) == 215
     ticker_reads = [route for route in app.routes if route.path.startswith("/api/tickers/")]
     assert len(ticker_reads) == 4
     assert all(route.methods <= {"GET", "HEAD"} for route in ticker_reads)
-    assert len(registry) == 53
+    assert len(registry) == 54
     assert [row for row in registry if not row.classified] == []
     assert _capability_counts(registry) == {
-        MutationCapability.NORMAL_ONLY: 49,
+        MutationCapability.NORMAL_ONLY: 50,
         MutationCapability.CERTIFICATION_CONTROL: 0,
         MutationCapability.CERTIFICATION_SESSION_SCOPED: 2,
         MutationCapability.READ_ONLY: 2,

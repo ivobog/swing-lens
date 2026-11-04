@@ -89,10 +89,15 @@ def configure_stubs(monkeypatch, url):
         _env_file=None,
         database_url=url,
         job_worker_enabled=False,
+        job_worker_profile="sector_refresh",
         job_activation_min_id=1642,
         pipeline_activation_min_id=46,
         ib_max_retries=1,
         observability_metrics_enabled=False,
+        ib_requests_per_minute=60,
+        ib_intelligence_historical_requests_per_minute=60,
+        ib_min_seconds_between_requests=0,
+        ib_intelligence_historical_min_spacing_seconds=0,
         worker_memory_warning_mb=8192,
         worker_memory_critical_mb=12288,
     )
@@ -104,7 +109,11 @@ def configure_stubs(monkeypatch, url):
     ):
         monkeypatch.setattr(module + ".get_settings", lambda: settings)
     health = SimpleNamespace(
-        status="IB_API_READY", api_connected=True, api_ready=True, smoke_response_received=True
+        status="IB_API_READY",
+        api_connected=True,
+        api_ready=True,
+        smoke_response_received=True,
+        acquisition_client_ids=[],
     )
     monkeypatch.setattr(market_sector_refresh_service, "check_status", lambda **_: health)
     monkeypatch.setattr(market_sector_refresh_service, "_last_probe", float("-inf"))
@@ -113,6 +122,9 @@ def configure_stubs(monkeypatch, url):
         connected = False
 
         def connect(self, *_a, **_kw):
+            health.acquisition_client_ids.append(_kw["clientId"])
+            if hasattr(health, "on_connect"):
+                health.on_connect()
             self.connected = True
 
         def disconnect(self):
@@ -192,6 +204,7 @@ def execute_one(engine):
             hostname="disposable",
             process_id=12345,
             heartbeat_timeout_seconds=900,
+            operation_profile="sector_refresh",
         )
         job = claim_next_job(
             db,
