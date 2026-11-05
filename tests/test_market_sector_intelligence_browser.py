@@ -9,7 +9,7 @@ import pytest
 import uvicorn
 from evidence_output import artifact_path, output_directory
 from market_sector_dashboard_fixture import create_fixture_app
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import expect
 
 EVIDENCE = output_directory("market-sector-intelligence-d4")
 TECHNICAL_PATH = "/api/market-sector-intelligence/technicals/preview"
@@ -88,14 +88,73 @@ def browser_fixture_server():
 
 
 @pytest.fixture(scope="module")
-def diagnostic_browser():
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(channel="chrome", headless=True)
-        try:
-            yield browser
-        finally:
-            browser.close()
+def diagnostic_browser(playwright):
+    browser = playwright.chromium.launch(channel="chrome", headless=True)
+    try:
+        yield browser
+    finally:
+        browser.close()
 
+
+def test_failed_case_context_cleanup_preserves_the_shared_runtime(tmp_path):
+    import os
+    import subprocess
+    import sys
+    import xml.etree.ElementTree as ET
+    from pathlib import Path
+
+    from scripts.qa.source_bound import bound_environment
+
+    root = Path(__file__).resolve().parents[1]
+    specimen = tmp_path / "test_failed_context_probe.py"
+    specimen.write_text("""from test_market_sector_intelligence_browser import (
+    diagnostic_browser, close_case_browser_contexts)
+def test_a_intentional_failure(diagnostic_browser):
+    diagnostic_browser.new_context().new_page()
+    raise AssertionError("controlled failed-case cleanup probe")
+def test_b_original_cleanup_has_closed_the_failed_case(diagnostic_browser):
+    assert diagnostic_browser.is_connected()
+    assert diagnostic_browser.contexts == []
+    context=diagnostic_browser.new_context(); context.new_page(); context.close()
+""")
+    env = bound_environment(root)
+    for name in list(env):
+        if name.startswith("SWINGLENS_RELEASE_") or name in {"PYTEST_PLUGINS", "PYTEST_ADDOPTS"}:
+            env.pop(name)
+    env["PYTHONPATH"] = os.pathsep.join((str(root), str(root / "tests")))
+    report = tmp_path / "failed-case.xml"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.qa.source_bound",
+            "--receipt-dir",
+            str(tmp_path / "origins"),
+            "--module",
+            "pytest",
+            "--",
+            "-q",
+            "-c",
+            str(root / "pyproject.toml"),
+            "--junitxml",
+            str(report),
+            "--output",
+            str(tmp_path / "child-playwright"),
+            "--basetemp",
+            str(tmp_path / "child-tmp"),
+            str(specimen),
+        ],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    cases = list(ET.parse(report).iter("testcase"))
+    assert len(cases) == 2
+    assert cases[0].find("failure") is not None
+    assert cases[1].find("failure") is None and cases[1].find("error") is None
 
 @pytest.fixture(autouse=True)
 def close_case_browser_contexts(diagnostic_browser):

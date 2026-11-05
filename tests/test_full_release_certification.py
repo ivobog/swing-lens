@@ -523,6 +523,7 @@ def test_actual_pytest_terminal_observer(experiment, tmp_path, monkeypatch, faul
     synthetic = tmp_path / "observer-project"
     adapter = synthetic / "scripts/qa/release_evidence.py"
     adapter.parent.mkdir(parents=True)
+    (synthetic / "pytest.ini").write_text("[pytest]\n")
     adapter.write_bytes(Path(release.__file__).read_bytes())
     (synthetic / "scripts/production_runtime_certification.py").write_text(
         "def _git(*args): return " + repr(PINNED_SOURCE) + "\n"
@@ -652,3 +653,286 @@ def test_real_playwright_session_cleanup_keeps_source_bound_plan(experiment, tmp
         assert child.returncode == 0, child.stdout + child.stderr
         assert plan_path.read_bytes() == plan_bytes
     assert not stale.exists(), "The real Playwright session cleanup must have executed"
+
+
+def test_verification_detects_conflicting_editable_import_and_records_bound_origin(tmp_path):
+    from scripts.qa.source_bound import bound_environment
+
+    foreign = tmp_path / "conflicting-editable"
+    (foreign / "app").mkdir(parents=True)
+    (foreign / "app/__init__.py").write_text("")
+    (foreign / "app/main.py").write_text("identity = 'another checkout'\n")
+    receipts = tmp_path / "origins"
+    root = release.ROOT
+    env = bound_environment(root)
+    env["PYTHONPATH"] = os.pathsep.join((str(foreign), str(root)))
+    arguments = [
+        "--checkout",
+        str(root),
+        "--receipt-dir",
+        str(receipts),
+        "--module",
+        "scripts.docs.check_route_inventory",
+    ]
+    conflicting = subprocess.run(
+        [sys.executable, str(root / "scripts/qa/source_bound.py"), *arguments],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert conflicting.returncode != 0
+    assert "verification imported app.main" in conflicting.stderr
+    assert str(foreign / "app/main.py") in conflicting.stderr
+    assert not receipts.exists()
+    correct = subprocess.run(
+        [sys.executable, "-m", "scripts.qa.source_bound", *arguments],
+        cwd=root,
+        env=bound_environment(root),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert correct.returncode == 0, correct.stdout + correct.stderr
+    record = json.loads(next(receipts.glob("*.json")).read_text())
+    assert record["checkout"] == str(root.resolve())
+    assert Path(record["interpreter"]).resolve() == Path(sys.executable).resolve()
+    assert record["origins"]["app.main"] == str((root / "app/main.py").resolve())
+    assert record["origins"]["scripts.docs.check_route_inventory"] == str(
+        (root / "scripts/docs/check_route_inventory.py").resolve()
+    )
+
+
+def test_native_node_reporter_inventory_matches_reviewed_exact_identities(tmp_path):
+    spec = release.policy()["base_lanes"]["node"]
+    result = subprocess.run(
+        ["node", "--test", "--test-reporter=junit", *spec["configuration"]["files"]],
+        cwd=release.ROOT,
+        capture_output=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr.decode()
+    path = tmp_path / "node.xml"
+    path.write_bytes(result.stdout)
+    actual = release.junit_cases(path, "node")
+    expected = spec["case_ids"]
+    assert len(expected) == len(set(expected))
+    assert set(actual) == set(expected)
+    assert set(actual.values()) == {"passed"}
+    assert {
+        "node::" + prefix + outcome + suffix
+        for outcome in ("resolve", "reject")
+        for prefix, suffix in [
+            ("old completion ", " cannot overwrite a resumed distinct refresh"),
+            ("current completion ", " permits the next deliberate refresh exactly once"),
+        ]
+    } <= set(actual)
+
+
+@pytest.mark.parametrize("fault", ["omitted", "unexpected", "duplicate"])
+def test_native_inventory_rejects_incomplete_unexpected_and_duplicate_cases(experiment, fault):
+    directory = experiment.root / "node"
+    path = directory / "results.xml"
+    cases = dict.fromkeys(experiment.plan["required_lanes"]["node"]["case_ids"], "passed")
+    if fault == "omitted":
+        cases.pop(next(iter(cases)))
+    if fault == "unexpected":
+        cases["node::undeclared native assertion"] = "passed"
+    xml_report(path, cases, "node")
+    if fault == "duplicate":
+        tree = ET.parse(path)
+        suite = tree.getroot().find("testsuite")
+        suite.append(copy.deepcopy(suite.find("testcase")))
+        tree.write(path)
+        with pytest.raises(release.EvidenceError, match="duplicate test identity"):
+            release.junit_cases(path, "node")
+    else:
+        observed = release.junit_cases(path, "node")
+        with pytest.raises(release.EvidenceError, match="missing, uncollected or unexpected"):
+            release._native_results(directory, experiment.plan, "node", observed)
+
+
+@pytest.mark.parametrize("outcome", ["success", "failure", "cancelled"])
+def test_owned_appenders_drain_before_real_recording_and_seal_validation(tmp_path, outcome):
+    import signal
+    import time
+
+    import psutil
+
+    from scripts.qa import owned_certification as owned
+    from scripts.qa.source_bound import bound_environment
+
+    plan = release.prepare_plan("owned-logger-" + outcome, "1", "local", False)
+    plan_path = tmp_path / "plan.json"
+    release.write_json(plan_path, plan)
+    live, snapshot = tmp_path / "live", tmp_path / "sealed/a04"
+    program = tmp_path / "appenders.py"
+    program.write_text("""import json, os, signal, subprocess, sys, threading, time
+from pathlib import Path
+root=Path(sys.argv[1]); role=sys.argv[2]
+stop=threading.Event()
+signal.signal(signal.SIGINT, lambda *_: stop.set())
+if hasattr(signal, "SIGBREAK"): signal.signal(signal.SIGBREAK, lambda *_: stop.set())
+def append(name):
+    with (root/name).open("a") as stream:
+        while not stop.wait(.01):
+            stream.write("owned append\\n"); stream.flush()
+if role == "nested":
+    append("child.log")
+else:
+    nested_env=dict(os.environ); nested_env.pop("SWINGLENS_CERTIFICATION_PROCESS_OWNER",None)
+    child=subprocess.Popen([sys.executable,__file__,str(root),"nested"],env=nested_env)
+    telemetry=threading.Thread(target=append,args=("telemetry.log",)); telemetry.start()
+    (root/"ready.json").write_text(json.dumps({"pid":os.getpid(),"child":child.pid}))
+    while not stop.wait(.01) and not (root/"finish").exists(): pass
+    stop.set(); telemetry.join()
+    raise SystemExit(3 if role == "failure" else 0)
+""")
+    runner = """import sys
+from pathlib import Path
+from scripts.qa import owned_certification as owner, release_evidence as release
+raise SystemExit(owner.run_owned(Path(sys.argv[2]),release.read_json(Path(sys.argv[1])),"a04",
+    [sys.executable,sys.argv[3],sys.argv[2],sys.argv[4]]))
+"""
+    guardian_path = tmp_path / "guardian.log"
+    guardian_log = guardian_path.open("wb")
+    guard = subprocess.Popen(
+        [sys.executable, "-c", runner, str(plan_path), str(live), str(program), outcome],
+        cwd=release.ROOT,
+        env=bound_environment(release.ROOT),
+        stdout=guardian_log,
+        stderr=subprocess.STDOUT,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+    )
+    unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+    try:
+        deadline = time.monotonic() + 60
+        while not (live / "ready.json").exists() and time.monotonic() < deadline:
+            if guard.poll() is not None:
+                pytest.fail(guardian_path.read_text(errors="replace"))
+            time.sleep(0.05)
+        assert (live / "ready.json").is_file()
+        child_pid = json.loads((live / "ready.json").read_text())["child"]
+        deadline = time.monotonic() + 10
+        while child_pid not in {
+            item["pid"] for item in release.read_json(live / owned.OWNER_FILE)["members"]
+        }:
+            assert time.monotonic() < deadline, "owned descendant was not observed"
+            time.sleep(.05)
+        deadline = time.monotonic() + 10
+        while not (live / "child.log").exists() or not (live / "telemetry.log").exists():
+            assert time.monotonic() < deadline
+            time.sleep(0.02)
+        if outcome == "cancelled":
+            guard.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)
+        else:
+            (live / "finish").write_text("complete the owned parent")
+        guard.wait(timeout=30)
+        assert guard.returncode == {"success": 0, "failure": 3, "cancelled": 130}[outcome], (
+            guardian_path.read_text(errors="replace")
+        )
+        assert unrelated.poll() is None
+        result = owned.snapshot_and_record(live, snapshot, plan, "a04", outcome)
+        assert result["cleanup"]["quiescent"]
+        assert result["receipt"]["verdict"] == "NONCERTIFIED"  # logger is never financial evidence
+        assert result["receipt"]["job_result"] == outcome
+        ownership = release.read_json(live / owned.OWNER_FILE)
+        assert not owned._members(ownership, recover_orphans=True)[0]
+        assert not owned._members(ownership, recover_orphans=True)[1]
+        hashes = {
+            name: release.file_digest(snapshot / name) for name in result["receipt"]["artifacts"]
+        }
+        assert hashes == result["receipt"]["artifacts"]
+        with (live / "child.log").open("a") as stream:
+            stream.write("late live-only diagnostic; snapshot must remain independent\n")
+        assert hashes == {name: release.file_digest(snapshot / name) for name in hashes}
+        assert psutil.pid_exists(unrelated.pid)
+        jobs = {
+            name: {"result": "cancelled" if outcome == "cancelled" else "failure"}
+            for name in {"release-plan", *(x["job"] for x in plan["required_lanes"].values())}
+        }
+        verdict = release.aggregate(plan, snapshot.parent, jobs)
+        assert verdict["verdict"] == "NONCERTIFIED"
+        assert not any("artifact seal invalid" in reason for reason in verdict["reasons"])
+        target = snapshot / "child.log"
+        target.chmod(0o644)
+        with target.open("a") as stream:
+            stream.write("intentional post-seal mutation\n")
+        invalid = release.aggregate(plan, snapshot.parent, jobs)
+        assert any("a04: artifact seal invalid" in reason for reason in invalid["reasons"])
+    finally:
+        if guard.poll() is None:
+            guard.terminate()
+            guard.wait(timeout=10)
+        if (live / owned.OWNER_FILE).exists():
+            owned.drain(release.read_json(live / owned.OWNER_FILE))
+        unrelated.terminate()
+        unrelated.wait(timeout=10)
+        guardian_log.close()
+
+
+def test_active_guardian_refuses_to_seal_live_diagnostics(tmp_path):
+    import psutil
+
+    from scripts.qa import owned_certification as owned
+
+    plan = release.prepare_plan("active-owner-refusal", "1", "local", False)
+    live = tmp_path / "live"
+    live.mkdir()
+    release.write_json(
+        live / owned.OWNER_FILE,
+        {
+            "context": release.context(plan, "a04"),
+            "token": "not-inherited-by-any-child",
+            "guardian": owned._identity(psutil.Process()),
+            "members": [],
+            "exit_code": None,
+        },
+    )
+    (live / "growing.log").write_text("unsealed live data")
+    result = owned.snapshot_and_record(live, tmp_path / "snapshot", plan, "a04", "cancelled")
+    assert not result["cleanup"]["quiescent"]
+    assert result["receipt"]["verdict"] == "NONCERTIFIED"
+    assert (live / "UNSEALED.json").is_file()
+    assert not (tmp_path / "snapshot/growing.log").exists()
+
+
+@pytest.mark.parametrize("fault", ["same-root", "forced-success", "missing-owner"])
+def test_a04_owned_evidence_wiring_cannot_bypass_cleanup(tmp_path, fault):
+    manifest = registry.load_manifest()
+    workflow = yaml.load(
+        (registry.ROOT / ".github/workflows/ci.yml").read_text(), Loader=yaml.BaseLoader)
+    steps = workflow["jobs"]["production-runtime-certification"]["steps"]
+    record = next(step for step in steps if step.get("name") == "Record release a04")
+    if fault == "same-root":
+        record["run"] = record["run"].replace("--snapshot-root test-results/release/a04",
+            "--snapshot-root test-results/release-live/a04")
+    elif fault == "forced-success":
+        record["run"] = record["run"].replace('"${{ steps.release_a04.outcome }}"', '"success"')
+    else:
+        run = next(step for step in steps
+                   if step.get("name") == "Run supported deterministic A04 certification")
+        run["run"] = (
+            "uv run python -m scripts.production_runtime_certification "
+            "--provider-mode deterministic")
+    target = tmp_path / ".github/workflows"
+    target.mkdir(parents=True)
+    (target / "ci.yml").write_text(yaml.safe_dump(workflow))
+    with pytest.raises(registry.RegistryError):
+        registry._check_full_release(manifest, tmp_path)
+
+
+def test_missing_process_ownership_metadata_preserves_only_unsealed_diagnostics(tmp_path):
+    from scripts.qa import owned_certification as owned
+
+    plan = release.prepare_plan("missing-owner-metadata", "1", "local", False)
+    live = tmp_path / "live"
+    live.mkdir()
+    (live / "growing.log").write_text("live writer cannot be proven stopped")
+    result = owned.snapshot_and_record(live, tmp_path / "snapshot", plan, "a04", "cancelled")
+    assert not result["cleanup"]["quiescent"]
+    assert result["receipt"]["job_result"] == "cancelled"
+    assert result["receipt"]["verdict"] == "NONCERTIFIED"
+    assert (live / "UNSEALED.json").exists()
+    assert not (tmp_path / "snapshot/growing.log").exists()

@@ -100,6 +100,13 @@ TEST_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 
 def main() -> int:
+    if os.environ.get("SWINGLENS_VERIFY_SOURCE_ROOT"):
+        from scripts.qa.source_bound import record_origins
+
+        record_origins(Path(os.environ["SWINGLENS_VERIFY_SOURCE_ROOT"]),
+            Path(os.environ["SWINGLENS_SOURCE_PROVENANCE_DIR"]),
+            ("scripts.production_runtime_certification", "app.main", "app.settings",
+             "app.database_safety"))
     parser = argparse.ArgumentParser(description="Certify the production SwingLens runtime.")
     parser.add_argument(
         "--provider-mode", choices=("deterministic", "live"), default="deterministic"
@@ -604,6 +611,14 @@ def guard(event, args):
         address[1] in {7496, 7497, 4001, 4002}):
         raise RuntimeError('CERTIFICATION_UNEXPECTED_NETWORK_ACCESS')
 sys.addaudithook(guard)
+import os
+from pathlib import Path
+if os.environ.get('SWINGLENS_VERIFY_SOURCE_ROOT'):
+    from scripts.qa.source_bound import record_origins
+    record_origins(Path(os.environ['SWINGLENS_VERIFY_SOURCE_ROOT']),
+        Path(os.environ['SWINGLENS_SOURCE_PROVENANCE_DIR']),
+        ('app.main', 'app.settings', 'app.database_safety',
+         'scripts.production_runtime_certification'))
 sys.argv = ['pytest', *sys.argv[1:]]
 runpy.run_module('pytest', run_name='__main__')
 """
@@ -662,6 +677,10 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
         "--output", str(report_dir / "prerequisite-browser-scratch"),
         *spec["selectors"],
     ]
+    if child.get("SWINGLENS_VERIFY_SOURCE_ROOT"):
+        command = [sys.executable, "-m", "scripts.qa.source_bound", "--receipt-dir",
+            child["SWINGLENS_SOURCE_PROVENANCE_DIR"], "--module", "pytest", "--",
+            *command[3:]]
     collected = subprocess.run(
         command, cwd=REPO_ROOT, env=child, capture_output=True, text=True, check=False,
     )

@@ -116,6 +116,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | POST | `/api/market-sector-intelligence/refresh` | `market_sector_refresh` |
 | GET | `/api/market-sector-intelligence/refresh/active` | `market_sector_refresh_active` |
 | GET | `/api/market-sector-intelligence/refresh/{job_id}` | `market_sector_refresh_status` |
+| POST | `/api/market-sector-intelligence/refresh/{job_id}/cancel` | `market_sector_refresh_cancel` |
 | GET | `/api/market-sector-intelligence/rotation/history` | `market_sector_rotation_history` |
 | GET | `/api/market-sector-intelligence/rotation/latest` | `market_sector_rotation_latest` |
 | GET | `/api/market-sector-intelligence/rotation/preview` | `market_sector_rotation_preview` |

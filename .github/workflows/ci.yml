@@ -671,10 +671,13 @@ jobs:
       - run: uv run playwright install --with-deps chromium
       - name: Run supported deterministic A04 certification
         id: release_a04
-        run: uv run python -m scripts.production_runtime_certification --provider-mode deterministic --report-dir test-results/release/a04/a04
+        run: >-
+          uv run python -m scripts.qa.owned_certification run --release-plan test-results/release-plan/plan.json --live-root test-results/release-live/a04
+          -- uv run python -m scripts.production_runtime_certification --provider-mode deterministic --report-dir test-results/release-live/a04/a04
       - name: Record release a04
+        id: record_a04
         if: always()
-        run: uv run python -m scripts.production_runtime_certification --record-release-lane a04 --release-plan test-results/release-plan/plan.json --report-dir test-results/release/a04 --job-result "${{ steps.release_a04.outcome }}"
+        run: uv run python -m scripts.qa.owned_certification record --release-plan test-results/release-plan/plan.json --live-root test-results/release-live/a04 --snapshot-root test-results/release/a04 --job-result "${{ steps.release_a04.outcome }}"
       - name: Publish source-bound release evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -684,6 +687,14 @@ jobs:
           # This job owns only the A04 lane; retain its original ownership markers.
           include-hidden-files: true
           if-no-files-found: error
+      - name: Retain explicitly unsealed cancellation diagnostics
+        if: always() && steps.record_a04.outputs.quiescent != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: a04-unsealed-diagnostics
+          path: test-results/release-live/a04/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   full-release:
     name: Core-release certification verdict

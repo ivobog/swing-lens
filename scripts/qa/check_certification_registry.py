@@ -395,9 +395,24 @@ def _check_full_release(manifest: dict, root: Path) -> None:
         if spec["step"] not in job_steps or job_steps[spec["step"]].get("continue-on-error"):
             raise RegistryError("required test step omitted/downgraded: " + lane)
         record = job_steps.get("Record release " + lane, {})
+        terminal_command = "--record-release-lane " + lane
+        if lane == "a04":
+            terminal_command = (
+                "-m scripts.qa.owned_certification record --release-plan "
+                "test-results/release-plan/plan.json --live-root test-results/release-live/a04 "
+                "--snapshot-root test-results/release/a04 --job-result "
+                '"${{ steps.release_a04.outcome }}"'
+            )
+            invoked = job_steps[spec["step"]].get("run", "")
+            if (
+                "-m scripts.qa.owned_certification run " not in invoked
+                or "--live-root test-results/release-live/a04" not in invoked
+                or "--report-dir test-results/release-live/a04/a04" not in invoked
+            ):
+                raise RegistryError("A04 process ownership/live evidence boundary missing")
         if not record.get("if", "").startswith(
             "always()"
-        ) or "--record-release-lane " + lane not in record.get("run", ""):
+        ) or terminal_command not in record.get("run", ""):
             raise RegistryError("terminal evidence capture missing: " + lane)
         if spec["kind"] == "pytest":
             if "--collect-only" not in job_steps.get("Collect release " + lane, {}).get("run", ""):
