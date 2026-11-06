@@ -118,6 +118,7 @@ def main() -> int:
     release.add_argument("--record-release-lane")
     release.add_argument("--aggregate-release", action="store_true")
     release.add_argument("--release-selectors")
+    release.add_argument("--validate-impact", choices=("developer", "integration"))
     parser.add_argument("--release-profile", choices=("core", "diagnostic"), default="core")
     parser.add_argument("--impact-plan", type=Path)
     parser.add_argument("--release-plan", type=Path)
@@ -132,6 +133,9 @@ def main() -> int:
     execution_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     final_report_dir = args.report_dir or REPORT_ROOT / execution_id
 
+    if args.validate_impact:
+        return _run_impact_validation(args, final_report_dir, execution_id)
+
     if (
         args.prepare_release
         or args.begin_release_lane
@@ -145,6 +149,102 @@ def main() -> int:
         return _run_live_certification(final_report_dir, execution_id)
 
     return _run_exact_deterministic(final_report_dir, execution_id)
+
+
+def _run_impact_validation(args, report_dir: Path, execution_id: str) -> int:
+    """Run affected groups serially; stop at the first actionable native failure."""
+    from scripts.qa import check_certification_registry as registry
+    from scripts.qa import release_evidence as release
+
+    report_dir.mkdir(parents=True, exist_ok=False)
+    report = {
+        "schema": "swinglens.impact-validation.v1", "execution_id": execution_id,
+        "level": args.validate_impact, "certification": "NOT_EVALUATED",
+        "safe_for_normal_run": False, "groups": {}, "status": "BLOCKED",
+        "started_at": datetime.now(UTC).isoformat(),
+    }
+    try:
+        if args.provider_mode != "deterministic" or args.impact_plan is None:
+            raise release.EvidenceError("explicit deterministic source-impact plan required")
+        manifest = registry.load_manifest()
+        registry.validate_registry(manifest)
+        registry.validate_source_contracts(manifest)
+        impact = release.read_json(args.impact_plan)
+        groups = release.validation_selection(impact, args.validate_impact)
+        if not groups:
+            raise release.EvidenceError("reviewed affected selection is empty")
+        if args.validate_impact == "integration":
+            admin = os.environ.get("SWINGLENS_TEST_POSTGRES_ADMIN_URL")
+            if not admin or make_url(admin).host not in {"127.0.0.1", "localhost", "::1"}:
+                raise release.EvidenceError(
+                    "explicit owned loopback PostgreSQL prerequisite required"
+                )
+        source = release.identity()
+        report.update(source=source, source_impact=impact, selection=groups)
+        report["resource_advisory"] = _test_resource_advisory()
+        environment = {
+            key: value for key, value in os.environ.items()
+            if not key.startswith("SWINGLENS_RELEASE_")
+        }
+        environment.update(
+            DATABASE_URL="postgresql+psycopg://invalid@127.0.0.1:1/swinglens_pytest_impact_unopened",
+            SWINGLENS_DATABASE_SAFETY_CONTEXT="DISPOSABLE_TEST",
+            SWINGLENS_CERTIFICATION_PROVIDER_MODE="deterministic",
+            SWINGLENS_CERTIFICATION_CODE_FINGERPRINT=source["fingerprint"],
+            SWINGLENS_CERTIFICATION_INVOCATION_ID=execution_id,
+            SWINGLENS_IMPACT_VALIDATION=args.validate_impact,
+        )
+        plugins = environment.get("PYTEST_PLUGINS", "").split(",")
+        environment["PYTEST_PLUGINS"] = ",".join(dict.fromkeys(
+            [p for p in plugins if p] + ["scripts.qa.release_evidence"]
+        ))
+        stopped = False
+        for name, selectors in groups.items():
+            if stopped:
+                report["groups"][name] = {"status": "NOT_RUN", "selected": selectors}
+                continue
+            directory = report_dir / name
+            directory.mkdir()
+            child = {**environment,
+                     "SWINGLENS_CERTIFICATION_ARTIFACT_ROOT": str(directory / "runtime-evidence")}
+            result = _run_test_group(directory, child, name, ("-x", "--tb=short", *selectors))
+            observed = _junit_execution(directory / f"{name}.xml")
+            complete = (
+                result.exit_code == 0 and bool(observed["executed"]) and not observed["failed"]
+            )
+            measurements = [
+                release.read_json(path) for path in
+                sorted((directory / "runtime-evidence").rglob("validation-runtime.json"))
+            ]
+            if name == "native-pipeline-100-and-88-handoff":
+                complete = (
+                    complete and len(measurements) == 2
+                    and {row["ticker_count"] for row in measurements} == {88, 100}
+                    and {row["nodeid"] for row in measurements} == set(selectors)
+                    and all(row["performance"]["status"] == "PASS"
+                            and row["original_outcome"] == "passed"
+                            and row["source_fingerprint"] == source["fingerprint"]
+                            for row in measurements)
+                )
+            report["groups"][name] = {
+                **asdict(result), "status": "PASS" if complete else "FAIL",
+                "selected": selectors, "observed": observed,
+                "native_runtime_measurements": measurements,
+            }
+            stopped = not complete
+            release.write_json(report_dir / "validation.json", report)
+        if release.identity() != source:
+            raise release.EvidenceError("source changed during affected validation")
+        report["status"] = "FAIL" if stopped else "PASS"
+    except (
+        release.EvidenceError, registry.RegistryError, OSError, ValueError,
+        KeyError, TypeError, ET.ParseError,
+    ) as exc:
+        report["reason"] = str(exc)
+    report["completed_at"] = datetime.now(UTC).isoformat()
+    release.write_json(report_dir / "validation.json", report)
+    print(f"{args.validate_impact} validation: {report['status']}; certification: NOT_EVALUATED")
+    return 0 if report["status"] == "PASS" else 1
 
 
 def _release_action(args, report_dir: Path) -> int:
@@ -623,23 +723,27 @@ sys.argv = ['pytest', *sys.argv[1:]]
 runpy.run_module('pytest', run_name='__main__')
 """
         command = [sys.executable, "-c", bootstrap, *command[3:]]
+    stdout_path = report_dir / f"{name}.stdout.log"
+    stderr_path = report_dir / f"{name}.stderr.log"
     started = monotonic()
-    with _record_test_resources(report_dir / f"{name}.resources.jsonl"):
+    # Keep native diagnostics visible while a long group is still executing.
+    # Buffering both streams until process exit hid the first actionable failure.
+    with (
+        _record_test_resources(report_dir / f"{name}.resources.jsonl"),
+        stdout_path.open("wb") as stdout,
+        stderr_path.open("wb") as stderr,
+    ):
         completed = subprocess.run(
             command,
             cwd=REPO_ROOT,
-            env=environment,
-            text=True,
-            capture_output=True,
+            env={**environment, "PYTHONIOENCODING": "utf-8"},
+            stdout=stdout,
+            stderr=stderr,
             check=False,
         )
     duration = monotonic() - started
-    stdout_path = report_dir / f"{name}.stdout.log"
-    stderr_path = report_dir / f"{name}.stderr.log"
-    stdout_path.write_text(completed.stdout, encoding="utf-8")
-    stderr_path.write_text(completed.stderr, encoding="utf-8")
     status = "PASS" if completed.returncode == 0 else "FAIL"
-    print(f"{name}: {status} ({duration:.1f}s)")
+    print(f"{name}: {status} ({duration:.1f}s)", flush=True)
     return TestGroupResult(
         name=name,
         status=status,
@@ -670,6 +774,7 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
         "SWINGLENS_RELEASE_LANE": "a04-prerequisites",
         "SWINGLENS_RELEASE_CAPTURE": "collection",
         "SWINGLENS_RELEASE_RECORD_DIR": str(directory),
+        "SWINGLENS_RETAIN_NATIVE_RUNTIME": "true",
     }
     command = [
         sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
@@ -689,7 +794,7 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     if collected.returncode:
         return TestGroupResult(name, "FAIL", collected.returncode, 0, command, "", "")
     child["SWINGLENS_RELEASE_CAPTURE"] = "execution"
-    result = _run_test_group(report_dir, child, name, tuple(spec["selectors"]))
+    result = _run_test_group(report_dir, child, name, ("--maxfail=1", *spec["selectors"]))
     shutil.copyfile(report_dir / (name + ".xml"), directory / "results.xml")
     observed = release.junit_cases(directory / "results.xml", "pytest")
     proof = release._pytest_results(directory, plan, "a04-prerequisites", observed)

@@ -41,6 +41,7 @@ class DecisionTimeEstimateService:
     ) -> None:
         self.repository = repository or WinnerProbabilityRepository()
         self.probability_estimator = probability_estimator or ProbabilityEstimator()
+        self._capture_evidence_service = None
 
     def prepare_capture_run(
         self,
@@ -51,7 +52,9 @@ class DecisionTimeEstimateService:
         lease_guard: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """Freeze the broad evidence candidate universe once for a capture run."""
-        return self.probability_estimator.evidence_service.prepare_run_candidate_universe(
+        service = self.probability_estimator.capture_evidence_service_for(db)
+        self._capture_evidence_service = service
+        return service.prepare_run_candidate_universe(
             db,
             outcome_definition=outcome_definition,
             config=config,
@@ -59,10 +62,13 @@ class DecisionTimeEstimateService:
         )
 
     def capture_run_evidence_metrics(self) -> dict[str, Any]:
-        return self.probability_estimator.evidence_service.run_candidate_metrics()
+        service = self._capture_evidence_service
+        return service.run_candidate_metrics() if service is not None else {}
 
     def clear_capture_run(self) -> None:
-        self.probability_estimator.evidence_service.clear_run_candidate_universe()
+        service, self._capture_evidence_service = self._capture_evidence_service, None
+        if service is not None:
+            service.clear_run_candidate_universe()
 
     def create_decision_time_estimate(
         self,

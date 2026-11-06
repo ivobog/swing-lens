@@ -8,6 +8,55 @@ import pytest
 from scripts import production_runtime_certification as certification
 
 
+def test_native_group_diagnostics_are_visible_before_process_exit(tmp_path, monkeypatch):
+    import os
+    import sys
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from contextlib import nullcontext
+
+    release = tmp_path / "release-child"
+    probe = tmp_path / "native_probe.py"
+    probe.write_text(
+        "import sys, time\nfrom pathlib import Path\n"
+        "print('native output ready', flush=True)\n"
+        "print('native error \\u03a9', file=sys.stderr, flush=True)\n"
+        f"release = Path({str(release)!r})\n"
+        "deadline = time.monotonic() + 12\n"
+        "while not release.exists() and time.monotonic() < deadline: time.sleep(.01)\n"
+        "raise SystemExit(3)\n",
+        encoding="utf-8",
+    )
+    native_run = certification.subprocess.run
+    monkeypatch.setattr(
+        certification.subprocess, "run",
+        lambda _command, **kwargs: native_run([sys.executable, str(probe)], **kwargs),
+    )
+    monkeypatch.setattr(certification, "_record_test_resources", lambda _: nullcontext())
+    report = tmp_path / "report"
+    report.mkdir()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(certification._run_test_group, report, dict(os.environ), "probe", ())
+        try:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                stdout = report / "probe.stdout.log"
+                stderr = report / "probe.stderr.log"
+                if (stdout.exists() and stderr.exists()
+                        and "native output ready" in stdout.read_text(encoding="utf-8")
+                        and "native error \u03a9" in stderr.read_text(encoding="utf-8")):
+                    break
+                time.sleep(.01)
+            else:
+                pytest.fail("Native diagnostics were withheld until the child exited")
+            assert not future.done()
+        finally:
+            release.touch()
+            result = future.result(timeout=15)
+    assert result.status == "FAIL"
+    assert result.exit_code == 3
+
+
 @pytest.mark.parametrize("failed_phase", ["focused", "prerequisite", "prerequisite-evidence"])
 def test_exact_report_attributes_the_failed_phase(tmp_path, monkeypatch, failed_phase):
     from single_run_certification import candidate_validation, golden_oracle

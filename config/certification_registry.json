@@ -207,7 +207,7 @@
       ],
       "automatic": true,
       "certificate_authority": "A04_FINALIZER",
-      "source_sha256": "cab96770885b6adda9094ccad42220c15e2f37aa34368dadb8a15529fdc46b08",
+      "source_sha256": "c2c8c29bacb30030f58a310f9bc25f1d615b2a1cdbe03110d1d0fe6e26760e4a",
       "ci_command": "",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -262,7 +262,7 @@
       ],
       "automatic": true,
       "certificate_authority": "NONE",
-      "source_sha256": "cab96770885b6adda9094ccad42220c15e2f37aa34368dadb8a15529fdc46b08",
+      "source_sha256": "c2c8c29bacb30030f58a310f9bc25f1d615b2a1cdbe03110d1d0fe6e26760e4a",
       "ci_command": "uv run python -m scripts.production_runtime_certification --aggregate-release --release-plan test-results/release-plan/plan.json --evidence-root test-results/release --job-results test-results/release-jobs.json --report-dir test-results/full-release",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -317,7 +317,7 @@
       ],
       "automatic": false,
       "certificate_authority": "NONE",
-      "source_sha256": "cab96770885b6adda9094ccad42220c15e2f37aa34368dadb8a15529fdc46b08",
+      "source_sha256": "c2c8c29bacb30030f58a310f9bc25f1d615b2a1cdbe03110d1d0fe6e26760e4a",
       "ci_command": ""
     }
   ],
@@ -2865,6 +2865,14 @@
           {
             "path": "app/services/winner_probability/consumer_eligibility.py",
             "symbol": "winner_decision_inputs"
+          },
+          {
+            "path": "app/services/winner_probability/probability_estimator.py",
+            "symbol": "ProbabilityEstimator._select_cohort"
+          },
+          {
+            "path": "app/services/winner_probability/decision_time_estimate_service.py",
+            "symbol": "DecisionTimeEstimateService.prepare_capture_run"
           }
         ],
         "impact_patterns": [
@@ -2908,6 +2916,15 @@
             "positive": "Actual certified READY Technical inputs for the late-arriving one/two-observation cohorts, against the older shared benchmark history, yield two native committed Winner predictions.",
             "negative": "The retained blowoff/climax input stays DEGRADED and Winner v1 undecided, with two exclusions and no predictions, even when Combined/Ranking v2 research admission permits their inputs.",
             "reviewed_test_sha256": "5f01293937704252718c8b6c2dff24d17e5da966ca2d47b4dfc9eb64f2333525"
+          },
+          {
+            "id": "tests/winner_probability/test_native_capture_evidence_reuse.py::test_native_estimation_reuses_prepared_candidates_and_clears_them",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Prepared run candidates reach native estimation across item Sessions.",
+            "negative": "Injected financial readers are ignored and cleared evidence cannot be reused in another run.",
+            "reviewed_test_sha256": "32e130370d69387140afbdc4e5ebdcbc6937db8cf687a6abba34792fa2b5b034"
           }
         ],
         "oracle": "A05B expected Winner identities/outcomes and retained A08 reached-assertion/omission evidence.",
@@ -2920,7 +2937,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "486939ba6a55da8d084a31eed88686ffc259d07afc43db6d352e5c3827fe8229",
+        "review_sha256": "05d2a5cac466a8d7a1023889cad1c274a773ff6b3d01fafa7f25e1699e825ddb",
         "review_addenda": [
           {
             "task": "FR02",
@@ -3612,6 +3629,14 @@
           {
             "path": "scripts/qa/owned_certification.py",
             "symbol": "snapshot_and_record"
+          },
+          {
+            "path": "tests/evidence_output.py",
+            "symbol": "history_write_guard"
+          },
+          {
+            "path": "scripts/production_runtime_certification.py",
+            "symbol": "_run_test_group"
           }
         ],
         "impact_patterns": [
@@ -3621,7 +3646,8 @@
           "config/certification_registry.json",
           "config/architecture_registry.json",
           ".github/*",
-          "scripts/qa/t14a_reviewed_inventory.py"
+          "scripts/qa/t14a_reviewed_inventory.py",
+          "tests/evidence_output.py"
         ],
         "tests": [
           {
@@ -3631,7 +3657,7 @@
             "lane": "python-regressions",
             "positive": "Complete synthetic contract aggregates only within its specimen.",
             "negative": "Missing/stale/wrong identity, failures, skips or incomplete lanes never certify.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_certification_registry.py::test_historical_or_ordinary_pass_does_not_replace_a04_evidence",
@@ -3658,7 +3684,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[no-body]",
@@ -3667,7 +3693,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[missing]",
@@ -3676,7 +3702,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[stale]",
@@ -3685,7 +3711,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[foreign]",
@@ -3694,7 +3720,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_current_candidate_cannot_reuse_historical_a04_receipts",
@@ -3703,7 +3729,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_production_runtime_certification.py::test_extra_prerequisite_browser_preparation_is_confined_to_ci",
@@ -3712,7 +3738,7 @@
             "lane": "python-regressions",
             "positive": "Triggered CI browsers are provisioned with the locked Playwright installation command.",
             "negative": "Failed or unreviewed browser provisioning blocks prerequisite execution; local certification does not install browsers implicitly.",
-            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
+            "reviewed_test_sha256": "4cf4b084d5890c83cd5be81f568e79ffa0f9702902147863be7037abf2b933f3"
           },
           {
             "id": "tests/test_production_runtime_certification.py::test_failed_or_unreviewed_prerequisite_browser_preparation_blocks",
@@ -3721,7 +3747,7 @@
             "lane": "python-regressions",
             "positive": "Triggered CI browsers are provisioned with the locked Playwright installation command.",
             "negative": "Failed or unreviewed browser provisioning blocks prerequisite execution; local certification does not install browsers implicitly.",
-            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
+            "reviewed_test_sha256": "4cf4b084d5890c83cd5be81f568e79ffa0f9702902147863be7037abf2b933f3"
           },
           {
             "id": "tests/test_github_artifact_reader.py::test_commit_bound_large_regular_artifact_uses_git_blob_and_preserves_bytes",
@@ -3802,7 +3828,7 @@
             "lane": "python-regressions",
             "positive": "The real Playwright plugin removes configured scratch output while preserving the byte-identical source-bound plan in both child invocations.",
             "negative": "A retained stale marker, missing or altered plan, or unsuccessful child execution cannot satisfy cleanup evidence.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_verification_detects_conflicting_editable_import_and_records_bound_origin",
@@ -3811,7 +3837,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_native_node_reporter_inventory_matches_reviewed_exact_identities",
@@ -3820,7 +3846,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_native_inventory_rejects_incomplete_unexpected_and_duplicate_cases[omitted]",
@@ -3829,7 +3855,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_native_inventory_rejects_incomplete_unexpected_and_duplicate_cases[unexpected]",
@@ -3838,7 +3864,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_native_inventory_rejects_incomplete_unexpected_and_duplicate_cases[duplicate]",
@@ -3847,7 +3873,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_owned_appenders_drain_before_real_recording_and_seal_validation[success]",
@@ -3856,7 +3882,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_owned_appenders_drain_before_real_recording_and_seal_validation[failure]",
@@ -3865,7 +3891,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_owned_appenders_drain_before_real_recording_and_seal_validation[cancelled]",
@@ -3874,7 +3900,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_active_guardian_refuses_to_seal_live_diagnostics",
@@ -3883,7 +3909,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_missing_process_ownership_metadata_preserves_only_unsealed_diagnostics",
@@ -3892,7 +3918,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_a04_owned_evidence_wiring_cannot_bypass_cleanup[same-root]",
@@ -3901,7 +3927,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_a04_owned_evidence_wiring_cannot_bypass_cleanup[forced-success]",
@@ -3910,7 +3936,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_full_release_certification.py::test_a04_owned_evidence_wiring_cannot_bypass_cleanup[missing-owner]",
@@ -3919,7 +3945,7 @@
             "lane": "python-regressions",
             "positive": "Focused verifier/native-reporter and owned-process evidence contracts execute.",
             "negative": "Foreign imports, inventory drift, live writers and post-seal mutations refuse certification.",
-            "reviewed_test_sha256": "55728e9556084e239086a06c788271c6b56d8d6d3150355413efc688cdf956ab"
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
           },
           {
             "id": "tests/test_market_sector_intelligence_browser.py::test_failed_case_context_cleanup_preserves_the_shared_runtime",
@@ -4036,7 +4062,7 @@
             "lane": "python-regressions",
             "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
             "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
-            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
+            "reviewed_test_sha256": "4cf4b084d5890c83cd5be81f568e79ffa0f9702902147863be7037abf2b933f3"
           },
           {
             "id": "tests/test_production_runtime_certification.py::test_exact_report_attributes_the_failed_phase[prerequisite]",
@@ -4045,7 +4071,7 @@
             "lane": "python-regressions",
             "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
             "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
-            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
+            "reviewed_test_sha256": "4cf4b084d5890c83cd5be81f568e79ffa0f9702902147863be7037abf2b933f3"
           },
           {
             "id": "tests/test_production_runtime_certification.py::test_exact_report_attributes_the_failed_phase[prerequisite-evidence]",
@@ -4054,7 +4080,7 @@
             "lane": "python-regressions",
             "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
             "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
-            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
+            "reviewed_test_sha256": "4cf4b084d5890c83cd5be81f568e79ffa0f9702902147863be7037abf2b933f3"
           },
           {
             "id": "tests/test_source_contract_governance.py::test_release_policy_rejects_changed_comparison_evidence[tested_source]",
@@ -4091,6 +4117,132 @@
             "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
             "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
             "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_failure_diagnostic_io_error_preserves_original_native_outcome",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Native failure diagnostics are retained while the original outcome remains authoritative.",
+            "negative": "Missing diagnostic output, redaction failures, IO errors and early exit cannot create a pass.",
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_failure_is_retained_before_session_finish_without_certifying",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Native failure diagnostics are retained while the original outcome remains authoritative.",
+            "negative": "Missing diagnostic output, redaction failures, IO errors and early exit cannot create a pass.",
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
+          },
+          {
+            "id": "tests/test_full_release_certification.py::test_passing_native_report_does_not_write_failure_diagnostics",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Native failure diagnostics are retained while the original outcome remains authoritative.",
+            "negative": "Missing diagnostic output, redaction failures, IO errors and early exit cannot create a pass.",
+            "reviewed_test_sha256": "3e2cdcb9eb63c022cbc4808a80fde320a236965b04fc5b83f39977574645af5b"
+          },
+          {
+            "id": "tests/test_production_runtime_certification.py::test_native_group_diagnostics_are_visible_before_process_exit",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Native failure diagnostics are retained while the original outcome remains authoritative.",
+            "negative": "Missing diagnostic output, redaction failures, IO errors and early exit cannot create a pass.",
+            "reviewed_test_sha256": "4cf4b084d5890c83cd5be81f568e79ffa0f9702902147863be7037abf2b933f3"
+          },
+          {
+            "id": "tests/test_evidence_write_boundaries.py::test_descriptor_relative_destinations_keep_protection",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Temporary cleanup resolves its real native destination without altering ownership.",
+            "negative": "Protected relative writes and unknown directory descriptors remain refused.",
+            "reviewed_test_sha256": "bdeef2c4c3c6c411d62b6fbf04a8cbc30d54a395c9351c31d3145eab4dc6f4f8"
+          },
+          {
+            "id": "tests/test_evidence_write_boundaries.py::test_unknown_descriptor_cannot_fall_back_to_working_directory",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Temporary cleanup resolves its real native destination without altering ownership.",
+            "negative": "Protected relative writes and unknown directory descriptors remain refused.",
+            "reviewed_test_sha256": "bdeef2c4c3c6c411d62b6fbf04a8cbc30d54a395c9351c31d3145eab4dc6f4f8"
+          },
+          {
+            "id": "tests/test_evidence_write_boundaries.py::test_native_temporary_cleanup_and_protected_descriptor",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Temporary cleanup resolves its real native destination without altering ownership.",
+            "negative": "Protected relative writes and unknown directory descriptors remain refused.",
+            "reviewed_test_sha256": "bdeef2c4c3c6c411d62b6fbf04a8cbc30d54a395c9351c31d3145eab4dc6f4f8"
+          },
+          {
+            "id": "tests/test_impact_validation.py::test_levels_separate_fast_native_and_full_path_proof",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Affected developer and PostgreSQL/full-path validation use reviewed scope with serial execution.",
+            "negative": "Unknown impact, source changes, failure and skip cannot certify or cause later groups to appear passed.",
+            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+          },
+          {
+            "id": "tests/test_impact_validation.py::test_unknown_impact_cannot_run_a_smaller_approved_selection",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Affected developer and PostgreSQL/full-path validation use reviewed scope with serial execution.",
+            "negative": "Unknown impact, source changes, failure and skip cannot certify or cause later groups to appear passed.",
+            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+          },
+          {
+            "id": "tests/test_impact_validation.py::test_validation_stops_invalid_groups_without_certifying",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Affected developer and PostgreSQL/full-path validation use reviewed scope with serial execution.",
+            "negative": "Unknown impact, source changes, failure and skip cannot certify or cause later groups to appear passed.",
+            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+          },
+          {
+            "id": "tests/test_impact_validation.py::test_integration_budgets_require_completed_native_stages",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Owned native integration records expose complete stages and bounded timing.",
+            "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
+            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+          },
+          {
+            "id": "tests/test_impact_validation.py::test_retention_rejects_normal_storage_before_connecting",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Owned native integration records expose complete stages and bounded timing.",
+            "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
+            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+          },
+          {
+            "id": "tests/test_impact_validation.py::test_prerequisites_fail_fast_without_dropping_required_cases",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Owned native integration records expose complete stages and bounded timing.",
+            "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
+            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+          },
+          {
+            "id": "tests/test_impact_validation.py::test_failed_input_retention_preserves_original_report_and_certificate_files",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Owned native integration records expose complete stages and bounded timing.",
+            "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
+            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -4102,7 +4254,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "6d2d82c828ce34739ccd4a454b5fc0ccb486c0056d0164ed0d3f0ca94c8adad8"
+        "review_sha256": "8fd3201bee6874383ddb724b505c3b0129707cc315b6ab580dcc89f4bbaca565"
       }
     ]
   },
@@ -4952,6 +5104,156 @@
         "exact_test_id": "tests/test_golden_github_approval.py::test_personal_repository_authority_is_reread_on_each_protection_validation",
         "reason": "A13-R13 personal-repository protection compatibility with strict existing guards.",
         "source": "A13-R12 authenticated personal-repository protection readback; deployed ec126632 verifier incompatibility.",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_full_release_certification.py::test_failure_diagnostic_io_error_preserves_original_native_outcome",
+        "reason": "Native failure diagnostics are retained while the original outcome remains authoritative. Missing diagnostic output, redaction failures, IO errors and early exit cannot create a pass.",
+        "source": "2026-11-06 integration recovery review; additive controls only",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_full_release_certification.py::test_failure_is_retained_before_session_finish_without_certifying",
+        "reason": "Native failure diagnostics are retained while the original outcome remains authoritative. Missing diagnostic output, redaction failures, IO errors and early exit cannot create a pass.",
+        "source": "2026-11-06 integration recovery review; additive controls only",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_full_release_certification.py::test_passing_native_report_does_not_write_failure_diagnostics",
+        "reason": "Native failure diagnostics are retained while the original outcome remains authoritative. Missing diagnostic output, redaction failures, IO errors and early exit cannot create a pass.",
+        "source": "2026-11-06 integration recovery review; additive controls only",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_production_runtime_certification.py::test_native_group_diagnostics_are_visible_before_process_exit",
+        "reason": "Native failure diagnostics are retained while the original outcome remains authoritative. Missing diagnostic output, redaction failures, IO errors and early exit cannot create a pass.",
+        "source": "2026-11-06 integration recovery review; additive controls only",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_write_boundaries.py::test_descriptor_relative_destinations_keep_protection",
+        "reason": "Temporary cleanup resolves its real native destination without altering ownership. Protected relative writes and unknown directory descriptors remain refused.",
+        "source": "2026-11-06 integration recovery review; additive controls only",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_write_boundaries.py::test_unknown_descriptor_cannot_fall_back_to_working_directory",
+        "reason": "Temporary cleanup resolves its real native destination without altering ownership. Protected relative writes and unknown directory descriptors remain refused.",
+        "source": "2026-11-06 integration recovery review; additive controls only",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_write_boundaries.py::test_native_temporary_cleanup_and_protected_descriptor",
+        "reason": "Temporary cleanup resolves its real native destination without altering ownership. Protected relative writes and unknown directory descriptors remain refused.",
+        "source": "2026-11-06 integration recovery review; additive controls only",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "WINNER_EVIDENCE_MATURATION",
+        "exact_test_id": "tests/winner_probability/test_native_capture_evidence_reuse.py::test_native_estimation_reuses_prepared_candidates_and_clears_them",
+        "reason": "Prepared run candidates reach native estimation across item Sessions. Injected financial readers are ignored and cleared evidence cannot be reused in another run.",
+        "source": "2026-11-06 integration recovery review; additive controls only",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_impact_validation.py::test_levels_separate_fast_native_and_full_path_proof",
+        "reason": "2026-11-06 additive impact-validation boundary controls.",
+        "source": "Integration recovery review; existing release requirements unchanged",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_impact_validation.py::test_unknown_impact_cannot_run_a_smaller_approved_selection",
+        "reason": "2026-11-06 additive impact-validation boundary controls.",
+        "source": "Integration recovery review; existing release requirements unchanged",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_impact_validation.py::test_validation_stops_invalid_groups_without_certifying",
+        "reason": "2026-11-06 additive impact-validation boundary controls.",
+        "source": "Integration recovery review; existing release requirements unchanged",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_impact_validation.py::test_integration_budgets_require_completed_native_stages",
+        "reason": "Additive native integration feedback and storage-boundary controls.",
+        "source": "2026-11-06 integration recovery review",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_impact_validation.py::test_retention_rejects_normal_storage_before_connecting",
+        "reason": "Additive native integration feedback and storage-boundary controls.",
+        "source": "2026-11-06 integration recovery review",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_impact_validation.py::test_prerequisites_fail_fast_without_dropping_required_cases",
+        "reason": "Additive native integration feedback and storage-boundary controls.",
+        "source": "2026-11-06 integration recovery review",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_impact_validation.py::test_failed_input_retention_preserves_original_report_and_certificate_files",
+        "reason": "Additive native integration feedback and storage-boundary controls.",
+        "source": "2026-11-06 integration recovery review",
         "in_original_catalog": false,
         "trigger_paths": [],
         "deferred_outcome": "NOT_RUN"

@@ -22,6 +22,54 @@ from scripts.qa import check_certification_registry as registry
 from scripts.qa import release_evidence as release
 
 
+def test_failure_is_retained_before_session_finish_without_certifying(tmp_path, monkeypatch):
+    capture = {"directory": tmp_path, "context": {"source": "frozen-source"}, "phases": {}}
+    monkeypatch.setattr(release, "_capture", capture)
+    report = SimpleNamespace(
+        nodeid="tests/probe.py::test_native_failure", when="call", outcome="failed",
+        duration=.1, failed=True,
+        longrepr="assert completed == 100\npostgresql://operator:private-value@localhost/test",
+    )
+    release.pytest_runtest_logreport(report)
+    paths = list((tmp_path / "failures").glob("*.json"))
+    assert len(paths) == 1
+    diagnostic = release.read_json(paths[0])
+    assert diagnostic["nodeid"] == report.nodeid
+    assert diagnostic["phase"] == "call"
+    assert diagnostic["context"] == capture["context"]
+    assert "assert completed == 100" in diagnostic["diagnostic"]
+    assert "private-value" not in diagnostic["diagnostic"]
+    assert diagnostic["certification"] == "NOT_EVALUATED_DIAGNOSTIC_ONLY"
+    assert capture["phases"][report.nodeid]["call"]["outcome"] == "failed"
+    assert not (tmp_path / "execution.json").exists()
+    assert not (tmp_path / "lane.json").exists()
+
+
+def test_failure_diagnostic_io_error_preserves_original_native_outcome(tmp_path, monkeypatch):
+    capture = {"directory": tmp_path, "context": {}, "phases": {}}
+    monkeypatch.setattr(release, "_capture", capture)
+    def unavailable(*args, **kwargs):
+        raise OSError("diagnostic disk unavailable")
+    monkeypatch.setattr(release.tempfile, "mkstemp", unavailable)
+    report = SimpleNamespace(
+        nodeid="tests/probe.py::test_failed", when="setup", outcome="failed",
+        duration=.1, failed=True, longrepr="original setup failure",
+    )
+    release.pytest_runtest_logreport(report)
+    assert capture["phases"][report.nodeid]["setup"]["outcome"] == "failed"
+    assert capture["diagnostic_errors"] == ["OSError"]
+
+
+def test_passing_native_report_does_not_write_failure_diagnostics(tmp_path, monkeypatch):
+    capture = {"directory": tmp_path, "context": {}, "phases": {}}
+    monkeypatch.setattr(release, "_capture", capture)
+    release.pytest_runtest_logreport(SimpleNamespace(
+        nodeid="tests/probe.py::test_ok", when="call", outcome="passed", duration=.1, failed=False,
+    ))
+    assert capture["phases"]["tests/probe.py::test_ok"]["call"]["outcome"] == "passed"
+    assert not (tmp_path / "failures").exists()
+
+
 def xml_report(path, cases, kind):
     root = ET.Element("testsuites")
     suite = ET.SubElement(

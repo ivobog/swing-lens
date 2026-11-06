@@ -13,11 +13,14 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from fnmatch import fnmatchcase
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_LANES = {
@@ -184,6 +187,42 @@ def core_policy(impact: dict) -> dict:
     }
     validate_policy(value)
     return value
+
+
+def validation_selection(impact: dict, level: str) -> dict[str, list[str]]:
+    """Use affected contracts before certification; these groups issue no certificate."""
+    if level not in {"developer", "integration"}:
+        raise EvidenceError("unknown validation level")
+    core_policy(impact)  # Recheck reviewed ownership, comparison and unknown impact.
+    manifest = read_json(ROOT / "config/certification_registry.json")
+    mapped = {
+        test["id"]: test
+        for contract in manifest["source_contracts"]["contracts"]
+        for test in contract["tests"]
+    }
+    groups = {"affected-fast": sorted(
+        set(impact["direct_fast_tests"]) | set(manifest["test_selection"]["policy_controls"])
+    )}
+    if level == "integration":
+        native = sorted({
+            node for node in impact["required_native_browser_tests"]
+            if mapped[node]["tier"] == "NATIVE"
+        })
+        if native:
+            groups["affected-postgresql"] = native
+        if any(p.startswith("app/") for p in impact["changed_paths"]):
+            # Exercise cardinality, the non-round tail and alternate handoff once
+            # before the release matrix. Nothing here defers a required A04 case.
+            pipeline = sorted({
+                row["exact_test_id"] for row in manifest["test_selection"]["entries"]
+                if row["contract"] == "SCALE_88_100" and row["exact_test_id"].endswith(
+                    ("[chromium-False-100]", "[chromium-True-88]")
+                )
+            })
+            if len(pipeline) != 2:
+                raise EvidenceError("reviewed native population/handoff pair missing")
+            groups["native-pipeline-100-and-88-handoff"] = pipeline
+    return {name: selectors for name, selectors in groups.items() if selectors}
 
 
 def prepare_core_plan(run_id: str, attempt: str, event: str, extended: bool, impact: dict) -> dict:
@@ -513,6 +552,171 @@ def pytest_runtest_logreport(report):
             "seconds": report.duration,
             "wasxfail": bool(getattr(report, "wasxfail", False)),
         }
+        if report.failed:
+            _record_failure_diagnostic(report)
+
+
+def integration_performance(snapshot: dict) -> dict:
+    """Integration tripwires; the original runtime observers remain authoritative."""
+    small = snapshot["ticker_count"] <= 10
+    stage_budget = 300 if small else 600
+    total_budget = 900 if small else 3600  # Existing native-case absolute deadlines.
+    rows = []
+    for step in snapshot["pipeline_steps"]:
+        start, end = step.get("started_at"), step.get("completed_at")
+        duration = ((datetime.fromisoformat(str(end)) - datetime.fromisoformat(str(start)))
+                    .total_seconds() if start and end else None)
+        rows.append({"stage": step["step_name"], "seconds": duration,
+                     "budget_seconds": stage_budget,
+                     "passed": step["status"] == "COMPLETED" and duration is not None
+                     and 0 <= duration <= stage_budget})
+    duration = snapshot.get("pipeline_seconds")
+    passed = (snapshot.get("pipeline_status") == "COMPLETED"
+              and bool(rows) and all(row["passed"] for row in rows))
+    passed = passed and duration is not None and 0 <= duration <= total_budget
+    return {"status": "PASS" if passed else "FAIL", "stages": rows,
+            "pipeline_seconds": duration, "pipeline_budget_seconds": total_budget,
+            "scope": "integration feedback only; no release or production authority"}
+
+
+def _retain_integration_runtime(item, report) -> None:
+    from sqlalchemy.engine import make_url
+
+    from app.services.redaction import redact_text
+
+    fixture = item.funcargs.get("certification_environment")
+    if fixture is None:
+        return
+    artifact = Path(fixture.artifact_dir)
+    owner = read_json(artifact / ".test-output-owner.json")
+    metadata = read_json(artifact / "environment.json")
+    target = make_url(fixture.database_url)
+    if (
+        target.host not in {"127.0.0.1", "localhost", "::1"}
+        or not re.fullmatch(r"swinglens_pytest_cert_[0-9a-f]{12}", target.database or "")
+        or metadata.get("database_name") != target.database
+        or metadata.get("execution_id") != fixture.execution_id
+        or metadata.get("database_safety_context") != "DISPOSABLE_TEST"
+        or owner != {"owner": "SwingLens pytest", "execution_id": fixture.execution_id}
+    ):
+        raise EvidenceError("native retention requires the exact owned disposable database")
+    from evidence_output import new_owned_directory
+
+    # Native certificate files may already be sealed at call completion. Keep
+    # feedback and failed inputs in a separately owned sibling, never in that seal.
+    directory = new_owned_directory(artifact.parent / "validation-feedback", fixture.execution_id)
+    import psycopg
+    from psycopg.rows import dict_row
+
+    record = {"schema": "swinglens.integration-runtime-diagnostic.v1",
+              "execution_id": fixture.execution_id, "nodeid": item.nodeid,
+              "original_outcome": report.outcome, "certification": "NOT_EVALUATED",
+              "source_fingerprint": os.environ.get("SWINGLENS_CERTIFICATION_CODE_FINGERPRINT")}
+    url = target.set(drivername="postgresql")
+    with psycopg.connect(url.render_as_string(hide_password=False), connect_timeout=5,
+                         row_factory=dict_row) as db:
+        db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        db.execute("SET LOCAL statement_timeout='5s'")
+        if not db.execute("select 1 from background_workers where worker_id=%s",
+                          ("certification-" + fixture.execution_id,)).fetchone():
+            raise EvidenceError("native retention worker ownership does not match")
+        pipeline = db.execute(
+            "select id, upload_run_id, status, extract(epoch from (completed_at-started_at)) "
+            "as seconds from pipeline_runs order by id desc limit 1"
+        ).fetchone()
+        record["pipeline_steps"] = db.execute(
+            "select step_name,status,started_at,completed_at,retry_count "
+            "from pipeline_steps where pipeline_run_id=%s order by step_order",
+            (pipeline["id"],),
+        ).fetchall() if pipeline else []
+        record["ticker_count"] = db.execute(
+            "select count(*) as total from raw_company_rows where run_id=%s",
+            (pipeline["upload_run_id"],),
+        ).fetchone()["total"] if pipeline else 0
+        record["pipeline_seconds"] = float(pipeline["seconds"]) if (
+            pipeline and pipeline["seconds"] is not None
+        ) else None
+        record["pipeline_status"] = pipeline["status"] if pipeline else "NOT_RUN"
+    record["pipeline_steps"] = json.loads(json.dumps(record["pipeline_steps"], default=str))
+    record["performance"] = integration_performance(record)
+    if report.failed:
+        record["diagnostic"] = "\n".join(
+            redact_text(line) for line in str(report.longrepr).splitlines()
+        )
+        binary = shutil.which("pg_dump")
+        if not binary:
+            record["retention_error"] = "pg_dump unavailable; original failure preserved"
+        else:
+            pending = directory / "failed-input.dump.pending"
+            dumped = subprocess.run(
+                [binary, "-Fc", "--no-owner", "--no-acl", "-h", target.host,
+                 "-p", str(target.port or 5432), "-U", target.username,
+                 "-d", target.database, "-f", str(pending)],
+                env={**os.environ, "PGPASSWORD": target.password or ""},
+                capture_output=True, timeout=60, check=False,
+            )
+            if dumped.returncode == 0:
+                final = directory / "failed-input.dump"
+                pending.rename(final)
+                record["retained_input"] = {
+                    "path": final.name, "sha256": file_digest(final),
+                    "snapshot": "pg_dump snapshot after original failure, before teardown",
+                }
+            else:
+                record["retention_error"] = "pg_dump failed; original failure preserved"
+    write_json(directory / "validation-runtime.json", record)
+
+
+@pytest.hookimpl(hookwrapper=True, trylast=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    retain = (os.environ.get("SWINGLENS_IMPACT_VALIDATION") == "integration"
+              or os.environ.get("SWINGLENS_RETAIN_NATIVE_RUNTIME") == "true")
+    if report.when == "call" and retain:
+        try:
+            _retain_integration_runtime(item, report)
+        except Exception as exc:
+            # Diagnostics cannot replace the original native report. Missing
+            # runtime proof keeps the integration group non-passing in the parent.
+            import warnings
+
+            warnings.warn("Integration retention unavailable: " + type(exc).__name__,
+                          pytest.PytestWarning, stacklevel=1)
+
+
+def _record_failure_diagnostic(report) -> None:
+    """Retain the first actionable failure before a long session can be interrupted.
+
+    These records are diagnostics only. Original native phases and complete
+    collection/execution/JUnit agreement remain the sole lane pass evidence.
+    """
+    try:
+        from app.services.redaction import redact_text
+
+        directory = _capture["directory"] / "failures"
+        directory.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary = tempfile.mkstemp(suffix=".pending", dir=directory)
+        path = Path(temporary)
+        value = {
+            "schema": "swinglens.release-failure-diagnostic.v1",
+            "context": _capture["context"],
+            "observed_at": datetime.now(UTC).isoformat(),
+            "nodeid": report.nodeid,
+            "phase": report.when,
+            "outcome": report.outcome,
+            "diagnostic": "\n".join(
+                redact_text(line) for line in str(report.longrepr).splitlines()
+            ),
+            "certification": "NOT_EVALUATED_DIAGNOSTIC_ONLY",
+        }
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(value, stream, indent=2, sort_keys=True)
+            stream.write("\n")
+        path.replace(path.with_suffix(".json"))
+    except Exception as exc:
+        # A diagnostic I/O problem must never replace the original test failure.
+        _capture.setdefault("diagnostic_errors", []).append(type(exc).__name__)
 
 
 def pytest_sessionfinish(session, exitstatus):

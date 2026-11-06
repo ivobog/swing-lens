@@ -71,10 +71,25 @@ class ProbabilityEstimator:
         model_registry: ModelRegistry | None = None,
     ) -> None:
         self.cohort_definition_service = cohort_definition_service or CohortDefinitionService()
-        self.evidence_service = evidence_service or EvidenceService()
+        # Native financial selection must not consume an injected service. Keep
+        # one trusted instance so capture preparation survives per-item Sessions.
+        self._native_evidence_service = EvidenceService()
+        self.evidence_service = evidence_service or self._native_evidence_service
         self.statistics_service = statistics_service or CohortStatisticsService()
         self.manifest_service = manifest_service or EvidenceManifestService()
         self.model_registry = model_registry or ModelRegistry()
+
+    def capture_evidence_service_for(self, db: Session) -> EvidenceService:
+        return self._native_evidence_service if isinstance(db, Session) else self.evidence_service
+
+    def evidence_service_for(self, db: Session, *, outcome_definition, config) -> EvidenceService:
+        if not isinstance(db, Session):
+            return self.evidence_service
+        if self._native_evidence_service._compatible_run_universe(outcome_definition, config):
+            return self._native_evidence_service
+        # Outside an exactly compatible prepared capture, preserve the former
+        # fresh native reader. Its fallback cache must not span native requests.
+        return EvidenceService()
 
     def create_decision_time_estimate(
         self,
@@ -741,7 +756,9 @@ class ProbabilityEstimator:
         definition_service = (
             CohortDefinitionService() if isinstance(db, Session) else self.cohort_definition_service
         )
-        evidence_service = EvidenceService() if isinstance(db, Session) else self.evidence_service
+        evidence_service = self.evidence_service_for(
+            db, outcome_definition=outcome_definition, config=config
+        )
         statistics_service = (
             CohortStatisticsService() if isinstance(db, Session) else self.statistics_service
         )
@@ -910,7 +927,9 @@ class ProbabilityEstimator:
         keys = self.cohort_definition_service.cohort_keys_for_prediction(prediction, config)
         broadest_key = keys[-1] if keys else None
         funnel = (
-            self.evidence_service.diagnostic_funnel(
+            self.evidence_service_for(
+                db, outcome_definition=outcome_definition, config=config
+            ).diagnostic_funnel(
                 db,
                 prediction=prediction,
                 outcome_definition=outcome_definition,

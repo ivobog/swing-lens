@@ -106,3 +106,52 @@ CI prepares A18 impact first, then `--prepare-release --release-profile core --i
 The plan includes selected and deferred selectors with reasons, triggers and explicit NOT_RUN/ARCHIVAL_BLOCKED status. Retained Run40 history, absent dump, Run8, cohort, SLSE, observability and all 88/100 variants remain selectable for their specialized obligations. Deferred does not mean PASS. New incidents remain open. Original job/step IDs and legacy full-policy APIs are retained for compatibility.
 
 Core aggregation uses `swinglens.core-release-certification.v1`, reports `CORE_RELEASE_CERTIFIED` or `CORE_RELEASE_FAILED`, and leaves FULL_RELEASE_REGRESSIONS and live-provider approval NOT_RUN with safe_for_normal_run=false. Preparation/prerequisite failures are CORE_RELEASE_BLOCKED. Diagnostic full selections, separate A13 external approval and separately authorized A15 live verification cannot inherit a core pass.
+
+## Developer and integration feedback
+
+Generate impact from an explicit comparison before choosing a validation level:
+
+```text
+python -m scripts.qa.check_certification_registry --check --diff-base <baseline> --impact-output <new-impact.json>
+python -m scripts.production_runtime_certification --validate-impact developer --impact-plan <new-impact.json> --report-dir <new-directory>
+python -m scripts.production_runtime_certification --validate-impact integration --impact-plan <new-impact.json> --report-dir <another-new-directory>
+```
+
+Developer validation runs the affected FAST controls and selection-policy controls.
+Integration adds the affected native PostgreSQL controls. Application changes also
+select the existing Chromium 100-company case and the alternate-handoff 88-company
+case. Unknown high-risk ownership blocks selection. Groups run serially and stop
+on the first failure; later groups remain NOT_RUN. Release prerequisites likewise
+stop after the first failure without dropping any required selection or accepting
+incomplete native evidence.
+
+Integration requires an explicit owned loopback PostgreSQL administrator endpoint;
+its tests create disposable databases. Native pipeline feedback records committed
+stage timing and terminal status before fixture cleanup. On an original failed
+call it attempts a consistent database dump after checking the exact fixture,
+database name and native worker ownership. Retention failure never changes the
+original test outcome. Credentials are excluded from diagnostic text.
+
+The existing case deadlines remain 900 seconds for the ten-company case and
+3600 seconds for the large cases. Integration feedback adds individual-stage
+tripwires of 300 and 600 seconds respectively. Missing, unfinished, negative or
+over-budget timing cannot pass that feedback gate. Original runtime observers,
+authority, cancellation and rollback rules continue to apply.
+
+Both modes emit `validation.json` with certification=NOT_EVALUATED and
+safe_for_normal_run=false. A selected-validation PASS supplies no A04, release,
+live-provider or authenticated golden approval. Governance rejection controls
+include real process cleanup and subprocess checks; the retained 108-case local
+governance/native run took about nine minutes. That cost is distinct from the
+small affected application unit selections and from full browser certification.
+
+The generated 88/100-company scale populations do not establish a signed
+50/100-company golden oracle. The original A04 goldens and their independent
+approval obligations remain authoritative.
+
+The user approved conditional PR cadence reduction and dependency-scoped non-A04
+reuse on 2026-11-06. Activation still requires the declared current native
+100-company, 88-tail and alternate-handoff proofs, matched dependencies and
+fault-tested receipt validation. Those conditions are not supplied by an ordinary
+validation PASS alone. Until that implementation and proof exist, all eight
+triggered browser variants and all nine required release lanes remain required.
