@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.tables import (
@@ -53,6 +53,7 @@ class SectorUniverseService:
         config: dict[str, Any],
         default_profile: str | None = None,
         market_cutoff: MarketCalculationCutoff | None = None,
+        checkpoint_callback=None,
     ) -> list[SectorUniverseMetrics]:
         return build_universe_sector_metrics(
             db=db,
@@ -60,6 +61,7 @@ class SectorUniverseService:
             config=config,
             default_profile=default_profile,
             market_cutoff=market_cutoff,
+            checkpoint_callback=checkpoint_callback,
         )
 
 
@@ -69,13 +71,28 @@ def build_universe_sector_metrics(
     config: dict[str, Any],
     default_profile: str | None = None,
     market_cutoff: MarketCalculationCutoff | None = None,
+    checkpoint_callback=None,
 ) -> list[SectorUniverseMetrics]:
     default_profile = default_profile or config["defaults"]["default_ranking_profile"]
+    def loaded(count, name):
+        if checkpoint_callback is not None:
+            checkpoint_callback(phase="UNIVERSE_INPUTS_LOADED", processed=count, total=5,
+                                current_item=name, last_completed_item=name)
+
     raw_rows = _unique_rows(_raw_rows_for_run(db, run_id))
+    loaded(1, "raw-rows")
     fundamentals_list = _fundamentals_for_run(db, run_id)
+    loaded(2, "fundamentals")
     technicals_list = _technicals_for_run(db, run_id)
+    loaded(3, "technicals")
     combined_list = _combined_results_for_run(db, run_id)
-    ranking_results = _ranking_results_for_run(db, run_id)
+    loaded(4, "combined")
+    ranking_results = (
+        _ranking_results_for_run(db, run_id, checkpoint_callback=checkpoint_callback)
+        if isinstance(db, Session) and checkpoint_callback is not None
+        else _ranking_results_for_run(db, run_id)
+    )
+    loaded(5, "rankings")
     if market_cutoff is not None and isinstance(db, Session):
         pipeline_id = pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
         fundamentals_list = _compatible_run_artifacts(
@@ -89,15 +106,63 @@ def build_universe_sector_metrics(
             ranking_results, run_id, pipeline_id, market_cutoff
         )
     permissions = {}
+    candidates = fundamentals_list + technicals_list + combined_list + ranking_results
+    evidence_rows = {}
+    locked_source_rows = {}
+    if isinstance(db, Session):
+        from app.models.tables import CoreCalculationEvidence
+
+        evidence_ids = {row.evidence_id for row in candidates if row.evidence_id is not None}
+        # The acquisition queries already selectin-load these immutable records.
+        # Keep them resident; loading them again decodes their full JSON columns.
+        evidence_rows = {
+            row.evidence_id: retained
+            for row in candidates
+            if (retained := row.__dict__.get("calculation_evidence")) is not None
+        }
+        missing = evidence_ids - evidence_rows.keys()
+        if missing:
+            evidence_rows.update({
+                row.id: row for row in db.scalars(
+                    select(CoreCalculationEvidence).where(CoreCalculationEvidence.id.in_(missing))
+                )
+            })
+        # The native validator previously acquired these locks one row at a
+        # time. Acquire the same candidate row locks in model/id batches, then
+        # keep every selected row/value comparison in the native validator.
+        for model, rows in ((FundamentalScore, fundamentals_list),
+                            (TechnicalScore, technicals_list),
+                            (CombinedResult, combined_list),
+                            (RankingResult, ranking_results)):
+            ids = [row.id for row in rows if row.evidence_id is not None]
+            if ids:
+                with db.no_autoflush:
+                    locked_source_rows.update({
+                        (model, row.id): row for row in db.scalars(
+                            select(model).where(model.id.in_(ids)).order_by(model.id).with_for_update()
+                        )
+                    })
+    processed = 0
+    total = len(candidates)
+
+    def checkpoint(item):
+        if checkpoint_callback is not None and (processed % 25 == 0 or processed == total):
+            checkpoint_callback(
+                phase="UNIVERSE_SOURCE_VALIDATION", processed=processed, total=total,
+                current_item=item, last_completed_item=item if processed else None,
+            )
+
+    checkpoint("started")
 
     def validate_selected_values(row):
         if isinstance(db, Session) and row.evidence_id is not None:
-            from app.models.tables import CoreCalculationEvidence
             from app.services.core_mutation_authority import validate_source_values
 
-            validate_source_values(row, db.get(CoreCalculationEvidence, row.evidence_id), db=db)
+            validate_source_values(row, evidence_rows.get(row.evidence_id), db=db,
+                                   locked_source_rows=locked_source_rows)
 
     def permitted(rows, policy, selector):
+        nonlocal processed
         retained = []
         for index, row in enumerate(rows):
             projected, permission = selector(row, policy)
@@ -105,6 +170,8 @@ def build_universe_sector_metrics(
             if projected is not None:
                 validate_selected_values(projected)
                 retained.append(projected)
+            processed += 1
+            checkpoint(f"{type(row).__name__}:{getattr(row, 'id', None)}")
         return retained
 
     technicals_list = permitted(technicals_list, TECHNICAL_TO_SECTOR, technical_decision_input)
@@ -112,6 +179,8 @@ def build_universe_sector_metrics(
     ranking_results = permitted(ranking_results, RANKING_TO_SECTOR, contextual_decision_input)
     for item in fundamentals_list:
         validate_selected_values(item)
+        processed += 1
+        checkpoint(f"{type(item).__name__}:{getattr(item, 'id', None)}")
     fundamentals = _by_ticker(fundamentals_list)
     technicals = _by_ticker(technicals_list)
     combined_results = _by_ticker(combined_list)
@@ -726,14 +795,36 @@ def _combined_results_for_run(db: Session, run_id: int) -> list[CombinedResult]:
     )
 
 
-def _ranking_results_for_run(db: Session, run_id: int) -> list[RankingResult]:
-    return list(
-        db.scalars(
-            select(RankingResult)
-            .options(selectinload(RankingResult.calculation_evidence))
-            .where(RankingResult.run_id == run_id)
-        )
+def _ranking_results_for_run(
+    db: Session, run_id: int, *, checkpoint_callback=None, with_evidence=True,
+    checkpoint_phase="UNIVERSE_RANKING_INPUTS_LOADED",
+) -> list[RankingResult]:
+    statement = select(RankingResult).where(RankingResult.run_id == run_id)
+    if with_evidence:
+        statement = statement.options(selectinload(RankingResult.calculation_evidence))
+    total = (
+        db.scalar(select(func.count(RankingResult.id)).where(RankingResult.run_id == run_id))
+        if isinstance(db, Session) and checkpoint_callback is not None else 0
     )
+    result = db.scalars(statement)
+    if isinstance(db, Session):
+        # Decode and hydrate a bounded completed batch before reporting progress.
+        # Retain all rows and eager evidence until the original whole-cohort checks.
+        result = result.yield_per(50)
+    rows = []
+    for row in result:
+        rows.append(row)
+        if checkpoint_callback is not None and len(rows) % 50 == 0:
+            checkpoint_callback(
+                phase=checkpoint_phase, processed=len(rows), total=max(total, len(rows)),
+                current_item=f"ranking:{row.id}", last_completed_item=f"ranking:{row.id}",
+            )
+    if checkpoint_callback is not None and (not rows or len(rows) % 50 or len(rows) != total):
+        checkpoint_callback(
+            phase=checkpoint_phase, processed=len(rows), total=len(rows),
+            current_item="ranking-inputs:complete", last_completed_item="ranking-inputs:complete",
+        )
+    return rows
 
 
 def _unique_rows(rows: list[RawCompanyRow]) -> list[RawCompanyRow]:
@@ -826,22 +917,30 @@ def _compatible_run_artifacts(
     run_id: int,
     pipeline_id: int | None,
     market_cutoff: MarketCalculationCutoff,
+    *, identity_outputs=None, checkpoint_callback=None,
 ) -> list[Any]:
     compatible: list[Any] = []
-    for row in rows:
+    for index, row in enumerate(rows, 1):
         expected = consumer_context_identity(
             market_cutoff=market_cutoff,
             run_id=run_id,
             pipeline_id=pipeline_id,
             ticker=row.ticker,
         )
+        identity = artifact_identity(row)
         result = contextual_compatibility(
-            expected,
-            artifact_identity(row),
-            policy=SECTOR_RANKING_COMPATIBILITY,
+            expected, identity, policy=SECTOR_RANKING_COMPATIBILITY,
         )
         if result.accepted:
             compatible.append(row)
+            if identity_outputs is not None:
+                identity_outputs[id(row)] = identity
+        if checkpoint_callback is not None and (index % 25 == 0 or index == len(rows)):
+            item = f"{type(row).__name__}:{row.id}:{row.ticker}"
+            checkpoint_callback(
+                phase="RANKING_COMPATIBILITY_VALIDATED", processed=index, total=len(rows),
+                current_item=item, last_completed_item=item,
+            )
     return compatible
 
 
@@ -850,11 +949,21 @@ def _coherent_compatible_rankings(
     run_id: int,
     pipeline_id: int | None,
     market_cutoff: MarketCalculationCutoff,
+    *, identity_outputs=None, checkpoint_callback=None,
 ) -> list[RankingResult]:
-    compatible = _compatible_run_artifacts(rows, run_id, pipeline_id, market_cutoff)
+    # Output only: a caller's prior entries never supply a validation result.
+    # The exact identity parsed in this call serves compatibility, coherence and
+    # source-envelope preparation. Atomic publication still rechecks every seal.
+    if identity_outputs is not None:
+        identity_outputs.clear()
+    identities = {}
+    compatible = _compatible_run_artifacts(
+        rows, run_id, pipeline_id, market_cutoff,
+        identity_outputs=identities, checkpoint_callback=checkpoint_callback,
+    )
     signatures: dict[str, set[str]] = {}
-    for row in compatible:
-        identity = artifact_identity(row)
+    for index, row in enumerate(compatible, 1):
+        identity = identities[id(row)]
         signature = CanonicalEvidenceSerializer.dumps(
             {
                 "configuration": identity.configuration.effective_configuration.value.as_dict(),
@@ -862,5 +971,14 @@ def _coherent_compatible_rankings(
             }
         )
         signatures.setdefault(row.ranking_profile, set()).add(signature)
+        if checkpoint_callback is not None and (index % 25 == 0 or index == len(compatible)):
+            item = f"ranking:{row.id}:{row.ranking_profile}"
+            checkpoint_callback(
+                phase="RANKING_COHERENCE_VALIDATED", processed=index, total=len(compatible),
+                current_item=item, last_completed_item=item,
+            )
     incoherent = {profile for profile, values in signatures.items() if len(values) != 1}
-    return [row for row in compatible if row.ranking_profile not in incoherent]
+    retained = [row for row in compatible if row.ranking_profile not in incoherent]
+    if identity_outputs is not None:
+        identity_outputs.update((id(row), identities[id(row)]) for row in retained)
+    return retained

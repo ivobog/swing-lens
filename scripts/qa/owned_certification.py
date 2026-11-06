@@ -12,7 +12,7 @@ import sys
 import uuid
 from pathlib import Path
 from threading import Event
-from time import monotonic
+from time import monotonic, sleep
 
 import psutil
 
@@ -27,7 +27,16 @@ def _write(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     pending = path.with_suffix(".pending")
     pending.write_text(json.dumps(value, indent=2), encoding="utf-8")
-    pending.replace(path)
+    for attempt in range(10):
+        try:
+            pending.replace(path)
+            break
+        except PermissionError as exc:
+            # Windows readers may briefly deny deletion of the previous file.
+            # Preserve atomic publication; a persistent error still propagates.
+            if os.name != "nt" or exc.winerror not in (5, 32) or attempt == 9:
+                raise
+            sleep(0.01)
 
 
 def _identity(process: psutil.Process) -> dict:

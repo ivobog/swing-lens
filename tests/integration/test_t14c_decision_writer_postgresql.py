@@ -800,6 +800,90 @@ def test_comprehensive_ceri_fixture_processes_current_native_sources(
         assert db.scalar(select(func.count()).select_from(CeriEstimateSnapshot)) >= 18
 
 
+@pytest.mark.parametrize("boundary,fault", [
+    ("COMPARISON_COMPLETED:", "cancel"), ("ALERT_INPUT_PROCESSED:", "failure"),
+])
+def test_ceri_completed_work_checkpoints_preserve_atomic_rollback(
+    contextual_engine, monkeypatch, boundary, fault,
+):
+    from pathlib import Path
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "e2e"))
+    from single_run_certification.fixtures import _seed_ceri_manual_evidence
+
+    from app.models.ceri_tables import (
+        CeriAlertEvent,
+        CeriAlertRule,
+        CeriChangeEvent,
+        CeriScoreSnapshot,
+    )
+    from app.models.tables import (
+        CoreCalculationCurrentProjection,
+        CoreCalculationEvidenceSource,
+        RawCompanyRow,
+    )
+    from app.services.background_worker import CancelRequested
+    from app.services.ceri.alert_service import CeriAlertService
+    from app.services.ceri.capture_service import CeriRunCaptureService
+    from app.services.ceri.feature_flags import CeriFeatureFlags
+    from app.services.ceri.snapshot_service import CeriSnapshotService
+    from app.services.contextual_effective_configuration import resolve_ceri_configuration
+    from app.services.market_clock_service import MarketClockService
+
+    monkeypatch.setattr("app.services.ceri.alert_service.ceri_flags",
+                        lambda: CeriFeatureFlags(True, True, True, True, True, True, True))
+    clock = MarketClockService()
+    as_of_session = clock.cutoff_for(
+        datetime.now(UTC), reason="CERI_COMPLETED_WORK_FIXTURE"
+    ).latest_completed_session
+    with Session(contextual_engine) as db:
+        _seed_ceri_manual_evidence(db, as_of_session=as_of_session, tickers=("ALFA",))
+        db.add(UploadRun(id=777, filename="ceri-checkpoint.csv", status="COMPLETED"))
+        db.flush()
+        db.add(RawCompanyRow(run_id=777, row_number=1, ticker="ALFA", raw_json={}))
+        db.commit()
+    cutoff = clock.cutoff_for(datetime.now(UTC), reason="CERI_COMPLETED_WORK_ROLLBACK")
+    snapshots = CeriSnapshotService()
+    frozen = resolve_ceri_configuration(snapshots.config, consumer={
+        "run_capture": True, "revision_feature_config_hash": snapshots.config.config_hash,
+        "ibmi_enabled": False, "volatility_enabled": False, "short_pressure_enabled": False,
+        "volatility": {"ceri_risk_max_contribution": 1.5},
+    })
+    service = CeriRunCaptureService(snapshot_service=snapshots)
+    service.alert_service = CeriAlertService(alerts_enabled=True)
+    models = (CeriScoreSnapshot, CeriChangeEvent, CeriAlertEvent, CeriAlertRule,
+              CoreCalculationEvidence, CoreCalculationEvidenceSource,
+              CoreCalculationCurrentProjection)
+
+    def counts(db):
+        return tuple(db.scalar(select(func.count()).select_from(model)) for model in models)
+
+    with Session(contextual_engine) as db:
+        before = counts(db)
+        observed = []
+
+        def checkpoint(item, processed, total):
+            observed.append((item, processed, total))
+            if item.startswith(boundary):
+                assert db.in_transaction()
+                assert counts(db)[0] > before[0]  # real staged score and comparison work exists
+                with Session(contextual_engine) as reader:
+                    assert counts(reader) == before
+                if fault == "cancel":
+                    raise CancelRequested("native CERI checkpoint cancellation")
+                raise RuntimeError("native CERI checkpoint failure")
+
+        expected = CancelRequested if fault == "cancel" else RuntimeError
+        with pytest.raises(expected):
+            service.capture_run(db, 777, force=True, market_cutoff=cutoff,
+                                effective_configuration=frozen, progress_callback=checkpoint)
+        assert any(item.startswith(boundary) for item, _, _ in observed)
+        assert counts(db) == before
+        db.commit()
+    with Session(contextual_engine) as db:
+        assert counts(db) == before
+
+
 def test_native_ceri_score_change_recomputes_sources_and_retry(contextual_engine, monkeypatch):
     from pathlib import Path
 

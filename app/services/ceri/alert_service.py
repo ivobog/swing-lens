@@ -67,6 +67,7 @@ class CeriAlertService:
         changes: list[CeriChangeEvent],
         ticker_by_company: dict[int, str] | None = None,
         _source_bundle=None,
+        progress_callback=None,
     ) -> AlertRebuildResult:
         alerts = duplicates = skipped = 0
         self._ensure_rule_configuration(db)
@@ -88,6 +89,8 @@ class CeriAlertService:
                 raise ValueError("MUTATION_CERI_ALERT_RULE_SOURCE_SET_MISMATCH")
             _source_bundle.seal()
             source_scope = prefetched_source_scope(db, _source_bundle)
+        if progress_callback is not None:
+            progress_callback("ALERT_INPUTS_VERIFIED", len(changes), len(changes))
         try:
             with source_scope:
                 referenced_snapshot_ids = {
@@ -98,26 +101,32 @@ class CeriAlertService:
                 }
                 dispositions = effective_disposition_by_snapshot(db, referenced_snapshot_ids)
                 self._prefetched_dispositions = dispositions
-                for change in changes:
+                if progress_callback is not None:
+                    progress_callback(
+                        "ALERT_DISPOSITIONS_LOADED",
+                        len(dispositions), len(referenced_snapshot_ids),
+                    )
+                for index, change in enumerate(changes, 1):
                     if any(
                         snapshot_id is not None
                         and dispositions.get(int(snapshot_id)) == EXCLUDED
                         for snapshot_id in (change.from_snapshot_id, change.to_snapshot_id)
-                    ):
+                    ) or not self._eligible_change(db, change):
                         skipped += 1
-                        continue
-                    if not self._eligible_change(db, change):
-                        skipped += 1
-                        continue
-                    event = self.persist_alert_for_change(
-                        db,
-                        change=change,
-                        ticker=ticker_by_company.get(change.company_id, "UNKNOWN"),
-                    )
-                    if event is None:
-                        duplicates += 1
                     else:
-                        alerts += 1
+                        event = self.persist_alert_for_change(
+                            db,
+                            change=change,
+                            ticker=ticker_by_company.get(change.company_id, "UNKNOWN"),
+                        )
+                        if event is None:
+                            duplicates += 1
+                        else:
+                            alerts += 1
+                    if progress_callback is not None:
+                        progress_callback(
+                            f"ALERT_INPUT_PROCESSED:{change.id}", index, len(changes),
+                        )
         finally:
             if hasattr(self, "_prefetched_dispositions"):
                 del self._prefetched_dispositions

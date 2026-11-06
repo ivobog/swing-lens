@@ -247,7 +247,13 @@ def _relative_strength_features(
 def _frame_records(frame: pd.DataFrame | None) -> tuple[tuple[Any, ...], ...]:
     if frame is None or frame.empty:
         return ()
-    return tuple(frame.loc[:, list(OHLCV_COLUMNS)].itertuples(index=False, name=None))
+    # Selecting a DataFrame and then its Series deep-copies attrs in pandas.
+    # This wire format contains only OHLCV scalars; provenance is carried by the
+    # WorkItem's separate sealed evidence fields. Read values without finalizing
+    # intermediate pandas objects or cloning their unrelated metadata trees.
+    positions = tuple(frame.columns.get_loc(column) for column in OHLCV_COLUMNS)
+    values = frame.to_numpy(dtype=object, copy=False)
+    return tuple(tuple(row[position] for position in positions) for row in values)
 
 
 def _records_frame(records: tuple[tuple[Any, ...], ...]) -> pd.DataFrame:

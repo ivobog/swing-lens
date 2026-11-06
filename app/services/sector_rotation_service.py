@@ -57,6 +57,7 @@ from app.services.sector_rotation_repository import (
 from app.services.sector_universe_service import (
     SectorUniverseService,
     _coherent_compatible_rankings,
+    _ranking_results_for_run,
 )
 from app.services.us_market_calendar import latest_completed_us_trading_day
 
@@ -193,6 +194,10 @@ def build_sector_rotation_snapshot(
             config=config,
             default_profile=default_profile,
             market_cutoff=market_cutoff,
+            **({"checkpoint_callback": checkpoint_callback}
+               if (checkpoint_callback is not None
+                   and type(universe_service) is SectorUniverseService)
+               else {}),
         )
         if run_id is not None
         else []
@@ -293,14 +298,19 @@ def build_sector_rotation_snapshot(
         source_artifacts: list[tuple[str, Any, Any]] = []
         ranking_sources: list[RankingResult] = []
         if run_id is not None:
+            ranking_identities = {}
             ranking_sources = _coherent_compatible_rankings(
-                list(db.scalars(select(RankingResult).where(RankingResult.run_id == run_id))),
+                _ranking_results_for_run(
+                    db, run_id, checkpoint_callback=checkpoint_callback, with_evidence=False,
+                    checkpoint_phase="RANKING_SOURCE_ROWS_LOADED",
+                ),
                 run_id,
                 pipeline_id,
                 market_cutoff,
+                identity_outputs=ranking_identities, checkpoint_callback=checkpoint_callback,
             )
             for ranking in ranking_sources:
-                identity = artifact_identity(ranking)
+                identity = ranking_identities[id(ranking)]
                 source_artifacts.append(("RankingResult", ranking, identity))
         if selected_market is not None:
             source_artifacts.append(
@@ -314,6 +324,13 @@ def build_sector_rotation_snapshot(
                     artifact_identity(selected_previous),
                 )
             )
+        # All serving-row values and their exact identities are now resident.
+        # Release this clean read phase before serializing the source envelope;
+        # the atomic writer below still reacquires and validates its own locks.
+        checkpoint(
+            "SOURCE_ROWS_LOADED", len(source_artifacts), len(source_artifacts),
+            "ranking-regime-prior",
+        )
         identity = build_contextual_result_identity(
             base=base,
             namespace="sector-rotation",

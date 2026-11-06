@@ -32,11 +32,21 @@ class CanonicalEvidenceSerializer:
         field_name: str | None = None,
         _path: str = "$",
         _precomputed: Mapping[int, Any] | None = None,
+        _reuse_json: bool = False,
     ) -> Any:
         if _precomputed is not None:
             cached = _precomputed.get(id(value), _PRECOMPUTED_MISSING)
             if cached is not _PRECOMPUTED_MISSING:
                 return cached
+        # Serialization can retain freshly checked JSON subtrees in a mixed
+        # typed document. Public canonicalize still returns an independent tree.
+        if (
+            _reuse_json
+            and _precomputed is None
+            and type(value) in (dict, list)
+            and cls._already_canonical_json(value, field_name)
+        ):
+            return value
         if value is None or isinstance(value, (bool, int, str)):
             return value
         if isinstance(value, datetime):
@@ -64,6 +74,7 @@ class CanonicalEvidenceSerializer:
                 field_name=field_name,
                 _path=_path,
                 _precomputed=_precomputed,
+                _reuse_json=_reuse_json,
             )
         if isinstance(value, Decimal):
             if not value.is_finite():
@@ -96,6 +107,7 @@ class CanonicalEvidenceSerializer:
                             field_name=canonical_key,
                             _path=cls._mapping_path(_path, canonical_key),
                             _precomputed=_precomputed,
+                            _reuse_json=_reuse_json,
                         ),
                     )
                 )
@@ -106,6 +118,7 @@ class CanonicalEvidenceSerializer:
                     item,
                     _path=f"{_path}[{index}]",
                     _precomputed=_precomputed,
+                    _reuse_json=_reuse_json,
                 )
                 for index, item in enumerate(value)
             ]
@@ -117,7 +130,9 @@ class CanonicalEvidenceSerializer:
     @classmethod
     def dumps(cls, value: Any) -> str:
         return json.dumps(
-            value if cls._already_canonical_json(value) else cls.canonicalize(value),
+            value
+            if cls._already_canonical_json(value)
+            else cls.canonicalize(value, _reuse_json=True),
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,
@@ -132,24 +147,34 @@ class CanonicalEvidenceSerializer:
         still use canonicalize, including typed values and sequence reordering.
         No validation result or fingerprint is cached for mutable input.
         """
-        kind = type(value)
-        if value is None or kind in (bool, int, str):
-            return True
-        if kind is float:
-            return math.isfinite(value) and not (value == 0 and math.copysign(1, value) < 0)
-        if kind is dict:
-            return all(
-                type(key) is str and cls._already_canonical_json(item, key)
-                for key, item in value.items()
-            )
-        if kind is list:
-            if not all(cls._already_canonical_json(item) for item in value):
-                return False
-            if cls._is_unordered_field(field_name):
-                keys = [cls._sort_key(item) for item in value]
-                return all(left <= right for left, right in zip(keys, keys[1:], strict=False))
-            return True
-        return False
+        # Bind the traversal once. Re-entering this classmethod and allocating
+        # an all()/generator pair for every mapping dominated large, repeated
+        # source-document seal checks. This still visits every value afresh.
+        unordered = cls._is_unordered_field
+        sort_key = cls._sort_key
+
+        def check(node, field=None):
+            kind = type(node)
+            if node is None or kind is bool or kind is int or kind is str:
+                return True
+            if kind is float:
+                return math.isfinite(node) and not (node == 0 and math.copysign(1, node) < 0)
+            if kind is dict:
+                for key, item in node.items():
+                    if type(key) is not str or not check(item, key):
+                        return False
+                return True
+            if kind is list:
+                for item in node:
+                    if not check(item):
+                        return False
+                if unordered(field):
+                    keys = [sort_key(item) for item in node]
+                    return all(left <= right for left, right in zip(keys, keys[1:], strict=False))
+                return True
+            return False
+
+        return check(value, field_name)
 
     @classmethod
     def bytes(

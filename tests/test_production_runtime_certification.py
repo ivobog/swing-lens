@@ -1,8 +1,64 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
+
+import pytest
 
 from scripts import production_runtime_certification as certification
+
+
+@pytest.mark.parametrize("failed_phase", ["focused", "prerequisite", "prerequisite-evidence"])
+def test_exact_report_attributes_the_failed_phase(tmp_path, monkeypatch, failed_phase):
+    from single_run_certification import candidate_validation, golden_oracle
+
+    from scripts.qa import golden_provenance
+    from scripts.qa import release_evidence as release
+
+    monkeypatch.setenv("SWINGLENS_TEST_POSTGRES_ADMIN_URL", "postgresql://invalid@127.0.0.1:1/unused")
+    monkeypatch.setenv("SWINGLENS_RELEASE_PLAN", str(tmp_path / "plan.json"))
+    monkeypatch.setattr(certification, "_test_resource_advisory", lambda: {
+        "available_ram_bytes": None, "ram_assessment": "test specimen",
+    })
+    monkeypatch.setattr(certification, "_working_tree_identity", lambda: ("test-source", False))
+    monkeypatch.setattr(certification, "_git", lambda *args: "test-source")
+    monkeypatch.setattr(golden_provenance, "verify_baseline", lambda *args: None)
+    monkeypatch.setattr(golden_oracle, "expected_manifest", lambda *args: {})
+    monkeypatch.setattr(golden_oracle, "require_complete", lambda *args: None)
+    monkeypatch.setattr(candidate_validation, "candidate_available", lambda: False)
+    monkeypatch.setattr(certification.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(
+        returncode=0, stdout="\n".join(certification.EXACT_TEST_IDS), stderr="",
+    ))
+
+    def group(name, failed):
+        return certification.TestGroupResult(
+            name, "FAIL" if failed else "PASS", int(failed), 0, [], "", "",
+        )
+
+    monkeypatch.setattr(
+        certification, "_run_test_group", lambda *args: group(args[2], failed_phase == "focused"),
+    )
+    monkeypatch.setattr(
+        release, "read_json", lambda *args: {"a04_prerequisites": {"selectors": ["required"]}},
+    )
+    monkeypatch.setattr(release, "validate_plan", lambda *args, **kwargs: None)
+    monkeypatch.setattr(release, "context", lambda *args: {"specimen": True})
+
+    def prerequisites(*args):
+        if failed_phase == "prerequisite-evidence":
+            raise release.EvidenceError("retained failed prerequisite")
+        return group("source-impact-prerequisites", True)
+
+    monkeypatch.setattr(certification, "_run_impact_prerequisites", prerequisites)
+    report_dir = tmp_path / "report"
+    assert certification._run_exact_deterministic(report_dir, "test-invocation") == 1
+    report = json.loads((report_dir / "report.json").read_text())
+    assert report["verdict"] == "FAILED"
+    assert report["gates"]["EXACT_PIPELINE_CERTIFICATION"] == "FAILED"
+    assert ("focused gate regressions failed" in report["reasons"]) == (failed_phase == "focused")
+    assert ("required source-impact prerequisites failed" in report["reasons"]) == (
+        failed_phase != "focused"
+    )
 
 
 def test_sec_user_agent_rejects_placeholder_and_requires_contact_email() -> None:

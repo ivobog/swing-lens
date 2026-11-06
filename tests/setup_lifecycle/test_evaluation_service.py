@@ -276,6 +276,11 @@ def test_evaluation_progress_is_multiphase_monotonic_and_output_neutral() -> Non
     events: list[dict] = []
 
     def progress(**event) -> None:
+        if event["phase"] == "LIFECYCLE_CANDIDATE_COMPLETED":
+            assert observed_episodes.applied_snapshot_ids == list(
+                snapshot_ids[: event["processed"]]
+            )
+            assert event["current_item"] == event["last_completed_item"]
         events.append({"sequence": len(events) + 1, **event})
 
     observed_service, observed_repository, observed_episodes = build_service()
@@ -291,6 +296,12 @@ def test_evaluation_progress_is_multiphase_monotonic_and_output_neutral() -> Non
     phase_order = [
         phase for index, phase in enumerate(phases) if not index or phase != phases[index - 1]
     ]
+    episode_phases = []
+    for index in range(1, len(snapshot_ids) + 1):
+        if not episode_phases or episode_phases[-1] != "LIFECYCLE_CANDIDATE_COMPLETED":
+            episode_phases.append("LIFECYCLE_CANDIDATE_COMPLETED")
+        if index % 5 == 0 or index == len(snapshot_ids):
+            episode_phases.append("LIFECYCLE_EVALUATION_BATCH_COMPLETED")
     assert phase_order == [
         "INPUTS_LOADED",
         "CANDIDATES_SELECTED",
@@ -300,11 +311,16 @@ def test_evaluation_progress_is_multiphase_monotonic_and_output_neutral() -> Non
         "CHANGE_ALERT_EVALUATION_COMPLETED",
         "LIFECYCLE_INPUTS_LOADED",
         "LIFECYCLE_EVALUATION_STARTED",
-        "LIFECYCLE_EVALUATION_BATCH_COMPLETED",
+        *episode_phases,
         "STATE_TRANSITION_EVALUATION_COMPLETED",
         "PERSISTENCE_STARTED",
         "PERSISTENCE_STAGED",
     ]
+    assert [
+        event["processed"]
+        for event in events
+        if event["phase"] == "LIFECYCLE_CANDIDATE_COMPLETED"
+    ] == list(range(1, len(snapshot_ids) + 1))
     assert [
         event["processed"]
         for event in events

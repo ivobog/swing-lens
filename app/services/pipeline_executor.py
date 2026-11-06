@@ -2209,7 +2209,8 @@ def _validate_resume_evidence(
                     market_context=frozen_context,
                 )
             )
-        if checkpoint_callback is not None and (index % 5 == 0 or index == total):
+        # Report only after this company's complete frozen evidence set passed.
+        if checkpoint_callback is not None:
             checkpoint_callback(
                 phase="RESUME_EVIDENCE_VALIDATED",
                 processed=index,
@@ -3316,7 +3317,7 @@ def _sector_checkpoint_callback(
         metrics: dict[str, int] | None = None,
     ) -> None:
         _raise_if_cancelled(should_cancel)
-        if phase in {"INPUTS_LOADED", "SOURCE_MANIFEST_PREPARED"}:
+        if phase in {"INPUTS_LOADED", "SOURCE_ROWS_LOADED", "SOURCE_MANIFEST_PREPARED"}:
             close_pipeline_read_transaction(db)
         if metrics is not None:
             validation_metrics[phase] = dict(metrics)

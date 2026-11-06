@@ -156,7 +156,7 @@
       ],
       "automatic": true,
       "certificate_authority": "NONE",
-      "source_sha256": "390d1f56972e7b639afbc409b4d35132346cb3c415e06c7ceb01e83b890d8ca6",
+      "source_sha256": "827a17d3218a2b062fe2e7ee015cd864b0888d7b09f26cc1eefc08f637e61275",
       "ci_command": "uv run python -m scripts.qa.check_certification_registry --check"
     },
     {
@@ -207,7 +207,7 @@
       ],
       "automatic": true,
       "certificate_authority": "A04_FINALIZER",
-      "source_sha256": "3612259c751846bcb7ca8fa71d65848679846227189670e7d062d66cb1e57190",
+      "source_sha256": "cab96770885b6adda9094ccad42220c15e2f37aa34368dadb8a15529fdc46b08",
       "ci_command": "",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -262,7 +262,7 @@
       ],
       "automatic": true,
       "certificate_authority": "NONE",
-      "source_sha256": "3612259c751846bcb7ca8fa71d65848679846227189670e7d062d66cb1e57190",
+      "source_sha256": "cab96770885b6adda9094ccad42220c15e2f37aa34368dadb8a15529fdc46b08",
       "ci_command": "uv run python -m scripts.production_runtime_certification --aggregate-release --release-plan test-results/release-plan/plan.json --evidence-root test-results/release --job-results test-results/release-jobs.json --report-dir test-results/full-release",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -317,7 +317,7 @@
       ],
       "automatic": false,
       "certificate_authority": "NONE",
-      "source_sha256": "3612259c751846bcb7ca8fa71d65848679846227189670e7d062d66cb1e57190",
+      "source_sha256": "cab96770885b6adda9094ccad42220c15e2f37aa34368dadb8a15529fdc46b08",
       "ci_command": ""
     }
   ],
@@ -1082,6 +1082,18 @@
           {
             "path": "app/services/core_calculation_evidence.py",
             "symbol": "persist_core_evidence"
+          },
+          {
+            "path": "app/services/core_mutation_authority.py",
+            "symbol": "_validate_evidence"
+          },
+          {
+            "path": "app/services/decision_effective_configuration.py",
+            "symbol": "configuration_from_payload"
+          },
+          {
+            "path": "app/services/canonical_evidence.py",
+            "symbol": "CanonicalEvidenceSerializer._already_canonical_json"
           }
         ],
         "impact_patterns": [
@@ -1359,6 +1371,204 @@
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
             "reviewed_test_sha256": "97f16ed33632c16127dfa25a38dfcb502df08fd4ff02392197c7f2f2457524a5"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_checks_the_full_seal_once_and_rejects_later_mutation[0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_checks_the_full_seal_once_and_rejects_later_mutation[1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_checks_the_full_seal_once_and_rejects_later_mutation[2]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_checks_the_full_seal_once_and_rejects_later_mutation[3]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[identity-seal]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[source-ids]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[evidence-key]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[run]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[ticker]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[kind]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[profile]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[missing-configuration]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[semantic]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[semantic-hash]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[resolution]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[resolution-hash]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[configuration-identity]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[entries]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_core_effective_configuration.py::test_source_validation_retains_every_configuration_and_address_check[configuration-binding]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Every producer source validates its complete seal and immutable configuration once per call.",
+            "negative": "Changed nested values, re-sealed corrupt configurations and wrong identity/address/profile remain rejected.",
+            "reviewed_test_sha256": "f2878e4473a50e0761b4662339cdb80f400954276039f5fb5023ae2b6b17f5c0"
+          },
+          {
+            "id": "tests/test_canonical_evidence_serializer.py::test_json_encoding_matches_full_canonicalization_for_nested_evidence",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Canonical bytes and fingerprints equal the independent full normalization for typed, nested and mutated inputs.",
+            "negative": "Changed mutable evidence cannot reuse a previous canonical or identity result.",
+            "reviewed_test_sha256": "c9d2f419a81af8b01117704c4108d7985998204cd28445d05f49a473533a23ed"
+          },
+          {
+            "id": "tests/test_canonical_evidence_serializer.py::test_streaming_bytes_and_fingerprint_match_reference_torture_suite",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Canonical bytes and fingerprints equal the independent full normalization for typed, nested and mutated inputs.",
+            "negative": "Changed mutable evidence cannot reuse a previous canonical or identity result.",
+            "reviewed_test_sha256": "c9d2f419a81af8b01117704c4108d7985998204cd28445d05f49a473533a23ed"
+          },
+          {
+            "id": "tests/test_canonical_evidence_serializer.py::test_precomputed_subtree_does_not_hide_changes_outside_cached_identity",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Canonical bytes and fingerprints equal the independent full normalization for typed, nested and mutated inputs.",
+            "negative": "Changed mutable evidence cannot reuse a previous canonical or identity result.",
+            "reviewed_test_sha256": "c9d2f419a81af8b01117704c4108d7985998204cd28445d05f49a473533a23ed"
           }
         ],
         "oracle": "A05B independent values and canonical immutable evidence; fixture helpers are not independent financial truth.",
@@ -1369,7 +1579,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "bc85df6651b3bd57697a9965258ce0686dc5c97b60b001b6118c5dec6013f82a"
+        "review_sha256": "e8b15d23fca6af067c0f41ba7f917ea2e58c94f0a55f066971a0e3638b82b88a"
       },
       {
         "id": "IB_ADMISSION",
@@ -2249,6 +2459,14 @@
           {
             "path": "app/services/ceri/sec/provider.py",
             "symbol": "SecCeriProvider"
+          },
+          {
+            "path": "app/services/ceri/capture_service.py",
+            "symbol": "_capture_score_comparisons"
+          },
+          {
+            "path": "app/services/ceri/alert_service.py",
+            "symbol": "CeriAlertService.rebuild_alerts"
           }
         ],
         "impact_patterns": [
@@ -2292,6 +2510,24 @@
             "positive": "Supported SEC recent arrays yield the exact independent accession witness.",
             "negative": "Non-object JSON is rejected; a cursor-only replacement yields no witness and is detected as incomplete.",
             "reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed"
+          },
+          {
+            "id": "tests/integration/test_t14c_decision_writer_postgresql.py::test_ceri_completed_work_checkpoints_preserve_atomic_rollback[COMPARISON_COMPLETED:-cancel]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Real CERI comparisons and alert-input decisions finish before their progress checkpoint.",
+            "negative": "Cancellation/failure rolls back score, change, alert, rule, evidence and projection state without partial publication.",
+            "reviewed_test_sha256": "d2c4fdf59a11d699f178d36a077ba098b75bb15c165d7d0ac3333af87771aa7c"
+          },
+          {
+            "id": "tests/integration/test_t14c_decision_writer_postgresql.py::test_ceri_completed_work_checkpoints_preserve_atomic_rollback[ALERT_INPUT_PROCESSED:-failure]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Real CERI comparisons and alert-input decisions finish before their progress checkpoint.",
+            "negative": "Cancellation/failure rolls back score, change, alert, rule, evidence and projection state without partial publication.",
+            "reviewed_test_sha256": "d2c4fdf59a11d699f178d36a077ba098b75bb15c165d7d0ac3333af87771aa7c"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -2303,7 +2539,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "6716a041a1b43475a514963cab46af8214de8884bcec0e744578d9974417ea78",
+        "review_sha256": "230fdd7b46faa4da3c1a2f0b0f4609eb60c2b9a7448ae07201f14888eccf9255",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -2334,6 +2570,30 @@
           {
             "path": "app/services/sector_rotation_repository.py",
             "symbol": "SectorRotationRepository.get_previous_snapshot"
+          },
+          {
+            "path": "app/services/core_mutation_authority.py",
+            "symbol": "sector_evidence_read_scope"
+          },
+          {
+            "path": "app/services/core_mutation_authority.py",
+            "symbol": "_sector_evidence_rows"
+          },
+          {
+            "path": "app/services/sector_universe_service.py",
+            "symbol": "build_universe_sector_metrics"
+          },
+          {
+            "path": "app/services/sector_universe_service.py",
+            "symbol": "_ranking_results_for_run"
+          },
+          {
+            "path": "app/services/sector_universe_service.py",
+            "symbol": "_compatible_run_artifacts"
+          },
+          {
+            "path": "app/services/sector_universe_service.py",
+            "symbol": "_coherent_compatible_rankings"
           }
         ],
         "impact_patterns": [
@@ -2375,6 +2635,123 @@
             "positive": "Native manual operation persists 26 acquisitions and derives 22 ETF/basis freshness checks.",
             "negative": "Read/status endpoints perform zero provider calls and cannot flush unrelated pending domain writes.",
             "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
+          },
+          {
+            "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_residency_rechecks_seals_and_expires_with_its_transaction",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "One native writer loads immutable JSON once while every pass rechecks seals and row existence.",
+            "negative": "Nested mutations still fail; transaction and Session changes cannot reuse the record scope.",
+            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/test_sector_universe_service.py::test_universe_metrics_groups_sector_metrics_and_profile_distribution",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The native universe retains exact sector/profile grouping and deterministic contributor counts.",
+            "negative": "Duplicate source rows cannot inflate the universe; native rollback tests retain all source locks and checks.",
+            "reviewed_test_sha256": "9350541547c9f0df78b8461a770a6253da5392e7bd9ef8b1b051d6d29aa9af50"
+          },
+          {
+            "id": "tests/test_sector_universe_service.py::test_universe_metrics_deduplicates_raw_rows",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The native universe retains exact sector/profile grouping and deterministic contributor counts.",
+            "negative": "Duplicate source rows cannot inflate the universe; native rollback tests retain all source locks and checks.",
+            "reviewed_test_sha256": "9350541547c9f0df78b8461a770a6253da5392e7bd9ef8b1b051d6d29aa9af50"
+          },
+          {
+            "id": "tests/test_sector_universe_service.py::test_ranking_identity_outputs_are_call_local_and_revalidate_changed_sources",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Each ranking identity is freshly read once per call and completed batches retain item/count identity.",
+            "negative": "A changed source or cancelled batch cannot reuse an earlier accepted identity output.",
+            "reviewed_test_sha256": "9350541547c9f0df78b8461a770a6253da5392e7bd9ef8b1b051d6d29aa9af50"
+          },
+          {
+            "id": "tests/test_sector_universe_service.py::test_ranking_validation_checkpoint_reports_completed_batch_and_cancels",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Each ranking identity is freshly read once per call and completed batches retain item/count identity.",
+            "negative": "A changed source or cancelled batch cannot reuse an earlier accepted identity output.",
+            "reviewed_test_sha256": "9350541547c9f0df78b8461a770a6253da5392e7bd9ef8b1b051d6d29aa9af50"
+          },
+          {
+            "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-UNIVERSE_RANKING_INPUTS_LOADED]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
+            "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
+            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-UNIVERSE_SOURCE_VALIDATION]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
+            "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
+            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-PERSISTENCE_VALIDATION_SOURCE_LOCKS]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
+            "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
+            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-PERSISTENCE_VALIDATION_SOURCE_ROLES]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
+            "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
+            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-UNIVERSE_RANKING_INPUTS_LOADED]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
+            "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
+            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-UNIVERSE_SOURCE_VALIDATION]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
+            "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
+            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-PERSISTENCE_VALIDATION_SOURCE_LOCKS]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
+            "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
+            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-PERSISTENCE_VALIDATION_SOURCE_ROLES]",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
+            "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
+            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
           }
         ],
         "oracle": "Explicit competing rows and expected IDs; A05B financial vectors remain separate.",
@@ -2385,7 +2762,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "1acb38393fbf33fd0fd037aa082b0524b759be2139f2311f95ec7ff971a0aacd",
+        "review_sha256": "bc8742785036660086462ef46d792cc97fcab86cddf13f42ac9e4d07014dcd9a",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -2758,6 +3135,18 @@
           {
             "path": "tests/e2e/single_run_certification/screenshot_evidence.py",
             "symbol": "capture_page_evidence"
+          },
+          {
+            "path": "app/services/technical_work.py",
+            "symbol": "_frame_records"
+          },
+          {
+            "path": "app/services/technical_indicators.py",
+            "symbol": "calculate_technical_features"
+          },
+          {
+            "path": "app/services/technical_indicators.py",
+            "symbol": "calculate_relative_strength_features"
           }
         ],
         "impact_patterns": [
@@ -2860,6 +3249,78 @@
             "positive": "Every document region is covered by dimension-bounded native PNG tiles.",
             "negative": "Invalid geometry cannot claim complete image evidence; existing financial assertions remain mandatory.",
             "reviewed_test_sha256": "f5b8767744a8ad692809d2c2c1b4a9de0325b6fc53ecb76ef172bc9c776d0278"
+          },
+          {
+            "id": "tests/test_technical_work.py::test_ohlcv_wire_records_preserve_values_without_copying_unused_metadata[False-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "OHLCV wire values, nulls and timezone types match the prior serialization.",
+            "negative": "Unrelated mutable provenance metadata cannot be copied or changed by numeric wire extraction.",
+            "reviewed_test_sha256": "5fa100c1f63a610446c675dd23a9f436edfec7317001eba957747744eea6542a"
+          },
+          {
+            "id": "tests/test_technical_work.py::test_ohlcv_wire_records_preserve_values_without_copying_unused_metadata[False-UTC]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "OHLCV wire values, nulls and timezone types match the prior serialization.",
+            "negative": "Unrelated mutable provenance metadata cannot be copied or changed by numeric wire extraction.",
+            "reviewed_test_sha256": "5fa100c1f63a610446c675dd23a9f436edfec7317001eba957747744eea6542a"
+          },
+          {
+            "id": "tests/test_technical_work.py::test_ohlcv_wire_records_preserve_values_without_copying_unused_metadata[False-America/New_York]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "OHLCV wire values, nulls and timezone types match the prior serialization.",
+            "negative": "Unrelated mutable provenance metadata cannot be copied or changed by numeric wire extraction.",
+            "reviewed_test_sha256": "5fa100c1f63a610446c675dd23a9f436edfec7317001eba957747744eea6542a"
+          },
+          {
+            "id": "tests/test_technical_work.py::test_ohlcv_wire_records_preserve_values_without_copying_unused_metadata[True-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "OHLCV wire values, nulls and timezone types match the prior serialization.",
+            "negative": "Unrelated mutable provenance metadata cannot be copied or changed by numeric wire extraction.",
+            "reviewed_test_sha256": "5fa100c1f63a610446c675dd23a9f436edfec7317001eba957747744eea6542a"
+          },
+          {
+            "id": "tests/test_technical_work.py::test_ohlcv_wire_records_preserve_values_without_copying_unused_metadata[True-UTC]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "OHLCV wire values, nulls and timezone types match the prior serialization.",
+            "negative": "Unrelated mutable provenance metadata cannot be copied or changed by numeric wire extraction.",
+            "reviewed_test_sha256": "5fa100c1f63a610446c675dd23a9f436edfec7317001eba957747744eea6542a"
+          },
+          {
+            "id": "tests/test_technical_work.py::test_ohlcv_wire_records_preserve_values_without_copying_unused_metadata[True-America/New_York]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "OHLCV wire values, nulls and timezone types match the prior serialization.",
+            "negative": "Unrelated mutable provenance metadata cannot be copied or changed by numeric wire extraction.",
+            "reviewed_test_sha256": "5fa100c1f63a610446c675dd23a9f436edfec7317001eba957747744eea6542a"
+          },
+          {
+            "id": "tests/test_technical_indicators.py::test_numeric_features_preserve_values_without_copying_frame_provenance[technical]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Numeric outputs exactly match calculations on identical unadorned OHLCV frames.",
+            "negative": "Numeric features cannot copy or mutate the original lineage metadata or frame values.",
+            "reviewed_test_sha256": "53c0479d75bbde3f5d2adabd0aaeb2e321d2b94841084b6049b09285c0b4db78"
+          },
+          {
+            "id": "tests/test_technical_indicators.py::test_numeric_features_preserve_values_without_copying_frame_provenance[relative]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Numeric outputs exactly match calculations on identical unadorned OHLCV frames.",
+            "negative": "Numeric features cannot copy or mutate the original lineage metadata or frame values.",
+            "reviewed_test_sha256": "53c0479d75bbde3f5d2adabd0aaeb2e321d2b94841084b6049b09285c0b4db78"
           }
         ],
         "oracle": "Only original A04 finalizer plus A05B independent oracle; 13 required evidence seals.",
@@ -2871,7 +3332,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "2774ff48e020fc4cd9c0d06e30526eff367854d0d367963cb08104732a306a64",
+        "review_sha256": "27a62a2065cab5c6877541a69dd6b101f98eec10db05b0ced4e4c18f045cbbec",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -3188,7 +3649,7 @@
             "lane": "python-regressions",
             "positive": "Explicit test-side execution specimen passes its declared schema.",
             "negative": "Static-only, stale, assertion-free or inflated fidelity claims are refused.",
-            "reviewed_test_sha256": "72ac85d0bc42c10b1f64f844c47f98e79845f31a3227ac0aac654572ea3daa70"
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
           },
           {
             "id": "tests/test_full_release_certification.py::test_specialized_prerequisite_receipts_cannot_be_skipped_or_borrowed[skip]",
@@ -3251,7 +3712,7 @@
             "lane": "python-regressions",
             "positive": "Triggered CI browsers are provisioned with the locked Playwright installation command.",
             "negative": "Failed or unreviewed browser provisioning blocks prerequisite execution; local certification does not install browsers implicitly.",
-            "reviewed_test_sha256": "0aee6b050b3b084cdf9c7dd39fa3e7c7aa9b53da4a4f7e2bf8e07f4a4f09d4a0"
+            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
           },
           {
             "id": "tests/test_production_runtime_certification.py::test_failed_or_unreviewed_prerequisite_browser_preparation_blocks",
@@ -3260,7 +3721,7 @@
             "lane": "python-regressions",
             "positive": "Triggered CI browsers are provisioned with the locked Playwright installation command.",
             "negative": "Failed or unreviewed browser provisioning blocks prerequisite execution; local certification does not install browsers implicitly.",
-            "reviewed_test_sha256": "0aee6b050b3b084cdf9c7dd39fa3e7c7aa9b53da4a4f7e2bf8e07f4a4f09d4a0"
+            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
           },
           {
             "id": "tests/test_github_artifact_reader.py::test_commit_bound_large_regular_artifact_uses_git_blob_and_preserves_bytes",
@@ -3468,6 +3929,168 @@
             "positive": "The real browser fixture closes a deliberately failed case context and keeps its shared runtime usable.",
             "negative": "A failed case cannot leave contexts behind or stop the runtime used by the following case.",
             "reviewed_test_sha256": "0a81474e8600a642c55a5a694f2ca9bdfa19a13b6c1e266c13bd38c0aae415da"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_trusted_snapshot_uses_verified_first_parent[schedule]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_trusted_snapshot_uses_verified_first_parent[workflow_dispatch]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_snapshot_missing_or_untrusted_history_remains_unknown[root]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_snapshot_missing_or_untrusted_history_remains_unknown[shallow]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_snapshot_missing_or_untrusted_history_remains_unknown[untrusted-ref]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_snapshot_missing_or_untrusted_history_remains_unknown[wrong-source]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_snapshot_missing_or_untrusted_history_remains_unknown[missing-parent]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_event_baseline_preserves_pr_and_push_selection[True-pull_request]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_event_baseline_preserves_pr_and_push_selection[True-push]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_event_baseline_preserves_pr_and_push_selection[False-pull_request]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_event_baseline_preserves_pr_and_push_selection[False-push]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_production_runtime_certification.py::test_exact_report_attributes_the_failed_phase[focused]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
+          },
+          {
+            "id": "tests/test_production_runtime_certification.py::test_exact_report_attributes_the_failed_phase[prerequisite]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
+          },
+          {
+            "id": "tests/test_production_runtime_certification.py::test_exact_report_attributes_the_failed_phase[prerequisite-evidence]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "405c3c55d941cadf819d22fa1ff5ee6935e4ee5e86e7a46ac82c637c6419090a"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_release_policy_rejects_changed_comparison_evidence[tested_source]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_release_policy_rejects_changed_comparison_evidence[baseline]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_release_policy_rejects_changed_comparison_evidence[policy]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
+          },
+          {
+            "id": "tests/test_source_contract_governance.py::test_release_policy_rejects_changed_comparison_evidence[baseline_known]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Verified snapshot/event comparison and phase-specific failure attribution execute.",
+            "negative": "Unknown history/trust and failed prerequisites cannot become a successful certificate.",
+            "reviewed_test_sha256": "4880e569167563863f79c313e49b5abf2cdcc8fabf84a4b44d20b10dff1004d7"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -3479,7 +4102,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "3b1f7beda7669f9fe2aea9faf98c0f36f94fa05cac1c99cce8c6e1ec55342a48"
+        "review_sha256": "6d2d82c828ce34739ccd4a454b5fc0ccb486c0056d0164ed0d3f0ca94c8adad8"
       }
     ]
   },

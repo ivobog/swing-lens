@@ -77,7 +77,7 @@ def policy() -> dict:
 
 def core_policy(impact: dict) -> dict:
     """Apply reviewed selection to the original lanes, never to their pass rules."""
-    from scripts.qa.check_certification_registry import source_impact_plan
+    from scripts.qa.check_certification_registry import ci_comparison_baseline, source_impact_plan
 
     manifest = read_json(ROOT / "config/certification_registry.json")
     selection = manifest["test_selection"]
@@ -92,6 +92,11 @@ def core_policy(impact: dict) -> dict:
     expected = source_impact_plan(
         manifest, impact["changed_paths"], baseline_known=impact["baseline_known"]
     )
+    if "comparison" in impact:
+        comparison = ci_comparison_baseline(ROOT)
+        expected["comparison"] = comparison
+        if impact["baseline_known"] != (comparison["baseline"] is not None):
+            raise EvidenceError("source comparison baseline is not verified")
     if expected != impact or impact["review_required"]:
         raise EvidenceError("source impact is stale or requires review")
     rows = selection["entries"]

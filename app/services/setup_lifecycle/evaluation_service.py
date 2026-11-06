@@ -960,6 +960,17 @@ class SetupLifecycleEvaluationService:
                     **({"rules": alert_rules} if preload_alert_rules else {}),
                 )
                 alert_created += alerts.created
+            # A company is complete only after its episode and alert work.
+            # Keep financial batching and the caller's atomic transaction;
+            # variable validation costs must not hide completed companies.
+            _report_lifecycle_progress(
+                progress_callback,
+                phase="LIFECYCLE_CANDIDATE_COMPLETED",
+                processed=index,
+                total=total,
+                current_item=snapshot.ticker,
+                last_completed_item=snapshot.ticker,
+            )
             if index % _LIFECYCLE_PROGRESS_BATCH_SIZE == 0 or index == total:
                 _report_lifecycle_progress(
                     progress_callback,

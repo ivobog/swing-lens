@@ -369,7 +369,7 @@ def _run_exact_deterministic(report_dir: Path, execution_id: str) -> int:
             results.append(native)
             invocation.update(_junit_execution(report_dir / "production-runtime.xml"))
             invocation["exit_code"] = native.exit_code
-        else:
+        elif focused.exit_code != 0:
             reasons.append("focused gate regressions failed")
     else:
         reasons.append("exact collection missing, duplicate, zero, or selector drift")
