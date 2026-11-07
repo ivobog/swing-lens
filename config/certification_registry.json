@@ -207,7 +207,7 @@
       ],
       "automatic": true,
       "certificate_authority": "A04_FINALIZER",
-      "source_sha256": "ef37dabd0771c0bf25f6611f3918fc358525af4f4d9b313322635826e1ec517d",
+      "source_sha256": "73098ceb78b4ef7690e8cf39d7dd4f059c014dad008689927ca429b1a53f7378",
       "ci_command": "",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -262,7 +262,7 @@
       ],
       "automatic": true,
       "certificate_authority": "NONE",
-      "source_sha256": "ef37dabd0771c0bf25f6611f3918fc358525af4f4d9b313322635826e1ec517d",
+      "source_sha256": "73098ceb78b4ef7690e8cf39d7dd4f059c014dad008689927ca429b1a53f7378",
       "ci_command": "uv run python -m scripts.production_runtime_certification --aggregate-release --release-plan test-results/release-plan/plan.json --evidence-root test-results/release --job-results test-results/release-jobs.json --report-dir test-results/full-release",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -317,7 +317,7 @@
       ],
       "automatic": false,
       "certificate_authority": "NONE",
-      "source_sha256": "ef37dabd0771c0bf25f6611f3918fc358525af4f4d9b313322635826e1ec517d",
+      "source_sha256": "73098ceb78b4ef7690e8cf39d7dd4f059c014dad008689927ca429b1a53f7378",
       "ci_command": ""
     }
   ],
@@ -4491,7 +4491,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_reuse_faults_keep_the_lane_noncertified",
@@ -4500,7 +4500,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_changed_native_inputs_require_a_fresh_run",
@@ -4509,7 +4509,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_failing_original_outcomes_cannot_be_carried",
@@ -4518,7 +4518,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_prerequisite_dependencies_include_oracles_and_imported_helpers",
@@ -4527,7 +4527,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_producer_only_change_preserves_native_prerequisite_inputs",
@@ -4536,7 +4536,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_A04_dirty_source_and_missing_environment_never_reuse",
@@ -4545,7 +4545,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_unknown_reuse_keeps_original_selection_without_replacing_evidence",
@@ -4554,7 +4554,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_controlled_environment_hash_detects_overrides_without_exposing_values",
@@ -4563,7 +4563,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_unsafe_native_archive_is_rejected_before_materialization",
@@ -4572,7 +4572,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_conditional_cadence_retains_broader_obligations_when_proof_is_ineligible",
@@ -4581,7 +4581,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_conditional_pr_deferral_requires_current_native_pair_and_never_marks_six_passed",
@@ -4590,7 +4590,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_missing_or_failed_conditional_proofs_cannot_defer_the_matrix",
@@ -4599,7 +4599,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_changed_ui_or_native_driver_requires_the_full_matrix",
@@ -4608,7 +4608,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_current_backend_pair_can_refresh_without_invalidating_unchanged_ui_basis",
@@ -4617,7 +4617,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_native_input_date_and_environment_must_be_complete",
@@ -4626,7 +4626,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_release_cadences_keep_all_eight_native_browser_variants",
@@ -4635,7 +4635,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_diagnostic_controls_keep_their_own_native_call_phase",
@@ -4644,7 +4644,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_prerequisite_archive_prefix_matches_the_owned_ci_snapshot",
@@ -4653,7 +4653,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_complete_postgresql_prerequisite_receipt_can_be_carried_from_owned_artifact",
@@ -4662,7 +4662,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_impact_validation.py::test_required_benchmarks_enable_original_guards_without_mutating_environment",
@@ -4707,7 +4707,7 @@
             "lane": "python-regressions",
             "positive": "Required native guards execute; complete unchanged UI bodies can be scoped evidence.",
             "negative": "Original skips stay skipped; invalid or incomplete UI/session proof cannot be reused.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_matrix_comparison_ignores_unrelated_native_order_but_keeps_ui_rules",
@@ -4716,7 +4716,7 @@
             "lane": "python-regressions",
             "positive": "Required native guards execute; complete unchanged UI bodies can be scoped evidence.",
             "negative": "Original skips stay skipped; invalid or incomplete UI/session proof cannot be reused.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_aggregate_recovers_authenticated_original_commit_missing_from_checkout",
@@ -4725,7 +4725,7 @@
             "lane": "python-regressions",
             "positive": "Authenticated original source is recovered in a fresh checkout; raw evidence stays original.",
             "negative": "Foreign archives cannot fetch source; real hardware or input changes cannot reuse evidence.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_original_commit_fetch_requires_authenticated_archives_first",
@@ -4734,7 +4734,7 @@
             "lane": "python-regressions",
             "positive": "Authenticated original source is recovered in a fresh checkout; raw evidence stays original.",
             "negative": "Foreign archives cannot fetch source; real hardware or input changes cannot reuse evidence.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_resource_profile_ignores_reserved_page_noise_but_rejects_changed_capacity",
@@ -4743,7 +4743,7 @@
             "lane": "python-regressions",
             "positive": "Authenticated original source is recovered in a fresh checkout; raw evidence stays original.",
             "negative": "Foreign archives cannot fetch source; real hardware or input changes cannot reuse evidence.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_approved_lifecycle_pr_deferral_requires_eight_current_passes_and_seven_not_run",
@@ -4752,7 +4752,7 @@
             "lane": "python-regressions",
             "positive": "Approved PR-only deferral records NOT_RUN after all current native and UI proofs pass.",
             "negative": "Missing, failed, skipped, unknown or foreign proof cannot certify; release keeps all fifteen.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_lifecycle_deferral_rejects_every_nonpassing_current_native_prerequisite",
@@ -4761,7 +4761,7 @@
             "lane": "python-regressions",
             "positive": "Approved PR-only deferral records NOT_RUN after all current native and UI proofs pass.",
             "negative": "Missing, failed, skipped, unknown or foreign proof cannot certify; release keeps all fifteen.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_lifecycle_deferral_requires_exact_reviewed_obligation",
@@ -4770,7 +4770,7 @@
             "lane": "python-regressions",
             "positive": "Approved PR-only deferral records NOT_RUN after all current native and UI proofs pass.",
             "negative": "Missing, failed, skipped, unknown or foreign proof cannot certify; release keeps all fifteen.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_lifecycle_cadence_is_bound_to_reviewed_plan_even_after_resealing",
@@ -4779,7 +4779,7 @@
             "lane": "python-regressions",
             "positive": "Approved PR-only deferral records NOT_RUN after all current native and UI proofs pass.",
             "negative": "Missing, failed, skipped, unknown or foreign proof cannot certify; release keeps all fifteen.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_release_cadences_retain_original_lifecycle_scale_case_and_all_fifteen",
@@ -4788,7 +4788,7 @@
             "lane": "python-regressions",
             "positive": "Approved PR-only deferral records NOT_RUN after all current native and UI proofs pass.",
             "negative": "Missing, failed, skipped, unknown or foreign proof cannot certify; release keeps all fifteen.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_lifecycle_cadence_does_not_expand_other_pr_obligations",
@@ -4797,7 +4797,61 @@
             "lane": "python-regressions",
             "positive": "Approved PR-only deferral records NOT_RUN after all current native and UI proofs pass.",
             "negative": "Missing, failed, skipped, unknown or foreign proof cannot certify; release keeps all fifteen.",
-            "reviewed_test_sha256": "304edd5034ad47ec770d7bb7dd8038261c572136981cc50482df35acd4bb2029"
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
+          },
+          {
+            "id": "tests/test_evidence_reuse.py::test_current_full_matrix_defers_only_scale_after_all_fourteen_cases_pass",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Fresh original14-case execution supplies stronger current UI proof before approved scale deferral.",
+            "negative": "Missing or nonpassing UI/native phases, foreign context, unknown approval or budget failure cannot certify.",
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
+          },
+          {
+            "id": "tests/test_evidence_reuse.py::test_current_matrix_requires_every_native_and_ui_case",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Fresh original14-case execution supplies stronger current UI proof before approved scale deferral.",
+            "negative": "Missing or nonpassing UI/native phases, foreign context, unknown approval or budget failure cannot certify.",
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
+          },
+          {
+            "id": "tests/test_evidence_reuse.py::test_current_matrix_rejects_missing_foreign_or_unapproved_proof",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Fresh original14-case execution supplies stronger current UI proof before approved scale deferral.",
+            "negative": "Missing or nonpassing UI/native phases, foreign context, unknown approval or budget failure cannot certify.",
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
+          },
+          {
+            "id": "tests/test_evidence_reuse.py::test_prerequisite_selection_acquires_current_matrix_without_relaxing_history",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Fresh original14-case execution supplies stronger current UI proof before approved scale deferral.",
+            "negative": "Missing or nonpassing UI/native phases, foreign context, unknown approval or budget failure cannot certify.",
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
+          },
+          {
+            "id": "tests/test_evidence_reuse.py::test_current_matrix_original_scope_can_supply_only_ui_reuse",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Fresh original14-case execution supplies stronger current UI proof before approved scale deferral.",
+            "negative": "Missing or nonpassing UI/native phases, foreign context, unknown approval or budget failure cannot certify.",
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
+          },
+          {
+            "id": "tests/test_evidence_reuse.py::test_native_producer_obtains_current_matrix_when_history_is_ineligible",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Fresh original14-case execution supplies stronger current UI proof before approved scale deferral.",
+            "negative": "Missing or nonpassing UI/native phases, foreign context, unknown approval or budget failure cannot certify.",
+            "reviewed_test_sha256": "ad3bd6eb79305e93da3590926f10605c5ca0085e5135e4c420bb47b1671ef985"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -4809,7 +4863,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "a92c54076b5aa0fe7d48227b43e9e4e1dc65cb1340cc03a1214cd0f2caf748e6",
+        "review_sha256": "36220adc34a9b7728c9f2832f2462085500c08267d3060cc7b7c1b2bc1e59332",
         "review_addenda": [
           {
             "task": "INTEGRATION-20261107-budget-retention",
@@ -6328,6 +6382,66 @@
         "exact_test_id": "tests/test_evidence_reuse.py::test_lifecycle_cadence_does_not_expand_other_pr_obligations",
         "reason": "Approved conditional PR lifecycle cadence and fail-closed proof controls.",
         "source": "2026-11-07 explicit user approval of SLSE_SCALE_CADENCE_PROPOSAL.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_reuse.py::test_current_full_matrix_defers_only_scale_after_all_fourteen_cases_pass",
+        "reason": "Current complete UI-matrix acquisition when historical hardware proof is ineligible.",
+        "source": "2026-11-07 CI441 physical CPU change; existing approved proof conditions retained",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_reuse.py::test_current_matrix_requires_every_native_and_ui_case",
+        "reason": "Current complete UI-matrix acquisition when historical hardware proof is ineligible.",
+        "source": "2026-11-07 CI441 physical CPU change; existing approved proof conditions retained",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_reuse.py::test_current_matrix_rejects_missing_foreign_or_unapproved_proof",
+        "reason": "Current complete UI-matrix acquisition when historical hardware proof is ineligible.",
+        "source": "2026-11-07 CI441 physical CPU change; existing approved proof conditions retained",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_reuse.py::test_prerequisite_selection_acquires_current_matrix_without_relaxing_history",
+        "reason": "Current complete UI-matrix acquisition when historical hardware proof is ineligible.",
+        "source": "2026-11-07 CI441 physical CPU change; existing approved proof conditions retained",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_reuse.py::test_current_matrix_original_scope_can_supply_only_ui_reuse",
+        "reason": "Current complete UI-matrix acquisition when historical hardware proof is ineligible.",
+        "source": "2026-11-07 CI441 physical CPU change; existing approved proof conditions retained",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_reuse.py::test_native_producer_obtains_current_matrix_when_history_is_ineligible",
+        "reason": "Current complete UI-matrix acquisition when historical hardware proof is ineligible.",
+        "source": "2026-11-07 CI441 physical CPU change; existing approved proof conditions retained",
         "in_original_catalog": false,
         "trigger_paths": [],
         "deferred_outcome": "NOT_RUN"

@@ -19,6 +19,243 @@ from scripts.qa import check_certification_registry as registry
 from scripts.qa import evidence_reuse as reuse
 from scripts.qa import release_evidence as release
 
+_REAL_CHECK_REUSE = reuse.check_reuse
+
+
+@pytest.fixture
+def fresh_native(conditional_native):
+    case = conditional_native
+    plan = case.plan
+    plan.update(schema="swinglens.full-release-plan.v1",
+                conditional_pr_lifecycle_scale=reuse.LIFECYCLE_SCALE_RULE)
+    plan["a04_prerequisites"]["selectors"] = (
+        reuse.cardinality_cases(plan["a04_prerequisites"])
+        + sorted(reuse.REQUIRED_NATIVE_CASES) + [reuse.LIFECYCLE_SCALE_CASE]
+    )
+    plan["plan_sha256"] = release.digest({k: v for k, v in plan.items() if k != "plan_sha256"})
+    spec = reuse.fresh_matrix_spec(plan)
+    scope = release.context(plan, reuse.PR_FRESH_MATRIX)
+    collection = release.read_json(case.directory / "collection.json")
+    collection.update(context=scope, selected=spec["selectors"], selection={
+        key: spec[key] for key in ("selectors", "markers", "ignores", "browsers")})
+    release.write_json(case.directory / "collection.json", collection)
+    execution = release.read_json(case.directory / "execution.json")
+    execution.update(context=scope, selected=spec["selectors"], started=spec["selectors"],
+        browsers_observed={name: "controlled-version" for name in spec["browsers"]},
+        phases={node: {phase: {"outcome": "passed", "wasxfail": False, "seconds": 0.1}
+                       for phase in ("setup", "call", "teardown")} for node in spec["selectors"]})
+    release.write_json(case.directory / "execution.json", execution)
+    root = ET.Element("testsuites")
+    suite = ET.SubElement(root, "testsuite", tests="14", failures="0", errors="0", skipped="0")
+    for node in spec["selectors"]:
+        classname, name = release.junit_key(node).rsplit("::", 1)
+        ET.SubElement(suite, "testcase", classname=classname, name=name)
+    ET.ElementTree(root).write(case.directory / "results.xml")
+    return case
+
+
+def test_current_full_matrix_defers_only_scale_after_all_fourteen_cases_pass(
+    fresh_native, monkeypatch,
+):
+    case = fresh_native
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("current matrix must not trust historical runner evidence")
+
+    monkeypatch.setattr(reuse, "check_reuse", forbidden)
+    proof = reuse.validate_pr_selection(case.directory, case.plan, feedback_root=case.feedback)
+    assert len(proof["current_native"]["passed"]) == 14
+    assert set(proof["current_native"]["passed"]) == set(proof["selected"])
+    assert len(proof["basis"]["validated_ui"]) == 8
+    assert proof["context"] == release.context(case.plan, reuse.PR_FRESH_MATRIX)
+    assert proof["deferred"] == [{"test_id": reuse.LIFECYCLE_SCALE_CASE,
+        "outcome": "NOT_RUN", "reason": reuse.LIFECYCLE_SCALE_RULE}]
+    assert proof["deferred_is_pass"] is False
+    assert len(case.plan["a04_prerequisites"]["selectors"]) == 15
+
+
+@pytest.mark.parametrize("index", range(14))
+@pytest.mark.parametrize("fault", ["missing-call", "failed", "skipped"])
+def test_current_matrix_requires_every_native_and_ui_case(fresh_native, index, fault):
+    case = fresh_native
+    path = case.directory / "execution.json"
+    execution = release.read_json(path)
+    node = execution["selected"][index]
+    if fault == "missing-call":
+        execution["phases"][node].pop("call")
+    else:
+        execution["phases"][node]["call"]["outcome"] = fault
+    release.write_json(path, execution)
+    with pytest.raises(release.EvidenceError):
+        reuse.validate_pr_selection(case.directory, case.plan, feedback_root=case.feedback)
+    assert len(case.plan["a04_prerequisites"]["selectors"]) == 15
+
+
+@pytest.mark.parametrize("fault", ["wrong-source", "missing-pair", "over-budget", "no-firefox",
+                                   "foreign", "unfinished", "unknown-impact", "unapproved"])
+def test_current_matrix_rejects_missing_foreign_or_unapproved_proof(fresh_native, fault):
+    case = fresh_native
+    if fault in {"wrong-source", "missing-pair", "over-budget"}:
+        path = case.feedback / "0/validation-runtime.json"
+        if fault == "missing-pair":
+            path.unlink()
+        else:
+            runtime = release.read_json(path)
+            if fault == "wrong-source":
+                runtime["source_fingerprint"] = "foreign"
+            else:
+                runtime["pipeline_steps"][0]["completed_at"] = "2026-11-06T22:20:00+00:00"
+            release.write_json(path, runtime)
+    elif fault == "unknown-impact":
+        case.plan["source_impact"]["unknown_impact"] = [{"path": "unreviewed.py"}]
+    elif fault == "unapproved":
+        case.plan["conditional_pr_lifecycle_scale"] = "unapproved"
+    else:
+        path = case.directory / "execution.json"
+        execution = release.read_json(path)
+        if fault == "no-firefox":
+            execution["browsers_observed"].pop("firefox")
+        elif fault == "foreign":
+            execution["context"]["execution_id"] = "foreign"
+        else:
+            execution["session_finished"] = False
+        release.write_json(path, execution)
+    with pytest.raises(release.EvidenceError):
+        reuse.validate_pr_selection(case.directory, case.plan, feedback_root=case.feedback)
+
+
+@pytest.mark.parametrize("fault", [None, "local", "push", "schedule", "workflow_dispatch",
+                                   "unknown", "unapproved"])
+def test_prerequisite_selection_acquires_current_matrix_without_relaxing_history(
+    fresh_native, fault,
+):
+    plan = fresh_native.plan
+    if fault in {"local", "push", "schedule", "workflow_dispatch"}:
+        plan["event"] = fault
+    elif fault == "unknown":
+        plan["source_impact"]["unknown_impact"] = [{"path": "unreviewed.py"}]
+    elif fault == "unapproved":
+        plan.pop("conditional_pr_lifecycle_scale")
+    before = copy.deepcopy(plan)
+    spec, lane = reuse.prerequisite_selection(plan, False)
+    assert plan == before
+    if fault is None:
+        assert lane == reuse.PR_FRESH_MATRIX
+        assert len(spec["selectors"]) == 14
+        assert reuse.LIFECYCLE_SCALE_CASE not in spec["selectors"]
+        assert len(reuse.cardinality_cases(spec)) == 8
+        assert reuse.REQUIRED_NATIVE_CASES <= set(spec["selectors"])
+        historical, historical_lane = reuse.prerequisite_selection(plan, True)
+        assert historical_lane == reuse.PR_SELECTED
+        assert len(historical["selectors"]) == 8
+    else:
+        assert lane == reuse.PREREQUISITES
+        assert spec == plan["a04_prerequisites"]
+        assert len(spec["selectors"]) == 15
+
+
+def test_current_matrix_original_scope_can_supply_only_ui_reuse(
+    native_reuse, fresh_native, tmp_path, monkeypatch,
+):
+    case = native_reuse
+    monkeypatch.setattr(reuse, "check_reuse", _REAL_CHECK_REUSE)
+    ui = reuse.cardinality_cases(fresh_native.plan["a04_prerequisites"])[0].split("::")[0]
+    case.commit(ui, "# Controlled original UI source\n")
+    case.policy.update(a04_prerequisites=copy.deepcopy(fresh_native.plan["a04_prerequisites"]),
+        conditional_pr_lifecycle_scale=reuse.LIFECYCLE_SCALE_RULE, selection_manifest={})
+    monkeypatch.setattr(release, "core_policy", lambda *_args, **_kwargs: case.policy)
+    impact = fresh_native.plan["source_impact"]
+    old = release.prepare_core_plan("101", "1", "pull_request", False, impact)
+    directory = tmp_path / "original-current-matrix"
+    directory.mkdir()
+    for name in ("collection.json", "execution.json"):
+        capture = release.read_json(fresh_native.directory / name)
+        capture["context"] = release.context(old, reuse.PR_FRESH_MATRIX)
+        if name == "execution.json":
+            capture.update(started_at=old["created_at"], finished_at=datetime.now(UTC).isoformat())
+            profile = capture["environment"]
+            profile.update(platform="controlled-native", input_date=old["created_at"][:10],
+                controlled_environment_sha256="c" * 64,
+                hardware={"cpu_count": 4, "machine": "controlled", "processor": "controlled",
+                          "memory_bytes": 16 * 1024**3})
+        release.write_json(directory / name, capture)
+    (directory / "results.xml").write_bytes((fresh_native.directory / "results.xml").read_bytes())
+    with zipfile.ZipFile(case.bundle / "plan.zip", "w") as archive:
+        archive.writestr("plan.json", json.dumps(old))
+    with zipfile.ZipFile(case.bundle / "evidence.zip", "w") as archive:
+        for path in directory.iterdir():
+            archive.write(path, reuse.artifact_prefix(reuse.PREREQUISITES) + path.name)
+    for artifact, name in ((201, "evidence.zip"), (202, "plan.zip")):
+        case.metadata[artifact]["digest"] = "sha256:" + release.file_digest(case.bundle / name)
+    case.commit("scripts/qa/evidence_reuse.py", "# Changed producer only\n")
+    current = release.prepare_core_plan("102", "1", "pull_request", False, impact)
+    original_execution = release.read_json(directory / "execution.json")
+    environment = reuse._original_environment(original_execution, old, "pytest")
+    checked = reuse.materialize(case.bundle, case.target, current, reuse.PREREQUISITES,
+                                environment, purpose="matrix-basis")
+    assert len(checked["validated_subset"]) == 8
+    assert len(checked["passed"]) == 14
+    assert checked["carry_forward"]["original_context"] == release.context(
+        old, reuse.PR_FRESH_MATRIX
+    )
+    assert release.read_json(case.target / "original/execution.json") == original_execution
+    assert (case.target / "original/results.xml").read_bytes() == (
+        directory / "results.xml"
+    ).read_bytes()
+    with pytest.raises(release.EvidenceError):
+        reuse.validate_original(case.target / "original", old, reuse.PREREQUISITES)
+
+
+def test_native_producer_obtains_current_matrix_when_history_is_ineligible(
+    fresh_native, monkeypatch,
+):
+    import shutil
+
+    from scripts import production_runtime_certification as runtime
+
+    case = fresh_native
+    root = case.directory.parent
+    selected = reuse.fresh_matrix_spec(case.plan)["selectors"]
+    before = copy.deepcopy(case.plan)
+    monkeypatch.setenv("SWINGLENS_RELEASE_PLAN", str(root / "plan.json"))
+    monkeypatch.setattr(reuse, "try_previous_run", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(runtime, "_prepare_prerequisite_browsers", lambda *_args: None)
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("current proof acquisition must not consult a foreign historical matrix")
+
+    monkeypatch.setattr(reuse, "check_reuse", forbidden)
+    directory = root / "source-impact-prerequisites"
+    directory.mkdir()
+    for name in ("collection.json", "execution.json"):
+        shutil.copyfile(case.directory / name, directory / name)
+    feedback = root / "runtime-evidence/validation-feedback"
+    shutil.copytree(case.feedback, feedback)
+
+    def collection(command, **kwargs):
+        assert "--collect-only" in command
+        assert command[-14:] == selected
+        assert kwargs["env"]["SWINGLENS_RELEASE_LANE"] == reuse.PR_FRESH_MATRIX
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    def execute(output, environment, name, cases):
+        assert environment["RUN_RUN8_REMEDIATION_BENCHMARK"] == "1"
+        assert "RUN_SLSE_PERFORMANCE_CERTIFICATION" not in environment
+        assert environment["SWINGLENS_FAIL_ON_REQUIRED_SKIP"] == "true"
+        assert cases == ("--maxfail=1", *selected)
+        shutil.copyfile(case.directory / "results.xml", output / (name + ".xml"))
+        return runtime.TestGroupResult(name, "PASS", 0, .1, [], "", "")
+
+    monkeypatch.setattr(runtime.subprocess, "run", collection)
+    monkeypatch.setattr(runtime, "_run_test_group", execute)
+    result = runtime._run_impact_prerequisites(root, {}, case.plan)
+    disposition = release.read_json(directory / "pr-disposition.json")
+    assert result.exit_code == 0
+    assert disposition["selected"] == selected
+    assert disposition["deferred"] == [{"test_id": reuse.LIFECYCLE_SCALE_CASE,
+        "outcome": "NOT_RUN", "reason": reuse.LIFECYCLE_SCALE_RULE}]
+    assert case.plan == before
+
 
 def _xml(path, cases, status="passed"):
     root = ET.Element("testsuites")

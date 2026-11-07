@@ -355,6 +355,10 @@ def context(plan: dict, lane: str) -> dict:
 
 
 def lane_spec(plan: dict, lane: str) -> dict:
+    if lane == "a04-prerequisites-pr-fresh-matrix":
+        from scripts.qa.evidence_reuse import fresh_matrix_spec
+
+        return fresh_matrix_spec(plan)
     if lane == "a04-prerequisites-pr":
         from scripts.qa.evidence_reuse import reduced_spec
 

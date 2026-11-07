@@ -799,20 +799,19 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     spec = plan["a04_prerequisites"]
     _prepare_prerequisite_browsers(report_dir, environment, spec["browsers"])
     from scripts.qa.evidence_reuse import (
-        PR_SELECTED,
-        reduced_spec,
+        PREREQUISITES,
+        prerequisite_selection,
         try_previous_run,
         validate_pr_selection,
     )
 
     if try_previous_run(directory, plan, "a04-prerequisites", environment):
         return TestGroupResult(name, "PASS", 0, 0, [], "", "")
-    conditional = try_previous_run(
+    historical_matrix = try_previous_run(
         directory / "matrix-basis", plan, "a04-prerequisites", environment, purpose="matrix-basis"
     )
-    lane = PR_SELECTED if conditional else "a04-prerequisites"
-    if conditional:
-        spec = reduced_spec(plan)
+    spec, lane = prerequisite_selection(plan, historical_matrix)
+    conditional = lane != PREREQUISITES
     environment = _prerequisite_environment(environment, spec["selectors"])
     plugins = environment.get("PYTEST_PLUGINS", "").split(",")
     plugins = [plugin for plugin in plugins if plugin]

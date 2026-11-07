@@ -191,6 +191,17 @@ Missing, unknown, failed, skipped or incomplete proof cannot certify this select
 the broader 15-case obligation remains. Financial guards and original assertions
 are unchanged. This grants no full-release or production authority.
 
+When historical UI evidence cannot be reused, the same approved conditions can
+be proved by current execution: run all eight original UI variants and all six
+other native prerequisites on the actual runner. This 14-case proof must pass
+every original phase and invariant, plus the current100/88 handoff budgets, before
+only the synthetic benchmark can be recorded NOT_RUN. The plan retains all15
+original selectors until adjudication; missing or nonpassing current proof cannot
+certify the deferral. No foreign hardware proof is accepted. Current collection,
+execution and source contexts authenticate the fresh matrix in the same way as
+the other current native cases. A later reuse keeps its original14-case namespace
+and phase records intact and projects only its eight UI passes.
+
 Push, scheduled and manual core certification retain all eight native browser
 variants. These release obligations can take hours and are separate from the
 developer and integration commands above. A04's two protected golden variants

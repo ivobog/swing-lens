@@ -19,6 +19,7 @@ SCHEMA = "swinglens.native-evidence-reuse.v1"
 REPOSITORY = "ivobog/swing-lens"
 PREREQUISITES = "a04-prerequisites"
 PR_SELECTED = "a04-prerequisites-pr"
+PR_FRESH_MATRIX = "a04-prerequisites-pr-fresh-matrix"
 UI_BOUNDARY = "native-cardinality-ui"
 CARDINALITY_RULE = "approved-pr-native-100-88-handoff-v1"
 LIFECYCLE_SCALE_RULE = "approved-pr-native-100-88-lifecycle-scale-v1"
@@ -258,15 +259,24 @@ def _check_plan_seal(plan: dict) -> None:
     _clean_source(plan["source"])
 
 
+def _original_capture_lane(root: Path, lane: str, purpose: str) -> str:
+    if lane == PREREQUISITES and purpose == "matrix-basis":
+        capture = release.read_json(root / "collection.json")
+        if capture.get("context", {}).get("lane") == PR_FRESH_MATRIX:
+            return PR_FRESH_MATRIX
+    return lane
+
+
 def validate_original(root: Path, plan: dict, lane: str, *, purpose="native") -> dict:
     """Re-evaluate original outcomes with today's validator and original context."""
     _check_plan_seal(plan)
     if (root / "carry-forward.json").exists():
         raise release.EvidenceError("reuse must retain the original native run, not a carry chain")
-    spec = release.lane_spec(plan, lane)
+    original_lane = _original_capture_lane(root, lane, purpose)
+    spec = release.lane_spec(plan, original_lane)
     observed = release.junit_cases(release.safe_file(root, "results.xml"), spec["kind"])
     proof = (
-        release._pytest_results(root, plan, lane, observed)
+        release._pytest_results(root, plan, original_lane, observed)
         if spec["kind"] == "pytest"
         else release._native_results(root, plan, lane, observed)
     )
@@ -325,8 +335,6 @@ def check_reuse(
     old_spec, spec = release.lane_spec(old, lane), release.lane_spec(plan, lane)
     if _comparable_spec(old_spec, purpose) != _comparable_spec(spec, purpose):
         raise release.EvidenceError("native selection/configuration changed")
-    if carry.get("original_context") != release.context(old, lane):
-        raise release.EvidenceError("original run provenance changed")
     origin = release.read_json(root / "origin.json")
     authenticate_archives(root, origin)
     original = root / "original"
@@ -336,6 +344,9 @@ def check_reuse(
         raise release.EvidenceError("original source plan differs from authenticated artifact")
     if str(old["execution_id"]) != str(origin["run_id"]):
         raise release.EvidenceError("artifact does not belong to original execution")
+    original_lane = _original_capture_lane(original, lane, purpose)
+    if carry.get("original_context") != release.context(old, original_lane):
+        raise release.EvidenceError("original run provenance changed")
     # Prior PR merge commits need not be in a fresh aggregate job's history.
     # Authenticate the archives and exact original plan before fetching any object.
     _ensure_original_commit(old["source"])
@@ -366,7 +377,7 @@ def check_reuse(
     return {
         **proof,
         "carry_forward": {
-            "original_context": release.context(old, lane),
+            "original_context": release.context(old, original_lane),
             "origin": origin,
             "dependencies_sha256": carry["dependencies_sha256"],
             "native_execution": "retained original; revalidated for unchanged dependencies",
@@ -488,13 +499,14 @@ def materialize(
             raise release.EvidenceError("artifact does not belong to original execution")
         _ensure_original_commit(old["source"])
         proof = validate_original(staged / "original", old, lane, purpose=purpose)
+        original_lane = _original_capture_lane(staged / "original", lane, purpose)
         release.write_json(
             staged / "carry-forward.json",
             {
                 "schema": SCHEMA,
                 "context": release.context(plan, lane),
                 "purpose": purpose,
-                "original_context": release.context(old, lane),
+                "original_context": release.context(old, original_lane),
                 "archive_prefix": prefix,
                 "dependencies_sha256": release.digest(
                     dependency_manifest(
@@ -716,16 +728,42 @@ def reduced_spec(plan: dict) -> dict:
     return {**spec, "selectors": release.prerequisite_order(selected), "browsers": ["chromium"]}
 
 
+def fresh_matrix_spec(plan: dict) -> dict:
+    """Obtain current UI proof when no historical runner-compatible matrix exists."""
+    reduced_spec(plan)  # Retain the same PR, impact, approval and exact15 guards.
+    if plan.get("conditional_pr_lifecycle_scale") != LIFECYCLE_SCALE_RULE:
+        raise release.EvidenceError("broader native lifecycle scale obligation remains required")
+    spec = plan["a04_prerequisites"]
+    return {**spec, "selectors": [node for node in spec["selectors"]
+                                if node != LIFECYCLE_SCALE_CASE]}
+
+
+def prerequisite_selection(plan: dict, historical_matrix: bool) -> tuple[dict, str]:
+    """Choose proof acquisition; no deferral is granted before native validation."""
+    if historical_matrix:
+        return reduced_spec(plan), PR_SELECTED
+    try:
+        return fresh_matrix_spec(plan), PR_FRESH_MATRIX
+    except release.EvidenceError:
+        return plan["a04_prerequisites"], PREREQUISITES
+
+
 def validate_pr_selection(directory: Path, plan: dict, *, feedback_root: Path) -> dict:
     """Deferred cases stay NOT_RUN; complete current native proof remains required."""
-    spec = reduced_spec(plan)
-    basis = directory / "matrix-basis"
-    probe = release.read_json(basis / "current-environment.json")
-    original = check_reuse(basis, plan, PREREQUISITES, probe["environment"], purpose="matrix-basis")
-    if set(cardinality_cases(plan["a04_prerequisites"])) - set(original["passed"]):
-        raise release.EvidenceError("original cross-engine/handoff matrix proof is incomplete")
+    capture = release.read_json(directory / "collection.json")
+    fresh = capture.get("context", {}).get("lane") == PR_FRESH_MATRIX
+    lane = PR_FRESH_MATRIX if fresh else PR_SELECTED
+    spec = fresh_matrix_spec(plan) if fresh else reduced_spec(plan)
+    if not fresh:
+        basis = directory / "matrix-basis"
+        probe = release.read_json(basis / "current-environment.json")
+        original = check_reuse(
+            basis, plan, PREREQUISITES, probe["environment"], purpose="matrix-basis"
+        )
+        if set(cardinality_cases(plan["a04_prerequisites"])) - set(original["passed"]):
+            raise release.EvidenceError("original cross-engine/handoff matrix proof is incomplete")
     observed = release.junit_cases(directory / "results.xml", "pytest")
-    current = release._pytest_results(directory, plan, PR_SELECTED, observed)
+    current = release._pytest_results(directory, plan, lane, observed)
     if (
         current["process_exit_code"] != 0
         or set(current["passed"]) != set(spec["selectors"])
@@ -753,15 +791,18 @@ def validate_pr_selection(directory: Path, plan: dict, *, feedback_root: Path) -
         )
     deferred = sorted(set(plan["a04_prerequisites"]["selectors"]) - set(spec["selectors"]))
     return {
-        "rule": CARDINALITY_RULE,
-        "context": release.context(plan, PR_SELECTED),
+        "rule": LIFECYCLE_SCALE_RULE if fresh else CARDINALITY_RULE,
+        "context": release.context(plan, lane),
         "selected": spec["selectors"],
         "deferred": [
             {"test_id": node, "outcome": "NOT_RUN", "reason": (
                 LIFECYCLE_SCALE_RULE if node == LIFECYCLE_SCALE_CASE else CARDINALITY_RULE
             )} for node in deferred
         ],
-        "basis": original["carry_forward"],
+        "basis": ({"context": release.context(plan, lane),
+                   "native_execution": "current complete eight-case UI matrix",
+                   "validated_ui": cardinality_cases(spec)}
+                  if fresh else original["carry_forward"]),
         "current_native": current,
         "current_pipeline_records": records,
         "deferred_is_pass": False,
