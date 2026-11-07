@@ -3363,7 +3363,7 @@
             "lane": "a04",
             "positive": "402 exact rows/26 sections, 541 relations and 15 jobs satisfy 620 gates.",
             "negative": "A14 semantic faults reject missing eligible child, changed ancestry and terminal quality mismatch.",
-            "reviewed_test_sha256": "d6aeda9ffceae7d7d76cfba398bb30f4f581a2716a94b76da0b15a7c5c6de64c"
+            "reviewed_test_sha256": "2321f549e9f7cc6b076241e5dd33b86b31cc992635198fe8622c0c68ff6849f4"
           },
           {
             "id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]",
@@ -3372,7 +3372,7 @@
             "lane": "a04",
             "positive": "Same original authority with retained Setup handoff enabled.",
             "negative": "Same controlled A14 violations reject at intended gates.",
-            "reviewed_test_sha256": "d6aeda9ffceae7d7d76cfba398bb30f4f581a2716a94b76da0b15a7c5c6de64c"
+            "reviewed_test_sha256": "2321f549e9f7cc6b076241e5dd33b86b31cc992635198fe8622c0c68ff6849f4"
           },
           {
             "id": "tests/test_screenshot_evidence_regions.py::test_bounded_regions_cover_the_entire_document_without_gaps[1440-1000-1]",
@@ -3564,7 +3564,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "0846e72c17fd47f8da9d42549c7d8226be70c2ccf56c7d15ef2c53f720b8d4d3",
+        "review_sha256": "9d66069c546f58f96c06879bee3b5b41f33a3ea26690fd684f37507801d833f9",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -3602,6 +3602,24 @@
             "claim": "STATIC_INTENT: native logs exposed per-record segment scans. Reuse only the currently open size-checked stream; no financial inputs, record bytes, queues, original tests, observers, deadlines or certification policy change.",
             "source_sha256": "813aa4f925275acf17e2c9ce73513a19b8c2bcde481ebf5197143b05e13feceb",
             "test_sha256": "4c13fbb79cf009e30598c19603db194302d6036f4baad1489888437ed1f6ea79"
+          },
+          {
+            "task": "INTEGRATION-20261107-seed-connection-cleanup",
+            "kind": "STATIC_FIXTURE_RESOURCE_REVIEW",
+            "evidence": "docs/verification/ci443-seed-connection-cleanup-20261107.md",
+            "bindings": [
+              {
+                "test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
+                "old_reviewed_test_sha256": "d6aeda9ffceae7d7d76cfba398bb30f4f581a2716a94b76da0b15a7c5c6de64c",
+                "new_reviewed_test_sha256": "2321f549e9f7cc6b076241e5dd33b86b31cc992635198fe8622c0c68ff6849f4"
+              },
+              {
+                "test_id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]",
+                "old_reviewed_test_sha256": "d6aeda9ffceae7d7d76cfba398bb30f4f581a2716a94b76da0b15a7c5c6de64c",
+                "new_reviewed_test_sha256": "2321f549e9f7cc6b076241e5dd33b86b31cc992635198fe8622c0c68ff6849f4"
+              }
+            ],
+            "claim": "STATIC_INTENT only: all original test functions, financial seed statements, assertions, observers, limits and policy objects are unchanged. Dispose unused fixture seed connections after the original Session commits and closes; later assertions reconnect and checked-out clients remain usable. A real PostgreSQL regression fails on the original helper and passes after cleanup. Current A04 still requires complete fresh whole-source evidence; no execution certificate or historical digest is replaced by this review."
           }
         ]
       },

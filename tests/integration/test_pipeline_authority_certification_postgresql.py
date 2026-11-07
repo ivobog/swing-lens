@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 import psycopg
 import pytest
 from psycopg import sql
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -424,6 +424,54 @@ def test_12b_transaction_policy_distinguishes_progress_stall_and_unrelated_sessi
     assert "POSTGRES_TRANSACTION_STALLED" in cancelled_codes
     assert "POSTGRES_IDLE_IN_TRANSACTION" in cancelled_codes
     engine.dispose()
+
+
+def test_12c_retained_fixture_releases_idle_seed_backend_and_preserves_active_client(
+    authority_database_url: str,
+) -> None:
+    from single_run_certification.test_real_writer_cardinality import (
+        _seed_retained_provider_history,
+    )
+
+    engine = create_engine(authority_database_url)
+    monitor = create_engine(authority_database_url)
+    backend_ids = []
+
+    @event.listens_for(engine, "connect")
+    def retain_backend_id(connection, _record):
+        backend_ids.append(connection.info.backend_pid)
+
+    try:
+        with engine.connect() as active:
+            active_pid = active.scalar(text("select pg_backend_pid()"))
+            before = active.scalar(text("select count(*) from ceri_ingestion_runs"))
+            _seed_retained_provider_history(engine, tickers=("BHE",))
+            seed_ids = set(backend_ids) - {active_pid}
+            assert seed_ids
+            deadline = time.monotonic() + 2
+            with monitor.connect() as db:
+                while True:
+                    remaining = db.scalars(
+                        text("select pid from pg_stat_activity where pid = ANY(:ids)"),
+                        {"ids": list(seed_ids)},
+                    ).all()
+                    db.rollback()
+                    if not remaining or time.monotonic() >= deadline:
+                        break
+                    time.sleep(0.01)
+                assert not remaining
+                assert db.scalar(text("select count(*) from ceri_ingestion_runs")) == before + 1
+            # Disposal returns only unused fixture resources. Existing clients
+            # remain usable, and later assertions reconnect to committed inputs.
+            assert active.scalar(text("select pg_backend_pid()")) == active_pid
+            with engine.connect() as reconnected:
+                assert reconnected.scalar(text("select pg_backend_pid()")) not in seed_ids
+                assert reconnected.scalar(text("select count(*) from ceri_ingestion_runs")) == (
+                    before + 1
+                )
+    finally:
+        engine.dispose()
+        monitor.dispose()
 
 
 def test_13_lock_timeout_cancellation_is_bounded_and_diagnostic(

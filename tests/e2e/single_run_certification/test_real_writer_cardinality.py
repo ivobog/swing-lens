@@ -764,6 +764,12 @@ def _seed_retained_provider_history(engine, *, tickers: tuple[str, ...]) -> None
                         },
                     )
         db.commit()
+    # Seeding is complete. Do not retain its idle physical connections while
+    # the independent worker runs: PostgreSQL cache catchup can briefly expose
+    # their last COMMIT timestamp as an old transaction in pg_stat_activity.
+    # Later assertions reconnect through this same engine; worker pools and
+    # checked-out connections remain independent.
+    engine.dispose()
 
 
 def _mature_and_publish_one_generation(
