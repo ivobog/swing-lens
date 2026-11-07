@@ -191,3 +191,15 @@ budget fails. A functionally passing case with a failed budget keeps its origina
 passing pytest report and a separate failing performance result. It cannot be used
 as a passing integration or reduced PR-matrix proof. Cases within their budgets
 avoid the diagnostic dump.
+
+CERI deployment identity reads the current database revision for every ingestion
+or processing run. Its repository-head result may be reused only after rereading
+and hashing the complete migration-tree and Alembic ini bytes. The retained value
+is the original Alembic reader's immutable head tuple for that exact repository
+root and byte digest. Changed or unreadable sources cannot return an earlier
+result; a graph changing during its initial load is rejected. Nonstandard version
+locations, directory links, recursive layouts and sourceless graphs retain the original reader.
+Database revisions are never carried by this optimization. Stale database heads
+and ambiguous repository heads still reject deployment identity. The existing
+`0094_sector_acquisition` migration remains the strict current-head expectation;
+the older `0093` expectation in the focused operational fixture was obsolete.

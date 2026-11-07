@@ -2467,12 +2467,23 @@
           {
             "path": "app/services/ceri/alert_service.py",
             "symbol": "CeriAlertService.rebuild_alerts"
+          },
+          {
+            "path": "app/services/alembic_heads.py",
+            "symbol": "cached_repository_alembic_heads"
+          },
+          {
+            "path": "app/services/ceri/deployment_identity.py",
+            "symbol": "current_deployment_identity"
           }
         ],
         "impact_patterns": [
           "app/services/ceri/*.py",
           "app/services/market_calculation_context_service.py",
-          "tests/test_provider_replay_contracts.py"
+          "tests/test_provider_replay_contracts.py",
+          "app/services/alembic_heads.py",
+          "tests/test_alembic_heads.py",
+          "tests/ceri/test_t15d_residual_findings.py"
         ],
         "tests": [
           {
@@ -2528,6 +2539,114 @@
             "positive": "Real CERI comparisons and alert-input decisions finish before their progress checkpoint.",
             "negative": "Cancellation/failure rolls back score, change, alert, rule, evidence and projection state without partial publication.",
             "reviewed_test_sha256": "d2c4fdf59a11d699f178d36a077ba098b75bb15c165d7d0ac3333af87771aa7c"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_added_deleted_and_ambiguous_heads_are_observed_after_warmup",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_changed_helper_and_configuration_bytes_require_native_reload",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_deployment_schema_mismatch_still_rejects_after_graph_warmup",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_graph_changed_during_native_load_is_rejected_without_retaining_result",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_invalid_or_unreadable_sources_cannot_return_previous_heads",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_nonstandard_graph_layout_keeps_original_fresh_reader",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_repeated_identities_use_one_native_graph_for_identical_source",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_repository_roots_never_share_a_graph_result",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_same_size_edit_with_preserved_timestamp_invalidates_graph",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/test_alembic_heads.py::test_source_only_timestamp_change_retains_identical_native_result",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282"
+          },
+          {
+            "id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_reports_current_database_head_and_separate_evidence_schema",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32"
+          },
+          {
+            "id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_rejects_stale_database_head_and_preserves_historical_identity",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
+            "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
+            "reviewed_test_sha256": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -2539,7 +2658,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "230fdd7b46faa4da3c1a2f0b0f4609eb60c2b9a7448ae07201f14888eccf9255",
+        "review_sha256": "677ad85aeb53b68b8be247023f75be224b0ec111ba14cc54edbd1943f00f1a8d",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -2554,6 +2673,19 @@
               }
             ],
             "claim": "STATIC_INTENT only; existing owners, historical review identities, golden rules and all release gates retained."
+          },
+          {
+            "task": "INTEGRATION-20261107-CERI-schema-metadata",
+            "kind": "STATIC_RUNTIME_METADATA_AND_FIXTURE_REVIEW",
+            "claim": "STATIC_INTENT: original Alembic head reader remains unchanged. CERI reuse requires a fresh full migration-tree and ini byte digest; unknown layouts fall back to the original reader. Every real database revision is still read and checked. Only three strict operational fixture strings change from already-obsolete 0093 to existing repository head0094; all other financial test assertions and original observers are unchanged.",
+            "source_sha256": {
+              "app/services/alembic_heads.py": "77753de96a73de8b6db3a94ca08e5aabd82ff1d86fe0d86775368174b828479b",
+              "app/services/ceri/deployment_identity.py": "48fc35dfb720dfe1c51eb0ea191d669335c6b3fd6332c7d61a7402a4c2548753"
+            },
+            "test_sha256": {
+              "tests/test_alembic_heads.py": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282",
+              "tests/ceri/test_t15d_residual_findings.py": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32"
+            }
           }
         ]
       },
@@ -5744,6 +5876,126 @@
         "exact_test_id": "tests/test_db_monitor.py::test_writer_segment_search_cost_is_bounded_by_rotation",
         "reason": "Measured native worker telemetry overhead and rotation/retention integrity.",
         "source": "2026-11-07 integration runtime review; existing original assertions preserved",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_added_deleted_and_ambiguous_heads_are_observed_after_warmup",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_changed_helper_and_configuration_bytes_require_native_reload",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_deployment_schema_mismatch_still_rejects_after_graph_warmup",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_graph_changed_during_native_load_is_rejected_without_retaining_result",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_invalid_or_unreadable_sources_cannot_return_previous_heads",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_nonstandard_graph_layout_keeps_original_fresh_reader",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_repeated_identities_use_one_native_graph_for_identical_source",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_repository_roots_never_share_a_graph_result",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_same_size_edit_with_preserved_timestamp_invalidates_graph",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/test_alembic_heads.py::test_source_only_timestamp_change_retains_identical_native_result",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_reports_current_database_head_and_separate_evidence_schema",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CERI_TEMPORAL_LINEAGE",
+        "exact_test_id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_rejects_stale_database_head_and_preserves_historical_identity",
+        "reason": "Measured per-ingestion native migration import cost and fresh schema validation.",
+        "source": "2026-11-07 native CERI runtime review; strict current 0094 fixture pin",
         "in_original_catalog": false,
         "trigger_paths": [],
         "deferred_outcome": "NOT_RUN"
