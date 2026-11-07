@@ -150,8 +150,37 @@ The generated 88/100-company scale populations do not establish a signed
 approval obligations remain authoritative.
 
 The user approved conditional PR cadence reduction and dependency-scoped non-A04
-reuse on 2026-11-06. Activation still requires the declared current native
-100-company, 88-tail and alternate-handoff proofs, matched dependencies and
-fault-tested receipt validation. Those conditions are not supplied by an ordinary
-validation PASS alone. Until that implementation and proof exist, all eight
-triggered browser variants and all nine required release lanes remain required.
+reuse on 2026-11-06. The existing release adapter now attempts reuse before the
+eight non-A04 base lanes and the specialized prerequisite group. It downloads
+original plans and native artifacts from the same repository's PR CI workflow,
+checks Git identities and GitHub artifact digests, and re-evaluates original
+collection, phases, JUnit and terminal receipts using the current validator.
+Original reports and source/run contexts remain intact inside explicit
+carry-forward records. Failed, skipped, unfinished or modified evidence is refused.
+
+Reuse compares exact test selection, Git blob identities and modes, fixtures,
+helpers, oracles, configuration, locked dependencies, observed tool versions and
+recorded settings overrides. Native PostgreSQL/browser reuse also requires matching
+hardware, software, deterministic provider mode and input date. Undeclared dotenv
+inputs and legacy missing environment proofs require fresh execution. Ordinary
+Python lanes conservatively retain the full tracked input tree. Prerequisite
+reuse excludes only declared governance and orchestration files; all native
+application, test-helper and oracle inputs remain bound. A source change in an
+excluded producer still requires current validation of the original native proof.
+
+PR cadence can defer six repeated browser variants only with an authenticated,
+complete prior eight-variant matrix, unchanged UI and driver inputs, and current
+native Chromium 100-company plus alternate-handoff 88-company cases. Both cases
+must finish with their original assertions, all required native phases and stage
+budgets passing. Current Chromium/Firefox smoke remains a separate required lane.
+The original plan declares the conditional rule; the final manifest records the
+six deferred variants as NOT_RUN with their proof and reasons. Missing or unknown
+proof retains the broader obligation and cannot certify a reduced run.
+
+Push, scheduled and manual core certification retain all eight native browser
+variants. These release obligations can take hours and are separate from the
+developer and integration commands above. A04's two protected golden variants
+always execute with the original whole-source freshness rule. All nine required
+lane kinds, protected-main checks, authenticated golden approval and live-provider
+authorization remain independent requirements. No carry-forward grants merge or
+production activation.

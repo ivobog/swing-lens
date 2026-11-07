@@ -22,7 +22,22 @@ from scripts.qa import check_certification_registry as registry
 from scripts.qa import release_evidence as release
 
 
-def test_failure_is_retained_before_session_finish_without_certifying(tmp_path, monkeypatch):
+@pytest.fixture
+def diagnostic_release():
+    # Exercise controls independently from the plugin recording this very test.
+    # Replacing its live _capture would lose our own call-phase evidence in CI.
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("diagnostic_release_control", release.__file__)
+    isolated = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(isolated)
+    return isolated
+
+
+def test_failure_is_retained_before_session_finish_without_certifying(
+    tmp_path, monkeypatch, diagnostic_release,
+):
+    release = diagnostic_release
     capture = {"directory": tmp_path, "context": {"source": "frozen-source"}, "phases": {}}
     monkeypatch.setattr(release, "_capture", capture)
     report = SimpleNamespace(
@@ -45,7 +60,10 @@ def test_failure_is_retained_before_session_finish_without_certifying(tmp_path, 
     assert not (tmp_path / "lane.json").exists()
 
 
-def test_failure_diagnostic_io_error_preserves_original_native_outcome(tmp_path, monkeypatch):
+def test_failure_diagnostic_io_error_preserves_original_native_outcome(
+    tmp_path, monkeypatch, diagnostic_release,
+):
+    release = diagnostic_release
     capture = {"directory": tmp_path, "context": {}, "phases": {}}
     monkeypatch.setattr(release, "_capture", capture)
     def unavailable(*args, **kwargs):
@@ -60,7 +78,10 @@ def test_failure_diagnostic_io_error_preserves_original_native_outcome(tmp_path,
     assert capture["diagnostic_errors"] == ["OSError"]
 
 
-def test_passing_native_report_does_not_write_failure_diagnostics(tmp_path, monkeypatch):
+def test_passing_native_report_does_not_write_failure_diagnostics(
+    tmp_path, monkeypatch, diagnostic_release,
+):
+    release = diagnostic_release
     capture = {"directory": tmp_path, "context": {}, "phases": {}}
     monkeypatch.setattr(release, "_capture", capture)
     release.pytest_runtest_logreport(SimpleNamespace(

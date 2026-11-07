@@ -118,6 +118,7 @@ def main() -> int:
     release.add_argument("--record-release-lane")
     release.add_argument("--aggregate-release", action="store_true")
     release.add_argument("--release-selectors")
+    release.add_argument("--try-reuse-release-lane")
     release.add_argument("--validate-impact", choices=("developer", "integration"))
     parser.add_argument("--release-profile", choices=("core", "diagnostic"), default="core")
     parser.add_argument("--impact-plan", type=Path)
@@ -142,6 +143,7 @@ def main() -> int:
         or args.record_release_lane
         or args.aggregate_release
         or args.release_selectors
+        or args.try_reuse_release_lane
     ):
         return _release_action(args, final_report_dir)
 
@@ -279,6 +281,16 @@ def _release_action(args, report_dir: Path) -> int:
             raise release.EvidenceError("release plan required")
         plan = release.read_json(args.release_plan)
         release.validate_plan(plan, current=True)
+        if args.try_reuse_release_lane:
+            from scripts.qa.evidence_reuse import try_previous_run
+
+            reused = try_previous_run(report_dir, plan, args.try_reuse_release_lane)
+            if os.environ.get("GITHUB_OUTPUT"):
+                with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                    output.write("reused=" + str(reused).lower() + "\n")
+            print("Native evidence: " + ("REUSED_WITH_ORIGINAL_PROVENANCE" if reused
+                                         else "FRESH_EXECUTION_REQUIRED"))
+            return 0
         if args.release_selectors:
             spec = plan["required_lanes"][args.release_selectors]
             if spec["kind"] != "pytest" or not spec["selectors"]:
@@ -300,6 +312,11 @@ def _release_action(args, report_dir: Path) -> int:
             )
             release.write_json(report_dir / "report.json", result)
         print("Release evidence: " + result.get("core_verdict", result["verdict"]))
+        if result["verdict"] != "CERTIFIED":
+            from app.services.redaction import redact_text
+
+            for reason in result.get("reasons", []):
+                print("Release evidence blocker: " + redact_text(str(reason)), flush=True)
         return 0 if result["verdict"] == "CERTIFIED" else 1
     except (release.EvidenceError, OSError, ValueError, TypeError, KeyError) as exc:
         core = plan.get("profile") == "core" or (
@@ -457,6 +474,9 @@ def _run_exact_deterministic(report_dir: Path, execution_id: str) -> int:
                     )
                     results.append(prerequisite)
                     prerequisites_passed = prerequisite.exit_code == 0
+                    disposition = report_dir / "source-impact-prerequisites/pr-disposition.json"
+                    if prerequisites_passed and disposition.is_file():
+                        specialized_prerequisites = release.read_json(disposition)["selected"]
                 except release.EvidenceError as exc:
                     reasons.append("source-impact prerequisite evidence invalid: " + str(exc))
                     prerequisites_passed = False
@@ -678,12 +698,11 @@ def _run_test_group(
     selectors: tuple[str, ...],
 ) -> TestGroupResult:
     browsers = ["chromium"]
-    if environment.get("SWINGLENS_RELEASE_LANE") == "a04-prerequisites":
+    if environment.get("SWINGLENS_RELEASE_LANE", "").startswith("a04-prerequisites"):
         from scripts.qa import release_evidence as release
 
-        browsers = release.read_json(Path(environment["SWINGLENS_RELEASE_PLAN"]))[
-            "a04_prerequisites"
-        ]["browsers"]
+        plan = release.read_json(Path(environment["SWINGLENS_RELEASE_PLAN"]))
+        browsers = release.lane_spec(plan, environment["SWINGLENS_RELEASE_LANE"])["browsers"]
     command = [
         sys.executable,
         "-m",
@@ -763,6 +782,21 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     directory = report_dir / name
     spec = plan["a04_prerequisites"]
     _prepare_prerequisite_browsers(report_dir, environment, spec["browsers"])
+    from scripts.qa.evidence_reuse import (
+        PR_SELECTED,
+        reduced_spec,
+        try_previous_run,
+        validate_pr_selection,
+    )
+
+    if try_previous_run(directory, plan, "a04-prerequisites", environment):
+        return TestGroupResult(name, "PASS", 0, 0, [], "", "")
+    conditional = try_previous_run(
+        directory / "matrix-basis", plan, "a04-prerequisites", environment, purpose="matrix-basis"
+    )
+    lane = PR_SELECTED if conditional else "a04-prerequisites"
+    if conditional:
+        spec = reduced_spec(plan)
     plugins = environment.get("PYTEST_PLUGINS", "").split(",")
     plugins = [plugin for plugin in plugins if plugin]
     if "scripts.qa.release_evidence" not in plugins:
@@ -771,7 +805,7 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
         **environment,
         "PYTEST_PLUGINS": ",".join(plugins),
         "SWINGLENS_RELEASE_PLAN": os.environ["SWINGLENS_RELEASE_PLAN"],
-        "SWINGLENS_RELEASE_LANE": "a04-prerequisites",
+        "SWINGLENS_RELEASE_LANE": lane,
         "SWINGLENS_RELEASE_CAPTURE": "collection",
         "SWINGLENS_RELEASE_RECORD_DIR": str(directory),
         "SWINGLENS_RETAIN_NATIVE_RUNTIME": "true",
@@ -797,7 +831,7 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     result = _run_test_group(report_dir, child, name, ("--maxfail=1", *spec["selectors"]))
     shutil.copyfile(report_dir / (name + ".xml"), directory / "results.xml")
     observed = release.junit_cases(directory / "results.xml", "pytest")
-    proof = release._pytest_results(directory, plan, "a04-prerequisites", observed)
+    proof = release._pytest_results(directory, plan, lane, observed)
     if (
         proof["process_exit_code"] != 0
         or set(proof["passed"]) != set(spec["selectors"])
@@ -805,6 +839,11 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
         or any(proof[key] for key in release.CATEGORIES if key != "passed")
     ):
         raise release.EvidenceError("specialized prerequisite failed, skipped or never executed")
+    if conditional:
+        disposition = validate_pr_selection(
+            directory, plan, feedback_root=report_dir / "runtime-evidence/validation-feedback"
+        )
+        release.write_json(directory / "pr-disposition.json", disposition)
     return result
 
 
