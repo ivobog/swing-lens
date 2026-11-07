@@ -21,6 +21,21 @@ PREREQUISITES = "a04-prerequisites"
 PR_SELECTED = "a04-prerequisites-pr"
 UI_BOUNDARY = "native-cardinality-ui"
 CARDINALITY_RULE = "approved-pr-native-100-88-handoff-v1"
+LIFECYCLE_SCALE_RULE = "approved-pr-native-100-88-lifecycle-scale-v1"
+LIFECYCLE_SCALE_CASE = (
+    "tests/integration/test_slse_performance_certification.py"
+    "::test_slse_phase_12_performance_certification"
+)
+REQUIRED_NATIVE_CASES = frozenset({
+    "tests/integration/test_run40_lifecycle_remediation_postgresql.py"
+    "::test_native_lifecycle_interruption_replay_and_scale[2]",
+    "tests/integration/test_run40_lifecycle_remediation_postgresql.py"
+    "::test_native_lifecycle_interruption_replay_and_scale[88]",
+    *("tests/integration/test_run8_setup_performance_postgresql.py"
+      f"::test_setup_capture_run8_scale_is_bounded[{size}]" for size in (10, 25, 107)),
+    "tests/integration/test_winner_jobs_reliability_postgresql.py"
+    "::test_390_row_42_cohort_heartbeat_commits_have_bounded_selects",
+})
 PAIR_SUFFIXES = ("[chromium-False-100]", "[chromium-True-88]")
 # These producers do not supply financial/test inputs. Their *current* validators
 # must still accept every original native outcome. Everything else in scripts/
@@ -686,14 +701,23 @@ def reduced_spec(plan: dict) -> dict:
         or not _reviewed_matrix(spec)
     ):
         raise release.EvidenceError("broader native browser obligation remains required")
+    scale_rule = plan.get("conditional_pr_lifecycle_scale")
+    if scale_rule is not None and (
+        scale_rule != LIFECYCLE_SCALE_RULE
+        or len(spec["selectors"]) != 15
+        or set(spec["selectors"]) - set(cases) != REQUIRED_NATIVE_CASES | {LIFECYCLE_SCALE_CASE}
+    ):
+        raise release.EvidenceError("broader native lifecycle scale obligation remains required")
     selected = [
         node for node in spec["selectors"] if node not in cases or node.endswith(PAIR_SUFFIXES)
     ]
+    if scale_rule == LIFECYCLE_SCALE_RULE:
+        selected.remove(LIFECYCLE_SCALE_CASE)
     return {**spec, "selectors": release.prerequisite_order(selected), "browsers": ["chromium"]}
 
 
 def validate_pr_selection(directory: Path, plan: dict, *, feedback_root: Path) -> dict:
-    """Six cases stay NOT_RUN; only complete current native proof permits deferral."""
+    """Deferred cases stay NOT_RUN; complete current native proof remains required."""
     spec = reduced_spec(plan)
     basis = directory / "matrix-basis"
     probe = release.read_json(basis / "current-environment.json")
@@ -733,7 +757,9 @@ def validate_pr_selection(directory: Path, plan: dict, *, feedback_root: Path) -
         "context": release.context(plan, PR_SELECTED),
         "selected": spec["selectors"],
         "deferred": [
-            {"test_id": node, "outcome": "NOT_RUN", "reason": CARDINALITY_RULE} for node in deferred
+            {"test_id": node, "outcome": "NOT_RUN", "reason": (
+                LIFECYCLE_SCALE_RULE if node == LIFECYCLE_SCALE_CASE else CARDINALITY_RULE
+            )} for node in deferred
         ],
         "basis": original["carry_forward"],
         "current_native": current,

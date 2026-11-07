@@ -433,8 +433,15 @@ def test_conditional_cadence_retains_broader_obligations_when_proof_is_ineligibl
 
 
 @pytest.fixture
-def conditional_native(tmp_path, monkeypatch):
+def conditional_native(tmp_path, monkeypatch, request):
     plan = _matrix_plan()
+    if getattr(request, "param", False):
+        plan["conditional_pr_lifecycle_scale"] = reuse.LIFECYCLE_SCALE_RULE
+        plan["a04_prerequisites"]["selectors"] = (
+            reuse.cardinality_cases(plan["a04_prerequisites"])
+            + sorted(reuse.REQUIRED_NATIVE_CASES) + [reuse.LIFECYCLE_SCALE_CASE]
+        )
+        plan["plan_sha256"] = release.digest({k: v for k, v in plan.items() if k != "plan_sha256"})
     original = copy.deepcopy(plan["a04_prerequisites"])
     spec = reuse.reduced_spec(plan)
     assert plan["a04_prerequisites"] == original
@@ -538,6 +545,117 @@ def test_conditional_pr_deferral_requires_current_native_pair_and_never_marks_si
     assert len(case.plan["a04_prerequisites"]["selectors"]) == 9
 
 
+@pytest.mark.parametrize("conditional_native", [True], indirect=True)
+def test_approved_lifecycle_pr_deferral_requires_eight_current_passes_and_seven_not_run(
+    conditional_native,
+):
+    case = conditional_native
+    result = reuse.validate_pr_selection(case.directory, case.plan, feedback_root=case.feedback)
+    assert len(result["selected"]) == 8
+    assert reuse.REQUIRED_NATIVE_CASES <= set(result["current_native"]["passed"])
+    assert set(result["current_native"]["passed"]) == set(result["selected"])
+    assert len(result["deferred"]) == 7
+    assert {row["outcome"] for row in result["deferred"]} == {"NOT_RUN"}
+    scale = next(row for row in result["deferred"]
+                 if row["test_id"] == reuse.LIFECYCLE_SCALE_CASE)
+    assert scale == {
+        "test_id": reuse.LIFECYCLE_SCALE_CASE, "outcome": "NOT_RUN",
+        "reason": reuse.LIFECYCLE_SCALE_RULE,
+    }
+    assert reuse.LIFECYCLE_SCALE_CASE not in result["current_native"]["passed"]
+    assert result["deferred_is_pass"] is False
+    assert len(case.plan["a04_prerequisites"]["selectors"]) == 15
+
+
+@pytest.mark.parametrize("conditional_native", [True], indirect=True)
+@pytest.mark.parametrize("node", sorted(reuse.REQUIRED_NATIVE_CASES))
+@pytest.mark.parametrize("fault", ["missing-call", "failed", "skipped"])
+def test_lifecycle_deferral_rejects_every_nonpassing_current_native_prerequisite(
+    conditional_native, node, fault,
+):
+    case = conditional_native
+    path = case.directory / "execution.json"
+    execution = release.read_json(path)
+    if fault == "missing-call":
+        execution["phases"][node].pop("call")
+    else:
+        execution["phases"][node]["call"]["outcome"] = fault
+    release.write_json(path, execution)
+    with pytest.raises(release.EvidenceError):
+        reuse.validate_pr_selection(case.directory, case.plan, feedback_root=case.feedback)
+    assert len(case.plan["a04_prerequisites"]["selectors"]) == 15
+
+
+@pytest.mark.parametrize("conditional_native", [True], indirect=True)
+@pytest.mark.parametrize("fault", ["unknown-rule", "missing-native", "missing-scale",
+                                   "extra-native", "duplicate-native"])
+def test_lifecycle_deferral_requires_exact_reviewed_obligation(conditional_native, fault):
+    plan = conditional_native.plan
+    spec = plan["a04_prerequisites"]
+    if fault == "unknown-rule":
+        plan["conditional_pr_lifecycle_scale"] = "unapproved"
+    elif fault == "missing-native":
+        spec["selectors"].remove(sorted(reuse.REQUIRED_NATIVE_CASES)[0])
+    elif fault == "missing-scale":
+        spec["selectors"].remove(reuse.LIFECYCLE_SCALE_CASE)
+    elif fault == "extra-native":
+        spec["selectors"].append("tests/integration/unknown.py::test_unreviewed")
+    else:
+        spec["selectors"].append(sorted(reuse.REQUIRED_NATIVE_CASES)[0])
+    with pytest.raises(release.EvidenceError, match="broader native lifecycle scale obligation"):
+        reuse.reduced_spec(plan)
+
+
+@pytest.mark.parametrize("replacement", [None, "unapproved", False])
+def test_lifecycle_cadence_is_bound_to_reviewed_plan_even_after_resealing(replacement):
+    impact = registry.source_impact_plan(
+        registry.load_manifest(), ["app/services/setup_lifecycle/evaluation_service.py",
+                                   "app/services/winner_probability/cohort_authority.py"]
+    )
+    plan = release.prepare_core_plan("controlled-cadence-seal", "1", "pull_request", False, impact)
+    assert plan["conditional_pr_lifecycle_scale"] == reuse.LIFECYCLE_SCALE_RULE
+    release.validate_plan(plan)
+    if replacement is None:
+        plan.pop("conditional_pr_lifecycle_scale")
+    else:
+        plan["conditional_pr_lifecycle_scale"] = replacement
+    plan["plan_sha256"] = release.digest({k: v for k, v in plan.items() if k != "plan_sha256"})
+    with pytest.raises(release.EvidenceError, match="lifecycle scale cadence"):
+        release.validate_plan(plan)
+
+
+@pytest.mark.parametrize("event", ["push", "schedule", "workflow_dispatch"])
+def test_release_cadences_retain_original_lifecycle_scale_case_and_all_fifteen(event):
+    impact = registry.source_impact_plan(
+        registry.load_manifest(), ["app/services/setup_lifecycle/evaluation_service.py",
+                                   "app/services/winner_probability/cohort_authority.py"]
+    )
+    plan = release.prepare_core_plan("controlled-release-cadence", "1", event, False, impact)
+    assert len(plan["a04_prerequisites"]["selectors"]) == 15
+    assert reuse.LIFECYCLE_SCALE_CASE in plan["a04_prerequisites"]["selectors"]
+    assert reuse.REQUIRED_NATIVE_CASES <= set(plan["a04_prerequisites"]["selectors"])
+    release.validate_plan(plan)
+    with pytest.raises(release.EvidenceError, match="broader native browser obligation"):
+        reuse.reduced_spec(plan)
+    assert "conditional_pr_lifecycle_scale" not in release.prepare_plan(
+        "controlled-full-release", "1", event, False
+    )
+
+
+def test_lifecycle_cadence_does_not_expand_other_pr_obligations():
+    impact = registry.source_impact_plan(
+        registry.load_manifest(), ["app/services/winner_probability/probability_estimator.py"]
+    )
+    plan = release.prepare_core_plan(
+        "controlled-existing-cadence", "1", "pull_request", False, impact
+    )
+    assert plan.get("conditional_pr_lifecycle_scale") is None
+    assert len(plan["a04_prerequisites"]["selectors"]) == 10
+    assert reuse.LIFECYCLE_SCALE_CASE not in plan["a04_prerequisites"]["selectors"]
+    assert len(reuse.reduced_spec(plan)["selectors"]) == 4
+    release.validate_plan(plan)
+
+
 @pytest.mark.parametrize("fault", ["unrelated-skip", "ui-skip", "ui-failure", "missing-call",
                                    "incomplete-session", "nonzero-exit"])
 def test_matrix_basis_reuses_only_complete_passing_ui_bodies(
@@ -628,6 +746,7 @@ def test_matrix_comparison_ignores_unrelated_native_order_but_keeps_ui_rules():
         "foreign-session",
     ],
 )
+@pytest.mark.parametrize("conditional_native", [False, True], indirect=True)
 def test_missing_or_failed_conditional_proofs_cannot_defer_the_matrix(conditional_native, fault):
     case = conditional_native
     file = case.feedback / "0/validation-runtime.json"

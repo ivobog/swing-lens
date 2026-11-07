@@ -177,6 +177,20 @@ The original plan declares the conditional rule; the final manifest records the
 six deferred variants as NOT_RUN with their proof and reasons. Missing or unknown
 proof retains the broader obligation and cannot certify a reduced run.
 
+On 2026-11-07 the user approved one additional conditional PR deferral: the
+synthetic lifecycle 1,000-company benchmark. Its fixture currently lacks required
+immutable producer evidence and cannot measure its performance assertion. The
+plan seals this rule separately from the original prerequisite specification.
+Only the reviewed 15-case obligation is eligible: all six other native cases
+(Run40 scales2/88, Run8 scales10/25/107, and the 390-row/42-cohort Winner case)
+must execute and pass, along with the current 100/88 full-pipeline pair, unchanged
+budgets and authenticated original eight-case UI basis described above. The
+eligible current selection is eight cases. The six browser variants and the
+single synthetic benchmark remain explicitly NOT_RUN with separate rule reasons.
+Missing, unknown, failed, skipped or incomplete proof cannot certify this selection;
+the broader 15-case obligation remains. Financial guards and original assertions
+are unchanged. This grants no full-release or production authority.
+
 Push, scheduled and manual core certification retain all eight native browser
 variants. These release obligations can take hours and are separate from the
 developer and integration commands above. A04's two protected golden variants
@@ -184,6 +198,11 @@ always execute with the original whole-source freshness rule. All nine required
 lane kinds, protected-main checks, authenticated golden approval and live-provider
 authorization remain independent requirements. No carry-forward grants merge or
 production activation.
+
+Push, scheduled, manual and full release also retain the original lifecycle
+1,000-company benchmark, including its 60-second evaluation, 500ms query and
+100,000-row history requirements. Its native producer-evidence fixture still
+requires modernization for those cadences; no scale-performance pass is claimed.
 
 Native integration feedback retains the exact owned disposable database inputs
 before teardown when either the original case fails or a stage/total runtime

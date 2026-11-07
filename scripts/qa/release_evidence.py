@@ -183,6 +183,9 @@ def core_policy(impact: dict, *, event: str | None = None) -> dict:
         "postgres_major": 18,
         "conditional_pr_cardinality": "approved-pr-native-100-88-handoff-v1",
     }
+    if ("tests/integration/test_slse_performance_certification.py"
+        "::test_slse_phase_12_performance_certification") in specialized:
+        value["conditional_pr_lifecycle_scale"] = "approved-pr-native-100-88-lifecycle-scale-v1"
     value["selection_manifest"] = {
         "profiles": selection["profiles"],
         "entries": dispositions,
@@ -249,6 +252,7 @@ def prepare_core_plan(run_id: str, attempt: str, event: str, extended: bool, imp
         policy_sha256=digest(contract),
         selection_manifest=contract["selection_manifest"],
         a04_prerequisites=contract["a04_prerequisites"],
+        conditional_pr_lifecycle_scale=contract.get("conditional_pr_lifecycle_scale"),
     )
     plan["required_lanes"].update(copy.deepcopy(contract["base_lanes"]))
     plan["plan_sha256"] = digest(plan)
@@ -329,6 +333,8 @@ def validate_plan(plan: dict, *, current: bool = False) -> None:
         raise EvidenceError("release selection differs from reviewed policy")
     if plan.get("a04_prerequisites") != contract.get("a04_prerequisites"):
         raise EvidenceError("specialized prerequisite selection differs from reviewed policy")
+    if plan.get("conditional_pr_lifecycle_scale") != contract.get("conditional_pr_lifecycle_scale"):
+        raise EvidenceError("lifecycle scale cadence differs from reviewed policy")
     if (
         plan.get("profile") == "core"
         and plan.get("selection_manifest") != contract["selection_manifest"]
