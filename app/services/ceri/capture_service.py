@@ -765,8 +765,16 @@ class CeriRunCaptureService:
                         persistence_checkpoint,
                         len(rows),
                     )
+                def comparison_progress(item, completed, total):
+                    if progress_callback is not None:
+                        progress_callback(
+                            f"{item}:{completed}/{total}", persistence_checkpoint, len(rows),
+                        )
+
                 _capture_score_comparisons(
-                    db, self, captured_snapshots, counts, run_id, market_cutoff
+                    db, self, captured_snapshots, counts, run_id, market_cutoff,
+                    **({"progress_callback": comparison_progress}
+                       if progress_callback is not None else {}),
                 )
                 if progress_callback is not None:
                     progress_callback(str(rows[-1].ticker), len(rows), len(rows))
@@ -1022,6 +1030,8 @@ def _capture_score_comparisons(
     counts: dict[str, int],
     run_id: int,
     market_cutoff: MarketCalculationCutoff,
+    *,
+    progress_callback=None,
 ):
     """New scores and retained predecessors share one exact locked witness."""
     from app.models.tables import CoreCalculationEvidence
@@ -1037,21 +1047,27 @@ def _capture_score_comparisons(
             CeriScoreSnapshot.company_id.in_({score.company_id for score in snapshots})
         ),
     )
-    bundle.load(
+    if progress_callback is not None:
+        progress_callback("COMPARISON_SCORES_LOADED", len(scores), len(scores))
+    evidence_rows = bundle.load(
         CoreCalculationEvidence,
         select(CoreCalculationEvidence).where(
             CoreCalculationEvidence.id.in_({score.evidence_id for score in scores})
         ),
     )
+    if progress_callback is not None:
+        progress_callback("COMPARISON_EVIDENCE_LOADED", len(evidence_rows), len(evidence_rows))
     _capture_delivery_bundle(db, bundle, run_id, market_cutoff)
     bundle.seal()
+    if progress_callback is not None:
+        progress_callback("COMPARISON_INPUTS_VERIFIED", len(snapshots), len(snapshots))
     scores_by_company: dict[int, list[CeriScoreSnapshot]] = {}
     for score in scores:
         scores_by_company.setdefault(score.company_id, []).append(score)
     new_change_ids: set[int] = set()
     ticker_by_company = {snapshot.company_id: snapshot.ticker for snapshot in snapshots}
     with prefetched_source_scope(db, bundle):
-        for snapshot in snapshots:
+        for index, snapshot in enumerate(snapshots, 1):
             prior, comparison_state = _prior_snapshot_from_candidates(
                 snapshot,
                 scores_by_company.get(snapshot.company_id, []),
@@ -1066,6 +1082,10 @@ def _capture_score_comparisons(
             counts["change_events"] += changes.changes
             if changes.changes:
                 new_change_ids.update(changes.change_ids)
+            if progress_callback is not None:
+                progress_callback(
+                    f"COMPARISON_COMPLETED:{snapshot.ticker}", index, len(snapshots),
+                )
     if new_change_ids:
         alert_bundle, new_changes = _capture_alert_bundle(
             db,
@@ -1074,11 +1094,14 @@ def _capture_score_comparisons(
             run_id=run_id,
             market_cutoff=market_cutoff,
         )
+        if progress_callback is not None:
+            progress_callback("ALERT_INPUTS_LOADED", len(new_changes), len(new_changes))
         alerts = service.alert_service.rebuild_alerts(
             db,
             changes=new_changes,
             ticker_by_company=ticker_by_company,
             _source_bundle=alert_bundle,
+            **({"progress_callback": progress_callback} if progress_callback is not None else {}),
         )
         counts["alerts"] += alerts.alerts
 

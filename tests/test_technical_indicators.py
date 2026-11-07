@@ -392,3 +392,38 @@ def _flat_ohlcv(rows: int) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(records)
+
+
+@pytest.mark.parametrize("kind", ["technical", "relative"])
+def test_numeric_features_preserve_values_without_copying_frame_provenance(kind):
+    import json
+    from dataclasses import asdict
+
+    frame = pd.DataFrame({
+        "date": pd.date_range("2024-01-02", periods=300, freq="B", tz="UTC"),
+        "open": [100.0 + i / 10 for i in range(300)],
+        "high": [102.0 + i / 10 for i in range(300)],
+        "low": [99.0 + i / 10 for i in range(300)],
+        "close": [101.0 + i / 10 for i in range(300)],
+        "volume": [10000 + i for i in range(300)],
+    })
+    before = frame.copy(deep=True)
+
+    def calculate():
+        if kind == "relative":
+            return calculate_relative_strength_features(frame, frame, frame)
+        return asdict(calculate_technical_features(frame, trades_df=frame))
+
+    expected = json.dumps(calculate(), sort_keys=True, default=str)
+
+    class UncopyableProvenance:
+        def __deepcopy__(self, memo):
+            raise AssertionError("numeric calculation copied unrelated provenance")
+
+    provenance = {"pit_source_manifest": UncopyableProvenance()}
+    frame.attrs = provenance
+    retained_attrs = frame.attrs
+    assert json.dumps(calculate(), sort_keys=True, default=str) == expected
+    assert frame.attrs is retained_attrs
+    assert frame.attrs["pit_source_manifest"] is provenance["pit_source_manifest"]
+    pd.testing.assert_frame_equal(pd.DataFrame(frame, copy=False), before)

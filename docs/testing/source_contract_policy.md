@@ -106,3 +106,153 @@ CI prepares A18 impact first, then `--prepare-release --release-profile core --i
 The plan includes selected and deferred selectors with reasons, triggers and explicit NOT_RUN/ARCHIVAL_BLOCKED status. Retained Run40 history, absent dump, Run8, cohort, SLSE, observability and all 88/100 variants remain selectable for their specialized obligations. Deferred does not mean PASS. New incidents remain open. Original job/step IDs and legacy full-policy APIs are retained for compatibility.
 
 Core aggregation uses `swinglens.core-release-certification.v1`, reports `CORE_RELEASE_CERTIFIED` or `CORE_RELEASE_FAILED`, and leaves FULL_RELEASE_REGRESSIONS and live-provider approval NOT_RUN with safe_for_normal_run=false. Preparation/prerequisite failures are CORE_RELEASE_BLOCKED. Diagnostic full selections, separate A13 external approval and separately authorized A15 live verification cannot inherit a core pass.
+
+## Developer and integration feedback
+
+Generate impact from an explicit comparison before choosing a validation level:
+
+```text
+python -m scripts.qa.check_certification_registry --check --diff-base <baseline> --impact-output <new-impact.json>
+python -m scripts.production_runtime_certification --validate-impact developer --impact-plan <new-impact.json> --report-dir <new-directory>
+python -m scripts.production_runtime_certification --validate-impact integration --impact-plan <new-impact.json> --report-dir <another-new-directory>
+```
+
+Developer validation runs the affected FAST controls and selection-policy controls.
+Integration adds the affected native PostgreSQL controls. Application changes also
+select the existing Chromium 100-company case and the alternate-handoff 88-company
+case. Unknown high-risk ownership blocks selection. Groups run serially and stop
+on the first failure; later groups remain NOT_RUN. Release prerequisites likewise
+stop after the first failure without dropping any required selection or accepting
+incomplete native evidence.
+
+Integration requires an explicit owned loopback PostgreSQL administrator endpoint;
+its tests create disposable databases. Native pipeline feedback records committed
+stage timing and terminal status before fixture cleanup. On an original failed
+call it attempts a consistent database dump after checking the exact fixture,
+database name and native worker ownership. Retention failure never changes the
+original test outcome. Credentials are excluded from diagnostic text.
+
+The existing case deadlines remain 900 seconds for the ten-company case and
+3600 seconds for the large cases. Integration feedback adds individual-stage
+tripwires of 300 and 600 seconds respectively. Missing, unfinished, negative or
+over-budget timing cannot pass that feedback gate. Original runtime observers,
+authority, cancellation and rollback rules continue to apply.
+
+Both modes emit `validation.json` with certification=NOT_EVALUATED and
+safe_for_normal_run=false. A selected-validation PASS supplies no A04, release,
+live-provider or authenticated golden approval. Governance rejection controls
+include real process cleanup and subprocess checks; the retained 108-case local
+governance/native run took about nine minutes. That cost is distinct from the
+small affected application unit selections and from full browser certification.
+
+The generated 88/100-company scale populations do not establish a signed
+50/100-company golden oracle. The original A04 goldens and their independent
+approval obligations remain authoritative.
+
+The user approved conditional PR cadence reduction and dependency-scoped non-A04
+reuse on 2026-11-06. The existing release adapter now attempts reuse before the
+eight non-A04 base lanes and the specialized prerequisite group. It downloads
+original plans and native artifacts from the same repository's PR CI workflow,
+checks Git identities and GitHub artifact digests, and re-evaluates original
+collection, phases, JUnit and terminal receipts using the current validator.
+Original reports and source/run contexts remain intact inside explicit
+carry-forward records. Failed, skipped, unfinished or modified evidence is refused.
+
+Reuse compares exact test selection, Git blob identities and modes, fixtures,
+helpers, oracles, configuration, locked dependencies, observed tool versions and
+recorded settings overrides. Native PostgreSQL/browser reuse also requires matching
+hardware, software, deterministic provider mode and input date. Undeclared dotenv
+inputs and legacy missing environment proofs require fresh execution. Ordinary
+Python lanes conservatively retain the full tracked input tree. Prerequisite
+reuse excludes only declared governance and orchestration files; all native
+application, test-helper and oracle inputs remain bound. A source change in an
+excluded producer still requires current validation of the original native proof.
+
+PR cadence can defer six repeated browser variants only with an authenticated,
+complete prior eight-variant matrix, unchanged UI and driver inputs, and current
+native Chromium 100-company plus alternate-handoff 88-company cases. Both cases
+must finish with their original assertions, all required native phases and stage
+budgets passing. Current Chromium/Firefox smoke remains a separate required lane.
+The original plan declares the conditional rule; the final manifest records the
+six deferred variants as NOT_RUN with their proof and reasons. Missing or unknown
+proof retains the broader obligation and cannot certify a reduced run.
+
+On 2026-11-07 the user approved one additional conditional PR deferral: the
+synthetic lifecycle 1,000-company benchmark. Its fixture currently lacks required
+immutable producer evidence and cannot measure its performance assertion. The
+plan seals this rule separately from the original prerequisite specification.
+Only the reviewed 15-case obligation is eligible: all six other native cases
+(Run40 scales2/88, Run8 scales10/25/107, and the 390-row/42-cohort Winner case)
+must execute and pass, along with the current 100/88 full-pipeline pair, unchanged
+budgets and authenticated original eight-case UI basis described above. The
+eligible current selection is eight cases. The six browser variants and the
+single synthetic benchmark remain explicitly NOT_RUN with separate rule reasons.
+Missing, unknown, failed, skipped or incomplete proof cannot certify this selection;
+the broader 15-case obligation remains. Financial guards and original assertions
+are unchanged. This grants no full-release or production authority.
+
+When historical UI evidence cannot be reused, the same approved conditions can
+be proved by current execution: run all eight original UI variants and all six
+other native prerequisites on the actual runner. This 14-case proof must pass
+every original phase and invariant, plus the current100/88 handoff budgets, before
+only the synthetic benchmark can be recorded NOT_RUN. The plan retains all15
+original selectors until adjudication; missing or nonpassing current proof cannot
+certify the deferral. No foreign hardware proof is accepted. Current collection,
+execution and source contexts authenticate the fresh matrix in the same way as
+the other current native cases. A later reuse keeps its original14-case namespace
+and phase records intact and projects only its eight UI passes.
+
+Push, scheduled and manual core certification retain all eight native browser
+variants. These release obligations can take hours and are separate from the
+developer and integration commands above. A04's two protected golden variants
+always execute with the original whole-source freshness rule. All nine required
+lane kinds, protected-main checks, authenticated golden approval and live-provider
+authorization remain independent requirements. No carry-forward grants merge or
+production activation.
+
+Push, scheduled, manual and full release also retain the original lifecycle
+1,000-company benchmark, including its 60-second evaluation, 500ms query and
+100,000-row history requirements. Its native producer-evidence fixture still
+requires modernization for those cadences; no scale-performance pass is claimed.
+
+Native integration feedback retains the exact owned disposable database inputs
+before teardown when either the original case fails or a stage/total runtime
+budget fails. A functionally passing case with a failed budget keeps its original
+passing pytest report and a separate failing performance result. It cannot be used
+as a passing integration or reduced PR-matrix proof. Cases within their budgets
+avoid the diagnostic dump.
+
+CERI deployment identity reads the current database revision for every ingestion
+or processing run. Its repository-head result may be reused only after rereading
+and hashing the complete migration-tree and Alembic ini bytes. The retained value
+is the original Alembic reader's immutable head tuple for that exact repository
+root and byte digest. Changed or unreadable sources cannot return an earlier
+result; a graph changing during its initial load is rejected. Nonstandard version
+locations, directory links, recursive layouts and sourceless graphs retain the original reader.
+Database revisions are never carried by this optimization. Stale database heads
+and ambiguous repository heads still reject deployment identity. The existing
+`0094_sector_acquisition` migration remains the strict current-head expectation;
+the older `0093` expectation in the focused operational fixture was obsolete.
+
+Required A04 prerequisites enable their original explicit benchmark guards and
+run native cases before browser pipelines, with smaller populations first. An
+original required skip remains skipped, completes its teardown and stops later
+expensive cases. Its exact identity and producer rejection reason are retained.
+
+Scoped UI evidence validates the complete original session and all eight reviewed
+browser bodies. Unrelated original skips are preserved and cannot certify the
+whole prerequisite session or replace current native benchmarks. Historical
+impact classification does not invalidate observed UI passes; current PR impact,
+unchanged UI dependencies, authenticated archives, matching environment and date,
+fresh native 100/88 handoff and stage budgets still govern conditional deferral.
+Exact reviewed documentation and helper/test paths are associated with their
+existing contracts; nearby unmapped paths remain unknown. These associations do
+not remove any original selector or claim execution of an unselected case.
+
+Retained native evidence authenticates its original archives before fetching a
+missing original merge object into a fresh aggregate checkout. Source fingerprints,
+ancestry, dependency bytes and original outcomes are then revalidated normally.
+Resource profiles compare physical RAM capacity in MiB: a kernel-reserved page
+difference does not represent different hardware capacity. Raw measurements remain
+unchanged in original records; CPU/core count, platform, tools, configuration and
+input-date comparisons remain strict. Real capacity changes still reject reuse.

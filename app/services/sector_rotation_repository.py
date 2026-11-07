@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app.models.tables import (
     CoreCalculationEvidence,
@@ -22,7 +22,11 @@ from app.services.core_calculation_evidence import (
     get_evidence_by_id,
     persist_core_evidence,
 )
-from app.services.core_mutation_authority import core_writer_member, core_writer_transaction
+from app.services.core_mutation_authority import (
+    core_writer_member,
+    core_writer_transaction,
+    sector_evidence_read_scope,
+)
 
 
 @dataclass(frozen=True)
@@ -181,26 +185,27 @@ class SectorRotationRepository:
             **asdict(dto),
             "evidence_hash": snapshot.evidence_hash,
         }
-        persist_core_evidence(
-            db,
-            kind=CoreEvidenceKind.SECTOR,
-            current_row=snapshot,
-            sources=evidence_sources,
-            payload=payload,
-            scope_ticker=None,
-            scope_profile=snapshot.mode,
-            effective_configuration=getattr(dto, "_effective_configuration", None),
-            mutation_context=declare_core_evidence_mutation(
+        with sector_evidence_read_scope(db):
+            persist_core_evidence(
                 db,
                 kind=CoreEvidenceKind.SECTOR,
                 current_row=snapshot,
                 sources=evidence_sources,
                 payload=payload,
+                scope_ticker=None,
+                scope_profile=snapshot.mode,
                 effective_configuration=getattr(dto, "_effective_configuration", None),
+                mutation_context=declare_core_evidence_mutation(
+                    db,
+                    kind=CoreEvidenceKind.SECTOR,
+                    current_row=snapshot,
+                    sources=evidence_sources,
+                    payload=payload,
+                    effective_configuration=getattr(dto, "_effective_configuration", None),
+                    checkpoint_callback=checkpoint_callback,
+                ),
                 checkpoint_callback=checkpoint_callback,
-            ),
-            checkpoint_callback=checkpoint_callback,
-        )
+            )
 
     @staticmethod
     def _validate_source_evidence_kinds(db: Session, evidence_sources: dict[str, Any]) -> None:
@@ -226,9 +231,9 @@ class SectorRotationRepository:
         rows = {
             row.id: row
             for row in db.scalars(
-                select(CoreCalculationEvidence).where(
-                    CoreCalculationEvidence.id.in_(evidence_ids.values())
-                )
+                select(CoreCalculationEvidence).options(load_only(
+                    CoreCalculationEvidence.id, CoreCalculationEvidence.artifact_kind,
+                )).where(CoreCalculationEvidence.id.in_(evidence_ids.values()))
             )
         }
         for role, evidence_id in evidence_ids.items():

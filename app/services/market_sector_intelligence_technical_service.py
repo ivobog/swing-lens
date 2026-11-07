@@ -32,6 +32,7 @@ class MarketSectorTechnicalService:
     def __init__(self, *, clock=None, frame_loader=None):
         self.clock = clock or MarketClockService()
         self.frame_loader = frame_loader or load_preferred_ohlcv_frames
+        self.native_loader = frame_loader is None
 
     def preview(self, db, *, config=None, cutoff=None):
         config = config or load_market_sector_intelligence_config()
@@ -43,14 +44,28 @@ class MarketSectorTechnicalService:
         cutoff = cutoff or self.clock.cutoff_for(datetime.now(UTC), reason="ETF_TECHNICAL_D3")
         clock_for_cutoff(cutoff)
         first_session = subtract_us_trading_sessions(
-            cutoff.latest_completed_session, policy.identity["history_window_sessions"] - 1,
+            cutoff.latest_completed_session,
+            policy.identity["history_window_sessions"] - 1,
             calendar_version=cutoff.calendar_version,
         )
         required_symbols = (
             symbols + [config.benchmark_symbol] + (["QQQ"] if policy.requires_qqq else [])
         )
         sources = {}
-        with db.no_autoflush if isinstance(db, Session) else nullcontext():
+        from app.services.market_sector_intelligence_read_window import batch_cached_read
+
+        with (
+            db.no_autoflush if isinstance(db, Session) else nullcontext(),
+            batch_cached_read(
+                db,
+                required_symbols,
+                timeframe=config.timeframe,
+                cutoff=cutoff,
+                first=first_session,
+                enabled=self.native_loader and config.enabled,
+                reuse_fingerprints=False,
+            ),
+        ):
             for symbol in required_symbols:
                 sources[symbol] = self._load(
                     db, symbol, config, cutoff, first_session=first_session
@@ -82,6 +97,9 @@ class MarketSectorTechnicalService:
                     context_reasons.append(code)
         rows, bases, leadership_rows, missing_members = [], {}, [], {}
         for sector in config.sectors:
+            from app.services.sector_read_budget import checkpoint
+
+            checkpoint()
             data = sources[sector.etf_symbol]
             reasons = list(dict.fromkeys(data["reasons"] + context_reasons))
             if (
@@ -241,7 +259,8 @@ class MarketSectorTechnicalService:
             if first_session is None:
                 policy = adapter.scoped_policy([sector.etf_symbol for sector in config.sectors])
                 first_session = subtract_us_trading_sessions(
-                    cutoff.latest_completed_session, policy.identity["history_window_sessions"] - 1,
+                    cutoff.latest_completed_session,
+                    policy.identity["history_window_sessions"] - 1,
                     calendar_version=cutoff.calendar_version,
                 )
             with bounded_cached_read(db, first_session):
@@ -332,6 +351,12 @@ def _validate_frame(frame, symbol, basis, timeframe, cutoff, *, require_volume=T
         raise adapter.TechnicalEvidenceError("UNKNOWN_PRICE_BASIS")
     if not set(("date", *OHLCV)).issubset(frame.columns):
         raise adapter.TechnicalEvidenceError("INVALID_COLUMNS")
+    # pandas propagates attrs by deep-copying them for column selections and
+    # sorting. Keep the full receipt manifest once, outside numerical validation;
+    # neither the caller's frame nor any evidence identity is changed.
+    frame = frame.copy(deep=False)
+    metadata = frame.attrs
+    frame.attrs = {key: value for key, value in metadata.items() if key != "pit_source_manifest"}
     try:
         sessions = [_session(value) for value in frame["date"]]
     except ValueError as exc:
@@ -352,7 +377,7 @@ def _validate_frame(frame, symbol, basis, timeframe, cutoff, *, require_volume=T
         if is_us_trading_day(day, calendar_version=cutoff.calendar_version) and day not in present:
             raise adapter.TechnicalEvidenceError("MISSING_TRADING_SESSION")
         day += timedelta(days=1)
-    manifest = frame.attrs.get("pit_source_manifest")
+    manifest = metadata.get("pit_source_manifest")
     if not isinstance(manifest, dict) or len(manifest.get("states", [])) != len(frame):
         raise adapter.TechnicalEvidenceError("PIT_UNAVAILABLE")
     if (
@@ -408,7 +433,9 @@ def _validate_frame(frame, symbol, basis, timeframe, cutoff, *, require_volume=T
     }
     normalized = frame.copy(deep=True)
     normalized["date"] = sessions
-    return normalized.sort_values("date").reset_index(drop=True), material
+    normalized = normalized.sort_values("date").reset_index(drop=True)
+    normalized.attrs = metadata
+    return normalized, material
 
 
 def _summary(data):

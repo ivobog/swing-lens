@@ -13,9 +13,11 @@
     </div>
     <div class="msi-actions"><a href="/settings#market-sector-heading">Sector mapping ↗</a>
       <button type="button" id="msi-refresh" aria-describedby="msi-refresh-status">Refresh Sector</button>
+      <button type="button" id="msi-refresh-cancel" hidden>Cancel sector refresh</button>
       <button type="button" id="msi-reload">Reload cached reads</button></div>
   </header>
   <p id="msi-refresh-status" class="msi-refresh-status" role="status" aria-live="polite"></p>
+  <p id="msi-read-errors" class="msi-notice" role="status" hidden></p>
   <p class="msi-scope">Independent ETF evidence against SPY. No CSV or run required. Research diagnostics; stock models applied to ETFs.</p>
   {% if configuration_error %}<p role="alert" class="msi-notice">{{ configuration_error }}</p>{% endif %}
   <noscript><p class="msi-notice">Enable JavaScript to load the read-only data panels. <a href="/api/market-sector-intelligence/coverage">Inspect coverage JSON</a>.</p></noscript>

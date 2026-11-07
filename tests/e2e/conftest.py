@@ -14,7 +14,7 @@ from pathlib import Path
 import psycopg
 import pytest
 from evidence_output import output_directory
-from playwright.sync_api import Browser, Page, sync_playwright
+from playwright.sync_api import Browser, Page, Playwright
 from psycopg import sql
 from sqlalchemy.engine import make_url
 
@@ -26,15 +26,13 @@ _LIVE_SERVER_DATABASE_URL: str | None = None
 
 
 @pytest.fixture(scope="session")
-def browser(browser_name: str) -> Iterator[Browser]:
-    """Provide pytest-playwright-compatible browser state without its optional plugin."""
-    with sync_playwright() as playwright:
-        instance = getattr(playwright, browser_name).launch(headless=True)
-        try:
-            yield instance
-        finally:
-            instance.close()
-
+def browser(browser_name: str, playwright: Playwright) -> Iterator[Browser]:
+    """Own this browser while the installed plugin owns the session runtime."""
+    instance = getattr(playwright, browser_name).launch(headless=True)
+    try:
+        yield instance
+    finally:
+        instance.close()
 
 @pytest.fixture
 def page(browser: Browser) -> Iterator[Page]:

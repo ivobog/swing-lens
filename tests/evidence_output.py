@@ -128,6 +128,28 @@ def check_write_destination(path: str | bytes | Path, *, protected=None, allowed
     return target
 
 
+def _directory_descriptor_path(descriptor: int) -> Path:
+    # Linux shutil.rmtree uses relative names with dir_fd. Resolving these
+    # against cwd both blocks unrelated cleanup and misclassifies real writes.
+    for directory in ("/proc/self/fd", "/dev/fd"):
+        try:
+            target = (Path(directory) / str(descriptor)).resolve(strict=True)
+            if target.is_dir():
+                return target
+        except (OSError, RuntimeError):
+            continue
+    raise EvidenceWriteError("UNRESOLVED_WRITE_DIRECTORY_DESCRIPTOR")
+
+
+def _audit_write_path(path, descriptor=None):
+    if isinstance(path, int):
+        return path
+    target = Path(os.fsdecode(path))
+    if not target.is_absolute() and descriptor not in (None, -1):
+        target = _directory_descriptor_path(descriptor) / target
+    return target
+
+
 def history_write_guard(*, protected=None, allowed=None):
     def audit(event, args):
         paths = ()
@@ -137,12 +159,18 @@ def history_write_guard(*, protected=None, allowed=None):
                 flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND)
             ):
                 paths = (args[0],)
-        elif event in {"os.remove", "os.rmdir", "os.mkdir", "os.chmod", "os.utime", "os.truncate"}:
+        elif event in {"os.remove", "os.rmdir"}:
+            paths = (_audit_write_path(args[0], args[1]),)
+        elif event in {"os.mkdir", "os.chmod"}:
+            paths = (_audit_write_path(args[0], args[2]),)
+        elif event == "os.utime":
+            paths = (_audit_write_path(args[0], args[3]),)
+        elif event == "os.truncate":
             paths = (args[0],)
         elif event in {"os.rename", "os.link"}:
-            paths = args[:2]
+            paths = tuple(_audit_write_path(args[i], args[i + 2]) for i in (0, 1))
         elif event == "os.symlink":
-            paths = (args[1],)
+            paths = (_audit_write_path(args[1], args[2]),)
         for path in paths:
             if not isinstance(path, int):
                 check_write_destination(path, protected=protected, allowed=allowed)

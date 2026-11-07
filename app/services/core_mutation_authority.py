@@ -39,6 +39,7 @@ from app.services.producer_readiness import readiness_from_evidence
 
 _active_writers = ContextVar("core_mutation_semantic_transactions", default=())
 _coalesced_writer_sessions = ContextVar("coalesced_core_writer_sessions", default=())
+_sector_source_records = ContextVar("sector_source_records", default=None)
 
 
 @dataclass(frozen=True)
@@ -369,18 +370,30 @@ def _validate_evidence(evidence):
     namespace = identity.configuration.effective_configuration.value.namespace
     if not namespace.startswith(("core.", "contextual.", "decision.")):
         raise ValueError("MUTATION_SOURCE_LEGACY_CONFIGURATION")
-    from app.services.effective_configuration import configuration_from_evidence
-
-    configuration = configuration_from_evidence(evidence)
-    if configuration.value != identity.configuration.effective_configuration.value:
-        raise ValueError("MUTATION_SOURCE_CONFIGURATION_BINDING_MISMATCH")
     from app.services.decision_effective_configuration import (
         configuration_from_payload,
         validate_executable_configuration,
     )
     from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
 
-    retained = configuration_from_payload(evidence.payload_json[CONFIGURATION_PAYLOAD_KEY])
+    # The payload and calculation identity seals were checked immediately above.
+    # The general historical configuration readers repeat both full-document
+    # hashes (twice for Ranking) and rehydrate the same snapshot again. The native
+    # payload decoder verifies raw and reconstructed configuration seals with its
+    # existing cache keyed by the complete immutable serialized configuration.
+    # Reuse that snapshot within this call. No evidence result is cached
+    # across calls, transactions, owners, or mutable payload changes.
+    payload = evidence.payload_json.get(CONFIGURATION_PAYLOAD_KEY)
+    if payload is None:
+        raise ValueError("MUTATION_SOURCE_CONFIGURATION_BINDING_MISMATCH")
+    dimension = identity.configuration.effective_configuration
+    retained = configuration_from_payload(payload)
+    if (
+        retained.snapshot.identity != dimension.value
+        or dimension.value.as_dict() != payload["identity"]
+        or dimension.value.fingerprint.digest != payload["semantic_hash"]
+    ):
+        raise ValueError("MUTATION_SOURCE_CONFIGURATION_BINDING_MISMATCH")
     validate_executable_configuration(retained)
     from app.services.contextual_effective_configuration import ContextualEffectiveConfiguration
     from app.services.core_effective_configuration import CoreEffectiveConfiguration
@@ -406,12 +419,7 @@ def _validate_evidence(evidence):
     if namespace != expected_namespace:
         raise ValueError("MUTATION_SOURCE_KIND_CONFIGURATION_MISMATCH")
     if evidence.artifact_kind == "RANKING":
-        from app.services.core_effective_configuration import core_configuration_from_evidence
-
-        if (
-            core_configuration_from_evidence(evidence).values["profile"]["name"]
-            != evidence.ranking_profile
-        ):
+        if native.values["profile"]["name"] != evidence.ranking_profile:
             raise ValueError("MUTATION_RANKING_PROFILE_CONFIGURATION_MISMATCH")
     if (
         identity.ownership.run_id.state is IdentityState.KNOWN
@@ -991,7 +999,7 @@ def artifact_mutation_context(
         if not isinstance(envelope, dict):
             raise ValueError("MUTATION_SECTOR_NATIVE_INPUT_ENVELOPE_REQUIRED")
         require_payload_reference(identity, "sector-rotation-input-envelope", envelope)
-        validate_sector_manifest(
+        sector_evidence_rows = validate_sector_manifest(
             db,
             identity,
             envelope,
@@ -1001,28 +1009,36 @@ def artifact_mutation_context(
         source_evidence_ids = {
             source.evidence_id for source in sources.values() if source.evidence_id is not None
         }
-        sector_evidence_rows = {
-            row.id: row
-            for row in db.scalars(
-                select(CoreCalculationEvidence).where(
-                    CoreCalculationEvidence.id.in_(tuple(source_evidence_ids))
-                )
-            )
-        }
+        # Retain the exact ORM records already loaded and validated by the
+        # manifest in this call. Re-querying them decodes the same large JSON
+        # documents again even when SQLAlchemy reuses the same identity objects.
+        # Only the ordinary roles outside the manifest still need loading.
+        missing_evidence_ids = source_evidence_ids - sector_evidence_rows.keys()
+        if missing_evidence_ids:
+            sector_evidence_rows.update(_sector_evidence_rows(db, missing_evidence_ids))
         if not declaration_only:
             ranking_ids = {
                 source.id
                 for role, source in sources.items()
                 if role.startswith("ranking:") and source.id is not None
             }
-            sector_locked_source_rows = {
-                (RankingResult, row.id): row
-                for row in db.scalars(
-                    select(RankingResult)
-                    .where(RankingResult.id.in_(tuple(ranking_ids)))
-                    .with_for_update()
-                )
-            }
+            sector_locked_source_rows = {}
+            ordered_ranking_ids = sorted(ranking_ids)
+            for offset in range(0, len(ordered_ranking_ids), 100):
+                batch = ordered_ranking_ids[offset:offset + 100]
+                sector_locked_source_rows.update({
+                    (RankingResult, row.id): row
+                    for row in db.scalars(
+                        select(RankingResult).where(RankingResult.id.in_(batch)).with_for_update()
+                    )
+                })
+                if checkpoint_callback is not None:
+                    item = f"ranking:{batch[-1]}"
+                    checkpoint_callback(
+                        phase=(checkpoint_phase or "SECTOR_VALIDATION") + "_SOURCE_LOCKS",
+                        processed=offset + len(batch), total=len(ordered_ranking_ids),
+                        current_item=item, last_completed_item=item,
+                    )
         manifest["universe_manifest"] = {
             "native_input_envelope": envelope,
             "source_evidence": {
@@ -1052,7 +1068,21 @@ def artifact_mutation_context(
     native_sources = {role: source for role, source in sources.items() if role in allowed}
     permissions = []
     source_configuration_cache = {}
-    for role, source in sources.items():
+
+    def source_role_checkpoint(processed, role, evidence_id=None):
+        if domain is MutationDomain.SECTOR and checkpoint_callback is not None:
+            if processed % 25 == 0 or processed == len(sources):
+                item = f"{role}:evidence:{evidence_id}" if processed else "source-roles"
+                checkpoint_callback(
+                    phase=(checkpoint_phase or "SECTOR_VALIDATION") + "_SOURCE_ROLES",
+                    processed=processed,
+                    total=len(sources),
+                    current_item=item,
+                    last_completed_item=item if processed else None,
+                )
+
+    source_role_checkpoint(0, "started")
+    for source_index, (role, source) in enumerate(sources.items(), start=1):
         evidence = (
             sector_evidence_rows.get(source.evidence_id)
             if sector_evidence_rows is not None
@@ -1098,6 +1128,7 @@ def artifact_mutation_context(
                 raise ValueError("MUTATION_UNDECLARED_SOURCE_ROLE: " + role)
             validate_financial_source_context(identity, evidence)
             validate_sector_permission(evidence, envelope["universe_rows"])
+            source_role_checkpoint(source_index, role, evidence.id)
             continue
         policy = MUTATION_AUTHORITY_POLICIES[domain]
         if role in policy.eligibility_roles + policy.eligibility_if_pinned:
@@ -1119,6 +1150,7 @@ def artifact_mutation_context(
                 if Canonical.dumps(expected_policy) != Canonical.dumps(observed_policy):
                     raise ValueError("MUTATION_TECHNICAL_POLICY_CORE_CONFIGURATION_MISMATCH")
             permissions.append(mutation_eligibility(role, evidence, frozen))
+        source_role_checkpoint(source_index, role, evidence.id)
     context = core_mutation_context(
         db,
         domain=domain,
@@ -1184,6 +1216,62 @@ def validate_sector_permission(evidence, universe_rows, permission_index=None):
     raise ValueError("MUTATION_FROZEN_ELIGIBILITY_REQUIRED: sector contributor")
 
 
+@contextmanager
+def sector_evidence_read_scope(db):
+    """Keep immutable inputs resident for one writer, Session and attempt.
+
+    This stores records, never successful validation or ownership decisions.
+    Every pass still checks database existence and revalidates the full seals.
+    """
+    connection = db.connection(bind_arguments={"mapper": CoreCalculationEvidence})
+    records = {}
+    token = _sector_source_records.set((
+        db, db.get_transaction(), current_domain_write_ownership(),
+        connection, connection.get_transaction(), records,
+    ))
+    try:
+        yield
+    finally:
+        records.clear()
+        _sector_source_records.reset(token)
+
+
+def _sector_evidence_rows(db, evidence_ids):
+    from sqlalchemy import inspect, select
+
+    def load(ids):
+        return {
+            row.id: row for row in db.scalars(
+                select(CoreCalculationEvidence).where(CoreCalculationEvidence.id.in_(tuple(ids)))
+            )
+        }
+
+    scope = _sector_source_records.get()
+    if not (
+        scope is not None and scope[0] is db and scope[1] is db.get_transaction()
+        and scope[2] == current_domain_write_ownership() and not scope[3].closed
+        and scope[3] is db.connection(bind_arguments={"mapper": CoreCalculationEvidence})
+        and scope[4] is scope[3].get_transaction()
+    ):
+        return load(evidence_ids)
+    # A full ORM SELECT also retains already resident values without refreshing
+    # them. Check existence again, but avoid decoding their JSON a second time.
+    existing = set(db.scalars(
+        select(CoreCalculationEvidence.id).where(
+            CoreCalculationEvidence.id.in_(tuple(evidence_ids))
+        )
+    ))
+    records = scope[5]
+    columns = set(CoreCalculationEvidence.__mapper__.column_attrs.keys())
+    missing = {
+        key for key in existing
+        if key not in records or columns.intersection(inspect(records[key]).unloaded)
+    }
+    if missing:
+        records.update(load(missing))
+    return {key: records[key] for key in existing if key in records}
+
+
 def validate_sector_manifest(
     db,
     identity,
@@ -1227,14 +1315,7 @@ def validate_sector_manifest(
             if existing != pin:
                 raise ValueError("MUTATION_SECTOR_RAW_SOURCE_MISMATCH")
 
-    evidence_rows = {
-        row.id: row
-        for row in db.scalars(
-            select(CoreCalculationEvidence).where(
-                CoreCalculationEvidence.id.in_(tuple(financial_pins))
-            )
-        )
-    }
+    evidence_rows = _sector_evidence_rows(db, financial_pins)
     raw_rows = {
         row.id: row
         for row in db.scalars(
@@ -1252,7 +1333,7 @@ def validate_sector_manifest(
     phase = checkpoint_phase or "SECTOR_MANIFEST_VALIDATION"
 
     def checkpoint(current_item, *, metrics=None):
-        if checkpoint_callback is not None and (processed % 50 == 0 or processed == total):
+        if checkpoint_callback is not None and (processed % 25 == 0 or processed == total):
             values = {
                 "phase": phase,
                 "processed": processed,
@@ -1336,6 +1417,7 @@ def validate_sector_manifest(
             "evidence_source_lock_count": len(raw_rows) + len(etf_sources),
         },
     )
+    return evidence_rows
 
 
 def validate_source_address(identity, role, source, evidence):

@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from functools import lru_cache
 
 import pandas as pd
 from sqlalchemy import and_, or_, select, tuple_
@@ -41,6 +42,9 @@ def load_price_bars_frame(
     as_of: datetime | None = None,
     calculation_context_id: int | None = None,
 ) -> pd.DataFrame:
+    from app.services.sector_read_budget import checkpoint
+
+    checkpoint()
     acquisition = (
         _pipeline_acquisition_visibility(
             db,
@@ -75,23 +79,28 @@ def load_price_bars_frame(
                 PriceBar.first_seen_at <= acquisition.completed_at,
             )
             statement = statement.where(or_(pit_visible, pipeline_owned))
-    rows = list(db.scalars(statement).all())
+    batch = db.info.get("msi_price_rows") if isinstance(db, Session) else None
+    if batch and calculation_context_id is None and (as_of, max_session) == batch[:2]:
+        first = db.info.get("msi_min_session")
+        rows = [row for row in batch[2].get((ticker.upper(), what_to_show, timeframe), [])
+                if first is None or row.bar_date >= first]
+    else:
+        rows = list(db.scalars(statement).all())
+    checkpoint()
     if as_of is not None:
         normalized_as_of = _as_utc(as_of)
-        baseline = [
-            row
-            for row in rows
-            if _as_utc(row.created_at) <= normalized_as_of
-            and _as_utc(row.first_seen_at) <= normalized_as_of
-        ]
-        acquired = [row for row in rows if row not in baseline]
+        baseline, acquired = [], []
+        for row in rows:
+            target = (
+                baseline
+                if _as_utc(row.created_at) <= normalized_as_of
+                and _as_utc(row.first_seen_at) <= normalized_as_of
+                else acquired
+            )
+            target.append(row)
         rows = project_price_bar_rows_as_of(db, baseline, as_of=as_of)
         if acquired and acquisition is not None:
-            rows.extend(
-                project_price_bar_rows_as_of(
-                    db, acquired, as_of=acquisition.completed_at
-                )
-            )
+            rows.extend(project_price_bar_rows_as_of(db, acquired, as_of=acquisition.completed_at))
             rows.sort(key=lambda row: row.bar_date)
 
     frame = pd.DataFrame(
@@ -119,8 +128,7 @@ def load_price_bars_frame(
             "max_session": max_session,
             "acquisition_authority": (
                 asdict(acquisition)
-                if acquisition is not None
-                and any(row.created_at > as_of for row in rows)
+                if acquisition is not None and any(row.created_at > as_of for row in rows)
                 else None
             ),
             "states": [
@@ -128,6 +136,7 @@ def load_price_bars_frame(
             ],
         }
     )
+    checkpoint()
     return frame
 
 
@@ -151,7 +160,35 @@ def price_bar_pit_manifest_hash(db, row):
             for key, value in values.items()
         }
         row = SimpleNamespace(**values)
-    return price_bar_immutable_evidence_hash(row)
+    # Technical panels visit each window row once. Building and retaining a
+    # global cache key costs more on that cold path than its canonical hash.
+    # Full-history panels retain bounded cross-read reuse within their scopes.
+    if isinstance(db, Session) and db.info.get("msi_direct_fingerprints"):
+        return price_bar_immutable_evidence_hash(row)
+    # Exact immutable values (including receipt/revision fields), never row ID
+    # or TTL, identify a reusable fingerprint. Preserve original canonical bytes.
+    values = tuple(getattr(row, name, None) for name in PRICE_BAR_IMMUTABLE_EVIDENCE_FIELDS)
+    # Retain type distinctions (Decimal/int/float/bool have different canonical
+    # encodings) without allocating a string and a pair for every field on every
+    # hit. Datetimes retain an explicit offset: Python considers the two folds
+    # of a ZoneInfo wall time equal even when their canonical UTC instants differ.
+    identity = tuple(type(value) for value in values)
+    temporal = tuple(value.isoformat() for value in values if isinstance(value, datetime))
+    return _immutable_fingerprint((identity, temporal), values)
+
+
+@lru_cache(maxsize=32768)
+def _immutable_fingerprint(identity, values):
+    from types import SimpleNamespace
+
+    from app.services.price_bar_evidence import (
+        PRICE_BAR_IMMUTABLE_EVIDENCE_FIELDS,
+        price_bar_immutable_evidence_hash,
+    )
+
+    return price_bar_immutable_evidence_hash(
+        SimpleNamespace(**dict(zip(PRICE_BAR_IMMUTABLE_EVIDENCE_FIELDS, values, strict=True)))
+    )
 
 
 def project_price_bar_rows_as_of(

@@ -75,7 +75,7 @@ def test_actual_chart_get_bounded_selects_no_mutations_autoflush_or_providers(
         assert response.status_code == 200, response.text
         payload = response.json()
         assert payload["cohort_status"] == "COMPLETE"
-        assert len(payload["rows"]) == 11 and len(statements) == 24
+        assert len(payload["rows"]) == 11 and len(statements) == 1
         assert all(
             sql.lstrip().upper().startswith("SELECT") and "price_bars" in sql for sql in statements
         )

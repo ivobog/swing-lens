@@ -167,6 +167,7 @@ def run_worker(
             process_id=process_id,
             instance_id=instance_id,
             process_start=process_start,
+            operation_profile=settings.job_worker_profile,
         )
         # Publish the canonical worker process identity before expensive provider/config
         # startup checks. The supervisor can now distinguish a slow-but-alive startup
@@ -205,7 +206,8 @@ def run_worker(
             if certification_session_id is not None
             else RuntimeMutationAuthority.normal("worker.sec_processor_identity")
         )
-        establish_worker_processor_identity(startup_db, authority=processor_authority)
+        if settings.job_worker_profile == "general":
+            establish_worker_processor_identity(startup_db, authority=processor_authority)
         log_worker_startup_configuration(
             startup_db,
             settings=settings,
@@ -281,6 +283,7 @@ def _run_worker_control_loop(
     while not runtime_stop_event.is_set():
         if (
             settings.runtime_mode is not RuntimeMode.CERTIFICATION
+            and settings.job_worker_profile == "general"
             and time.monotonic() >= next_evidence_cleanup
         ):
             cleanup_db = session_factory()
@@ -317,6 +320,11 @@ def _run_worker_control_loop(
                 certification_session_id=certification_session_id,
                 sec_capability_required=(
                     settings.ceri_enabled or settings.ceri_provider_ingest_enabled
+                ),
+                **(
+                    {"operation_profile": "sector_refresh"}
+                    if settings.job_worker_profile == "sector_refresh"
+                    else {}
                 ),
             )
         except PreClaimInfrastructureError as exc:
@@ -370,8 +378,10 @@ def _run_worker_control_loop(
         if stop_after_one:
             return
         if ran_job and _post_job_recycle_required(
-            settings=settings, worker_id=worker_id,
-            worker_instance_id=worker_instance_id, session_factory=session_factory,
+            settings=settings,
+            worker_id=worker_id,
+            worker_instance_id=worker_instance_id,
+            session_factory=session_factory,
         ):
             return
         if not ran_job:
@@ -659,6 +669,7 @@ def run_worker_once(
     certification_mode: bool = False,
     certification_session_id: str | None = None,
     sec_capability_required: bool = False,
+    operation_profile: str | None = None,
 ) -> bool:
     if certification_mode:
         from app.services.certification_runtime import require_certification_session_id
@@ -701,6 +712,7 @@ def run_worker_once(
             hostname=hostname,
             process_id=process_id,
             instance_id=worker_instance_id,
+            operation_profile=operation_profile,
         )
         worker_instance_id = str(registration.instance_id)
         recovered_count = (
@@ -806,7 +818,8 @@ def run_worker_once(
 
                 source_db = current_fenced_domain_session(job.id, execution_token)
                 if (
-                    job.job_type != "FULL_PIPELINE"
+                    job.job_type
+                    not in {"FULL_PIPELINE", "IB_FETCH", "IB_INTELLIGENCE_HISTORICAL_REFRESH"}
                     and source_db is not None
                     and (source_db is not db or source_db.in_nested_transaction())
                 ):
@@ -832,7 +845,11 @@ def run_worker_once(
                         instance_id=worker_instance_id,
                     )
                     return
-                if job.job_type != "FULL_PIPELINE":
+                if job.job_type not in {
+                    "FULL_PIPELINE",
+                    "IB_FETCH",
+                    "IB_INTELLIGENCE_HISTORICAL_REFRESH",
+                }:
                     # Existing bounded handlers coordinate progress and domain
                     # fencing in their business Session. Preserve that contract;
                     # moving it to a second connection can wait on the handler's
@@ -914,7 +931,11 @@ def run_worker_once(
                 job._control_plane_progress = detached_control_progress
             control_heartbeat_stop: Event | None = None
             control_heartbeat_thread: Thread | None = None
-            if job.job_type == "FULL_PIPELINE" or job.job_type.startswith("CERI_"):
+            if job.job_type in {
+                "FULL_PIPELINE",
+                "IB_FETCH",
+                "IB_INTELLIGENCE_HISTORICAL_REFRESH",
+            } or job.job_type.startswith("CERI_"):
                 control_heartbeat_stop = Event()
                 control_heartbeat_thread = Thread(
                     target=_active_pipeline_control_heartbeat_loop,
@@ -947,9 +968,7 @@ def run_worker_once(
                     control_heartbeat_thread.join(timeout=max(1.0, heartbeat_interval_seconds * 2))
             result_status = job_result_status(job)
             if job.status != JobStatus.RUNNING:
-                raise RuntimeError(
-                    "DURABLE_JOB_STATUS_MUTATED_BEFORE_OWNER_FENCED_TERMINALIZATION"
-                )
+                raise RuntimeError("DURABLE_JOB_STATUS_MUTATED_BEFORE_OWNER_FENCED_TERMINALIZATION")
             if result_status == JobStatus.BLOCKED:
                 reason_code = job_result_reason_code(job) or "JOB_RESULT_BLOCKED"
                 mark_job_blocked(

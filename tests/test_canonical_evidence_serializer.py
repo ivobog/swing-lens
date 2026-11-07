@@ -58,6 +58,72 @@ def test_json_encoding_matches_full_canonicalization_for_nested_evidence() -> No
         assert serializer.dumps(payload) == reference(payload)
 
 
+def test_mixed_projection_encoding_rechecks_mutable_json_subtrees() -> None:
+    serializer = CanonicalEvidenceSerializer
+    source = {
+        "bars": [{"session": str(index), "close": index / 7} for index in range(200)],
+        "nested": {"reason_codes": ["A", "Z"]},
+    }
+    payload = {"score": Decimal("72.500"), "as_of": date(2026, 11, 5), "source": source}
+
+    def reference():
+        return json.dumps(
+            serializer.canonicalize(payload),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode()
+
+    before = serializer.bytes(payload)
+    assert before == reference()
+    assert serializer.fingerprint(payload) == hashlib.sha256(before).hexdigest()
+    source["bars"][0]["close"] += 1
+    changed = serializer.bytes(payload)
+    assert changed == reference() and changed != before
+    source["nested"]["reason_codes"].reverse()
+    assert serializer.bytes(payload) == reference() == changed
+    source["nested"]["reason_codes"].append("B")
+    assert serializer.bytes(payload) == reference() != changed
+    assert source["nested"]["reason_codes"] == ["Z", "A", "B"]
+
+
+def test_public_canonicalization_keeps_json_subtrees_independent() -> None:
+    source = {"rows": [{"close": 125.5}], "reason_codes": ["A", "Z"]}
+    payload = {"amount": Decimal("1.20"), "source": source}
+    normalized = CanonicalEvidenceSerializer.canonicalize(payload)
+
+    assert normalized["source"] is not source
+    assert normalized["source"]["rows"][0] is not source["rows"][0]
+    normalized["source"]["rows"][0]["close"] = 0
+    assert source["rows"][0]["close"] == 125.5
+    assert CanonicalEvidenceSerializer.canonicalize(payload)["source"] == source
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        datetime(2026, 11, 5),
+        Decimal("NaN"),
+        float("nan"),
+        float("inf"),
+        {1: "integer", "1": "string"},
+        object(),
+    ],
+)
+def test_mixed_projection_encoding_preserves_nested_failures(invalid) -> None:
+    serializer = CanonicalEvidenceSerializer
+    payload = {"amount": Decimal("1.20"), "source": {"nested": [invalid]}}
+
+    with pytest.raises(Exception) as reference:
+        serializer.canonicalize(payload)
+    with pytest.raises(Exception) as actual:
+        serializer.bytes(payload)
+
+    assert type(actual.value) is type(reference.value)
+    assert str(actual.value) == str(reference.value)
+
+
 def test_exact_latest_canary_timezone_regression_is_canonical() -> None:
     utc_value = datetime.fromisoformat("2026-09-09T19:55:33.682959+00:00")
     zurich_value = datetime.fromisoformat("2026-09-09T21:55:33.682959+02:00")

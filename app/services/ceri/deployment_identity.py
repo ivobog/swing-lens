@@ -9,7 +9,9 @@ from typing import Any
 from sqlalchemy import column, select, table
 from sqlalchemy.orm import Session
 
-from app.services.alembic_heads import repository_alembic_heads
+from app.services.alembic_heads import (
+    cached_repository_alembic_heads as repository_alembic_heads,
+)
 
 CERI_EVIDENCE_SCHEMA_REVISION = "ceri-decision-evidence-v1"
 

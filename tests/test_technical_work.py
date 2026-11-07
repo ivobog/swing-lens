@@ -25,6 +25,32 @@ from app.services.technical_work import (
 from app.settings import Settings, TechnicalArtifactCacheMode
 
 
+@pytest.mark.parametrize("timezone", [None, "UTC", "America/New_York"])
+@pytest.mark.parametrize("nullable", [False, True])
+def test_ohlcv_wire_records_preserve_values_without_copying_unused_metadata(timezone, nullable):
+    from app.services.technical_work import OHLCV_COLUMNS, _frame_records, _records_frame
+
+    frame = pd.DataFrame({
+        "date": pd.date_range("2026-09-01", periods=3, tz=timezone),
+        "open": [10.25, 11.5, 12.75], "high": [11.0, 12.0, 13.0],
+        "low": [10.0, 11.0, 12.0], "close": [10.5, 11.75, 12.5],
+        "volume": pd.array([100, None, 300], dtype="Int64") if nullable else [100, 200, 300],
+        "unused": ["a", "b", "c"],
+    })
+    expected = tuple(frame.loc[:, list(OHLCV_COLUMNS)].itertuples(index=False, name=None))
+
+    class NoCopyMetadata(dict):
+        def __deepcopy__(self, memo):
+            raise AssertionError("numeric wire extraction copied unrelated provenance metadata")
+
+    metadata = NoCopyMetadata(source="sealed-price-history", nested={"rows": [1, 2, 3]})
+    frame.attrs["source_manifest"] = metadata
+    actual = _frame_records(frame)
+    pd.testing.assert_frame_equal(_records_frame(actual), _records_frame(expected))
+    assert frame.attrs["source_manifest"] is metadata
+    assert metadata == {"source": "sealed-price-history", "nested": {"rows": [1, 2, 3]}}
+
+
 def test_technical_work_item_is_database_free_and_produces_a_score() -> None:
     frame = _synthetic_frame()
     item = build_technical_work_item(

@@ -700,6 +700,19 @@
         "CERTIFICATION": "SESSION_SCOPED"
       },
       "writer_family": "HTTP_OPERATION"
+    },
+    {
+      "method": "POST",
+      "path": "/api/market-sector-intelligence/refresh/{job_id}/cancel",
+      "function": "app.routers.market_sector_intelligence_routes.market_sector_refresh_cancel",
+      "domain": "market-sector-intelligence",
+      "mutation_capability": "NORMAL_ONLY",
+      "operation": "http.msi.sector_refresh_cancel",
+      "modes": {
+        "NORMAL": "ENABLED",
+        "CERTIFICATION": "DISABLED"
+      },
+      "writer_family": "HTTP_OPERATION"
     }
   ],
   "jobs": [
@@ -3195,6 +3208,34 @@
         "tests/integration/test_msi_operational_compatibility_postgresql.py",
         "tests/integration/test_operational_admission_postgresql.py"
       ]
+    },
+    {
+      "table": "ib_historical_gate",
+      "model": "app.models.tables.IBHistoricalGate",
+      "domain": "Runtime acquisition control",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-084"
+      ],
+      "authority": "REGISTERED_WRITER_AUTHORITY",
+      "transaction_family": "TX-32",
+      "tests": [
+        "tests/integration/test_sector_refresh_concurrency.py"
+      ]
+    },
+    {
+      "table": "sector_refresh_requests",
+      "model": "app.models.tables.SectorRefreshRequest",
+      "domain": "Runtime acquisition control",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-085"
+      ],
+      "authority": "REGISTERED_WRITER_AUTHORITY",
+      "transaction_family": "TX-05",
+      "tests": [
+        "tests/test_sector_refresh_browser.py"
+      ]
     }
   ],
   "writer_families": [
@@ -4002,6 +4043,24 @@
       "functions": "consumer_eligibility_ledger.persist_shadow_evaluation",
       "entrypoints": "non-authoritative policy shadow evaluation",
       "authority_transaction": "frozen legacy/proposed comparison; data model rejects authoritative shadow decisions"
+    },
+    {
+      "id": "WRITE-084",
+      "tables": [
+        "ib_historical_gate"
+      ],
+      "functions": "ib_acquisition_gate.HistoricalSlot.acquire_historical_slot, pace, release_historical_slot",
+      "entrypoints": "Native pipeline/sector/capability/cache/IBMI historical transport",
+      "authority_transaction": "Exact native token/lease and OS owner identity; disconnect or proven process death only; durable weighted ledger; TX-32"
+    },
+    {
+      "id": "WRITE-085",
+      "tables": [
+        "sector_refresh_requests"
+      ],
+      "functions": "market_sector_refresh_service._remember_request",
+      "entrypoints": "Manual refresh admission including coalesced aliases",
+      "authority_transaction": "Same advisory-locked admission transaction; exact native job FK, durable terminal identity; TX-05"
     }
   ],
   "writer_candidates": [
@@ -4056,6 +4115,13 @@
         "WRITE-073"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/observability/logging.py",
+      "function": "format",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Run 41: seen.add only tracks exception identities in a bounded in-memory set; no database mutation."
     },
     {
       "path": "app/observability/metrics.py",
@@ -6472,32 +6538,6 @@
     },
     {
       "path": "app/services/combined_decision.py",
-      "function": "_unique_rows",
-      "kind": "add",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/combined_decision.py",
       "function": "_persist_combined_batch",
       "kind": "add_all",
       "writer_ids": [
@@ -6552,6 +6592,32 @@
       "path": "app/services/combined_decision.py",
       "function": "_persist_combined_batch",
       "kind": "sql_dml",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/combined_decision.py",
+      "function": "_unique_rows",
+      "kind": "add",
       "writer_ids": [
         "WRITE-001",
         "WRITE-002",
@@ -7067,6 +7133,13 @@
         "WRITE-073"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/ib_fetch_executor.py",
+      "function": "_admit_returned_bars",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Reviewed in-memory seen set of bar dates; seen.add does not write database rows or mutate input bars. Persistence belongs to cache_bars (WRITE-030, TX-06) in the caller."
     },
     {
       "path": "app/services/ib_fetch_executor.py",
@@ -8090,6 +8163,24 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
+      "path": "app/services/market_sector_intelligence_rotation_repository.py",
+      "function": "capture",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-083"
+      ],
+      "reason": "D2-only complete capture; one header and eleven rows under typed CLI authority."
+    },
+    {
+      "path": "app/services/market_sector_refresh_service.py",
+      "function": "_remember_request",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-085"
+      ],
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
       "path": "app/services/ohlcv_coverage_service.py",
       "function": "_normalize_tickers",
       "kind": "add",
@@ -8492,6 +8583,13 @@
         "WRITE-073"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/pipeline_outcome.py",
+      "function": "_integrity_hazards",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Reviewed in-memory hazards set, returned as a sorted list; hazards.add does not mutate the input result, database rows or pipeline state. No writer authority is granted."
     },
     {
       "path": "app/services/pipeline_service.py",
@@ -10026,58 +10124,6 @@
     },
     {
       "path": "app/services/technical_score_service.py",
-      "function": "_resubmit_stale_market_results",
-      "kind": "add",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/technical_score_service.py",
-      "function": "_persist_validated_technical_source_manifest",
-      "kind": "add",
-      "writer_ids": [
-        "WRITE-001",
-        "WRITE-002",
-        "WRITE-003",
-        "WRITE-004",
-        "WRITE-005",
-        "WRITE-006",
-        "WRITE-007",
-        "WRITE-008",
-        "WRITE-009",
-        "WRITE-010",
-        "WRITE-011",
-        "WRITE-012",
-        "WRITE-013",
-        "WRITE-014",
-        "WRITE-015",
-        "WRITE-016",
-        "WRITE-017",
-        "WRITE-073"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/technical_score_service.py",
       "function": "_persist_finalized_technical_score_batch",
       "kind": "add_all",
       "writer_ids": [
@@ -10132,6 +10178,58 @@
       "path": "app/services/technical_score_service.py",
       "function": "_persist_finalized_technical_score_batch",
       "kind": "sql_dml",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/technical_score_service.py",
+      "function": "_persist_validated_technical_source_manifest",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-001",
+        "WRITE-002",
+        "WRITE-003",
+        "WRITE-004",
+        "WRITE-005",
+        "WRITE-006",
+        "WRITE-007",
+        "WRITE-008",
+        "WRITE-009",
+        "WRITE-010",
+        "WRITE-011",
+        "WRITE-012",
+        "WRITE-013",
+        "WRITE-014",
+        "WRITE-015",
+        "WRITE-016",
+        "WRITE-017",
+        "WRITE-073"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/technical_score_service.py",
+      "function": "_resubmit_stale_market_results",
+      "kind": "add",
       "writer_ids": [
         "WRITE-001",
         "WRITE-002",
@@ -11666,34 +11764,13 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
-      "path": "app/observability/logging.py",
-      "function": "format",
-      "kind": "add",
-      "writer_ids": [],
-      "reason": "Run 41: seen.add only tracks exception identities in a bounded in-memory set; no database mutation."
-    },
-    {
-      "path": "app/services/market_sector_intelligence_rotation_repository.py",
-      "function": "capture",
-      "kind": "add",
+      "path": "app/services/worker_registry.py",
+      "function": "retire_worker_registration",
+      "kind": "sql_dml",
       "writer_ids": [
-        "WRITE-083"
+        "WRITE-012"
       ],
-      "reason": "D2-only complete capture; one header and eleven rows under typed CLI authority."
-    },
-    {
-      "path": "app/services/ib_fetch_executor.py",
-      "function": "_admit_returned_bars",
-      "kind": "add",
-      "writer_ids": [],
-      "reason": "Reviewed in-memory seen set of bar dates; seen.add does not write database rows or mutate input bars. Persistence belongs to cache_bars (WRITE-030, TX-06) in the caller."
-    },
-    {
-      "path": "app/services/pipeline_outcome.py",
-      "function": "_integrity_hazards",
-      "kind": "add",
-      "writer_ids": [],
-      "reason": "Reviewed in-memory hazards set, returned as a sorted list; hazards.add does not mutate the input result, database rows or pipeline state. No writer authority is granted."
+      "reason": "MSI upgrade compatibility: exact legacy worker identity predicates fence a timestamp-only retirement update in the existing caller transaction; no new authority or financial writer."
     }
   ],
   "recovery_paths": [
@@ -12266,6 +12343,13 @@
       "retained": "actual persisted Fundamental source/evidence pointer with unloaded relationship",
       "revalidation": "exact identity, source/run, immutable configured mode and canonical decision payload",
       "continuation": "none; no committed business rows, provider work or operational probe executed by this task"
+    },
+    {
+      "id": "TX-32",
+      "boundary": "Shared historical reservation and weighted pacing",
+      "retained": "Gate row only during short SQL transaction; no job/domain transaction during broker wait, pacing or socket IO",
+      "revalidation": "Native execution token/lease and OS process creation; disconnect acknowledgement or proven OS death before handoff",
+      "continuation": "Next acquisition can run while earlier pipeline calculates"
     }
   ],
   "transaction_sites": [
@@ -14846,13 +14930,6 @@
       "reason": "Exact production transaction site reviewed at R3."
     },
     {
-      "path": "app/services/worker_registry.py",
-      "function": "retire_worker_registration",
-      "primitive": "flush",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
       "path": "app/worker_supervisor.py",
       "function": "_acquire_or_heartbeat_supervisor",
       "primitive": "autonomous_session",
@@ -15061,6 +15138,132 @@
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Manual MSI admission only: fixed cohort, NORMAL/local-admin/CSRF, verified IB preflight, feature advisory lock; native fetch authority/run/job commit atomically, rollback on rejection."
+    },
+    {
+      "path": "app/routers/market_sector_intelligence_routes.py",
+      "function": "market_sector_refresh_cancel",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/routers/market_sector_intelligence_routes.py",
+      "function": "market_sector_refresh_cancel",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/bar_cache_service.py",
+      "function": "_fetch_and_cache_one",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "acquire_historical_slot",
+      "primitive": "begin",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "checkpoint",
+      "primitive": "begin",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "coordinate_fetch",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "execute",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "historical_request",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "historical_request",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "pace",
+      "primitive": "begin",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "progress",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "progress",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_acquisition_gate.py",
+      "function": "release_historical_slot",
+      "primitive": "begin",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_contract_resolver.py",
+      "function": "resolve_us_stock_contract",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/market_sector_refresh_service.py",
+      "function": "_remember_request",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "path": "app/services/ib_market_intelligence/orchestration.py",
+      "function": "guard",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI implementation review: independent cancellation read rolls back on close; retry metadata committed before pacing/network. Existing domain fencing retained."
+    },
+    {
+      "path": "app/services/ib_market_intelligence/orchestration.py",
+      "function": "on_retry",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI implementation review: independent cancellation read rolls back on close; retry metadata committed before pacing/network. Existing domain fencing retained."
+    },
+    {
+      "path": "app/services/ib_market_intelligence/orchestration.py",
+      "function": "execute_historical_refresh",
+      "primitive": "autonomous_session",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "MSI implementation review: cancellation-only detached Session closes before historical pacing/network; native execution ownership remains checked by the gate."
     }
   ],
   "high_risk_tables": [
@@ -15433,6 +15636,11 @@
       "table": "winner_acquisition_decisions",
       "model": "WinnerAcquisitionDecisionRecord",
       "reason": "Potentially large domain/evidence payload."
+    },
+    {
+      "table": "ib_historical_gate",
+      "model": "IBHistoricalGate",
+      "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
     }
   ],
   "dangerous_read_suppressions": [
@@ -18219,6 +18427,15 @@
     ],
     "TX-31": [
       "tests/integration/test_operational_admission_postgresql.py"
+    ],
+    "TX-32": [
+      "tests/integration/test_sector_refresh_concurrency.py"
+    ],
+    "WRITE-084": [
+      "tests/integration/test_sector_refresh_concurrency.py"
+    ],
+    "WRITE-085": [
+      "tests/test_sector_refresh_browser.py"
     ]
   },
   "exceptions": [],

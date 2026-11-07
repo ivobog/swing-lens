@@ -48,7 +48,7 @@ from app.services.supervisor_registry import (
 )
 from app.services.supervisor_restart import RestartBudget, RestartDecision
 from app.services.worker_registry import associate_worker_launcher, retire_worker_registration
-from app.settings import ProcessRole, get_settings
+from app.settings import ProcessRole, RuntimeMode, get_settings
 
 logger = logging.getLogger(__name__)
 WORKER_REGISTRATION_TIMEOUT_SECONDS = 120.0
@@ -186,6 +186,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
     child: LaunchedWorker | None = None
     web: LaunchedWeb | None = None
+    sector_child: LaunchedWorker | None = None
+    sector_worker_id = args.worker_id + "-sector"
+    sector_restarts = _restart_budget("sector_worker", settings)
     web_restarts = _restart_budget("web", settings)
     worker_restarts = _restart_budget("worker", settings)
     owns_supervision = False
@@ -248,90 +251,116 @@ def main(argv: Sequence[str] | None = None) -> None:
                             if not decision.crash_loop:
                                 stop.wait(decision.backoff_seconds)
 
-                    registered_worker = _registered_worker(args.worker_id)
-                    registered_worker_alive = _registered_worker_process_alive(registered_worker)
-                    registration_active = (
-                        registered_worker is not None and registered_worker.stopping_at is None
-                    )
-                    if registration_active and not registered_worker_alive:
-                        decision = worker_restarts.record_failure(
-                            now=monotonic(),
-                            exit_code=(
-                                child.process.returncode
-                                if child is not None and child.process.poll() is not None
-                                else None
-                            ),
-                            startup_stage="worker_heartbeat",
-                            reason_code="DURABLE_WORKER_PROCESS_LOST",
-                        )
-                        _record_child_failure(decision)
-                        if child is not None and child.process.poll() is not None:
-                            child = None
-                        if not decision.crash_loop:
-                            stop.wait(decision.backoff_seconds)
-                    elif _gracefully_stopped_worker_child(registered_worker, child):
-                        logger.info(
-                            "worker.supervisor.graceful_worker_exit",
-                            extra={
-                                **_worker_log_context(
-                                    registered_worker,
-                                    launcher_pid=child.process.pid,
-                                ),
-                                "exit_code": child.process.returncode,
-                                "reason_code": "GRACEFUL_WORKER_RECYCLE",
-                            },
-                        )
-                        child = None
-                    elif (
-                        child is not None
-                        and child.process.poll() is not None
-                        and not registration_active
+                    for current_id, current_queues, current_child, current_restarts in (
+                        (args.worker_id, args.queues, child, worker_restarts),
+                        *(
+                            ((sector_worker_id, "broker", sector_child, sector_restarts),)
+                            if settings.runtime_mode is not RuntimeMode.CERTIFICATION
+                            else ()
+                        ),
                     ):
-                        decision = worker_restarts.record_failure(
-                            now=monotonic(),
-                            exit_code=child.process.returncode,
-                            startup_stage="worker_registration",
-                            reason_code="DURABLE_WORKER_EXITED_BEFORE_REGISTRATION",
+                        registered_worker = _registered_worker(current_id)
+                        registered_worker_alive = _registered_worker_process_alive(
+                            registered_worker
                         )
-                        _record_child_failure(decision)
-                        child = None
-                        if not decision.crash_loop:
-                            stop.wait(decision.backoff_seconds)
-                    elif (
-                        child is not None
-                        and child.process.poll() is None
-                        and not registered_worker_alive
-                        and monotonic() - child.launched_at >= WORKER_REGISTRATION_TIMEOUT_SECONDS
-                    ):
-                        decision = worker_restarts.record_failure(
-                            now=monotonic(),
-                            exit_code=None,
-                            startup_stage="worker_registration",
-                            reason_code="DURABLE_WORKER_REGISTRATION_TIMEOUT",
+                        registration_active = (
+                            registered_worker is not None and registered_worker.stopping_at is None
                         )
-                        _record_child_failure(decision)
-                        _terminate_launcher(child.process, settings.worker_shutdown_grace_seconds)
-                        child = None
-                        if not decision.crash_loop:
-                            stop.wait(decision.backoff_seconds)
-                    if not worker_restarts.crash_loop:
-                        try:
-                            child = _supervise_once(
-                                worker_id=args.worker_id,
-                                queues=args.queues,
-                                child=child,
-                                certification_session_id=certification_session_id,
-                            )
-                        except Exception:
-                            decision = worker_restarts.record_failure(
+                        if registration_active and not registered_worker_alive:
+                            decision = current_restarts.record_failure(
                                 now=monotonic(),
-                                exit_code=None,
-                                startup_stage="process_spawn",
-                                reason_code="DURABLE_WORKER_START_FAILED",
+                                exit_code=(
+                                    current_child.process.returncode
+                                    if current_child is not None
+                                    and current_child.process.poll() is not None
+                                    else None
+                                ),
+                                startup_stage="worker_heartbeat",
+                                reason_code="DURABLE_WORKER_PROCESS_LOST",
                             )
                             _record_child_failure(decision)
+                            if (
+                                current_child is not None
+                                and current_child.process.poll() is not None
+                            ):
+                                current_child = None
                             if not decision.crash_loop:
                                 stop.wait(decision.backoff_seconds)
+                        elif _gracefully_stopped_worker_child(registered_worker, current_child):
+                            logger.info(
+                                "worker.supervisor.graceful_worker_exit",
+                                extra={
+                                    **_worker_log_context(
+                                        registered_worker,
+                                        launcher_pid=current_child.process.pid,
+                                    ),
+                                    "exit_code": current_child.process.returncode,
+                                    "reason_code": "GRACEFUL_WORKER_RECYCLE",
+                                },
+                            )
+                            current_child = None
+                        elif (
+                            current_child is not None
+                            and current_child.process.poll() is not None
+                            and not registration_active
+                        ):
+                            decision = current_restarts.record_failure(
+                                now=monotonic(),
+                                exit_code=current_child.process.returncode,
+                                startup_stage="worker_registration",
+                                reason_code="DURABLE_WORKER_EXITED_BEFORE_REGISTRATION",
+                            )
+                            _record_child_failure(decision)
+                            current_child = None
+                            if not decision.crash_loop:
+                                stop.wait(decision.backoff_seconds)
+                        elif (
+                            current_child is not None
+                            and current_child.process.poll() is None
+                            and not registered_worker_alive
+                            and monotonic() - current_child.launched_at
+                            >= WORKER_REGISTRATION_TIMEOUT_SECONDS
+                        ):
+                            decision = current_restarts.record_failure(
+                                now=monotonic(),
+                                exit_code=None,
+                                startup_stage="worker_registration",
+                                reason_code="DURABLE_WORKER_REGISTRATION_TIMEOUT",
+                            )
+                            _record_child_failure(decision)
+                            _terminate_launcher(
+                                current_child.process, settings.worker_shutdown_grace_seconds
+                            )
+                            current_child = None
+                            if not decision.crash_loop:
+                                stop.wait(decision.backoff_seconds)
+                        if not current_restarts.crash_loop:
+                            try:
+                                current_child = _supervise_once(
+                                    worker_id=current_id,
+                                    queues=current_queues,
+                                    child=current_child,
+                                    certification_session_id=certification_session_id,
+                                    **(
+                                        {"operation_profile": "sector_refresh"}
+                                        if current_id == sector_worker_id
+                                        else {}
+                                    ),
+                                )
+                            except Exception:
+                                decision = current_restarts.record_failure(
+                                    now=monotonic(),
+                                    exit_code=None,
+                                    startup_stage="process_spawn",
+                                    reason_code="DURABLE_WORKER_START_FAILED",
+                                )
+                                _record_child_failure(decision)
+                                if not decision.crash_loop:
+                                    stop.wait(decision.backoff_seconds)
+                        if current_id == args.worker_id:
+                            child = current_child
+                        else:
+                            sector_child = current_child
                     _write_supervisor_state(
                         args=args,
                         instance_id=instance_id,
@@ -339,6 +368,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                         worker=child,
                         web_restarts=web_restarts,
                         worker_restarts=worker_restarts,
+                        sector_worker=sector_child,
+                        sector_restarts=sector_restarts,
                     )
                 elif monotonic() >= ownership_deadline:
                     log_event(
@@ -366,6 +397,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                     worker=child,
                     web_restarts=web_restarts,
                     worker_restarts=worker_restarts,
+                    sector_worker=sector_child,
+                    sector_restarts=sector_restarts,
                     cycle_failed=True,
                 )
             stop.wait(settings.job_watchdog_interval_seconds)
@@ -380,6 +413,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         operational_metrics.set_gauge("swinglens_supervisor_up", 0)
         if owns_supervision:
             _shutdown_web(web, settings.worker_shutdown_grace_seconds)
+            _shutdown_owned_worker(
+                sector_worker_id,
+                sector_child,
+                certification_session_id=certification_session_id,
+            )
             _shutdown_owned_worker(
                 args.worker_id,
                 child,
@@ -517,6 +555,8 @@ def _write_supervisor_state(
     web_restarts: RestartBudget,
     worker_restarts: RestartBudget,
     cycle_failed: bool = False,
+    sector_worker: LaunchedWorker | None = None,
+    sector_restarts: RestartBudget | None = None,
 ) -> None:
     root = Path(args.repo_root).resolve()
     registrations = _registration_snapshot(args.worker_id)
@@ -539,6 +579,19 @@ def _write_supervisor_state(
             "launcher_pid": worker.process.pid if worker is not None else None,
             "state": "CRASH_LOOP" if worker_restarts.crash_loop else "RUNNING",
             **registrations["worker"],
+        },
+        "sector_worker": {
+            "launcher_pid": sector_worker.process.pid if sector_worker else None,
+            "state": (
+                "DISABLED_CERTIFICATION"
+                if get_settings().runtime_mode is RuntimeMode.CERTIFICATION
+                else "CRASH_LOOP"
+                if sector_restarts and sector_restarts.crash_loop
+                else "RUNNING"
+                if sector_worker
+                else "STOPPED"
+            ),
+            **_registration_snapshot(args.worker_id + "-sector")["worker"],
         },
         "restart": {
             "web": web_restarts.snapshot(),
@@ -635,6 +688,7 @@ def _supervise_once(
     queues: str,
     child: LaunchedWorker | None,
     certification_session_id: str | None = None,
+    operation_profile: str = "general",
 ) -> LaunchedWorker | None:
     settings = get_settings()
     worker = _registered_worker(worker_id)
@@ -794,7 +848,11 @@ def _supervise_once(
     if child is not None and child.process.poll() is None:
         _terminate_launcher(child.process, settings.worker_shutdown_grace_seconds)
 
-    replacement = _start_worker(worker_id, queues)
+    replacement = (
+        _start_worker(worker_id, queues, operation_profile=operation_profile)
+        if operation_profile != "general"
+        else _start_worker(worker_id, queues)
+    )
     operational_metrics.increment("swinglens_worker_restarts_total", worker_id=worker_id)
     context = {
         "worker_id": worker_id,
@@ -812,13 +870,14 @@ def _supervise_once(
     return LaunchedWorker(replacement, monotonic())
 
 
-def _start_worker(worker_id: str, queues: str) -> subprocess.Popen:
+def _start_worker(worker_id: str, queues: str, *, operation_profile="general") -> subprocess.Popen:
     settings = get_settings()
     environment = build_process_environment(
         os.environ,
         role=ProcessRole.DURABLE_WORKER,
         settings=settings,
     )
+    environment["JOB_WORKER_PROFILE"] = operation_profile
     _set_parent_identity(environment)
     kwargs: dict[str, object] = {"env": environment}
     if os.name == "nt":

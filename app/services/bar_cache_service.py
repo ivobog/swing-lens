@@ -218,6 +218,7 @@ def _fetch_and_cache_one(
     ticker = contract.symbol.upper()
     item = BarFetchItem(ticker=ticker, what_to_show=what_to_show)
     try:
+        db.commit()
         bars = fetch_daily_bars(
             ib,
             contract,

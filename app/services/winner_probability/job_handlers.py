@@ -270,6 +270,7 @@ class WinnerCohortRefreshService:
         max_wall_seconds: float = 45.0,
         operation_at: datetime | None = None,
         generation_id: int | None = None,
+        semantic_authority: Any | None = None,
     ) -> WinnerCohortRefreshResult:
         config = load_winner_probability_config()
         outcome_definition = self._outcome_definition(
@@ -324,6 +325,11 @@ class WinnerCohortRefreshService:
             contract=contract_for(outcome_definition, config),
             config=config,
             requested_at=calculation_at,
+            **(
+                {"semantic_authority": semantic_authority}
+                if semantic_authority is not None
+                else {}
+            ),
         )
         if isinstance(db, Session):
             from app.services.configuration_delivery import bind_winner_generation_configuration
@@ -958,7 +964,11 @@ def execute_cohort_refresh_job(
 
     def link_generation(generation: WinnerCohortGeneration) -> None:
         if authority is not None:
-            bind_semantic_authority(generation, authority)
+            # The generation writer binds ownership before sealing its proof.
+            # This callback only links operational progress to that exact scope.
+            if require_semantic_authority(generation) != authority:
+                raise ValueError("WINNER_COHORT_GENERATION_AUTHORITY_MISMATCH")
+            validate_generation_scope(db, generation=generation, authority=authority)
         processing_run.cohort_generation_id = generation.id
         processing_run.last_checkpoint_at = _utcnow()
         processing_run.checkpoint_json = {
@@ -984,6 +994,7 @@ def execute_cohort_refresh_job(
             max_wall_seconds=max_wall_seconds,
             operation_at=_retained_operation_cutoff(db, payload),
             generation_id=_optional_int(payload, "cohort_generation_id"),
+            **({"semantic_authority": authority} if authority is not None else {}),
         )
     except (WinnerCohortRefreshCancelled, CohortMaterializationCancelled) as exc:
         _finish_processing_run(

@@ -1142,7 +1142,8 @@ def _build_decision_handoff_payload(
             ],
             "setup_signal_input_hash": built.source_data_hash,
         }
-        if checkpoint_callback is not None and (index % 10 == 0 or index == total):
+        # Every artifact identity and eligible-bar lineage for this company is complete.
+        if checkpoint_callback is not None:
             checkpoint_callback(
                 phase="ARTIFACT_LINEAGE_SERIALIZED",
                 processed=index,

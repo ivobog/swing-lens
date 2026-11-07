@@ -776,12 +776,10 @@ def test_current_ended_scope_expires_before_provider_request(monkeypatch) -> Non
         settings=Settings(ib_max_retries=1),
     )
 
-    item = fetch_run.items[0]
-    assert item.status == "FAILED"
-    assert item.attempt_count == 0
+    assert fetch_run.status == "FAILED"
+    assert fetch_run.items == []  # Expiry is rejected before connecting or creating item attempts.
     assert fetch_run.executed_request_count == 0
-    assert item.decision_metadata_json["provider_result"] == "REVIEW_SCOPE_EXPIRED"
-    assert "expired" in item.error_message
+    assert "expired" in fetch_run.message
     assert fetch_calls == []
 
 

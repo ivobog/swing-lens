@@ -104,6 +104,7 @@ class MarketSectorRotationService:
     def __init__(self, *, clock=None, frame_loader=None):
         self.clock = clock or MarketClockService()
         self.frame_loader = frame_loader or load_preferred_ohlcv_frames
+        self.native_loader = frame_loader is None
 
     def preview(self, db, *, config=None, cutoff=None) -> dict:
         config = config or load_market_sector_intelligence_config()
@@ -117,7 +118,18 @@ class MarketSectorRotationService:
         dates = {str(key): value.isoformat() for key, value in anchors.items()}
         inputs = {}
         symbols = [sector.etf_symbol for sector in config.sectors] + [config.benchmark_symbol]
-        with db.no_autoflush if isinstance(db, Session) else nullcontext():
+        from app.services.market_sector_intelligence_read_window import batch_cached_read
+
+        with (
+            db.no_autoflush if isinstance(db, Session) else nullcontext(),
+            batch_cached_read(
+                db,
+                symbols,
+                timeframe=config.timeframe,
+                cutoff=cutoff,
+                enabled=self.native_loader and config.enabled,
+            ),
+        ):
             for symbol in symbols:
                 inputs[symbol] = self._input(db, symbol, config, cutoff, anchors)
         benchmark = inputs[config.benchmark_symbol]

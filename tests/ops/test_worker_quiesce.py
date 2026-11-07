@@ -48,6 +48,7 @@ def _rows():
         started_at=now,
         stopping_at=None,
         queues_json=["background"],
+        operation_profile="general",
     )
     job = BackgroundJob(
         id=7,

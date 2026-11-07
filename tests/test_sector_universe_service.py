@@ -659,3 +659,66 @@ def _ranking(
         profile_score=Decimal(score),
         decision_label="Candidate",
     )
+
+
+def test_ranking_identity_outputs_are_call_local_and_revalidate_changed_sources(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import sector_universe_service as service
+
+    rows = [SimpleNamespace(id=i, ticker=f"T{i}", ranking_profile="same", version=1)
+            for i in range(2)]
+    calls = []
+
+    def identity(row):
+        calls.append(row.id)
+        value = SimpleNamespace(as_dict=lambda version=row.version: {"version": version})
+        return SimpleNamespace(
+            configuration=SimpleNamespace(effective_configuration=SimpleNamespace(value=value)),
+            algorithm=SimpleNamespace(calculation_version=SimpleNamespace(value=value)),
+        )
+
+    monkeypatch.setattr(service, "artifact_identity", identity)
+    monkeypatch.setattr(service, "consumer_context_identity", lambda **_values: object())
+    monkeypatch.setattr(service, "contextual_compatibility", lambda *_args, **_kwargs:
+                        SimpleNamespace(accepted=True))
+    outputs = {}
+    assert service._coherent_compatible_rankings(
+        rows, 7, None, None, identity_outputs=outputs,
+    ) == rows
+    assert calls == [0, 1]  # one read serves compatibility and coherence in this call
+    assert set(outputs) == {id(row) for row in rows}
+    rows[0].version = 2
+    assert service._coherent_compatible_rankings(
+        rows, 7, None, None, identity_outputs=outputs,
+    ) == []
+    assert calls == [0, 1, 0, 1]
+    assert outputs == {}  # the old accepted identity cannot grant a new cohort
+
+
+def test_ranking_validation_checkpoint_reports_completed_batch_and_cancels(monkeypatch):
+    from types import SimpleNamespace
+
+    import pytest
+
+    from app.services import sector_universe_service as service
+
+    rows = [SimpleNamespace(id=i, ticker=f"T{i}", ranking_profile="same") for i in range(55)]
+    calls = []
+    monkeypatch.setattr(service, "artifact_identity", lambda row: calls.append(row.id) or object())
+    monkeypatch.setattr(service, "consumer_context_identity", lambda **_values: object())
+    monkeypatch.setattr(service, "contextual_compatibility", lambda *_args, **_kwargs:
+                        SimpleNamespace(accepted=True))
+    outputs = {"previous": object()}
+
+    def checkpoint(**values):
+        assert values["phase"] == "RANKING_COMPATIBILITY_VALIDATED"
+        assert values["processed"] == len(calls) == 25
+        assert values["total"] == 55 and values["last_completed_item"]
+        raise RuntimeError("completed ranking batch cancelled")
+
+    with pytest.raises(RuntimeError, match="completed ranking batch cancelled"):
+        service._coherent_compatible_rankings(
+            rows, 7, None, None, identity_outputs=outputs, checkpoint_callback=checkpoint,
+        )
+    assert len(calls) == 25 and outputs == {}

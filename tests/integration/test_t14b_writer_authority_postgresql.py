@@ -36,6 +36,193 @@ pytestmark = [pytest.mark.integration, pytest.mark.destructive]
 contextual_engine = contextual.contextual_engine
 
 
+def test_sector_residency_rechecks_seals_and_expires_with_its_transaction(contextual_engine):
+    from native_mutation_support import seed_native_core
+    from sqlalchemy import event
+    from sqlalchemy.orm import object_session
+
+    from app.services.core_mutation_authority import (
+        _sector_evidence_rows,
+        _validate_evidence,
+        sector_evidence_read_scope,
+    )
+
+    with Session(contextual_engine) as seed:
+        _, _, artifacts = seed_native_core(seed)
+        evidence_id = artifacts["fundamental"].evidence_id
+        seed.commit()
+    full_reads = []
+
+    def observe(_conn, _cursor, statement, _parameters, _context, _many):
+        if (statement.lstrip().lower().startswith("select")
+                and "core_calculation_evidence.payload_json" in statement):
+            full_reads.append(statement)
+
+    event.listen(contextual_engine, "before_cursor_execute", observe)
+    try:
+        with Session(contextual_engine) as db, sector_evidence_read_scope(db):
+            original = _sector_evidence_rows(db, (evidence_id,))[evidence_id]
+            retained = _sector_evidence_rows(db, (evidence_id,))[evidence_id]
+            assert retained is original and len(full_reads) == 1
+            _validate_evidence(retained)
+            original.payload_json["growth_score"] = "9999"
+            with pytest.raises(ValueError, match="MUTATION_SOURCE_PAYLOAD_FINGERPRINT_MISMATCH"):
+                _validate_evidence(retained)  # residency must never cache successful validation
+            db.rollback()
+            fresh = _sector_evidence_rows(db, (evidence_id,))[evidence_id]
+            _validate_evidence(fresh)
+            assert len(full_reads) == 2  # old transaction cannot supply a read witness
+            with Session(contextual_engine) as other:
+                foreign = _sector_evidence_rows(other, (evidence_id,))[evidence_id]
+                assert object_session(foreign) is other and foreign is not fresh
+                _validate_evidence(foreign)
+                assert len(full_reads) == 3
+        with Session(contextual_engine) as outside:
+            _validate_evidence(_sector_evidence_rows(outside, (evidence_id,))[evidence_id])
+            assert len(full_reads) == 4
+    finally:
+        event.remove(contextual_engine, "before_cursor_execute", observe)
+
+
+@pytest.mark.parametrize(
+    "boundary", [
+        "UNIVERSE_RANKING_INPUTS_LOADED", "UNIVERSE_SOURCE_VALIDATION",
+        "PERSISTENCE_VALIDATION_SOURCE_LOCKS", "PERSISTENCE_VALIDATION_SOURCE_ROLES",
+    ],
+)
+@pytest.mark.parametrize("fault", ["cancel", "failure"])
+def test_sector_source_role_checkpoints_preserve_locks_and_rollback(
+    contextual_engine, fault, boundary,
+):
+    import psycopg
+    from native_mutation_support import seed_native_core
+    from sqlalchemy import event, func
+
+    from app.models.tables import (
+        BackgroundJob,
+        CoreCalculationEvidenceSource,
+        ExecutionConfigurationBinding,
+        MarketCalculationContext,
+        RankingResult,
+        SectorRotationRow,
+        SectorRotationSnapshot,
+    )
+    from app.services.configuration_delivery import ANCHOR_KEY, binding_reference
+    from app.services.contextual_effective_configuration import (
+        resolve_regime_configuration,
+        resolve_sector_configuration,
+    )
+    from app.services.domain_write_fence import (
+        deferred_execution_ownership_lock,
+        fence_domain_commits,
+    )
+    from app.services.market_regime_command_center import MarketRegimeCommandCenterService
+    from app.services.pipeline_executor import PipelineCancelled, _sector_checkpoint_callback
+    from app.services.sector_rotation_service import SectorRotationService
+
+    configuration = resolve_sector_configuration()
+    regime = resolve_regime_configuration()
+    with Session(contextual_engine) as db:
+        cutoff, _, artifacts = seed_native_core(db, extra_configurations=(configuration, regime))
+        ranking_id = artifacts["ranking"].id
+        pipeline_id = db.get(MarketCalculationContext, cutoff.context_id).pipeline_run_id
+        reference = binding_reference(db, pipeline_run_id=pipeline_id)
+        job = BackgroundJob(
+            job_type="FULL_PIPELINE", status="RUNNING", related_run_id=7,
+            payload_json={"pipeline_run_id": pipeline_id, ANCHOR_KEY: reference},
+            execution_token="sector-checkpoint-test-attempt",
+        )
+        db.add(job)
+        db.flush()
+        job_id, token = job.id, job.execution_token
+        db.add(ExecutionConfigurationBinding(
+            binding_key=f"job:{job_id}", job_id=job_id, anchor_id=reference["anchor_id"],
+        ))
+        MarketRegimeCommandCenterService().build_snapshot(
+            db, run_id=7, market_cutoff=cutoff, effective_configuration=regime,
+        )
+        db.commit()
+
+    models = (SectorRotationSnapshot, SectorRotationRow, CoreCalculationEvidence,
+              CoreCalculationCurrentProjection, CoreCalculationEvidenceSource)
+
+    def counts(session):
+        return tuple(session.scalar(select(func.count()).select_from(model)) for model in models)
+
+    with Session(contextual_engine) as db:
+        before = counts(db)
+        observed = []
+        cpu_phase_queries = []
+        writer_evidence_bulk_reads = []
+        state = {}
+
+        def observe_sql(_conn, _cursor, statement, _parameters, _context, _many):
+            if state.get("phase") == "SOURCE_ROWS_LOADED":
+                cpu_phase_queries.append(statement)
+            if (state.get("phase", "").startswith(("PERSISTENCE", "DECLARATION"))
+                    and "core_calculation_evidence.payload_json" in statement
+                    and "core_calculation_evidence.id IN (" in statement):
+                writer_evidence_bulk_reads.extend(_parameters.values())
+
+        def progress(_db, **values):
+            phase = values["operational_metadata_patch"]["sector_progress"]["phase"]
+            if phase == "SOURCE_ROWS_LOADED":
+                assert not db.in_transaction()
+            if phase == boundary:
+                atomic = boundary.startswith("PERSISTENCE_VALIDATION")
+                assert db.in_nested_transaction() == atomic
+                with Session(contextual_engine) as contender:
+                    assert counts(contender) == before  # staged rows remain invisible
+                    statement = select(RankingResult.id).where(
+                        RankingResult.id == ranking_id,
+                    ).with_for_update(nowait=True)
+                    if boundary == "UNIVERSE_RANKING_INPUTS_LOADED":
+                        # The clean input reader has acquired no mutation locks.
+                        assert contender.scalar(statement) == ranking_id
+                    else:
+                        with pytest.raises(OperationalError) as error:
+                            contender.execute(statement)
+                        assert isinstance(error.value.orig, psycopg.errors.LockNotAvailable)
+                if fault == "failure" and values["processed"] > 0:
+                    observed.append((phase, values["processed"], values["total"]))
+                    raise RuntimeError("sector-source-role-test-failure")
+            state.update(phase=phase, processed=values["processed"])
+            observed.append((phase, values["processed"], values["total"]))
+
+        checkpoint = _sector_checkpoint_callback(
+            db,
+            should_cancel=lambda: fault == "cancel"
+            and state.get("phase") == boundary,
+            progress_callback=progress,
+        )
+        event.listen(contextual_engine, "before_cursor_execute", observe_sql)
+        try:
+            expected = PipelineCancelled if fault == "cancel" else RuntimeError
+            with pytest.raises(
+                expected, match="sector-source-role-test-failure" if fault == "failure" else None,
+            ), deferred_execution_ownership_lock(), fence_domain_commits(
+                db, job_id=job_id, execution_token=token,
+            ):
+                SectorRotationService().build_sector_rotation_snapshot(
+                    db, 7, market_cutoff=cutoff, effective_configuration=configuration,
+                    checkpoint_callback=checkpoint,
+                )
+        finally:
+            event.remove(contextual_engine, "before_cursor_execute", observe_sql)
+        if boundary.startswith("PERSISTENCE_VALIDATION"):
+            assert ("SOURCE_ROWS_LOADED", 2, 2) in observed
+        assert any(phase == boundary for phase, _, _ in observed)
+        assert not cpu_phase_queries  # no lazy ORM query reopened the clean CPU phase
+        assert len(writer_evidence_bulk_reads) == len(set(writer_evidence_bulk_reads))
+        assert bool(writer_evidence_bulk_reads) == (
+            boundary.startswith("PERSISTENCE_VALIDATION")
+        )  # each producer JSON loads once; every validation pass still executes
+        assert counts(db) == before
+        db.commit()  # a caller cannot accidentally publish rejected staged state
+    with Session(contextual_engine) as db:
+        assert counts(db) == before
+
+
 def test_native_writer_rejects_forged_authority_and_rolls_back_staged_serving(contextual_engine):
     config = resolve_fundamental_configuration()
     with Session(contextual_engine) as db:
