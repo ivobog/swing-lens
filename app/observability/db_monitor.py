@@ -616,6 +616,7 @@ class JsonlTelemetryWriter:
     def _run(self) -> None:
         stream = None
         stream_path: Path | None = None
+        stream_day: str | None = None
         next_flush = time.monotonic() + self.flush_interval_seconds
         next_retention = time.monotonic() + 60.0
         next_health = time.monotonic() + self.health_interval_seconds
@@ -656,14 +657,23 @@ class JsonlTelemetryWriter:
                             "swinglens_db_monitor_writer_latency_seconds",
                             latency_ms / 1000.0,
                         )
-                    desired_path = self._path_for(item)
-                    if stream_path != desired_path:
+                    item_day = self._record_day(item)
+                    if (
+                        stream is None
+                        or stream_day != item_day
+                        or stream.tell() >= self.max_file_bytes
+                    ):
+                        # The open stream is size-checked after every record and
+                        # protected from retention. Search existing segments only
+                        # when opening a stream or changing the record's day.
+                        desired_path = self._path_for(item)
                         if stream is not None:
                             stream.flush()
                             stream.close()
                         desired_path.parent.mkdir(parents=True, exist_ok=True)
                         stream = desired_path.open("a", encoding="utf-8", buffering=64 * 1024)
                         stream_path = desired_path
+                        stream_day = item_day
                         self._apply_retention(protected_paths={stream_path})
                     dropped = self._take_drop_report()
                     if dropped:
@@ -684,7 +694,7 @@ class JsonlTelemetryWriter:
                         stream.close()
                         stream = None
                         stream_path = None
-                    if time.monotonic() >= next_flush:
+                    if stream is not None and time.monotonic() >= next_flush:
                         stream.flush()
                         next_flush = time.monotonic() + self.flush_interval_seconds
                     if time.monotonic() >= next_retention:
@@ -692,7 +702,7 @@ class JsonlTelemetryWriter:
                             protected_paths={stream_path} if stream_path is not None else None
                         )
                         next_retention = time.monotonic() + 60.0
-                    if time.monotonic() >= next_health:
+                    if stream is not None and time.monotonic() >= next_health:
                         self._write_p2_aggregates(stream)
                         self._write_line(stream, self._health_record())
                         next_health = time.monotonic() + self.health_interval_seconds
@@ -739,9 +749,13 @@ class JsonlTelemetryWriter:
                 except Exception:
                     pass
 
-    def _path_for(self, record: Mapping[str, Any]) -> Path:
+    @staticmethod
+    def _record_day(record: Mapping[str, Any]) -> str:
         timestamp = str(record.get("timestamp") or datetime.now(UTC).isoformat())
-        day = timestamp[:10] if len(timestamp) >= 10 else datetime.now(UTC).date().isoformat()
+        return timestamp[:10] if len(timestamp) >= 10 else datetime.now(UTC).date().isoformat()
+
+    def _path_for(self, record: Mapping[str, Any]) -> Path:
+        day = self._record_day(record)
         process_id = os.getpid()
         base = self.log_dir / f"sql-{day}-p{process_id}.jsonl"
         if not base.exists() or base.stat().st_size < self.max_file_bytes:

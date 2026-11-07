@@ -689,9 +689,10 @@ def _retain_integration_runtime(item, report) -> None:
         record["diagnostic"] = "\n".join(
             redact_text(line) for line in str(report.longrepr).splitlines()
         )
+    if report.failed or record["performance"]["status"] != "PASS":
         binary = shutil.which("pg_dump")
         if not binary:
-            record["retention_error"] = "pg_dump unavailable; original failure preserved"
+            record["retention_error"] = "pg_dump unavailable; original native report preserved"
         else:
             pending = directory / "failed-input.dump.pending"
             dumped = subprocess.run(
@@ -706,10 +707,10 @@ def _retain_integration_runtime(item, report) -> None:
                 pending.rename(final)
                 record["retained_input"] = {
                     "path": final.name, "sha256": file_digest(final),
-                    "snapshot": "pg_dump snapshot after original failure, before teardown",
+                    "snapshot": "pg_dump snapshot after native call, before teardown",
                 }
             else:
-                record["retention_error"] = "pg_dump failed; original failure preserved"
+                record["retention_error"] = "pg_dump failed; original native report preserved"
     write_json(directory / "validation-runtime.json", record)
 
 

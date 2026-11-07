@@ -184,3 +184,10 @@ always execute with the original whole-source freshness rule. All nine required
 lane kinds, protected-main checks, authenticated golden approval and live-provider
 authorization remain independent requirements. No carry-forward grants merge or
 production activation.
+
+Native integration feedback retains the exact owned disposable database inputs
+before teardown when either the original case fails or a stage/total runtime
+budget fails. A functionally passing case with a failed budget keeps its original
+passing pytest report and a separate failing performance result. It cannot be used
+as a passing integration or reduced PR-matrix proof. Cases within their budgets
+avoid the diagnostic dump.

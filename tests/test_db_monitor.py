@@ -488,6 +488,116 @@ def test_rotation_and_retention(tmp_path: Path) -> None:
     assert len(list(tmp_path.glob("sql-*.jsonl"))) >= 2
 
 
+def test_writer_segment_search_cost_is_bounded_by_rotation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer = JsonlTelemetryWriter(tmp_path, retention_days=8, queue_size=300,
+                                  max_file_mb=1)
+    day = "2026-11-07"
+    seeds = set()
+    for part in range(4):
+        suffix = "" if part == 0 else f".{part}"
+        path = tmp_path / f"sql-{day}-p{os.getpid()}{suffix}.jsonl"
+        path.write_bytes(b"x" * writer.max_file_bytes)
+        seeds.add(path)
+    records = [{"record_type": "request_summary", "timestamp": day + "T12:00:00Z",
+                "request_id": f"native-{index}"} for index in range(256)]
+    for record in records:
+        writer.queue.put(record.copy())
+    writer._stop.set()
+    original_stat = Path.stat
+    calls = 0
+
+    def count_stat(path, *args, **kwargs):
+        nonlocal calls
+        if path.parent == tmp_path:
+            calls += 1
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", count_stat)
+    writer._run()
+    assert calls < 50
+    actual = [json.loads(line) for path in tmp_path.glob("sql-*.jsonl") if path not in seeds
+              for line in path.read_text(encoding="utf-8").splitlines()]
+    assert actual == records
+    assert writer.records_written == 256 and writer.records_dropped == writer.write_errors == 0
+    assert writer.status()["p0_written"] == 256
+
+
+def test_writer_preserves_unicode_size_rotation_and_out_of_order_days(tmp_path: Path) -> None:
+    writer = JsonlTelemetryWriter(tmp_path, retention_days=8, queue_size=10, max_file_mb=1)
+    first_day, next_day = "2026-11-07", "2026-11-08"
+    records = [
+        {"timestamp": first_day + "T12:00:00Z", "payload": "\u20ac" * 400_000},
+        {"timestamp": first_day + "T12:01:00Z", "payload": "after size rotation"},
+        {"timestamp": next_day + "T12:00:00Z", "payload": "next day"},
+        {"timestamp": first_day + "T12:02:00Z", "payload": "delayed previous-day record"},
+    ]
+    for record in records:
+        writer.queue.put(record.copy())
+    writer._stop.set()
+    writer._run()
+    first = tmp_path / f"sql-{first_day}-p{os.getpid()}.jsonl"
+    second = tmp_path / f"sql-{first_day}-p{os.getpid()}.1.jsonl"
+    following = tmp_path / f"sql-{next_day}-p{os.getpid()}.jsonl"
+    assert [json.loads(line) for line in first.read_text(encoding="utf-8").splitlines()] == (
+        records[:1])
+    assert [json.loads(line) for line in second.read_text(encoding="utf-8").splitlines()] == [
+        records[1], records[3]]
+    assert [json.loads(line) for line in following.read_text(encoding="utf-8").splitlines()] == (
+        records[2:3])
+    assert first.stat().st_size > writer.max_file_bytes
+    assert writer.records_written == 4 and writer.records_dropped == writer.write_errors == 0
+
+
+def test_rotation_at_flush_and_health_boundary_does_not_report_a_dropped_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from itertools import count
+
+    writer = JsonlTelemetryWriter(tmp_path, retention_days=8, queue_size=10, max_file_mb=1)
+    writer.max_file_bytes = 1
+    record = {"timestamp": "2026-11-07T12:00:00Z", "payload": "rotates immediately"}
+    writer.queue.put(record.copy())
+    writer._stop.set()
+    ticks = count(0, 100)
+    monkeypatch.setattr(monitor_module.time, "monotonic", lambda: next(ticks))
+    writer._run()
+    actual = [json.loads(line) for path in tmp_path.glob("sql-*.jsonl")
+              for line in path.read_text(encoding="utf-8").splitlines()]
+    assert actual == [record]
+    assert writer.records_written == 1 and writer.records_dropped == writer.write_errors == 0
+
+
+def test_writer_reopens_after_a_write_failure_and_counts_the_actual_loss(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer = JsonlTelemetryWriter(tmp_path, retention_days=8, queue_size=10, max_file_mb=1)
+    records = [{"timestamp": "2026-11-07T12:00:00Z", "payload": item}
+               for item in ("failed", "recovered")]
+    for record in records:
+        writer.queue.put(record.copy())
+    writer._stop.set()
+    write = writer._write_line
+    failed = False
+
+    def fail_first(stream, record):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise OSError("controlled write failure")
+        write(stream, record)
+
+    monkeypatch.setattr(writer, "_write_line", fail_first)
+    writer._run()
+    actual = [json.loads(line) for path in tmp_path.glob("sql-*.jsonl")
+              for line in path.read_text(encoding="utf-8").splitlines()]
+    assert [record for record in actual if "payload" in record] == records[1:]
+    assert writer.records_written == 2  # Retained drop report plus the recovered record.
+    assert writer.records_dropped == writer.write_errors == 1
+    assert not writer.status()["fatal_error"]
+
+
 def test_retention_bounds_file_count_and_total_size(tmp_path: Path) -> None:
     writer = JsonlTelemetryWriter(
         tmp_path,

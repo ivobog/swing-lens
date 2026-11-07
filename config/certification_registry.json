@@ -3164,6 +3164,10 @@
           {
             "path": "app/services/technical_indicators.py",
             "symbol": "calculate_relative_strength_features"
+          },
+          {
+            "path": "app/observability/db_monitor.py",
+            "symbol": "JsonlTelemetryWriter._run"
           }
         ],
         "impact_patterns": [
@@ -3174,7 +3178,9 @@
           "app/models/*.py",
           "app/settings.py",
           "scripts/production_runtime_certification.py",
-          "tests/e2e/single_run_certification/test_screenshot_evidence_browser.py"
+          "tests/e2e/single_run_certification/test_screenshot_evidence_browser.py",
+          "app/observability/db_monitor.py",
+          "tests/test_db_monitor.py"
         ],
         "tests": [
           {
@@ -3338,6 +3344,42 @@
             "positive": "Numeric outputs exactly match calculations on identical unadorned OHLCV frames.",
             "negative": "Numeric features cannot copy or mutate the original lineage metadata or frame values.",
             "reviewed_test_sha256": "53c0479d75bbde3f5d2adabd0aaeb2e321d2b94841084b6049b09285c0b4db78"
+          },
+          {
+            "id": "tests/test_db_monitor.py::test_rotation_at_flush_and_health_boundary_does_not_report_a_dropped_record",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Bounded segment discovery preserves every Unicode record, daily/size rotation, priority counts and accurate recovery after a writer error.",
+            "negative": "Repeated segment scans, lost records, false drop counts and invalid day/size placement are detected independently of financial certification.",
+            "reviewed_test_sha256": "4c13fbb79cf009e30598c19603db194302d6036f4baad1489888437ed1f6ea79"
+          },
+          {
+            "id": "tests/test_db_monitor.py::test_writer_preserves_unicode_size_rotation_and_out_of_order_days",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Bounded segment discovery preserves every Unicode record, daily/size rotation, priority counts and accurate recovery after a writer error.",
+            "negative": "Repeated segment scans, lost records, false drop counts and invalid day/size placement are detected independently of financial certification.",
+            "reviewed_test_sha256": "4c13fbb79cf009e30598c19603db194302d6036f4baad1489888437ed1f6ea79"
+          },
+          {
+            "id": "tests/test_db_monitor.py::test_writer_reopens_after_a_write_failure_and_counts_the_actual_loss",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Bounded segment discovery preserves every Unicode record, daily/size rotation, priority counts and accurate recovery after a writer error.",
+            "negative": "Repeated segment scans, lost records, false drop counts and invalid day/size placement are detected independently of financial certification.",
+            "reviewed_test_sha256": "4c13fbb79cf009e30598c19603db194302d6036f4baad1489888437ed1f6ea79"
+          },
+          {
+            "id": "tests/test_db_monitor.py::test_writer_segment_search_cost_is_bounded_by_rotation",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Bounded segment discovery preserves every Unicode record, daily/size rotation, priority counts and accurate recovery after a writer error.",
+            "negative": "Repeated segment scans, lost records, false drop counts and invalid day/size placement are detected independently of financial certification.",
+            "reviewed_test_sha256": "4c13fbb79cf009e30598c19603db194302d6036f4baad1489888437ed1f6ea79"
           }
         ],
         "oracle": "Only original A04 finalizer plus A05B independent oracle; 13 required evidence seals.",
@@ -3349,7 +3391,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "27a62a2065cab5c6877541a69dd6b101f98eec10db05b0ced4e4c18f045cbbec",
+        "review_sha256": "99d866c33d03bf2d66288422a4c6104aff69a10d36f94712e2b63cc7033166f5",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -3380,6 +3422,13 @@
               }
             ],
             "claim": "STATIC_INTENT: real-writer assertions and all financial expected values are identical; only its operation clock is receipt-aware after UTC rollover. Read-budget tests retain 504/capacity protection and add the measured 50.4s case. Historical source pins and approval rules are unchanged."
+          },
+          {
+            "task": "INTEGRATION-20261107-telemetry-runtime",
+            "kind": "STATIC_RUNTIME_CONTROL_REVIEW",
+            "claim": "STATIC_INTENT: native logs exposed per-record segment scans. Reuse only the currently open size-checked stream; no financial inputs, record bytes, queues, original tests, observers, deadlines or certification policy change.",
+            "source_sha256": "813aa4f925275acf17e2c9ce73513a19b8c2bcde481ebf5197143b05e13feceb",
+            "test_sha256": "4c13fbb79cf009e30598c19603db194302d6036f4baad1489888437ed1f6ea79"
           }
         ]
       },
@@ -4200,7 +4249,7 @@
             "lane": "python-regressions",
             "positive": "Affected developer and PostgreSQL/full-path validation use reviewed scope with serial execution.",
             "negative": "Unknown impact, source changes, failure and skip cannot certify or cause later groups to appear passed.",
-            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+            "reviewed_test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
           },
           {
             "id": "tests/test_impact_validation.py::test_unknown_impact_cannot_run_a_smaller_approved_selection",
@@ -4209,7 +4258,7 @@
             "lane": "python-regressions",
             "positive": "Affected developer and PostgreSQL/full-path validation use reviewed scope with serial execution.",
             "negative": "Unknown impact, source changes, failure and skip cannot certify or cause later groups to appear passed.",
-            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+            "reviewed_test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
           },
           {
             "id": "tests/test_impact_validation.py::test_validation_stops_invalid_groups_without_certifying",
@@ -4218,7 +4267,7 @@
             "lane": "python-regressions",
             "positive": "Affected developer and PostgreSQL/full-path validation use reviewed scope with serial execution.",
             "negative": "Unknown impact, source changes, failure and skip cannot certify or cause later groups to appear passed.",
-            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+            "reviewed_test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
           },
           {
             "id": "tests/test_impact_validation.py::test_integration_budgets_require_completed_native_stages",
@@ -4227,7 +4276,7 @@
             "lane": "python-regressions",
             "positive": "Owned native integration records expose complete stages and bounded timing.",
             "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
-            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+            "reviewed_test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
           },
           {
             "id": "tests/test_impact_validation.py::test_retention_rejects_normal_storage_before_connecting",
@@ -4236,7 +4285,7 @@
             "lane": "python-regressions",
             "positive": "Owned native integration records expose complete stages and bounded timing.",
             "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
-            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+            "reviewed_test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
           },
           {
             "id": "tests/test_impact_validation.py::test_prerequisites_fail_fast_without_dropping_required_cases",
@@ -4245,7 +4294,7 @@
             "lane": "python-regressions",
             "positive": "Owned native integration records expose complete stages and bounded timing.",
             "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
-            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+            "reviewed_test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
           },
           {
             "id": "tests/test_impact_validation.py::test_failed_input_retention_preserves_original_report_and_certificate_files",
@@ -4254,7 +4303,7 @@
             "lane": "python-regressions",
             "positive": "Owned native integration records expose complete stages and bounded timing.",
             "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
-            "reviewed_test_sha256": "4e41ba7cd776737d17d86c860d8217dda8a1309ca7b0e4f150416be949d90f95"
+            "reviewed_test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_reuse_retains_original_source_and_revalidates_unchanged_native_cases",
@@ -4446,7 +4495,16 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "39e6f4446d31e1994e9826a8d6d709c69c4abb8d2fbf29c37ad2b15123fc64b5"
+        "review_sha256": "111b7d1814ce38855f508426b3617e7249dd461aaa0bcc1fd75bd9bf5b7a3ebd",
+        "review_addenda": [
+          {
+            "task": "INTEGRATION-20261107-budget-retention",
+            "kind": "STATIC_DIAGNOSTIC_RETENTION_REVIEW",
+            "claim": "STATIC_INTENT: retain owned native inputs when the original test passes but its stage budget fails. Preserve the original report and sealed certificate files; passing cases within budgets avoid a dump. Existing ownership rejection remains.",
+            "source_sha256": "bc94eb1a075232b78384340611582ff1a3de6da1805779c408f65e3766bd6447",
+            "test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
+          }
+        ]
       }
     ]
   },
@@ -5646,6 +5704,46 @@
         "exact_test_id": "tests/test_evidence_reuse.py::test_complete_postgresql_prerequisite_receipt_can_be_carried_from_owned_artifact",
         "reason": "Approved conditional cadence/reuse controls; native failure and unknown proof remain blocking.",
         "source": "2026-11-07 integration recovery review; conditional policy approved 2026-11-06",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_db_monitor.py::test_rotation_at_flush_and_health_boundary_does_not_report_a_dropped_record",
+        "reason": "Measured native worker telemetry overhead and rotation/retention integrity.",
+        "source": "2026-11-07 integration runtime review; existing original assertions preserved",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_db_monitor.py::test_writer_preserves_unicode_size_rotation_and_out_of_order_days",
+        "reason": "Measured native worker telemetry overhead and rotation/retention integrity.",
+        "source": "2026-11-07 integration runtime review; existing original assertions preserved",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_db_monitor.py::test_writer_reopens_after_a_write_failure_and_counts_the_actual_loss",
+        "reason": "Measured native worker telemetry overhead and rotation/retention integrity.",
+        "source": "2026-11-07 integration runtime review; existing original assertions preserved",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_db_monitor.py::test_writer_segment_search_cost_is_bounded_by_rotation",
+        "reason": "Measured native worker telemetry overhead and rotation/retention integrity.",
+        "source": "2026-11-07 integration runtime review; existing original assertions preserved",
         "in_original_catalog": false,
         "trigger_paths": [],
         "deferred_outcome": "NOT_RUN"

@@ -145,8 +145,10 @@ def test_prerequisites_fail_fast_without_dropping_required_cases(tmp_path, monke
     assert plan["a04_prerequisites"]["selectors"] == selectors
 
 
+@pytest.mark.parametrize("native_outcome,slow", (("failed", False), ("passed", True),
+                                                ("passed", False)))
 def test_failed_input_retention_preserves_original_report_and_certificate_files(
-    tmp_path, monkeypatch,
+    tmp_path, monkeypatch, native_outcome, slow,
 ):
     from contextlib import contextmanager
 
@@ -168,11 +170,17 @@ def test_failed_input_retention_preserves_original_report_and_certificate_files(
 
         def fetchone(self):
             if "pipeline_runs" in self.text:
-                return {"id": 2, "upload_run_id": 3, "status": "FAILED", "seconds": 8}
+                return {"id": 2, "upload_run_id": 3,
+                        "status": "COMPLETED" if native_outcome == "passed" else "FAILED",
+                        "seconds": 1200}
             return {"total": 100}
 
         def fetchall(self):
-            return []
+            return [{"step_name": "CERI_PROVIDER_INGEST", "status": "COMPLETED",
+                     "started_at": "2026-11-07T12:00:00+00:00",
+                     "completed_at": ("2026-11-07T12:15:40+00:00" if slow
+                                      else "2026-11-07T12:05:00+00:00"),
+                     "retry_count": 0}]
 
     class Database:
         def execute(self, text, *args):
@@ -198,13 +206,22 @@ def test_failed_input_retention_preserves_original_report_and_certificate_files(
         "certification_environment": SimpleNamespace(artifact_dir=artifact,
             execution_id=execution, database_url="postgresql://unopened@127.0.0.1/" + database),
     })
-    report = SimpleNamespace(outcome="failed", failed=True, longrepr="original assertion")
+    report = SimpleNamespace(outcome=native_outcome, failed=native_outcome == "failed",
+                             longrepr="original assertion")
+    original_report = vars(report).copy()
     release._retain_integration_runtime(item, report)
-    assert report.outcome == "failed" and report.failed
+    assert vars(report) == original_report
     assert {p.name: p.read_bytes() for p in artifact.iterdir()} == before
     feedback = tmp_path / "validation-feedback" / execution
     record = release.read_json(feedback / "validation-runtime.json")
     assert record["certification"] == "NOT_EVALUATED"
-    assert record["original_outcome"] == "failed"
-    assert record["retained_input"]["sha256"] == release.file_digest(feedback / "failed-input.dump")
+    assert record["original_outcome"] == native_outcome
+    assert (record["performance"]["status"] == "PASS") == (
+        native_outcome == "passed" and not slow)
+    if native_outcome == "failed" or slow:
+        assert record["retained_input"]["sha256"] == release.file_digest(
+            feedback / "failed-input.dump")
+    else:
+        assert "retained_input" not in record
+        assert not (feedback / "failed-input.dump").exists()
     assert any("READ ONLY" in statement for statement in statements)
