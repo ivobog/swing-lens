@@ -175,7 +175,7 @@ def core_policy(impact: dict, *, event: str | None = None) -> dict:
     value["base_lanes"]["browser-smoke"]["selectors"] = sorted(browser)
     value["a04_prerequisites"] = {
         "kind": "pytest", "required": True,
-        "selectors": sorted(specialized), "markers": "", "ignores": [],
+        "selectors": prerequisite_order(specialized), "markers": "", "ignores": [],
         "browsers": sorted({
             browser for browser in ("chromium", "firefox")
             if any("[" + browser + "-" in node for node in specialized)
@@ -228,6 +228,15 @@ def validation_selection(impact: dict, level: str) -> dict[str, list[str]]:
                 raise EvidenceError("reviewed native population/handoff pair missing")
             groups["native-pipeline-100-and-88-handoff"] = pipeline
     return {name: selectors for name, selectors in groups.items() if selectors}
+
+
+def prerequisite_order(selectors) -> list[str]:
+    """Check native prerequisites before spending time on browser pipelines."""
+    def key(node):
+        population = re.search(r"\[(\d+)\]$", node)
+        return (node.startswith("tests/e2e/"), node.split("[", 1)[0],
+                int(population[1]) if population else 0, node)
+    return sorted(selectors, key=key)
 
 
 def prepare_core_plan(run_id: str, attempt: str, event: str, extended: bool, impact: dict) -> dict:
@@ -718,6 +727,14 @@ def _retain_integration_runtime(item, report) -> None:
 def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
+    if (report.skipped and _capture
+            and _capture.get("mode") == "execution"
+            and _capture.get("context", {}).get("lane", "").startswith("a04-prerequisites")
+            and os.environ.get("SWINGLENS_FAIL_ON_REQUIRED_SKIP") == "true"):
+        _record_failure_diagnostic(report)
+        # Finish this item's original teardown and JUnit reporting, then stop.
+        # The native skipped outcome is preserved; remaining cases are not run.
+        item.session.shouldfail = "required prerequisite skipped: " + report.nodeid
     retain = (os.environ.get("SWINGLENS_IMPACT_VALIDATION") == "integration"
               or os.environ.get("SWINGLENS_RETAIN_NATIVE_RUNTIME") == "true")
     if report.when == "call" and retain:
@@ -890,7 +907,9 @@ def a04_results(root: Path, plan: dict, lane: str) -> dict:
 
     report = read_json(root / "a04" / "report.json")
     if report.get("candidate_validation") != required_candidate:
-        raise EvidenceError("A04 candidate proposal/input/oracle binding missing or stale")
+        detail = "; ".join(str(reason) for reason in report.get("reasons", []))
+        raise EvidenceError("A04 candidate proposal/input/oracle binding missing or stale"
+                            + ("; producer reasons: " + detail if detail else ""))
     if report.get("release_context") != context(plan, lane):
         raise EvidenceError("stale or foreign A04 release context")
     if (

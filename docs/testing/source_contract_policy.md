@@ -203,3 +203,18 @@ Database revisions are never carried by this optimization. Stale database heads
 and ambiguous repository heads still reject deployment identity. The existing
 `0094_sector_acquisition` migration remains the strict current-head expectation;
 the older `0093` expectation in the focused operational fixture was obsolete.
+
+Required A04 prerequisites enable their original explicit benchmark guards and
+run native cases before browser pipelines, with smaller populations first. An
+original required skip remains skipped, completes its teardown and stops later
+expensive cases. Its exact identity and producer rejection reason are retained.
+
+Scoped UI evidence validates the complete original session and all eight reviewed
+browser bodies. Unrelated original skips are preserved and cannot certify the
+whole prerequisite session or replace current native benchmarks. Historical
+impact classification does not invalidate observed UI passes; current PR impact,
+unchanged UI dependencies, authenticated archives, matching environment and date,
+fresh native 100/88 handoff and stage budgets still govern conditional deferral.
+Exact reviewed documentation and helper/test paths are associated with their
+existing contracts; nearby unmapped paths remain unknown. These associations do
+not remove any original selector or claim execution of an unselected case.

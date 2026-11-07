@@ -774,6 +774,22 @@ runpy.run_module('pytest', run_name='__main__')
     )
 
 
+def _prerequisite_environment(environment: dict[str, str], selectors: list[str]) -> dict[str, str]:
+    """Enable the unchanged opt-in guards for explicitly required benchmarks."""
+    result = {**environment, "SWINGLENS_FAIL_ON_REQUIRED_SKIP": "true"}
+    flags = {
+        "tests/integration/test_run8_setup_performance_postgresql.py"
+        "::test_setup_capture_run8_scale_is_bounded": "RUN_RUN8_REMEDIATION_BENCHMARK",
+        "tests/integration/test_slse_performance_certification.py"
+        "::test_slse_phase_12_performance_certification": "RUN_SLSE_PERFORMANCE_CERTIFICATION",
+    }
+    for node in selectors:
+        flag = flags.get(node.split("[", 1)[0])
+        if flag:
+            result[flag] = "1"
+    return result
+
+
 def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], plan: dict):
     """Execute triggered retained cases with the original release evidence protocol."""
     from scripts.qa import release_evidence as release
@@ -797,6 +813,7 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     lane = PR_SELECTED if conditional else "a04-prerequisites"
     if conditional:
         spec = reduced_spec(plan)
+    environment = _prerequisite_environment(environment, spec["selectors"])
     plugins = environment.get("PYTEST_PLUGINS", "").split(",")
     plugins = [plugin for plugin in plugins if plugin]
     if "scripts.qa.release_evidence" not in plugins:
@@ -838,7 +855,10 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
         or set(proof["body_executed"]) != set(spec["selectors"])
         or any(proof[key] for key in release.CATEGORIES if key != "passed")
     ):
-        raise release.EvidenceError("specialized prerequisite failed, skipped or never executed")
+        blockers = {key: proof[key] for key in release.CATEGORIES
+                    if key != "passed" and proof[key]}
+        raise release.EvidenceError("specialized prerequisite failed, skipped or never executed: "
+                                    + json.dumps(blockers, sort_keys=True))
     if conditional:
         disposition = validate_pr_selection(
             directory, plan, feedback_root=report_dir / "runtime-evidence/validation-feedback"

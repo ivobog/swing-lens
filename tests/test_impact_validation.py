@@ -1,6 +1,9 @@
 """Affected validation gives early feedback without inheriting release authority."""
 
 import json
+import os
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -143,6 +146,90 @@ def test_prerequisites_fail_fast_without_dropping_required_cases(tmp_path, monke
         runtime._run_impact_prerequisites(tmp_path, {}, plan)
     assert calls == [("--maxfail=1", *selectors)]
     assert plan["a04_prerequisites"]["selectors"] == selectors
+
+
+def test_required_benchmarks_enable_original_guards_without_mutating_environment():
+    run8 = ("tests/integration/test_run8_setup_performance_postgresql.py"
+            "::test_setup_capture_run8_scale_is_bounded")
+    slse = ("tests/integration/test_slse_performance_certification.py"
+            "::test_slse_phase_12_performance_certification")
+    original = {"UNCHANGED": "value"}
+    enabled = runtime._prerequisite_environment(original, [run8 + "[10]", slse])
+    assert original == {"UNCHANGED": "value"}
+    assert enabled == {**original, "SWINGLENS_FAIL_ON_REQUIRED_SKIP": "true",
+                       "RUN_RUN8_REMEDIATION_BENCHMARK": "1",
+                       "RUN_SLSE_PERFORMANCE_CERTIFICATION": "1"}
+    assert runtime._prerequisite_environment(original, ["tests/other.py::test_case"]) == {
+        **original, "SWINGLENS_FAIL_ON_REQUIRED_SKIP": "true"}
+
+
+def test_required_prerequisites_check_native_and_small_populations_first():
+    nodes = ["tests/e2e/native.py::test_case[chromium-False-100]",
+             "tests/integration/native.py::test_scale[107]",
+             "tests/integration/native.py::test_scale[10]",
+             "tests/integration/native.py::test_scale[25]"]
+    assert release.prerequisite_order(nodes) == [nodes[2], nodes[3], nodes[1], nodes[0]]
+    assert nodes[0].startswith("tests/e2e/")
+
+
+@pytest.mark.parametrize("path", ["tests/integration/test_unreviewed_runtime.py",
+                                 "docs/testing/unreviewed-runtime.md",
+                                 "tests/test_market_sector_future.py"])
+def test_reviewed_impact_associations_do_not_swallow_new_unmapped_paths(path):
+    from scripts.qa.evidence_reuse import cardinality_cases, reduced_spec
+
+    impact = registry.source_impact_plan(
+        registry.load_manifest(),
+        ["app/services/winner_probability/probability_estimator.py", path])
+    assert [item["path"] for item in impact["unknown_impact"]] == [path]
+    plan = {"profile": "core", "event": "pull_request", "source_impact": impact,
+            "a04_prerequisites": release.core_policy(impact)["a04_prerequisites"]}
+    assert len(cardinality_cases(plan["a04_prerequisites"])) == 8
+    with pytest.raises(release.EvidenceError, match="broader native browser obligation"):
+        reduced_spec(plan)
+
+
+@pytest.mark.parametrize("guard", ["true", "false"])
+def test_required_skip_stops_after_original_teardown_and_preserves_junit(tmp_path, guard):
+    conftest = "\n".join([
+        "import importlib.util", "from pathlib import Path", "import pytest",
+        "spec = importlib.util.spec_from_file_location('isolated_skip_adapter', "
+        + repr(str(release.__file__)) + ")",
+        "adapter = importlib.util.module_from_spec(spec)", "spec.loader.exec_module(adapter)",
+        "adapter._capture = {'directory': Path(__file__).parent / 'diagnostics',",
+        "                    'mode': 'execution', 'context': {'lane': 'a04-prerequisites-pr'}}",
+        "@pytest.hookimpl(hookwrapper=True)",
+        "def pytest_runtest_makereport(item, call):",
+        "    yield from adapter.pytest_runtest_makereport(item, call)", "",
+    ])
+    (tmp_path / "conftest.py").write_text(conftest)
+    (tmp_path / "test_probe.py").write_text("\n".join([
+        "from pathlib import Path", "import pytest", "@pytest.fixture", "def resource():",
+        "    yield", "    Path(__file__).with_name('teardown.done').touch()",
+        "def test_a_required(resource):", "    pytest.skip('original required benchmark guard')",
+        "def test_b_expensive():", "    Path(__file__).with_name('later.done').touch()", "",
+    ]))
+    environment = {k: v for k, v in os.environ.items()
+                   if not k.startswith("SWINGLENS_RELEASE_")
+                   and k not in {"PYTEST_PLUGINS", "PYTEST_ADDOPTS"}}
+    environment.update(PYTEST_DISABLE_PLUGIN_AUTOLOAD="1", SWINGLENS_FAIL_ON_REQUIRED_SKIP=guard)
+    child = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-o", "addopts=",
+                            "--confcutdir", str(tmp_path),
+                            "--junitxml", str(tmp_path / "result.xml"),
+                            str(tmp_path / "test_probe.py")], cwd=tmp_path, env=environment,
+                           capture_output=True, text=True, timeout=30)
+    assert child.returncode == (1 if guard == "true" else 0), child.stdout + child.stderr
+    assert (tmp_path / "teardown.done").exists()
+    assert (tmp_path / "later.done").exists() == (guard == "false")
+    import xml.etree.ElementTree as ET
+
+    cases = ET.parse(tmp_path / "result.xml").findall(".//testcase")
+    assert cases[0].find("skipped") is not None
+    assert cases[0].find("failure") is None
+    diagnostics = list((tmp_path / "diagnostics/failures").glob("*.json"))
+    assert len(diagnostics) == (1 if guard == "true" else 0)
+    if diagnostics:
+        assert release.read_json(diagnostics[0])["outcome"] == "skipped"
 
 
 @pytest.mark.parametrize("native_outcome,slow", (("failed", False), ("passed", True),

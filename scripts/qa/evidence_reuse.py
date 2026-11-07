@@ -217,7 +217,7 @@ def _check_plan_seal(plan: dict) -> None:
     _clean_source(plan["source"])
 
 
-def validate_original(root: Path, plan: dict, lane: str) -> dict:
+def validate_original(root: Path, plan: dict, lane: str, *, purpose="native") -> dict:
     """Re-evaluate original outcomes with today's validator and original context."""
     _check_plan_seal(plan)
     if (root / "carry-forward.json").exists():
@@ -229,6 +229,23 @@ def validate_original(root: Path, plan: dict, lane: str) -> dict:
         if spec["kind"] == "pytest"
         else release._native_results(root, plan, lane, observed)
     )
+    if purpose == "matrix-basis":
+        if lane != PREREQUISITES:
+            raise release.EvidenceError("matrix basis requires prerequisite evidence")
+        # Validate the complete original session above, but reuse only the eight
+        # reviewed UI bodies. Unrelated original skips remain skips in the proof.
+        if not _reviewed_matrix(spec):
+            raise release.EvidenceError("original native matrix selection is incomplete")
+        required = set(cardinality_cases(spec))
+        if (proof["process_exit_code"] != 0
+                or not required <= set(proof["passed"])
+                or not required <= set(proof["body_executed"])
+                or any(required.intersection(proof[key]) for key in release.CATEGORIES
+                       if key != "passed")):
+            raise release.EvidenceError("original native matrix failed/skipped/incomplete")
+        return {**proof, "validated_subset": sorted(required)}
+    if purpose != "native":
+        raise release.EvidenceError("unknown native proof purpose")
     if (
         proof["process_exit_code"] != 0
         or not proof["selected"]
@@ -265,7 +282,7 @@ def check_reuse(
     if probe != {"context": release.context(plan, lane), "environment": expected_environment}:
         raise release.EvidenceError("current native environment probe differs")
     old_spec, spec = release.lane_spec(old, lane), release.lane_spec(plan, lane)
-    if old_spec != spec:
+    if _comparable_spec(old_spec, purpose) != _comparable_spec(spec, purpose):
         raise release.EvidenceError("native selection/configuration changed")
     boundary = UI_BOUNDARY if purpose == "matrix-basis" else lane
     dependencies = dependency_manifest(plan["source"], boundary)
@@ -298,7 +315,7 @@ def check_reuse(
         check=False,
     ).returncode:
         raise release.EvidenceError("original source is unrelated to authenticated workflow head")
-    proof = validate_original(original, old, lane)
+    proof = validate_original(original, old, lane, purpose=purpose)
     actual_environment = _original_environment(proof, old, spec["kind"])
     if carry.get("environment") != actual_environment or actual_environment != expected_environment:
         raise release.EvidenceError("native environment/tool/input date changed or unknown")
@@ -423,7 +440,7 @@ def materialize(
         prefix = artifact_prefix(lane)
         _extract(staged / "evidence.zip", staged / "original", prefix)
         release.write_json(staged / "source-plan.json", old)
-        proof = validate_original(staged / "original", old, lane)
+        proof = validate_original(staged / "original", old, lane, purpose=purpose)
         release.write_json(
             staged / "carry-forward.json",
             {
@@ -530,8 +547,8 @@ def try_previous_run(
                             timeout=60,
                         )
                     boundary = UI_BOUNDARY if purpose == "matrix-basis" else lane
-                    if release.lane_spec(old, lane) != release.lane_spec(
-                        plan, lane
+                    if _comparable_spec(release.lane_spec(old, lane), purpose) != _comparable_spec(
+                        release.lane_spec(plan, lane), purpose
                     ) or dependency_manifest(old["source"], boundary) != dependency_manifest(
                         plan["source"], boundary
                     ):
@@ -608,9 +625,11 @@ def cardinality_cases(spec: dict) -> list[str]:
     ]
 
 
-def reduced_spec(plan: dict) -> dict:
-    impact = plan.get("source_impact", {})
-    spec = plan.get("a04_prerequisites", {})
+def _comparable_spec(spec: dict, purpose: str) -> dict:
+    return {**spec, "selectors": cardinality_cases(spec)} if purpose == "matrix-basis" else spec
+
+
+def _reviewed_matrix(spec: dict) -> bool:
     cases = cardinality_cases(spec)
     expected = {
         f"{engine}-{handoff}-{size}]"
@@ -618,6 +637,13 @@ def reduced_spec(plan: dict) -> dict:
         for handoff in ("False", "True")
         for size in (88, 100)
     }
+    return len(cases) == 8 and {node.rsplit("[", 1)[1] for node in cases} == expected
+
+
+def reduced_spec(plan: dict) -> dict:
+    impact = plan.get("source_impact", {})
+    spec = plan.get("a04_prerequisites", {})
+    cases = cardinality_cases(spec)
     if (
         plan.get("profile") != "core"
         or plan.get("event") != "pull_request"
@@ -625,14 +651,13 @@ def reduced_spec(plan: dict) -> dict:
         or impact.get("review_required")
         or impact.get("unknown_impact")
         or spec.get("conditional_pr_cardinality") != CARDINALITY_RULE
-        or len(cases) != 8
-        or {node.rsplit("[", 1)[1] for node in cases} != expected
+        or not _reviewed_matrix(spec)
     ):
         raise release.EvidenceError("broader native browser obligation remains required")
     selected = [
         node for node in spec["selectors"] if node not in cases or node.endswith(PAIR_SUFFIXES)
     ]
-    return {**spec, "selectors": selected, "browsers": ["chromium"]}
+    return {**spec, "selectors": release.prerequisite_order(selected), "browsers": ["chromium"]}
 
 
 def validate_pr_selection(directory: Path, plan: dict, *, feedback_root: Path) -> dict:

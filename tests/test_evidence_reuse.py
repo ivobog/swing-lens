@@ -474,6 +474,84 @@ def test_conditional_pr_deferral_requires_current_native_pair_and_never_marks_si
     assert len(case.plan["a04_prerequisites"]["selectors"]) == 9
 
 
+@pytest.mark.parametrize("fault", ["unrelated-skip", "ui-skip", "ui-failure", "missing-call",
+                                   "incomplete-session", "nonzero-exit"])
+def test_matrix_basis_reuses_only_complete_passing_ui_bodies(
+    conditional_native, monkeypatch, fault,
+):
+    case = conditional_native
+    plan = case.plan
+    plan["schema"] = "swinglens.full-release-plan.v1"
+    # Historical impact classification cannot erase eight observed native passes.
+    # Current PR eligibility is still checked separately by check_reuse/reduced_spec.
+    plan["source_impact"]["unknown_impact"] = [{"path": "historical-unmapped-doc.md"}]
+    plan["plan_sha256"] = release.digest({k: v for k, v in plan.items() if k != "plan_sha256"})
+    spec = plan["a04_prerequisites"]
+    directory = case.directory
+    execution = release.read_json(directory / "execution.json")
+    execution.update(context=release.context(plan, reuse.PREREQUISITES),
+                     selected=spec["selectors"], started=spec["selectors"])
+    execution["phases"] = {node: {phase: {"outcome": "passed", "wasxfail": False, "seconds": .1}
+                                  for phase in ("setup", "call", "teardown")}
+                           for node in spec["selectors"]}
+    native = spec["selectors"][-1]
+    execution["phases"][native] = {
+        "setup": {"outcome": "skipped", "wasxfail": False, "seconds": .1},
+        "teardown": {"outcome": "passed", "wasxfail": False, "seconds": .1}}
+    ui = reuse.cardinality_cases(spec)[0]
+    if fault == "ui-skip":
+        execution["phases"][ui]["call"]["outcome"] = "skipped"
+    elif fault == "ui-failure":
+        execution["phases"][ui]["call"]["outcome"] = "failed"
+    elif fault == "missing-call":
+        execution["phases"][ui].pop("call")
+    elif fault == "incomplete-session":
+        execution["session_finished"] = False
+    elif fault == "nonzero-exit":
+        execution["exit_code"] = 1
+    release.write_json(directory / "execution.json", execution)
+    release.write_json(directory / "collection.json", {
+        "context": release.context(plan, reuse.PREREQUISITES),
+        "selection": {key: spec[key] for key in ("selectors", "markers", "ignores", "browsers")},
+        "selected": spec["selectors"], "exit_code": 0, "errors": []})
+    execution["browsers_observed"]["firefox"] = "controlled-version"
+    release.write_json(directory / "execution.json", execution)
+    xml = ET.Element("testsuites")
+    suite = ET.SubElement(xml, "testsuite")
+    for node in spec["selectors"]:
+        classname, name = release.junit_key(node).rsplit("::", 1)
+        child = ET.SubElement(suite, "testcase", classname=classname, name=name)
+        if node == native or (node == ui and fault == "ui-skip"):
+            ET.SubElement(child, "skipped")
+        elif node == ui and fault in {"ui-failure", "missing-call"}:
+            ET.SubElement(child, "failure")
+    ET.ElementTree(xml).write(directory / "results.xml")
+    monkeypatch.setattr(reuse, "_clean_source", lambda source: source["revision"])
+    if fault == "unrelated-skip":
+        proof = reuse.validate_original(
+            directory, plan, reuse.PREREQUISITES, purpose="matrix-basis")
+        assert proof["skipped"] == [native]
+        assert native not in proof["passed"]
+        assert proof["validated_subset"] == sorted(reuse.cardinality_cases(spec))
+        with pytest.raises(release.EvidenceError, match="failed/skipped/incomplete"):
+            reuse.validate_original(directory, plan, reuse.PREREQUISITES)
+    else:
+        with pytest.raises(release.EvidenceError):
+            reuse.validate_original(directory, plan, reuse.PREREQUISITES, purpose="matrix-basis")
+
+
+def test_matrix_comparison_ignores_unrelated_native_order_but_keeps_ui_rules():
+    spec = _matrix_plan()["a04_prerequisites"]
+    ordered = {**spec, "selectors": [spec["selectors"][-1], *spec["selectors"][:-1]]}
+    assert spec != ordered
+    assert reuse._comparable_spec(spec, "matrix-basis") == (
+        reuse._comparable_spec(ordered, "matrix-basis"))
+    assert reuse._comparable_spec(spec, "native") != reuse._comparable_spec(ordered, "native")
+    changed = {**ordered, "selectors": ordered["selectors"][:-1]}
+    assert reuse._comparable_spec(spec, "matrix-basis") != (
+        reuse._comparable_spec(changed, "matrix-basis"))
+
+
 @pytest.mark.parametrize(
     "fault",
     [
