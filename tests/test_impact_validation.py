@@ -142,8 +142,9 @@ def test_prerequisites_fail_fast_without_dropping_required_cases(tmp_path, monke
 
     monkeypatch.setattr(runtime, "_run_test_group", execute)
     monkeypatch.setattr(release, "_pytest_results", incomplete)
-    with pytest.raises(release.EvidenceError, match="remaining native cases incomplete"):
+    with pytest.raises(release.EvidenceError, match="remaining native cases incomplete") as error:
         runtime._run_impact_prerequisites(tmp_path, {}, plan)
+    assert '"tests/native.py::test_first": "failed"' in str(error.value)
     assert calls == [("--maxfail=1", *selectors)]
     assert plan["a04_prerequisites"]["selectors"] == selectors
 

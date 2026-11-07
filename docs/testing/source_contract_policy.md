@@ -218,3 +218,11 @@ fresh native 100/88 handoff and stage budgets still govern conditional deferral.
 Exact reviewed documentation and helper/test paths are associated with their
 existing contracts; nearby unmapped paths remain unknown. These associations do
 not remove any original selector or claim execution of an unselected case.
+
+Retained native evidence authenticates its original archives before fetching a
+missing original merge object into a fresh aggregate checkout. Source fingerprints,
+ancestry, dependency bytes and original outcomes are then revalidated normally.
+Resource profiles compare physical RAM capacity in MiB: a kernel-reserved page
+difference does not represent different hardware capacity. Raw measurements remain
+unchanged in original records; CPU/core count, platform, tools, configuration and
+input-date comparisons remain strict. Real capacity changes still reject reuse.

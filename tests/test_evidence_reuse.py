@@ -171,6 +171,70 @@ def test_reuse_retains_original_source_and_revalidates_unchanged_native_cases(na
     assert recorded["results"]["carry_forward"]["origin"]["run_id"] == 101
 
 
+def test_aggregate_recovers_authenticated_original_commit_missing_from_checkout(
+    native_reuse, tmp_path, monkeypatch,
+):
+    case = native_reuse
+    aggregate = tmp_path / "aggregate-checkout"
+    subprocess.run(["git", "clone", "--no-local", "--depth", "1", case.repo.as_uri(),
+                    str(aggregate)], check=True, capture_output=True)
+    revision = case.old["source"]["revision"]
+    missing = subprocess.run(["git", "-C", str(aggregate), "cat-file", "-e",
+                              revision + "^{commit}"], capture_output=True)
+    assert missing.returncode != 0
+    monkeypatch.setattr(release, "ROOT", aggregate)
+    proof = reuse.materialize(case.bundle, case.target, case.plan, "node", case.environment)
+    assert proof["passed"] == ["node::first", "node::second"]
+    assert subprocess.run(["git", "-C", str(aggregate), "cat-file", "-e",
+                           revision + "^{commit}"], capture_output=True).returncode == 0
+    recorded = release.record_lane(case.target, case.plan, "node", "success")
+    assert recorded["verdict"] == "CERTIFIED"
+    assert recorded == release.evaluate_lane(case.target, case.plan, "node", "success")
+    assert (case.target / "original/results.xml").read_bytes() == (
+        case.original / "results.xml").read_bytes()
+
+
+def test_original_commit_fetch_requires_authenticated_archives_first(native_reuse, monkeypatch):
+    case = native_reuse
+    reuse.materialize(case.bundle, case.target, case.plan, "node", case.environment)
+    origin = release.read_json(case.target / "origin.json")
+    origin["repository"] = "foreign/repository"
+    release.write_json(case.target / "origin.json", origin)
+    fetched = []
+    monkeypatch.setattr(reuse, "_ensure_original_commit", lambda source: fetched.append(source))
+    with pytest.raises(release.EvidenceError, match="foreign artifact repository"):
+        reuse.check_reuse(case.target, case.plan, "node", case.environment)
+    assert fetched == []
+
+
+@pytest.mark.parametrize("change", ["reserved-page", "memory-capacity", "cpu-count", "cpu-model",
+                                   "unknown-memory"])
+def test_resource_profile_ignores_reserved_page_noise_but_rejects_changed_capacity(change):
+    original = {"controlled_environment_sha256": "c" * 64,
+                "hardware": {"cpu_count": 4, "machine": "x86_64",
+                             "processor": "AMD EPYC 9V74 80-Core Processor",
+                             "memory_bytes": 16759439360}}
+    candidate = copy.deepcopy(original)
+    if change == "reserved-page":
+        candidate["hardware"]["memory_bytes"] += 4096
+    elif change == "memory-capacity":
+        candidate["hardware"]["memory_bytes"] -= 1024 * 1024
+    elif change == "cpu-count":
+        candidate["hardware"]["cpu_count"] = 2
+    elif change == "cpu-model":
+        candidate["hardware"]["processor"] = "different processor"
+    else:
+        candidate["hardware"].pop("memory_bytes")
+        with pytest.raises(release.EvidenceError, match="memory capacity is unknown"):
+            reuse._stable_profile(candidate)
+        assert original["hardware"]["memory_bytes"] == 16759439360
+        return
+    assert (reuse._stable_profile(original) == reuse._stable_profile(candidate)) == (
+        change == "reserved-page")
+    assert original["hardware"]["memory_bytes"] == 16759439360
+    assert "memory_mib" not in original["hardware"]
+
+
 @pytest.mark.parametrize(
     "fault",
     [
@@ -766,7 +830,8 @@ def test_complete_postgresql_prerequisite_receipt_can_be_carried_from_owned_arti
         "provider_mode": "deterministic",
         "platform": "controlled-unit-platform",
         "controlled_environment_sha256": "c" * 64,
-        "hardware": {"controlled": True},
+        "hardware": {"cpu_count": 4, "machine": "controlled-unit-machine",
+                     "processor": "controlled-unit-processor", "memory_bytes": 16 * 1024**3},
         "input_date": stamp.date().isoformat(),
         "database_safety_context": "DISPOSABLE_TEST",
         "database": {"host": "127.0.0.1", "name": "swinglens_pytest_controlled"},

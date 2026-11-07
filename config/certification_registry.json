@@ -207,7 +207,7 @@
       ],
       "automatic": true,
       "certificate_authority": "A04_FINALIZER",
-      "source_sha256": "5be68cefd221639ebe4da3d4f6ea8e985c91d78df22f1152730700e90f993832",
+      "source_sha256": "ef37dabd0771c0bf25f6611f3918fc358525af4f4d9b313322635826e1ec517d",
       "ci_command": "",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -262,7 +262,7 @@
       ],
       "automatic": true,
       "certificate_authority": "NONE",
-      "source_sha256": "5be68cefd221639ebe4da3d4f6ea8e985c91d78df22f1152730700e90f993832",
+      "source_sha256": "ef37dabd0771c0bf25f6611f3918fc358525af4f4d9b313322635826e1ec517d",
       "ci_command": "uv run python -m scripts.production_runtime_certification --aggregate-release --release-plan test-results/release-plan/plan.json --evidence-root test-results/release --job-results test-results/release-jobs.json --report-dir test-results/full-release",
       "selectors": [
         "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-False-10]",
@@ -317,7 +317,7 @@
       ],
       "automatic": false,
       "certificate_authority": "NONE",
-      "source_sha256": "5be68cefd221639ebe4da3d4f6ea8e985c91d78df22f1152730700e90f993832",
+      "source_sha256": "ef37dabd0771c0bf25f6611f3918fc358525af4f4d9b313322635826e1ec517d",
       "ci_command": ""
     }
   ],
@@ -2976,7 +2976,8 @@
           "app/services/transition_preflight_plan_service.py",
           "config/setup_lifecycle.yaml",
           "tests/integration/test_lifecycle_completed_company_postgresql.py",
-          "tests/setup_lifecycle/test_evaluation_service.py"
+          "tests/setup_lifecycle/test_evaluation_service.py",
+          "tests/integration/test_slse_performance_certification.py"
         ],
         "tests": [
           {
@@ -3008,7 +3009,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "955d601c2bfd376cf2789ffb421a668b1be0d5df431085247256b08d422d5b73"
+        "review_sha256": "fc2639e5ef8a0e61bd9b40a15a32c9301a4b379523d25712ddc74eb1fc20d494"
       },
       {
         "id": "WINNER_EVIDENCE_MATURATION",
@@ -4427,7 +4428,7 @@
             "lane": "python-regressions",
             "positive": "Affected developer and PostgreSQL/full-path validation use reviewed scope with serial execution.",
             "negative": "Unknown impact, source changes, failure and skip cannot certify or cause later groups to appear passed.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_impact_validation.py::test_unknown_impact_cannot_run_a_smaller_approved_selection",
@@ -4436,7 +4437,7 @@
             "lane": "python-regressions",
             "positive": "Affected developer and PostgreSQL/full-path validation use reviewed scope with serial execution.",
             "negative": "Unknown impact, source changes, failure and skip cannot certify or cause later groups to appear passed.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_impact_validation.py::test_validation_stops_invalid_groups_without_certifying",
@@ -4445,7 +4446,7 @@
             "lane": "python-regressions",
             "positive": "Affected developer and PostgreSQL/full-path validation use reviewed scope with serial execution.",
             "negative": "Unknown impact, source changes, failure and skip cannot certify or cause later groups to appear passed.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_impact_validation.py::test_integration_budgets_require_completed_native_stages",
@@ -4454,7 +4455,7 @@
             "lane": "python-regressions",
             "positive": "Owned native integration records expose complete stages and bounded timing.",
             "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_impact_validation.py::test_retention_rejects_normal_storage_before_connecting",
@@ -4463,7 +4464,7 @@
             "lane": "python-regressions",
             "positive": "Owned native integration records expose complete stages and bounded timing.",
             "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_impact_validation.py::test_prerequisites_fail_fast_without_dropping_required_cases",
@@ -4472,7 +4473,7 @@
             "lane": "python-regressions",
             "positive": "Owned native integration records expose complete stages and bounded timing.",
             "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_impact_validation.py::test_failed_input_retention_preserves_original_report_and_certificate_files",
@@ -4481,7 +4482,7 @@
             "lane": "python-regressions",
             "positive": "Owned native integration records expose complete stages and bounded timing.",
             "negative": "Over-budget, missing or unfinished stages do not pass; normal storage cannot be retained.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_reuse_retains_original_source_and_revalidates_unchanged_native_cases",
@@ -4490,7 +4491,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_reuse_faults_keep_the_lane_noncertified",
@@ -4499,7 +4500,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_changed_native_inputs_require_a_fresh_run",
@@ -4508,7 +4509,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_failing_original_outcomes_cannot_be_carried",
@@ -4517,7 +4518,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_prerequisite_dependencies_include_oracles_and_imported_helpers",
@@ -4526,7 +4527,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_producer_only_change_preserves_native_prerequisite_inputs",
@@ -4535,7 +4536,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_A04_dirty_source_and_missing_environment_never_reuse",
@@ -4544,7 +4545,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_unknown_reuse_keeps_original_selection_without_replacing_evidence",
@@ -4553,7 +4554,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_controlled_environment_hash_detects_overrides_without_exposing_values",
@@ -4562,7 +4563,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_unsafe_native_archive_is_rejected_before_materialization",
@@ -4571,7 +4572,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_conditional_cadence_retains_broader_obligations_when_proof_is_ineligible",
@@ -4580,7 +4581,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_conditional_pr_deferral_requires_current_native_pair_and_never_marks_six_passed",
@@ -4589,7 +4590,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_missing_or_failed_conditional_proofs_cannot_defer_the_matrix",
@@ -4598,7 +4599,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_changed_ui_or_native_driver_requires_the_full_matrix",
@@ -4607,7 +4608,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_current_backend_pair_can_refresh_without_invalidating_unchanged_ui_basis",
@@ -4616,7 +4617,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_native_input_date_and_environment_must_be_complete",
@@ -4625,7 +4626,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_release_cadences_keep_all_eight_native_browser_variants",
@@ -4634,7 +4635,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_diagnostic_controls_keep_their_own_native_call_phase",
@@ -4643,7 +4644,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_prerequisite_archive_prefix_matches_the_owned_ci_snapshot",
@@ -4652,7 +4653,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_complete_postgresql_prerequisite_receipt_can_be_carried_from_owned_artifact",
@@ -4661,7 +4662,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged native receipts retain original source/run provenance under current validation.",
             "negative": "Changed dependencies, tools, environments, incomplete outcomes or missing conditional proofs cannot certify.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_impact_validation.py::test_required_benchmarks_enable_original_guards_without_mutating_environment",
@@ -4670,7 +4671,7 @@
             "lane": "python-regressions",
             "positive": "Required native guards execute; complete unchanged UI bodies can be scoped evidence.",
             "negative": "Original skips stay skipped; invalid or incomplete UI/session proof cannot be reused.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_impact_validation.py::test_required_prerequisites_check_native_and_small_populations_first",
@@ -4679,7 +4680,7 @@
             "lane": "python-regressions",
             "positive": "Required native guards execute; complete unchanged UI bodies can be scoped evidence.",
             "negative": "Original skips stay skipped; invalid or incomplete UI/session proof cannot be reused.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_impact_validation.py::test_required_skip_stops_after_original_teardown_and_preserves_junit",
@@ -4688,7 +4689,7 @@
             "lane": "python-regressions",
             "positive": "Required native guards execute; complete unchanged UI bodies can be scoped evidence.",
             "negative": "Original skips stay skipped; invalid or incomplete UI/session proof cannot be reused.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_impact_validation.py::test_reviewed_impact_associations_do_not_swallow_new_unmapped_paths",
@@ -4697,7 +4698,7 @@
             "lane": "python-regressions",
             "positive": "Required native guards execute; complete unchanged UI bodies can be scoped evidence.",
             "negative": "Original skips stay skipped; invalid or incomplete UI/session proof cannot be reused.",
-            "reviewed_test_sha256": "e04b9a5fa50262ecd824b917000f4b3f9bc8c9c8aba7fe7e4d1f3761298514e3"
+            "reviewed_test_sha256": "122b43f1e71d45f8a17dbb51ba23c5e980b03330fcb923380f4ca35edf4501b3"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_matrix_basis_reuses_only_complete_passing_ui_bodies",
@@ -4706,7 +4707,7 @@
             "lane": "python-regressions",
             "positive": "Required native guards execute; complete unchanged UI bodies can be scoped evidence.",
             "negative": "Original skips stay skipped; invalid or incomplete UI/session proof cannot be reused.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           },
           {
             "id": "tests/test_evidence_reuse.py::test_matrix_comparison_ignores_unrelated_native_order_but_keeps_ui_rules",
@@ -4715,7 +4716,34 @@
             "lane": "python-regressions",
             "positive": "Required native guards execute; complete unchanged UI bodies can be scoped evidence.",
             "negative": "Original skips stay skipped; invalid or incomplete UI/session proof cannot be reused.",
-            "reviewed_test_sha256": "bb6772ba91c80c598ef249a6a6f5e94b6ed710b00af8c4cbad16ef6efc20c2a7"
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
+          },
+          {
+            "id": "tests/test_evidence_reuse.py::test_aggregate_recovers_authenticated_original_commit_missing_from_checkout",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Authenticated original source is recovered in a fresh checkout; raw evidence stays original.",
+            "negative": "Foreign archives cannot fetch source; real hardware or input changes cannot reuse evidence.",
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
+          },
+          {
+            "id": "tests/test_evidence_reuse.py::test_original_commit_fetch_requires_authenticated_archives_first",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Authenticated original source is recovered in a fresh checkout; raw evidence stays original.",
+            "negative": "Foreign archives cannot fetch source; real hardware or input changes cannot reuse evidence.",
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
+          },
+          {
+            "id": "tests/test_evidence_reuse.py::test_resource_profile_ignores_reserved_page_noise_but_rejects_changed_capacity",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Authenticated original source is recovered in a fresh checkout; raw evidence stays original.",
+            "negative": "Foreign archives cannot fetch source; real hardware or input changes cannot reuse evidence.",
+            "reviewed_test_sha256": "72c67219690f6f7e2627eb0f014ef3959d04b36ae5bb81e4b3061e7854a0eba9"
           }
         ],
         "oracle": "A16 remains actual release aggregator; A02 is static membership, A18 is intent and impact only.",
@@ -4727,7 +4755,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "08c5e62e5ab51ba1611cec97d31d64394bf16f92cf60f091b6c05603d49550f1",
+        "review_sha256": "575db6571b3fbbf9a7b997d9ddc176385a811014c72bfa95b46bd2755509f990",
         "review_addenda": [
           {
             "task": "INTEGRATION-20261107-budget-retention",
@@ -6156,6 +6184,36 @@
         "exact_test_id": "tests/test_evidence_reuse.py::test_matrix_comparison_ignores_unrelated_native_order_but_keeps_ui_rules",
         "reason": "Additive required-benchmark launch, fail-fast and scoped original evidence controls.",
         "source": "2026-11-07 approved integration recovery review",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_reuse.py::test_aggregate_recovers_authenticated_original_commit_missing_from_checkout",
+        "reason": "Additive authenticated source recovery and hardware-capacity stability controls.",
+        "source": "2026-11-07 CI439 native evidence review",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_reuse.py::test_original_commit_fetch_requires_authenticated_archives_first",
+        "reason": "Additive authenticated source recovery and hardware-capacity stability controls.",
+        "source": "2026-11-07 CI439 native evidence review",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "CI_RELEASE_GOVERNANCE",
+        "exact_test_id": "tests/test_evidence_reuse.py::test_resource_profile_ignores_reserved_page_noise_but_rejects_changed_capacity",
+        "reason": "Additive authenticated source recovery and hardware-capacity stability controls.",
+        "source": "2026-11-07 CI439 native evidence review",
         "in_original_catalog": false,
         "trigger_paths": [],
         "deferred_outcome": "NOT_RUN"

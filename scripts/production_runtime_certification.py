@@ -848,7 +848,14 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     result = _run_test_group(report_dir, child, name, ("--maxfail=1", *spec["selectors"]))
     shutil.copyfile(report_dir / (name + ".xml"), directory / "results.xml")
     observed = release.junit_cases(directory / "results.xml", "pytest")
-    proof = release._pytest_results(directory, plan, lane, observed)
+    try:
+        proof = release._pytest_results(directory, plan, lane, observed)
+    except release.EvidenceError as exc:
+        names = {release.junit_key(node): node for node in spec["selectors"]}
+        blockers = {names.get(node, "UNDECLARED_JUNIT_CASE"): outcome
+                    for node, outcome in observed.items() if outcome != "passed"}
+        raise release.EvidenceError(str(exc) + "; original nonpassing cases: "
+                                    + json.dumps(blockers, sort_keys=True)) from exc
     if (
         proof["process_exit_code"] != 0
         or set(proof["passed"]) != set(spec["selectors"])

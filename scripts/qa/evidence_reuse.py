@@ -67,6 +67,23 @@ def _clean_source(source: dict) -> str:
     return revision
 
 
+def _ensure_original_commit(source: dict) -> None:
+    """Recover an authenticated prior merge object in a different CI checkout."""
+    revision = source.get("revision", "")
+    if source.get("dirty") is not False or not release.re.fullmatch("[0-9a-f]{40}", revision):
+        raise release.EvidenceError("reuse requires an immutable clean Git source")
+    found = subprocess.run(
+        ["git", "-C", str(release.ROOT), "cat-file", "-e", revision + "^{commit}"],
+        check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    if found.returncode:
+        subprocess.run(
+            ["git", "-C", str(release.ROOT), "fetch", "--no-tags", "origin", revision],
+            check=True, capture_output=True, timeout=60,
+        )
+    _clean_source(source)
+
+
 def dependency_manifest(source: dict, lane: str) -> dict:
     """Conservative native boundaries; additions, deletions and modes all matter."""
     revision = _clean_source(source)
@@ -176,6 +193,15 @@ def environment(plan: dict, lane: str, variables=None) -> dict:
 def _stable_profile(profile: dict) -> dict:
     if not profile.get("controlled_environment_sha256"):
         raise release.EvidenceError("original controlled environment was not recorded")
+    hardware = profile.get("hardware")
+    memory = hardware.get("memory_bytes") if isinstance(hardware, dict) else None
+    if type(memory) is not int or memory <= 0:
+        raise release.EvidenceError("native hardware memory capacity is unknown")
+    # Kernel-reserved pages vary between otherwise identical hosted runners.
+    # Compare physical capacity in MiB; retain every raw measurement in the
+    # original immutable execution record and all other hardware fields exactly.
+    hardware = {key: value for key, value in hardware.items() if key != "memory_bytes"}
+    hardware["memory_mib"] = memory // (1024 * 1024)
     return {
         key: profile.get(key)
         for key in (
@@ -185,9 +211,9 @@ def _stable_profile(profile: dict) -> dict:
             "provider_mode",
             "database_safety_context",
             "controlled_environment_sha256",
-            "hardware",
         )
-    } | {"postgresql": {"version": profile.get("postgresql", {}).get("version")}}
+    } | {"hardware": hardware,
+         "postgresql": {"version": profile.get("postgresql", {}).get("version")}}
 
 
 def _original_environment(proof: dict, plan: dict, kind: str) -> dict:
@@ -284,13 +310,6 @@ def check_reuse(
     old_spec, spec = release.lane_spec(old, lane), release.lane_spec(plan, lane)
     if _comparable_spec(old_spec, purpose) != _comparable_spec(spec, purpose):
         raise release.EvidenceError("native selection/configuration changed")
-    boundary = UI_BOUNDARY if purpose == "matrix-basis" else lane
-    dependencies = dependency_manifest(plan["source"], boundary)
-    _assert_declared_inputs(spec, dependencies, matrix_only=purpose == "matrix-basis")
-    if dependencies != dependency_manifest(old["source"], boundary) or carry.get(
-        "dependencies_sha256"
-    ) != release.digest(dependencies):
-        raise release.EvidenceError("native source/test/helper/oracle/config dependencies changed")
     if carry.get("original_context") != release.context(old, lane):
         raise release.EvidenceError("original run provenance changed")
     origin = release.read_json(root / "origin.json")
@@ -302,6 +321,9 @@ def check_reuse(
         raise release.EvidenceError("original source plan differs from authenticated artifact")
     if str(old["execution_id"]) != str(origin["run_id"]):
         raise release.EvidenceError("artifact does not belong to original execution")
+    # Prior PR merge commits need not be in a fresh aggregate job's history.
+    # Authenticate the archives and exact original plan before fetching any object.
+    _ensure_original_commit(old["source"])
     if subprocess.run(
         [
             "git",
@@ -315,6 +337,13 @@ def check_reuse(
         check=False,
     ).returncode:
         raise release.EvidenceError("original source is unrelated to authenticated workflow head")
+    boundary = UI_BOUNDARY if purpose == "matrix-basis" else lane
+    dependencies = dependency_manifest(plan["source"], boundary)
+    _assert_declared_inputs(spec, dependencies, matrix_only=purpose == "matrix-basis")
+    if dependencies != dependency_manifest(old["source"], boundary) or carry.get(
+        "dependencies_sha256"
+    ) != release.digest(dependencies):
+        raise release.EvidenceError("native source/test/helper/oracle/config dependencies changed")
     proof = validate_original(original, old, lane, purpose=purpose)
     actual_environment = _original_environment(proof, old, spec["kind"])
     if carry.get("environment") != actual_environment or actual_environment != expected_environment:
@@ -440,6 +469,9 @@ def materialize(
         prefix = artifact_prefix(lane)
         _extract(staged / "evidence.zip", staged / "original", prefix)
         release.write_json(staged / "source-plan.json", old)
+        if str(old["execution_id"]) != str(release.read_json(staged / "origin.json")["run_id"]):
+            raise release.EvidenceError("artifact does not belong to original execution")
+        _ensure_original_commit(old["source"])
         proof = validate_original(staged / "original", old, lane, purpose=purpose)
         release.write_json(
             staged / "carry-forward.json",
