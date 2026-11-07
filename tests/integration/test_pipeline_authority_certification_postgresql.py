@@ -13,7 +13,7 @@ import psycopg
 import pytest
 from psycopg import sql
 from sqlalchemy import create_engine, event, select, text
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session
 
 from app.database_safety import assert_disposable_database
@@ -426,15 +426,24 @@ def test_12b_transaction_policy_distinguishes_progress_stall_and_unrelated_sessi
     engine.dispose()
 
 
+@pytest.fixture
+def authority_engine(authority_database_url: str) -> Iterator[Engine]:
+    engine = create_engine(authority_database_url)
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+
 def test_12c_retained_fixture_releases_idle_seed_backend_and_preserves_active_client(
-    authority_database_url: str,
+    authority_engine: Engine,
 ) -> None:
     from single_run_certification.test_real_writer_cardinality import (
         _seed_retained_provider_history,
     )
 
-    engine = create_engine(authority_database_url)
-    monitor = create_engine(authority_database_url)
+    engine = authority_engine
+    monitor = create_engine(engine.url)
     backend_ids = []
 
     @event.listens_for(engine, "connect")

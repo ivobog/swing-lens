@@ -3353,7 +3353,9 @@
           "tests/integration/test_sector_native_publication.py",
           "tests/sector_native_evidence.py",
           "tests/sector_native_helpers.py",
-          "tests/test_route_security.py"
+          "tests/test_route_security.py",
+          "docs/verification/ci443-seed-connection-cleanup-20261107.md",
+          "tests/integration/test_pipeline_authority_certification_postgresql.py"
         ],
         "tests": [
           {
@@ -3553,6 +3555,15 @@
             "positive": "Bounded segment discovery preserves every Unicode record, daily/size rotation, priority counts and accurate recovery after a writer error.",
             "negative": "Repeated segment scans, lost records, false drop counts and invalid day/size placement are detected independently of financial certification.",
             "reviewed_test_sha256": "4c13fbb79cf009e30598c19603db194302d6036f4baad1489888437ed1f6ea79"
+          },
+          {
+            "id": "tests/integration/test_pipeline_authority_certification_postgresql.py::test_12c_retained_fixture_releases_idle_seed_backend_and_preserves_active_client",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Real frozen CERI seeding commits, releases its idle physical backend, preserves an active client and reconnects for later assertions.",
+            "negative": "The original seeder leaves the backend present and fails this control; unchanged transaction-policy controls still reject stalled and unrelated transactions.",
+            "reviewed_test_sha256": "85ce969e29e1a40c89fbce8ac178e47e665588001bc52ef2d484862e4b6c5e97"
           }
         ],
         "oracle": "Only original A04 finalizer plus A05B independent oracle; 13 required evidence seals.",
@@ -3564,7 +3575,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "9d66069c546f58f96c06879bee3b5b41f33a3ea26690fd684f37507801d833f9",
+        "review_sha256": "bb173930b419e853cd58e170f7f038bea60c7e01ec7dd4308366e38268e87ac7",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -3619,7 +3630,12 @@
                 "new_reviewed_test_sha256": "2321f549e9f7cc6b076241e5dd33b86b31cc992635198fe8622c0c68ff6849f4"
               }
             ],
-            "claim": "STATIC_INTENT only: all original test functions, financial seed statements, assertions, observers, limits and policy objects are unchanged. Dispose unused fixture seed connections after the original Session commits and closes; later assertions reconnect and checked-out clients remain usable. A real PostgreSQL regression fails on the original helper and passes after cleanup. Current A04 still requires complete fresh whole-source evidence; no execution certificate or historical digest is replaced by this review."
+            "claim": "STATIC_INTENT only: all original test functions, financial seed statements, assertions, observers, limits and policy objects are unchanged. Dispose unused fixture seed connections after the original Session commits and closes; later assertions reconnect and checked-out clients remain usable. A real PostgreSQL regression fails on the original helper and passes after cleanup. Current A04 still requires complete fresh whole-source evidence; no execution certificate or historical digest is replaced by this review. Exact ownership associations cover only the reviewed document and existing authority regression module; neighboring unknown paths retain broader validation. Register the real disposable-PostgreSQL control in the existing Python lane; no A04 prerequisite obligation is added or removed.",
+            "reviewed_exact_impact_associations": [
+              "docs/verification/ci443-seed-connection-cleanup-20261107.md",
+              "tests/integration/test_pipeline_authority_certification_postgresql.py"
+            ],
+            "added_native_regression": "tests/integration/test_pipeline_authority_certification_postgresql.py::test_12c_retained_fixture_releases_idle_seed_backend_and_preserves_active_client"
           }
         ]
       },
@@ -6462,6 +6478,20 @@
         "source": "2026-11-07 CI441 physical CPU change; existing approved proof conditions retained",
         "in_original_catalog": false,
         "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "CHANGE_AFFECTED_NATIVE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/integration/test_pipeline_authority_certification_postgresql.py::test_12c_retained_fixture_releases_idle_seed_backend_and_preserves_active_client",
+        "reason": "Close the completed fixture seed pool before independent worker observation; retain committed data, active clients, original observer and original A04 obligations.",
+        "source": "docs/verification/ci443-seed-connection-cleanup-20261107.md",
+        "in_original_catalog": false,
+        "trigger_paths": [
+          "tests/e2e/single_run_certification/test_real_writer_cardinality.py",
+          "tests/integration/test_pipeline_authority_certification_postgresql.py",
+          "docs/verification/ci443-seed-connection-cleanup-20261107.md"
+        ],
         "deferred_outcome": "NOT_RUN"
       }
     ],

@@ -38,6 +38,21 @@ Historical review bindings retain their original digests. Current source and
 dependency checks continue to reject stale evidence. A04 requires new complete
 whole-source evidence; no CI443 A04/core pass or conditional deferral is claimed.
 
+The exact review-document path and
+`tests/integration/test_pipeline_authority_certification_postgresql.py` belong to
+the existing `NATIVE_PIPELINE_CERTIFICATION` contract. Their reviewed impact
+associations are exact paths. New neighboring documents and integration modules
+remain unknown and retain the broader testing obligation. The first plan on
+`001c294` exposed the missing associations; its CI run was stopped before the
+ineligible plan could complete expensive prerequisites. No unknown-impact guard
+or approval condition is relaxed by recording these two reviewed associations.
+
+The native seed-connection regression is registered in this existing contract
+and selected in the Python lane when the fixture or its authority test changes.
+Its explicit engine fixture creates and cleans up a real disposable PostgreSQL
+engine. The original 15 A04 prerequisites and conditional 14-case proof
+acquisition are unchanged; this additive control supplies early feedback.
+
 Retained authenticated failure archive SHA256:
 `aa3ccbe02f138f8fae469a50ed602e0d73d7710dae04016987343e6d229596f7`.
 Extracted native input SHA256:
