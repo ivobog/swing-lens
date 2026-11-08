@@ -213,6 +213,7 @@ def _readiness_engine(
             text(
                 "create table background_workers ("
                 "worker_id text primary key, queues_json text not null, hostname text, "
+                "operation_profile text not null default 'general', "
                 "process_id integer, started_at timestamp not null, "
                 "heartbeat_at timestamp not null, stopping_at timestamp, "
                 "instance_id text, launcher_process_id integer, process_started_at timestamp, "

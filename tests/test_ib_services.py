@@ -734,3 +734,16 @@ def _price_bar(ticker: str, close: float, volume: float) -> PriceBar:
         last_seen_at=seen_at,
         revision_count=0,
     )
+
+
+@pytest.fixture(autouse=True)
+def isolated_historical_transport(monkeypatch):
+    """Provider DTO/error/replay doubles do not require database coordination.
+
+    Unpatched coordination is exercised by the PostgreSQL process suite.
+    """
+    from contextlib import nullcontext
+
+    monkeypatch.setattr(
+        "app.services.ib_data_fetcher.historical_request", lambda *_args, **_kwargs: nullcontext()
+    )

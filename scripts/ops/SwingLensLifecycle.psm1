@@ -670,11 +670,21 @@ function Wait-ProcessExit {
 function Stop-RegisteredRemainders {
     param([ref]$ShutdownCommitted)
     $processReport = Invoke-LifecycleProbe -Command 'processes'
-    foreach ($role in @('supervisor','worker')) {
-        $matching = @($processReport.processes | Where-Object { $_.role -eq $role })
+    $registration = Invoke-LifecycleProbe -Command 'registrations'
+    $sectorPid = 0
+    if ($null -ne $registration.PSObject.Properties['sectorWorker'] -and $null -ne $registration.sectorWorker) {
+        $sectorPid = [int]$registration.sectorWorker.pid
+    }
+    foreach ($role in @('supervisor','worker','sectorWorker')) {
+        $matching = @($processReport.processes | Where-Object {
+            if ($role -eq 'sectorWorker') { $_.role -eq 'worker' -and [int]$_.pid -eq $sectorPid }
+            elseif ($role -eq 'worker') { $_.role -eq 'worker' -and [int]$_.pid -ne $sectorPid }
+            else { $_.role -eq $role }
+        })
         if ($matching.Count -gt 1) { throw ("CONFLICT: multiple {0} processes belong to this checkout." -f $role) }
         if ($matching.Count -eq 1) {
-            $signal = Invoke-LifecycleProbe -Command 'signal-registered' -Arguments @('--role', $role)
+            $signalArguments = if ($role -eq 'sectorWorker') { @('--role','worker','--sector-worker') } else { @('--role', $role) }
+            $signal = Invoke-LifecycleProbe -Command 'signal-registered' -Arguments $signalArguments
             if (-not $signal.signaled) { throw ('CONFLICT: ' + $signal.error) }
             if ($null -ne $ShutdownCommitted) { $ShutdownCommitted.Value = $true }
             if (-not (Wait-ProcessExit -ProcessId ([int]$signal.pid))) {
@@ -708,6 +718,7 @@ function Stop-SwingLensCore {
     if ([bool]$Config.metrics.enabled) {
         if ([int]$Config.metrics.workerPort -gt 0) { $ports += [int]$Config.metrics.workerPort }
         if ([int]$Config.metrics.supervisorPort -gt 0) { $ports += [int]$Config.metrics.supervisorPort }
+        if ($null -ne $Config.metrics.PSObject.Properties['sectorWorkerPort'] -and [int]$Config.metrics.sectorWorkerPort -gt 0) { $ports += [int]$Config.metrics.sectorWorkerPort }
     }
     foreach ($port in @($ports | Select-Object -Unique)) { Wait-PortReleased -Port $port }
     $remaining = @((Invoke-LifecycleProbe -Command 'processes').processes | Where-Object { $_.role -in @('web','worker','supervisor') })

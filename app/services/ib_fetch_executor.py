@@ -17,6 +17,11 @@ from app.services.background_job_service import JobLeaseLost
 from app.services.bar_cache_service import cache_bars
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.domain_write_fence import bounded_domain_session
+from app.services.ib_acquisition_gate import (
+    AcquisitionCancelled,
+    coordinate_fetch,
+    historical_request,
+)
 from app.services.ib_api import IB, Contract
 from app.services.ib_connection import create_ib_client
 from app.services.ib_contract_resolver import invalidate_cached_contract, resolve_us_stock_contract
@@ -81,6 +86,7 @@ class TickerReadyEvent:
     completed_at: datetime
 
 
+@coordinate_fetch
 def execute_fetch_plan(
     db: Session,
     plan: FetchPlan,
@@ -113,6 +119,7 @@ def execute_fetch_plan(
         fetch_run_id=fetch_run_id,
         semantic_authority=semantic_authority,
     )
+    fetch_identity = int(fetch_run.id)
     for decision, count in plan.decision_counts.items():
         operational_metrics.increment(
             "swinglens_ib_fetch_decisions_total",
@@ -135,17 +142,37 @@ def execute_fetch_plan(
     execution_items = _benchmark_first_items(plan.items, settings.ib_benchmark_symbols)
     total_items = len(execution_items)
     db.commit()
-
+    connecting = False
     try:
+        # The reviewed current-ended session may expire while queued or waiting
+        # for the shared broker. Reject before connecting or qualifying contracts.
+        for planned in execution_items:
+            duration = planned.duration or planned.post_resolution_duration
+            if planned.estimated_request_count and duration:
+                validate_reviewed_session_current(
+                    _execution_scope(planned, duration),
+                    latest_completed_session=latest_completed_us_trading_day(),
+                )
         if hasattr(ib, "RequestTimeout"):
             ib.RequestTimeout = settings.ib_timeout_seconds
+        from app.services.ib_acquisition_gate import mark_connection
+
+        connecting = True
+        mark_connection(True)
         ib.connect(
             settings.ib_host,
             settings.ib_port,
-            clientId=settings.ib_client_id,
+            clientId=(
+                settings.ib_sector_client_id
+                if settings.job_worker_profile == "sector_refresh"
+                else settings.ib_client_id
+            ),
             timeout=settings.ib_timeout_seconds,
             readonly=True,
         )
+        if not ib.isConnected():
+            raise ConnectionError("IB acquisition connection was not established")
+        connecting = False
         for item_index, plan_item in enumerate(execution_items, start=1):
             if should_cancel and should_cancel():
                 _mark_run_cancelled(fetch_run, db)
@@ -157,8 +184,8 @@ def execute_fetch_plan(
                 execution_job_id=execution_job_id,
                 execution_token=execution_token,
             ) as item_db:
-                item_run = _load_fetch_run(item_db, fetch_run.id)
-                fetch_item = _existing_fetch_item(item_db, fetch_run.id, plan_item)
+                item_run = _load_fetch_run(item_db, fetch_identity)
+                fetch_item = _existing_fetch_item(item_db, fetch_identity, plan_item)
                 if fetch_item is not None and (
                     fetch_item.status in {"SUCCESS", "SKIPPED"}
                     or (
@@ -286,22 +313,27 @@ def execute_fetch_plan(
                 break
             if cancel_after_item:
                 break
-    except (JobLeaseLost, WorkerMemoryCritical):
+    except (JobLeaseLost, WorkerMemoryCritical, AcquisitionCancelled):
         raise
     except Exception as exc:
         fetch_run.status = "FAILED"
         fetch_run.completed_at = datetime.now(UTC)
         fetch_run.failure_count = max(fetch_run.failure_count or 0, 1)
-        fetch_run.message = _safe_message(str(exc))
+        fetch_run.message = ("IB_CONNECTION_FAILED: " if connecting else "") + _safe_message(
+            str(exc)
+        )
         db.flush()
         db.commit()
     finally:
         if ib.isConnected():
             ib.disconnect()
+        from app.services.ib_acquisition_gate import mark_connection
+
+        mark_connection(ib.isConnected())
 
     if isinstance(db, Session):
         db.expire_all()
-        fetch_run = _load_fetch_run(db, fetch_run.id)
+        fetch_run = _load_fetch_run(db, fetch_identity)
     if fetch_run.status == "RUNNING":
         fetch_run.completed_at = datetime.now(UTC)
         _refresh_run_totals(fetch_run, db)
@@ -369,6 +401,7 @@ def _start_fetch_run(
         force_full_backfill=force_full_backfill,
         decision_counts_json=plan.decision_counts,
         planned_request_count=plan.estimated_request_count,
+        executed_request_count=0,
         status="RUNNING",
     )
     db.add(fetch_run)
@@ -582,6 +615,9 @@ def _execute_plan_item(
     for attempt in range(1, settings.ib_max_retries + 1):
         request_duration = 0.0
         try:
+            # Flush the request boundary before any pacing or broker wait. Domain
+            # commit fencing is reacquired when the response is persisted.
+            db.commit()
             pacing_started = perf_counter()
             if isinstance(rate_limiter, IbHistoricalRateLimiter):
                 pacing_ready = rate_limiter.wait_before_request(should_cancel)
@@ -592,57 +628,60 @@ def _execute_plan_item(
             if not pacing_ready:
                 _mark_skipped(fetch_item, "Cancellation requested during IB pacing wait.")
                 return
-            try:
-                validate_reviewed_session_current(
-                    scope,
-                    latest_completed_session=latest_completed_us_trading_day(),
-                )
-            except ValueError as exc:
-                fetch_item.decision_metadata_json = _decision_metadata(
-                    plan_item,
-                    action=action,
-                    duration=duration,
-                    scope=scope,
-                    boundary_status="NOT_EXECUTED",
-                    provider_result="REVIEW_SCOPE_EXPIRED",
-                )
-                _mark_failed(fetch_item, str(exc))
-                return
-            fetch_item.attempt_count = attempt
-            network_started = perf_counter()
-            request_result = "failure"
-            try:
-                bars = fetch_daily_bars(
-                    ib,
-                    contract,
-                    plan_item.what_to_show,
-                    settings=settings,
-                    duration=duration,
-                    bar_size=plan_item.bar_size,
-                    end_datetime=scope.end_datetime,
-                )
-                request_result = "success"
-            finally:
-                _add_duration(performance, "ib_network_ms", network_started)
-                request_duration = max(0.0, perf_counter() - network_started)
-                operational_metrics.increment(
-                    "swinglens_ib_fetch_requests_total", result=request_result
-                )
-                operational_metrics.observe(
-                    "swinglens_ib_fetch_duration_seconds",
-                    request_duration,
-                    result=request_result,
-                )
-                log_event(
-                    logger,
-                    "ib.fetch.request_finished",
-                    provider="IB",
-                    status=request_result.upper(),
-                    duration_ms=round(request_duration * 1000, 3),
-                )
+            with historical_request(settings, ib=ib, coordinated=isinstance(db, Session)):
+                try:
+                    validate_reviewed_session_current(
+                        scope,
+                        latest_completed_session=latest_completed_us_trading_day(),
+                    )
+                except ValueError as exc:
+                    fetch_item.decision_metadata_json = _decision_metadata(
+                        plan_item,
+                        action=action,
+                        duration=duration,
+                        scope=scope,
+                        boundary_status="NOT_EXECUTED",
+                        provider_result="REVIEW_SCOPE_EXPIRED",
+                    )
+                    _mark_failed(fetch_item, str(exc))
+                    return
+                fetch_item.attempt_count = attempt
+                network_started = perf_counter()
+                request_result = "failure"
+                try:
+                    bars = fetch_daily_bars(
+                        ib,
+                        contract,
+                        plan_item.what_to_show,
+                        settings=settings,
+                        duration=duration,
+                        bar_size=plan_item.bar_size,
+                        end_datetime=scope.end_datetime,
+                    )
+                    request_result = "success"
+                finally:
+                    _add_duration(performance, "ib_network_ms", network_started)
+                    request_duration = max(0.0, perf_counter() - network_started)
+                    operational_metrics.increment(
+                        "swinglens_ib_fetch_requests_total", result=request_result
+                    )
+                    operational_metrics.observe(
+                        "swinglens_ib_fetch_duration_seconds",
+                        request_duration,
+                        result=request_result,
+                    )
+                    log_event(
+                        logger,
+                        "ib.fetch.request_finished",
+                        provider="IB",
+                        status=request_result.upper(),
+                        duration_ms=round(request_duration * 1000, 3),
+                    )
             received_at = datetime.now(UTC)
             actual_start, actual_end = _validate_returned_scope(
-                bars, scope, observed_at=received_at,
+                bars,
+                scope,
+                observed_at=received_at,
             )
             if not bars:
                 fetch_item.decision_metadata_json = _decision_metadata(
@@ -662,7 +701,10 @@ def _execute_plan_item(
                 return
             received_count = len(bars)
             bars = _admit_returned_bars(
-                bars, scope, ticker=plan_item.ticker, observed_at=received_at,
+                bars,
+                scope,
+                ticker=plan_item.ticker,
+                observed_at=received_at,
             )
             fetch_item.decision_metadata_json = _decision_metadata(
                 plan_item,
@@ -779,6 +821,8 @@ def _execute_plan_item(
             if not retry_ready:
                 _mark_skipped(fetch_item, "Cancellation requested during IB retry backoff.")
                 return
+        except (JobLeaseLost, AcquisitionCancelled):
+            raise
         except Exception as exc:
             retryable = isinstance(exc, (TimeoutError, ConnectionError))
             provider_result = (

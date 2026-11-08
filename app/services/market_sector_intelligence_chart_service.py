@@ -159,6 +159,7 @@ class MarketSectorChartService:
     def __init__(self, *, clock=None, frame_loader=None):
         self.clock = clock or MarketClockService()
         self.frame_loader = frame_loader or load_preferred_ohlcv_frames
+        self.native_loader = frame_loader is None
 
     def build(self, db, *, symbols=None, horizon=126, config=None, cutoff=None):
         config = config or load_market_sector_intelligence_config()
@@ -172,7 +173,19 @@ class MarketSectorChartService:
         )
         sources = {}
         guard = _bounded_read(db, sessions[0]) if isinstance(db, Session) else nullcontext()
-        with guard:
+        from app.services.market_sector_intelligence_read_window import batch_cached_read
+
+        with (
+            guard,
+            batch_cached_read(
+                db,
+                chosen + ["SPY"],
+                timeframe=config.timeframe,
+                cutoff=cutoff,
+                first=sessions[0],
+                enabled=self.native_loader and config.enabled,
+            ),
+        ):
             for symbol in chosen + ["SPY"]:
                 data = dict(
                     symbol=symbol,

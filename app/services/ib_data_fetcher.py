@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
+from app.services.ib_acquisition_gate import historical_request
 from app.services.ib_api import IB, Contract
 from app.services.ib_historical_errors import classify_ib_historical_error
 from app.settings import Settings, get_settings
@@ -154,16 +155,17 @@ def fetch_daily_bars(
         error_event += on_error
     try:
         try:
-            bars = ib.reqHistoricalData(
-                contract,
-                endDateTime=end_datetime or "",
-                durationStr=request_duration,
-                barSizeSetting=request_bar_size,
-                whatToShow=what_to_show,
-                useRTH=settings.ib_use_rth,
-                formatDate=1,
-                keepUpToDate=False,
-            )
+            with historical_request(settings, ib=ib):
+                bars = ib.reqHistoricalData(
+                    contract,
+                    endDateTime=end_datetime or "",
+                    durationStr=request_duration,
+                    barSizeSetting=request_bar_size,
+                    whatToShow=what_to_show,
+                    useRTH=settings.ib_use_rth,
+                    formatDate=1,
+                    keepUpToDate=False,
+                )
         except Exception as exc:
             if provider_errors:
                 raise provider_errors[0] from exc

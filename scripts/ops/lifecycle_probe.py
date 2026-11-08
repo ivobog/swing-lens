@@ -107,6 +107,7 @@ def _config_report() -> dict[str, object]:
         "metrics": {
             "enabled": settings.observability_metrics_enabled,
             "workerPort": settings.observability_worker_metrics_port,
+            "sectorWorkerPort": settings.observability_sector_worker_metrics_port,
             "supervisorPort": settings.observability_supervisor_metrics_port,
         },
         "grafanaPasswordConfigured": bool(
@@ -468,7 +469,7 @@ def _assert_physically_quiescent(state: dict[str, object]) -> None:
         raise LifecycleConflict(
             "lifecycle listener evidence could not be inspected: " + str(listener_report["error"])
         )
-    lifecycle_ports = {8000, 9101, 9102}
+    lifecycle_ports = {8000, 9101, 9102, _settings().observability_sector_worker_metrics_port}
     web = state.get("web")
     if isinstance(web, dict) and web.get("port"):
         lifecycle_ports.add(int(web["port"]))
@@ -808,6 +809,7 @@ def _quiesce_report(resume: bool = False) -> dict[str, object]:
         with Session(engine) as db:
             if resume:
                 resumed = resume_worker_claims(db, settings.job_worker_id)
+                resume_worker_claims(db, settings.job_worker_id + "-sector")
                 db.commit()
                 return {"reachable": True, "resumed": resumed}
             observed_worker = db.get(BackgroundWorker, settings.job_worker_id)
@@ -819,15 +821,33 @@ def _quiesce_report(resume: bool = False) -> dict[str, object]:
                 settings.job_worker_id,
                 expected_identity=expected_identity,
             )
+            sector = db.get(BackgroundWorker, settings.job_worker_id + "-sector")
+            sector_expected = worker_quiesce_identity(sector) if sector is not None else None
+            request_worker_quiesce(
+                db, settings.job_worker_id + "-sector", expected_identity=sector_expected
+            )
             db.commit()
             fence_committed_at = datetime.now(UTC)
             db.expire_all()
             worker = db.get(BackgroundWorker, settings.job_worker_id)
+            sector = db.get(BackgroundWorker, settings.job_worker_id + "-sector")
             active = blocking_jobs(db)
             now = datetime.now(UTC)
             current_identity = worker_quiesce_identity(worker) if worker is not None else None
             identity_unchanged = current_identity == expected_identity
-            process_identity_valid = _worker_process_matches_registration(worker, worker_processes)
+            sector_pids = {sector.process_id} if sector is not None else set()
+            normal_processes = [row for row in worker_processes if row["pid"] not in sector_pids]
+            sector_processes = [row for row in worker_processes if row["pid"] in sector_pids]
+            process_identity_valid = _worker_process_matches_registration(worker, normal_processes)
+            sector_valid = (
+                (worker_quiesce_identity(sector) if sector is not None else None) == sector_expected
+                and _worker_process_matches_registration(sector, sector_processes)
+                and (
+                    sector is None
+                    or sector.quiesce_requested_at is not None
+                    or sector.stopping_at is not None
+                )
+            )
             worker_identity_valid = identity_unchanged and process_identity_valid
             requested_at = worker.quiesce_requested_at if worker is not None else None
             acknowledged_at = worker.quiesced_at if worker is not None else None
@@ -847,10 +867,12 @@ def _quiesce_report(resume: bool = False) -> dict[str, object]:
                 and acknowledged_at is not None
                 and _as_utc(acknowledged_at) >= _as_utc(requested_at)
             )
-            safe_to_stop = bool(claim_fence_established and not active and worker_identity_valid)
+            safe_to_stop = bool(
+                claim_fence_established and not active and worker_identity_valid and sector_valid
+            )
             if active:
                 reason_code = "ACTIVE_LEASE_BLOCKS_STOP"
-            elif not worker_identity_valid:
+            elif not worker_identity_valid or not sector_valid:
                 reason_code = "WORKER_IDENTITY_CONFLICT"
             elif not claim_fence_established:
                 reason_code = "CLAIM_FENCE_NOT_ESTABLISHED"
@@ -861,6 +883,11 @@ def _quiesce_report(resume: bool = False) -> dict[str, object]:
             return {
                 "reachable": True,
                 "workerPresent": worker is not None,
+                "sectorWorker": {
+                    "workerId": settings.job_worker_id + "-sector",
+                    "processId": sector.process_id if sector else None,
+                    "claimFenceValid": sector_valid,
+                },
                 "workerProcessPresent": bool(worker_processes),
                 "workerInstanceId": worker.instance_id if worker is not None else None,
                 "workerGeneration": worker.generation if worker is not None else None,
@@ -1211,9 +1238,11 @@ def _registrations_report() -> dict[str, object]:
         with Session(engine) as db:
             worker = db.get(BackgroundWorker, settings.job_worker_id)
             supervisor = db.get(BackgroundSupervisor, settings.job_worker_id)
+            sector_worker = db.get(BackgroundWorker, settings.job_worker_id + "-sector")
             return {
                 "reachable": True,
                 "worker": _registration_dict(worker, "worker"),
+                "sectorWorker": _registration_dict(sector_worker, "worker"),
                 "supervisor": _registration_dict(supervisor, "supervisor"),
             }
     except Exception as exc:
@@ -1389,6 +1418,7 @@ def _listeners_report() -> dict[str, object]:
         8000,
         9101,
         9102,
+        _settings().observability_sector_worker_metrics_port,
         9090,
         3000,
         int(make_url(_settings().database_url).port or 5432),
@@ -1734,10 +1764,11 @@ def _registration_dict(row, role: str) -> dict[str, object] | None:
     }
 
 
-def _signal_registered(role: str) -> dict[str, object]:
+def _signal_registered(role: str, *, sector_worker=False) -> dict[str, object]:
     module = f"app.worker_{role}" if role == "supervisor" else "app.worker"
     first = _registrations_report()
-    expected = first.get(role)
+    key = "sectorWorker" if sector_worker and role == "worker" else role
+    expected = first.get(key)
     if not first.get("reachable") or not isinstance(expected, dict):
         if not any(row["role"] == role for row in _role_processes()):
             return {"signaled": True, "alreadyExited": True, "pid": 0}
@@ -1771,7 +1802,7 @@ def _signal_registered(role: str) -> dict[str, object]:
         ):
             raise LifecycleConflict(f"{role} launcher identity mismatch")
         second = _registrations_report()
-        current = second.get(role)
+        current = second.get(key)
         if not isinstance(current, dict) or any(
             current.get(key) != expected.get(key) for key in ("pid", "instanceId", "generation")
         ):
@@ -1829,6 +1860,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     stop.add_argument("--listener-pid", type=int)
     registered = subparsers.add_parser("signal-registered")
     registered.add_argument("--role", choices=("supervisor", "worker"), required=True)
+    registered.add_argument("--sector-worker", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -1871,7 +1903,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     elif args.command == "signal-break":
         report = _signal_break(args.pid, args.listener_pid)
     else:
-        report = _signal_registered(args.role)
+        report = (
+            _signal_registered(args.role, sector_worker=True)
+            if args.sector_worker
+            else _signal_registered(args.role)
+        )
     print(json.dumps(report, default=str, separators=(",", ":")))
 
 

@@ -92,7 +92,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     if settings.observability_metrics_enabled:
         metrics_server = start_metrics_http_server(
             settings.observability_metrics_host,
-            settings.observability_worker_metrics_port,
+            (settings.observability_sector_worker_metrics_port
+             if settings.job_worker_profile == "sector_refresh"
+             else settings.observability_worker_metrics_port),
         )
         sampler = ResourceSampler(
             process_role="worker",

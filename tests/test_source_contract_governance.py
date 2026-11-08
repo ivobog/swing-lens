@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import subprocess
 from datetime import UTC, datetime
 
 import pytest
@@ -231,6 +232,109 @@ def test_unknown_baseline_and_selection_policy_preserve_required_obligations(man
     plan = registry.source_impact_plan(manifest, ["pyproject.toml"], baseline_known=False)
     assert len(plan["affected_contracts"]) == 10 and plan["review_required"]
     assert set(plan["conditional_extended_lanes"]) == {"ceri-extended", "population-extended"}
+
+
+@pytest.fixture
+def comparison_repository(tmp_path, monkeypatch):
+    root = tmp_path / "comparison-repository"
+    root.mkdir()
+
+    def git(*args):
+        return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+
+    git("init", "-b", "main")
+    git("config", "user.name", "Baseline policy test")
+    git("config", "user.email", "test@example.invalid")
+    git("commit", "--allow-empty", "-m", "root")
+    parent = git("rev-parse", "HEAD")
+    git("commit", "--allow-empty", "-m", "snapshot")
+    source = git("rev-parse", "HEAD")
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps({"repository": {
+        "full_name": "ivobog/swing-lens", "default_branch": "main",
+    }}))
+    for key, value in {
+        "GITHUB_EVENT_PATH": str(event_path), "GITHUB_REPOSITORY": "ivobog/swing-lens",
+        "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": source,
+    }.items():
+        monkeypatch.setenv(key, value)
+    return root, parent, source, event_path, git
+
+
+@pytest.mark.parametrize("event", ["schedule", "workflow_dispatch"])
+def test_trusted_snapshot_uses_verified_first_parent(
+    comparison_repository, monkeypatch, event, manifest,
+):
+    root, parent, source, _event_path, _git = comparison_repository
+    monkeypatch.setenv("GITHUB_EVENT_NAME", event)
+    comparison = registry.ci_comparison_baseline(root)
+    assert comparison == {
+        "event": event, "tested_source": source, "baseline": parent,
+        "policy": "trusted-default-branch-first-parent-snapshot-v1", "reason": None,
+    }
+    plan = registry.source_impact_plan(manifest, ["app/new_financial_writer.py"])
+    assert plan["review_required"] and plan["unknown_impact"]
+    assert plan["required_release_lanes"] == manifest["full_release"]["base_lanes"]
+
+
+@pytest.mark.parametrize(
+    "fault", ["root", "shallow", "untrusted-ref", "wrong-source", "missing-parent"],
+)
+def test_snapshot_missing_or_untrusted_history_remains_unknown(
+    comparison_repository, monkeypatch, fault,
+):
+    root, parent, _source, _event_path, git = comparison_repository
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "schedule")
+    if fault == "root":
+        git("checkout", "--detach", parent)
+        monkeypatch.setenv("GITHUB_SHA", parent)
+    elif fault == "shallow":
+        (root / ".git/shallow").write_text(git("rev-parse", "HEAD") + "\n")
+    elif fault == "missing-parent":
+        object_path = root / ".git/objects" / parent[:2] / parent[2:]
+        object_path.chmod(0o600)
+        object_path.unlink()
+    elif fault == "wrong-source":
+        monkeypatch.setenv("GITHUB_SHA", parent)
+    else:
+        monkeypatch.setenv("GITHUB_REF", "refs/heads/feature")
+    comparison = registry.ci_comparison_baseline(root)
+    assert comparison["baseline"] is None and comparison["reason"]
+
+
+@pytest.mark.parametrize("event", ["pull_request", "push"])
+@pytest.mark.parametrize("valid", [True, False])
+def test_event_baseline_preserves_pr_and_push_selection(
+    comparison_repository, monkeypatch, event, valid,
+):
+    root, parent, _source, event_path, _git = comparison_repository
+    base = parent if valid else "f" * 40
+    payload = {"before": base} if event == "push" else {"pull_request": {"base": {"sha": base}}}
+    event_path.write_text(json.dumps(payload))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", event)
+    comparison = registry.ci_comparison_baseline(root)
+    assert comparison["baseline"] == (parent if valid else None)
+
+
+@pytest.mark.parametrize("field", ["tested_source", "baseline", "policy", "baseline_known"])
+def test_release_policy_rejects_changed_comparison_evidence(
+    comparison_repository, monkeypatch, manifest, field,
+):
+    from scripts.qa import release_evidence as release
+
+    root, _parent, _source, _event_path, _git = comparison_repository
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "schedule")
+    comparison = registry.ci_comparison_baseline(root)
+    monkeypatch.setattr(registry, "ci_comparison_baseline", lambda _root: comparison)
+    impact = registry.source_impact_plan(manifest, [])
+    impact["comparison"] = copy.deepcopy(comparison)
+    assert release.core_policy(impact)["base_lanes"]
+    if field == "baseline_known":
+        impact[field] = False
+    else:
+        impact["comparison"][field] = "foreign"
+    with pytest.raises(release.EvidenceError, match="comparison|stale"):
+        release.core_policy(impact)
 
 
 def test_ci_emits_impact_plan_and_retains_original_a16_producer():

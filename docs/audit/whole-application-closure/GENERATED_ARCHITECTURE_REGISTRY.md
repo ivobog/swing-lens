@@ -6,15 +6,15 @@ reviewed registry change. CI uses `--check` and never rewrites files.
 
 | Inventory | Count |
 | --- | ---: |
-| Mutating HTTP registrations | 53 |
+| Mutating HTTP registrations | 54 |
 | Durable job types | 35 |
-| SQLAlchemy tables | 130 |
-| Mutable tables | 129 |
-| Writer families | 83 |
+| SQLAlchemy tables | 132 |
+| Mutable tables | 131 |
+| Writer families | 85 |
 | Recovery paths | 22 |
 | Autonomous triggers | 18 |
-| Material transaction families | 31 |
-| High-risk tables | 74 |
+| Material transaction families | 32 |
+| High-risk tables | 75 |
 | Certified aggregate policies | 8 |
 | Deferred R4 aggregate scans | 0 |
 

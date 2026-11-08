@@ -100,7 +100,7 @@ def test_actual_pit_preview_http_dry_run_and_upload_independence(
     _current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     assert response.status_code == 200 and response.json()["cohort_status"] == "COMPLETE"
-    assert len(statements) == 24
+    assert len(statements) == 1
     assert all(
         sql.lstrip().upper().startswith("SELECT") and "price_bars" in sql for sql in statements
     )
@@ -115,7 +115,7 @@ def test_actual_pit_preview_http_dry_run_and_upload_independence(
         session_factory=sessionmaker(rotation_engine),
         service=service(),
     )
-    assert dry["preview"] == response.json() and len(statements) == 24
+    assert dry["preview"] == response.json() and len(statements) == 1
     assert all(sql.lstrip().upper().startswith("SELECT") for sql in statements)
     with rotation_engine.begin() as connection:
         connection.execute(
@@ -130,7 +130,7 @@ def test_actual_pit_preview_http_dry_run_and_upload_independence(
         TestClient(app).get("/api/market-sector-intelligence/rotation/preview").json()
         == response.json()
     )
-    assert len(statements) == 24 and all("upload_runs" not in sql for sql in statements)
+    assert len(statements) == 1 and all("upload_runs" not in sql for sql in statements)
     assert forbidden.call_count == 0
 
 
@@ -233,7 +233,7 @@ def test_empty_cache_disabled_preview_and_pending_changes_are_read_only(
         assert all(row["rs_63_pct"] is None for row in result["sectors"])
         assert pending in db.new
         db.rollback()
-    assert len(statements) == 24 and all(sql.startswith("SELECT") for sql in statements)
+    assert len(statements) == 1 and all(sql.startswith("SELECT") for sql in statements)
     app = create_app()
 
     def database():

@@ -55,6 +55,7 @@ def test_metrics_ports_and_disabled_state_come_from_canonical_settings(monkeypat
         "enabled": False,
         "workerPort": 19101,
         "supervisorPort": 19102,
+        "sectorWorkerPort": settings.observability_sector_worker_metrics_port,
     }
 
 

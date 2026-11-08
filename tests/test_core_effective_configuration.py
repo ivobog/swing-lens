@@ -27,6 +27,112 @@ from app.services.technical_scoring_v5_config import load_technical_scoring_v5_c
 from app.settings import Settings
 
 
+def _sealed_source(index):
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as canonical
+    from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+
+    configuration = core_configurations()[index]
+    identity = configuration.bind(CalculationIdentity.legacy_unknown(run_id=7, ticker="ACME"))
+    evidence = SimpleNamespace(
+        payload_json={CONFIGURATION_PAYLOAD_KEY: configuration.snapshot.as_dict(), "score": 7},
+        calculation_identity_json=identity.canonical_payload(),
+        calculation_identity_fingerprint=str(identity.fingerprint()),
+        artifact_kind=("FUNDAMENTAL", "TECHNICAL", "COMBINED", "RANKING")[index],
+        ranking_profile=configuration.values["profile"]["name"] if index == 3 else None,
+        run_id=7, ticker="ACME", source_evidence_ids_json={},
+    )
+    _reseal_source(evidence, canonical)
+    return evidence
+
+
+def _reseal_source(evidence, canonical):
+    evidence.payload_fingerprint = canonical.fingerprint(evidence.payload_json)
+    evidence.evidence_key = canonical.fingerprint({
+        "artifact_kind": evidence.artifact_kind,
+        "calculation_identity_fingerprint": evidence.calculation_identity_fingerprint,
+        "payload_fingerprint": evidence.payload_fingerprint,
+        "source_evidence_ids": evidence.source_evidence_ids_json,
+    })
+
+
+@pytest.mark.parametrize("index", range(4))
+def test_source_validation_checks_the_full_seal_once_and_rejects_later_mutation(index, monkeypatch):
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as canonical
+    from app.services.core_mutation_authority import _validate_evidence
+
+    evidence = _sealed_source(index)
+    original = canonical.fingerprint
+    calls = []
+
+    def observed(_cls, value):
+        if value is evidence.payload_json:
+            calls.append(value)
+        return original(value)
+
+    monkeypatch.setattr(canonical, "fingerprint", classmethod(observed))
+    _validate_evidence(evidence)
+    assert len(calls) == 1
+    evidence.payload_json["score"] = 99
+    with pytest.raises(ValueError, match="MUTATION_SOURCE_PAYLOAD_FINGERPRINT_MISMATCH"):
+        _validate_evidence(evidence)
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("attack", [
+    "identity-seal", "source-ids", "evidence-key", "run", "ticker", "kind", "profile",
+    "missing-configuration", "semantic", "semantic-hash", "resolution", "resolution-hash",
+    "configuration-identity", "entries", "configuration-binding",
+])
+def test_source_validation_retains_every_configuration_and_address_check(attack):
+    from app.services.canonical_evidence import CanonicalEvidenceSerializer as canonical
+    from app.services.core_mutation_authority import _validate_evidence
+    from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
+
+    evidence = _sealed_source(3)
+    _validate_evidence(evidence)  # warm the immutable configuration decoder
+    payload = evidence.payload_json[CONFIGURATION_PAYLOAD_KEY]
+    if attack == "identity-seal":
+        evidence.calculation_identity_fingerprint = "f" * 64
+    elif attack == "source-ids":
+        evidence.source_evidence_ids_json["forged"] = 123
+    elif attack == "evidence-key":
+        evidence.evidence_key = "f" * 64
+    elif attack == "run":
+        evidence.run_id = 8
+    elif attack == "ticker":
+        evidence.ticker = "OTHER"
+    elif attack == "kind":
+        evidence.artifact_kind = "TECHNICAL"
+    elif attack == "profile":
+        evidence.ranking_profile = "other-profile"
+    else:
+        if attack == "missing-configuration":
+            del evidence.payload_json[CONFIGURATION_PAYLOAD_KEY]
+        elif attack == "semantic":
+            payload["semantic"]["forged"] = True
+        elif attack == "semantic-hash":
+            payload["semantic_hash"] = "f" * 64
+        elif attack == "resolution":
+            payload["resolution"]["resolver"] = "forged"
+        elif attack == "resolution-hash":
+            payload["resolution_hash"] = "f" * 64
+        elif attack == "configuration-identity":
+            payload["identity"]["namespace"] = "core.combined"
+        elif attack == "entries":
+            entry = next(e for e in payload["entries"] if e["classification"] == "BEHAVIORAL")
+            entry["value"] = {"type": "string", "value": "forged"}
+            payload["resolution_hash"] = canonical.fingerprint({
+                key: payload[key] for key in ("semantic", "resolution", "entries")
+            })
+        elif attack == "configuration-binding":
+            evidence.payload_json[CONFIGURATION_PAYLOAD_KEY] = (
+                core_configurations()[2].snapshot.as_dict()
+            )
+        _reseal_source(evidence, canonical)  # inner checks must survive a valid outer payload seal
+    with pytest.raises(ValueError):
+        _validate_evidence(evidence)
+
+
 def core_configurations():
     settings = Settings(_env_file=None)
     return (

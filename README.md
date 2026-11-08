@@ -86,7 +86,8 @@ $env:JOB_WORKER_ENABLED='false'
 uv run python -m app.serve --host 127.0.0.1 --port 8000 --reload
 ```
 
-In NORMAL operation the supervisor owns both children and applies bounded restart/backoff with a
+In NORMAL operation the supervisor owns the web process, normal worker and one sector-only worker,
+and applies bounded restart/backoff with a
 terminal `CRASH_LOOP` state. The API process never owns the supervisor and never executes pipeline
 or broker jobs. For source-editing sessions only, `python -m app.serve --reload` enables reload with
 runtime logs, outputs, artifacts, caches, and generated data excluded from file watching. Do not
@@ -125,7 +126,8 @@ docker compose -f docker-compose.observability.yml up -d
 ```
 
 This starts Prometheus on port 9090 and Grafana on port 3000. It scrapes the web process on 8000,
-the durable worker on 9101, and its supervisor on 9102. See
+the durable worker on 9101, and its supervisor on 9102. The NORMAL sector worker exposes its own
+metrics on 9103 (configurable); certification retains its single-worker topology. See
 `docs/operations/prometheus_grafana.md` for retention, dashboards, and troubleshooting.
 
 ## Dependency Management

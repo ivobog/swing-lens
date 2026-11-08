@@ -314,3 +314,16 @@ def test_capability_module_has_no_database_or_persistence_dependencies() -> None
         for module in modules
         if any(marker in module for marker in ("database", "models", "cache", "job"))
     }
+
+
+@pytest.fixture(autouse=True)
+def isolated_historical_transport(monkeypatch):
+    """Provider DTO/error/replay doubles do not require database coordination.
+
+    Unpatched coordination is exercised by the PostgreSQL process suite.
+    """
+    from contextlib import nullcontext
+
+    monkeypatch.setattr(
+        "app.services.ib_data_fetcher.historical_request", lambda *_args, **_kwargs: nullcontext()
+    )

@@ -395,9 +395,24 @@ def _check_full_release(manifest: dict, root: Path) -> None:
         if spec["step"] not in job_steps or job_steps[spec["step"]].get("continue-on-error"):
             raise RegistryError("required test step omitted/downgraded: " + lane)
         record = job_steps.get("Record release " + lane, {})
+        terminal_command = "--record-release-lane " + lane
+        if lane == "a04":
+            terminal_command = (
+                "-m scripts.qa.owned_certification record --release-plan "
+                "test-results/release-plan/plan.json --live-root test-results/release-live/a04 "
+                "--snapshot-root test-results/release/a04 --job-result "
+                '"${{ steps.release_a04.outcome }}"'
+            )
+            invoked = job_steps[spec["step"]].get("run", "")
+            if (
+                "-m scripts.qa.owned_certification run " not in invoked
+                or "--live-root test-results/release-live/a04" not in invoked
+                or "--report-dir test-results/release-live/a04/a04" not in invoked
+            ):
+                raise RegistryError("A04 process ownership/live evidence boundary missing")
         if not record.get("if", "").startswith(
             "always()"
-        ) or "--record-release-lane " + lane not in record.get("run", ""):
+        ) or terminal_command not in record.get("run", ""):
             raise RegistryError("terminal evidence capture missing: " + lane)
         if spec["kind"] == "pytest":
             if "--collect-only" not in job_steps.get("Collect release " + lane, {}).get("run", ""):
@@ -855,6 +870,65 @@ def source_impact_plan(manifest: dict, changed: list[str], *, baseline_known: bo
     }
 
 
+def ci_comparison_baseline(root: Path = ROOT) -> dict:
+    """Resolve CI's comparison without treating an unknown history as an empty diff.
+
+    Default-branch snapshots certify the complete core on every invocation. Their
+    impact comparison is the last first-parent change, not a claim about changes
+    since a previous certificate. Unknown paths still require owner review.
+    """
+    import os
+    import subprocess
+
+    def git(*arguments):
+        return subprocess.check_output(
+            ["git", *arguments], cwd=root, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    event = json.loads(Path(event_path).read_text()) if event_path else {}
+    result = {
+        "event": event_name,
+        "tested_source": git("rev-parse", "HEAD"),
+        "baseline": None,
+        "policy": "event-base-v1",
+        "reason": None,
+    }
+    base = event.get("pull_request", {}).get("base", {}).get("sha") or event.get("before")
+    try:
+        if event_name in {"schedule", "workflow_dispatch"}:
+            result["policy"] = "trusted-default-branch-first-parent-snapshot-v1"
+            repository = event.get("repository", {})
+            default = repository.get("default_branch")
+            if (
+                repository.get("full_name") != "ivobog/swing-lens"
+                or os.environ.get("GITHUB_REPOSITORY") != "ivobog/swing-lens"
+                or default != "main"
+                or os.environ.get("GITHUB_REF") != "refs/heads/main"
+                or os.environ.get("GITHUB_SHA") != result["tested_source"]
+            ):
+                raise ValueError("snapshot must test the trusted default branch source")
+            if git("rev-parse", "--is-shallow-repository") != "false":
+                raise ValueError("snapshot requires complete first-parent history")
+            base = git("rev-parse", "--verify", "HEAD^1")
+            if base == result["tested_source"]:
+                raise ValueError("self comparison is not a snapshot baseline")
+            subprocess.run(
+                ["git", "merge-base", "--is-ancestor", base, result["tested_source"]],
+                cwd=root, check=True, capture_output=True,
+            )
+        if not base or set(base) == {"0"}:
+            raise ValueError("event supplies no comparison commit")
+        result["baseline"] = git(
+            "rev-parse", "--verify", "--end-of-options", base + "^{commit}"
+        )
+    except (ValueError, subprocess.CalledProcessError) as exc:
+        result["reason"] = str(exc)
+        result["baseline"] = None
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="validate only; never execute tools")
@@ -881,15 +955,11 @@ def main() -> int:
             else:
                 changed.extend(line for line in lines if line)
         base = args.diff_base
+        comparison = None
         if args.ci_impact:
-            import os
-
-            event_path = os.environ.get("GITHUB_EVENT_PATH")
-            event = json.loads(Path(event_path).read_text()) if event_path else {}
-            base = event.get("pull_request", {}).get("base", {}).get("sha") or event.get("before")
-            if not base or set(base) == {"0"}:
-                known = False
-                base = None
+            comparison = ci_comparison_baseline()
+            base = comparison["baseline"]
+            known = base is not None
         if base:
             import subprocess
 
@@ -912,6 +982,8 @@ def main() -> int:
             )
         if changed or args.ci_impact or args.diff_file or args.diff_base or args.impact_output:
             result["impact"] = source_impact_plan(manifest, changed, baseline_known=known)
+            if comparison is not None:
+                result["impact"]["comparison"] = comparison
             if args.impact_output:
                 args.impact_output.parent.mkdir(parents=True, exist_ok=True)
                 args.impact_output.write_text(json.dumps(result["impact"], indent=2) + "\n")

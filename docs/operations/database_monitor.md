@@ -30,6 +30,12 @@ filenames prevent the API and worker from interleaving writes. The writer report
 `records_written`, `db_monitor_dropped_records`, queue depth, and write failures in
 `monitor_status` records. Queue saturation drops telemetry instead of blocking SQL.
 
+An open stream is checked for size after each record and remains protected from
+retention. Existing size segments are searched only when opening a stream,
+rotating, or changing the record's day. Delayed records for an earlier day still
+select that day's first available segment. This avoids repeated filesystem scans
+for every SQL record while preserving record contents and rotation bounds.
+
 P0/P1/P2 remain physically separate. P0 covers request/job summaries and incident-critical evidence;
 P1 covers high-value diagnostic events; P2 covers routine SQL. Under pressure P2 records are
 aggregated or sampled while P0 capacity remains reserved. Prometheus bridging occurs only at the

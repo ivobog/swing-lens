@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundWorker
@@ -54,6 +54,7 @@ def register_worker(
     now: datetime | None = None,
     instance_id: str | None = None,
     process_start: datetime | None = None,
+    operation_profile: str | None = None,
 ) -> BackgroundWorker:
     clean_worker_id = worker_id.strip()
     if not clean_worker_id:
@@ -86,6 +87,9 @@ def register_worker(
     ):
         replace_registration = True
     worker.queues_json = queue_names
+    from app.settings import get_settings
+
+    worker.operation_profile = operation_profile or get_settings().job_worker_profile
     worker.hostname = host
     worker.process_id = pid
     worker.instance_id = requested_instance_id
@@ -339,9 +343,25 @@ def retire_worker_registration(
     ):
         return None
     stopped_at = now or datetime.now(UTC)
-    worker.heartbeat_at = stopped_at
-    worker.stopping_at = stopped_at
-    db.flush()
+    # Startup retires dead registrations before upgrading the schema. Use only
+    # legacy control columns here: an ORM flush's persistence redactor would
+    # otherwise load deferred columns introduced by the pending migration.
+    table = BackgroundWorker.__table__
+    with db.no_autoflush:
+        result = db.execute(
+            update(table)
+            .where(
+                table.c.worker_id == worker_id,
+                table.c.instance_id == expected_instance_id,
+                table.c.generation == expected_generation,
+                table.c.process_id == expected_process_id,
+            )
+            .values(heartbeat_at=stopped_at, stopping_at=stopped_at)
+        )
+    if result.rowcount != 1:
+        db.expire(worker)
+        return None
+    db.expire(worker, ["heartbeat_at", "stopping_at"])
     return worker
 
 
@@ -406,6 +426,7 @@ def has_live_worker_for_job(
     required_queue = job_queue_class(job_type)
     return any(
         required_queue in set(worker.queues_json or [])
+        and getattr(worker, "operation_profile", "general") == "general"
         for worker in live_workers(
             db,
             heartbeat_timeout_seconds=heartbeat_timeout_seconds,

@@ -100,6 +100,13 @@ TEST_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 
 def main() -> int:
+    if os.environ.get("SWINGLENS_VERIFY_SOURCE_ROOT"):
+        from scripts.qa.source_bound import record_origins
+
+        record_origins(Path(os.environ["SWINGLENS_VERIFY_SOURCE_ROOT"]),
+            Path(os.environ["SWINGLENS_SOURCE_PROVENANCE_DIR"]),
+            ("scripts.production_runtime_certification", "app.main", "app.settings",
+             "app.database_safety"))
     parser = argparse.ArgumentParser(description="Certify the production SwingLens runtime.")
     parser.add_argument(
         "--provider-mode", choices=("deterministic", "live"), default="deterministic"
@@ -111,6 +118,8 @@ def main() -> int:
     release.add_argument("--record-release-lane")
     release.add_argument("--aggregate-release", action="store_true")
     release.add_argument("--release-selectors")
+    release.add_argument("--try-reuse-release-lane")
+    release.add_argument("--validate-impact", choices=("developer", "integration"))
     parser.add_argument("--release-profile", choices=("core", "diagnostic"), default="core")
     parser.add_argument("--impact-plan", type=Path)
     parser.add_argument("--release-plan", type=Path)
@@ -125,12 +134,16 @@ def main() -> int:
     execution_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     final_report_dir = args.report_dir or REPORT_ROOT / execution_id
 
+    if args.validate_impact:
+        return _run_impact_validation(args, final_report_dir, execution_id)
+
     if (
         args.prepare_release
         or args.begin_release_lane
         or args.record_release_lane
         or args.aggregate_release
         or args.release_selectors
+        or args.try_reuse_release_lane
     ):
         return _release_action(args, final_report_dir)
 
@@ -138,6 +151,102 @@ def main() -> int:
         return _run_live_certification(final_report_dir, execution_id)
 
     return _run_exact_deterministic(final_report_dir, execution_id)
+
+
+def _run_impact_validation(args, report_dir: Path, execution_id: str) -> int:
+    """Run affected groups serially; stop at the first actionable native failure."""
+    from scripts.qa import check_certification_registry as registry
+    from scripts.qa import release_evidence as release
+
+    report_dir.mkdir(parents=True, exist_ok=False)
+    report = {
+        "schema": "swinglens.impact-validation.v1", "execution_id": execution_id,
+        "level": args.validate_impact, "certification": "NOT_EVALUATED",
+        "safe_for_normal_run": False, "groups": {}, "status": "BLOCKED",
+        "started_at": datetime.now(UTC).isoformat(),
+    }
+    try:
+        if args.provider_mode != "deterministic" or args.impact_plan is None:
+            raise release.EvidenceError("explicit deterministic source-impact plan required")
+        manifest = registry.load_manifest()
+        registry.validate_registry(manifest)
+        registry.validate_source_contracts(manifest)
+        impact = release.read_json(args.impact_plan)
+        groups = release.validation_selection(impact, args.validate_impact)
+        if not groups:
+            raise release.EvidenceError("reviewed affected selection is empty")
+        if args.validate_impact == "integration":
+            admin = os.environ.get("SWINGLENS_TEST_POSTGRES_ADMIN_URL")
+            if not admin or make_url(admin).host not in {"127.0.0.1", "localhost", "::1"}:
+                raise release.EvidenceError(
+                    "explicit owned loopback PostgreSQL prerequisite required"
+                )
+        source = release.identity()
+        report.update(source=source, source_impact=impact, selection=groups)
+        report["resource_advisory"] = _test_resource_advisory()
+        environment = {
+            key: value for key, value in os.environ.items()
+            if not key.startswith("SWINGLENS_RELEASE_")
+        }
+        environment.update(
+            DATABASE_URL="postgresql+psycopg://invalid@127.0.0.1:1/swinglens_pytest_impact_unopened",
+            SWINGLENS_DATABASE_SAFETY_CONTEXT="DISPOSABLE_TEST",
+            SWINGLENS_CERTIFICATION_PROVIDER_MODE="deterministic",
+            SWINGLENS_CERTIFICATION_CODE_FINGERPRINT=source["fingerprint"],
+            SWINGLENS_CERTIFICATION_INVOCATION_ID=execution_id,
+            SWINGLENS_IMPACT_VALIDATION=args.validate_impact,
+        )
+        plugins = environment.get("PYTEST_PLUGINS", "").split(",")
+        environment["PYTEST_PLUGINS"] = ",".join(dict.fromkeys(
+            [p for p in plugins if p] + ["scripts.qa.release_evidence"]
+        ))
+        stopped = False
+        for name, selectors in groups.items():
+            if stopped:
+                report["groups"][name] = {"status": "NOT_RUN", "selected": selectors}
+                continue
+            directory = report_dir / name
+            directory.mkdir()
+            child = {**environment,
+                     "SWINGLENS_CERTIFICATION_ARTIFACT_ROOT": str(directory / "runtime-evidence")}
+            result = _run_test_group(directory, child, name, ("-x", "--tb=short", *selectors))
+            observed = _junit_execution(directory / f"{name}.xml")
+            complete = (
+                result.exit_code == 0 and bool(observed["executed"]) and not observed["failed"]
+            )
+            measurements = [
+                release.read_json(path) for path in
+                sorted((directory / "runtime-evidence").rglob("validation-runtime.json"))
+            ]
+            if name == "native-pipeline-100-and-88-handoff":
+                complete = (
+                    complete and len(measurements) == 2
+                    and {row["ticker_count"] for row in measurements} == {88, 100}
+                    and {row["nodeid"] for row in measurements} == set(selectors)
+                    and all(row["performance"]["status"] == "PASS"
+                            and row["original_outcome"] == "passed"
+                            and row["source_fingerprint"] == source["fingerprint"]
+                            for row in measurements)
+                )
+            report["groups"][name] = {
+                **asdict(result), "status": "PASS" if complete else "FAIL",
+                "selected": selectors, "observed": observed,
+                "native_runtime_measurements": measurements,
+            }
+            stopped = not complete
+            release.write_json(report_dir / "validation.json", report)
+        if release.identity() != source:
+            raise release.EvidenceError("source changed during affected validation")
+        report["status"] = "FAIL" if stopped else "PASS"
+    except (
+        release.EvidenceError, registry.RegistryError, OSError, ValueError,
+        KeyError, TypeError, ET.ParseError,
+    ) as exc:
+        report["reason"] = str(exc)
+    report["completed_at"] = datetime.now(UTC).isoformat()
+    release.write_json(report_dir / "validation.json", report)
+    print(f"{args.validate_impact} validation: {report['status']}; certification: NOT_EVALUATED")
+    return 0 if report["status"] == "PASS" else 1
 
 
 def _release_action(args, report_dir: Path) -> int:
@@ -172,6 +281,16 @@ def _release_action(args, report_dir: Path) -> int:
             raise release.EvidenceError("release plan required")
         plan = release.read_json(args.release_plan)
         release.validate_plan(plan, current=True)
+        if args.try_reuse_release_lane:
+            from scripts.qa.evidence_reuse import try_previous_run
+
+            reused = try_previous_run(report_dir, plan, args.try_reuse_release_lane)
+            if os.environ.get("GITHUB_OUTPUT"):
+                with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                    output.write("reused=" + str(reused).lower() + "\n")
+            print("Native evidence: " + ("REUSED_WITH_ORIGINAL_PROVENANCE" if reused
+                                         else "FRESH_EXECUTION_REQUIRED"))
+            return 0
         if args.release_selectors:
             spec = plan["required_lanes"][args.release_selectors]
             if spec["kind"] != "pytest" or not spec["selectors"]:
@@ -193,6 +312,11 @@ def _release_action(args, report_dir: Path) -> int:
             )
             release.write_json(report_dir / "report.json", result)
         print("Release evidence: " + result.get("core_verdict", result["verdict"]))
+        if result["verdict"] != "CERTIFIED":
+            from app.services.redaction import redact_text
+
+            for reason in result.get("reasons", []):
+                print("Release evidence blocker: " + redact_text(str(reason)), flush=True)
         return 0 if result["verdict"] == "CERTIFIED" else 1
     except (release.EvidenceError, OSError, ValueError, TypeError, KeyError) as exc:
         core = plan.get("profile") == "core" or (
@@ -350,6 +474,9 @@ def _run_exact_deterministic(report_dir: Path, execution_id: str) -> int:
                     )
                     results.append(prerequisite)
                     prerequisites_passed = prerequisite.exit_code == 0
+                    disposition = report_dir / "source-impact-prerequisites/pr-disposition.json"
+                    if prerequisites_passed and disposition.is_file():
+                        specialized_prerequisites = release.read_json(disposition)["selected"]
                 except release.EvidenceError as exc:
                     reasons.append("source-impact prerequisite evidence invalid: " + str(exc))
                     prerequisites_passed = False
@@ -362,7 +489,7 @@ def _run_exact_deterministic(report_dir: Path, execution_id: str) -> int:
             results.append(native)
             invocation.update(_junit_execution(report_dir / "production-runtime.xml"))
             invocation["exit_code"] = native.exit_code
-        else:
+        elif focused.exit_code != 0:
             reasons.append("focused gate regressions failed")
     else:
         reasons.append("exact collection missing, duplicate, zero, or selector drift")
@@ -571,12 +698,11 @@ def _run_test_group(
     selectors: tuple[str, ...],
 ) -> TestGroupResult:
     browsers = ["chromium"]
-    if environment.get("SWINGLENS_RELEASE_LANE") == "a04-prerequisites":
+    if environment.get("SWINGLENS_RELEASE_LANE", "").startswith("a04-prerequisites"):
         from scripts.qa import release_evidence as release
 
-        browsers = release.read_json(Path(environment["SWINGLENS_RELEASE_PLAN"]))[
-            "a04_prerequisites"
-        ]["browsers"]
+        plan = release.read_json(Path(environment["SWINGLENS_RELEASE_PLAN"]))
+        browsers = release.lane_spec(plan, environment["SWINGLENS_RELEASE_LANE"])["browsers"]
     command = [
         sys.executable,
         "-m",
@@ -604,27 +730,39 @@ def guard(event, args):
         address[1] in {7496, 7497, 4001, 4002}):
         raise RuntimeError('CERTIFICATION_UNEXPECTED_NETWORK_ACCESS')
 sys.addaudithook(guard)
+import os
+from pathlib import Path
+if os.environ.get('SWINGLENS_VERIFY_SOURCE_ROOT'):
+    from scripts.qa.source_bound import record_origins
+    record_origins(Path(os.environ['SWINGLENS_VERIFY_SOURCE_ROOT']),
+        Path(os.environ['SWINGLENS_SOURCE_PROVENANCE_DIR']),
+        ('app.main', 'app.settings', 'app.database_safety',
+         'scripts.production_runtime_certification'))
 sys.argv = ['pytest', *sys.argv[1:]]
 runpy.run_module('pytest', run_name='__main__')
 """
         command = [sys.executable, "-c", bootstrap, *command[3:]]
+    stdout_path = report_dir / f"{name}.stdout.log"
+    stderr_path = report_dir / f"{name}.stderr.log"
     started = monotonic()
-    with _record_test_resources(report_dir / f"{name}.resources.jsonl"):
+    # Keep native diagnostics visible while a long group is still executing.
+    # Buffering both streams until process exit hid the first actionable failure.
+    with (
+        _record_test_resources(report_dir / f"{name}.resources.jsonl"),
+        stdout_path.open("wb") as stdout,
+        stderr_path.open("wb") as stderr,
+    ):
         completed = subprocess.run(
             command,
             cwd=REPO_ROOT,
-            env=environment,
-            text=True,
-            capture_output=True,
+            env={**environment, "PYTHONIOENCODING": "utf-8"},
+            stdout=stdout,
+            stderr=stderr,
             check=False,
         )
     duration = monotonic() - started
-    stdout_path = report_dir / f"{name}.stdout.log"
-    stderr_path = report_dir / f"{name}.stderr.log"
-    stdout_path.write_text(completed.stdout, encoding="utf-8")
-    stderr_path.write_text(completed.stderr, encoding="utf-8")
     status = "PASS" if completed.returncode == 0 else "FAIL"
-    print(f"{name}: {status} ({duration:.1f}s)")
+    print(f"{name}: {status} ({duration:.1f}s)", flush=True)
     return TestGroupResult(
         name=name,
         status=status,
@@ -636,6 +774,22 @@ runpy.run_module('pytest', run_name='__main__')
     )
 
 
+def _prerequisite_environment(environment: dict[str, str], selectors: list[str]) -> dict[str, str]:
+    """Enable the unchanged opt-in guards for explicitly required benchmarks."""
+    result = {**environment, "SWINGLENS_FAIL_ON_REQUIRED_SKIP": "true"}
+    flags = {
+        "tests/integration/test_run8_setup_performance_postgresql.py"
+        "::test_setup_capture_run8_scale_is_bounded": "RUN_RUN8_REMEDIATION_BENCHMARK",
+        "tests/integration/test_slse_performance_certification.py"
+        "::test_slse_phase_12_performance_certification": "RUN_SLSE_PERFORMANCE_CERTIFICATION",
+    }
+    for node in selectors:
+        flag = flags.get(node.split("[", 1)[0])
+        if flag:
+            result[flag] = "1"
+    return result
+
+
 def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], plan: dict):
     """Execute triggered retained cases with the original release evidence protocol."""
     from scripts.qa import release_evidence as release
@@ -644,6 +798,21 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     directory = report_dir / name
     spec = plan["a04_prerequisites"]
     _prepare_prerequisite_browsers(report_dir, environment, spec["browsers"])
+    from scripts.qa.evidence_reuse import (
+        PREREQUISITES,
+        prerequisite_selection,
+        try_previous_run,
+        validate_pr_selection,
+    )
+
+    if try_previous_run(directory, plan, "a04-prerequisites", environment):
+        return TestGroupResult(name, "PASS", 0, 0, [], "", "")
+    historical_matrix = try_previous_run(
+        directory / "matrix-basis", plan, "a04-prerequisites", environment, purpose="matrix-basis"
+    )
+    spec, lane = prerequisite_selection(plan, historical_matrix)
+    conditional = lane != PREREQUISITES
+    environment = _prerequisite_environment(environment, spec["selectors"])
     plugins = environment.get("PYTEST_PLUGINS", "").split(",")
     plugins = [plugin for plugin in plugins if plugin]
     if "scripts.qa.release_evidence" not in plugins:
@@ -652,9 +821,10 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
         **environment,
         "PYTEST_PLUGINS": ",".join(plugins),
         "SWINGLENS_RELEASE_PLAN": os.environ["SWINGLENS_RELEASE_PLAN"],
-        "SWINGLENS_RELEASE_LANE": "a04-prerequisites",
+        "SWINGLENS_RELEASE_LANE": lane,
         "SWINGLENS_RELEASE_CAPTURE": "collection",
         "SWINGLENS_RELEASE_RECORD_DIR": str(directory),
+        "SWINGLENS_RETAIN_NATIVE_RUNTIME": "true",
     }
     command = [
         sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
@@ -662,6 +832,10 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
         "--output", str(report_dir / "prerequisite-browser-scratch"),
         *spec["selectors"],
     ]
+    if child.get("SWINGLENS_VERIFY_SOURCE_ROOT"):
+        command = [sys.executable, "-m", "scripts.qa.source_bound", "--receipt-dir",
+            child["SWINGLENS_SOURCE_PROVENANCE_DIR"], "--module", "pytest", "--",
+            *command[3:]]
     collected = subprocess.run(
         command, cwd=REPO_ROOT, env=child, capture_output=True, text=True, check=False,
     )
@@ -670,17 +844,32 @@ def _run_impact_prerequisites(report_dir: Path, environment: dict[str, str], pla
     if collected.returncode:
         return TestGroupResult(name, "FAIL", collected.returncode, 0, command, "", "")
     child["SWINGLENS_RELEASE_CAPTURE"] = "execution"
-    result = _run_test_group(report_dir, child, name, tuple(spec["selectors"]))
+    result = _run_test_group(report_dir, child, name, ("--maxfail=1", *spec["selectors"]))
     shutil.copyfile(report_dir / (name + ".xml"), directory / "results.xml")
     observed = release.junit_cases(directory / "results.xml", "pytest")
-    proof = release._pytest_results(directory, plan, "a04-prerequisites", observed)
+    try:
+        proof = release._pytest_results(directory, plan, lane, observed)
+    except release.EvidenceError as exc:
+        names = {release.junit_key(node): node for node in spec["selectors"]}
+        blockers = {names.get(node, "UNDECLARED_JUNIT_CASE"): outcome
+                    for node, outcome in observed.items() if outcome != "passed"}
+        raise release.EvidenceError(str(exc) + "; original nonpassing cases: "
+                                    + json.dumps(blockers, sort_keys=True)) from exc
     if (
         proof["process_exit_code"] != 0
         or set(proof["passed"]) != set(spec["selectors"])
         or set(proof["body_executed"]) != set(spec["selectors"])
         or any(proof[key] for key in release.CATEGORIES if key != "passed")
     ):
-        raise release.EvidenceError("specialized prerequisite failed, skipped or never executed")
+        blockers = {key: proof[key] for key in release.CATEGORIES
+                    if key != "passed" and proof[key]}
+        raise release.EvidenceError("specialized prerequisite failed, skipped or never executed: "
+                                    + json.dumps(blockers, sort_keys=True))
+    if conditional:
+        disposition = validate_pr_selection(
+            directory, plan, feedback_root=report_dir / "runtime-evidence/validation-feedback"
+        )
+        release.write_json(directory / "pr-disposition.json", disposition)
     return result
 
 

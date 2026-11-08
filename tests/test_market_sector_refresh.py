@@ -169,7 +169,7 @@ def test_authorized_post_atomic_commit_and_inventory(secured_client):
     app, client, db, submit = secured_client
     response = client.post("/api/market-sector-intelligence/refresh", json={}, headers=headers(app))
     assert response.status_code == 202 and response.json()["job_id"] == 71
-    submit.assert_called_once_with(db, settings=app.state.settings)
+    submit.assert_called_once_with(db, settings=app.state.settings, request_id=None)
     db.commit.assert_called_once()
     classification = next(
         row.classification
@@ -234,7 +234,18 @@ def test_status_uses_both_durable_job_and_exact_fetch_run(
     monkeypatch.setattr(service, "get_fetch_progress", read)
     result = service.sector_refresh_status(
         SimpleNamespace(no_autoflush=nullcontext()),
-        SimpleNamespace(id=71, status=job_status, payload_json={"fetch_run_id": 28}),
+        SimpleNamespace(
+            id=71,
+            status=job_status,
+            payload_json={"fetch_run_id": 28},
+            created_at=datetime.now(UTC),
+            started_at=None,
+            last_progress_at=None,
+            progress_stage=None,
+            progress_sequence=0,
+            requested_cancel=False,
+            error_message=None,
+        ),
     )
     assert result["status"] == expected
     assert result["total_items"] == 7 and result["completed_items"] == 3

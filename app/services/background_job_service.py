@@ -69,6 +69,8 @@ class JobFailureKind(StrEnum):
 
 NON_RETRYABLE_PROVENANCE_CODES = frozenset(
     {
+        "REVIEW_SCOPE_EXPIRED",
+        "IB_ACQUISITION_WAIT_EXCEEDED",
         "DECISION_MANIFEST_MISMATCH",
         "DECISION_LINEAGE_MISMATCH",
         "IMMUTABLE_EVIDENCE_MISMATCH",
@@ -871,6 +873,7 @@ def claim_next_job(
             worker is None
             or worker.stopping_at is not None
             or worker.quiesce_requested_at is not None
+            or worker.operation_profile not in {"general", "sector_refresh"}
             or (worker_instance_id is not None and worker.instance_id != worker_instance_id)
         ):
             return None
@@ -880,6 +883,10 @@ def claim_next_job(
         else (QueueClaimGroup(tuple(queues)) if queues is not None else QueueClaimGroup(()),)
     )
     job_id = None
+    sector_only = (
+        isinstance(db, Session)
+        and getattr(worker, "operation_profile", "general") == "sector_refresh"
+    )
     for group in groups:
         job_id = _claim_ready_job_id(
             db,
@@ -888,6 +895,7 @@ def claim_next_job(
             certification_session_id=certification_session_id,
             excluded_job_types=excluded_job_types,
             included_job_types=included_job_types,
+            sector_only=sector_only,
         )
         if job_id is not None:
             break
@@ -1619,11 +1627,20 @@ def _claim_ready_job_id(
     certification_session_id: str | None = None,
     excluded_job_types: Iterable[str] = (),
     included_job_types: Iterable[str] = (),
+    sector_only: bool = False,
 ) -> int | None:
     query = select(BackgroundJob.id).where(
         BackgroundJob.status.in_((JobStatus.QUEUED, JobStatus.RECOVERING))
     )
     query = query.where(BackgroundJob.run_after <= _utcnow())
+    from sqlalchemy import and_, func, not_
+
+    sector = and_(
+        BackgroundJob.job_type == "IB_FETCH",
+        func.coalesce(BackgroundJob.payload_json["msi_refresh"].astext, "")
+        == "msi-sector-refresh-v1",
+    )
+    query = query.where(sector if sector_only else not_(sector))
     from app.services.pipeline_execution_authority import (
         apply_job_execution_authority_scope,
     )

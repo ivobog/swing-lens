@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -26,6 +27,27 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.services.configuration_artifact_immutability import seal_configuration_member
+
+
+class SectorRefreshRequest(Base):
+    __tablename__ = "sector_refresh_requests"
+    request_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("background_jobs.id", ondelete="CASCADE"), nullable=False
+    )
+
+
+class IBHistoricalGate(Base):
+    __tablename__ = "ib_historical_gate"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner: Mapped[str | None] = mapped_column(String(32))
+    hostname: Mapped[str | None] = mapped_column(String(255))
+    process_id: Mapped[int | None] = mapped_column(Integer)
+    process_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    job_id: Mapped[int | None] = mapped_column(BigInteger)
+    execution_token: Mapped[str | None] = mapped_column(String(64))
+    acquired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    requests_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
 
 class UploadRun(Base):
@@ -2252,6 +2274,9 @@ class BackgroundJobFanoutRoot(Base):
 
 class BackgroundWorker(Base):
     __tablename__ = "background_workers"
+    operation_profile: Mapped[str] = mapped_column(
+        String(32), default="general", server_default="general", deferred=True
+    )
 
     worker_id: Mapped[str] = mapped_column(Text, primary_key=True)
     queues_json: Mapped[list[str]] = mapped_column(

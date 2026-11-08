@@ -2,6 +2,35 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {trailSegments, cohortBlocked, sortedRows, comparisonWarnings, numeric, rotationOverview, technicalComparisons, savedRankMovement, chartControlKey} = require('../app/static/market_sector_intelligence.js');
 const calendar = ['2026-10-16', '2026-10-19', '2026-10-20', '2026-10-21'];
+const {readPanelResponse} = require('../app/static/market_sector_intelligence.js');
+const panelResponse = (status, code) => ({status, ok: status === 200,
+  headers: {get: () => '2'}, json: async () => status === 200 ? {horizon: 5} : {detail: {code}}});
+test('a superseding chart read waits for the previous family permit then loads its own response', async () => {
+  let calls = 0; const waits = [], signal = new AbortController().signal;
+  const payload = await readPanelResponse(async given => {
+    assert.equal(given, signal); calls++;
+    return calls < 3 ? panelResponse(503, 'SECTOR_PANEL_ALREADY_RUNNING') : panelResponse(200);
+  }, signal, async delay => waits.push(delay));
+  assert.deepEqual(payload, {horizon: 5}); assert.equal(calls, 3);
+  assert.deepEqual(waits, [2000, 2000]);
+});
+test('canceling a read during its capacity wait prevents another fetch', async () => {
+  const controller = new AbortController(); let calls = 0;
+  const pending = readPanelResponse(async () => {
+    calls++; return panelResponse(503, 'SECTOR_READ_CAPACITY');
+  }, controller.signal);
+  await new Promise(resolve => setImmediate(resolve));
+  controller.abort();
+  await assert.rejects(pending, {name: 'AbortError'});
+  assert.equal(calls, 1);
+});
+test('non-capacity errors fail without retrying', async () => {
+  let calls = 0;
+  await assert.rejects(readPanelResponse(async () => {
+    calls++; return panelResponse(503, 'OTHER_FAILURE');
+  }, new AbortController().signal), /HTTP 503/);
+  assert.equal(calls, 1);
+});
 const saved = (id, day, config = 'a') => ({snapshot_id: id, source_type: 'PERSISTED', market_session: day,
   algorithm_version: 'market-rotation-v1', configuration_digest: config,
   sectors: [{etf_symbol: 'XLK', price_basis: 'TRADES', rank: 1, rotation_state: 'Leading', rs_63_pct: 0, relative_momentum_pp: 0}]});

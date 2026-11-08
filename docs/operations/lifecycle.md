@@ -15,6 +15,13 @@ The canonical ownership tree is `lifecycle controller -> app.worker_supervisor -
 app.worker`. See [the ownership decision](../architecture/runtime_process_ownership.md). Do not
 start a second supervisor or use the web process as a supervisor owner.
 
+NORMAL also starts one `app.worker` with the `sector_refresh` operation profile, broker queue,
+and `<normal-worker-id>-sector` registration. Its metrics port defaults to 9103 and acquisition
+client ID to 30; IDs 22–29 remain reserved for health/capability probes with default settings.
+Both worker generations are fenced before stop/restart is declared safe. The sector worker only
+claims manually admitted MSI refreshes. Idle startup and cached/status reads acquire no ETF data.
+CERTIFICATION retains the existing single normal worker. Migration 0094 is required before activation.
+
 ## Start and runtime reuse
 
 PowerShell obtains Pydantic-parsed configuration and sanitized source provenance from the Python

@@ -33,6 +33,7 @@ class MarketSectorIntelligenceCoverageService:
         self.clock = clock or MarketClockService()
         self.frame_loader = frame_loader or load_preferred_ohlcv_frames
         self.basis_loader = basis_loader or load_price_bars_frame
+        self.native_loaders = frame_loader is None and basis_loader is None
 
     def build(
         self,
@@ -46,6 +47,28 @@ class MarketSectorIntelligenceCoverageService:
             datetime.now(UTC), reason="MARKET_SECTOR_INTELLIGENCE_COVERAGE"
         )
         clock_for_cutoff(cutoff)
+        session_validity = {}
+        # Request-local reuse has one frozen cutoff and canonical PIT projection.
+        # Keep full-window preferred-basis semantics, including early date gaps.
+        frames = {}
+        if self.native_loaders and config.enabled:
+            from app.services.market_sector_intelligence_read_window import batch_cached_read
+
+            symbols = [sector.etf_symbol for sector in config.sectors] + [config.benchmark_symbol]
+            with batch_cached_read(db, symbols, timeframe=config.timeframe, cutoff=cutoff):
+                for symbol in symbols:
+                    for basis in ("ADJUSTED_LAST", "TRADES"):
+                        try:
+                            frames[symbol, basis] = self.basis_loader(
+                                db,
+                                symbol,
+                                basis,
+                                timeframe=config.timeframe,
+                                max_session=cutoff.latest_completed_session,
+                                as_of=cutoff.cutoff_at,
+                            )
+                        except Exception as exc:
+                            frames[symbol, basis] = exc
         rows = [
             self._row(
                 "sector",
@@ -63,14 +86,27 @@ class MarketSectorIntelligenceCoverageService:
                     row.update(status="DISABLED", reason="feature_disabled")
                     continue
                 try:
-                    price, _volume = self.frame_loader(
-                        db,
-                        row["ticker"],
-                        timeframe=config.timeframe,
-                        max_session=cutoff.latest_completed_session,
-                        as_of=cutoff.cutoff_at,
-                    )
-                    self._evaluate(row, price, cutoff)
+                    if self.native_loaders:
+                        adjusted, trades = (
+                            frames[row["ticker"], "ADJUSTED_LAST"],
+                            frames[row["ticker"], "TRADES"],
+                        )
+                        if isinstance(adjusted, Exception) or isinstance(trades, Exception):
+                            raise CoverageEvidenceError("cached_price_evaluation_failed")
+                        complete = not adjusted.empty and (
+                            trades.empty or set(adjusted["date"]) >= set(trades["date"])
+                        )
+                        price = adjusted if complete else trades
+                        price.attrs["price_basis"] = "ADJUSTED_LAST" if complete else "TRADES"
+                    else:
+                        price, _volume = self.frame_loader(
+                            db,
+                            row["ticker"],
+                            timeframe=config.timeframe,
+                            max_session=cutoff.latest_completed_session,
+                            as_of=cutoff.cutoff_at,
+                        )
+                    self._evaluate(row, price, cutoff, session_validity=session_validity)
                 except CoverageEvidenceError as exc:
                     row.update(status="UNAVAILABLE", reason=str(exc))
                 except Exception as exc:
@@ -79,7 +115,9 @@ class MarketSectorIntelligenceCoverageService:
                         "ETF coverage failed for %s (%s)", row["ticker"], type(exc).__name__
                     )
                     row.update(status="UNAVAILABLE", reason="cached_price_evaluation_failed")
-            freshness = self._freshness(db, config, cutoff)
+            freshness = self._freshness(
+                db, config, cutoff, frames=frames, session_validity=session_validity
+            )
         return {
             "feature": "market_sector_intelligence",
             "enabled": config.enabled,
@@ -94,7 +132,7 @@ class MarketSectorIntelligenceCoverageService:
             "freshness": freshness,
         }
 
-    def _freshness(self, db, config, cutoff):
+    def _freshness(self, db, config, cutoff, *, frames=None, session_validity=None):
         """Verify each required basis independently, without changing model preference.
 
         The canonical reader applies receipt/revision PIT visibility. Invalid
@@ -110,36 +148,57 @@ class MarketSectorIntelligenceCoverageService:
                     row.update(status="UNKNOWN", reason="feature_disabled")
                 else:
                     try:
-                        frame = self.basis_loader(
-                            db, sector.etf_symbol, basis, timeframe=config.timeframe,
-                            max_session=cutoff.latest_completed_session, as_of=cutoff.cutoff_at,
+                        frame = (
+                            frames[sector.etf_symbol, basis].copy(deep=True)
+                            if frames
+                            else self.basis_loader(
+                                db,
+                                sector.etf_symbol,
+                                basis,
+                                timeframe=config.timeframe,
+                                max_session=cutoff.latest_completed_session,
+                                as_of=cutoff.cutoff_at,
+                            )
                         )
                         # Validate the full frame before considering usable closes.
                         try:
-                            self._evaluate(dict(row), frame, cutoff)
+                            self._evaluate(
+                                dict(row), frame, cutoff, session_validity=session_validity
+                            )
                         except CoverageEvidenceError as exc:
                             if str(exc) != "invalid_latest_close":
                                 raise
                         if not frame.empty:
+
                             def usable(value):
                                 try:
-                                    return (not pd.api.types.is_bool(value)
-                                            and math.isfinite(float(value)) and float(value) > 0)
+                                    return (
+                                        not pd.api.types.is_bool(value)
+                                        and math.isfinite(float(value))
+                                        and float(value) > 0
+                                    )
                                 except (TypeError, ValueError, OverflowError):
                                     return False
+
                             frame = frame.loc[frame["close"].map(usable)].copy()
                             frame.attrs["price_basis"] = basis
-                        self._evaluate(row, frame, cutoff)
+                        self._evaluate(row, frame, cutoff, session_validity=session_validity)
                     except Exception:
-                        row.update(status="UNKNOWN", reason="cached_basis_evaluation_failed",
-                                   first_session=None, last_session=None, session_lag=None)
+                        row.update(
+                            status="UNKNOWN",
+                            reason="cached_basis_evaluation_failed",
+                            first_session=None,
+                            last_session=None,
+                            session_lag=None,
+                        )
                 entries.append(row)
         stale = [row for row in entries if row["status"] == "STALE"]
         missing = [row for row in entries if row["status"] == "MISSING"]
         unknown = [row for row in entries if row["status"] == "UNKNOWN"]
         status = "STALE" if stale else "UNKNOWN" if unknown else "MISSING" if missing else "CURRENT"
         return {
-            "status": status, "expected_session": cutoff.latest_completed_session.isoformat(),
+            "status": status,
+            "expected_session": cutoff.latest_completed_session.isoformat(),
             "calendar_version": cutoff.calendar_version,
             "as_of": cutoff.cutoff_at.isoformat(),
             "required_bases": ["TRADES", "ADJUSTED_LAST"],
@@ -163,7 +222,9 @@ class MarketSectorIntelligenceCoverageService:
             "reason": "no_pit_visible_cached_daily_bars",
         }
 
-    def _evaluate(self, row, price: pd.DataFrame, cutoff: MarketCalculationCutoff):
+    def _evaluate(
+        self, row, price: pd.DataFrame, cutoff: MarketCalculationCutoff, *, session_validity=None
+    ):
         if price.empty:
             return
         if not {"date", "close"}.issubset(price.columns):
@@ -171,10 +232,18 @@ class MarketSectorIntelligenceCoverageService:
         sessions = [_session(value) for value in price["date"]]
         if any(session > cutoff.latest_completed_session for session in sessions):
             raise CoverageEvidenceError("post_cutoff_session_detected")
-        if len(set(sessions)) != len(sessions) or any(
-            not is_us_trading_day(session, calendar_version=cutoff.calendar_version)
-            for session in sessions
-        ):
+
+        def valid_session(session):
+            key = (cutoff.calendar_version, session)
+            if session_validity is None:
+                return is_us_trading_day(session, calendar_version=cutoff.calendar_version)
+            if key not in session_validity:
+                session_validity[key] = is_us_trading_day(
+                    session, calendar_version=cutoff.calendar_version
+                )
+            return session_validity[key]
+
+        if len(set(sessions)) != len(sessions) or not all(map(valid_session, sessions)):
             raise CoverageEvidenceError("invalid_or_duplicate_market_session")
         # The approved loader enforces these timestamps before projecting OHLCV.
         # Check them too if an adapter supplies receipt columns explicitly.

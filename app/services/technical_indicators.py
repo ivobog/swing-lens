@@ -61,7 +61,13 @@ def calculate_technical_features(
     MarketClockService(calendar_version=calendar_version)
     params = params or load_pine_defaults()
     v4_params = v4_params or load_technical_scoring_v4_config()
-    df = prepare_ohlcv_frame(price_df, trades_df)
+    # Numeric features never consume frame attrs. Construct data-only views before
+    # pandas operations clone large point-in-time metadata; callers retain the
+    # original frames for lineage and the normalizer copies values before edits.
+    df = prepare_ohlcv_frame(
+        pd.DataFrame(price_df, copy=False),
+        pd.DataFrame(trades_df, copy=False) if trades_df is not None else None,
+    )
     missing_data = _missing_data(
         df, params, expected_session=expected_session, calendar_version=calendar_version
     )
@@ -117,8 +123,8 @@ def calculate_relative_strength_features(
 ) -> dict[str, Any]:
     params = params or load_pine_defaults()
     market_rs = params["market_rs"]
-    stock = prepare_ohlcv_frame(stock_df)
-    benchmark = prepare_ohlcv_frame(benchmark_df)
+    stock = prepare_ohlcv_frame(pd.DataFrame(stock_df, copy=False))
+    benchmark = prepare_ohlcv_frame(pd.DataFrame(benchmark_df, copy=False))
     benchmark_timezone_mismatch = _timezone_mismatch(stock["date"], benchmark["date"])
     aligned = _aligned_close_by_session_date(
         stock,
@@ -144,7 +150,7 @@ def calculate_relative_strength_features(
         )
 
     if sector_df is not None and not sector_df.empty:
-        sector = prepare_ohlcv_frame(sector_df)
+        sector = prepare_ohlcv_frame(pd.DataFrame(sector_df, copy=False))
         sector_timezone_mismatch = _timezone_mismatch(stock["date"], sector["date"])
         sector_aligned = _aligned_close_by_session_date(
             stock,

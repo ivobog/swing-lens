@@ -61,6 +61,9 @@
   function comparisonWarnings(panels) {
     const valid = panels.filter(Boolean);
     const warnings = [];
+    if (new Set(valid.map(p => Date.parse(p.as_of_utc || p.cutoff_at_utc || p.as_of || p.captured_at_utc)).filter(Number.isFinite)).size > 1) {
+      warnings.push('Source cutoffs differ. Retained and replaced panels are shown with their own provenance; cross-panel comparison is unverified.');
+    }
     if (new Set(valid.map(p => p.market_session).filter(Boolean)).size > 1) {
       warnings.push('Market sessions differ. Saved rotation and current diagnostics are not a same-day signal; cross-panel comparisons are unavailable.');
     }
@@ -99,7 +102,35 @@
       payload.as_of_utc || payload.cutoff_at_utc || payload.captured_at_utc, payload.algorithm_version,
       payload.configuration_digest, payload.calendar_version, payload.material_identity_version, basis]);
   }
-  const helpers = {numeric, cohortBlocked, sortedRows, rotationOverview, technicalComparisons, trailSegments, savedRankMovement, comparisonWarnings, chartControlKey};
+  function waitForPanelRetry(milliseconds, signal) {
+    return new Promise((resolve, reject) => {
+      const finish = () => { signal.removeEventListener('abort', abort); resolve(); };
+      const timer = setTimeout(finish, milliseconds);
+      const abort = () => {
+        clearTimeout(timer); signal.removeEventListener('abort', abort);
+        reject(new DOMException('Panel read canceled', 'AbortError'));
+      };
+      signal.addEventListener('abort', abort, {once: true});
+      if (signal.aborted) abort();
+    });
+  }
+  async function readPanelResponse(fetchResponse, signal, wait = waitForPanelRetry) {
+    // The caller's deadline also bounds retries. Canceled HTTP requests can
+    // leave cooperative server work finishing under its original family permit.
+    for (;;) {
+      signal.throwIfAborted();
+      const response = await fetchResponse(signal);
+      if (response.ok) return response.json();
+      let detail = {}; try { detail = (await response.json()).detail || {}; } catch (_) { /* Generic error below. */ }
+      if (response.status === 503 && ['SECTOR_PANEL_ALREADY_RUNNING', 'SECTOR_READ_CAPACITY'].includes(detail.code)) {
+        const seconds = Number(response.headers.get('Retry-After'));
+        await wait(Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 10) * 1000 : 2000, signal);
+        continue;
+      }
+      throw new Error('Unavailable (HTTP ' + response.status + '). Retry this panel.');
+    }
+  }
+  const helpers = {numeric, cohortBlocked, sortedRows, rotationOverview, technicalComparisons, trailSegments, savedRankMovement, comparisonWarnings, chartControlKey, readPanelResponse};
   if (typeof module !== 'undefined' && module.exports) module.exports = helpers;
   if (typeof document === 'undefined') return;
   const root = document.getElementById('msi-dashboard');
@@ -110,7 +141,7 @@
   const state = Object.assign({}, defaults, bootstrap.initial);
   const data = {}, errors = {}, loading = new Set(), chartCache = new Map(), snapshots = new Map();
   let epoch = 0, chartRequest = 0, archiveRequest = 0, chartAbort = null;
-  let sortKey = 'rank', sortDirection = 1, savedIndex = [];
+  let sortKey = 'rank', sortDirection = 1, savedIndex = [], archiveLoaded = false;
   const $ = id => document.getElementById('msi-' + id);
   const colors = ['#886a20', '#7357a0', '#347f91', '#ad6245', '#306b51', '#505fa8', '#8b563e', '#376c8e', '#885c83', '#548134', '#b04c65'];
   const color = symbol => symbol === 'SPY' ? '#25342d' : colors[Math.max(0, universe.findIndex(row => row.etf_symbol === symbol))];
@@ -149,22 +180,38 @@
     if (state.snapshot_id) url.searchParams.set('snapshot_id', state.snapshot_id); else url.searchParams.delete('snapshot_id');
     window.history[replace ? 'replaceState' : 'pushState']({}, '', url);
   }
-  async function read(path, signal) {
-    const response = await fetch('/api/market-sector-intelligence/' + path, {signal, headers: {'Accept': 'application/json'}, cache: 'no-store'});
-    if (!response.ok) throw new Error('Unavailable (HTTP ' + response.status + ').');
-    return response.json();
+  const panelRequests = new Set();
+  const panelVersions = new Map();
+  let readCutoff = new Date().toISOString();
+  async function read(path, signal, timeoutMs) {
+    if (timeoutMs === undefined) timeoutMs = path.includes('technicals/preview') ? 95000 : 65000;
+    const cutoff = readCutoff;
+    const controller = new AbortController(); panelRequests.add(controller);
+    const abort = () => controller.abort();
+    if (signal) { if (signal.aborted) abort(); else signal.addEventListener('abort', abort, {once: true}); }
+    try {
+      return await window.SectorRefresh.deadlineRequest(boundedSignal => readPanelResponse(signal =>
+        fetch('/api/market-sector-intelligence/' + path +
+          (path.includes('?') ? '&' : '?') + 'as_of=' + encodeURIComponent(cutoff), {signal,
+          headers: {'Accept': 'application/json'}, cache: 'no-store'}), boundedSignal), {controller, timeoutMs});
+    } finally {
+      panelRequests.delete(controller);
+      if (signal) signal.removeEventListener('abort', abort);
+    }
   }
   async function panel(key, path) {
-    const generation = epoch; loading.add(key); delete errors[key]; renderStatus();
-    try { const payload = await read(path); if (generation === epoch) data[key] = payload; }
-    catch (error) { if (generation === epoch) { delete data[key]; errors[key] = error.message; } }
-    finally { if (generation === epoch) { loading.delete(key); render(); } }
+    const generation = epoch, request = (panelVersions.get(key) || 0) + 1;
+    panelVersions.set(key, request); loading.add(key); delete errors[key]; renderStatus();
+    const current = () => generation === epoch && panelVersions.get(key) === request;
+    try { const payload = await read(path); if (current()) data[key] = payload; }
+    catch (error) { if (current()) errors[key] = error.message; }
+    finally { if (current()) { loading.delete(key); render(); } }
   }
   async function loadChart() {
     const request = ++chartRequest, generation = epoch, horizon = state.horizon;
     if (chartAbort) chartAbort.abort();
     chartAbort = new AbortController();
-    loading.add('chart'); delete errors.chart; delete data.chart; render();
+    loading.add('chart'); delete errors.chart; render();
     try {
       const payload = chartCache.get(horizon) || await read('charts/price-series?horizon=' + horizon, chartAbort.signal);
       if (request !== chartRequest || generation !== epoch) return;
@@ -177,25 +224,30 @@
   }
   async function loadArchive() {
     const request = ++archiveRequest, generation = epoch;
-    loading.add('archive'); delete errors.archive; snapshots.clear(); savedIndex = []; render();
+    const deadline = Date.now() + 30000;
+    loading.add('archive'); delete errors.archive; render();
     try {
-      const index = await read('rotation/history?limit=' + $('history-limit').value);
+      const index = await read('rotation/history?limit=' + $('history-limit').value, undefined, 10000);
       if (request !== archiveRequest || generation !== epoch) return;
-      savedIndex = index;
       const ids = index.map(item => item.snapshot_id);
       if (state.snapshot_id && !ids.includes(Number(state.snapshot_id))) ids.push(Number(state.snapshot_id));
+      const replacement = new Map(ids.filter(id => snapshots.has(id)).map(id => [id, snapshots.get(id)]));
       let next = 0, failed = 0;
       async function worker() {
         while (next < ids.length) {
+          if (request !== archiveRequest || generation !== epoch) return;
+          if (Date.now() >= deadline) { failed += ids.length - next; next = ids.length; return; }
           const id = ids[next++];
           try {
-            const snapshot = await read('rotation/snapshots/' + id);
-            if (request === archiveRequest && generation === epoch) snapshots.set(id, snapshot);
+            const snapshot = await read('rotation/snapshots/' + id, undefined, Math.min(10000, deadline-Date.now()));
+            if (request === archiveRequest && generation === epoch) replacement.set(id, snapshot);
           } catch (_) { failed += 1; }
         }
       }
       await Promise.allSettled([worker(), worker()]);
       if (request !== archiveRequest || generation !== epoch) return;
+      snapshots.clear(); replacement.forEach((value, id) => snapshots.set(id, value));
+      savedIndex = index; archiveLoaded = true;
       if (failed) errors.archive = failed + ' saved detail request(s) unavailable. No missing points were reconstructed.';
     } catch (error) {
       if (request === archiveRequest && generation === epoch) errors.archive = error.message + ' Saved history requires activated D2 tables and complete authorized CLI captures.';
@@ -204,11 +256,16 @@
     }
   }
   async function reload() {
-    epoch += 1; chartCache.clear(); Object.keys(data).forEach(key => delete data[key]);
+    epoch += 1; const generation = epoch;
+    readCutoff = new Date().toISOString();
+    panelRequests.forEach(controller => controller.abort()); loading.clear(); chartCache.clear();
     $('reload').disabled = true;
-    await Promise.allSettled([panel('coverage', 'coverage'), panel('rotation', 'rotation/preview'),
+    const coverage = panel('coverage', 'coverage');
+    // Each panel owns its deadline and error state. Coverage completion restores
+    // the shared controls while technical calculation can continue independently.
+    Promise.allSettled([panel('rotation', 'rotation/preview'),
       panel('technical', 'technicals/preview'), loadArchive(), loadChart()]);
-    $('reload').disabled = false;
+    try { await coverage; } finally { if (generation === epoch) $('reload').disabled = false; }
   }
   function renderStatus() {
     const freshness = window.SectorRefresh.freshnessView(data.coverage && data.coverage.freshness,
@@ -218,8 +275,9 @@
     ['rotation', 'archive', 'technical', 'chart'].forEach(key => {
       const box = $('status-' + key); box.replaceChildren();
       let summary = 'Unavailable', detail = errors[key] || 'No evidence available.';
-      if (loading.has(key)) { summary = 'Loading…'; detail = 'Read-only cached evidence'; }
-      else if (key === 'archive' && !errors.archive) {
+      const retained = key === 'archive' ? archiveLoaded : Boolean(data[key]);
+      if (loading.has(key) && !retained) { summary = 'Loading…'; detail = 'Read-only cached evidence'; }
+      else if (key === 'archive' && archiveLoaded) {
         summary = snapshots.size ? snapshots.size + ' saved captures' : 'No saved snapshots';
         detail = savedIndex[0] ? 'PERSISTED · latest session ' + savedIndex[0].market_session + ' · captured ' + savedIndex[0].captured_at_utc : 'History appears only after a complete, authorized D2 CLI capture.';
       } else if (data[key]) {
@@ -228,12 +286,33 @@
         detail = provenance(value);
       }
       box.append(node('strong', summary), node('small', detail));
+      if (loading.has(key) && retained) box.append(node('small', 'Updating; previous evidence retained.'));
+      if (errors[key]) {
+        box.append(node('small', errors[key]));
+        const retry = node('button', 'Retry ' + key); retry.type = 'button';
+        retry.addEventListener('click', () => key === 'chart' ? loadChart() : key === 'archive' ? loadArchive() :
+          panel(key, key === 'rotation' ? 'rotation/preview' : 'technicals/preview'));
+        box.append(retry);
+      }
     });
     const coverage = data.coverage;
     text('coverage', loading.has('coverage') ? 'Checking ETF + SPY coverage…' : coverage ?
       'D1 cache coverage: ' + coverage.symbols.filter(row => row.status === 'CURRENT').length + '/12 current · session ' + coverage.latest_completed_session + ' · as of ' + coverage.as_of + '. 11 ETFs + SPY; D3 additionally requires QQQ when market-regime context is active. Cache freshness alone is not technical readiness.' :
       'Coverage unavailable. ' + (errors.coverage || '') + ' D1 checks ETF + SPY; D3 can additionally require QQQ.');
-    warning('mismatch', comparisonWarnings([currentRotation(), data.rotation, data.technical, data.chart]).join(' '));
+    const warnings = comparisonWarnings([currentRotation(), data.rotation, data.technical, data.chart]);
+    const cutoffs = [coverage && coverage.as_of, ...[currentRotation(), data.rotation, data.technical, data.chart]
+      .filter(Boolean).map(value => value.as_of_utc || value.cutoff_at_utc || value.captured_at_utc)]
+      .map(Date.parse).filter(Number.isFinite);
+    if (new Set(cutoffs).size > 1 && !warnings.some(value => value.startsWith('Source cutoffs differ'))) {
+      warnings.push('Source cutoffs differ. Retained coverage and panel results have their own provenance; cross-panel comparison is unverified.');
+    }
+    warning('mismatch', warnings.join(' '));
+    const readErrors = $('read-errors'); readErrors.replaceChildren(); readErrors.hidden = !errors.coverage;
+    if (errors.coverage) {
+      readErrors.append(node('span', errors.coverage + (coverage ? ' Previous coverage retained: ' + coverage.as_of + '. ' : ' ')));
+      const retry = node('button', 'Retry coverage'); retry.type = 'button';
+      retry.addEventListener('click', () => panel('coverage', 'coverage')); readErrors.append(retry);
+    }
   }
   function fillCell(row, value, extra) {
     const cell = node('td', value);
@@ -520,7 +599,16 @@
     }); container.append(links);
   }
   function render() {
+    const focused = document.activeElement;
+    const chart = focused && focused.closest('#msi-scatter, #msi-technical-chart');
+    const key = focused && focused.dataset.focusKey;
     renderStatus(); renderOverview(); renderArchiveSelector(); renderRanks(); renderScatter(); renderPrices(); renderTechnicals(); renderDetail();
+    // Independent panel completion can redraw an otherwise unchanged chart.
+    // Keep the exact observation focused while it still exists.
+    if (chart && key) {
+      const replacement = Array.from(chart.querySelectorAll('[data-focus-key]')).find(item => item.dataset.focusKey === key);
+      if (replacement) replacement.focus({preventScroll: true});
+    }
   }
   $('focus').value = state.etf; $('horizon').value = state.horizon; $('mode').value = state.mode;
   document.querySelectorAll('#msi-selection input').forEach(input => {
@@ -564,11 +652,12 @@
   window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(() => { renderScatter(); renderPrices(); renderTechnicalChart(); }, 100); });
   const refreshRequests = new Set();
   const refreshController = window.SectorRefresh.createRefreshController({
-    storage: {getItem: key => window.sessionStorage.getItem(key),
-      setItem: (key, value) => window.sessionStorage.setItem(key, value), removeItem: key => window.sessionStorage.removeItem(key)},
-    reloadPage: () => window.location.reload(), reloadPanels: reload,
+    storage: {getItem: key => window.localStorage.getItem(key),
+      setItem: (key, value) => window.localStorage.setItem(key, value), removeItem: key => window.localStorage.removeItem(key)},
+    reloadPage: reload, reloadPanels: reload,
     view: value => { text('refresh-status', value.message); $('refresh').setAttribute('aria-disabled', String(value.disabled));
-      $('refresh').textContent = value.state === 'UNKNOWN' ? 'Check refresh status' : 'Refresh Sector'; },
+      $('refresh').textContent = ['UNKNOWN', 'WAITING_ACTION'].includes(value.state) ? 'Check refresh status' : 'Refresh Sector';
+      $('refresh-cancel').hidden = !['UNKNOWN', 'WAITING_ACTION'].includes(value.state); },
     request: async (url, options = {}) => {
       const controller = new AbortController(); refreshRequests.add(controller);
       const timeout = setTimeout(() => controller.abort(), 15000);
@@ -577,7 +666,7 @@
         try { response = await fetch(url, {method: options.method || 'GET', signal: controller.signal,
           credentials: 'same-origin', cache: 'no-store', headers: {'Accept': 'application/json',
             ...(options.method ? {'Content-Type': 'application/json', 'X-CSRF-Token': bootstrap.csrf_token} : {})},
-          ...(options.method ? {body: '{}'} : {})}); }
+          ...(options.method ? {body: JSON.stringify(options.body || {})} : {})}); }
         catch (_) { const error = new Error('Refresh status is unavailable.'); error.uncertain = true; throw error; }
         let payload;
         try { payload = await response.json(); }
@@ -590,7 +679,11 @@
     }
   });
   $('refresh').addEventListener('click', () => refreshController.start());
-  window.addEventListener('pagehide', () => { refreshController.stop(); refreshRequests.forEach(controller => controller.abort()); });
-  window.addEventListener('pageshow', event => { if (event.persisted) refreshController.resume(); });
+  $('refresh-cancel').addEventListener('click', () => refreshController.cancel());
+  window.addEventListener('pagehide', () => { epoch++;
+    loading.forEach(key => { errors[key] = 'Read interrupted by navigation. Retry this panel.'; });
+    loading.clear(); $('reload').disabled = false; renderStatus();
+    panelRequests.forEach(controller => controller.abort()); refreshController.stop(); refreshRequests.forEach(controller => controller.abort()); });
+  window.addEventListener('pageshow', event => { if (event.persisted) { reload(); refreshController.resume(); } });
   render(); reload(); refreshController.resume();
 }());

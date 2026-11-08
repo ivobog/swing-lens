@@ -27,6 +27,64 @@ from app.settings import Settings
 BASE = "/api/market-sector-intelligence/technicals/preview"
 
 
+def test_validation_preserves_complete_receipts_and_caller_frame_ownership():
+    from copy import deepcopy
+
+    from market_sector_technical_helpers import receipt
+
+    from app.services.market_sector_intelligence_technical_service import _validate_frame
+
+    source = receipt(
+        frame("XLB", count=756),
+        "XLB",
+        {"as_of": CUTOFF.cutoff_at, "max_session": CUTOFF.latest_completed_session},
+    )
+    before = deepcopy(source)
+    normalized, material = _validate_frame(source, "XLB", "TRADES", "1 day", CUTOFF)
+    assert source.equals(before) and source.attrs == before.attrs
+    assert normalized.attrs == before.attrs
+    assert len(material["bars"]) == 756
+    assert [row["source_fingerprint"] for row in material["bars"]] == [
+        row["fingerprint"] for row in before.attrs["pit_source_manifest"]["states"]
+    ]
+    normalized.loc[0, "open"] += 0.01
+    normalized.attrs["pit_source_manifest"]["states"][0]["fingerprint"] = "changed by caller"
+    assert source.equals(before) and source.attrs == before.attrs
+
+
+def test_direct_fingerprints_match_reuse_and_restore_scope_on_error(rotation_engine):
+    from app.services.market_sector_intelligence_read_window import batch_cached_read
+    from app.services.price_bar_repository import (
+        _immutable_fingerprint,
+        load_preferred_ohlcv_frames,
+    )
+
+    seed_cache(rotation_engine)
+    _immutable_fingerprint.cache_clear()
+    try:
+        with Session(rotation_engine) as db:
+
+            def read():
+                return load_preferred_ohlcv_frames(
+                    db, "XLB", as_of=CUTOFF.cutoff_at, max_session=CUTOFF.latest_completed_session
+                )[0]
+
+            try:
+                with batch_cached_read(
+                    db, ["XLB"], timeframe="1 day", cutoff=CUTOFF, reuse_fingerprints=False
+                ):
+                    direct = read()
+                    assert _immutable_fingerprint.cache_info().currsize == 0
+                    raise RuntimeError("abandoned panel")
+            except RuntimeError as error:
+                assert str(error) == "abandoned panel"
+            reused = read()
+            assert direct.equals(reused) and direct.attrs == reused.attrs
+            assert _immutable_fingerprint.cache_info().currsize > 0
+    finally:
+        _immutable_fingerprint.cache_clear()
+
+
 def seed_cache(engine):
     for model in (PriceBar, PriceBarRevision, UploadRun):
         Table(
@@ -136,7 +194,7 @@ def test_real_cached_http_is_read_only_full_cohort_detail_and_upload_independent
         assert response.status_code == 200
         payload = response.json()
         assert payload["v4_ready_count"] == payload["v5_ready_count"] == 11
-        assert len(statements) == 26
+        assert len(statements) == 1
         assert all(
             sql.lstrip().upper().startswith("SELECT") and "price_bars" in sql for sql in statements
         )
@@ -171,7 +229,7 @@ def test_real_cached_http_is_read_only_full_cohort_detail_and_upload_independent
     app, client = client_for(rotation_engine)
     statements.clear()
     assert client.get(BASE).json() == payload
-    assert len(statements) == 26 and all("upload_runs" not in sql for sql in statements)
+    assert len(statements) == 1 and all("upload_runs" not in sql for sql in statements)
     statements.clear()
     detail = client.get(BASE + "/xlk")
     assert detail.status_code == 200
@@ -179,7 +237,7 @@ def test_real_cached_http_is_read_only_full_cohort_detail_and_upload_independent
         row for row in payload["rows"] if row["etf_symbol"] == "XLK"
     )
     assert detail.json()["evaluation_digest"] == payload["evaluation_digest"]
-    assert len(statements) == 26  # detail really evaluates all eleven members
+    assert len(statements) == 1  # detail really evaluates all eleven members
     statements.clear()
     assert client.get(BASE + "/MSFT").status_code == 404
     assert client.get(BASE + "/QQQ").json()["detail"]["code"] == "UNSUPPORTED_SECTOR_ETF"

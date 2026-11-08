@@ -764,6 +764,12 @@ def _seed_retained_provider_history(engine, *, tickers: tuple[str, ...]) -> None
                         },
                     )
         db.commit()
+    # Seeding is complete. Do not retain its idle physical connections while
+    # the independent worker runs: PostgreSQL cache catchup can briefly expose
+    # their last COMMIT timestamp as an old transaction in pg_stat_activity.
+    # Later assertions reconnect through this same engine; worker pools and
+    # checked-out connections remain independent.
+    engine.dispose()
 
 
 def _mature_and_publish_one_generation(
@@ -793,6 +799,16 @@ def _mature_and_publish_one_generation(
         assert forward is not None
         sessions = required_outcome_sessions(forward.entry_session, forward.horizon_sessions)
         observed_at = datetime.combine(forward.due_session, time(22), tzinfo=UTC)
+        operation_at = observed_at + timedelta(days=1)
+
+        def operation_now():
+            nonlocal operation_at
+            # A late/overnight run must not backdate operations before its real
+            # price receipts. Keep the maturity floor and monotonic ordering;
+            # production PIT/knownness checks remain fully authoritative.
+            operation_at = max(operation_at + timedelta(microseconds=1), datetime.now(UTC))
+            return operation_at
+
         for basis in ("ADJUSTED_LAST", "TRADES"):
             bars = []
             for index, session in enumerate(sessions):
@@ -813,6 +829,7 @@ def _mature_and_publish_one_generation(
                     )
                 )
             cache_bars(db, bars)
+        db.flush()
         obligations = list(
             db.scalars(
                 select(WinnerMarketDataObligation).where(
@@ -823,13 +840,13 @@ def _mature_and_publish_one_generation(
         evaluated = MarketDataObligationService().evaluate(
             db,
             obligations=obligations,
-            now=observed_at + timedelta(days=1),
+            now=operation_now(),
         )
         assert evaluated.satisfied == len(obligations), evaluated.as_dict()
         matured = OutcomeMaturationService().process_forward_outcome(
             db,
             forward,
-            now=observed_at + timedelta(days=1, seconds=1),
+            now=operation_now(),
         )
         assert matured.matured == 1 and matured.target_stop_matured > 0, matured.as_dict()
         db.commit()
@@ -843,7 +860,7 @@ def _mature_and_publish_one_generation(
         assert target is not None
         definition = db.get(WinnerOutcomeDefinition, target.outcome_definition_id)
         assert definition is not None
-        publication_at = observed_at + timedelta(days=1, seconds=2)
+        publication_at = operation_now()
         advance = EvidenceWatermarkService().advance_to_current_material_evidence(
             db,
             outcome_definition=definition,
@@ -855,7 +872,7 @@ def _mature_and_publish_one_generation(
             db,
             state=advance.state,
             contract=contract_for(definition, config),
-            requested_at=publication_at + timedelta(microseconds=1),
+            requested_at=operation_now(),
             config=config,
         )
         db.commit()
@@ -866,7 +883,7 @@ def _mature_and_publish_one_generation(
             config=config,
             lease_guard=lambda: None,
             should_cancel=lambda: False,
-            operation_at=publication_at + timedelta(microseconds=2),
+            operation_at=operation_now(),
         )
         assert result.status == CohortGenerationStatus.PUBLISHED, result
         assert result.publication_status == GenerationPublicationStatus.PUBLISHED, result
@@ -895,7 +912,7 @@ def _mature_and_publish_one_generation(
             config=config,
             lease_guard=lambda: None,
             should_cancel=lambda: False,
-            operation_at=publication_at + timedelta(seconds=1),
+            operation_at=operation_now(),
         )
         assert repeated.publication_status == GenerationPublicationStatus.ALREADY_ACTIVE
         return {

@@ -9,6 +9,7 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 import test_contextual_configuration_adoption_postgresql as contextual
 from sqlalchemy import event
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
@@ -19,13 +20,17 @@ from app.models.ceri_tables import (
     CeriScoreSnapshot,
     CeriSourceRecord,
 )
-from app.models.tables import UploadRun
+from app.models.tables import PipelineRun, UploadRun
 from app.services.ceri.change_detection_service import ChangeDetectionResult
 from app.services.ceri.change_rebuild_service import (
     CeriChangeRebuildRequest,
     CeriChangeRebuildService,
 )
-from app.services.ceri.evidence_eligibility import UNSUCCESSFUL_PIPELINE_STATES
+from app.services.ceri.evidence_eligibility import (
+    HARD_UNSUCCESSFUL_PIPELINE_STATES,
+    eligible_snapshot_select,
+)
+from app.services.pipeline_outcome import NO_INTEGRITY_HAZARD, PIPELINE_OUTCOME_CONTRACT_VERSION
 
 contextual_engine = contextual.contextual_engine
 pytestmark = [pytest.mark.integration, pytest.mark.destructive]
@@ -39,11 +44,17 @@ TABLES = (
 )
 
 
+@pytest.mark.parametrize(
+    "target_count,unrelated_count,chunk_size", [(5, 0, 2), (5, 250, 2), (11, 500, 4)],
+)
+@pytest.mark.parametrize(
+    "owner_state",
+    ["COMPLETED", *sorted(HARD_UNSUCCESSFUL_PIPELINE_STATES), "SAFE_PARTIAL", "PARTIAL"],
+)
 def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
-    contextual_engine, monkeypatch, record_property
+    contextual_engine, monkeypatch, record_property, target_count, unrelated_count, chunk_size,
+    owner_state,
 ):
-    target_count = 5
-    unrelated_count = 250
     as_of = date(2026, 9, 25)
     cutoff = datetime(2026, 9, 25, 22, tzinfo=UTC)
     with Session(contextual_engine) as db:
@@ -54,6 +65,15 @@ def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
             as_of=as_of,
             cutoff=cutoff,
         )
+        safe_partial = owner_state == "SAFE_PARTIAL"
+        db.add(PipelineRun(
+            upload_run_id=target_run_id,
+            status="PARTIAL" if safe_partial else owner_state,
+            result_json={"pipeline_outcome_summary": {
+                "contract_version": PIPELINE_OUTCOME_CONTRACT_VERSION,
+                "integrity": {"status": NO_INTEGRITY_HAZARD},
+            }} if safe_partial else {},
+        ))
         db.commit()
         detector = RecordingDetector()
         captured: list[tuple[str, object]] = []
@@ -80,7 +100,7 @@ def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
         try:
             result = CeriChangeRebuildService(
                 detector=detector,
-                company_chunk_size=2,
+                company_chunk_size=chunk_size,
             ).rebuild(
                 db,
                 CeriChangeRebuildRequest(
@@ -94,8 +114,9 @@ def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
             event.remove(contextual_engine, "before_cursor_execute", observe_sql)
 
         assert result.failed == 0
-        assert set(detector.company_ids) == set(target_ids)
-        assert len(detector.score_ids) == target_count
+        eligible = owner_state in {"COMPLETED", "SAFE_PARTIAL"}
+        assert set(detector.company_ids) == (set(target_ids) if eligible else set())
+        assert len(detector.score_ids) == (target_count if eligible else 0)
         assert len(detector.revision_ids) == target_count
         assert len(detector.guidance_ids) == target_count
         assert captured
@@ -126,6 +147,8 @@ def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
         record_property("unrelated_companies", unrelated_count)
         record_property("unrelated_source_records", unrelated_count * 2)
         record_property("scoped_companies", target_count)
+        record_property("chunk_size", chunk_size)
+        record_property("owner_state", owner_state)
         record_property("materialized_rows", dict(materialized))
         record_property("source_body_rows", len(loaded_source_ids))
         record_property("query_counts", query_counts)
@@ -136,13 +159,21 @@ def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
         assert materialized["ceri_catalyst_events"] == target_count
         assert materialized["ceri_catalyst_event_revisions"] == target_count
         assert materialized["ceri_guidance_events"] == target_count
-        # The eligibility predicate carries two fixed terminal-owner status
-        # sets and two disposition values in the same scoped SELECT.  Those
-        # ten policy parameters do not grow with the population; only the
-        # chunk IDs plus the run/session/cutoff boundary do.
-        fixed_eligibility_parameters = 2 + (2 * len(UNSUCCESSFUL_PIPELINE_STATES))
-        scoped_boundary_parameters = 3 + 2  # run/session/cutoff plus the two-row chunk
+        # Compile the actual set-based predicate with expanded terminal-state
+        # binds. JSON policy keys/values and conditional PARTIAL checks are a
+        # fixed cost; scoped company IDs and run/session/cutoff are variable.
+        policy_statement = eligible_snapshot_select(CeriScoreSnapshot)
+        compiled = policy_statement.compile(
+            dialect=postgresql.dialect(), compile_kwargs={"render_postcompile": True},
+        )
+        fixed_eligibility_parameters = len(compiled.params)
+        scoped_boundary_parameters = 3 + chunk_size
+        record_property("fixed_policy_parameter_count", fixed_eligibility_parameters)
         assert max_parameters <= fixed_eligibility_parameters + scoped_boundary_parameters
+        # Independent of total population, at most two score reads and a
+        # bounded set of event/source reads occur per requested company chunk.
+        chunks = (target_count + chunk_size - 1) // chunk_size
+        assert len(captured) <= chunks * 12
 
 
 class RecordingDetector:

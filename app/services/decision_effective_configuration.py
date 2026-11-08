@@ -459,6 +459,13 @@ def winner_outcome_reference_configuration(base, reference_policy):
 
 def _configuration_from_payload(payload):
     """Decode and verify a retained T13A snapshot; no resolver invocation."""
+    if (
+        Canonical.fingerprint(payload["semantic"]) != payload["semantic_hash"]
+        or Canonical.fingerprint(
+            {key: payload[key] for key in ("semantic", "resolution", "entries")}
+        ) != payload["resolution_hash"]
+    ):
+        raise ValueError("FROZEN_CONFIGURATION_INTEGRITY_MISMATCH")
     entries = tuple(
         ConfigurationEntry(
             item["key"],
