@@ -1262,3 +1262,25 @@ class FakeLimiter:
 
     def backoff_after_error(self, error: Exception, attempt: int) -> None:
         self.backoffs += 1
+
+
+def test_unsupported_best_query_is_failed_once_without_backoff(monkeypatch):
+    db = FakeDb()
+    limiter = FakeLimiter()
+    monkeypatch.setattr(executor, "resolve_us_stock_contract", lambda db, ticker, ib:
+                        SimpleNamespace(contract=SimpleNamespace(symbol=ticker, conId=290651477),
+                                        error_message=None))
+    error = IBHistoricalRequestError(code=162, provider_message=(
+        "Historical Market Data Service error message:"
+        "BEST queries are not supported for this contract"
+    ))
+    monkeypatch.setattr(executor, "fetch_daily_bars",
+                        lambda *a, **kw: (_ for _ in ()).throw(error))
+    run = execute_fetch_plan(
+        db=db, plan=_fetch_plan(_plan_item("ROKU", FetchAction.TOP_UP_RECENT, "10 D")),
+        ib_client_factory=FakeIB, rate_limiter=limiter, settings=Settings(ib_max_retries=3),
+    )
+    assert run.items[0].attempt_count == 1
+    assert run.items[0].decision_metadata_json["provider_error_category"] == "PROVIDER_REJECTED"
+    assert run.items[0].decision_metadata_json["retryable"] is False
+    assert limiter.backoffs == 0

@@ -330,6 +330,16 @@ def classify_session_readiness(
         )
         for item in failures
     }
+    if "PROVIDER_REJECTED" in categories:
+        return _values(
+            MarketDataDisposition.REQUIRED_DATA_UNAVAILABLE,
+            lifecycle_state,
+            False,
+            False,
+            "MARKET_DATA_PROVIDER_REJECTED",
+            "IB rejected the historical request; resolve data availability before retrying.",
+            evidence,
+        )
     if categories.intersection(CONTRACT_IDENTITY_FAILURES) or contract_resolution_status in {
         "FAILED",
         "AMBIGUOUS",

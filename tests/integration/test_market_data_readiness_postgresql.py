@@ -323,3 +323,65 @@ def _disposition(
         revision=revision,
         is_current_revision=True,
     )
+
+
+def test_explicit_partial_admission_freezes_subset_and_is_idempotent(readiness_engine, monkeypatch):
+    from app.models.tables import RawCompanyRow, WorkScopeRecord
+    from app.services import pipeline_service
+    from app.services.pipeline_partial_results import filter_pipeline_rows, pipeline_scope_tickers
+
+    with Session(readiness_engine, expire_on_commit=False) as db:
+        run = UploadRun(filename="partial.csv", row_count=2, status="COMPLETED")
+        db.add(run)
+        db.flush()
+        raw = [RawCompanyRow(run_id=run.id, ticker=ticker, row_number=i, raw_json={"ticker":ticker})
+               for i, ticker in enumerate(("MSFT", "ROKU"), 1)]
+        db.add_all(raw)
+        source = pipeline_service.start_pipeline(
+            db, run.id, ceri_run_capture_enabled=False, ceri_provider_ingest_enabled=False,
+            setup_lifecycle_pipeline_step_enabled=False,
+        )
+        source.status = "BLOCKED"
+        source.current_step = "FETCHING_MARKET_DATA"
+        context = db.scalar(select(MarketCalculationContext).where(
+            MarketCalculationContext.pipeline_run_id == source.id))
+        for ticker, ready in (("MSFT", True), ("ROKU", False)):
+            db.add(MarketDataSessionDisposition(
+                pipeline_run_id=source.id, upload_run_id=run.id,
+                market_calculation_context_id=context.id, ticker=ticker,
+                expected_session=context.latest_completed_session,
+                latest_bar_session=context.latest_completed_session if ready else None,
+                disposition="READY" if ready else "REQUIRED_DATA_UNAVAILABLE",
+                lifecycle_state="UNKNOWN", technical_eligible=ready, downstream_eligible=ready,
+                reason_code=(
+                    "EXPECTED_SESSION_AVAILABLE" if ready else "MARKET_DATA_PROVIDER_REJECTED"
+                ),
+                reason_message="fixture", evidence_json={"source":"fixture"},
+                revision=1, is_current_revision=True,
+            ))
+        db.commit()
+        original_scope = source.scope_id
+        original_result = dict(source.result_json)
+        child = pipeline_service.start_pipeline(
+            db, run.id, partial_source_pipeline_id=source.id, excluded_tickers=("ROKU",),
+            ceri_run_capture_enabled=False, ceri_provider_ingest_enabled=False,
+            setup_lifecycle_pipeline_step_enabled=False,
+        )
+        db.commit()
+        assert child.id != source.id
+        assert child.upload_run_id != source.upload_run_id
+        assert db.get(UploadRun, child.upload_run_id).row_count == 1
+        assert list(db.scalars(select(RawCompanyRow.ticker).where(
+            RawCompanyRow.run_id == child.upload_run_id))) == ["MSFT"]
+        assert child.scope_id != original_scope
+        assert pipeline_scope_tickers(db, source.id) == ("MSFT", "ROKU")
+        assert pipeline_scope_tickers(db, child.id) == ("MSFT",)
+        assert [row.ticker for row in filter_pipeline_rows(db, raw, child.id)] == ["MSFT"]
+        assert source.status == "BLOCKED" and source.scope_id == original_scope
+        assert source.result_json == original_result
+        scope = db.get(WorkScopeRecord, child.scope_id)
+        assert scope.parent_scope_id == original_scope
+        again = pipeline_service.start_pipeline(
+            db, run.id, partial_source_pipeline_id=source.id, excluded_tickers=("ROKU",),
+        )
+        assert again.id == child.id

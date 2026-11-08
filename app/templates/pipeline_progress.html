@@ -28,13 +28,30 @@
         action="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/resume"
         data-loading-form
         data-pipeline-resume
-        {% if not (pipeline.status in ['BLOCKED', 'FAILED', 'PARTIAL'] and pipeline.current_step in ['VALIDATING_RUN', 'CERI_PROVIDER_INGEST']) %}hidden{% endif %}
+        {% if not (pipeline.status in ['BLOCKED', 'FAILED', 'PARTIAL'] and pipeline.current_step in ['VALIDATING_RUN', 'FETCHING_MARKET_DATA', 'CERI_PROVIDER_INGEST']) %}hidden{% endif %}
       >
         <button type="submit" data-loading-label="Queuing resume..." data-pipeline-resume-label>
-          {{ 'Resume from CERI' if pipeline.current_step == 'CERI_PROVIDER_INGEST' else 'Retry pipeline preflight' }}
+          {{ 'Resume from CERI' if pipeline.current_step == 'CERI_PROVIDER_INGEST' else 'Retry missing market data' if pipeline.current_step == 'FETCHING_MARKET_DATA' else 'Retry pipeline preflight' }}
         </button>
       </form>
+      {% set market_readiness = pipeline_result.get('market_data_session_readiness') or {} %}
+      <form method="post" action="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/partial"
+            data-loading-form data-pipeline-partial
+            data-confirm="Start a new partial run with the listed missing tickers excluded from scoring and ranking? The original pipeline will stay blocked."
+            {% if not (pipeline.status == 'BLOCKED' and pipeline.current_step == 'FETCHING_MARKET_DATA' and market_readiness.get('technical_tickers') and market_readiness.get('blockers')) %}hidden{% endif %}>
+        <input type="hidden" name="excluded_tickers" data-pipeline-partial-tickers value="{{ (market_readiness.get('blockers') or [])|join(',') }}">
+        <button type="submit" data-loading-label="Queuing partial run..." data-pipeline-partial-label>Start partial run — exclude {{ (market_readiness.get('blockers') or [])|join(', ') }}</button>
+      </form>
     </div>
+  </div>
+
+  {% set partial = pipeline_result.get('partial_scope') or {} %}
+  <div class="alert section-gap" role="status" data-pipeline-partial-coverage {% if not partial %}hidden{% endif %}>
+    <strong>Partial coverage</strong>:
+    <span data-pipeline-partial-included>{{ (partial.get('included_tickers') or [])|length }}</span> /
+    <span data-pipeline-partial-requested>{{ (partial.get('requested_tickers') or [])|length }}</span> tickers admitted.
+    Excluded from scoring and ranking: <span data-pipeline-partial-excluded>{{ (partial.get('excluded_tickers') or [])|join(', ') }}</span>.
+    This run remains incomplete for the original universe.
   </div>
 
   <div class="run-meta">
@@ -68,14 +85,16 @@
   {% set show_sec_repair = pipeline.status == 'PREPARING' or (pipeline.status == 'WAITING_DEPENDENCY' and pipeline_result.get('dependency_type') == 'SEC_READINESS') %}
   {% set readiness = blocked.get('readiness') or {} %}
   {% set processor = blocked.get('processor') or {} %}
+  {% set market_blocked = pipeline.current_step == 'FETCHING_MARKET_DATA' %}
+  {% set market_readiness = pipeline_result.get('market_data_session_readiness') or {} %}
     <div class="alert section-gap" role="alert" data-pipeline-blocked {% if pipeline.status != 'BLOCKED' %}hidden{% endif %}>
-      <strong>Pipeline blocked before execution</strong><br>
+      <strong>Pipeline blocked</strong><br>
       Reason: <span data-pipeline-blocked-reason>{{ (pipeline_result.get('blocked_reason') or 'Prerequisite required')|replace('_', ' ')|title }}</span><br>
-      Processor: <span data-pipeline-blocked-processor>{{ readiness.get('processor_signature') or processor.get('deployed_signature') or 'Unknown' }}</span><br>
-      Universe: <span data-pipeline-blocked-universe>{{ readiness.get('requested_tickers') or 0 }}</span> tickers<br>
-      Ready: <span data-pipeline-blocked-ready>{{ readiness.get('ready_tickers') or 0 }}</span><br>
-      Not ready: <span data-pipeline-blocked-missing>{{ (readiness.get('blocking_tickers') or [])|length }}</span><br>
-      Automatic preparation finished, but SwingLens could not safely resolve every prerequisite.
+      <span data-pipeline-blocked-processor-row {% if market_blocked %}hidden{% endif %}>Processor: <span data-pipeline-blocked-processor>{{ readiness.get('processor_signature') or processor.get('deployed_signature') or 'Unknown' }}</span><br></span>
+      Universe: <span data-pipeline-blocked-universe>{{ (market_readiness.get('tickers') or {})|length if market_blocked else readiness.get('requested_tickers') or 0 }}</span> tickers<br>
+      Ready: <span data-pipeline-blocked-ready>{{ (market_readiness.get('technical_tickers') or [])|length if market_blocked else readiness.get('ready_tickers') or 0 }}</span><br>
+      Not ready: <span data-pipeline-blocked-missing>{{ (market_readiness.get('blockers') or [])|length if market_blocked else (readiness.get('blocking_tickers') or [])|length }}</span><br>
+      <span data-pipeline-blocked-detail>{{ 'Required daily bars are missing. Retry after provider recovery, or explicitly process the ready subset.' if market_blocked else 'Automatic preparation finished, but SwingLens could not safely resolve every prerequisite.' }}</span>
     </div>
     <div class="alert section-gap" role="status" data-pipeline-repair {% if not show_sec_repair %}hidden{% endif %}>
       <strong data-pipeline-repair-stage>{{ (sec_repair.get('repair_stage') or 'Preparing run')|replace('_', ' ')|title }}</strong><br>

@@ -15,6 +15,21 @@ SESSION = date(2026, 10, 6)
 OLDER = date(2026, 10, 5)
 
 
+def test_provider_rejection_is_unavailable_with_explicit_reason() -> None:
+    failure = SimpleNamespace(
+        id=7599, what_to_show="TRADES", status="FAILED",
+        error_message="BEST queries are not supported for this contract",
+        decision_metadata_json={"provider_error_category": "PROVIDER_REJECTED", "retryable": False},
+    )
+    result = classify_session_readiness(
+        ticker="ROKU", expected_session=SESSION, latest_bar_session=OLDER,
+        lifecycle=None, fetch_items=(failure,),
+    )
+    assert result["disposition"] == MarketDataDisposition.REQUIRED_DATA_UNAVAILABLE
+    assert result["reason_code"] == "MARKET_DATA_PROVIDER_REJECTED"
+    assert result["technical_eligible"] is False
+
+
 def test_current_bar_is_ready_without_assuming_lifecycle_from_provider() -> None:
     result = classify_session_readiness(
         ticker="LIVE", expected_session=SESSION, latest_bar_session=SESSION, lifecycle=None

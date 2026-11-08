@@ -243,6 +243,14 @@
 </section>
 
 {% if latest_pipeline %}
+  {% set partial = (latest_pipeline.result or {}).get('partial_scope') or {} %}
+  {% if partial %}
+    <div class="alert section-gap" role="status">
+      <strong>Partial coverage:</strong> {{ partial.included_tickers|length }} / {{ partial.requested_tickers|length }} tickers admitted.
+      Excluded from scoring and ranking: {{ partial.excluded_tickers|join(', ') }}.
+      This run is incomplete for the original universe.
+    </div>
+  {% endif %}
   <section class="panel section-gap">
     <div class="panel-header compact-header">
       <div>
