@@ -156,6 +156,9 @@ def refresh_combined_results(
     ):
         raise ValueError("COMBINED_MUTATION_AUTHORITY_REQUIRED")
     rows = _rows_for_run(db, run_id)
+    from app.services.pipeline_partial_results import filter_pipeline_rows
+
+    rows = filter_pipeline_rows(db, rows, pipeline_run_id)
     if isinstance(db, Session):
         fundamentals = {}
         technicals = {}

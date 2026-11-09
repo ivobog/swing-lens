@@ -167,6 +167,8 @@ def start_pipeline(
     ib_preflight_status: dict[str, Any] | None = None,
     transition_preflight_plan_id: int | None = None,
     transition_candidate_discovery: Any | None = None,
+    partial_source_pipeline_id: int | None = None,
+    excluded_tickers: tuple[str, ...] = (),
 ) -> PipelineRun:
     settings = get_settings()
     certification_mode = (
@@ -180,6 +182,39 @@ def start_pipeline(
         policy = MarketDataPolicy(market_data_policy)
     except ValueError as exc:
         raise ValueError(f"Unsupported market data policy: {market_data_policy}") from exc
+
+    partial_scope = None
+    if partial_source_pipeline_id is not None:
+        from app.services.pipeline_partial_results import prepare_partial_scope
+
+        if certification_mode or transition_preflight_plan_id is not None:
+            raise ValueError("PARTIAL_SCOPE_REQUIRES_NORMAL_ADMISSION")
+        partial_scope = prepare_partial_scope(
+            db,
+            source_pipeline_id=partial_source_pipeline_id,
+            upload_run_id=upload_run_id,
+            excluded_tickers=excluded_tickers,
+        )
+        existing_partial = db.scalar(
+            select(PipelineRun)
+            .where(
+                PipelineRun.result_json["partial_scope"]["source_pipeline_id"].as_integer()
+                == partial_source_pipeline_id,
+            )
+            .order_by(PipelineRun.id.desc())
+            .limit(1)
+        )
+        if existing_partial is not None:
+            existing_partial._coalesced = True
+            return existing_partial
+        if _authoritative_pipeline_for_run(db, upload_run_id) is not None:
+            raise ValueError("PARTIAL_ADMISSION_BLOCKED_BY_ACTIVE_PIPELINE")
+        from app.services.pipeline_partial_results import clone_partial_upload
+
+        upload_run = clone_partial_upload(db, upload_run, partial_scope)
+        upload_run_id = upload_run.id
+    elif excluded_tickers:
+        raise ValueError("PARTIAL_SOURCE_REQUIRED")
 
     verified_transition_preflight = None
     operational_gate_result = None
@@ -256,6 +291,8 @@ def start_pipeline(
         )
     authoritative = _authoritative_pipeline_for_run(db, upload_run_id)
     if authoritative is not None:
+        if partial_scope is not None:
+            raise ValueError("PARTIAL_ADMISSION_BLOCKED_BY_ACTIVE_PIPELINE")
         if verified_transition_preflight is not None:
             raise TransitionPreflightError(
                 "PRECONDITION_CHANGED",
@@ -282,6 +319,8 @@ def start_pipeline(
         return authoritative
 
     request_key = _pipeline_request_key(upload_run_id, step_names, policy)
+    if partial_scope is not None:
+        request_key += ":partial:" + CanonicalEvidenceSerializer.fingerprint(partial_scope)
     existing_job = active_job_for_request_key(db, FULL_PIPELINE_JOB_TYPE, request_key)
     existing_pipeline = _pipeline_for_job(db, existing_job)
     if existing_pipeline is not None:
@@ -328,6 +367,7 @@ def start_pipeline(
             step_names=step_names,
             policy=policy,
             market_cutoff=market_cutoff,
+            partial_scope=partial_scope,
         )
         bind_semantic_authority(pipeline, authority)
 
@@ -403,6 +443,7 @@ def start_pipeline(
     pipeline.result_json = {
         "background_job_id": job.id,
         "market_data_policy": policy.value,
+        **({"partial_scope": partial_scope} if partial_scope is not None else {}),
         "ib_preflight_status": preflight.get("status"),
         "ib_preflight_checked_at": preflight.get("checked_at"),
         "ib_host": preflight.get("host", getattr(settings, "ib_host", None)),
@@ -1894,6 +1935,7 @@ def _admit_pipeline_authority(
     step_names: tuple[str, ...],
     policy: MarketDataPolicy,
     market_cutoff: Any,
+    partial_scope: dict[str, Any] | None = None,
 ) -> SemanticWorkAuthority:
     tickers = tuple(
         dict.fromkeys(
@@ -1906,6 +1948,8 @@ def _admit_pipeline_authority(
             if str(value).strip()
         )
     )
+    if partial_scope is not None:
+        tickers = tuple(partial_scope["included_tickers"])
     members = tuple(ScopeMember("TICKER", ticker) for ticker in tickers)
     cutoff = market_cutoff.cutoff_at
     cycle_key = f"pipeline-market-context:{market_cutoff.context_id}"
@@ -1914,6 +1958,7 @@ def _admit_pipeline_authority(
             "kind": "full-pipeline-admission",
             "market_data_policy": policy.value,
             "steps": list(step_names),
+            **({"partial_scope": partial_scope} if partial_scope is not None else {}),
         }
     )
     return admit_frozen_operation(
@@ -1932,7 +1977,9 @@ def _admit_pipeline_authority(
             "market_calculation_context_id": market_cutoff.context_id,
             "market_data_policy": policy.value,
             "stages": list(step_names),
+            **({"partial_scope": partial_scope} if partial_scope is not None else {}),
         },
+        parent_scope_id=(partial_scope["source_scope_id"] if partial_scope else None),
         refresh_reason="FULL_PIPELINE_ADMISSION",
     )
 

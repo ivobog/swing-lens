@@ -48,6 +48,9 @@ def recalculate_run_fundamentals(
         )
     )
     effective_configuration = effective_configuration or resolve_fundamental_configuration()
+    from app.services.pipeline_partial_results import filter_pipeline_rows
+
+    raw_rows = filter_pipeline_rows(db, raw_rows, pipeline_run_id)
     effective_configuration.require_family("core.fundamental")
     if expected_calculation_identity is not None:
         effective_configuration.require_retry_identity(expected_calculation_identity)

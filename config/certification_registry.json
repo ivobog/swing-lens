@@ -1108,7 +1108,8 @@
           "app/services/producer_readiness.py",
           "app/services/combined_decision.py",
           "app/services/ranking_profile_engine.py",
-          "app/services/warning_taxonomy.py"
+          "app/services/warning_taxonomy.py",
+          "app/services/ranking_profile_service.py"
         ],
         "tests": [
           {
@@ -1579,7 +1580,16 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "e8b15d23fca6af067c0f41ba7f917ea2e58c94f0a55f066971a0e3638b82b88a"
+        "review_sha256": "9d2dc4072e15f33293aea8b4162f167e3a5429a7e74dc1dc6628e79217fc655b",
+        "review_addenda": [
+          {
+            "task": "PIPELINE55-20261109",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/verification/pipeline55-symbol-change-review-20261109.md",
+            "scope": "Dated common-stock symbol continuity, frozen market-data recovery and explicit subset admission; exact source paths and meaningful refusal/native selectors. Existing financial expectations and release requirements retained.",
+            "claim": "STATIC_INTENT only; no authenticated human approval, measured execution, current certificate or live-provider verdict is supplied by this mapping."
+          }
+        ]
       },
       {
         "id": "IB_ADMISSION",
@@ -1594,6 +1604,14 @@
           {
             "path": "app/services/ib_gateway_health_service.py",
             "symbol": "check_status"
+          },
+          {
+            "path": "app/services/instrument_symbol_changes.py",
+            "symbol": "contract_identity_matches_ticker"
+          },
+          {
+            "path": "app/services/ib_contract_resolver.py",
+            "symbol": "resolve_us_stock_contract"
           }
         ],
         "impact_patterns": [
@@ -1610,7 +1628,15 @@
           "tests/test_ib_services.py",
           "tests/test_price_bar_fingerprint_cache.py",
           "tests/sector_native_helpers.py",
-          "tests/sector_refresh_helpers.py"
+          "tests/sector_refresh_helpers.py",
+          "app/services/instrument_symbol_changes.py",
+          "config/instrument_symbol_changes.json",
+          "tests/test_instrument_symbol_changes.py",
+          "tests/test_no_order_boundary.py",
+          "tests/test_market_data_session_readiness.py",
+          "tests/test_ib_historical_errors.py",
+          "tests/integration/test_market_data_readiness_postgresql.py",
+          "docs/operations/market_data_recovery.md"
         ],
         "tests": [
           {
@@ -2341,6 +2367,78 @@
             "positive": "Concurrent native refresh updates benchmark cache revisions.",
             "negative": "Pipeline frozen OHLCV/manifests, context and run fields remain unchanged.",
             "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
+          },
+          {
+            "id": "tests/test_instrument_symbol_changes.py::test_resolver_qualifies_verified_conid_and_retains_source_ticker",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Reviewed common-stock conId qualifies as TXCP while the uploaded identity remains TCBI.",
+            "negative": "Companion wrong-security/listing cases reject a different conId, preferred symbol, security type, currency or exchange.",
+            "reviewed_test_sha256": "cb00df0e783eea5fb8b19264822b3540b49a2a3c8dc763b5adbd52dd302ff550"
+          },
+          {
+            "id": "tests/test_instrument_symbol_changes.py::test_resolver_rejects_wrong_security_or_listing",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The approved mapping is exercised by the matching-conId qualification case.",
+            "negative": "Parameterized incompatible identity fields return FAILED with no cached authoritative contract.",
+            "reviewed_test_sha256": "cb00df0e783eea5fb8b19264822b3540b49a2a3c8dc763b5adbd52dd302ff550"
+          },
+          {
+            "id": "tests/test_instrument_symbol_changes.py::test_alias_requires_exact_evidence_and_frozen_source_session",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact sourced evidence permits the verified alias for the November 6 source session.",
+            "negative": "Missing/changed evidence, unrelated source symbols and expired or absent reviewed sessions are rejected.",
+            "reviewed_test_sha256": "cb00df0e783eea5fb8b19264822b3540b49a2a3c8dc763b5adbd52dd302ff550"
+          },
+          {
+            "id": "tests/test_ib_fetch_executor.py::test_symbol_change_fetch_preserves_source_ticker_and_frozen_session",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Pinned and deferred paths retain the original ticker, exact plan and provider/mapping witnesses for both feeds.",
+            "negative": "Pinned paths forbid current-cache resolution and original immutable input must remain byte-equivalent after execution.",
+            "reviewed_test_sha256": "394409df6a25aa9ab1f2790e53aead2d2bff5ebd94b795e5714aaf0334080edf"
+          },
+          {
+            "id": "tests/test_ib_fetch_executor.py::test_unapproved_provider_symbol_cannot_fetch_or_write_bars",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The approved same-conId path is covered by both-feed recovery cases.",
+            "negative": "An unapproved preferred-share provider symbol produces zero history requests and zero cache writes.",
+            "reviewed_test_sha256": "394409df6a25aa9ab1f2790e53aead2d2bff5ebd94b795e5714aaf0334080edf"
+          },
+          {
+            "id": "tests/integration/test_market_data_readiness_postgresql.py::test_symbol_change_recovery_retains_failed_attempt_and_source_plan",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Native PostgreSQL writers persist both recovered feeds under TCBI and advance readiness to READY.",
+            "negative": "Original failed items and acquisition plan are unchanged; no terminal lifecycle record is fabricated.",
+            "reviewed_test_sha256": "2f27c0a6d8ccff04f05b354f9091aacdbcbab8e5db393d4477c4fe3f786bb258"
+          },
+          {
+            "id": "tests/integration/test_market_data_readiness_postgresql.py::test_contract_preflight_honors_only_pit_visible_terminal_evidence",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A sourced terminal record permits exclusion after its observation and effective boundaries.",
+            "negative": "A pre-observation cutoff or pre-effective session cannot inherit that terminal evidence.",
+            "reviewed_test_sha256": "2f27c0a6d8ccff04f05b354f9091aacdbcbab8e5db393d4477c4fe3f786bb258"
+          },
+          {
+            "id": "tests/test_no_order_boundary.py::test_ib_fetch_executor_uses_read_only_session_and_no_order_api",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Actual conversion/execution uses a read-only broker double and completes one historical request.",
+            "negative": "Every order API call fails; database and coordination doubles supply no native-worker or live-provider claim.",
+            "reviewed_test_sha256": "0f19c848c345eb5f5098005eb38f8f9076b2cb78e495cce3f638c9ae20df61ba"
           }
         ],
         "oracle": "Literal reviewed request dates and independent expected subset; FakeIB response boundary.",
@@ -2351,7 +2449,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "769ae462a20997e7d41a782b5f3a7482e328e876960e5071ea0f3a786f2f7618",
+        "review_sha256": "c9ff2063f123ad948f6768bc5bdcefb977916c5d9d985693bda9185cdc8fd6b1",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -2442,6 +2540,13 @@
               }
             ],
             "claim": "STATIC_INTENT only; no historical source-pin, financial expectation or approval rule changed."
+          },
+          {
+            "task": "PIPELINE55-20261109",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/verification/pipeline55-symbol-change-review-20261109.md",
+            "scope": "Dated common-stock symbol continuity, frozen market-data recovery and explicit subset admission; exact source paths and meaningful refusal/native selectors. Existing financial expectations and release requirements retained.",
+            "claim": "STATIC_INTENT only; no authenticated human approval, measured execution, current certificate or live-provider verdict is supplied by this mapping."
           }
         ]
       },
@@ -2908,6 +3013,15 @@
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
             "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/test_sector_refresh_fixture_calendar.py::test_forming_provider_fixture_obeys_reviewed_session_window",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The synthetic provider emits the next trading session only during its open market window, including the DST transition.",
+            "negative": "Before open, at close, weekends and nonadjacent sessions cannot emit an inadmissible forming bar.",
+            "reviewed_test_sha256": "98291f210d6063f2cc54a246e7e0b1c0ab3ba47797198187d8053c1f224ae7f2"
           }
         ],
         "oracle": "Explicit competing rows and expected IDs; A05B financial vectors remain separate.",
@@ -2918,7 +3032,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "0cb55849aff7b37cd9d26b4706f13368b6f9a9b493c885883839700471c706b3",
+        "review_sha256": "3bf1f7efbec0e25d38e4fc8976111db6c2457a079f2827efc67d9d9392c18da2",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -2953,6 +3067,13 @@
               }
             ],
             "claim": "STATIC_INTENT only; no historical source-pin, financial expectation or approval rule changed."
+          },
+          {
+            "task": "PIPELINE55-20261109-fixture-calendar",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/pipeline55-symbol-change-review-20261109.md",
+            "scope": "The existing local calendar-aware provider double corrects pre-open CI failures. Native durable-worker, cache-freshness and frozen SPY/QQQ lineage assertions remain intact; production response admission remains unchanged.",
+            "claim": "STATIC_INTENT only; no execution, human approval or financial expectation is asserted by this metadata."
           }
         ]
       },
@@ -3355,7 +3476,15 @@
           "tests/sector_native_helpers.py",
           "tests/test_route_security.py",
           "docs/verification/ci443-seed-connection-cleanup-20261107.md",
-          "tests/integration/test_pipeline_authority_certification_postgresql.py"
+          "tests/integration/test_pipeline_authority_certification_postgresql.py",
+          "app/routers/run_routes.py",
+          "app/static/app.js",
+          "app/templates/pipeline_progress.html",
+          "app/templates/run_detail.html",
+          "tests/test_pipeline_executor.py",
+          "tests/test_pipeline_gui_semantics.py",
+          "tests/test_pipeline_partial_results.py",
+          "docs/verification/pipeline55-symbol-change-review-20261109.md"
         ],
         "tests": [
           {
@@ -3564,6 +3693,60 @@
             "positive": "Real frozen CERI seeding commits, releases its idle physical backend, preserves an active client and reconnects for later assertions.",
             "negative": "The original seeder leaves the backend present and fails this control; unchanged transaction-policy controls still reject stalled and unrelated transactions.",
             "reviewed_test_sha256": "85ce969e29e1a40c89fbce8ac178e47e665588001bc52ef2d484862e4b6c5e97"
+          },
+          {
+            "id": "tests/test_pipeline_executor.py::test_market_data_resume_preserves_fundamentals_and_completed_steps",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Frozen market-data recovery reuses completed fundamentals and validates the retained checkpoint.",
+            "negative": "Upstream fundamental execution and completed-step attempt counters must not replay.",
+            "reviewed_test_sha256": "7fe5b07d44815f4228725b0902ed584baa665dc61972a4ad7393d692bc039e6b"
+          },
+          {
+            "id": "tests/test_pipeline_executor.py::test_contract_preflight_failure_blocks_pipeline_before_technicals",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Typed qualification failure is retained as a blocked market-data pipeline stage.",
+            "negative": "Technical and combined producers are not invoked after unresolved instrument identity.",
+            "reviewed_test_sha256": "7fe5b07d44815f4228725b0902ed584baa665dc61972a4ad7393d692bc039e6b"
+          },
+          {
+            "id": "tests/test_pipeline_partial_results.py::test_partial_admission_records_exact_subset_and_preserves_source",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "An explicit reviewed subset retains the source scope and disposition lineage.",
+            "negative": "The source pipeline remains blocked and its original requested membership is preserved.",
+            "reviewed_test_sha256": "5b38dcb80881dc52c7d9cae5baa3bd531f069ce82b527430b98f4317ca7cbe58"
+          },
+          {
+            "id": "tests/test_pipeline_partial_results.py::test_partial_admission_cannot_bypass_unresolved_instrument_identity",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Resolved data-failure exclusions are exercised by the companion positive subset case.",
+            "negative": "UNKNOWN instrument identity cannot be removed through the partial admission boundary.",
+            "reviewed_test_sha256": "5b38dcb80881dc52c7d9cae5baa3bd531f069ce82b527430b98f4317ca7cbe58"
+          },
+          {
+            "id": "tests/integration/test_market_data_readiness_postgresql.py::test_explicit_partial_admission_freezes_subset_and_is_idempotent",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "PostgreSQL admission creates an isolated derived upload and linked subset scope and coalesces repeated submission.",
+            "negative": "The source pipeline, upload population, result and immutable parent scope remain unchanged.",
+            "reviewed_test_sha256": "2f27c0a6d8ccff04f05b354f9091aacdbcbab8e5db393d4477c4fe3f786bb258"
+          },
+          {
+            "id": "tests/test_pipeline_gui_semantics.py::test_market_data_block_offers_recovery_and_explicit_partial_scope",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Server-rendered progress exposes recovery and explicit subset controls for the retained readiness evidence.",
+            "negative": "The original pipeline must remain explicitly disclosed as blocked; rendering these controls does not establish browser interaction or server admission proof.",
+            "reviewed_test_sha256": "328b0d25e9119cab0b481a7f217163f7536b1622334243d7e8f62b62ed73e1ce"
           }
         ],
         "oracle": "Only original A04 finalizer plus A05B independent oracle; 13 required evidence seals.",
@@ -3575,7 +3758,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "bb173930b419e853cd58e170f7f038bea60c7e01ec7dd4308366e38268e87ac7",
+        "review_sha256": "9e87eb38f65b9bd280621951b18d506c34c798e4a4ddd8ca953a93698e572036",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -3636,6 +3819,13 @@
               "tests/integration/test_pipeline_authority_certification_postgresql.py"
             ],
             "added_native_regression": "tests/integration/test_pipeline_authority_certification_postgresql.py::test_12c_retained_fixture_releases_idle_seed_backend_and_preserves_active_client"
+          },
+          {
+            "task": "PIPELINE55-20261109",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/verification/pipeline55-symbol-change-review-20261109.md",
+            "scope": "Dated common-stock symbol continuity, frozen market-data recovery and explicit subset admission; exact source paths and meaningful refusal/native selectors. Existing financial expectations and release requirements retained.",
+            "claim": "STATIC_INTENT only; no authenticated human approval, measured execution, current certificate or live-provider verdict is supplied by this mapping."
           }
         ]
       },

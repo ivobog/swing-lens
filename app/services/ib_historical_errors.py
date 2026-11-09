@@ -31,6 +31,9 @@ _CONTRACT_NOT_FOUND = re.compile(
     re.IGNORECASE,
 )
 _NO_HISTORICAL_DATA = re.compile(r"\bno\s+historical\s+market\s+data\s+for\b", re.IGNORECASE)
+_UNSUPPORTED_BEST_QUERY = re.compile(
+    r"\bbest\s+queries\s+are\s+not\s+supported\s+for\s+this\s+contract\b", re.IGNORECASE
+)
 _PACING_MESSAGES = (
     "historical data request pacing violation",
     "historical market data pacing violation",
@@ -84,6 +87,11 @@ def classify_ib_historical_error(
     if _NO_HISTORICAL_DATA.search(normalized):
         return IBHistoricalErrorClassification(
             IBHistoricalErrorCategory.HISTORICAL_DATA_UNAVAILABLE,
+            retryable=False,
+        )
+    if _UNSUPPORTED_BEST_QUERY.search(normalized):
+        return IBHistoricalErrorClassification(
+            IBHistoricalErrorCategory.PROVIDER_REJECTED,
             retryable=False,
         )
     if any(marker in normalized for marker in _PACING_MESSAGES):

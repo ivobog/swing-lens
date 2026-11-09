@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -57,6 +58,12 @@ def test_ib_connection_uses_read_only_session() -> None:
 def test_ib_fetch_executor_uses_read_only_session_and_no_order_api(monkeypatch) -> None:
     db = FakeDb()
     ib = FakeNoOrderIB()
+    # Shared PostgreSQL coordination has native integration coverage. Keep this
+    # read-only broker boundary check independent of an application database.
+    monkeypatch.setattr(
+        "app.services.ib_data_fetcher.historical_request",
+        lambda *_args, **_kwargs: nullcontext(),
+    )
     monkeypatch.setattr(
         executor,
         "resolve_us_stock_contract",
@@ -171,6 +178,7 @@ class FakeDb:
         self.added = []
         self.flushes = 0
         self.commits = 0
+        self.next_id = 1
 
     def add(self, row) -> None:
         self.added.append(row)
@@ -179,6 +187,10 @@ class FakeDb:
 
     def flush(self) -> None:
         self.flushes += 1
+        for row in self.added:
+            if getattr(row, "id", None) is None:
+                row.id = self.next_id
+                self.next_id += 1
 
     def commit(self) -> None:
         self.commits += 1

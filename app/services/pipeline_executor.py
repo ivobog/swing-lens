@@ -17,6 +17,7 @@ from app.models.tables import (
     CombinedResult,
     CoreCalculationEvidence,
     FundamentalScore,
+    IBFetchItem,
     IBFetchRun,
     MarketCalculationContext,
     MarketRegimeSnapshot,
@@ -59,7 +60,11 @@ from app.services.decision_handoff_contract import (
 from app.services.domain_write_fence import ControlPlaneLockTimeout
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
-from app.services.ib_fetch_job_service import FetchJobOptions, _admit_fetch_authority
+from app.services.ib_fetch_job_service import (
+    FetchJobOptions,
+    _admit_fetch_authority,
+    _subset_fetch_plan,
+)
 from app.services.ib_fetch_plan_service import (
     FetchAction,
     FetchPlan,
@@ -235,10 +240,12 @@ def _call_market_sensitive(
         from sqlalchemy import select
 
         from app.models.tables import FundamentalScore, TechnicalScore
+        from app.services.pipeline_partial_results import filter_pipeline_rows
 
         pins: dict[str, dict[str, int]] = {}
         for role, model in (("fundamental", FundamentalScore), ("technical", TechnicalScore)):
-            for source in db.scalars(select(model).where(model.run_id == run_id)):
+            sources = list(db.scalars(select(model).where(model.run_id == run_id)))
+            for source in filter_pipeline_rows(db, sources, pipeline_run_id):
                 if source.evidence_id is None:
                     raise ValueError("PIPELINE_CERTIFIED_SOURCE_REQUIRED: " + role)
                 pins.setdefault(source.ticker.upper(), {})[role] = source.evidence_id
@@ -414,7 +421,7 @@ def execute_full_pipeline(
         dependencies = replace(dependencies, market_cutoff=market_cutoff)
     pipeline._job_progress_callback = progress_callback
     upload_run = _require_upload_run(db, pipeline.upload_run_id)
-    if resume_from_step is not None and resume_from_step != "VALIDATING_RUN":
+    if resume_from_step not in {None, "VALIDATING_RUN", "FETCHING_MARKET_DATA"}:
         return _execute_resumed_pipeline(
             db,
             pipeline=pipeline,
@@ -454,6 +461,12 @@ def execute_full_pipeline(
     }
 
     result = _empty_result(pipeline, upload_run)
+    recovering_market_data = resume_from_step == "FETCHING_MARKET_DATA"
+    if recovering_market_data:
+        pipeline = _claim_pipeline_continuation_resume(db, pipeline)
+        result.update(_public_result(pipeline.result_json or {}))
+        result.update(blocked_reason=None, blocked_diagnostics=None, failure_reason=None,
+                      resumed_from_step=resume_from_step)
     market_data_policy = _market_data_policy(pipeline)
     result["market_data_policy"] = market_data_policy.value
     overlap_coordinator: TechnicalScoringOverlapCoordinator | None = None
@@ -465,47 +478,57 @@ def execute_full_pipeline(
         )
         _raise_if_cancelled(should_cancel)
 
-        with _pipeline_step(
-            db,
-            pipeline,
-            "VALIDATING_RUN",
-            lease_guard=lease_guard,
-            performance=performance,
-        ):
-            tickers = _pipeline_scope_tickers(db, pipeline)
-            if not tickers:
-                raise ValueError("No uploaded tickers are available for this run.")
-            result["uploaded_rows"] = upload_run.row_count or len(tickers)
-            if _ceri_provider_ingest_enabled(dependencies):
-                validate = dependencies.validate_pipeline_preflight
-                result["sec_preflight"] = (
-                    validate(db, tickers)
-                    if validate is not None
-                    else validate_sec_pipeline_preflight(db, tickers=tickers)
+        tickers = _pipeline_scope_tickers(db, pipeline)
+        if recovering_market_data:
+            result["market_data_resume_checkpoint"] = _validate_market_data_resume(
+                db, pipeline, tickers, market_cutoff
+            )
+        else:
+            with _pipeline_step(
+                db,
+                pipeline,
+                "VALIDATING_RUN",
+                lease_guard=lease_guard,
+                performance=performance,
+            ):
+                tickers = _pipeline_scope_tickers(db, pipeline)
+                if not tickers:
+                    raise ValueError("No uploaded tickers are available for this run.")
+                result["uploaded_rows"] = (
+                    len(result["partial_scope"]["requested_tickers"])
+                    if result.get("partial_scope")
+                    else upload_run.row_count or len(tickers)
                 )
+                if _ceri_provider_ingest_enabled(dependencies):
+                    validate = dependencies.validate_pipeline_preflight
+                    result["sec_preflight"] = (
+                        validate(db, tickers)
+                        if validate is not None
+                        else validate_sec_pipeline_preflight(db, tickers=tickers)
+                    )
 
-        _raise_if_cancelled(should_cancel)
+            _raise_if_cancelled(should_cancel)
+            with _pipeline_step(
+                db,
+                pipeline,
+                "SCORING_FUNDAMENTALS",
+                lease_guard=lease_guard,
+                performance=performance,
+            ):
+                fundamental_scores = _call_market_sensitive(
+                    dependencies.recalculate_fundamentals,
+                    db,
+                    upload_run.id,
+                    market_cutoff,
+                    pipeline_run_id=pipeline.id,
+                )
+                result["fundamental_scores"] = len(fundamental_scores)
+
         sector_checkpoint = _sector_checkpoint_callback(
             db,
             should_cancel=should_cancel,
             progress_callback=progress_callback,
         )
-        with _pipeline_step(
-            db,
-            pipeline,
-            "SCORING_FUNDAMENTALS",
-            lease_guard=lease_guard,
-            performance=performance,
-        ):
-            fundamental_scores = _call_market_sensitive(
-                dependencies.recalculate_fundamentals,
-                db,
-                upload_run.id,
-                market_cutoff,
-                pipeline_run_id=pipeline.id,
-            )
-            result["fundamental_scores"] = len(fundamental_scores)
-
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
             db,
@@ -667,6 +690,24 @@ def execute_full_pipeline(
                     .order_by(IBFetchRun.id.desc())
                     .limit(1)
                 )
+                if recovering_market_data and resumable_fetch_run_id is not None:
+                    # New attempt rows retain the original provider failures unchanged.
+                    failed_keys = {
+                        (item.ticker, item.what_to_show)
+                        for item in db.scalars(
+                            select(IBFetchItem).where(
+                                IBFetchItem.fetch_run_id == resumable_fetch_run_id,
+                                IBFetchItem.status == "FAILED",
+                            )
+                        )
+                    }
+                    if failed_keys:
+                        plan = _subset_fetch_plan(plan, failed_keys)
+                    result["ib_planned_requests"] = plan.estimated_request_count
+                    result["market_data_resume_checkpoint"]["previous_fetch_run_id"] = (
+                        resumable_fetch_run_id
+                    )
+                    resumable_fetch_run_id = None
                 fetch_kwargs: dict[str, Any] = {
                     "db": db,
                     "plan": plan,
@@ -679,6 +720,10 @@ def execute_full_pipeline(
                 }
                 if _accepts_keyword(dependencies.execute_fetch_plan, "execution_job_id"):
                     fetch_kwargs["execution_job_id"] = execution_job_id
+                if isinstance(db, Session) and _accepts_keyword(
+                    dependencies.execute_fetch_plan, "lifecycle_as_of"
+                ):
+                    fetch_kwargs["lifecycle_as_of"] = market_cutoff.cutoff_at
                 if fetch_authority is not None and _accepts_keyword(
                     dependencies.execute_fetch_plan, "semantic_authority"
                 ):
@@ -692,6 +737,17 @@ def execute_full_pipeline(
                 _apply_fetch_performance(performance, fetch_run)
                 if fetch_run.status == "CANCELLED":
                     raise PipelineCancelled("Pipeline cancelled during market data fetch.")
+                if (fetch_run.message or "").startswith("IB_CONTRACT_PREFLIGHT_BLOCKED:"):
+                    result["instrument_preflight"] = {
+                        "status": "BLOCKED_BEFORE_HISTORICAL_FETCH",
+                        "message": fetch_run.message,
+                        "fetch_run_id": fetch_run.id,
+                    }
+                    raise PipelineBlockedError(
+                        fetch_run.message,
+                        reason_code="MARKET_DATA_SESSION_READINESS_BLOCKED",
+                        diagnostics=result["instrument_preflight"],
+                    )
                 circuit = (fetch_run.decision_counts_json or {}).get("historical_circuit")
                 if circuit:
                     result["failure_reason"] = IBHistoricalCircuitOpenError.reason_code
@@ -1098,7 +1154,9 @@ def _continue_after_sector_snapshot(
                 skipped_step.status = PipelineStepStatus.SKIPPED
                 skipped_step.message = reason
         result["performance"] = performance.snapshot()
-        final_status = PipelineStatus.COMPLETED
+        final_status = (
+            PipelineStatus.PARTIAL if result.get("partial_scope") else PipelineStatus.COMPLETED
+        )
         _record_performance_metrics(db, final_status, result["performance"])
         _mark_pipeline_finished(db, pipeline, final_status, result, lease_guard=lease_guard)
         return _to_execution_result(pipeline, result)
@@ -1811,12 +1869,15 @@ def _validate_resume_checkpoint(
             "Cannot resume because prior stages are not complete: " + ", ".join(invalid)
         )
 
-    expected = len(_pipeline_scope_tickers(db, pipeline))
+    scoped_tickers = _pipeline_scope_tickers(db, pipeline)
+    expected = len(scoped_tickers)
     checks = {
-        "fundamental_scores": _run_ticker_count(db, FundamentalScore, upload_run_id),
-        "technical_scores": _run_ticker_count(db, TechnicalScore, upload_run_id),
-        "combined_results": _run_ticker_count(db, CombinedResult, upload_run_id),
-        "ranking_results": _run_ticker_count(db, RankingResult, upload_run_id),
+        "fundamental_scores": _run_ticker_count(
+            db, FundamentalScore, upload_run_id, scoped_tickers
+        ),
+        "technical_scores": _run_ticker_count(db, TechnicalScore, upload_run_id, scoped_tickers),
+        "combined_results": _run_ticker_count(db, CombinedResult, upload_run_id, scoped_tickers),
+        "ranking_results": _run_ticker_count(db, RankingResult, upload_run_id, scoped_tickers),
     }
     if any(checks[name] != expected for name in checks):
         raise ValueError(
@@ -2163,6 +2224,9 @@ def _validate_resume_evidence(
             .order_by(RawCompanyRow.row_number)
         )
     )
+    from app.services.pipeline_partial_results import filter_pipeline_rows
+
+    raw_rows = filter_pipeline_rows(db, raw_rows, pipeline.id)
     fundamentals = _resume_rows_by_ticker(db, FundamentalScore, upload_run_id)
     technicals = _resume_rows_by_ticker(db, TechnicalScore, upload_run_id)
     combined = _resume_rows_by_ticker(db, CombinedResult, upload_run_id)
@@ -2505,9 +2569,12 @@ def _validate_projection_source_pins(db, *, kind, projection, evidence):
             raise ValueError("HISTORICAL_EVIDENCE_UNAVAILABLE: resume contextual source changed")
 
 
-def _run_ticker_count(db: Session, model: type, run_id: int) -> int:
+def _run_ticker_count(db: Session, model: type, run_id: int, tickers=None) -> int:
+    query = select(func.count(distinct(model.ticker))).where(model.run_id == run_id)
+    if tickers is not None:
+        query = query.where(model.ticker.in_(tickers))
     return int(
-        db.scalar(select(func.count(distinct(model.ticker))).where(model.run_id == run_id)) or 0
+        db.scalar(query) or 0
     )
 
 
@@ -2867,6 +2934,45 @@ def _tickers_for_run(db: Session, upload_run_id: int) -> list[str]:
     return tickers
 
 
+def _validate_market_data_resume(db, pipeline, tickers, market_cutoff):
+    """Prove the retained fundamentals before skipping their completed stage."""
+    for name in ("VALIDATING_RUN", "SCORING_FUNDAMENTALS"):
+        if _require_step(db, pipeline.id, name).status != PipelineStepStatus.COMPLETED:
+            raise ValueError("MARKET_DATA_RESUME_PRIOR_STAGE_INCOMPLETE: " + name)
+    if not isinstance((pipeline.result_json or {}).get("ib_fetch_plan"), dict):
+        raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED")
+    if isinstance(db, Session):
+        from app.services.calculation_identity import (
+            PIPELINE_CONTEXT_COMPATIBILITY,
+            CalculationIdentityCompatibilityValidator,
+        )
+        from app.services.combined_ranking_identity import fundamental_score_identity
+        from app.services.market_calculation_context_service import (
+            calculation_identity_from_market_context,
+        )
+
+        rows = {
+            row.ticker.upper(): row
+            for row in db.scalars(
+                select(FundamentalScore).where(FundamentalScore.run_id == pipeline.upload_run_id)
+            )
+        }
+        for ticker in tickers:
+            row = rows.get(ticker)
+            if row is None:
+                raise ValueError("MARKET_DATA_RESUME_FUNDAMENTAL_MISSING: " + ticker)
+            _require_unchanged_core_evidence(db, kind=CoreEvidenceKind.FUNDAMENTAL, row=row)
+            expected = calculation_identity_from_market_context(
+                market_cutoff, run_id=pipeline.upload_run_id, pipeline_id=pipeline.id, ticker=ticker
+            )
+            comparison = CalculationIdentityCompatibilityValidator.compare(
+                expected, fundamental_score_identity(row), policy=PIPELINE_CONTEXT_COMPATIBILITY
+            )
+            if not comparison.accepted:
+                raise ValueError("MARKET_DATA_RESUME_FUNDAMENTAL_CONTEXT_CHANGED: " + ticker)
+    return {"validated": True, "fundamentals_reused": len(tickers)}
+
+
 def _pipeline_scope_tickers(db: Session, pipeline: PipelineRun) -> list[str]:
     if not isinstance(db, Session):
         return _tickers_for_run(db, pipeline.upload_run_id)
@@ -3037,6 +3143,12 @@ def _mark_pipeline_finished(
         authority = require_semantic_authority(pipeline)
         result["semantic_child_accounting"] = require_children_terminal(db, authority.scope_id)
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 0)
+    if result.get("partial_scope"):
+        from app.services.pipeline_outcome import derive_pipeline_outcome
+
+        result["pipeline_outcome_summary"] = derive_pipeline_outcome(status, result)
+        # Containment observes terminal metadata during the transition itself.
+        pipeline.result_json = {**(pipeline.result_json or {}), **_public_result(result)}
     transition_pipeline(
         db,
         pipeline,
@@ -3118,7 +3230,11 @@ def _mark_pipeline_blocked(
         pipeline,
         PipelineStatus.BLOCKED,
         actor="pipeline_orchestrator",
-        message="Pipeline blocked before execution.",
+        message=(
+            "Pipeline blocked at market-data fetching."
+            if pipeline.current_step == "FETCHING_MARKET_DATA"
+            else "Pipeline blocked before execution."
+        ),
         error_message=_safe_message(str(exc)),
     )
     pipeline.result_json = {
@@ -3404,6 +3520,7 @@ def _pipeline_status_for_step(step_name: str) -> str:
 
 
 def _apply_fetch_result(result: dict[str, Any], fetch_run: IBFetchRun) -> None:
+    result["ib_fetch_run_id"] = fetch_run.id
     result["ib_executed_requests"] = fetch_run.executed_request_count or 0
     result["ib_success_count"] = fetch_run.success_count or 0
     result["ib_failure_count"] = fetch_run.failure_count or 0
@@ -3534,6 +3651,7 @@ def _final_pipeline_status(result: dict[str, Any]) -> str:
         result["incomplete_rows"]
         or result["warning_rows"]
         or result["ib_failure_count"]
+        or result.get("market_data_excluded_count", 0)
         or result["technical_error_count"]
         or result["fetch_failed"]
         or result["market_regime_low_confidence"]
@@ -3552,11 +3670,13 @@ def _completion_message(status: str, result: dict[str, Any]) -> str:
             f"Pipeline completed with {result['combined_results']} combined rows.{winner_summary}"
         )
     if status == PipelineStatus.PARTIAL:
+        excluded = int(result.get("market_data_excluded_count") or 0)
         return (
             f"Pipeline completed partially with {result['combined_results']} combined rows, "
             f"{result['incomplete_rows']} incomplete rows, and "
             f"{result['ib_failure_count']} IB failures."
-            f"{winner_summary}"
+            + (f" {excluded} tickers excluded from the original universe." if excluded else "")
+            + winner_summary
         )
     return "Pipeline failed before combined results were produced."
 
@@ -3574,7 +3694,15 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
     return {
         "pipeline_run_id": pipeline.id,
         "upload_run_id": upload_run.id,
-        "uploaded_rows": upload_run.row_count or 0,
+        "uploaded_rows": (
+            len(pipeline.result_json["partial_scope"]["requested_tickers"])
+            if (pipeline.result_json or {}).get("partial_scope")
+            else upload_run.row_count or 0
+        ),
+        "partial_scope": (pipeline.result_json or {}).get("partial_scope"),
+        "market_data_excluded_count": len(
+            ((pipeline.result_json or {}).get("partial_scope") or {}).get("excluded_tickers", [])
+        ),
         "fundamental_scores": 0,
         "ib_planned_requests": 0,
         "ib_executed_requests": 0,

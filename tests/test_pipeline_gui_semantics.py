@@ -82,3 +82,44 @@ def test_global_hidden_rule_is_authoritative() -> None:
 
     assert "[hidden]" in css
     assert "display: none !important" in css
+
+
+def test_market_data_block_offers_recovery_and_explicit_partial_scope(monkeypatch):
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    html = templates.get_template("pipeline_progress.html").render(
+        run=SimpleNamespace(id=51, filename="run.csv"),
+        pipeline={
+            "pipeline_run_id": 53, "status": "BLOCKED", "current_step": "FETCHING_MARKET_DATA",
+            "result": {"market_data_session_readiness": {
+                "technical_tickers": ["MSFT"], "blockers": ["ROKU"],
+            }},
+            "steps": [], "completed_steps": 2, "total_steps": 13, "percentage": 15.4,
+        },
+        terminal_statuses=["COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"],
+        status_url="/runs/51/pipeline/53/status",
+    )
+    assert "Retry missing market data" in html
+    assert 'action="/runs/51/pipeline/53/partial"' in html
+    assert 'name="excluded_tickers" data-pipeline-partial-tickers value="ROKU"' in html
+    assert "Start partial run — exclude ROKU" in html
+    assert "The original pipeline will stay blocked" in html
+
+
+def test_partial_pipeline_progress_discloses_original_denominator(monkeypatch):
+    monkeypatch.setitem(templates.env.globals, "url_for", lambda _name, path: path)
+    html = templates.get_template("pipeline_progress.html").render(
+        run=SimpleNamespace(id=52, filename="partial.csv"),
+        pipeline={
+            "pipeline_run_id": 54, "status": "PARTIAL",
+            "result": {"partial_scope": {"source_pipeline_id": 53,
+                "included_tickers": ["MSFT"], "requested_tickers": ["MSFT", "ROKU"],
+                "excluded_tickers": ["ROKU"]}},
+            "steps": [], "completed_steps": 13, "total_steps": 13, "percentage": 100,
+        },
+        terminal_statuses=["COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"],
+        status_url="/runs/52/pipeline/54/status",
+    )
+    assert 'data-pipeline-partial-included>1</span>' in html
+    assert 'data-pipeline-partial-requested>2</span>' in html
+    assert 'data-pipeline-partial-excluded>ROKU</span>' in html
+    assert "incomplete for the original universe" in html

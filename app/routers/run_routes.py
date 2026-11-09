@@ -827,6 +827,38 @@ def resume_run_pipeline_action(
         raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
 
 
+@router.post("/runs/{run_id}/pipeline/{pipeline_id}/partial")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="starts an explicit partial pipeline with reviewed market-data exclusions",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.pipeline.partial",
+)
+def start_partial_pipeline_action(
+    run_id: int,
+    pipeline_id: int,
+    db: DbSession,
+    excluded_tickers: TickerSubsetForm,
+) -> RedirectResponse:
+    _require_run(db, run_id)
+    _require_pipeline_for_run(db, pipeline_id, run_id)
+    try:
+        pipeline = start_pipeline(
+            db,
+            run_id,
+            partial_source_pipeline_id=pipeline_id,
+            excluded_tickers=tuple(excluded_tickers.split(",")),
+            market_data_policy=MarketDataPolicy.REQUIRE_IB,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
+    return RedirectResponse(
+        url=f"/runs/{pipeline.upload_run_id}/pipeline/{pipeline.id}", status_code=303
+    )
+
+
 @router.post("/runs/{run_id}/ib/test")
 @unsafe_route(
     ROUTE_CLASS_PUBLIC_LOCAL,

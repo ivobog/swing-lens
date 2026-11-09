@@ -1950,6 +1950,72 @@ def test_execute_full_pipeline_records_replay_attempt_for_previously_completed_s
     assert db.steps[0].message == "Replaying step attempt 2."
 
 
+
+def test_market_data_resume_preserves_fundamentals_and_completed_steps() -> None:
+    from app.services.ib_fetch_plan_service import fetch_plan_to_dict
+
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    db.pipeline.status = PipelineStatus.QUEUED
+    for step in db.steps[:2]:
+        step.status = PipelineStepStatus.COMPLETED
+    db.pipeline.result_json = {
+        **db.pipeline.result_json,
+        "fundamental_scores": 1,
+        "ib_fetch_plan": fetch_plan_to_dict(_plan(estimated_request_count=0)),
+    }
+    calls = []
+    result = execute_full_pipeline(
+        db, pipeline_run_id=3, resume_from_step="FETCHING_MARKET_DATA",
+        dependencies=_dependencies(calls, combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ]),
+    )
+    assert "fundamentals" not in calls
+    assert "technicals" in calls
+    assert result.fundamental_scores == 1
+    assert all(step.retry_count == 0 for step in db.steps[:2])
+    assert db.pipeline.result_json["market_data_resume_checkpoint"]["validated"] is True
+
+
+def test_contract_preflight_failure_blocks_pipeline_before_technicals():
+    db = PipelineExecutorFakeDb(tickers=["BAD"])
+    calls = []
+    dependencies = _dependencies(calls, plan=_plan(estimated_request_count=1))
+
+    def failed_fetch(**_kwargs):
+        return IBFetchRun(
+            id=38, run_id=7, status="FAILED", failure_count=2, success_count=0,
+            executed_request_count=0, decision_counts_json={},
+            message="IB_CONTRACT_PREFLIGHT_BLOCKED: BAD: No matching contract",
+        )
+
+    dependencies = replace(dependencies, execute_fetch_plan=failed_fetch)
+    with pytest.raises(PipelineBlockedError, match="IB_CONTRACT_PREFLIGHT_BLOCKED"):
+        execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+    assert db.pipeline.status == PipelineStatus.BLOCKED
+    assert "technicals" not in calls
+    assert "combined" not in calls
+    assert db.pipeline.result_json["instrument_preflight"]["status"] == (
+        "BLOCKED_BEFORE_HISTORICAL_FETCH"
+    )
+
+
+def test_partial_scope_always_finishes_partial_even_when_every_admitted_ticker_succeeds():
+    db = PipelineExecutorFakeDb(tickers=["MSFT"])
+    db.upload_run.row_count = 2
+    db.pipeline.result_json["partial_scope"] = {
+        "requested_tickers": ["MSFT", "ROKU"],
+        "included_tickers": ["MSFT"], "excluded_tickers": ["ROKU"],
+    }
+    result = execute_full_pipeline(
+        db, pipeline_run_id=3,
+        dependencies=_dependencies([], combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False)
+        ]),
+    )
+    assert result.status == PipelineStatus.PARTIAL
+    assert db.pipeline.result_json["market_data_excluded_count"] == 1
+
 def test_readiness_unresolved_blocker_stops_technical_and_handoff_progression(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

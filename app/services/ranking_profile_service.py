@@ -164,7 +164,7 @@ def refresh_all_ranking_profiles(
         if effective_configurations is None
         else [item.ranking_profile() for item in effective_configurations]
     )
-    rows, fundamentals, technicals = _load_run_inputs(db, run_id)
+    rows, fundamentals, technicals = _load_run_inputs(db, run_id, pipeline_run_id)
     config = _load_scoring_config() if effective_configurations is None else {}
     configurations = (
         {item.ranking_profile().name: item for item in effective_configurations}
@@ -283,7 +283,7 @@ def refresh_ranking_profile(
     )
     if profile.name != profile_name:
         raise ValueError("Ranking retry profile mismatch")
-    rows, fundamentals, technicals = _load_run_inputs(db, run_id)
+    rows, fundamentals, technicals = _load_run_inputs(db, run_id, pipeline_run_id)
     effective_configuration = effective_configuration or resolve_ranking_configuration(
         profile, _load_scoring_config()
     )
@@ -713,14 +713,21 @@ def _load_liquidity_features(
 def _load_run_inputs(
     db: Session,
     run_id: int,
+    pipeline_run_id: int | None = None,
 ) -> tuple[
     list[RawCompanyRow],
     dict[str, FundamentalScore],
     dict[str, TechnicalScore],
 ]:
     rows = _raw_rows_for_run(db, run_id)
+    from app.services.pipeline_partial_results import filter_pipeline_rows
+
+    rows = filter_pipeline_rows(db, rows, pipeline_run_id)
+    allowed = {row.ticker.upper() for row in rows}
     fundamentals = {score.ticker.upper(): score for score in _fundamentals_for_run(db, run_id)}
     technicals = {score.ticker.upper(): score for score in _technicals_for_run(db, run_id)}
+    fundamentals = {ticker: row for ticker, row in fundamentals.items() if ticker in allowed}
+    technicals = {ticker: row for ticker, row in technicals.items() if ticker in allowed}
     return rows, fundamentals, technicals
 
 

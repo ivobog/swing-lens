@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "changes": [
+    {
+      "previous_symbol": "TCBI",
+      "current_symbol": "TXCP",
+      "effective_date": "2026-11-09",
+      "ib_conid": 21521400,
+      "primary_exchange": "TXSE",
+      "currency": "USD",
+      "sec_type": "STK",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1077428/000107742826000061/tcbi-20260914.htm"
+    }
+  ]
+}

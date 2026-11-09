@@ -4,6 +4,17 @@ from app.services.ib_historical_errors import (
 )
 
 
+def test_best_query_rejection_is_instrument_specific_and_not_retried() -> None:
+    result = classify_ib_historical_error(
+        162,
+        "Historical Market Data Service error message:BEST queries are not supported "
+        "for this contract",
+    )
+    assert result.category is IBHistoricalErrorCategory.PROVIDER_REJECTED
+    assert result.retryable is False
+    assert result.systemic is False
+
+
 def test_eodchart_unavailable_162_is_non_retryable() -> None:
     result = classify_ib_historical_error(
         162,

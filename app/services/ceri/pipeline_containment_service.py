@@ -34,6 +34,14 @@ def reconcile_unsuccessful_pipeline_ceri(
 
     if pipeline.status not in UNSUCCESSFUL_PIPELINE_STATES:
         return {"excluded": 0, "projections_repaired": 0, "processing_terminalized": 0}
+    result = pipeline.result_json or {}
+    if pipeline.status == "PARTIAL" and result.get("partial_scope"):
+        from app.services.pipeline_outcome import pipeline_requires_ceri_containment
+
+        if not result.get("ceri_failed") and not pipeline_requires_ceri_containment(
+            pipeline.status, result
+        ):
+            return {"excluded": 0, "projections_repaired": 0, "processing_terminalized": 0}
     snapshots = list(
         db.scalars(
             select(CeriScoreSnapshot)

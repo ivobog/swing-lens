@@ -792,27 +792,52 @@ function updatePipelineProgress(root, data) {
     const blocked = result.blocked_diagnostics || {};
     const readiness = blocked.readiness || {};
     const processor = blocked.processor || {};
+    const marketBlocked = data.current_step === "FETCHING_MARKET_DATA";
+    const market = result.market_data_session_readiness || {};
     blockedPanel.hidden = data.status !== "BLOCKED";
     setText(root, "[data-pipeline-blocked-reason]", (result.blocked_reason || "Prerequisite required").replaceAll("_", " "));
     setText(root, "[data-pipeline-blocked-processor]", readiness.processor_signature || processor.deployed_signature || "Unknown");
-    setText(root, "[data-pipeline-blocked-universe]", readiness.requested_tickers || 0);
-    setText(root, "[data-pipeline-blocked-ready]", readiness.ready_tickers || 0);
-      setText(root, "[data-pipeline-blocked-missing]", (readiness.blocking_tickers || []).length);
+    setText(root, "[data-pipeline-blocked-universe]", marketBlocked ? Object.keys(market.tickers || {}).length : readiness.requested_tickers || 0);
+    setText(root, "[data-pipeline-blocked-ready]", marketBlocked ? (market.technical_tickers || []).length : readiness.ready_tickers || 0);
+    setText(root, "[data-pipeline-blocked-missing]", marketBlocked ? (market.blockers || []).length : (readiness.blocking_tickers || []).length);
+    const processorRow = root.querySelector("[data-pipeline-blocked-processor-row]");
+    if (processorRow) processorRow.hidden = marketBlocked;
+    setText(root, "[data-pipeline-blocked-detail]", marketBlocked
+      ? "Required daily bars are missing. Retry after provider recovery, or explicitly process the ready subset."
+      : "Automatic preparation finished, but SwingLens could not safely resolve every prerequisite.");
     }
     const resumeAction = root.querySelector("[data-pipeline-resume]");
     if (resumeAction) {
       resumeAction.hidden = !(
         ["BLOCKED", "FAILED", "PARTIAL"].includes(data.status)
-        && ["VALIDATING_RUN", "CERI_PROVIDER_INGEST"].includes(data.current_step)
+        && ["VALIDATING_RUN", "FETCHING_MARKET_DATA", "CERI_PROVIDER_INGEST"].includes(data.current_step)
       );
       setText(
         root,
         "[data-pipeline-resume-label]",
         data.current_step === "CERI_PROVIDER_INGEST"
           ? "Resume from CERI"
+          : data.current_step === "FETCHING_MARKET_DATA"
+          ? "Retry missing market data"
           : "Retry pipeline preflight",
       );
     }
+  const marketReadiness = result.market_data_session_readiness || {};
+  const partialAction = root.querySelector("[data-pipeline-partial]");
+  const excludedTickers = marketReadiness.blockers || [];
+  if (partialAction) {
+    partialAction.hidden = !(data.status === "BLOCKED"
+      && data.current_step === "FETCHING_MARKET_DATA"
+      && (marketReadiness.technical_tickers || []).length && excludedTickers.length);
+    partialAction.querySelector("[data-pipeline-partial-tickers]").value = excludedTickers.join(",");
+    setText(root, "[data-pipeline-partial-label]", `Start partial run — exclude ${excludedTickers.join(", ")}`);
+  }
+  const partial = result.partial_scope || {};
+  const partialCoverage = root.querySelector("[data-pipeline-partial-coverage]");
+  if (partialCoverage) partialCoverage.hidden = !partial.source_pipeline_id;
+  setText(root, "[data-pipeline-partial-included]", (partial.included_tickers || []).length);
+  setText(root, "[data-pipeline-partial-requested]", (partial.requested_tickers || []).length);
+  setText(root, "[data-pipeline-partial-excluded]", (partial.excluded_tickers || []).join(", "));
   setText(root, "[data-pipeline-ranking-status]", result.ranking_status || "Pending");
   setText(root, "[data-pipeline-ranking-profiles]", result.ranking_profiles || 0);
   setText(root, "[data-pipeline-ranking-results]", result.ranking_results || 0);
