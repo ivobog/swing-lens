@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.tables import IBContract
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.ib_api import IB, Contract, Stock
+from app.services.instrument_symbol_changes import active_symbol_change
 from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
 
 
@@ -18,6 +19,7 @@ class ContractResolution:
     contract: Contract | None
     cache_row: IBContract
     error_message: str | None = None
+    symbol_change_evidence: dict[str, object] | None = None
 
 
 IBQualify = Callable[[Contract], list[Contract]]
@@ -49,15 +51,19 @@ def resolve_us_stock_contract(
     force_refresh: bool = False,
 ) -> ContractResolution:
     normalized_ticker = ticker.strip().upper()
+    change = active_symbol_change(normalized_ticker)
     existing = db.scalar(select(IBContract).where(IBContract.ticker == normalized_ticker))
 
     if existing and not force_refresh and existing.resolution_status == "RESOLVED":
-        return ContractResolution(
-            ticker=normalized_ticker,
-            status="RESOLVED",
-            contract=cached_contract_to_ib(existing),
-            cache_row=existing,
-        )
+        cached = cached_contract_to_ib(existing)
+        if change is None or (cached is not None and change.matches(cached.dict())):
+            return ContractResolution(
+                ticker=normalized_ticker,
+                status="RESOLVED",
+                contract=cached,
+                cache_row=existing,
+                symbol_change_evidence=change.evidence() if change else None,
+            )
 
     row = existing or IBContract(ticker=normalized_ticker, resolution_status="PENDING")
     if not existing:
@@ -68,7 +74,11 @@ def resolve_us_stock_contract(
         db.commit()
 
     try:
-        requested = Stock(symbol=normalized_ticker, exchange="SMART", currency="USD")
+        requested = (
+            Contract(conId=change.ib_conid, secType="STK", exchange="SMART", currency="USD")
+            if change is not None
+            else Stock(symbol=normalized_ticker, exchange="SMART", currency="USD")
+        )
         qualified = ib.qualifyContracts(requested)
         if not qualified:
             return _mark_failed(db, row, "IB returned no matching US stock contract.")
@@ -76,6 +86,11 @@ def resolve_us_stock_contract(
             return _mark_ambiguous(db, row, qualified)
 
         contract = qualified[0]
+        if change is not None and not change.matches(contract.dict()):
+            return _mark_failed(
+                db, row, "INSTRUMENT_SYMBOL_CHANGE_IDENTITY_MISMATCH: "
+                "IB qualification differs from the reviewed common-stock identity."
+            )
         row.ib_conid = contract.conId
         row.symbol = contract.symbol
         row.exchange = contract.exchange
@@ -93,6 +108,7 @@ def resolve_us_stock_contract(
             status="RESOLVED",
             contract=contract,
             cache_row=row,
+            symbol_change_evidence=change.evidence() if change else None,
         )
     except Exception as exc:
         return _mark_failed(db, row, str(exc))

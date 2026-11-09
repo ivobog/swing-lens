@@ -132,6 +132,174 @@ def test_lifecycle_readiness_revision_resume_and_frozen_plan(readiness_engine) -
         assert [row.is_current_revision for row in history] == [False, True]
 
 
+def test_symbol_change_recovery_retains_failed_attempt_and_source_plan(
+    readiness_engine, monkeypatch,
+) -> None:
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from app.models.tables import IBFetchItem, PriceBar
+    from app.services import ib_contract_resolver, ib_fetch_executor, instrument_symbol_changes
+    from app.services.ib_api import Contract
+    from app.services.ib_fetch_plan_service import (
+        FetchAction,
+        FetchPlan,
+        FetchPlanItem,
+        fetch_plan_from_dict,
+        fetch_plan_to_dict,
+    )
+    from app.services.ib_historical_request_scope import DAILY_BAR_ADMISSION_V3
+    from app.settings import Settings
+
+    session = date(2026, 11, 6)
+    monkeypatch.setattr(instrument_symbol_changes, "datetime", SimpleNamespace(
+        now=lambda _tz: datetime(2026, 11, 9, 10, tzinfo=UTC),
+    ))
+    monkeypatch.setattr(ib_fetch_executor, "latest_completed_us_trading_day", lambda: session)
+    settings = Settings(_env_file=None, ib_max_retries=1,
+                        technical_series_version_maintenance_enabled=False)
+    item = FetchPlanItem(
+        ticker="TCBI", contract_status="MISSING", what_to_show="TRADES",
+        action=FetchAction.CONTRACT_RESOLUTION_REQUIRED, duration=None, bar_size="1 day",
+        current_bar_count=0, first_bar_date=None, latest_bar_date=None, required_bars=252,
+        reason="Frozen qualification-deferred plan", estimated_request_count=1,
+        post_resolution_action=FetchAction.FULL_BACKFILL, post_resolution_duration="3 Y",
+        request_end_date=session, freshness_threshold_date=session,
+        response_admission_policy=DAILY_BAR_ADMISSION_V3,
+    )
+    plan = FetchPlan(
+        run_id=None, requested_tickers=["TCBI"], symbols_including_benchmarks=["TCBI"],
+        items=[item, replace(item, what_to_show="ADJUSTED_LAST")], estimated_request_count=2,
+        estimated_full_backfills=2, estimated_top_ups=0, estimated_refreshes=0,
+        estimated_skips=0, warnings=[],
+    )
+
+    class Gateway:
+        RequestTimeout = 0
+
+        def connect(self, *_a, **kwargs):
+            assert kwargs["readonly"] is True
+            self.connected = True
+
+        def isConnected(self):
+            return getattr(self, "connected", False)
+
+        def disconnect(self):
+            self.connected = False
+
+        def qualifyContracts(self, requested):
+            if requested.symbol == "TCBI":
+                return []
+            assert requested.conId == 21521400
+            return [Contract(conId=21521400, symbol="TXCP", secType="STK", currency="USD",
+                             exchange="SMART", primaryExchange="TXSE")]
+
+        def reqHistoricalData(self, *_a, **_kwargs):
+            return [SimpleNamespace(date=session, open=10, high=11, low=9, close=10, volume=100)]
+
+    class Limiter:
+        def wait_before_request(self):
+            pass
+
+    with Session(readiness_engine, expire_on_commit=False) as db:
+        upload = UploadRun(filename="pre-rename.csv", status="COMPLETED", row_count=1)
+        db.add(upload)
+        db.commit()
+        plan = replace(plan, run_id=upload.id)
+        frozen = fetch_plan_to_dict(plan)
+        record = AcquisitionPlanRecord(
+            plan_id=uuid.uuid4().hex.ljust(64, "0"), plan_kind="SYMBOL_CHANGE_TEST",
+            plan_version="v1", payload_json=frozen,
+        )
+        db.add(record)
+        db.commit()
+        pipeline = PipelineRun(
+            upload_run_id=upload.id, status="BLOCKED", acquisition_plan_id=record.plan_id,
+            result_json={"ib_fetch_plan": frozen},
+        )
+        db.add(pipeline)
+        db.flush()
+        context = MarketCalculationContext(
+            pipeline_run_id=pipeline.id, upload_run_id=upload.id,
+            cutoff_at=datetime.now(UTC) + timedelta(minutes=2),
+            latest_completed_session=session, exchange_timezone="America/New_York",
+            calendar_version="swinglens-us-equities-v2", bar_readiness_version="test",
+            cutoff_reason="FROZEN_SYMBOL_CHANGE_RECOVERY_TEST",
+        )
+        db.add(context)
+        db.commit()
+        with monkeypatch.context() as before_fix:
+            before_fix.setattr(ib_contract_resolver, "active_symbol_change", lambda _t: None)
+            failed = ib_fetch_executor.execute_fetch_plan(
+                db, plan, ib_client_factory=Gateway, rate_limiter=Limiter(), settings=settings,
+            )
+        assert failed.status == "FAILED"
+        assert failed.executed_request_count == 0
+        failed_id = failed.id
+        old_items = list(db.scalars(
+            select(IBFetchItem).where(IBFetchItem.fetch_run_id == failed_id)
+        ))
+        old_evidence = [(row.id, row.status, row.error_message, row.decision_metadata_json)
+                        for row in old_items]
+        assert len(old_items) == 2
+        first = evaluate_and_persist_session_readiness(
+            db, pipeline_run_id=pipeline.id, upload_run_id=upload.id, tickers=("TCBI",),
+            market_cutoff=cutoff_from_row(context), fetch_run_id=failed_id,
+        )
+        assert first.rows[0].disposition == "UNKNOWN"
+        db.commit()
+
+        recovered = ib_fetch_executor.execute_fetch_plan(
+            db, fetch_plan_from_dict(frozen), ib_client_factory=Gateway,
+            rate_limiter=Limiter(), settings=settings,
+        )
+        assert recovered.status == "COMPLETED", recovered.message
+        assert recovered.id != failed_id
+        assert recovered.success_count == 2
+        assert db.scalar(select(IBContract).where(IBContract.ticker == "TCBI")).symbol == "TXCP"
+        bars = list(db.scalars(select(PriceBar)))
+        assert {(bar.ticker, bar.bar_date, bar.what_to_show) for bar in bars} == {
+            ("TCBI", session, "TRADES"), ("TCBI", session, "ADJUSTED_LAST"),
+        }
+        db.expire_all()
+        assert db.get(AcquisitionPlanRecord, record.plan_id).payload_json == frozen
+        assert [(row.id, row.status, row.error_message, row.decision_metadata_json)
+                for row in old_items] == old_evidence
+        assert all(row.decision_metadata_json["runtime_symbol_change"]["ib_conid"] == 21521400
+                   for row in recovered.items)
+        second = evaluate_and_persist_session_readiness(
+            db, pipeline_run_id=pipeline.id, upload_run_id=upload.id, tickers=("TCBI",),
+            market_cutoff=cutoff_from_row(context), fetch_run_id=recovered.id,
+        )
+        assert second.rows[0].revision == 2
+        assert second.rows[0].disposition == "READY"
+        assert second.accepted_inactive_tickers == ()
+        assert db.scalar(select(InstrumentLifecycleRecord).where(
+            InstrumentLifecycleRecord.ticker == "TCBI"
+        )) is None
+
+
+def test_contract_preflight_honors_only_pit_visible_terminal_evidence(readiness_engine):
+    from types import SimpleNamespace
+
+    from app.services.ib_fetch_executor import _preflight_terminal_exclusion
+
+    observed = datetime.now(UTC)
+    with Session(readiness_engine) as db:
+        db.add(InstrumentLifecycleRecord(
+            ticker="DEAD", lifecycle_state="DELISTED", revision=1, is_current_revision=True,
+            effective_date=SESSION, observed_at=observed,
+            evidence_json={"source": "test exchange notice"},
+        ))
+        db.commit()
+        item = SimpleNamespace(ticker="DEAD", request_end_date=SESSION,
+                               freshness_threshold_date=SESSION)
+        assert not _preflight_terminal_exclusion(db, item, as_of=observed-timedelta(seconds=1))
+        assert _preflight_terminal_exclusion(db, item, as_of=observed+timedelta(seconds=1))
+        item.request_end_date = SESSION-timedelta(days=1)
+        assert not _preflight_terminal_exclusion(db, item, as_of=observed+timedelta(seconds=1))
+
+
 def test_postgresql_rejects_invalid_lifecycle_and_readiness_authorities(
     readiness_engine,
 ) -> None:

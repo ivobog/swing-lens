@@ -24,3 +24,42 @@ HTTP actions:
 - `POST /runs/{run_id}/pipeline/{pipeline_id}/partial`, form `excluded_tickers=ROKU`: explicitly admit the ready subset and redirect to its derived upload/pipeline.
 
 An IB support packet can use the contract identity, required session, and exact callback messages from the investigation. Sending a support message remains an operator action.
+
+## Symbol changes and Pipeline 55
+
+Reviewed symbol changes live in `config/instrument_symbol_changes.json`. Each entry binds the
+previous and current symbols to one IB common-stock contract ID, listing exchange, currency,
+security type, effective date, and public source. An exchange transfer or ticker rename does
+not establish a terminal lifecycle state.
+
+The initial entry records **TCBI → TXCP, effective November 9, 2026**, using IB contract
+**21521400** on **TXSE**. Qualification uses that contract ID and rejects a different security,
+including the preferred shares. Before the effective date the normal symbol lookup applies.
+After the change, the resolver requalifies obsolete cached identities and keeps the uploaded
+ticker separate from the qualified provider symbol.
+
+For a frozen pre-change session, the fetch records the exact mapping evidence and current
+provider identity, then retains the original ticker on admitted historical bars. The original
+request dates, scope, contract fingerprint, and acquisition plan remain authoritative. A pinned
+contract is never replaced by a current cache lookup. Unrelated provider symbols, missing
+mapping evidence, and source-symbol requests for sessions on or after the change are rejected.
+Use the current symbol on new uploads after its effective date.
+
+Deferred contracts are qualified once per ticker before the historical-request pass. An
+unresolved or ambiguous identity stops that pass with `IB_CONTRACT_PREFLIGHT_BLOCKED`, retains
+failed feed items with zero historical attempts, and blocks the pipeline at market-data fetching.
+It does not consume the historical pacing budget or silently reduce the requested population.
+
+Pipeline 55 retains upload 54, the November 6 session, and completed fundamentals. After deploying
+the symbol-change support, **Retry missing market data** creates a fresh attempt for its two
+failed TCBI feeds. The prior fetch (38), failures, upload, and plan stay unchanged. The support
+requires no schema migration and does not automatically resume a live pipeline.
+
+The original `ADJUSTED_LAST` request is current-ended. If a later trading session has completed,
+its reviewed-session expiry still blocks execution. Use a new admission with the current symbol
+and current source data instead of changing the frozen cutoff or weakening response admission.
+
+If the identity is resolved but historical data remains unavailable, the resulting explicit
+data-availability disposition can support the existing reviewed partial-run action. An `UNKNOWN`
+identity continues to prohibit that action. Keep symbol-change entries as reviewed history;
+changing or removing an entry invalidates retained mapping evidence that no longer matches it.

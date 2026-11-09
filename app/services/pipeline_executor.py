@@ -720,6 +720,10 @@ def execute_full_pipeline(
                 }
                 if _accepts_keyword(dependencies.execute_fetch_plan, "execution_job_id"):
                     fetch_kwargs["execution_job_id"] = execution_job_id
+                if isinstance(db, Session) and _accepts_keyword(
+                    dependencies.execute_fetch_plan, "lifecycle_as_of"
+                ):
+                    fetch_kwargs["lifecycle_as_of"] = market_cutoff.cutoff_at
                 if fetch_authority is not None and _accepts_keyword(
                     dependencies.execute_fetch_plan, "semantic_authority"
                 ):
@@ -733,6 +737,17 @@ def execute_full_pipeline(
                 _apply_fetch_performance(performance, fetch_run)
                 if fetch_run.status == "CANCELLED":
                     raise PipelineCancelled("Pipeline cancelled during market data fetch.")
+                if (fetch_run.message or "").startswith("IB_CONTRACT_PREFLIGHT_BLOCKED:"):
+                    result["instrument_preflight"] = {
+                        "status": "BLOCKED_BEFORE_HISTORICAL_FETCH",
+                        "message": fetch_run.message,
+                        "fetch_run_id": fetch_run.id,
+                    }
+                    raise PipelineBlockedError(
+                        fetch_run.message,
+                        reason_code="MARKET_DATA_SESSION_READINESS_BLOCKED",
+                        diagnostics=result["instrument_preflight"],
+                    )
                 circuit = (fetch_run.decision_counts_json or {}).get("historical_circuit")
                 if circuit:
                     result["failure_reason"] = IBHistoricalCircuitOpenError.reason_code

@@ -15,6 +15,7 @@ from app.services.ib_historical_request_scope import (
     build_historical_request_scope,
     reviewed_start_for_duration,
 )
+from app.services.instrument_symbol_changes import active_symbol_change, symbol_change_evidence
 from app.services.ohlcv_coverage_service import (
     OhlcvCoverageItem,
     OhlcvCoverageSummary,
@@ -83,6 +84,8 @@ class FetchPlanItem:
     runtime_contract_identity: dict[str, object] | None = None
     runtime_contract_resolved_at: str | None = None
     response_admission_policy: str = DAILY_BAR_ADMISSION_V2
+    contract_symbol_change: dict[str, object] | None = None
+    runtime_symbol_change: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -133,9 +136,19 @@ def build_fetch_plan(
     contract_statuses = _contract_statuses(db, symbols)
     contract_identities = _contract_identities(db, symbols)
     contract_statuses = {
-        ticker: _contract_status_for_plan(status, retry_failed_contracts)
+        ticker: _contract_status_for_plan(
+            status, retry_failed_contracts or active_symbol_change(ticker) is not None
+        )
         for ticker, status in contract_statuses.items()
     }
+    for ticker, status in contract_statuses.items():
+        if (
+            status == "RESOLVED"
+            and active_symbol_change(ticker) is not None
+            and ticker not in contract_identities
+        ):
+            # A pre-change cache row cannot freeze the obsolete provider label.
+            contract_statuses[ticker] = "MISSING"
     completed_full_backfills = _completed_full_backfills(
         db,
         symbols,
@@ -203,6 +216,10 @@ def fetch_plan_to_dict(plan: FetchPlan) -> dict[str, object]:
         for item in plan.items
     ]
     for item in payload["items"]:
+        # New optional witnesses must not change historical plan fingerprints.
+        for name in ("contract_symbol_change", "runtime_symbol_change"):
+            if item[name] is None:
+                item.pop(name)
         if item["response_admission_policy"] == STRICT_RESPONSE_V1:
             # Preserve the exact serialized identity of pre-policy frozen plans.
             item.pop("response_admission_policy")
@@ -409,6 +426,10 @@ def _build_plan_item(
         decision_category=decision_category,
         dependency_roles=dependency_roles,
         contract_identity=contract_identity,
+        contract_symbol_change=(
+            symbol_change_evidence(coverage_item.ticker, contract_identity)
+            if contract_identity is not None else None
+        ),
         contract_fingerprint=(
             CanonicalEvidenceSerializer.fingerprint(contract_identity)
             if contract_identity is not None
@@ -693,17 +714,21 @@ def _contract_identities(
     for row in rows:
         if row.resolution_status != "RESOLVED" or not row.ib_conid:
             continue
+        identity = {
+            "conId": int(row.ib_conid),
+            "symbol": row.symbol or row.ticker,
+            "secType": row.sec_type or "STK",
+            "exchange": row.exchange or "SMART",
+            "primaryExchange": row.primary_exchange or "",
+            "currency": row.currency or "USD",
+            "localSymbol": row.local_symbol or "",
+            "tradingClass": row.trading_class or "",
+        }
+        change = active_symbol_change(row.ticker)
+        if change is not None and not change.matches(identity):
+            continue
         result[row.ticker.upper()] = (
-            {
-                "conId": int(row.ib_conid),
-                "symbol": row.symbol or row.ticker,
-                "secType": row.sec_type or "STK",
-                "exchange": row.exchange or "SMART",
-                "primaryExchange": row.primary_exchange or "",
-                "currency": row.currency or "USD",
-                "localSymbol": row.local_symbol or "",
-                "tradingClass": row.trading_class or "",
-            },
+            identity,
             row.last_resolved_at.isoformat() if row.last_resolved_at else None,
         )
     return result

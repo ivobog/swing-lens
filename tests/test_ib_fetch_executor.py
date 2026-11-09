@@ -929,7 +929,7 @@ def test_execute_fetch_plan_persists_contract_resolution_failure(monkeypatch) ->
     assert fetch_run.items[0].decision_metadata_json["retryable"] is False
 
 
-def test_execute_fetch_plan_counts_only_attempted_historical_requests(monkeypatch) -> None:
+def test_unresolved_contract_preflight_stops_before_any_historical_request(monkeypatch) -> None:
     db = FakeDb()
 
     def resolve_contract(db, ticker, ib):
@@ -974,13 +974,14 @@ def test_execute_fetch_plan_counts_only_attempted_historical_requests(monkeypatc
         settings=Settings(ib_max_retries=1),
     )
 
-    assert fetch_run.status == "PARTIAL"
+    assert fetch_run.status == "FAILED"
     assert fetch_run.planned_request_count == 2
-    assert fetch_run.executed_request_count == 1
-    assert fetch_run.success_count == 1
+    assert fetch_run.executed_request_count == 0
+    assert fetch_run.success_count == 0
     assert fetch_run.failure_count == 1
-    assert fetch_run.inserted_count == 1
-    assert [item.status for item in fetch_run.items] == ["SUCCESS", "FAILED"]
+    assert fetch_run.inserted_count == 0
+    assert [(item.ticker, item.status) for item in fetch_run.items] == [("BAD", "FAILED")]
+    assert fetch_run.message.startswith("IB_CONTRACT_PREFLIGHT_BLOCKED: BAD:")
 
 
 def test_unresolved_unsupported_data_type_never_sends_historical_request(monkeypatch) -> None:
@@ -1284,3 +1285,125 @@ def test_unsupported_best_query_is_failed_once_without_backoff(monkeypatch):
     assert run.items[0].decision_metadata_json["provider_error_category"] == "PROVIDER_REJECTED"
     assert run.items[0].decision_metadata_json["retryable"] is False
     assert limiter.backoffs == 0
+
+
+@pytest.mark.parametrize("feed", ["TRADES", "ADJUSTED_LAST"])
+@pytest.mark.parametrize("pinned", [False, True])
+def test_symbol_change_fetch_preserves_source_ticker_and_frozen_session(monkeypatch, feed, pinned):
+    from datetime import UTC, datetime
+
+    from app.services import instrument_symbol_changes as changes
+    from app.services.ib_api import Contract
+    from app.services.ib_historical_request_scope import DAILY_BAR_ADMISSION_V3
+
+    monkeypatch.setattr(changes, "datetime", SimpleNamespace(
+        now=lambda _tz: datetime(2026, 11, 9, 10, tzinfo=UTC),
+    ))
+    change = changes.active_symbol_change("TCBI")
+    contract = Contract(
+        conId=21521400, symbol="TXCP", secType="STK", currency="USD",
+        exchange="SMART", primaryExchange="TXSE",
+    )
+    session = date(2026, 11, 6)
+    item = replace(
+        _unresolved_plan_item("TCBI"),
+        what_to_show=feed,
+        response_admission_policy=DAILY_BAR_ADMISSION_V3,
+        request_end_date=session,
+        freshness_threshold_date=session,
+        post_resolution_action=FetchAction.FULL_BACKFILL,
+        post_resolution_duration="3 Y",
+        contract_identity=contract.dict() if pinned else None,
+        contract_fingerprint=Canonical.fingerprint(contract.dict()) if pinned else None,
+        contract_symbol_change=change.evidence() if pinned else None,
+    )
+    original = executor.Canonical.canonicalize(item.__dict__)
+    qualifications, requests, cached = [], [], []
+
+    def resolve(_db, ticker, _ib):
+        qualifications.append(ticker)
+        assert not pinned, "pinned identity must not consult a current contract cache"
+        return SimpleNamespace(
+            contract=contract, error_message=None, symbol_change_evidence=change.evidence(),
+            cache_row=SimpleNamespace(last_resolved_at=None),
+        )
+
+    def history(_ib, provider_contract, _feed, **kwargs):
+        requests.append((provider_contract.conId, provider_contract.symbol, kwargs))
+        return [replace(_bar(session), ticker="TXCP", what_to_show=feed)]
+
+    def cache(_db, bars, **_kwargs):
+        cached.extend(bars)
+        return BarUpsertSummary(inserted=1)
+
+    monkeypatch.setattr(executor, "resolve_us_stock_contract", resolve)
+    monkeypatch.setattr(executor, "fetch_daily_bars", history)
+    monkeypatch.setattr(executor, "cache_bars", cache)
+    monkeypatch.setattr(executor, "latest_completed_us_trading_day", lambda: session)
+    run = execute_fetch_plan(
+        FakeDb(), _fetch_plan(item), ib_client_factory=FakeIB, rate_limiter=FakeLimiter(),
+        settings=Settings(ib_max_retries=1),
+    )
+    assert run.status == "COMPLETED", run.message
+    assert qualifications == ([] if pinned else ["TCBI"])
+    assert requests[0][:2] == (21521400, "TXCP")
+    assert requests[0][2]["end_datetime"] == (
+        "" if feed == "ADJUSTED_LAST" else "20261106-23:59:59"
+    )
+    assert [(bar.ticker, bar.bar_date) for bar in cached] == [("TCBI", session)]
+    metadata = run.items[0].decision_metadata_json
+    assert metadata["runtime_symbol_change"] == change.evidence()
+    assert metadata["runtime_contract_identity"]["symbol"] == "TXCP"
+    assert executor.Canonical.canonicalize(item.__dict__) == original
+
+
+def test_unapproved_provider_symbol_cannot_fetch_or_write_bars(monkeypatch):
+    from app.services.ib_api import Contract
+
+    calls = []
+    monkeypatch.setattr(executor, "resolve_us_stock_contract", lambda *_a: SimpleNamespace(
+        contract=Contract(conId=474517460, symbol="TXCP PRB"), error_message=None,
+    ))
+    monkeypatch.setattr(executor, "fetch_daily_bars", lambda *_a, **_k: calls.append("history"))
+    monkeypatch.setattr(executor, "cache_bars", lambda *_a, **_k: calls.append("cache"))
+    run = execute_fetch_plan(
+        FakeDb(), _fetch_plan(_unresolved_plan_item("TCBI")), ib_client_factory=FakeIB,
+        rate_limiter=FakeLimiter(), settings=Settings(ib_max_retries=1),
+    )
+    assert run.status == "FAILED"
+    assert run.executed_request_count == 0
+    assert calls == []
+    assert run.message.startswith("IB_CONTRACT_PREFLIGHT_BLOCKED:")
+
+
+def test_contract_preflight_does_not_requalify_completed_fetch_items(monkeypatch):
+    db = FakeDb()
+    run = executor._start_fetch_run(
+        db, _fetch_plan(_unresolved_plan_item("TCBI")), True, False, False, None, None,
+    )
+    monkeypatch.setattr(executor, "_existing_fetch_item", lambda *_a: SimpleNamespace(
+        status="SUCCESS", decision_metadata_json={},
+    ))
+    monkeypatch.setattr(executor, "resolve_us_stock_contract", lambda *_a: pytest.fail(
+        "completed history must not depend on current contract qualification"
+    ))
+    assert executor._preflight_deferred_contracts(
+        db, FakeIB(), run.id, [_unresolved_plan_item("TCBI")], execution_job_id=None,
+        execution_token=None, should_cancel=None, progress_callback=None,
+    ) == {}
+
+
+def test_contract_preflight_does_not_block_sufficient_cached_history(monkeypatch):
+    item = replace(
+        _unresolved_plan_item("CACHED"), post_resolution_action=FetchAction.SKIP,
+        estimated_request_count=0,
+    )
+    db = FakeDb()
+    run = executor._start_fetch_run(db, _fetch_plan(item), True, False, False, None, None)
+    monkeypatch.setattr(executor, "resolve_us_stock_contract", lambda *_a: pytest.fail(
+        "current contract qualification cannot block sufficient cached history"
+    ))
+    assert executor._preflight_deferred_contracts(
+        db, FakeIB(), run.id, [item], execution_job_id=None, execution_token=None,
+        should_cancel=None, progress_callback=None,
+    ) == {}

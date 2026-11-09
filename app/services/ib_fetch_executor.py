@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.tables import IBFetchItem, IBFetchRun
+from app.models.tables import IBFetchItem, IBFetchRun, InstrumentLifecycleRecord
 from app.observability.logging import log_event
 from app.services.background_job_service import JobLeaseLost
 from app.services.bar_cache_service import cache_bars
@@ -24,7 +24,11 @@ from app.services.ib_acquisition_gate import (
 )
 from app.services.ib_api import IB, Contract
 from app.services.ib_connection import create_ib_client
-from app.services.ib_contract_resolver import invalidate_cached_contract, resolve_us_stock_contract
+from app.services.ib_contract_resolver import (
+    ContractResolution,
+    invalidate_cached_contract,
+    resolve_us_stock_contract,
+)
 from app.services.ib_data_fetcher import HistoricalBar, IBHistoricalRequestError, fetch_daily_bars
 from app.services.ib_fetch_plan_service import (
     FetchAction,
@@ -48,6 +52,8 @@ from app.services.ib_rate_limiter import (
     IbHistoricalRateLimiter,
     rate_limit_config_from_settings,
 )
+from app.services.instrument_symbol_changes import contract_identity_matches_ticker
+from app.services.market_data_session_readiness import classify_session_readiness
 from app.services.operational_metrics import operational_metrics
 from app.services.process_memory import WorkerMemoryCritical
 from app.services.redaction import redact_text
@@ -78,6 +84,10 @@ class HistoricalRequestScopeViolation(RuntimeError):
     """IB returned observations outside the operator-reviewed request scope."""
 
 
+class InstrumentPreflightBlocked(RuntimeError):
+    """A deferred identity failed before any historical requests were made."""
+
+
 @dataclass(frozen=True)
 class TickerReadyEvent:
     ticker: str
@@ -105,6 +115,7 @@ def execute_fetch_plan(
     memory_probe: Callable[[Session, int, int, str], None] | None = None,
     stop_on_hard_failure: bool = False,
     semantic_authority: SemanticWorkAuthority | None = None,
+    lifecycle_as_of: datetime | None = None,
 ) -> IBFetchRun:
     settings = settings or get_settings()
     rate_limiter = rate_limiter or IbHistoricalRateLimiter(
@@ -173,6 +184,14 @@ def execute_fetch_plan(
         if not ib.isConnected():
             raise ConnectionError("IB acquisition connection was not established")
         connecting = False
+        qualified_contracts = _preflight_deferred_contracts(
+            db, ib, fetch_identity, execution_items,
+            execution_job_id=execution_job_id,
+            execution_token=execution_token,
+            should_cancel=should_cancel,
+            progress_callback=progress_callback,
+            lifecycle_as_of=lifecycle_as_of or datetime.now(UTC),
+        )
         for item_index, plan_item in enumerate(execution_items, start=1):
             if should_cancel and should_cancel():
                 _mark_run_cancelled(fetch_run, db)
@@ -261,6 +280,7 @@ def execute_fetch_plan(
                     performance=performance,
                     should_cancel=should_cancel,
                     contract_requalification_attempts=contract_requalification_attempts,
+                    prequalified_resolution=qualified_contracts.get(plan_item.ticker),
                 )
                 cancel_after_item = bool(should_cancel and should_cancel())
                 _increment_run_totals(item_run, fetch_item)
@@ -316,6 +336,8 @@ def execute_fetch_plan(
     except (JobLeaseLost, WorkerMemoryCritical, AcquisitionCancelled):
         raise
     except Exception as exc:
+        if isinstance(exc, InstrumentPreflightBlocked):
+            _refresh_run_totals(fetch_run, db)
         fetch_run.status = "FAILED"
         fetch_run.completed_at = datetime.now(UTC)
         fetch_run.failure_count = max(fetch_run.failure_count or 0, 1)
@@ -494,6 +516,116 @@ def _reset_interrupted_item(fetch_item: IBFetchItem, plan_item: FetchPlanItem) -
     fetch_item.error_message = None
 
 
+def _preflight_deferred_contracts(
+    db: Session,
+    ib: IB,
+    fetch_run_id: int,
+    items: list[FetchPlanItem],
+    *,
+    execution_job_id: int | None,
+    execution_token: str | None,
+    should_cancel: Callable[[], bool] | None,
+    progress_callback: Callable[..., None] | None,
+    lifecycle_as_of: datetime | None = None,
+) -> dict[str, ContractResolution]:
+    """Qualify each deferred symbol once, before the expensive history pass.
+
+    The admitted plan stays untouched. Failed qualification records are durable
+    attempts, and a new recovery fetch may retry the same frozen request scope.
+    """
+    resolutions = {}
+    for item in items:
+        if (
+            item.contract_identity is not None
+            or item.action != FetchAction.CONTRACT_RESOLUTION_REQUIRED
+            or item.post_resolution_action in {FetchAction.SKIP, FetchAction.UNSUPPORTED}
+            or item.ticker in resolutions
+        ):
+            continue
+        if should_cancel and should_cancel():
+            break
+        with _bounded_item_session(
+            db, execution_job_id=execution_job_id, execution_token=execution_token,
+        ) as item_db:
+            if isinstance(item_db, Session) and _preflight_terminal_exclusion(
+                item_db, item, as_of=lifecycle_as_of or datetime.now(UTC),
+            ):
+                item_db.commit()
+                continue
+            retained = _existing_fetch_item(item_db, fetch_run_id, item)
+            if retained is not None and (
+                retained.status in {"SUCCESS", "SKIPPED"}
+                or (retained.status == "FAILED"
+                    and (retained.decision_metadata_json or {}).get("retryable") is not True)
+            ):
+                continue
+            if progress_callback is not None:
+                progress_callback(
+                    item_db, stage="FETCHING_MARKET_DATA", current_item=item.ticker,
+                    processed=0, total=len(items),
+                )
+            resolution = resolve_us_stock_contract(item_db, item.ticker, ib)
+            resolutions[item.ticker] = resolution
+            error = resolution.error_message or "IB returned no matching US stock contract."
+            if resolution.contract is not None:
+                contract = resolution.contract
+                if contract.symbol.upper() == item.ticker.upper() or (
+                    contract_identity_matches_ticker(
+                        item.ticker, contract.dict(),
+                        getattr(resolution, "symbol_change_evidence", None),
+                        reviewed_session=item.request_end_date or item.freshness_threshold_date,
+                    )
+                ):
+                    item_db.commit()
+                    continue
+                error = "Contract symbol differs from the reviewed instrument/session."
+            item_run = _load_fetch_run(item_db, fetch_run_id)
+            for failed_plan_item in items:
+                if failed_plan_item.ticker != item.ticker:
+                    continue
+                if failed_plan_item.action in {FetchAction.SKIP, FetchAction.UNSUPPORTED}:
+                    continue
+                if _existing_fetch_item(item_db, fetch_run_id, failed_plan_item) is not None:
+                    continue
+                failed = _create_fetch_item(item_run, failed_plan_item)
+                failed.execution_token = execution_token
+                failed.started_at = datetime.now(UTC)
+                item_db.add(failed)
+                _mark_typed_failure(
+                    failed, failed_plan_item, "IB_CONTRACT_RESOLUTION_FAILED", error,
+                )
+                failed.decision_metadata_json = {
+                    **failed.decision_metadata_json,
+                    "contract_preflight": "BLOCKED_BEFORE_HISTORICAL_FETCH",
+                }
+                _increment_run_totals(item_run, failed)
+            item_db.commit()
+            raise InstrumentPreflightBlocked(
+                f"IB_CONTRACT_PREFLIGHT_BLOCKED: {item.ticker}: {error}"
+            )
+    return resolutions
+
+
+def _preflight_terminal_exclusion(
+    db: Session, item: FetchPlanItem, *, as_of: datetime,
+) -> bool:
+    session = item.request_end_date or item.freshness_threshold_date
+    if session is None:
+        return False
+    lifecycle = db.scalar(
+        select(InstrumentLifecycleRecord).where(
+            InstrumentLifecycleRecord.ticker == item.ticker,
+            InstrumentLifecycleRecord.observed_at <= as_of,
+        ).order_by(
+            InstrumentLifecycleRecord.observed_at.desc(),
+            InstrumentLifecycleRecord.revision.desc(),
+        ).limit(1)
+    )
+    return classify_session_readiness(
+        ticker=item.ticker, expected_session=session, latest_bar_session=None, lifecycle=lifecycle,
+    )["disposition"] == "TERMINAL_INACTIVE"
+
+
 def _execute_plan_item(
     db: Session,
     ib: IB,
@@ -506,6 +638,7 @@ def _execute_plan_item(
     performance: dict[str, float] | None = None,
     should_cancel: Callable[[], bool] | None = None,
     contract_requalification_attempts: set[str] | None = None,
+    prequalified_resolution: ContractResolution | None = None,
 ) -> None:
     performance = performance if performance is not None else {}
     fetch_item.started_at = datetime.now(UTC)
@@ -526,9 +659,12 @@ def _execute_plan_item(
     if plan_item.contract_identity is not None:
         if (
             plan_item.contract_fingerprint != Canonical.fingerprint(plan_item.contract_identity)
-            or str(plan_item.contract_identity.get("symbol", "")).upper()
-            != plan_item.ticker.upper()
-            or not plan_item.contract_identity.get("conId")
+            or not contract_identity_matches_ticker(
+                plan_item.ticker,
+                plan_item.contract_identity,
+                plan_item.contract_symbol_change,
+                reviewed_session=plan_item.request_end_date or plan_item.freshness_threshold_date,
+            )
         ):
             _mark_typed_failure(
                 fetch_item, plan_item, "ACQUISITION_PLAN_CONTRACT_IDENTITY_MISMATCH"
@@ -536,8 +672,9 @@ def _execute_plan_item(
             return
         contract = Contract(**plan_item.contract_identity)
         runtime_resolved_at = plan_item.contract_qualified_at
+        change_evidence = plan_item.contract_symbol_change
     else:
-        resolution = resolve_us_stock_contract(db, plan_item.ticker, ib)
+        resolution = prequalified_resolution or resolve_us_stock_contract(db, plan_item.ticker, ib)
         if not resolution.contract:
             _mark_typed_failure(
                 fetch_item,
@@ -547,6 +684,19 @@ def _execute_plan_item(
             )
             return
         contract = resolution.contract
+        change_evidence = getattr(resolution, "symbol_change_evidence", None)
+        if contract.symbol.upper() != plan_item.ticker.upper() and not (
+            contract_identity_matches_ticker(
+                plan_item.ticker, contract.dict(), change_evidence,
+                reviewed_session=plan_item.request_end_date or plan_item.freshness_threshold_date,
+            )
+        ):
+            _mark_typed_failure(
+                fetch_item, plan_item, "ACQUISITION_PLAN_CONTRACT_IDENTITY_MISMATCH",
+                "A provider symbol change requires reviewed same-security evidence "
+                "and a session before the source symbol expired.",
+            )
+            return
         runtime_resolved_at = (
             resolution.cache_row.last_resolved_at.isoformat()
             if getattr(resolution, "cache_row", None) is not None
@@ -566,6 +716,7 @@ def _execute_plan_item(
             "tradingClass": getattr(contract, "tradingClass", None),
         },
         runtime_contract_resolved_at=runtime_resolved_at,
+        runtime_symbol_change=change_evidence,
     )
 
     try:
@@ -658,6 +809,15 @@ def _execute_plan_item(
                         bar_size=plan_item.bar_size,
                         end_datetime=scope.end_datetime,
                     )
+                    if change_evidence is not None:
+                        # The provider labels all history with today's symbol. Only
+                        # the verified same-security mapping can restore the source
+                        # label; its contract and evidence remain in item metadata.
+                        if any(bar.ticker != contract.symbol.upper() for bar in bars):
+                            raise HistoricalRequestScopeViolation(
+                            "Historical bar identity mismatch."
+                        )
+                        bars = [replace(bar, ticker=plan_item.ticker.upper()) for bar in bars]
                     request_result = "success"
                 finally:
                     _add_duration(performance, "ib_network_ms", network_started)
@@ -1419,6 +1579,8 @@ def _decision_metadata(
         "contract_qualified_at": plan_item.contract_qualified_at,
         "runtime_contract_identity": plan_item.runtime_contract_identity,
         "runtime_contract_resolved_at": plan_item.runtime_contract_resolved_at,
+        "contract_symbol_change": plan_item.contract_symbol_change,
+        "runtime_symbol_change": plan_item.runtime_symbol_change,
         "decision_category": _decision_category(
             effective_action,
             latest_current=latest_current,
