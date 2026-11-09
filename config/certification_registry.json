@@ -3013,6 +3013,15 @@
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
             "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+          },
+          {
+            "id": "tests/test_sector_refresh_fixture_calendar.py::test_forming_provider_fixture_obeys_reviewed_session_window",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The synthetic provider emits the next trading session only during its open market window, including the DST transition.",
+            "negative": "Before open, at close, weekends and nonadjacent sessions cannot emit an inadmissible forming bar.",
+            "reviewed_test_sha256": "98291f210d6063f2cc54a246e7e0b1c0ab3ba47797198187d8053c1f224ae7f2"
           }
         ],
         "oracle": "Explicit competing rows and expected IDs; A05B financial vectors remain separate.",
@@ -3023,7 +3032,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "0cb55849aff7b37cd9d26b4706f13368b6f9a9b493c885883839700471c706b3",
+        "review_sha256": "3bf1f7efbec0e25d38e4fc8976111db6c2457a079f2827efc67d9d9392c18da2",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -3058,6 +3067,13 @@
               }
             ],
             "claim": "STATIC_INTENT only; no historical source-pin, financial expectation or approval rule changed."
+          },
+          {
+            "task": "PIPELINE55-20261109-fixture-calendar",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/verification/pipeline55-symbol-change-review-20261109.md",
+            "scope": "The existing local calendar-aware provider double corrects pre-open CI failures. Native durable-worker, cache-freshness and frozen SPY/QQQ lineage assertions remain intact; production response admission remains unchanged.",
+            "claim": "STATIC_INTENT only; no execution, human approval or financial expectation is asserted by this metadata."
           }
         ]
       },

@@ -17,7 +17,11 @@ from app.services.ib_data_fetcher import HistoricalBar
 from app.services.ib_fetch_job_service import execute_durable_fetch_job
 from app.services.market_clock_service import MarketClockService
 from app.services.market_sector_intelligence_config import load_market_sector_intelligence_config
-from app.services.us_market_calendar import next_us_trading_day, previous_us_trading_day
+from app.services.us_market_calendar import (
+    next_us_trading_day,
+    previous_us_trading_day,
+    us_market_session,
+)
 from app.services.worker_registry import register_worker
 from app.settings import Settings
 
@@ -84,6 +88,19 @@ def prepared_database(url):
     return engine, expected
 
 
+def forming_response_session(reviewed_session, observed_at):
+    """A synthetic forming observation is valid only inside its actual session."""
+    forming = next_us_trading_day(reviewed_session)
+    session = us_market_session(forming)
+    if (
+        session is not None
+        and observed_at.astimezone(ZoneInfo("America/New_York")).date() == forming
+        and session.open_at <= observed_at < session.close_at
+    ):
+        return forming
+    return None
+
+
 def configure_stubs(monkeypatch, url):
     settings = Settings(
         _env_file=None,
@@ -147,9 +164,10 @@ def configure_stubs(monkeypatch, url):
 
     def bars(_ib, contract, basis, **kwargs):
         calls.append((contract.symbol, basis))
+        observed_at = datetime.now(UTC)
         expected = (
             MarketClockService()
-            .cutoff_for(datetime.now(UTC), reason="DISPOSABLE_PROVIDER")
+            .cutoff_for(observed_at, reason="DISPOSABLE_PROVIDER")
             .latest_completed_session
         )
         invalid = (
@@ -170,8 +188,7 @@ def configure_stubs(monkeypatch, url):
             None,
         )
         # v3 ADJUSTED_LAST includes a forming response which must be excluded.
-        forming = next_us_trading_day(expected)
-        has_forming = forming == datetime.now(ZoneInfo("America/New_York")).date()
+        forming = forming_response_session(expected, observed_at)
         return (
             [
                 bar,
@@ -179,7 +196,7 @@ def configure_stubs(monkeypatch, url):
                     contract.symbol, forming, "1 day", 101, 103, 99, 102, 500, "IB", basis, None
                 ),
             ]
-            if basis == "ADJUSTED_LAST" and has_forming
+            if basis == "ADJUSTED_LAST" and forming is not None
             else [bar]
         )
 

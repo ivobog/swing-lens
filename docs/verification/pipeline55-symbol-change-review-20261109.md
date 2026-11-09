@@ -55,3 +55,13 @@ native selectors above, and record their normalized test-source identities.
 Release preparation must recompute impact for the new commit and execute the
 required lanes. No existing selector, historical artifact, financial expectation,
 approval requirement, release predicate or unknown-source refusal is removed.
+
+## Provider fixture calendar correction
+
+CI exposed an existing synthetic sector-refresh provider emitting the next
+session's forming bar before the market opened. Production admission correctly
+rejected that response. The existing local fixture correction emits that bar
+only between the next US trading session's open and close. Eight explicit
+boundary cases include pre-open, open, close, weekends, nonadjacent sessions and
+the daylight-saving transition. The native durable-worker/freshness and frozen
+SPY/QQQ lineage assertions, and production response admission, are unchanged.
