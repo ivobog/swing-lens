@@ -34,6 +34,7 @@ _GAP_COUNTS = (
     "ceri_failed",
     "setup_lifecycle_failed",
     "winner_prediction_failed",
+    "sec_unresolved_count",
 )
 
 
@@ -52,6 +53,11 @@ def derive_pipeline_outcome(status: str, result: dict[str, Any]) -> dict[str, An
         for key in _GAP_COUNTS
         if int(result.get(key) or 0) > 0
     }
+    sec_coverage = result.get("sec_coverage")
+    if isinstance(sec_coverage, dict):
+        sec_gaps = sec_coverage.get("gaps") or []
+        if sec_gaps and "sec_unresolved_count" not in result:
+            gaps["sec_unresolved_count"] = len(sec_gaps)
     body = {
         "contract_version": PIPELINE_OUTCOME_CONTRACT_VERSION,
         "pipeline_status": status,
@@ -68,6 +74,8 @@ def derive_pipeline_outcome(status: str, result: dict[str, Any]) -> dict[str, An
             "hazards": hazards,
         },
     }
+    if isinstance(sec_coverage, dict):
+        body["coverage"]["sources"] = {"sec": sec_coverage}
     return {**body, "summary_fingerprint": Canonical.fingerprint(body)}
 
 

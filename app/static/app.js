@@ -775,6 +775,29 @@ function updatePipelineProgress(root, data) {
   }
   const result = data.result || {};
   const repair = result.sec_repair || {};
+  const coveragePanel = root.querySelector("[data-pipeline-sec-coverage]");
+  if (coveragePanel) {
+    const coverageReadiness = (result.sec_preflight || {}).readiness
+      || (result.blocked_diagnostics || {}).readiness || {};
+    const exemptions = (coverageReadiness.tickers || [])
+      .filter((item) => item.category === "SEC_NOT_APPLICABLE");
+    const unresolved = result.sec_unresolved_tickers ?? (result.sec_coverage || {}).gaps ?? [];
+    coveragePanel.hidden = exemptions.length === 0 && unresolved.length === 0;
+    const details = coveragePanel.querySelector("[data-pipeline-sec-coverage-details]");
+    if (details) {
+      const rows = exemptions.map((item) => {
+        const row = document.createElement("li");
+        row.textContent = `${item.ticker}: ${item.reason || "SEC guidance is not applicable."}`;
+        return row;
+      });
+      rows.push(...unresolved.map((item) => {
+        const row = document.createElement("li");
+        row.textContent = `${item.ticker}: SEC identity unresolved. ${item.reason || "No exact SEC identity was found."} Other eligible processing continues; SEC guidance remains unavailable.`;
+        return row;
+      }));
+      details.replaceChildren(...rows);
+    }
+  }
   const repairPanel = root.querySelector("[data-pipeline-repair]");
   if (repairPanel) {
     repairPanel.hidden = !(

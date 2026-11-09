@@ -1,0 +1,28 @@
+schema_version: 1
+companies:
+  - ticker: NBN
+    company_name: Northeast Bank
+    authority: FDIC
+    authority_id: "19690"
+    reviewed_on: 2026-11-09
+    reason: >-
+      Following its May 2019 corporate reorganization, Northeast Bank retained
+      ticker NBN and files its Exchange Act annual, quarterly and current reports
+      with the FDIC. The former holding company's SEC CIK does not establish
+      current SEC coverage. FDIC guidance ingestion is not currently supported.
+    sources:
+      - https://www.sec.gov/Archives/edgar/data/811831/000143774919010146/ex_145029.htm
+      - https://investor.northeastbank.com/financial-information/fdic
+      - https://www.fdic.gov/analysis/list-fdic-supervised-banks-filing-under-securities-exchange-act
+  - ticker: TOWN
+    company_name: TowneBank
+    authority: FDIC
+    authority_id: "35095"
+    reviewed_on: 2026-11-07
+    reason: >-
+      TowneBank files its Exchange Act annual, quarterly and current reports with
+      the FDIC. SEC EDGAR guidance coverage is not applicable; FDIC guidance
+      ingestion is not currently supported.
+    sources:
+      - https://investor.townebank.com/financials/filing-documents/default.aspx
+      - https://www.fdic.gov/analysis/list-fdic-supervised-banks-filing-under-securities-exchange-act

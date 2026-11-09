@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCompany
+from app.services.ceri.filing_authority import reviewed_filing_authority
 from app.services.ceri.sec.provider import SecCeriProvider
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.source_mutation_authority import source_mutation_writer
@@ -20,7 +22,7 @@ class SecIdentityRepairResult:
 
     @property
     def resolved(self) -> bool:
-        return self.status in {"ALREADY_RESOLVED", "RESOLVED"}
+        return self.status in {"ALREADY_RESOLVED", "RESOLVED", "NOT_APPLICABLE"}
 
 
 @source_mutation_writer(
@@ -32,12 +34,37 @@ def resolve_and_persist_sec_identity(
     provider: SecCeriProvider,
     ticker: str,
 ) -> SecIdentityRepairResult:
-    """Resolve an exact SEC ticker identity without fuzzy/ambiguous guessing."""
+    """Resolve exact SEC identity or retain an evidence-backed coverage exemption."""
 
     symbol = str(ticker).strip().upper()
     rows = list(
         db.scalars(select(CeriCompany).where(CeriCompany.ticker == symbol).with_for_update()).all()
     )
+    reviewed = reviewed_filing_authority(symbol)
+    if reviewed is not None and not reviewed.sec_required:
+        if not rows:
+            company = CeriCompany(
+                ticker=symbol, exchange="US", company_name=reviewed.company_name
+            )
+            db.add(company)
+            rows.append(company)
+        for row in rows:
+            row.sec_applicability = "NOT_APPLICABLE"
+            row.sec_applicability_reason = reviewed.applicability_reason
+            row.sec_applicability_updated_at = datetime.now(UTC)
+        db.flush()
+        return SecIdentityRepairResult(
+            symbol, "NOT_APPLICABLE", reason=reviewed.applicability_reason
+        )
+    if rows and all(row.sec_applicability == "NOT_APPLICABLE" for row in rows):
+        return SecIdentityRepairResult(
+            symbol,
+            "NOT_APPLICABLE",
+            reason="; ".join(
+                sorted({row.sec_applicability_reason for row in rows
+                        if row.sec_applicability_reason})
+            ),
+        )
     known = sorted({str(row.cik).zfill(10) for row in rows if row.cik})
     if len(known) > 1:
         return SecIdentityRepairResult(

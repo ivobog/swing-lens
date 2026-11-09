@@ -15,6 +15,14 @@ from app.services.ceri.enums import CeriDataset
 from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.sec.client import SecClientConfig, SecEdgarClient
+from app.services.ceri.sec.coverage import (
+    build_sec_coverage,
+    load_sec_coverage,
+    sec_coverage_blocking_tickers,
+    sec_coverage_can_continue,
+    sec_coverage_current_gaps,
+    validate_sec_coverage,
+)
 from app.services.ceri.sec.identity_repair import resolve_and_persist_sec_identity
 from app.services.ceri.sec.processor_lifecycle import require_deployed_processor_active
 from app.services.ceri.sec.provider import SecCeriProvider
@@ -70,8 +78,16 @@ class SecRepairTelemetry:
         self._persisted_bytes_downloaded = self.bytes_downloaded
 
     @classmethod
-    def from_pipeline(cls, pipeline: PipelineRun) -> SecRepairTelemetry:
-        stored = dict(((pipeline.result_json or {}).get("sec_repair") or {}).get("telemetry") or {})
+    def from_pipeline(
+        cls, pipeline: PipelineRun, job: BackgroundJob | None = None
+    ) -> SecRepairTelemetry:
+        child_progress = (
+            ((job.operational_metadata_json or {}).get("sec_repair") or {})
+            if job is not None else {}
+        )
+        stored = dict(child_progress.get("telemetry") or (
+            ((pipeline.result_json or {}).get("sec_repair") or {}).get("telemetry") or {}
+        ))
         return cls(
             documents_discovered=int(stored.get("documents_discovered") or 0),
             documents_downloaded=int(stored.get("documents_downloaded") or 0),
@@ -207,9 +223,26 @@ def execute_sec_readiness_repair(
         guidance_lookback_days=settings.sec_guidance_lookback_days,
         guidance_max_documents_per_ticker=settings.sec_guidance_max_documents_per_ticker,
     )
-    telemetry = SecRepairTelemetry.from_pipeline(pipeline)
+    telemetry = SecRepairTelemetry.from_pipeline(pipeline, job)
     client_stats_at_start = provider.client.stats()
-    unresolved: dict[str, str] = {}
+    retained_coverage = validate_sec_coverage(
+        ((job.operational_metadata_json or {}).get("sec_repair") or {}).get("sec_coverage"),
+        pipeline=pipeline,
+        processor_signature=signature,
+        tickers=tickers,
+    ) or load_sec_coverage(pipeline, processor_signature=signature, tickers=tickers)
+    identity_results: dict[str, Any] = {
+        gap["ticker"]: {
+            "status": "UNRESOLVED",
+            "cik": None,
+            "reason": gap["reason"],
+            "attempted_at": gap["attempted_at"],
+        }
+        for gap in (retained_coverage or {}).get("gaps", [])
+    }
+    unresolved: dict[str, str] = {
+        ticker: result["reason"] for ticker, result in identity_results.items()
+    }
     transient_failures: list[str] = []
     last_completed_ticker: str | None = None
 
@@ -224,12 +257,17 @@ def execute_sec_readiness_repair(
         telemetry=telemetry,
         unresolved=unresolved,
         started=True,
+        extra={"sec_coverage": retained_coverage} if retained_coverage is not None else None,
     )
 
     initial = diagnose_sec_readiness(db, tickers=tickers, processor_signature=signature)
     current_readiness = initial
+    retained_gaps = {
+        gap["ticker"] for gap in sec_coverage_current_gaps(initial, retained_coverage)
+    }
     identity_targets = [
-        item for item in initial.tickers if item.category in IDENTITY_REPAIR_CATEGORIES
+        item for item in initial.tickers
+        if item.category in IDENTITY_REPAIR_CATEGORIES and item.ticker not in retained_gaps
     ]
     for item in identity_targets:
         _guard_cancel(db, pipeline, job, should_cancel)
@@ -245,11 +283,23 @@ def execute_sec_readiness_repair(
             last_completed_ticker=last_completed_ticker,
         )
         result = resolve_and_persist_sec_identity(db, provider=provider, ticker=item.ticker)
+        identity_results[item.ticker] = {
+            "status": result.status,
+            "cik": result.cik,
+            "reason": result.reason,
+            "attempted_at": _utcnow().isoformat(),
+        }
         if not result.resolved:
             unresolved[item.ticker] = result.reason or "SEC identity could not be resolved."
         db.commit()
         current = diagnose_sec_readiness(db, tickers=tickers, processor_signature=signature)
         current_readiness = current
+        retained_coverage = build_sec_coverage(
+            pipeline=pipeline,
+            readiness=current,
+            identity_results=identity_results,
+            attempted_at=_utcnow(),
+        )
         _update_progress(
             db,
             pipeline,
@@ -259,6 +309,7 @@ def execute_sec_readiness_repair(
             telemetry=telemetry,
             unresolved=unresolved,
             last_completed_ticker=item.ticker,
+            extra={"sec_coverage": retained_coverage},
         )
         last_completed_ticker = item.ticker
 
@@ -345,6 +396,13 @@ def execute_sec_readiness_repair(
     client_stats = provider.client.stats()
     telemetry.update_client(client_stats, baseline=client_stats_at_start)
     final = diagnose_sec_readiness(db, tickers=tickers, processor_signature=signature)
+    coverage = build_sec_coverage(
+        pipeline=pipeline,
+        readiness=final,
+        identity_results=identity_results,
+        attempted_at=_utcnow(),
+    )
+    current_gaps = sec_coverage_current_gaps(final, coverage)
     _update_progress(
         db,
         pipeline,
@@ -354,9 +412,10 @@ def execute_sec_readiness_repair(
         telemetry=telemetry,
         unresolved=unresolved,
         last_completed_ticker=last_completed_ticker,
+        extra={"sec_coverage": coverage},
     )
 
-    if final.complete:
+    if sec_coverage_can_continue(final, coverage):
         _guard_cancel(db, pipeline, job, should_cancel)
         fence_job_execution(db, job)
         _update_progress(
@@ -366,8 +425,13 @@ def execute_sec_readiness_repair(
             stage="COMPLETED",
             readiness=final.as_dict(),
             telemetry=telemetry,
-            unresolved={},
+            unresolved={gap["ticker"]: gap["reason"] for gap in current_gaps},
             last_completed_ticker=last_completed_ticker,
+            extra={
+                "sec_coverage": coverage,
+                "continuation_ready": True,
+                "sec_unresolved_count": len(current_gaps),
+            },
         )
         return {
             "status": "COMPLETED",
@@ -376,12 +440,17 @@ def execute_sec_readiness_repair(
             "pipeline_dependency_id": job.pipeline_dependency_id,
             "readiness": final.as_dict(include_tickers=False),
             "telemetry": telemetry.as_dict(),
+            "sec_coverage": coverage,
+            "sec_unresolved_count": len(current_gaps),
+            "unresolved_tickers": {gap["ticker"]: gap["reason"] for gap in current_gaps},
+            "continuation_ready": True,
         }
 
+    blocking = set(sec_coverage_blocking_tickers(final, coverage))
     remaining = {
         item.ticker: unresolved.get(item.ticker) or item.reason or item.category.value
         for item in final.tickers
-        if not item.accepted
+        if item.ticker in blocking
     }
     identity_remaining = {
         ticker: reason for ticker, reason in remaining.items() if ticker in unresolved
@@ -473,6 +542,9 @@ def _update_progress(
         )
     )
     total = int(readiness.get("requested_tickers") or 0)
+    processed = ready
+    if stage == "COMPLETED" and (extra or {}).get("continuation_ready"):
+        processed = min(total, ready + int((extra or {}).get("sec_unresolved_count") or 0))
     progress = {
         **existing,
         "pipeline_id": pipeline.id,
@@ -481,6 +553,7 @@ def _update_progress(
         "repair_stage": stage,
         "total_tickers": total,
         "ready_tickers": ready,
+        "processed_tickers": processed,
         "initial_ready_tickers": initial_ready,
         "repairable_tickers": max(0, total - initial_ready),
         "repaired_tickers": max(0, ready - initial_ready),
@@ -508,7 +581,7 @@ def _update_progress(
             stage=stage,
             current_item=current_ticker,
             last_completed_item=last_completed_ticker,
-            processed=ready,
+            processed=processed,
             total=total,
             checkpoint_version=f"sec-readiness-repair:{stage.lower()}",
         ):

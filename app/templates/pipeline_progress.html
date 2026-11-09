@@ -85,6 +85,16 @@
   {% set show_sec_repair = pipeline.status == 'PREPARING' or (pipeline.status == 'WAITING_DEPENDENCY' and pipeline_result.get('dependency_type') == 'SEC_READINESS') %}
   {% set readiness = blocked.get('readiness') or {} %}
   {% set processor = blocked.get('processor') or {} %}
+  {% set coverage_readiness = (pipeline_result.get('sec_preflight') or {}).get('readiness') or readiness %}
+  {% set sec_exemptions = (coverage_readiness.get('tickers') or [])|selectattr('category', 'equalto', 'SEC_NOT_APPLICABLE')|list %}
+  {% set sec_gaps = pipeline_result.get('sec_unresolved_tickers', (pipeline_result.get('sec_coverage') or {}).get('gaps') or []) %}
+  <div class="alert section-gap" role="status" data-pipeline-sec-coverage {% if not sec_exemptions and not sec_gaps %}hidden{% endif %}>
+    <strong>SEC guidance coverage limitations</strong>
+    <ul data-pipeline-sec-coverage-details>
+      {% for item in sec_exemptions %}<li>{{ item.ticker }}: {{ item.reason }}</li>{% endfor %}
+      {% for item in sec_gaps %}<li>{{ item.ticker }}: SEC identity unresolved. {{ item.reason }} Other eligible processing continues; SEC guidance remains unavailable.</li>{% endfor %}
+    </ul>
+  </div>
   {% set market_blocked = pipeline.current_step == 'FETCHING_MARKET_DATA' %}
   {% set market_readiness = pipeline_result.get('market_data_session_readiness') or {} %}
     <div class="alert section-gap" role="alert" data-pipeline-blocked {% if pipeline.status != 'BLOCKED' %}hidden{% endif %}>

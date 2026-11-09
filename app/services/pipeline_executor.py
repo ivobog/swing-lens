@@ -338,6 +338,10 @@ class PipelineExecutionResult:
     incomplete_rows: int
     warning_rows: int
     performance: dict[str, Any] = field(default_factory=dict)
+    sec_coverage: dict[str, Any] | None = None
+    sec_unresolved_count: int = 0
+    sec_unresolved_tickers: list[dict[str, Any]] = field(default_factory=list)
+    pipeline_outcome_summary: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -504,8 +508,9 @@ def execute_full_pipeline(
                     result["sec_preflight"] = (
                         validate(db, tickers)
                         if validate is not None
-                        else validate_sec_pipeline_preflight(db, tickers=tickers)
+                        else validate_sec_pipeline_preflight(db, tickers=tickers, pipeline=pipeline)
                     )
+                    _retain_sec_preflight_coverage(result)
 
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
@@ -1529,8 +1534,9 @@ def _execute_resumed_pipeline(
                 result["sec_preflight"] = (
                     validate_preflight(db, tickers)
                     if validate_preflight is not None
-                    else validate_sec_pipeline_preflight(db, tickers=tickers)
+                    else validate_sec_pipeline_preflight(db, tickers=tickers, pipeline=pipeline)
                 )
+                _retain_sec_preflight_coverage(result)
                 schedule = (
                     dependencies.schedule_ceri_provider_ingest or _schedule_ceri_provider_ingest
                 )
@@ -3128,7 +3134,7 @@ def _mark_pipeline_finished(
         authority = require_semantic_authority(pipeline)
         result["semantic_child_accounting"] = require_children_terminal(db, authority.scope_id)
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 0)
-    if result.get("partial_scope"):
+    if result.get("partial_scope") or result.get("sec_coverage"):
         from app.services.pipeline_outcome import derive_pipeline_outcome
 
         result["pipeline_outcome_summary"] = derive_pipeline_outcome(status, result)
@@ -3650,6 +3656,9 @@ def _final_pipeline_status(result: dict[str, Any]) -> str:
 
 def _completion_message(status: str, result: dict[str, Any]) -> str:
     winner_summary = _winner_completion_summary(result)
+    unresolved = int(result.get("sec_unresolved_count") or 0)
+    if unresolved:
+        winner_summary += f" SEC source coverage remains unresolved for {unresolved} tickers."
     if status == PipelineStatus.COMPLETED:
         return (
             f"Pipeline completed with {result['combined_results']} combined rows.{winner_summary}"
@@ -3675,6 +3684,16 @@ def _winner_completion_summary(result: dict[str, Any]) -> str:
     return f" Winner Evidence: {inserted} inserted, {excluded} excluded, {failed} failed."
 
 
+def _retain_sec_preflight_coverage(result: dict[str, Any]) -> None:
+    preflight = result.get("sec_preflight") or {}
+    coverage = preflight.get("sec_coverage")
+    # Explicit None clears an invalid or superseded retained projection when
+    # terminal result state is merged back into the parent pipeline.
+    result["sec_coverage"] = coverage
+    result["sec_unresolved_count"] = int(preflight.get("sec_unresolved_count") or 0)
+    result["sec_unresolved_tickers"] = list(preflight.get("sec_unresolved_tickers") or [])
+
+
 def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any]:
     return {
         "pipeline_run_id": pipeline.id,
@@ -3685,6 +3704,13 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
             else upload_run.row_count or 0
         ),
         "partial_scope": (pipeline.result_json or {}).get("partial_scope"),
+        **({
+            "sec_coverage": pipeline.result_json["sec_coverage"],
+            "sec_unresolved_count": int(pipeline.result_json.get("sec_unresolved_count") or 0),
+            "sec_unresolved_tickers": list(
+                pipeline.result_json.get("sec_unresolved_tickers") or []
+            ),
+        } if (pipeline.result_json or {}).get("sec_coverage") is not None else {}),
         "market_data_excluded_count": len(
             ((pipeline.result_json or {}).get("partial_scope") or {}).get("excluded_tickers", [])
         ),
@@ -3824,6 +3850,10 @@ def _to_execution_result(
         incomplete_rows=result["incomplete_rows"],
         warning_rows=result["warning_rows"],
         performance=result.get("performance", {}),
+        sec_coverage=result.get("sec_coverage"),
+        sec_unresolved_count=int(result.get("sec_unresolved_count") or 0),
+        sec_unresolved_tickers=list(result.get("sec_unresolved_tickers") or []),
+        pipeline_outcome_summary=result.get("pipeline_outcome_summary"),
     )
 
 
