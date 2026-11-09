@@ -638,6 +638,19 @@
     },
     {
       "method": "POST",
+      "path": "/runs/{run_id}/pipeline/{pipeline_id}/partial",
+      "function": "app.routers.run_routes.start_partial_pipeline_action",
+      "domain": "run",
+      "mutation_capability": "NORMAL_ONLY",
+      "operation": "http.pipeline.partial",
+      "modes": {
+        "NORMAL": "ENABLED",
+        "CERTIFICATION": "DISABLED"
+      },
+      "writer_family": "HTTP_OPERATION"
+    },
+    {
+      "method": "POST",
       "path": "/runs/{run_id}/pipeline/{pipeline_id}/resume",
       "function": "app.routers.run_routes.resume_run_pipeline_action",
       "domain": "run",
@@ -11771,6 +11784,31 @@
         "WRITE-012"
       ],
       "reason": "MSI upgrade compatibility: exact legacy worker identity predicates fence a timestamp-only retirement update in the existing caller transaction; no new authority or financial writer."
+    },
+    {
+      "path": "app/services/ib_fetch_executor.py",
+      "function": "_preflight_deferred_contracts",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-032"
+      ],
+      "reason": "Per-ticker supporting IBFetchItem failure evidence and IBFetchRun counters under the existing bounded job-token/plan fence, TX-06; contract cache mutation is owned by the separately registered resolver."
+    },
+    {
+      "path": "app/services/instrument_symbol_changes.py",
+      "function": "load_symbol_changes",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "In-memory previous_symbols set used to reject duplicate alias mappings; no database session, persistence or mutation of caller data."
+    },
+    {
+      "path": "app/services/pipeline_partial_results.py",
+      "function": "clone_partial_upload",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-001"
+      ],
+      "reason": "Explicit NORMAL_ONLY partial admission derives isolated upload/raw rows from retained source-row fingerprint and reviewed exclusions, under the RAW BOOTSTRAP mutation fence; source rows are preserved."
     }
   ],
   "recovery_paths": [
@@ -15264,6 +15302,34 @@
       "primitive": "autonomous_session",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "MSI implementation review: cancellation-only detached Session closes before historical pacing/network; native execution ownership remains checked by the gate."
+    },
+    {
+      "path": "app/routers/run_routes.py",
+      "function": "start_partial_pipeline_action",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Commit explicitly admitted child upload/pipeline after server-validated exclusions; NORMAL_ONLY HTTP boundary and retained source scope."
+    },
+    {
+      "path": "app/routers/run_routes.py",
+      "function": "start_partial_pipeline_action",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Roll back failed partial admission without changing the blocked source pipeline or retained evidence."
+    },
+    {
+      "path": "app/services/ib_fetch_executor.py",
+      "function": "_preflight_deferred_contracts",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Bounded per-ticker domain Session retains plan and job-token authority; release lookup before provider IO and commit supporting failed-item evidence under TX-06."
+    },
+    {
+      "path": "app/services/pipeline_partial_results.py",
+      "function": "clone_partial_upload",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Flush RAW BOOTSTRAP-fenced derived upload/rows inside explicit partial admission; the route owns final commit/rollback and the original source fingerprint remains retained."
     }
   ],
   "high_risk_tables": [
