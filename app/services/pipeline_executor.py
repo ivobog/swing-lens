@@ -14,6 +14,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    BackgroundJob,
     CombinedResult,
     CoreCalculationEvidence,
     FundamentalScore,
@@ -29,6 +30,7 @@ from app.models.tables import (
     TechnicalScore,
     TransitionDecisionHandoffManifest,
     UploadRun,
+    WorkScopeRecord,
 )
 from app.observability.logging import log_event
 from app.observability.transaction_metrics import publish_after_commit
@@ -61,6 +63,7 @@ from app.services.domain_write_fence import ControlPlaneLockTimeout
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_job_service import (
+    IB_FETCH_JOB_TYPE,
     FetchJobOptions,
     _admit_fetch_authority,
     _subset_fetch_plan,
@@ -132,6 +135,7 @@ from app.services.technical_score_service import (
     TechnicalScoringOverlapCoordinator,
     score_run_technicals,
 )
+from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -586,6 +590,16 @@ def execute_full_pipeline(
                     include_benchmarks=True,
                     what_to_show_values=DEFAULT_WHAT_TO_SHOW,
                 )
+                first_admission = (
+                    recovering_market_data
+                    and result["market_data_resume_checkpoint"].get("fetch_plan_state")
+                    == "NOT_ADMITTED"
+                )
+                if first_admission:
+                    _validate_first_market_data_plan(plan, pipeline, tickers, market_cutoff)
+                    # Recheck durable absence immediately before admission. A
+                    # missing checkpoint must never become a replacement plan.
+                    _validate_unstarted_market_data_resume(db, pipeline, tickers, market_cutoff)
                 if isinstance(db, Session):
                     fetch_authority = _admit_fetch_authority(
                         db,
@@ -598,6 +612,8 @@ def execute_full_pipeline(
                         "ib_fetch_plan": fetch_plan_to_dict(plan),
                         "ib_fetch_authority": fetch_authority.as_dict(),
                     }
+                if first_admission:
+                    result["market_data_resume_checkpoint"]["first_plan_admitted"] = True
             prewarm_context = resolve_pipeline_prewarm_context(db, tickers)
             prewarm_skipped_tickers = {
                 ticker
@@ -2930,8 +2946,33 @@ def _validate_market_data_resume(db, pipeline, tickers, market_cutoff):
     for name in ("VALIDATING_RUN", "SCORING_FUNDAMENTALS"):
         if _require_step(db, pipeline.id, name).status != PipelineStepStatus.COMPLETED:
             raise ValueError("MARKET_DATA_RESUME_PRIOR_STAGE_INCOMPLETE: " + name)
-    if not isinstance((pipeline.result_json or {}).get("ib_fetch_plan"), dict):
-        raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED")
+    retained = (pipeline.result_json or {}).get("ib_fetch_plan")
+    fetch_plan_state = "RETAINED"
+    initial_admission = None
+    if isinstance(retained, dict):
+        required = {"run_id", "requested_tickers", "symbols_including_benchmarks", "items"}
+        if not required <= retained.keys() or any(
+            not isinstance(retained[key], list)
+            for key in ("requested_tickers", "symbols_including_benchmarks", "items")
+        ):
+            raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED")
+        try:
+            restored = fetch_plan_from_dict(retained)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED") from exc
+        if (
+            restored.run_id != pipeline.upload_run_id
+            or sorted(restored.requested_tickers) != sorted(tickers)
+            or not set(tickers) <= set(restored.symbols_including_benchmarks)
+        ):
+            raise ValueError("MARKET_DATA_RESUME_PLAN_SCOPE_CHANGED")
+    else:
+        if retained is not None:
+            raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED")
+        initial_admission = _validate_unstarted_market_data_resume(
+            db, pipeline, tickers, market_cutoff
+        )
+        fetch_plan_state = "NOT_ADMITTED"
     if isinstance(db, Session):
         from app.services.calculation_identity import (
             PIPELINE_CONTEXT_COMPATIBILITY,
@@ -2961,7 +3002,100 @@ def _validate_market_data_resume(db, pipeline, tickers, market_cutoff):
             )
             if not comparison.accepted:
                 raise ValueError("MARKET_DATA_RESUME_FUNDAMENTAL_CONTEXT_CHANGED: " + ticker)
-    return {"validated": True, "fundamentals_reused": len(tickers)}
+    return {
+        "validated": True,
+        "fundamentals_reused": len(tickers),
+        "fetch_plan_state": fetch_plan_state,
+        **({"initial_admission": initial_admission} if initial_admission is not None else {}),
+    }
+
+
+def _validate_unstarted_market_data_resume(db, pipeline, tickers, market_cutoff):
+    """Permit a first admission after a Gateway failure, never replace one."""
+    saved = pipeline.result_json or {}
+    initial_admission = (
+        CanonicalEvidenceSerializer.canonicalize({
+            "contract_version": "market-data-initial-admission-v1",
+            "pipeline_run_id": pipeline.id,
+            "upload_run_id": pipeline.upload_run_id,
+            "scope_id": getattr(pipeline, "scope_id", None),
+            "refresh_cycle_id": getattr(pipeline, "refresh_cycle_id", None),
+            "acquisition_plan_id": getattr(pipeline, "acquisition_plan_id", None),
+            "market_calculation_context_id": market_cutoff.context_id,
+            "market_cutoff_at": market_cutoff.cutoff_at,
+            "input_as_of_session": market_cutoff.latest_completed_session,
+        }) if market_cutoff is not None else None
+    )
+    checkpoint = saved.get("market_data_resume_checkpoint") or {}
+    retained_initial_admission = (
+        isinstance(checkpoint, dict)
+        and checkpoint.get("validated") is True
+        and checkpoint.get("fetch_plan_state") == "NOT_ADMITTED"
+        and checkpoint.get("first_plan_admitted") is not True
+        and initial_admission is not None
+        and checkpoint.get("initial_admission") == initial_admission
+    )
+    gateway_failed_before_admission = (
+        saved.get("ib_api_available_at_execution") is False
+        and saved.get("ib_execution_error_code") == "IB_GATEWAY_API_UNREACHABLE"
+    )
+    if (
+        saved.get("ib_fetch_plan") is not None
+        or saved.get("ib_fetch_authority") is not None
+        or (isinstance(checkpoint, dict) and checkpoint.get("first_plan_admitted") is True)
+        or not (gateway_failed_before_admission or retained_initial_admission)
+        or int(saved.get("ib_planned_requests") or 0) != 0
+        or int(saved.get("ib_executed_requests") or 0) != 0
+    ):
+        raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED")
+    if (
+        market_cutoff is None
+        or latest_completed_us_trading_day() != market_cutoff.latest_completed_session
+    ):
+        raise ValueError("MARKET_DATA_RESUME_SESSION_CHANGED_REPLAN_REQUIRED")
+    if isinstance(db, Session):
+        authority = require_semantic_authority(pipeline)
+        evidence = (
+            select(IBFetchRun.id).where(IBFetchRun.run_id == pipeline.upload_run_id).limit(1),
+            select(WorkScopeRecord.scope_id).where(
+                WorkScopeRecord.parent_scope_id == authority.scope_id,
+                WorkScopeRecord.scope_kind == "ib-price-acquisition",
+            ).limit(1),
+            select(BackgroundJob.id).where(
+                BackgroundJob.job_type == IB_FETCH_JOB_TYPE,
+                BackgroundJob.related_run_id == pipeline.upload_run_id,
+            ).limit(1),
+        )
+        if any(db.scalar(statement) is not None for statement in evidence):
+            raise ValueError("MARKET_DATA_RESUME_ACQUISITION_ALREADY_ADMITTED")
+    return initial_admission
+
+
+def _validate_first_market_data_plan(plan, pipeline, tickers, market_cutoff):
+    """Bind the first newly planned request to the unchanged pipeline session."""
+    expected_session = market_cutoff.latest_completed_session
+    if latest_completed_us_trading_day() != expected_session:
+        raise ValueError("MARKET_DATA_RESUME_SESSION_CHANGED_REPLAN_REQUIRED")
+    item_tickers = {item.ticker for item in plan.items}
+    if (
+        plan.run_id != pipeline.upload_run_id
+        or sorted(plan.requested_tickers) != sorted(tickers)
+        or not set(tickers) <= item_tickers
+        or not item_tickers <= set(plan.symbols_including_benchmarks)
+    ):
+        raise ValueError("MARKET_DATA_RESUME_PLAN_SCOPE_CHANGED")
+    for item in plan.items:
+        if item.freshness_threshold_date != expected_session:
+            raise ValueError("MARKET_DATA_RESUME_PLAN_SESSION_CHANGED")
+        if item.duration or item.post_resolution_duration:
+            if item.request_end_date != expected_session or (
+                item.reviewed_session_expiry is not None
+                and item.reviewed_session_expiry != expected_session
+            ) or (
+                item.request_end_mode == "CURRENT"
+                and item.reviewed_session_expiry != expected_session
+            ):
+                raise ValueError("MARKET_DATA_RESUME_PLAN_SESSION_CHANGED")
 
 
 def _pipeline_scope_tickers(db: Session, pipeline: PipelineRun) -> list[str]:
