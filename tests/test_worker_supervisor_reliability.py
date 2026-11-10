@@ -11,6 +11,7 @@ from app import worker_supervisor
 from app.models.tables import BackgroundWorker
 from app.services import process_identity
 from app.services.operational_metrics import operational_metrics
+from app.services.process_memory import ProcessMemorySnapshot
 from app.settings import Settings
 
 
@@ -47,6 +48,89 @@ def _worker(*, pid: int = 200, instance_id: str | None = "instance-a") -> Backgr
         resource_collector_heartbeat_at=now,
         control_loop_heartbeat_at=now,
     )
+
+
+@pytest.mark.parametrize("published_before_fence", [False, True])
+def test_memory_critical_fence_preserves_exact_sample_before_cleanup(
+    monkeypatch, caplog, published_before_fence,
+):
+    worker = _worker(pid=222)
+    sample = ProcessMemorySnapshot(222, 6500 * 1024**2, 7000 * 1024**2, None, None)
+    observations = []
+    events = []
+    monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
+    monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _: worker)
+    monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _: True)
+    monkeypatch.setattr(worker_supervisor, "_registered_worker_control_loop_alive", lambda _: True)
+
+    def observe(pid):
+        observations.append(pid)
+        return sample
+
+    monkeypatch.setattr(worker_supervisor, "process_memory_snapshot", observe)
+
+    def no_progress(*args, **kwargs):
+        pytest.fail("Memory-critical fencing must take precedence over no-progress fencing.")
+
+    monkeypatch.setattr(worker_supervisor, "_fence_no_progress", no_progress)
+
+    def fence(*args, **kwargs):
+        events.append(("fence", kwargs["memory_evidence"]))
+        return worker_supervisor.WorkerJobReconciliation(
+            fenced_job_ids=() if published_before_fence else (1882,),
+            finalized_job_ids=(1882,) if published_before_fence else (),
+        )
+
+    monkeypatch.setattr(worker_supervisor, "_fence_worker", fence)
+    monkeypatch.setattr(
+        worker_supervisor, "_terminate_worker_instance", lambda *a: events.append("stop")
+    )
+    monkeypatch.setattr(worker_supervisor, "_retire_worker_registration", lambda *a: None)
+    requeued = []
+    monkeypatch.setattr(
+        worker_supervisor, "_requeue",
+        lambda ids, **kwargs: (events.append("requeue"), requeued.extend(ids)),
+    )
+
+    with caplog.at_level(logging.ERROR):
+        worker_supervisor._supervise_once(worker_id="worker-a", queues="interactive", child=None)
+
+    assert observations == [222]
+    assert [event[0] if isinstance(event, tuple) else event for event in events] == [
+        "fence", "stop", "requeue",
+    ]
+    evidence = events[0][1]
+    assert evidence["private_bytes"] == evidence["measured_bytes"] == 7000 * 1024**2
+    assert evidence["rss_bytes"] == 6500 * 1024**2
+    assert evidence["critical_bytes"] == 6144 * 1024**2
+    assert evidence["measurement_basis"] == "private_bytes"
+    assert evidence["registered_pid"] == 222
+    assert evidence["worker_instance_id"] == "instance-a"
+    assert evidence["observed_at"]
+    record = next(
+        row for row in caplog.records if row.msg.startswith("worker.supervisor.memory_critical")
+    )
+    assert record.private_bytes == evidence["private_bytes"]
+    assert record.observed_at == evidence["observed_at"]
+    assert requeued == ([] if published_before_fence else [1882])
+
+
+def test_memory_observation_identifies_rss_fallback_and_inspection_failure(monkeypatch):
+    monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
+    monkeypatch.setattr(worker_supervisor, "process_memory_snapshot", lambda _: (
+        ProcessMemorySnapshot(200, 7000 * 1024**2, None, None, None)
+    ))
+    state, evidence = worker_supervisor._safe_memory_observation(_worker())
+    assert state == "CRITICAL"
+    assert evidence["measurement_basis"] == "rss_bytes"
+    assert evidence["measured_bytes"] == evidence["rss_bytes"]
+    assert evidence["private_bytes"] is None
+
+    def unavailable(_):
+        raise OSError("process unavailable")
+
+    monkeypatch.setattr(worker_supervisor, "process_memory_snapshot", unavailable)
+    assert worker_supervisor._safe_memory_observation(_worker()) == ("UNKNOWN", {})
 
 
 @pytest.mark.parametrize("return_code", [0, 17])
@@ -101,7 +185,7 @@ def test_launcher_pid_mismatch_uses_registered_worker_identity(monkeypatch) -> N
     monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
     monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: worker)
     monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _row: True)
-    monkeypatch.setattr(worker_supervisor, "_safe_memory_status", lambda _row: "OK")
+    monkeypatch.setattr(worker_supervisor, "_safe_memory_observation", lambda _row: ("OK", {}))
     monkeypatch.setattr(worker_supervisor, "_fence_no_progress", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(
         worker_supervisor, "_associate_launcher", lambda row, pid: associated.append((row, pid))
@@ -124,7 +208,7 @@ def test_frozen_worker_is_fenced_terminated_and_recoverable(monkeypatch) -> None
     monkeypatch.setattr(worker_supervisor, "get_settings", _settings)
     monkeypatch.setattr(worker_supervisor, "_registered_worker", lambda _worker_id: worker)
     monkeypatch.setattr(worker_supervisor, "_registered_worker_process_alive", lambda _row: True)
-    monkeypatch.setattr(worker_supervisor, "_safe_memory_status", lambda _row: "OK")
+    monkeypatch.setattr(worker_supervisor, "_safe_memory_observation", lambda _row: ("OK", {}))
     monkeypatch.setattr(worker_supervisor, "_fence_no_progress", lambda *_args, **_kwargs: [71])
     monkeypatch.setattr(
         worker_supervisor,
@@ -203,7 +287,7 @@ def test_stale_claim_loop_does_not_kill_observably_active_job(monkeypatch, caplo
     monkeypatch.setattr(
         worker_supervisor, "_registered_worker_job_execution_alive", lambda _row: True
     )
-    monkeypatch.setattr(worker_supervisor, "_safe_memory_status", lambda _row: "OK")
+    monkeypatch.setattr(worker_supervisor, "_safe_memory_observation", lambda _row: ("OK", {}))
     monkeypatch.setattr(worker_supervisor, "_fence_no_progress", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(
         worker_supervisor,

@@ -1951,6 +1951,12 @@ def _pipeline_status_payload(
         status.status == "WAITING_DEPENDENCY"
         and projected_result.get("dependency_type") == "SEC_READINESS"
     )
+    recovery_job = job
+    observed_metadata = job.operational_metadata_json or {} if job else {}
+    if not any(observed_metadata.get(key) for key in (
+        "progress_recovery", "recovery_continuation", "terminal_publication_recovery",
+    )):
+        recovery_job = root_job
     return {
         "pipeline_run_id": status.pipeline_run_id,
         "upload_run_id": status.upload_run_id,
@@ -1990,12 +1996,115 @@ def _pipeline_status_payload(
         "checkpoint_version": job.checkpoint_version if job else None,
         "stall_detected_at": job.stall_detected_at if job else None,
         "recovery_count": job.recovery_count if job else 0,
+        **_pipeline_recovery_fields(recovery_job, pipeline_result=projected_result),
         "job_error": job.error_message if job else None,
         "result": projected_result,
         "completed_steps": completed_steps,
         "total_steps": total_steps,
         "percentage": round((completed_steps / total_steps) * 100, 1) if total_steps else 0.0,
         "steps": steps,
+    }
+
+
+def _pipeline_recovery_fields(
+    job: BackgroundJob | None, *, pipeline_result: dict | None = None,
+) -> dict[str, object]:
+    metadata = job.operational_metadata_json or {} if job else {}
+    recovery = metadata.get("progress_recovery")
+    recovery = recovery if isinstance(recovery, dict) else {}
+    identity = recovery.get("stall_identity") or {}
+    reason_code = identity.get("decision") if isinstance(identity, dict) else None
+    supplied = recovery.get("memory_evidence") or {}
+    allowed = {
+        "observed_at", "registered_pid", "worker_instance_id", "worker_generation",
+        "private_bytes", "rss_bytes", "measured_bytes", "measurement_basis", "critical_mb",
+        "critical_bytes", "stage", "subphase", "sector_phase", "attempt_number",
+        "attempt_started_at",
+    }
+    evidence = {
+        key: value for key, value in supplied.items()
+        if key in allowed and isinstance(value, (str, int, float, type(None)))
+    } if isinstance(supplied, dict) else {}
+    supplied_continuation = metadata.get("recovery_continuation") or {}
+    continuation = {
+        key: value for key, value in supplied_continuation.items()
+        if key in {"version", "boundary", "validation_state", "cause_code", "fenced_at",
+                   "background_job_id", "attempt_number"}
+        and isinstance(value, (str, int, type(None)))
+    } if isinstance(supplied_continuation, dict) else {}
+    validated = (pipeline_result or {}).get("recovery_continuation") or {}
+    if (isinstance(validated, dict) and job is not None
+            and validated.get("background_job_id") == job.id
+            and validated.get("boundary") == continuation.get("boundary")):
+        continuation["validation_state"] = validated.get("validation_state")
+    supplied_terminal = metadata.get("terminal_publication_recovery") or {}
+    terminal = {
+        key: value for key, value in supplied_terminal.items()
+        if key in {"version", "pipeline_status", "cause_code", "reason", "observed_at",
+                   "attempt_number"}
+        and isinstance(value, (str, int, type(None)))
+    } if (isinstance(supplied_terminal, dict) and supplied_terminal.get("version")
+          == "pipeline-terminal-publication-recovery-v1") else {}
+    message = None
+    reason = recovery.get("failure_reason")
+    if terminal:
+        reason_code = terminal.get("cause_code")
+        reason = terminal.get("reason")
+        message = "The pipeline's finished result was preserved and its job record finalized."
+        if job.status == "CANCELLED":
+            message = "The run was cancelled; automatic recovery stopped. " + message
+        if reason_code == "WORKER_MEMORY_CRITICAL":
+            message = "The worker exceeded its memory limit. " + message
+        evidence, continuation = {}, {}
+    elif reason_code == "WORKER_MEMORY_CRITICAL":
+        original_stage = evidence.get("stage")
+        stage = str(original_stage or "").replace("_", " ").title()
+        sector_phase = (
+            evidence.get("sector_phase") if original_stage == "SECTOR_ROTATION_SNAPSHOT" else None
+        )
+        phase = str(sector_phase or evidence.get("subphase") or "")
+        phase = phase.replace("_", " ").title()
+        message = "The worker exceeded its memory limit"
+        if stage:
+            message += f" during {stage}"
+            if phase:
+                message += f" ({phase})"
+        message += "."
+        measured = evidence.get("measured_bytes")
+        budget = evidence.get("critical_mb")
+        if isinstance(measured, (int, float)) and isinstance(budget, (int, float)):
+            message += f" Observed {measured / (1024 * 1024):,.0f} MiB; limit {budget:,} MiB."
+        resume = continuation.get("boundary") or (
+            (job.payload_json or {}).get("resume_from_step") if job else None
+        )
+        resume_label = str(resume).replace("_", " ").title() if resume else None
+        if job.status == "CANCELLED":
+            message += " The run was cancelled; automatic recovery stopped."
+        elif continuation.get("validation_state") == "INVALID":
+            message += " Automatic recovery stopped because checkpoint validation failed."
+        elif job.status in {"BLOCKED", "FAILED"}:
+            message += " Automatic recovery stopped; review the job error."
+        elif job.status in {"QUEUED", "STALLED", "RECOVERING"}:
+            message += (
+                f" Automatic recovery will continue from {resume_label}."
+                if resume_label else " Automatic recovery is pending."
+            )
+        elif job.status == "RUNNING" and continuation.get("validation_state") == "PENDING":
+            message += (
+                f" Recovery is validating the checkpoint for {resume_label}."
+                if resume_label else " Recovery is validating its checkpoint."
+            )
+        elif resume_label:
+            message += f" Recovery resumed from {resume_label}."
+        else:
+            message += " Automatic recovery restarted execution."
+    return {
+        "recovery_reason_code": reason_code,
+        "recovery_reason": reason,
+        "recovery_message": message,
+        "recovery_memory_evidence": evidence or None,
+        "recovery_continuation": continuation or None,
+        "terminal_publication_recovery": terminal or None,
     }
 
 

@@ -764,8 +764,11 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-worker-memory]", data.worker_memory_status || "Unknown");
   const workerHealth = root.querySelector("[data-pipeline-worker-health]");
   if (workerHealth) {
-    workerHealth.hidden = !["STALLED", "RECOVERING"].includes(data.job_status);
-    if (data.job_status === "STALLED") {
+    workerHealth.hidden = !data.recovery_message
+      && !["STALLED", "RECOVERING"].includes(data.job_status);
+    if (data.recovery_message) {
+      workerHealth.textContent = data.recovery_message;
+    } else if (data.job_status === "STALLED") {
       workerHealth.textContent =
         "The worker process was fenced because this job stopped making useful progress.";
     } else if (data.job_status === "RECOVERING") {

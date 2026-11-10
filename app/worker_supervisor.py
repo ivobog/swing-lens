@@ -756,8 +756,8 @@ def _supervise_once(
                     extra=_worker_log_context(worker, launcher_pid=child.process.pid),
                 )
                 child = None
-        state = _safe_memory_status(worker)
-        stalled = _fence_no_progress(
+        state, memory_evidence = _safe_memory_observation(worker)
+        stalled = [] if state == "CRITICAL" else _fence_no_progress(
             worker_id,
             worker.instance_id,
             worker.heartbeat_at,
@@ -765,19 +765,30 @@ def _supervise_once(
         )
         reconciliation = WorkerJobReconciliation()
         if state == "CRITICAL":
+            memory_context = {
+                **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
+                **memory_evidence,
+                "reason_code": "WORKER_MEMORY_CRITICAL",
+            }
+            logger.error(
+                "worker.supervisor.memory_critical %s", memory_context, extra=memory_context
+            )
             reconciliation = _fence_worker(
                 worker_id,
                 worker.instance_id,
                 f"Worker exceeded {settings.worker_memory_critical_mb} MB memory budget.",
                 certification_session_id=certification_session_id,
                 failure_code="WORKER_MEMORY_CRITICAL",
+                memory_evidence=memory_evidence,
             )
             stalled.extend(reconciliation.fenced_job_ids)
-        if not stalled:
+        finalized = list(getattr(reconciliation, "finalized_job_ids", ()))
+        if not stalled and not finalized:
             return child
         context = {
             **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
-            "job_ids": sorted(set(stalled)),
+            "job_ids": sorted(set(stalled) | set(finalized)),
+            "finalized_job_ids": finalized,
             "cancelled_job_ids": list(reconciliation.cancelled_job_ids),
             "untouched_job_ids": list(reconciliation.untouched_job_ids),
             "reason": "stalled_or_memory_critical",
@@ -1121,6 +1132,7 @@ def _fence_worker(
     *,
     certification_session_id: str | None = None,
     failure_code: str | None = None,
+    memory_evidence: dict | None = None,
 ) -> WorkerJobReconciliation:
     with SessionLocal() as db:
         reconciliation = reconcile_jobs_for_worker_loss(
@@ -1133,6 +1145,7 @@ def _fence_worker(
             worker_instance_id=instance_id,
             reason=reason,
             failure_code=failure_code,
+            memory_evidence=memory_evidence,
         )
         db.commit()
         if reconciliation.untouched_job_ids:
@@ -1188,21 +1201,37 @@ def _requeue(
         db.commit()
 
 
-def _safe_memory_status(worker: BackgroundWorker) -> str:
+def _safe_memory_observation(worker: BackgroundWorker) -> tuple[str, dict]:
     settings = get_settings()
     try:
         snapshot = process_memory_snapshot(worker.process_id)
-        return memory_status(
+        state = memory_status(
             snapshot,
             warning_mb=settings.worker_memory_warning_mb,
             critical_mb=settings.worker_memory_critical_mb,
         )
+        return state, {
+            "observed_at": datetime.now(UTC).isoformat(),
+            "registered_pid": snapshot.process_id,
+            "worker_instance_id": worker.instance_id,
+            "worker_generation": worker.generation,
+            "private_bytes": snapshot.private_bytes,
+            "rss_bytes": snapshot.rss_bytes,
+            "measured_bytes": (
+                snapshot.private_bytes if snapshot.private_bytes is not None else snapshot.rss_bytes
+            ),
+            "measurement_basis": (
+                "private_bytes" if snapshot.private_bytes is not None else "rss_bytes"
+            ),
+            "critical_mb": settings.worker_memory_critical_mb,
+            "critical_bytes": settings.worker_memory_critical_mb * 1024 * 1024,
+        }
     except Exception:
         logger.exception(
             "worker.supervisor.memory_inspection_failed",
             extra=_worker_log_context(worker),
         )
-        return "UNKNOWN"
+        return "UNKNOWN", {}
 
 
 def _terminate_worker_instance(

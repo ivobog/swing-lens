@@ -533,6 +533,7 @@ def build_contextual_result_identity(
     source_artifacts: Iterable[tuple[str, Any, CalculationIdentity]],
     source_payload: Any,
     company_id: int | None = None,
+    source_payload_checkpoint_callback=None,
 ) -> CalculationIdentity:
     na = IdentityDimension.not_applicable()
     references = tuple(
@@ -540,7 +541,8 @@ def build_contextual_result_identity(
         for kind, artifact, identity in source_artifacts
     )
     payload_reference = _payload_reference(
-        f"{namespace}-input-envelope", source_payload, f"{namespace} contextual input envelope"
+        f"{namespace}-input-envelope", source_payload, f"{namespace} contextual input envelope",
+        checkpoint_callback=source_payload_checkpoint_callback,
     )
     lineage = _lineage(
         (*references, payload_reference), f"validated contextual inputs consumed by {namespace}"
@@ -614,8 +616,17 @@ def _identity_reference(kind: str, artifact: Any, identity: CalculationIdentity)
     )
 
 
-def _payload_reference(kind: str, payload: Any, proof: str):
-    digest = CanonicalEvidenceSerializer.fingerprint(payload)
+def _payload_reference(kind: str, payload: Any, proof: str, *, checkpoint_callback=None):
+    if kind == "sector-rotation-input-envelope":
+        from app.services.sector_serialization import sector_hash_progress
+
+        digest = CanonicalEvidenceSerializer.fingerprint_streaming(
+            payload, progress_callback=sector_hash_progress(
+                checkpoint_callback, "sector-input-envelope", phase="SECTOR_INPUT_HASH",
+            ),
+        )
+    else:
+        digest = CanonicalEvidenceSerializer.fingerprint(payload)
     return SourceArtifactReference(
         kind,
         f"sha256:{digest}",

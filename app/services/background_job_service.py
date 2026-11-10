@@ -143,9 +143,7 @@ def set_job_result_status(
     if status == JobStatus.BLOCKED and not reason_code:
         raise ValueError("A blocked job result requires a reason code.")
     if job.status != JobStatus.RUNNING:
-        raise ValueError(
-            "A job result may only be recorded while durable status remains RUNNING."
-        )
+        raise ValueError("A job result may only be recorded while durable status remains RUNNING.")
     current = getattr(job, "_result_status", None)
     if current is not None and current != status:
         raise ValueError(f"Conflicting job result statuses: {current} and {status}")
@@ -196,6 +194,7 @@ class WorkerJobReconciliation:
     fenced_job_ids: tuple[int, ...] = ()
     cancelled_job_ids: tuple[int, ...] = ()
     untouched_job_ids: tuple[int, ...] = ()
+    finalized_job_ids: tuple[int, ...] = ()
 
 
 ACTIVE_JOB_STATUSES = (JobStatus.QUEUED, JobStatus.RECOVERING, JobStatus.RUNNING)
@@ -1090,7 +1089,7 @@ def fence_stalled_jobs(
         select(BackgroundJob)
         .where(BackgroundJob.status == JobStatus.RUNNING)
         .where(BackgroundJob.last_progress_at.is_not(None))
-        .where(_job_execution_authority_predicate())
+        .where(_job_recovery_authority_predicate())
     )
     if worker_id is not None:
         candidate_query = candidate_query.where(BackgroundJob.worker_id == worker_id)
@@ -1189,6 +1188,14 @@ def fence_stalled_jobs(
         lease_age = _age_seconds(observed_at, job.heartbeat_at)
         progress_age = _age_seconds(observed_at, job.last_progress_at)
         old_token = job.execution_token
+        if _finalize_terminal_pipeline_publication(
+            db,
+            job,
+            now=observed_at,
+            cause_code="JOB_PROGRESS_STALLED_FENCED",
+            reason="Useful progress stopped after terminal pipeline publication.",
+        ):
+            continue
         _interrupt_fenced_pipeline_steps(db, job, observed_at=observed_at)
         job.status = JobStatus.STALLED
         job.stall_detected_at = observed_at
@@ -1248,7 +1255,8 @@ def _record_progress_recovery(job, identity, *, observed_at, failure_reason=None
     metadata["progress_recovery"] = {
         "signature": signature,
         "identical_count": int(prior.get("identical_count") or 0) + 1
-        if prior.get("signature") == signature else 1,
+        if prior.get("signature") == signature
+        else 1,
         "stall_identity": identity,
         "last_stalled_at": observed_at.isoformat(),
         **({"failure_reason": _safe_error(failure_reason)} if failure_reason else {}),
@@ -1256,17 +1264,24 @@ def _record_progress_recovery(job, identity, *, observed_at, failure_reason=None
     job.operational_metadata_json = metadata
 
 
-def _memory_recovery_identity(db, job):
+def _memory_recovery_identity(db, job, *, interrupted_stage=None):
     # Item callbacks do not prove that an atomic stage committed. Only durable
     # completed stages (or a committed non-pipeline checkpoint) reset the count.
     identity = {"decision": "WORKER_MEMORY_CRITICAL", "job_type": job.job_type}
     pipeline_id = (job.payload_json or {}).get("pipeline_run_id")
     if job.job_type == "FULL_PIPELINE" and pipeline_id is not None:
+        identity["stage"] = (
+            interrupted_stage
+            if interrupted_stage is not None
+            else _observed_pipeline_stage_before_fence(db, job)
+        )
         completed = db.scalars(
-            select(PipelineStep).where(
+            select(PipelineStep)
+            .where(
                 PipelineStep.pipeline_run_id == int(pipeline_id),
                 PipelineStep.status == "COMPLETED",
-            ).order_by(PipelineStep.step_order)
+            )
+            .order_by(PipelineStep.step_order)
         ).all()
         identity["completed_steps"] = [int(step.id) for step in completed]
     else:
@@ -1311,11 +1326,52 @@ def _effective_progress_stage(job: BackgroundJob) -> str | None:
     return str(resume_from_step) if resume_from_step else None
 
 
+def _observed_pipeline_stage_before_fence(
+    db: Session,
+    job: BackgroundJob,
+    *,
+    pipeline: PipelineRun | None = None,
+    running_steps: Iterable[PipelineStep] | None = None,
+) -> str | None:
+    """Read the interrupted stage from control rows without changing recovery state."""
+    if job.job_type != "FULL_PIPELINE":
+        return _effective_progress_stage(job)
+    if pipeline is None:
+        try:
+            pipeline_id = int((job.payload_json or {}).get("pipeline_run_id"))
+        except (TypeError, ValueError):
+            return _effective_progress_stage(job)
+        pipeline = db.get(PipelineRun, pipeline_id)
+    if pipeline is None:
+        return _effective_progress_stage(job)
+    if running_steps is None:
+        running_steps = db.scalars(select(PipelineStep).where(
+            PipelineStep.pipeline_run_id == pipeline.id, PipelineStep.status == "RUNNING",
+        ))
+    stages = {
+        str(step.step_name) for step in running_steps
+        if step.status == "RUNNING" and step.step_name
+    }
+    if len(stages) == 1:
+        return next(iter(stages))
+    # Preserve the planner's existing fail-closed Sector routing when control
+    # rows disagree; its strict financial checkpoint remains the new owner's gate.
+    if "SECTOR_ROTATION_SNAPSHOT" in stages:
+        return "SECTOR_ROTATION_SNAPSHOT"
+    if pipeline.current_step in stages:
+        return str(pipeline.current_step)
+    if not stages and pipeline.status in {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED"}:
+        return None
+    return pipeline.current_step or _effective_progress_stage(job)
+
+
 def _interrupt_fenced_pipeline_steps(
     db: Session,
     job: BackgroundJob,
     *,
     observed_at: datetime,
+    reason_code: str = "JOB_PROGRESS_STALLED_FENCED",
+    reason_message: str | None = None,
 ) -> None:
     """Make pipeline step state agree with the fenced execution owner.
 
@@ -1333,6 +1389,8 @@ def _interrupt_fenced_pipeline_steps(
     pipeline = db.get(PipelineRun, pipeline_id)
     if pipeline is None:
         return
+    if pipeline.status in {"COMPLETED", "PARTIAL", "CANCELLED", "FAILED", "BLOCKED"}:
+        return
     running_steps = list(
         db.scalars(
             select(PipelineStep)
@@ -1340,7 +1398,15 @@ def _interrupt_fenced_pipeline_steps(
             .where(PipelineStep.status == "RUNNING")
         )
     )
+    effective_stage = _observed_pipeline_stage_before_fence(
+        db, job, pipeline=pipeline, running_steps=running_steps,
+    )
+    # The in-flight stage supersedes an original root-entry resume hint.  A
+    # continuation is only a routing decision here; the new owner must validate
+    # the frozen financial checkpoint before using it.
     for step in running_steps:
+        if step.status != "RUNNING":
+            continue
         payload = dict(step.result_json or {})
         history = list(payload.get("attempt_history") or [])
         history.append(
@@ -1349,7 +1415,7 @@ def _interrupt_fenced_pipeline_steps(
                 "status": "INTERRUPTED",
                 "started_at": step.started_at.isoformat() if step.started_at else None,
                 "finished_at": observed_at.isoformat(),
-                "reason": "JOB_PROGRESS_STALLED_FENCED",
+                "reason": reason_code,
                 "background_job_id": int(job.id),
             }
         )
@@ -1357,36 +1423,40 @@ def _interrupt_fenced_pipeline_steps(
         step.result_json = payload
         step.status = "INTERRUPTED"
         step.completed_at = observed_at
-        step.error_message = "Useful progress stopped and the execution token was fenced."
+        step.error_message = _safe_error(
+            reason_message or "Useful progress stopped and the execution token was fenced."
+        )
         step.message = (
-            f"Attempt {int(step.retry_count or 0) + 1} was interrupted; automatic replay pending."
+            f"Attempt {int(step.retry_count or 0) + 1} was interrupted; recovery pending."
         )
-    effective_stage = _effective_progress_stage(job)
     if effective_stage == "SECTOR_ROTATION_SNAPSHOT":
-        all_steps = list(
-            db.scalars(
-                select(PipelineStep)
-                .where(PipelineStep.pipeline_run_id == pipeline_id)
-                .order_by(PipelineStep.step_order)
-            )
-        )
-        target = next(
-            (step for step in all_steps if step.step_name == "SECTOR_ROTATION_SNAPSHOT"),
-            None,
-        )
-        if target is not None and all(
-            step.status in {"COMPLETED", "SKIPPED"}
-            for step in all_steps
-            if step.step_order < target.step_order
-        ):
-            job.payload_json = {
-                **(job.payload_json or {}),
-                "resume_from_step": "SECTOR_ROTATION_SNAPSHOT",
-            }
-            pipeline.result_json = {
-                **(pipeline.result_json or {}),
-                "resume_from_step": "SECTOR_ROTATION_SNAPSHOT",
-            }
+        continuation = {
+            "version": "pipeline-recovery-continuation-v1",
+            "boundary": "SECTOR_ROTATION_SNAPSHOT",
+            "validation_state": "PENDING",
+            "cause_code": reason_code,
+            "fenced_at": observed_at.isoformat(),
+            "background_job_id": int(job.id),
+            "attempt_number": int(
+                ((job.operational_metadata_json or {}).get("current_attempt") or {}).get(
+                    "attempt_number"
+                )
+                or 1
+            ),
+        }
+        job.payload_json = {
+            **(job.payload_json or {}),
+            "resume_from_step": "SECTOR_ROTATION_SNAPSHOT",
+        }
+        job.operational_metadata_json = {
+            **(job.operational_metadata_json or {}),
+            "recovery_continuation": continuation,
+        }
+        pipeline.result_json = {
+            **(pipeline.result_json or {}),
+            "resume_from_step": "SECTOR_ROTATION_SNAPSHOT",
+            "recovery_continuation": continuation,
+        }
     from app.services.pipeline_state_machine import transition_pipeline
 
     transition_pipeline(
@@ -1395,7 +1465,7 @@ def _interrupt_fenced_pipeline_steps(
         "QUEUED",
         actor="recovery",
         current_step=effective_stage or pipeline.current_step,
-        message="Pipeline execution was interrupted; automatic replay is pending.",
+        message="Pipeline execution was interrupted; checkpoint recovery is pending.",
     )
 
 
@@ -1415,11 +1485,7 @@ def requeue_stalled_jobs(
         else get_settings().job_max_identical_progress_recoveries
     )
     query = select(BackgroundJob).where(BackgroundJob.status == JobStatus.STALLED)
-    from app.services.pipeline_execution_authority import (
-        apply_job_execution_authority_scope,
-    )
-
-    query = apply_job_execution_authority_scope(query)
+    query = query.where(_job_recovery_authority_predicate())
     if job_ids is not None:
         query = query.where(BackgroundJob.id.in_(tuple(job_ids)))
     if authority.is_certification:
@@ -1431,21 +1497,31 @@ def requeue_stalled_jobs(
         )
     recovered = 0
     for job in db.scalars(query.with_for_update(skip_locked=True)).all():
+        if _finalize_terminal_pipeline_publication(
+            db,
+            job,
+            now=observed_at,
+            cause_code="STALLED_JOB_RECOVERY",
+            reason="Recovered terminal pipeline publication before requeue.",
+        ):
+            continue
         if job.requested_cancel:
             _finalize_recovery_cancellation(db, job, now=observed_at)
             continue
         recovery = dict((job.operational_metadata_json or {}).get("progress_recovery") or {})
         if int(recovery.get("identical_count") or 0) >= identical_limit:
-            memory_failure = (
-                (recovery.get("stall_identity") or {}).get("decision") == "WORKER_MEMORY_CRITICAL"
-            )
+            memory_failure = (recovery.get("stall_identity") or {}).get(
+                "decision"
+            ) == "WORKER_MEMORY_CRITICAL"
             reason_code = (
-                "REPEATED_MEMORY_CRITICAL_LIMIT_REACHED" if memory_failure
+                "REPEATED_MEMORY_CRITICAL_LIMIT_REACHED"
+                if memory_failure
                 else "IDENTICAL_PROGRESS_STALL_LIMIT_REACHED"
             )
             failure_label = (
                 "memory-critical failures without durable progress"
-                if memory_failure else "progress stalls"
+                if memory_failure
+                else "progress stalls"
             )
             metadata = dict(job.operational_metadata_json or {})
             metadata["blocked"] = {
@@ -1489,8 +1565,10 @@ def requeue_stalled_jobs(
                         blocked_step.completed_at = observed_at
                         blocked_step.message = f"Blocked after repeated {failure_label}."
                         blocked_step.error_message = (
-                            job.error_message if memory_failure else
-                            "Useful progress remained frozen and automatic recovery was exhausted."
+                            job.error_message
+                            if memory_failure
+                            else "Useful progress remained frozen and automatic recovery "
+                            "was exhausted."
                         )
                         payload = dict(blocked_step.result_json or {})
                         payload["terminal_reason_code"] = reason_code
@@ -1542,6 +1620,7 @@ def reconcile_jobs_for_worker_loss(
     worker_instance_id: str | None = None,
     now: datetime | None = None,
     failure_code: str | None = None,
+    memory_evidence: dict[str, Any] | None = None,
 ) -> WorkerJobReconciliation:
     """Apply recovery policy independently to each job owned by a lost worker.
 
@@ -1562,11 +1641,7 @@ def reconcile_jobs_for_worker_loss(
         )
     )
     authorized_query = owned_query
-    from app.services.pipeline_execution_authority import (
-        apply_job_execution_authority_scope,
-    )
-
-    authorized_query = apply_job_execution_authority_scope(authorized_query)
+    authorized_query = authorized_query.where(_job_recovery_authority_predicate())
     owned_ids = tuple(
         int(value.id if isinstance(value, BackgroundJob) else value)
         for value in db.scalars(owned_query.with_only_columns(BackgroundJob.id)).all()
@@ -1582,17 +1657,58 @@ def reconcile_jobs_for_worker_loss(
     authorized_ids = {int(job.id) for job in jobs}
     fenced: list[int] = []
     cancelled: list[int] = []
+    finalized: list[int] = []
     for job in jobs:
+        old_token = job.execution_token
+        if failure_code == "WORKER_MEMORY_CRITICAL":
+            interrupted_stage = _observed_pipeline_stage_before_fence(db, job)
+            _record_progress_recovery(
+                job,
+                _memory_recovery_identity(db, job, interrupted_stage=interrupted_stage),
+                observed_at=observed_at,
+                failure_reason=reason,
+            )
+            if memory_evidence is not None:
+                metadata = dict(job.operational_metadata_json or {})
+                recovery = dict(metadata.get("progress_recovery") or {})
+                attempt = dict(metadata.get("current_attempt") or {})
+                recovery["memory_evidence"] = {
+                    **memory_evidence,
+                    "stage": interrupted_stage,
+                    "subphase": (
+                        job.progress_current_item
+                        if job.progress_stage == interrupted_stage else None
+                    ),
+                    "sector_phase": (
+                        (metadata.get("sector_progress") or {}).get("phase")
+                        if interrupted_stage == "SECTOR_ROTATION_SNAPSHOT"
+                        and job.progress_stage == interrupted_stage else None
+                    ),
+                    "attempt_number": attempt.get("attempt_number"),
+                    "attempt_started_at": attempt.get("started_at"),
+                }
+                metadata["progress_recovery"] = recovery
+                job.operational_metadata_json = metadata
+        if _finalize_terminal_pipeline_publication(
+            db,
+            job,
+            now=observed_at,
+            cause_code=failure_code or "WORKER_PROCESS_LOST",
+            reason=reason,
+        ):
+            finalized.append(int(job.id))
+            continue
         if job.requested_cancel:
             _finalize_recovery_cancellation(db, job, now=observed_at)
             cancelled.append(int(job.id))
             continue
-        old_token = job.execution_token
-        if failure_code == "WORKER_MEMORY_CRITICAL":
-            _record_progress_recovery(
-                job, _memory_recovery_identity(db, job),
-                observed_at=observed_at, failure_reason=reason,
-            )
+        _interrupt_fenced_pipeline_steps(
+            db,
+            job,
+            observed_at=observed_at,
+            reason_code=failure_code or "WORKER_PROCESS_LOST",
+            reason_message=reason,
+        )
         job.status = JobStatus.STALLED
         job.stall_detected_at = observed_at
         job.error_message = _safe_error(reason)
@@ -1615,6 +1731,7 @@ def reconcile_jobs_for_worker_loss(
     return WorkerJobReconciliation(
         fenced_job_ids=tuple(fenced),
         cancelled_job_ids=tuple(cancelled),
+        finalized_job_ids=tuple(finalized),
         untouched_job_ids=tuple(job_id for job_id in owned_ids if job_id not in authorized_ids),
     )
 
@@ -2151,7 +2268,8 @@ def recover_stale_jobs(
         .where(BackgroundJob.status == JobStatus.RUNNING)
         .where(BackgroundJob.lease_expires_at.is_not(None))
         .where(BackgroundJob.lease_expires_at < now)
-        .where(_job_execution_authority_predicate())
+        .where(_job_recovery_authority_predicate())
+        .with_for_update(skip_locked=True)
     ).all()
 
     eligible = [
@@ -2182,7 +2300,8 @@ def recover_abandoned_jobs_for_worker(
         .where(BackgroundJob.worker_id == worker_id)
         .where(BackgroundJob.heartbeat_at.is_not(None))
         .where(BackgroundJob.heartbeat_at < heartbeat_cutoff)
-        .where(_job_execution_authority_predicate())
+        .where(_job_recovery_authority_predicate())
+        .with_for_update(skip_locked=True)
     ).all()
     eligible = [
         job
@@ -2198,11 +2317,26 @@ def recover_abandoned_jobs_for_worker(
 def _recover_jobs(db: Session, jobs: Iterable[BackgroundJob], *, now: datetime) -> int:
     recovered_count = 0
     for job in jobs:
+        if _finalize_terminal_pipeline_publication(
+            db,
+            job,
+            now=now,
+            cause_code="JOB_STALE_LEASE_RECOVERED",
+            reason="Recovered terminal pipeline publication after a stale worker lock.",
+        ):
+            continue
         if job.requested_cancel:
             _finalize_recovery_cancellation(db, job, now=now)
             continue
         old_worker_id = job.worker_id
         old_execution_token = job.execution_token
+        _interrupt_fenced_pipeline_steps(
+            db,
+            job,
+            observed_at=now,
+            reason_code="JOB_STALE_LEASE_RECOVERED",
+            reason_message="Recovered after stale worker lock.",
+        )
         job.locked_at = None
         job.heartbeat_at = None
         job.lease_expires_at = None
@@ -2257,6 +2391,167 @@ def _job_execution_authority_predicate() -> Any:
     )
 
     return job_execution_authority_predicate()
+
+
+def _job_recovery_authority_predicate() -> Any:
+    """Allow closing a published root without granting it execution authority."""
+    from sqlalchemy import and_, exists
+
+    from app.models.tables import PipelineDependency
+    from app.services.pipeline_execution_authority import (
+        payload_pipeline_id_expression,
+        pipeline_activation_predicate,
+    )
+
+    terminal = exists(
+        select(PipelineRun.id)
+        .where(
+            PipelineRun.id == payload_pipeline_id_expression(),
+            PipelineRun.execution_authority_state == "ACTIVE",
+            PipelineRun.status.in_(("COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED")),
+            PipelineRun.scope_id.is_not(None),
+            PipelineRun.scope_id == BackgroundJob.scope_id,
+            PipelineRun.refresh_cycle_id == BackgroundJob.refresh_cycle_id,
+            PipelineRun.acquisition_plan_id == BackgroundJob.acquisition_plan_id,
+            PipelineRun.upload_run_id == BackgroundJob.related_run_id,
+            BackgroundJob.payload_json["scope_id"].as_string() == BackgroundJob.scope_id,
+            BackgroundJob.payload_json["refresh_cycle_id"].as_string()
+            == BackgroundJob.refresh_cycle_id,
+            BackgroundJob.payload_json["acquisition_plan_id"].as_string()
+            == BackgroundJob.acquisition_plan_id,
+            pipeline_activation_predicate(),
+            or_(
+                BackgroundJob.pipeline_dependency_id.is_(None),
+                exists(
+                    select(PipelineDependency.id)
+                    .where(
+                        PipelineDependency.id == BackgroundJob.pipeline_dependency_id,
+                        PipelineDependency.pipeline_run_id == PipelineRun.id,
+                    )
+                    .correlate(PipelineRun, BackgroundJob)
+                ),
+            ),
+        )
+        .correlate(BackgroundJob)
+    )
+    published_root = and_(BackgroundJob.job_type == "FULL_PIPELINE", terminal)
+    minimum = get_settings().job_activation_min_id
+    if minimum:
+        published_root = and_(
+            published_root,
+            BackgroundJob.id >= minimum,
+            *(
+                or_(column.is_(None), column >= minimum)
+                for column in (
+                    BackgroundJob.root_job_id,
+                    BackgroundJob.parent_job_id,
+                    BackgroundJob.triggered_by_job_id,
+                )
+            ),
+        )
+    return or_(_job_execution_authority_predicate(), published_root)
+
+
+def _finalize_terminal_pipeline_publication(db, job, *, now, cause_code, reason) -> bool:
+    """Close only operational ownership after the pipeline's terminal commit won."""
+    if job.status not in {JobStatus.RUNNING, JobStatus.STALLED, JobStatus.RECOVERING}:
+        return False
+    if job.job_type != "FULL_PIPELINE":
+        return False
+    raw_id = (job.payload_json or {}).get("pipeline_run_id")
+    if isinstance(raw_id, bool) or not isinstance(raw_id, (int, str)):
+        return False
+    try:
+        pipeline_id = int(raw_id)
+    except (TypeError, ValueError):
+        return False
+    if str(pipeline_id) != str(raw_id) or not 0 < pipeline_id <= 9223372036854775807:
+        return False
+    pipeline = db.get(PipelineRun, pipeline_id)
+    states = {
+        "COMPLETED": JobStatus.COMPLETED,
+        "PARTIAL": JobStatus.COMPLETED,
+        "FAILED": JobStatus.FAILED,
+        "BLOCKED": JobStatus.BLOCKED,
+        "CANCELLED": JobStatus.CANCELLED,
+    }
+    if pipeline is None or pipeline.status not in states:
+        return False
+    from app.services.pipeline_execution_authority import pipeline_is_in_activation_scope
+    from app.services.scope_refresh_adoption import SemanticAuthorityError, validate_same_authority
+
+    if pipeline.execution_authority_state != "ACTIVE" or not pipeline_is_in_activation_scope(
+        pipeline
+    ):
+        return False
+    minimum = get_settings().job_activation_min_id
+    if minimum and any(
+        value is not None and value < minimum
+        for value in (job.id, job.root_job_id, job.parent_job_id, job.triggered_by_job_id)
+    ):
+        return False
+    if job.related_run_id != pipeline.upload_run_id:
+        return False
+    if any(
+        (job.payload_json or {}).get(name) != getattr(job, name)
+        for name in (
+            "scope_id",
+            "refresh_cycle_id",
+            "acquisition_plan_id",
+        )
+    ):
+        return False
+    if job.pipeline_dependency_id is not None:
+        from app.models.tables import PipelineDependency
+
+        dependency = db.get(PipelineDependency, job.pipeline_dependency_id)
+        if dependency is None or dependency.pipeline_run_id != pipeline.id:
+            return False
+    try:
+        validate_same_authority(pipeline, job)
+    except SemanticAuthorityError:
+        return False
+    status = states[pipeline.status]
+    old_worker, old_token = job.worker_id, job.execution_token
+    metadata = dict(job.operational_metadata_json or {})
+    metadata["terminal_publication_recovery"] = {
+        "version": "pipeline-terminal-publication-recovery-v1",
+        "pipeline_status": pipeline.status,
+        "cause_code": cause_code,
+        "reason": _safe_error(reason),
+        "observed_at": now.isoformat(),
+        "attempt_number": (metadata.get("current_attempt") or {}).get("attempt_number"),
+    }
+    job.operational_metadata_json = _with_attempt_finished(
+        _with_lease_event(
+            metadata,
+            event_type="PIPELINE_TERMINAL_PUBLICATION_RECONCILED",
+            occurred_at=now,
+            worker_id=old_worker,
+            execution_token=old_token,
+        ),
+        finished_at=now,
+        status=status,
+    )
+    job.status = status
+    job.completed_at = now
+    job.result_json = {
+        **(job.result_json or {}),
+        "pipeline_run_id": pipeline.id,
+        "status": pipeline.status,
+        "terminal_publication_reconciled": True,
+    }
+    job.error_message = (
+        pipeline.error_message if status in {JobStatus.FAILED, JobStatus.BLOCKED} else None
+    )
+    job.worker_id = job.worker_instance_id = job.lease_owner = job.execution_token = None
+    job.locked_at = job.heartbeat_at = job.lease_expires_at = None
+    if status == JobStatus.CANCELLED:
+        job.requested_cancel = True
+    publish_after_commit(
+        db, "increment", "swinglens_jobs_finished_total", job_type=job.job_type, status=status
+    )
+    return True
 
 
 def _finalize_recovery_cancellation(

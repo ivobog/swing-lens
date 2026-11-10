@@ -6,11 +6,14 @@ the identity, configuration, exact sources and manifest that it is writing.
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from collections.abc import MutableMapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import wraps
 from inspect import signature
+from sys import getsizeof
 
 from sqlalchemy.orm import Session, object_session
 
@@ -40,6 +43,9 @@ from app.services.producer_readiness import readiness_from_evidence
 _active_writers = ContextVar("core_mutation_semantic_transactions", default=())
 _coalesced_writer_sessions = ContextVar("coalesced_core_writer_sessions", default=())
 _sector_source_records = ContextVar("sector_source_records", default=None)
+SECTOR_EVIDENCE_FETCH_BATCH_SIZE = 32
+SECTOR_EVIDENCE_RESIDENT_LIMIT = 64
+SECTOR_EVIDENCE_RESIDENT_BYTES = 64 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -149,7 +155,10 @@ def core_mutation_context(
                 )
             )
         for role, manifest in sorted(manifests.items()):
-            fingerprint = Canonical.fingerprint(manifest)
+            fingerprint = (
+                sector_payload_fingerprint(manifest, label=f"manifest:{role}")
+                if domain is MutationDomain.SECTOR else Canonical.fingerprint(manifest)
+            )
             pins.append(
                 MutationEvidenceReference(role, "native_manifest", fingerprint, fingerprint)
             )
@@ -360,7 +369,11 @@ def _validate_configuration(db, context, configuration):
 def _validate_evidence(evidence):
     if evidence is None:
         raise ValueError("MUTATION_SOURCE_EVIDENCE_MISSING")
-    if Canonical.fingerprint(evidence.payload_json) != evidence.payload_fingerprint:
+    if _sector_source_records.get() is not None or evidence.artifact_kind == "SECTOR":
+        observed = sector_payload_fingerprint(evidence.payload_json, label=f"source:{evidence.id}")
+    else:
+        observed = Canonical.fingerprint(evidence.payload_json)
+    if observed != evidence.payload_fingerprint:
         raise ValueError("MUTATION_SOURCE_PAYLOAD_FINGERPRINT_MISMATCH")
     identity = CalculationIdentity.from_canonical_payload(evidence.calculation_identity_json)
     if str(identity.fingerprint()) != evidence.calculation_identity_fingerprint:
@@ -440,6 +453,11 @@ def _validate_evidence(evidence):
         }
     ):
         raise ValueError("MUTATION_SOURCE_EVIDENCE_KEY_MISMATCH")
+
+
+def validate_evidence(evidence):
+    """Revalidate the full immutable payload, identity, configuration and evidence key."""
+    return _validate_evidence(evidence)
 
 
 def validate_source_configuration(db, identity, evidence, execution=None, cache=None):
@@ -1165,7 +1183,10 @@ def artifact_mutation_context(
 
 
 def require_payload_reference(identity, kind, payload):
-    expected = Canonical.fingerprint(payload)
+    expected = (
+        sector_payload_fingerprint(payload, label=kind)
+        if kind == "sector-rotation-input-envelope" else Canonical.fingerprint(payload)
+    )
     if not any(
         ref.artifact_type == kind
         and ref.fingerprint.value is not None
@@ -1217,17 +1238,17 @@ def validate_sector_permission(evidence, universe_rows, permission_index=None):
 
 
 @contextmanager
-def sector_evidence_read_scope(db):
-    """Keep immutable inputs resident for one writer, Session and attempt.
+def sector_evidence_read_scope(db, *, checkpoint_callback=None):
+    """Bound immutable input residency to one writer, Session and attempt.
 
     This stores records, never successful validation or ownership decisions.
     Every pass still checks database existence and revalidates the full seals.
     """
     connection = db.connection(bind_arguments={"mapper": CoreCalculationEvidence})
-    records = {}
+    records = _SectorResidentRecords()
     token = _sector_source_records.set((
         db, db.get_transaction(), current_domain_write_ownership(),
-        connection, connection.get_transaction(), records,
+        connection, connection.get_transaction(), records, checkpoint_callback,
     ))
     try:
         yield
@@ -1236,40 +1257,200 @@ def sector_evidence_read_scope(db):
         _sector_source_records.reset(token)
 
 
-def _sector_evidence_rows(db, evidence_ids):
-    from sqlalchemy import inspect, select
-
-    def load(ids):
-        return {
-            row.id: row for row in db.scalars(
-                select(CoreCalculationEvidence).where(CoreCalculationEvidence.id.in_(tuple(ids)))
-            )
-        }
+def sector_payload_fingerprint(value, *, label="sector-payload"):
+    from app.services.sector_serialization import sector_hash_progress
 
     scope = _sector_source_records.get()
-    if not (
+    callback = scope[6] if scope is not None else None
+    return Canonical.fingerprint_streaming(
+        value, progress_callback=sector_hash_progress(callback, label),
+    )
+
+
+def _sector_resident_records(db):
+    scope = _sector_source_records.get()
+    if (
         scope is not None and scope[0] is db and scope[1] is db.get_transaction()
         and scope[2] == current_domain_write_ownership() and not scope[3].closed
         and scope[3] is db.connection(bind_arguments={"mapper": CoreCalculationEvidence})
         and scope[4] is scope[3].get_transaction()
     ):
-        return load(evidence_ids)
-    # A full ORM SELECT also retains already resident values without refreshing
-    # them. Check existence again, but avoid decoding their JSON a second time.
-    existing = set(db.scalars(
-        select(CoreCalculationEvidence.id).where(
-            CoreCalculationEvidence.id.in_(tuple(evidence_ids))
-        )
-    ))
-    records = scope[5]
-    columns = set(CoreCalculationEvidence.__mapper__.column_attrs.keys())
-    missing = {
-        key for key in existing
-        if key not in records or columns.intersection(inspect(records[key]).unloaded)
-    }
-    if missing:
-        records.update(load(missing))
-    return {key: records[key] for key in existing if key in records}
+        return scope[5]
+    return None
+
+
+def _decoded_evidence_size(row):
+    """Measure retained decoded values without creating another serialized document."""
+    pending = [row.calculation_identity_json, row.payload_json, row.source_evidence_ids_json]
+    seen = set()
+    size = getsizeof(row)
+    while pending:
+        value = pending.pop()
+        address = id(value)
+        if address in seen:
+            continue
+        seen.add(address)
+        size += getsizeof(value)
+        if isinstance(value, dict):
+            pending.extend(value.keys())
+            pending.extend(value.values())
+        elif isinstance(value, (list, tuple)):
+            pending.extend(value)
+    return size
+
+
+class _SectorResidentRecords(OrderedDict):
+    def __init__(self):
+        super().__init__()
+        self.decoded_bytes = 0
+        self._sizes = {}
+
+    def retain(self, row):
+        size = _decoded_evidence_size(row)
+        if row.id in self:
+            self.pop(row.id)
+        if size > SECTOR_EVIDENCE_RESIDENT_BYTES:
+            return
+        self[row.id] = row
+        self._sizes[row.id] = size
+        self.decoded_bytes += size
+        while (len(self) > SECTOR_EVIDENCE_RESIDENT_LIMIT
+               or self.decoded_bytes > SECTOR_EVIDENCE_RESIDENT_BYTES):
+            self.pop(next(iter(self)))
+
+    def pop(self, key, *default):
+        value = super().pop(key, *default)
+        self.decoded_bytes -= self._sizes.pop(key, 0)
+        return value
+
+    def clear(self):
+        super().clear()
+        self._sizes.clear()
+        self.decoded_bytes = 0
+
+
+class _SectorEvidenceRows(MutableMapping):
+    """Exact addresses with bounded decoded bodies; no validation results are retained."""
+
+    def __init__(self, db, evidence_ids):
+        self.db = db
+        self._ids = set(evidence_ids)
+        self._ordered = None
+        self._positions = {}
+        self._local_records = _SectorResidentRecords()
+        self._transaction = db.get_transaction()
+        self._ownership = current_domain_write_ownership()
+        self.peak_resident_count = 0
+        self.peak_resident_bytes = 0
+        self.full_load_batches = 0
+
+    def _records(self):
+        shared = _sector_resident_records(self.db)
+        if shared is not None:
+            return shared
+        transaction = self.db.get_transaction()
+        ownership = current_domain_write_ownership()
+        if self._transaction is not transaction or self._ownership != ownership:
+            self._local_records.clear()
+            self._transaction = transaction
+            self._ownership = ownership
+        return self._local_records
+
+    @property
+    def resident_count(self):
+        return len(self._records())
+
+    @property
+    def resident_bytes(self):
+        return self._records().decoded_bytes
+
+    def _retain(self, records, row):
+        records.retain(row)
+        self.peak_resident_count = max(self.peak_resident_count, len(records))
+        self.peak_resident_bytes = max(self.peak_resident_bytes, records.decoded_bytes)
+
+    def __getitem__(self, key):
+        from sqlalchemy import inspect, select
+
+        if key not in self._ids:
+            raise KeyError(key)
+        records = self._records()
+        columns = set(CoreCalculationEvidence.__mapper__.column_attrs.keys())
+
+        def loaded(address):
+            row = records.get(address)
+            return row is not None and not columns.intersection(inspect(row).unloaded)
+
+        if not loaded(key):
+            if self._ordered is None:
+                self._ordered = sorted(self._ids)
+                self._positions = {address: index for index, address in enumerate(self._ordered)}
+            offset = self._positions[key] // SECTOR_EVIDENCE_FETCH_BATCH_SIZE
+            start = offset * SECTOR_EVIDENCE_FETCH_BATCH_SIZE
+            ids = [address for address in self._ordered[
+                start:start + SECTOR_EVIDENCE_FETCH_BATCH_SIZE
+            ] if not loaded(address)]
+            requested = None
+            for row in self.db.scalars(select(CoreCalculationEvidence).where(
+                CoreCalculationEvidence.id.in_(ids),
+            )):
+                self._retain(records, row)
+                if row.id == key:
+                    requested = row
+            self.full_load_batches += 1
+            # A single large immutable body is validated by the caller without
+            # retaining it in the cache or decoding an additional full copy.
+            if requested is not None and not loaded(key):
+                return requested
+        if not loaded(key):
+            raise KeyError(key)
+        records.move_to_end(key)
+        return records[key]
+
+    def __setitem__(self, key, row):
+        if key != row.id:
+            raise ValueError("MUTATION_SOURCE_EVIDENCE_ADDRESS_MISMATCH")
+        self._ids.add(key)
+        self._ordered = None
+        self._retain(self._records(), row)
+
+    def __delitem__(self, key):
+        self._ids.remove(key)
+        self._ordered = None
+        self._records().pop(key, None)
+
+    def __iter__(self):
+        return iter(sorted(self._ids))
+
+    def __len__(self):
+        return len(self._ids)
+
+    def update(self, other=(), **kwargs):
+        if isinstance(other, _SectorEvidenceRows) and other.db is self.db:
+            self._ids.update(other._ids)
+            self._ordered = None
+        else:
+            super().update(other)
+        if kwargs:
+            super().update(kwargs)
+
+
+def sector_evidence_rows(db, evidence_ids):
+    """Recheck exact existence; decode immutable JSON only in small access windows.
+
+    Body, configuration, permission and ownership checks remain the caller's
+    responsibility on every pass, including after a body is reloaded or evicted.
+    """
+    from sqlalchemy import select
+
+    existing = set(db.scalars(select(CoreCalculationEvidence.id).where(
+        CoreCalculationEvidence.id.in_(tuple(evidence_ids)),
+    )))
+    return _SectorEvidenceRows(db, existing)
+
+
+def _sector_evidence_rows(db, evidence_ids):
+    return sector_evidence_rows(db, evidence_ids)
 
 
 def validate_sector_manifest(

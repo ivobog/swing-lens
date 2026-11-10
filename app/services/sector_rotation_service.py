@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, replace
+from dataclasses import replace
 from datetime import date
 from typing import Any
 
@@ -54,6 +54,7 @@ from app.services.sector_rotation_repository import (
     SectorRotationRowWrite,
     SectorRotationSnapshotWrite,
 )
+from app.services.sector_serialization import sector_dataclass_payload
 from app.services.sector_universe_service import (
     SectorUniverseService,
     _coherent_compatible_rankings,
@@ -331,6 +332,13 @@ def build_sector_rotation_snapshot(
             "SOURCE_ROWS_LOADED", len(source_artifacts), len(source_artifacts),
             "ranking-regime-prior",
         )
+        input_envelope = sector_dataclass_payload({
+            "mode": mode,
+            "default_ranking_profile": default_profile,
+            "universe_rows": universe_rows,
+            CONTEXTUAL_ELIGIBILITY_KEY: dto.debug[CONTEXTUAL_ELIGIBILITY_KEY],
+            "etf_rows": etf_rows,
+        })
         identity = build_contextual_result_identity(
             base=base,
             namespace="sector-rotation",
@@ -338,25 +346,14 @@ def build_sector_rotation_snapshot(
             calculation_version=CALCULATION_VERSION,
             engine_version=CALCULATION_VERSION,
             source_artifacts=source_artifacts,
-            source_payload={
-                "mode": mode,
-                "default_ranking_profile": default_profile,
-                "universe_rows": [asdict(row) for row in universe_rows],
-                CONTEXTUAL_ELIGIBILITY_KEY: dto.debug[CONTEXTUAL_ELIGIBILITY_KEY],
-                "etf_rows": [asdict(row) for row in etf_rows],
-            },
+            source_payload=input_envelope,
+            source_payload_checkpoint_callback=checkpoint_callback,
         )
         dto = replace(
             dto,
             debug={
                 **dto.debug,
-                "native_input_envelope": {
-                    "mode": mode,
-                    "default_ranking_profile": default_profile,
-                    "universe_rows": [asdict(row) for row in universe_rows],
-                    CONTEXTUAL_ELIGIBILITY_KEY: dto.debug[CONTEXTUAL_ELIGIBILITY_KEY],
-                    "etf_rows": [asdict(row) for row in etf_rows],
-                },
+                "native_input_envelope": input_envelope,
             },
         )
         identity = replace(

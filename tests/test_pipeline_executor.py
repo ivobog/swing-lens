@@ -2280,6 +2280,9 @@ def _enable_readiness_boundary(
     )
     monkeypatch.setattr(pipeline_executor, "Session", PipelineExecutorFakeDb)
     monkeypatch.setattr(
+        pipeline_executor, "_claim_pipeline_continuation_resume", lambda _db, pipeline: pipeline,
+    )
+    monkeypatch.setattr(
         pipeline_executor,
         "_pipeline_scope_tickers",
         lambda db, _pipeline: list(db.tickers),

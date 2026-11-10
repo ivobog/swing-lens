@@ -22,6 +22,7 @@ from app.services.core_mutation_authority import (
     core_writer_transaction,
     projection_mutation_context,
     require_semantic_writer,
+    sector_payload_fingerprint,
     validate_core_mutation_authority,
     validate_projection_mutation,
 )
@@ -210,9 +211,13 @@ def persist_core_evidence(
             )
         source_ids[role] = int(evidence_id)
 
-    payload = CanonicalEvidenceSerializer.canonicalize(
-        payload if payload is not None else calculation_evidence_payload(current_row)
-    )
+    raw_payload = payload if payload is not None else calculation_evidence_payload(current_row)
+    if kind is CoreEvidenceKind.SECTOR:
+        from app.services.sector_serialization import canonical_sector_payload
+
+        payload = canonical_sector_payload(raw_payload)
+    else:
+        payload = CanonicalEvidenceSerializer.canonicalize(raw_payload)
     if effective_configuration is not None:
         normalize_configuration_business_payload(
             payload, namespace=effective_configuration.family.namespace, source_ids=source_ids
@@ -233,7 +238,10 @@ def persist_core_evidence(
         evaluated_at=temporal["calculation_cutoff"].get("value"),
         business_anchor=temporal["as_of_session"].get("value"),
     ).canonical_payload()
-    payload_fingerprint = CanonicalEvidenceSerializer.fingerprint(payload)
+    payload_fingerprint = (
+        sector_payload_fingerprint(payload, label="published-sector-payload")
+        if kind is CoreEvidenceKind.SECTOR else CanonicalEvidenceSerializer.fingerprint(payload)
+    )
     identity_fingerprint = str(identity.fingerprint())
     key_payload = {
         "artifact_kind": kind.value,
