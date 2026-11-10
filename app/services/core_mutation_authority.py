@@ -866,6 +866,7 @@ def artifact_mutation_context(
     manifest = {}
     sector_evidence_rows = None
     sector_locked_source_rows = None
+    sector_permission_index = None
     if domain is MutationDomain.SETUP:
         from app.services.decision_mutation_authority import validate_setup_inputs
 
@@ -1017,12 +1018,14 @@ def artifact_mutation_context(
         if not isinstance(envelope, dict):
             raise ValueError("MUTATION_SECTOR_NATIVE_INPUT_ENVELOPE_REQUIRED")
         require_payload_reference(identity, "sector-rotation-input-envelope", envelope)
+        sector_permission_index = _sector_permission_index(envelope["universe_rows"])
         sector_evidence_rows = validate_sector_manifest(
             db,
             identity,
             envelope,
             checkpoint_callback=checkpoint_callback,
             checkpoint_phase=checkpoint_phase,
+            permission_index=sector_permission_index,
         )
         source_evidence_ids = {
             source.evidence_id for source in sources.values() if source.evidence_id is not None
@@ -1097,10 +1100,16 @@ def artifact_mutation_context(
                     total=len(sources),
                     current_item=item,
                     last_completed_item=item if processed else None,
+                    metrics=sector_evidence_rows.load_metrics(),
                 )
 
     source_role_checkpoint(0, "started")
-    for source_index, (role, source) in enumerate(sources.items(), start=1):
+    source_visits = list(enumerate(sources.items()))
+    if domain is MutationDomain.SECTOR:
+        source_visits = [source_visits[index] for index in sector_evidence_visit_order(
+            [source.evidence_id for _, source in sources.items()]
+        )]
+    for source_index, (original_index, (role, source)) in enumerate(source_visits, start=1):
         evidence = (
             sector_evidence_rows.get(source.evidence_id)
             if sector_evidence_rows is not None
@@ -1145,7 +1154,7 @@ def artifact_mutation_context(
             if domain is not MutationDomain.SECTOR or not role.startswith("ranking:"):
                 raise ValueError("MUTATION_UNDECLARED_SOURCE_ROLE: " + role)
             validate_financial_source_context(identity, evidence)
-            validate_sector_permission(evidence, envelope["universe_rows"])
+            validate_sector_permission(evidence, envelope["universe_rows"], sector_permission_index)
             source_role_checkpoint(source_index, role, evidence.id)
             continue
         policy = MUTATION_AUTHORITY_POLICIES[domain]
@@ -1167,7 +1176,7 @@ def artifact_mutation_context(
                 )
                 if Canonical.dumps(expected_policy) != Canonical.dumps(observed_policy):
                     raise ValueError("MUTATION_TECHNICAL_POLICY_CORE_CONFIGURATION_MISMATCH")
-            permissions.append(mutation_eligibility(role, evidence, frozen))
+            permissions.append((original_index, mutation_eligibility(role, evidence, frozen)))
         source_role_checkpoint(source_index, role, evidence.id)
     context = core_mutation_context(
         db,
@@ -1176,7 +1185,7 @@ def artifact_mutation_context(
         configuration=configuration,
         sources=native_sources,
         manifests=manifest,
-        eligibility=tuple(permissions),
+        eligibility=tuple(value for _, value in sorted(permissions, key=lambda item: item[0])),
         entrypoint=type(current_row).__name__,
     )
     return context, native_sources, manifest
@@ -1204,6 +1213,22 @@ def validate_financial_source_context(identity, evidence):
         or source.temporal != identity.temporal
     ):
         raise ValueError("MUTATION_SOURCE_CALCULATION_CONTEXT_MISMATCH")
+
+
+def _sector_permission_index(universe_rows):
+    index = {}
+    for universe in universe_rows:
+        frozen_permissions = universe.get("debug", {}).get("contextual_consumer_eligibility") or {}
+        for frozen in frozen_permissions.values():
+            evidence_id = (frozen.get("decision") or {}).get("producer_evidence_id")
+            if evidence_id is not None:
+                index.setdefault(evidence_id, []).append(frozen)
+    return index
+
+
+def sector_evidence_visit_order(evidence_ids):
+    """Visit bounded ID windows while callers retain original roles/output positions."""
+    return sorted(range(len(evidence_ids)), key=lambda index: (evidence_ids[index] or 0, index))
 
 
 def validate_sector_permission(evidence, universe_rows, permission_index=None):
@@ -1304,19 +1329,22 @@ class _SectorResidentRecords(OrderedDict):
         super().__init__()
         self.decoded_bytes = 0
         self._sizes = {}
+        self.evictions = 0
 
     def retain(self, row):
         size = _decoded_evidence_size(row)
         if row.id in self:
             self.pop(row.id)
         if size > SECTOR_EVIDENCE_RESIDENT_BYTES:
-            return
+            return size
         self[row.id] = row
         self._sizes[row.id] = size
         self.decoded_bytes += size
         while (len(self) > SECTOR_EVIDENCE_RESIDENT_LIMIT
                or self.decoded_bytes > SECTOR_EVIDENCE_RESIDENT_BYTES):
             self.pop(next(iter(self)))
+            self.evictions += 1
+        return size
 
     def pop(self, key, *default):
         value = super().pop(key, *default)
@@ -1343,6 +1371,23 @@ class _SectorEvidenceRows(MutableMapping):
         self.peak_resident_count = 0
         self.peak_resident_bytes = 0
         self.full_load_batches = 0
+        self.body_rows_loaded = 0
+        self.decoded_body_bytes = 0
+        self.cache_hits = 0
+        self.cache_misses = 0
+
+    def load_metrics(self):
+        return {
+            "evidence_address_count": len(self._ids),
+            "evidence_bulk_load_count": self.full_load_batches,
+            "evidence_body_rows_loaded": self.body_rows_loaded,
+            "evidence_decoded_bytes_loaded": self.decoded_body_bytes,
+            "evidence_cache_hits": self.cache_hits,
+            "evidence_cache_misses": self.cache_misses,
+            "evidence_cache_evictions": self._records().evictions,
+            "evidence_peak_resident_count": self.peak_resident_count,
+            "evidence_peak_resident_bytes": self.peak_resident_bytes,
+        }
 
     def _records(self):
         shared = _sector_resident_records(self.db)
@@ -1365,9 +1410,10 @@ class _SectorEvidenceRows(MutableMapping):
         return self._records().decoded_bytes
 
     def _retain(self, records, row):
-        records.retain(row)
+        size = records.retain(row)
         self.peak_resident_count = max(self.peak_resident_count, len(records))
         self.peak_resident_bytes = max(self.peak_resident_bytes, records.decoded_bytes)
+        return size
 
     def __getitem__(self, key):
         from sqlalchemy import inspect, select
@@ -1382,6 +1428,7 @@ class _SectorEvidenceRows(MutableMapping):
             return row is not None and not columns.intersection(inspect(row).unloaded)
 
         if not loaded(key):
+            self.cache_misses += 1
             if self._ordered is None:
                 self._ordered = sorted(self._ids)
                 self._positions = {address: index for index, address in enumerate(self._ordered)}
@@ -1393,8 +1440,9 @@ class _SectorEvidenceRows(MutableMapping):
             requested = None
             for row in self.db.scalars(select(CoreCalculationEvidence).where(
                 CoreCalculationEvidence.id.in_(ids),
-            )):
-                self._retain(records, row)
+            ).order_by(CoreCalculationEvidence.id)):
+                self.decoded_body_bytes += self._retain(records, row)
+                self.body_rows_loaded += 1
                 if row.id == key:
                     requested = row
             self.full_load_batches += 1
@@ -1402,6 +1450,8 @@ class _SectorEvidenceRows(MutableMapping):
             # retaining it in the cache or decoding an additional full copy.
             if requested is not None and not loaded(key):
                 return requested
+        else:
+            self.cache_hits += 1
         if not loaded(key):
             raise KeyError(key)
         records.move_to_end(key)
@@ -1460,6 +1510,7 @@ def validate_sector_manifest(
     *,
     checkpoint_callback=None,
     checkpoint_phase=None,
+    permission_index=None,
 ):
     from sqlalchemy import select
 
@@ -1468,21 +1519,21 @@ def validate_sector_manifest(
     universe_rows = envelope["universe_rows"]
     manifests = []
     seen_manifest_fingerprints = set()
-    permission_index = {}
+    seen_manifest_objects = set()
+    if permission_index is None:
+        permission_index = _sector_permission_index(universe_rows)
     for universe in universe_rows:
         manifest = universe.get("debug", {}).get("native_source_manifest")
         if not isinstance(manifest, dict):
             raise ValueError("MUTATION_SECTOR_CONTRIBUTOR_MANIFEST_REQUIRED")
-        fingerprint = Canonical.fingerprint(manifest)
-        if fingerprint not in seen_manifest_fingerprints:
-            seen_manifest_fingerprints.add(fingerprint)
-            manifests.append(manifest)
-        for frozen in (
-            universe.get("debug", {}).get("contextual_consumer_eligibility") or {}
-        ).values():
-            evidence_id = (frozen.get("decision") or {}).get("producer_evidence_id")
-            if evidence_id is not None:
-                permission_index.setdefault(evidence_id, []).append(frozen)
+        # This loop has no callback or mutation: shared objects are fingerprinted
+        # once in this call, with no trust retained across validation passes.
+        if id(manifest) not in seen_manifest_objects:
+            seen_manifest_objects.add(id(manifest))
+            fingerprint = Canonical.fingerprint(manifest)
+            if fingerprint not in seen_manifest_fingerprints:
+                seen_manifest_fingerprints.add(fingerprint)
+                manifests.append(manifest)
 
     financial_pins = {}
     raw_pins = {}
@@ -1530,7 +1581,8 @@ def validate_sector_manifest(
 
     checkpoint("started")
     configuration_cache = {}
-    for evidence_id, pin in financial_pins.items():
+    for evidence_id in sorted(financial_pins):
+        pin = financial_pins[evidence_id]
         evidence = evidence_rows.get(evidence_id)
         _validate_evidence(evidence)
         validate_source_configuration(
@@ -1592,7 +1644,7 @@ def validate_sector_manifest(
             "manifest_traversal_count": len(manifests),
             "contributor_validation_count": total,
             "configuration_anchor_lookup_count": len(configuration_cache),
-            "evidence_bulk_load_count": len(evidence_rows),
+            **evidence_rows.load_metrics(),
             "raw_source_lock_count": len(raw_rows),
             "etf_source_lock_count": len(etf_sources),
             "evidence_source_lock_count": len(raw_rows) + len(etf_sources),

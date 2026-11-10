@@ -137,6 +137,7 @@ def build_universe_sector_metrics(
             checkpoint_callback(
                 phase="UNIVERSE_SOURCE_VALIDATION", processed=processed, total=total,
                 current_item=item, last_completed_item=item if processed else None,
+                metrics=evidence_rows.load_metrics() if isinstance(db, Session) else None,
             )
 
     checkpoint("started")
@@ -150,7 +151,13 @@ def build_universe_sector_metrics(
     def permitted(rows, policy, selector):
         nonlocal processed
         retained = []
-        for index, row in enumerate(rows):
+        visits = list(range(len(rows)))
+        if isinstance(db, Session):
+            from app.services.core_mutation_authority import sector_evidence_visit_order
+
+            visits = sector_evidence_visit_order([row.evidence_id for row in rows])
+        for index in visits:
+            row = rows[index]
             native = isinstance(db, Session)
             if native and row.evidence_id is not None:
                 # Selectors consume this exact pointer, not an independently
@@ -162,7 +169,8 @@ def build_universe_sector_metrics(
                 permissions[f"{policy.policy_version}:{index:06d}"] = permission
                 if projected is not None:
                     validate_selected_values(projected)
-                    retained.append(_sector_source_view(projected) if native else projected)
+                    view = _sector_source_view(projected) if native else projected
+                    retained.append((index, view))
             finally:
                 if native:
                     # The aggregation retains only values it actually uses after
@@ -171,12 +179,20 @@ def build_universe_sector_metrics(
                     rows[index] = None
             processed += 1
             checkpoint(f"{type(row).__name__}:{getattr(row, 'id', None)}")
-        return retained
+        return [value for _, value in sorted(retained, key=lambda item: item[0])]
 
     technicals_list = permitted(technicals_list, TECHNICAL_TO_SECTOR, technical_decision_input)
     combined_list = permitted(combined_list, COMBINED_TO_SECTOR, contextual_decision_input)
     ranking_results = permitted(ranking_results, RANKING_TO_SECTOR, contextual_decision_input)
-    for index, item in enumerate(fundamentals_list):
+    fundamental_visits = list(range(len(fundamentals_list)))
+    if isinstance(db, Session):
+        from app.services.core_mutation_authority import sector_evidence_visit_order
+
+        fundamental_visits = sector_evidence_visit_order([
+            row.evidence_id for row in fundamentals_list
+        ])
+    for index in fundamental_visits:
+        item = fundamentals_list[index]
         validate_selected_values(item)
         if isinstance(db, Session):
             fundamentals_list[index] = _sector_source_view(item)

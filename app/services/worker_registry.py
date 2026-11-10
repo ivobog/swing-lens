@@ -5,10 +5,12 @@ import socket
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 from uuid import uuid4
+from weakref import WeakKeyDictionary
 
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundWorker
@@ -19,6 +21,8 @@ from app.services.background_queue import job_queue_class, normalize_worker_queu
 from app.services.process_identity import process_started_at
 
 WORKER_INFRASTRUCTURE_DEGRADED_PREFIX = "INFRASTRUCTURE_DEGRADED:"
+_telemetry_capabilities = WeakKeyDictionary()
+_telemetry_capabilities_lock = Lock()
 
 
 @dataclass(frozen=True)
@@ -260,10 +264,37 @@ def mark_worker_infrastructure_healthy(
 
 def _telemetry_columns_available(db: Session) -> bool:
     try:
-        names = {
-            column["name"] for column in sa_inspect(db.get_bind()).get_columns("background_workers")
-        }
-        return "telemetry_status" in names
+        connection = db.connection()
+        engine = connection.engine
+        if connection.dialect.name != "postgresql":
+            return "telemetry_status" in {
+                column["name"]
+                for column in sa_inspect(connection).get_columns("background_workers")
+            }
+        with _telemetry_capabilities_lock:
+            known_generation = _telemetry_capabilities.get(engine)
+        if known_generation is None and not sa_inspect(connection).has_table("alembic_version"):
+            # Legacy partial stores must not poison the heartbeat transaction
+            # with a SELECT against a missing migration marker.
+            return "telemetry_status" in {
+                column["name"]
+                for column in sa_inspect(connection).get_columns("background_workers")
+            }
+        # Startup verifies Alembic head before workers run. Recheck only its small
+        # version marker here; never cache across engines or schema generations.
+        heads = tuple(db.scalars(text(
+            "SELECT version_num FROM alembic_version ORDER BY version_num"
+        )))
+        with _telemetry_capabilities_lock:
+            cached = _telemetry_capabilities.get(engine)
+            if cached is not None and cached[0] == heads:
+                return cached[1]
+            available = "telemetry_status" in {
+                column["name"]
+                for column in sa_inspect(connection).get_columns("background_workers")
+            }
+            _telemetry_capabilities[engine] = (heads, available)
+            return available
     except Exception:
         return False
 

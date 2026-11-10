@@ -33,6 +33,31 @@ def process_is_alive(
     return abs(actual_started_at - expected) <= timedelta(seconds=2)
 
 
+def inspect_process_identity(process_id, expected_started_at):
+    """Observe exact OS identity without conflating denied inspection with death."""
+    import psutil
+
+    if process_id is None or int(process_id) <= 0:
+        return {"state": "DEAD", "reason": "INVALID_PID"}
+    try:
+        process = psutil.Process(int(process_id))
+        actual = datetime.fromtimestamp(process.create_time(), UTC)
+        if process.status() == psutil.STATUS_ZOMBIE:
+            return {"state": "DEAD", "reason": "PROCESS_EXITED"}
+    except psutil.NoSuchProcess:
+        return {"state": "DEAD", "reason": "PROCESS_EXITED"}
+    except (psutil.AccessDenied, OSError) as exc:
+        return {"state": "UNKNOWN", "reason": "INSPECTION_UNAVAILABLE",
+                "error_type": type(exc).__name__}
+    if expected_started_at is None:
+        return {"state": "UNKNOWN", "reason": "CREATION_TIME_UNBOUND"}
+    if abs(actual - _as_utc(expected_started_at)) > timedelta(seconds=2):
+        return {"state": "DEAD", "reason": "PID_REUSED",
+                "actual_started_at": actual.isoformat()}
+    return {"state": "ALIVE", "reason": "PID_AND_CREATION_TIME_MATCH",
+            "actual_started_at": actual.isoformat()}
+
+
 def _windows_started_at(pid: int) -> datetime:
     import ctypes
     from ctypes import wintypes

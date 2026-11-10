@@ -23,6 +23,7 @@ def _isolated_probe_environment(database_url, source_root):
         "SECTOR_SCALE_ACTIVE_DATABASE_URL": active_reference,
         "SWINGLENS_DATABASE_SAFETY_CONTEXT": "DISPOSABLE_TEST",
         "JOB_WORKER_ENABLED": "false", "MARKET_DATA_PREWARM_ENABLED": "false",
+        "DB_MONITOR_ENABLED": "false", "OBSERVABILITY_METRICS_ENABLED": "false",
         "WINNER_PROBABILITY_AUTO_MATURATION_ENABLED": "false",
         "WINNER_PROBABILITY_AUTO_COHORT_REFRESH_ENABLED": "false",
         "PYTHONPATH": os.pathsep.join((str(source_root), str(source_root / "tests"))),

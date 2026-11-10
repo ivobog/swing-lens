@@ -1621,6 +1621,7 @@ def reconcile_jobs_for_worker_loss(
     now: datetime | None = None,
     failure_code: str | None = None,
     memory_evidence: dict[str, Any] | None = None,
+    liveness_evidence: dict[str, Any] | None = None,
 ) -> WorkerJobReconciliation:
     """Apply recovery policy independently to each job owned by a lost worker.
 
@@ -1660,6 +1661,13 @@ def reconcile_jobs_for_worker_loss(
     finalized: list[int] = []
     for job in jobs:
         old_token = job.execution_token
+        if liveness_evidence is not None:
+            job.operational_metadata_json = {
+                **(job.operational_metadata_json or {}),
+                "last_worker_liveness": {
+                    **liveness_evidence, "fenced_at": observed_at.isoformat(),
+                },
+            }
         if failure_code == "WORKER_MEMORY_CRITICAL":
             interrupted_stage = _observed_pipeline_stage_before_fence(db, job)
             _record_progress_recovery(

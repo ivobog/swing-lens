@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated
 from urllib.parse import urlencode
@@ -1939,6 +1939,13 @@ def _pipeline_status_payload(
     root_job = db.get(BackgroundJob, status.background_job_id) if status.background_job_id else None
     job = _pipeline_observability_job(db, status, root_job)
     worker = db.get(BackgroundWorker, job.worker_id) if job is not None and job.worker_id else None
+    observed_at = datetime.now(UTC)
+
+    def age_seconds(value):
+        if not isinstance(value, datetime):
+            return None
+        stamp = value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        return round(max(0.0, (observed_at - stamp).total_seconds()), 1)
     projected_result = dict(status.result_json or {})
     if job is not None and job.job_type == "SEC_READINESS_REPAIR":
         child_repair = dict((job.operational_metadata_json or {}).get("sec_repair") or {})
@@ -1957,6 +1964,33 @@ def _pipeline_status_payload(
         "progress_recovery", "recovery_continuation", "terminal_publication_recovery",
     )):
         recovery_job = root_job
+    sector_progress = (
+        dict(observed_metadata.get("sector_progress") or {})
+        if status.current_step == "SECTOR_ROTATION_SNAPSHOT"
+        and job is not None and job.progress_stage == "SECTOR_ROTATION_SNAPSHOT"
+        and status.status not in PIPELINE_TERMINAL_STATUSES else {}
+    )
+    if sector_progress:
+        phase = str(sector_progress.get("phase") or "")
+        sector_progress["label"] = {
+            "RESUME_AUTHORITY_VALIDATION": "Checking saved checkpoint",
+            "UNIVERSE_INPUTS_LOADED": "Loading company inputs",
+            "UNIVERSE_SOURCE_VALIDATION": "Checking company inputs",
+            "DECLARATION_VALIDATION": "Checking snapshot inputs",
+            "DECLARATION_VALIDATION_SOURCE_ROLES": "Checking snapshot sources",
+            "PERSISTENCE_VALIDATION": "Preparing snapshot publication",
+            "PERSISTENCE_VALIDATION_SOURCE_LOCKS": "Preparing snapshot publication",
+            "PERSISTENCE_VALIDATION_SOURCE_ROLES": "Checking sources before publication",
+            "PERSISTENCE_CANONICAL_HASH": "Sealing snapshot",
+            "SNAPSHOT_STAGED": "Committing snapshot",
+        }.get(phase, phase.replace("_", " ").capitalize())
+        phase_metrics = (sector_progress.get("validation_metrics") or {}).get(phase) or {}
+        hashed = phase_metrics.get("canonical_bytes_hashed")
+        sector_progress["progress_label"] = (
+            f"{hashed / (1024 * 1024):,.1f} MiB processed"
+            if isinstance(hashed, (int, float))
+            else f"{sector_progress.get('processed', 0)} / {sector_progress.get('total', 0)}"
+        )
     return {
         "pipeline_run_id": status.pipeline_run_id,
         "upload_run_id": status.upload_run_id,
@@ -1987,12 +2021,17 @@ def _pipeline_status_payload(
         "worker_rss_bytes": worker.rss_bytes if worker else None,
         "worker_private_bytes": worker.private_bytes if worker else None,
         "last_progress_at": job.last_progress_at if job else None,
+        "business_progress_age_seconds": age_seconds(job.last_progress_at if job else None),
+        "worker_heartbeat_age_seconds": age_seconds(worker.heartbeat_at if worker else None),
         "progress_sequence": job.progress_sequence if job else 0,
         "progress_stage": job.progress_stage if job else None,
         "current_item": job.progress_current_item if job else None,
         "last_completed_item": job.progress_last_completed_item if job else None,
-        "processed_item_count": job.progress_processed if job else 0,
-        "total_item_count": job.progress_total if job else None,
+        "processed_item_count": sector_progress.get(
+            "processed", job.progress_processed if job else 0,
+        ),
+        "total_item_count": sector_progress.get("total", job.progress_total if job else None),
+        "sector_progress": sector_progress,
         "checkpoint_version": job.checkpoint_version if job else None,
         "stall_detected_at": job.stall_detected_at if job else None,
         "recovery_count": job.recovery_count if job else 0,
@@ -2047,6 +2086,32 @@ def _pipeline_recovery_fields(
           == "pipeline-terminal-publication-recovery-v1") else {}
     message = None
     reason = recovery.get("failure_reason")
+    liveness = metadata.get("last_worker_liveness") or {}
+    if continuation.get("cause_code") == "WORKER_PROCESS_LOST":
+        latest_liveness = (
+            liveness if isinstance(liveness, dict)
+            and liveness.get("fenced_at") == continuation.get("fenced_at")
+            and continuation.get("fenced_at") else {}
+        )
+        reason_code = latest_liveness.get("decision", "WORKER_PROCESS_LOST")
+        reason = {
+            "WORKER_HEARTBEAT_STALE": "The worker's execution heartbeats stopped updating.",
+            "WORKER_INSPECTION_UNAVAILABLE": (
+                "The worker's process identity could not be confirmed."
+            ),
+            "WORKER_PROCESS_EXITED": "The registered worker process ended or its PID was reused.",
+            "WORKER_CONTROL_LOOP_STALE": "The worker's control loop stopped responding.",
+        }.get(reason_code, "The worker was replaced after execution ownership was lost.")
+        evidence = {}
+        message = reason
+        if continuation.get("validation_state") == "PENDING" and job.status == "RUNNING":
+            message += " Recovery is validating the saved checkpoint."
+        elif continuation.get("validation_state") == "VALIDATED":
+            message += " Recovery resumed from the validated checkpoint."
+        elif job.status in {"QUEUED", "STALLED", "RECOVERING"}:
+            message += " Automatic recovery is pending."
+        elif job.status in {"BLOCKED", "FAILED"}:
+            message += " Automatic recovery stopped; review the job error."
     if terminal:
         reason_code = terminal.get("cause_code")
         reason = terminal.get("reason")

@@ -24,6 +24,7 @@ from app.models.tables import (
     CoreCalculationEvidence,
     MarketDataSessionDisposition,
     PriceBar,
+    RankingResult,
     RawCompanyRow,
     SectorRotationRow,
     SectorRotationSnapshot,
@@ -103,6 +104,10 @@ def seed_cached_price_facts_copy(engine, symbols, frame, cutoff_at, *, progress)
 
 
 def main(output):
+    if os.name == "nt":
+        import psutil
+
+        psutil.Process().nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
     source = Path(__file__).resolve().parents[1]
     from app.services import sector_universe_service
     assert Path(sector_universe_service.__file__).resolve().is_relative_to(source)
@@ -166,6 +171,12 @@ def main(output):
             stop.wait(0.05)
 
     def progress(phase, processed=0, total=0, **kwargs):
+        if kwargs.get("metrics"):
+            report.setdefault("metrics_by_phase", {})[phase] = dict(kwargs["metrics"])
+        events = report.setdefault("phase_events", [])
+        if not events or events[-1]["phase"] != phase:
+            events.append({"phase": phase, "at": datetime.now(UTC).isoformat()})
+            del events[:-512]
         report["phase"] = phase
         report["progress"] = {"processed": processed, "total": total}
         with guard:
@@ -186,9 +197,13 @@ def main(output):
             symbols = tuple(f"SYN{index:04d}" for index in range(466))
             for index, ticker in enumerate(symbols):
                 sector, canonical = SECTORS[index % len(SECTORS)]
+                # Strong complete inputs, with score order distinct from ticker order.
+                values = _quality_values()
+                values["revenue_growth_quarterly_yoy"] = str(10 + ((index * 137) % 466) / 20)
+                values["eps_growth_quarterly_yoy"] = str(12 + ((index * 149) % 466) / 20)
                 db.add(RawCompanyRow(run_id=upload.id, row_number=index + 1, ticker=ticker,
                     sector=sector, sector_canonical=canonical,
-                    raw_json={"Symbol": ticker, **_quality_values()}))
+                    raw_json={"Symbol": ticker, **values}))
             db.flush()
             pipeline = start_pipeline(db, upload.id)
             db.commit()
@@ -282,6 +297,18 @@ def main(output):
                 assert len(rankings) == 2330
                 db.commit()
                 del rankings
+                role_order = list(db.execute(select(
+                    RankingResult.ranking_profile, RankingResult.evidence_id,
+                ).where(RankingResult.run_id == upload.id).order_by(
+                    RankingResult.ranking_profile, RankingResult.ticker, RankingResult.id,
+                )))
+                descents = sum(
+                    first[0] == second[0] and first[1] > second[1]
+                    for first, second in zip(role_order, role_order[1:], strict=False)
+                )
+                assert descents > 5, "Scale fixture must exercise nonlocal evidence access"
+                report["ranking_evidence_order_descents"] = descents
+                del role_order
                 with engine.connect() as observation:
                     report["producer_evidence_before_sector"] = [dict(row) for row in (
                         observation.execute(text(
@@ -317,6 +344,15 @@ def main(output):
                     market_cutoff=cutoff, effective_configuration=config("contextual.sector"),
                     checkpoint_callback=sector_progress)
                 db.commit()
+                for phase in (
+                    "DECLARATION_VALIDATION_SOURCE_ROLES", "PERSISTENCE_VALIDATION_SOURCE_ROLES",
+                ):
+                    metrics = report["metrics_by_phase"][phase]
+                    assert metrics["evidence_body_rows_loaded"] <= (
+                        2 * metrics["evidence_address_count"] + 256
+                    )
+                    assert metrics["evidence_peak_resident_count"] <= 64
+                    assert metrics["evidence_peak_resident_bytes"] <= 64 * 1024**2
                 assert sum(row.ticker_count for row in dto.universe_rows) == 466
                 assert db.scalar(select(func.count()).select_from(SectorRotationSnapshot)) == 1
                 stored = list(db.scalars(select(SectorRotationRow).order_by(

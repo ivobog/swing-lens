@@ -3717,6 +3717,9 @@ def _sector_checkpoint_callback(
     progress_callback: Callable[..., None] | None,
 ) -> Callable[..., None]:
     validation_metrics: dict[str, dict[str, int]] = {}
+    phase_history: list[dict[str, Any]] = []
+    current_phase: dict[str, Any] = {}
+    phase_clock = perf_counter()
 
     def checkpoint(
         *,
@@ -3727,7 +3730,20 @@ def _sector_checkpoint_callback(
         last_completed_item: str | None = None,
         metrics: dict[str, int] | None = None,
     ) -> None:
+        nonlocal phase_clock, current_phase
         _raise_if_cancelled(should_cancel)
+        observed = datetime.now(UTC).isoformat()
+        clock = perf_counter()
+        if phase != current_phase.get("phase"):
+            if current_phase:
+                phase_history.append({
+                    **current_phase, "completed_at": observed,
+                    "elapsed_ms": round((clock - phase_clock) * 1000),
+                })
+                del phase_history[:-32]
+            current_phase = {"phase": phase, "started_at": observed}
+            phase_clock = clock
+        current_phase.update(processed=processed, total=total)
         if phase in {"INPUTS_LOADED", "SOURCE_ROWS_LOADED", "SOURCE_MANIFEST_PREPARED"}:
             close_pipeline_read_transaction(db)
         if metrics is not None:
@@ -3748,6 +3764,9 @@ def _sector_checkpoint_callback(
                         "processed": processed,
                         "total": total,
                         "validation_metrics": dict(validation_metrics),
+                        "phase_started_at": current_phase["started_at"],
+                        "phase_elapsed_ms": round((clock - phase_clock) * 1000),
+                        "phase_history": [dict(item) for item in phase_history],
                     }
                 },
             )

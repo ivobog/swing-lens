@@ -744,6 +744,18 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-cancel-metric]", data.job_cancel_requested ? "Requested" : "No");
   setText(root, "[data-pipeline-items-processed]", data.processed_item_count || 0);
   setText(root, "[data-pipeline-items-total]", data.total_item_count || 0);
+  const sectorOperation = root.querySelector("[data-pipeline-sector-operation]");
+  if (sectorOperation) {
+    const sector = data.sector_progress || {};
+    sectorOperation.hidden = !sector.phase;
+    setText(root, "[data-pipeline-sector-label]", sector.label || "");
+    setText(root, "[data-pipeline-sector-count]", sector.progress_label
+      || `${sector.processed ?? 0} / ${sector.total ?? 0}`);
+    setText(root, "[data-pipeline-sector-age]", sector.phase_elapsed_ms == null ? ""
+      : ` · ${Math.round(sector.phase_elapsed_ms / 1000)} seconds in this operation`);
+    setText(root, "[data-pipeline-business-age]", data.business_progress_age_seconds ?? "Unknown");
+    setText(root, "[data-pipeline-heartbeat-age]", data.worker_heartbeat_age_seconds ?? "Unknown");
+  }
   setText(root, "[data-pipeline-current-item]", data.current_item || "None");
   setText(root, "[data-pipeline-progress-stage]", data.progress_stage || "None");
   setText(
