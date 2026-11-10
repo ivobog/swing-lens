@@ -243,6 +243,15 @@
 </section>
 
 {% if latest_pipeline %}
+  {% set availability = (latest_pipeline.result or {}).get('market_data_availability') or {} %}
+  {% if availability.get('unavailable_tickers') or availability.get('history_gap_tickers') %}
+    <div class="alert section-gap" role="status">
+      <strong>Market-data gaps:</strong>
+      unavailable: {{ (availability.get('unavailable_tickers') or [])|join(', ') or 'None' }};
+      incomplete history: {{ (availability.get('history_gap_tickers') or [])|join(', ') or 'None' }}.
+      Affected calculations remain incomplete where required data is missing.
+    </div>
+  {% endif %}
   {% set partial = (latest_pipeline.result or {}).get('partial_scope') or {} %}
   {% if partial %}
     <div class="alert section-gap" role="status">

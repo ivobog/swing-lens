@@ -1,0 +1,55 @@
+{
+  "contract": "pipeline58-raw-bootstrap-caller-review-v1",
+  "reviewed_at": "2026-11-10",
+  "source_baseline": "b683419cff78ac47609a73a42a325d1bd2389faf",
+  "review_boundary": "Bounded source-qualified review of two explicit RAW bootstrap callers. This adds post-release ownership records; it does not recertify the sealed T14 foundation or change its historical source pins, classification counts, verdicts or baseline.",
+  "hash_normalization": "SHA-256 of UTF-8 source bytes after CRLF-to-LF normalization. The unchanged partial source digest equals its baseline Git object bytes; the new recovery source already uses LF. Ambient Windows checkout line endings are not review identity.",
+  "reviewed_callers": [
+    {
+      "path": "app/services/pipeline_market_data_recovery.py",
+      "sha256": "8b89ef1689f9817e99a636d8ac008607b74bf87d2b0cfa09599deaabdf8b07bf",
+      "entrypoint": "start_market_data_recovery",
+      "writer": "_copy_recovery_upload",
+      "authority_domain": "RAW",
+      "semantic_mode": "BOOTSTRAP",
+      "reviewed_conditions": [
+        "Source is locked and must be the exact requested upload's BLOCKED pipeline at FETCHING_MARKET_DATA.",
+        "Requested tickers come from retained semantic scope membership; all must exist in the retained source raw rows.",
+        "The exact selected source row bodies are fingerprinted before copying; retained upload ID, source pipeline/scope, requested tickers and raw row ID mapping remain explicit lineage.",
+        "The RAW bootstrap mutation fence is established before adding a derived UploadRun or RawCompanyRow. Exact retained source-row fingerprint is supplied as source_file evidence.",
+        "The source pipeline, raw rows, semantic scope and market context are not written. The derived upload is handed to the normal pipeline admission path for a new frozen cutoff, configuration and availability policy.",
+        "No intermediate commit occurs in the caller. Enqueue failure rolls back the derived upload and rows in the caller's transaction; a locked source serializes duplicate admission, and existing recovery lineage coalesces repeated calls."
+      ],
+      "native_regression": "tests/integration/test_market_data_recovery_postgresql.py::test_recovery_isolated_full_population_idempotent_atomic_and_source_immutable"
+    },
+    {
+      "path": "app/services/pipeline_partial_results.py",
+      "sha256": "22b5394a5ea3f8b19a930e741119ef01f8127d0dc7592e905f59ba833803618c",
+      "baseline_git_blob": "3267457fce8559c3dbe4954ffb6beab3e2aa642d",
+      "unchanged_from_source_baseline": true,
+      "entrypoint": "prepare_partial_scope",
+      "writer": "clone_partial_upload",
+      "authority_domain": "RAW",
+      "semantic_mode": "BOOTSTRAP",
+      "reviewed_conditions": [
+        "Existing baseline operation requires the exact source upload's BLOCKED pipeline at FETCHING_MARKET_DATA and explicit exclusions equal to all current readiness blockers.",
+        "Unresolved instrument identity cannot be excluded; readiness must cover retained scope membership, and at least one included ticker must remain.",
+        "Included source rows must exactly match reviewed included tickers. The fingerprint binds the retained source upload rows, while lineage records the exact copied source-to-derived row IDs.",
+        "The RAW bootstrap mutation fence precedes derived input insertion and receives retained source rows as source_file evidence.",
+        "The caller writes a separate derived upload and raw rows without committing or changing the original pipeline/checkpoint. This review records the pre-existing caller; its source and behavior are unchanged in this release."
+      ],
+      "focused_regressions": "tests/test_pipeline_partial_results.py"
+    }
+  ],
+  "baseline_missing_inventory_fixture": {
+    "path": "docs/remediation/calculation-lineage/T14_R01_current_writer_review.json",
+    "tracked_at_source_baseline": false,
+    "exists_in_isolated_checkout": false,
+    "reader": "scripts/qa/t14a_semantic_families.py:CURRENT_REVIEW_FILE",
+    "reader_baseline_git_blob": "60c6548b3975aa8b23f502213d89b385cfc5e9bf",
+    "test": "tests/test_t14a_mutation_inventory.py:current_source_review_deltas",
+    "test_baseline_git_blob": "42929c23aa26aca5116ca2a43b02f9d9e89710c6",
+    "reader_and_test_unchanged_after_line_ending_normalization": true,
+    "finding": "The unchanged baseline inventory reader requires an artifact absent from the baseline Git tree. Its fixture errors are separate from the additive production-adoption source review gate. No historical review is synthesized, source pin refreshed, test skipped or gate weakened."
+  }
+}

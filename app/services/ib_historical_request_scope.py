@@ -12,6 +12,7 @@ from app.services.us_market_calendar import (
 STRICT_RESPONSE_V1 = "ib-response-strict-v1"
 DAILY_BAR_ADMISSION_V2 = "ib-daily-reviewed-subset-v2"
 DAILY_BAR_ADMISSION_V3 = "ib-daily-completed-subset-v3"
+DAILY_BAR_ADMISSION_V4 = "ib-daily-gap-aware-v4"
 
 
 class HistoricalEndMode(StrEnum):
@@ -63,6 +64,8 @@ def build_historical_request_scope(
     The daily session calculation defines admitted coverage, not a promise about
     IB's earliest returned observation. V2 discards earlier observations while
     retaining the reviewed upper boundary and the required session coverage.
+    V4 keeps those identity and boundary checks while recording incomplete
+    session coverage in immutable acceptance receipts rather than discarding bars.
     """
 
     end = reviewed_end_date or required_end_date

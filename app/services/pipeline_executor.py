@@ -88,6 +88,14 @@ from app.services.ib_historical_capability import (
 )
 from app.services.market_calculation_context_service import market_context_for_pipeline
 from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.market_data_availability_policy import (
+    availability_diagnostics,
+    fetch_execution_hazards,
+    hard_readiness_blockers,
+    pipeline_availability_policy,
+    processing_tickers,
+    required_dependency,
+)
 from app.services.market_data_prewarm_service import (
     record_pipeline_prewarm_reuse,
     resolve_pipeline_prewarm_context,
@@ -476,6 +484,7 @@ def execute_full_pipeline(
         result.update(blocked_reason=None, blocked_diagnostics=None, failure_reason=None,
                       resumed_from_step=resume_from_step)
     market_data_policy = _market_data_policy(pipeline)
+    availability_policy = pipeline_availability_policy(pipeline)
     result["market_data_policy"] = market_data_policy.value
     overlap_coordinator: TechnicalScoringOverlapCoordinator | None = None
     try:
@@ -583,13 +592,15 @@ def execute_full_pipeline(
                         "ib_fetch_authority": fetch_authority.as_dict(),
                     }
             else:
-                plan = dependencies.build_fetch_plan(
-                    db=db,
-                    tickers=tickers,
-                    run_id=upload_run.id,
-                    include_benchmarks=True,
-                    what_to_show_values=DEFAULT_WHAT_TO_SHOW,
+                plan_kwargs = dict(
+                    db=db, tickers=tickers, run_id=upload_run.id,
+                    include_benchmarks=True, what_to_show_values=DEFAULT_WHAT_TO_SHOW,
                 )
+                if _accepts_keyword(dependencies.build_fetch_plan, "allow_history_gaps"):
+                    plan_kwargs["allow_history_gaps"] = availability_policy.allow_history_gaps
+                elif availability_policy.allow_history_gaps:
+                    raise ValueError("MARKET_DATA_GAP_AWARE_PLANNER_REQUIRED")
+                plan = dependencies.build_fetch_plan(**plan_kwargs)
                 first_admission = (
                     recovering_market_data
                     and result["market_data_resume_checkpoint"].get("fetch_plan_state")
@@ -782,6 +793,8 @@ def execute_full_pipeline(
                 overlap_coordinator.mark_fetch_complete()
 
             if isinstance(db, Session):
+                if availability_policy.allow_history_gaps:
+                    _require_market_data_dependencies(db, pipeline, plan, fetch_run, market_cutoff)
                 readiness = evaluate_and_persist_session_readiness(
                     db,
                     pipeline_run_id=pipeline.id,
@@ -791,17 +804,22 @@ def execute_full_pipeline(
                     fetch_run_id=fetch_run.id if fetch_run is not None else None,
                 )
                 result["market_data_session_readiness"] = readiness.as_dict()
+                availability = availability_diagnostics(readiness.rows, availability_policy)
+                result["market_data_availability"] = availability
+                result["market_data_unavailable_count"] = len(availability["unavailable_tickers"])
+                result["market_data_history_gap_count"] = len(availability["history_gap_tickers"])
                 step = _require_step(db, pipeline.id, "FETCHING_MARKET_DATA")
                 step.result_json = readiness.as_dict()
                 if readiness.accepted_inactive_tickers:
                     step.message = "Accepted explicit terminal exclusions: " + ", ".join(
                         readiness.accepted_inactive_tickers
                     )
-                if readiness.blockers:
+                hard_blockers = hard_readiness_blockers(readiness.rows, availability_policy)
+                if hard_blockers:
                     diagnostics = readiness.as_dict()
                     transient_only = all(
                         row.disposition == MarketDataDisposition.TRANSIENT_FAILURE.value
-                        for row in readiness.blockers
+                        for row in hard_blockers
                     )
                     reason_code = (
                         "MARKET_DATA_TRANSIENT_UNRESOLVED"
@@ -812,13 +830,13 @@ def execute_full_pipeline(
                         f"{reason_code}: "
                         + ",".join(
                             f"{row.ticker}={row.disposition}:{row.reason_code}"
-                            for row in readiness.blockers
+                            for row in hard_blockers
                         ),
                         reason_code=reason_code,
                         diagnostics=diagnostics,
                     )
-                technical_tickers = readiness.technical_tickers
-                downstream_tickers = readiness.downstream_tickers
+                technical_tickers = processing_tickers(readiness.rows, availability_policy)
+                downstream_tickers = technical_tickers
             else:
                 technical_tickers = tuple(tickers)
                 downstream_tickers = tuple(tickers)
@@ -1443,13 +1461,14 @@ def _execute_resumed_pipeline(
             else None
         )
         if resumed_readiness is not None:
-            if resumed_readiness.blockers:
+            availability_policy = pipeline_availability_policy(pipeline)
+            if hard_readiness_blockers(resumed_readiness.rows, availability_policy):
                 raise PipelineBlockedError(
                     "MARKET_DATA_SESSION_READINESS_BLOCKED: resumed decision tail has blockers",
                     reason_code="MARKET_DATA_SESSION_READINESS_BLOCKED",
                     diagnostics=resumed_readiness.as_dict(),
                 )
-            tickers = list(resumed_readiness.downstream_tickers)
+            tickers = list(processing_tickers(resumed_readiness.rows, availability_policy))
         _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
         if not tickers and resume_from_step != "SECTOR_ROTATION_SNAPSHOT":
             if dependencies.market_cutoff is None:
@@ -3281,7 +3300,8 @@ def _mark_pipeline_finished(
         authority = require_semantic_authority(pipeline)
         result["semantic_child_accounting"] = require_children_terminal(db, authority.scope_id)
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 0)
-    if result.get("partial_scope") or result.get("sec_coverage"):
+    if (result.get("partial_scope") or result.get("sec_coverage")
+            or result.get("market_data_availability")):
         from app.services.pipeline_outcome import derive_pipeline_outcome
 
         result["pipeline_outcome_summary"] = derive_pipeline_outcome(status, result)
@@ -3765,6 +3785,37 @@ def _plan_skips_ticker(plan: FetchPlan, ticker: str) -> bool:
     return bool(items) and all(item.action == FetchAction.SKIP for item in items)
 
 
+def _require_market_data_dependencies(db, pipeline, plan, fetch_run, market_cutoff):
+    from app.services.price_bar_repository import load_price_bar_rows_for_context
+
+    items = list(db.scalars(select(IBFetchItem).where(
+        IBFetchItem.fetch_run_id == fetch_run.id
+    ))) if fetch_run is not None else []
+    hazards = list(fetch_execution_hazards(fetch_run, plan, items))
+    retained = (pipeline.result_json or {}).get("ib_fetch_plan")
+    complete_plan = fetch_plan_from_dict(retained) if isinstance(retained, dict) else plan
+    required = {(item.ticker, item.what_to_show) for item in complete_plan.items
+                if required_dependency(item)}
+    if required:
+        bars = load_price_bar_rows_for_context(
+            db, tuple(sorted({ticker for ticker, _ in required})),
+            what_to_show=("ADJUSTED_LAST", "TRADES"), timeframes=("1 day",),
+            max_session=market_cutoff.latest_completed_session,
+            as_of=market_cutoff.cutoff_at, calculation_context_id=market_cutoff.context_id,
+        )
+        current = {(bar.ticker, bar.what_to_show) for bar in bars
+                   if bar.bar_date == market_cutoff.latest_completed_session}
+        hazards.extend(f"REQUIRED_SESSION_UNAVAILABLE:{ticker}:{feed}"
+                       for ticker, feed in sorted(required - current))
+    if hazards:
+        raise PipelineBlockedError(
+            "Market-data infrastructure or required dependency is unavailable: "
+            + ",".join(hazards),
+            reason_code="MARKET_DATA_REQUIRED_INPUT_BLOCKED",
+            diagnostics={"hard_failures": hazards},
+        )
+
+
 def _apply_fetch_performance(
     performance: PipelinePerformanceTracker,
     fetch_run: IBFetchRun,
@@ -3790,6 +3841,8 @@ def _final_pipeline_status(result: dict[str, Any]) -> str:
         or result["warning_rows"]
         or result["ib_failure_count"]
         or result.get("market_data_excluded_count", 0)
+        or result.get("market_data_unavailable_count", 0)
+        or result.get("market_data_history_gap_count", 0)
         or result["technical_error_count"]
         or result["fetch_failed"]
         or result["market_regime_low_confidence"]
@@ -3851,6 +3904,13 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
             else upload_run.row_count or 0
         ),
         "partial_scope": (pipeline.result_json or {}).get("partial_scope"),
+        **({"market_data_availability_policy":
+            pipeline.result_json["market_data_availability_policy"]}
+           if (pipeline.result_json or {}).get("market_data_availability_policy") else {}),
+        **({"market_data_recovery_source": pipeline.result_json["market_data_recovery_source"]}
+           if (pipeline.result_json or {}).get("market_data_recovery_source") else {}),
+        "market_data_unavailable_count": 0,
+        "market_data_history_gap_count": 0,
         **({
             "sec_coverage": pipeline.result_json["sec_coverage"],
             "sec_unresolved_count": int(pipeline.result_json.get("sec_unresolved_count") or 0),

@@ -48,7 +48,7 @@ from app.services.work_scope_identity import (
 from app.settings import get_settings
 
 FETCH_TERMINAL_STATUSES = {"COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}
-ITEM_TERMINAL_STATUSES = {"SUCCESS", "FAILED", "SKIPPED"}
+ITEM_TERMINAL_STATUSES = {"SUCCESS", "PARTIAL", "FAILED", "SKIPPED"}
 IB_FETCH_JOB_TYPE = "IB_FETCH"
 logger = logging.getLogger(__name__)
 
@@ -168,6 +168,8 @@ def resume_fetch_job(
         raise ValueError(f"IB fetch run {fetch_run_id} cannot be resumed from {previous.status}.")
 
     failed_items = [item for item in previous.items if item.status == "FAILED"]
+    if not failed_items and any(item.status == "PARTIAL" for item in previous.items):
+        raise ValueError("PARTIAL_HISTORY_REQUIRES_GAP_REPAIR")
     if isinstance(db, Session):
         authority = require_semantic_authority(previous)
         prior_job = db.scalar(
@@ -239,6 +241,9 @@ def fetch_progress(fetch_run: IBFetchRun, cancel_requested: bool = False) -> dic
         "fetch_run_id": fetch_run.id,
         "run_id": fetch_run.run_id,
         "status": fetch_run.status,
+        "partial_response_count": (fetch_run.decision_counts_json or {}).get(
+            "partial_response_count", 0
+        ),
         "message": fetch_run.message,
         "cancel_requested": cancel_requested,
         "started_at": fetch_run.started_at,
@@ -290,6 +295,11 @@ def execute_durable_fetch_job(db: Session, job: BackgroundJob) -> dict[str, Any]
     if not isinstance(plan_payload, dict):
         raise ValueError("LEGACY_UNKNOWN_ACQUISITION_PLAN")
     plan = fetch_plan_from_dict(plan_payload)
+    if ("gap_repair_manifest" in payload or "gap_repair_manifest_fingerprint" in payload
+            or str(getattr(job, "request_key", "") or "").startswith("ib-history-gap-repair:")):
+        from app.services.ib_gap_repair_service import validate_gap_repair_delivery
+
+        validate_gap_repair_delivery(db, job=job, fetch_run=fetch_run, plan=plan)
     execution_token = str(job.execution_token or "")
 
     def should_cancel() -> bool:

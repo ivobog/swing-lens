@@ -859,6 +859,82 @@ def start_partial_pipeline_action(
     )
 
 
+@router.post("/runs/{run_id}/pipeline/{pipeline_id}/recover-with-gaps")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="admits the complete requested population under the current data-gap policy",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.pipeline.recover_with_gaps",
+)
+def start_market_data_recovery_action(
+    run_id: int, pipeline_id: int, db: DbSession,
+) -> RedirectResponse:
+    _require_run(db, run_id)
+    _require_pipeline_for_run(db, pipeline_id, run_id)
+    from app.services.pipeline_market_data_recovery import start_market_data_recovery
+
+    try:
+        pipeline = start_market_data_recovery(
+            db, source_pipeline_id=pipeline_id, upload_run_id=run_id,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
+    return RedirectResponse(
+        url=f"/runs/{pipeline.upload_run_id}/pipeline/{pipeline.id}", status_code=303,
+    )
+
+
+@router.get("/runs/{run_id}/pipeline/{pipeline_id}/history-gaps", response_class=HTMLResponse)
+def review_history_gap_repair(
+    run_id: int, pipeline_id: int, request: Request, db: DbSession,
+) -> HTMLResponse:
+    run = _load_run(db, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    _require_pipeline_for_run(db, pipeline_id, run_id)
+    from app.services.ib_gap_repair_service import prepare_gap_repair
+
+    try:
+        preview = prepare_gap_repair(db, pipeline_run_id=pipeline_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
+    return templates.TemplateResponse(
+        request, "history_gap_repair.html", {
+            "active_nav": "runs", "run": run, "pipeline_id": pipeline_id,
+            "preview": preview.as_dict(),
+        },
+    )
+
+
+@router.post("/runs/{run_id}/pipeline/{pipeline_id}/repair-history-gaps")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="queues one reviewed acquisition for exact recorded historical gaps",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.pipeline.repair_history_gaps",
+)
+def repair_history_gaps_action(
+    run_id: int, pipeline_id: int, db: DbSession,
+    manifest_fingerprint: Annotated[str, Form(min_length=64, max_length=64)],
+) -> RedirectResponse:
+    _require_run(db, run_id)
+    _require_pipeline_for_run(db, pipeline_id, run_id)
+    from app.services.ib_gap_repair_service import submit_gap_repair
+
+    try:
+        submit_gap_repair(
+            db, pipeline_run_id=pipeline_id,
+            expected_manifest_fingerprint=manifest_fingerprint,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
+    return RedirectResponse(url=f"/runs/{run_id}/pipeline/{pipeline_id}", status_code=303)
+
+
 @router.post("/runs/{run_id}/ib/test")
 @unsafe_route(
     ROUTE_CLASS_PUBLIC_LOCAL,

@@ -713,6 +713,45 @@
         "CERTIFICATION": "DISABLED"
       },
       "writer_family": "HTTP_OPERATION"
+    },
+    {
+      "method": "POST",
+      "path": "/runs/{run_id}/pipeline/{pipeline_id}/partial",
+      "function": "app.routers.run_routes.start_partial_pipeline_action",
+      "domain": "run",
+      "mutation_capability": "NORMAL_ONLY",
+      "operation": "http.pipeline.partial",
+      "modes": {
+        "NORMAL": "ENABLED",
+        "CERTIFICATION": "DISABLED"
+      },
+      "writer_family": "HTTP_OPERATION"
+    },
+    {
+      "method": "POST",
+      "path": "/runs/{run_id}/pipeline/{pipeline_id}/recover-with-gaps",
+      "function": "app.routers.run_routes.start_market_data_recovery_action",
+      "domain": "run",
+      "mutation_capability": "NORMAL_ONLY",
+      "operation": "http.pipeline.recover_with_gaps",
+      "modes": {
+        "NORMAL": "ENABLED",
+        "CERTIFICATION": "DISABLED"
+      },
+      "writer_family": "HTTP_OPERATION"
+    },
+    {
+      "method": "POST",
+      "path": "/runs/{run_id}/pipeline/{pipeline_id}/repair-history-gaps",
+      "function": "app.routers.run_routes.repair_history_gaps_action",
+      "domain": "run",
+      "mutation_capability": "NORMAL_ONLY",
+      "operation": "http.pipeline.repair_history_gaps",
+      "modes": {
+        "NORMAL": "ENABLED",
+        "CERTIFICATION": "DISABLED"
+      },
+      "writer_family": "HTTP_OPERATION"
     }
   ],
   "jobs": [
@@ -977,7 +1016,8 @@
     {
       "job_type": "IB_FETCH",
       "creators": [
-        "app/services/ib_fetch_job_service.py:submit_fetch_job"
+        "app/services/ib_fetch_job_service.py:submit_fetch_job",
+        "app/services/ib_gap_repair_service.py:submit_gap_repair"
       ],
       "handler": "app.services.ib_fetch_job_service.execute_durable_fetch_job",
       "subsystem": "ib",
@@ -3236,6 +3276,21 @@
       "tests": [
         "tests/test_sector_refresh_browser.py"
       ]
+    },
+    {
+      "table": "ib_bar_admission_receipts",
+      "model": "app.models.tables.IBBarAdmissionReceipt",
+      "domain": "Scope/core/market",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-032"
+      ],
+      "authority": "Exact V4 admitted fetch/contract/owner; canonical per-bar version receipt; append-only SQL trigger",
+      "transaction_family": "TX-06/07; cache, receipt and truthful item result commit atomically",
+      "tests": [
+        "tests/test_ib_history_gap_admission.py",
+        "tests/integration/test_ib_bar_admission_receipts_postgresql.py"
+      ]
     }
   ],
   "writer_families": [
@@ -3245,9 +3300,9 @@
         "upload_runs",
         "raw_company_rows"
       ],
-      "functions": "upload_service.create_upload_run",
-      "entrypoints": "upload POST",
-      "authority_transaction": "NORMAL_ONLY HTTP capability; upload content/hash; TX-01"
+      "functions": "upload_service.create_upload_run, pipeline_partial_results.clone_partial_upload, pipeline_market_data_recovery._copy_recovery_upload",
+      "entrypoints": "upload POST and explicit isolated pipeline recovery admissions",
+      "authority_transaction": "NORMAL_ONLY HTTP; RAW BOOTSTRAP; exact retained source rows/fingerprint; TX-01"
     },
     {
       "id": "WRITE-002",
@@ -3537,9 +3592,10 @@
       "id": "WRITE-032",
       "tables": [
         "ib_fetch_runs",
-        "ib_fetch_items"
+        "ib_fetch_items",
+        "ib_bar_admission_receipts"
       ],
-      "functions": "ib_fetch_plan_service, ib_fetch_executor, ib_fetch_summary_service, ib_fetch_recovery_service",
+      "functions": "ib_fetch_plan_service, ib_fetch_executor, ib_fetch_summary_service, ib_fetch_recovery_service, ib_bar_admission_service.seal_bar_admission",
       "entrypoints": "pipeline/run APIs/durable IB handler",
       "authority_transaction": "plan/scope/refresh/job token; TX-06/07"
     },
@@ -11771,6 +11827,50 @@
         "WRITE-012"
       ],
       "reason": "MSI upgrade compatibility: exact legacy worker identity predicates fence a timestamp-only retirement update in the existing caller transaction; no new authority or financial writer."
+    },
+    {
+      "path": "app/services/ceri/sec/coverage.py",
+      "function": "_valid_contract",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Local set.add validates a contract; no database write."
+    },
+    {
+      "path": "app/services/ib_bar_admission_service.py",
+      "function": "seal_bar_admission",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-032"
+      ],
+      "reason": "Reviewed isolated admission or atomic V4 bar/receipt writer; pipeline58 gap policy."
+    },
+    {
+      "path": "app/services/ib_fetch_executor.py",
+      "function": "_cache_admitted_bars",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-030",
+        "WRITE-032"
+      ],
+      "reason": "Reviewed isolated admission or atomic V4 bar/receipt writer; pipeline58 gap policy."
+    },
+    {
+      "path": "app/services/pipeline_market_data_recovery.py",
+      "function": "_copy_recovery_upload",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-001"
+      ],
+      "reason": "Reviewed isolated admission or atomic V4 bar/receipt writer; pipeline58 gap policy."
+    },
+    {
+      "path": "app/services/pipeline_partial_results.py",
+      "function": "clone_partial_upload",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-001"
+      ],
+      "reason": "Reviewed isolated admission or atomic V4 bar/receipt writer; pipeline58 gap policy."
     }
   ],
   "recovery_paths": [
@@ -12086,6 +12186,7 @@
     }
   ],
   "recovery_candidate_functions": [
+    "app/routers/run_routes.py:start_market_data_recovery_action",
     "app/services/background_job_service.py:_finalize_recovery_cancellation",
     "app/services/background_job_service.py:_interrupt_fenced_pipeline_steps",
     "app/services/background_job_service.py:_memory_recovery_identity",
@@ -12114,6 +12215,8 @@
     "app/services/pipeline_dependency_service.py:reconcile_pending_dependency_enqueues",
     "app/services/pipeline_dependency_service.py:reconcile_pipeline_job",
     "app/services/pipeline_dependency_service.py:reconcile_safe_pipeline_invariants",
+    "app/services/pipeline_market_data_recovery.py:_copy_recovery_upload",
+    "app/services/pipeline_market_data_recovery.py:start_market_data_recovery",
     "app/services/pipeline_service.py:_is_recoverable_sec_block",
     "app/services/runtime_identity_recovery.py:verified_recovery_state",
     "app/services/runtime_mutation_authority.py:recovery_authority",
@@ -15264,6 +15367,83 @@
       "primitive": "autonomous_session",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "MSI implementation review: cancellation-only detached Session closes before historical pacing/network; native execution ownership remains checked by the gate."
+    },
+    {
+      "path": "app/routers/run_routes.py",
+      "function": "repair_history_gaps_action",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/routers/run_routes.py",
+      "function": "repair_history_gaps_action",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/routers/run_routes.py",
+      "function": "start_market_data_recovery_action",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/routers/run_routes.py",
+      "function": "start_market_data_recovery_action",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/routers/run_routes.py",
+      "function": "start_partial_pipeline_action",
+      "primitive": "commit",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/routers/run_routes.py",
+      "function": "start_partial_pipeline_action",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/services/ib_bar_admission_service.py",
+      "function": "seal_bar_admission",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/services/ib_fetch_executor.py",
+      "function": "_cache_admitted_bars",
+      "primitive": "begin_nested",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/services/ib_fetch_executor.py",
+      "function": "_cache_admitted_bars",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/services/pipeline_market_data_recovery.py",
+      "function": "_copy_recovery_upload",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
+    },
+    {
+      "path": "app/services/pipeline_partial_results.py",
+      "function": "clone_partial_upload",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Explicit recovery admission or atomic bar/receipt savepoint; enclosing caller owns commit."
     }
   ],
   "high_risk_tables": [
@@ -15641,6 +15821,11 @@
       "table": "ib_historical_gate",
       "model": "IBHistoricalGate",
       "reason": "MSI remediation implementation review; native token/process fencing and existing financial authority retained. See docs/verification/sector-refresh-remediation-20261103.md."
+    },
+    {
+      "table": "ib_bar_admission_receipts",
+      "model": "IBBarAdmissionReceipt",
+      "reason": "Immutable per-bar acceptance manifests; reads require exact owning pipeline/context."
     }
   ],
   "dangerous_read_suppressions": [
@@ -17937,6 +18122,10 @@
     {
       "path": "app/services/winner_probability/outcome_service.py",
       "function": "_mark_pending"
+    },
+    {
+      "path": "app/services/ib_fetch_executor.py",
+      "function": "_cache_admitted_bars"
     }
   ],
   "test_coverage": {

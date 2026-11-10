@@ -11,6 +11,7 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ib_historical_request_scope import (
     DAILY_BAR_ADMISSION_V2,
     DAILY_BAR_ADMISSION_V3,
+    DAILY_BAR_ADMISSION_V4,
     STRICT_RESPONSE_V1,
     build_historical_request_scope,
     reviewed_start_for_duration,
@@ -110,6 +111,7 @@ def build_fetch_plan(
     what_to_show_values: tuple[str, ...] = DEFAULT_WHAT_TO_SHOW,
     settings: Settings | None = None,
     retry_failed_contracts: bool = False,
+    allow_history_gaps: bool = False,
 ) -> FetchPlan:
     settings = settings or get_settings()
     requested_tickers = _normalize_symbols(tickers)
@@ -165,6 +167,7 @@ def build_fetch_plan(
             ),
             contract_identity=contract_identities.get(symbol, (None, None))[0],
             contract_qualified_at=contract_identities.get(symbol, (None, None))[1],
+            allow_history_gaps=allow_history_gaps,
         )
         for symbol in symbols
         if symbol in coverage_by_ticker
@@ -282,6 +285,7 @@ def _build_plan_item(
     dependency_roles: tuple[str, ...] = (),
     contract_identity: dict[str, object] | None = None,
     contract_qualified_at: str | None = None,
+    allow_history_gaps: bool = False,
 ) -> FetchPlanItem:
     current_bar_count = _bar_count_for_type(coverage_item, what_to_show)
     first_bar_date = _first_date_for_type(coverage_item, what_to_show)
@@ -363,6 +367,10 @@ def _build_plan_item(
     return FetchPlanItem(
         ticker=coverage_item.ticker,
         response_admission_policy=(
+            DAILY_BAR_ADMISSION_V4 if (
+                allow_history_gaps and not is_benchmark
+                and not {"BENCHMARK", "SECTOR"}.intersection(dependency_roles)
+            ) else
             DAILY_BAR_ADMISSION_V3 if what_to_show == "ADJUSTED_LAST" else DAILY_BAR_ADMISSION_V2
         ),
         contract_status=contract_status,

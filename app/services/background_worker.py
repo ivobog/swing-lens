@@ -1235,14 +1235,14 @@ def execute_job(
     company = payload.get("company")
     from app.services.configuration_delivery import (
         configuration_delivery_scope,
-        durable_business_job,
         execution_configuration_reference,
+        is_configuration_bound_job,
         load_configuration_delivery,
     )
 
     delivery = None
     if isinstance(db, Session) and (
-        durable_business_job(job.job_type) or job.job_type == "SEC_READINESS_REPAIR"
+        is_configuration_bound_job(job.job_type, payload) or job.job_type == "SEC_READINESS_REPAIR"
     ):
         expected = execution_configuration_reference(db, job)
         delivery = load_configuration_delivery(db, expected, expected_anchor=expected)

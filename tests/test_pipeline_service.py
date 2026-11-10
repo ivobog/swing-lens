@@ -4,6 +4,7 @@ import pytest
 
 from app.models.tables import BackgroundJob, PipelineRun, PipelineStep, UploadRun
 from app.services.background_job_service import JobStatus
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.constants import CERI_PIPELINE_STEPS
 from app.services.ceri.feature_flags import CeriFeatureFlags
 from app.services.market_clock_service import CALENDAR_VERSION
@@ -22,6 +23,11 @@ from app.services.pipeline_service import (
 from app.services.pre_enqueue_operational_gate import PreEnqueueOperationalGateError
 from app.services.setup_lifecycle.constants import SLSE_PIPELINE_STEPS
 from app.settings import RuntimeMode
+
+NEW_AVAILABILITY_POLICY = {
+    "contract_version": "market-data-availability-policy-v1",
+    "mode": "CONTINUE_KNOWN_DATA_GAPS_V1",
+}
 
 
 @pytest.fixture(autouse=True)
@@ -123,10 +129,12 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
         "full-pipeline:run:7:policy:REQUIRE_IB:steps:VALIDATING_RUN,SCORING_FUNDAMENTALS,"
         "FETCHING_MARKET_DATA,SCORING_TECHNICALS,MARKET_REGIME_SNAPSHOT,"
         "COMBINING_RESULTS,RANKING_PROFILES,SECTOR_ROTATION_SNAPSHOT,"
-        "CAPTURING_WINNER_PREDICTIONS"
+        "CAPTURING_WINNER_PREDICTIONS:availability:"
+        + CanonicalEvidenceSerializer.fingerprint(NEW_AVAILABILITY_POLICY)
     )
     assert job.status == JobStatus.QUEUED
     assert job.payload_json["pipeline_run_id"] == pipeline.id
+    assert job.payload_json["market_data_availability_policy"] == NEW_AVAILABILITY_POLICY
     assert job.payload_json["market_cutoff_at"]
     assert job.payload_json["input_as_of_session"]
     assert job.payload_json["market_calendar_version"] == CALENDAR_VERSION
@@ -147,6 +155,7 @@ def test_start_pipeline_creates_pipeline_steps_and_background_job() -> None:
     } == {
         "background_job_id": job.id,
         "market_data_policy": "REQUIRE_IB",
+        "market_data_availability_policy": NEW_AVAILABILITY_POLICY,
         "ib_preflight_status": None,
         "ib_preflight_checked_at": None,
         "ib_host": None,
@@ -187,6 +196,7 @@ def test_new_pipeline_requests_running_prewarm_preemption(
     } == {
         "background_job_id": 1,
         "market_data_policy": "REQUIRE_IB",
+        "market_data_availability_policy": NEW_AVAILABILITY_POLICY,
         "ib_preflight_status": None,
         "ib_preflight_checked_at": None,
         "ib_host": None,
@@ -287,7 +297,11 @@ def test_new_activation_pipeline_does_not_reuse_historical_root_on_same_upload(m
     assert old_pipeline.status == PipelineStatus.PENDING
     assert old_pipeline.result_json == {"background_job_id": 10}
     assert old_job.status == JobStatus.QUEUED
-    assert db.background_jobs[11].request_key.endswith(":activation:4")
+    assert db.background_jobs[11].request_key == (
+        _pipeline_request_key(7, PIPELINE_STEP_NAMES) + ":availability:"
+        + CanonicalEvidenceSerializer.fingerprint(NEW_AVAILABILITY_POLICY)
+    )
+    assert pipeline.result_json["market_data_availability_policy"] == NEW_AVAILABILITY_POLICY
     assert db.background_jobs[11].request_key != old_job.request_key
     assert start_pipeline(db, 7) is pipeline
     assert len(db.background_jobs) == len(db.pipeline_runs) == 2

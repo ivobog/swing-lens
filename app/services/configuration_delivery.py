@@ -351,7 +351,7 @@ def execution_configuration_reference(db, job, *, _seen=None):
             raise ValueError("CONFIGURATION_EXECUTION_LINEAGE_MISMATCH")
         expected = binding_reference(db, pipeline_run_id=pipeline_id)
     binding = db.get(ExecutionConfigurationBinding, "job:" + str(job.id))
-    if binding is not None or durable_business_job(job.job_type) or not helper:
+    if binding is not None or is_configuration_bound_job(job.job_type, payload) or not helper:
         bound = binding_reference(db, job_id=job.id)
         if expected is not None and bound != expected:
             raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
@@ -359,7 +359,7 @@ def execution_configuration_reference(db, job, *, _seen=None):
     supplied = payload.get(ANCHOR_KEY)
     if supplied is not None and supplied != expected:
         raise ValueError("CONFIGURATION_ANCHOR_PARENT_MISMATCH")
-    if durable_business_job(job.job_type) and supplied is None:
+    if is_configuration_bound_job(job.job_type, payload) and supplied is None:
         raise ValueError("MISSING_CONFIGURATION_ANCHOR")
     parent_id = job.parent_job_id
     relatives = {parent_id, job.root_job_id} - {None, job.id}
@@ -466,7 +466,7 @@ def configuration_for_winner_generation(db, generation, config):
 
 
 def bind_job_configuration(db, job):
-    if not durable_business_job(job.job_type):
+    if not is_configuration_bound_job(job.job_type, job.payload_json):
         return
     reference = job.payload_json[ANCHOR_KEY]
     scopes = [("job:" + str(job.id), {"job_id": job.id})]
@@ -619,6 +619,13 @@ def resolve_pipeline_configurations(db, job_type="FULL_PIPELINE", payload=None):
             ),
         ),
     ]
+    from app.services.market_data_availability_policy import parse_availability_policy
+
+    configs.append(freeze_decision_configuration(
+        "execution.market_data",
+        parse_availability_policy((payload or {}).get("market_data_availability_policy")).as_dict(),
+        ("contract_version", "mode"),
+    ))
     if setup_needed:
         configs.extend(
             [
@@ -702,10 +709,23 @@ def durable_business_job(job_type):
     )
 
 
+def is_configuration_bound_job(job_type, payload=None):
+    """Keep legacy transports unchanged; explicit gap repairs inherit frozen settings."""
+    if durable_business_job(job_type):
+        return True
+    payload = payload or {}
+    manifest = payload.get("gap_repair_manifest")
+    return (
+        job_type == "IB_FETCH" and isinstance(manifest, dict)
+        and manifest.get("version") == "ib-history-gap-repair-v1"
+        and isinstance(payload.get("gap_repair_manifest_fingerprint"), str)
+    )
+
+
 def anchor_enqueue_payload(db, job_type, payload, *, parent_job_id=None):
     """Child/resume inherit; a genuinely new root resolves once before enqueue."""
     helper = job_type == "SEC_READINESS_REPAIR"
-    if not durable_business_job(job_type) and not helper:
+    if not is_configuration_bound_job(job_type, payload) and not helper:
         return payload
     from app.models.tables import BackgroundJob
 

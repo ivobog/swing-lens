@@ -846,6 +846,34 @@ function updatePipelineProgress(root, data) {
       );
     }
   const marketReadiness = result.market_data_session_readiness || {};
+  const recoveryAction = root.querySelector("[data-pipeline-recover-gaps]");
+  if (recoveryAction) recoveryAction.hidden = !(data.status === "BLOCKED"
+    && data.current_step === "FETCHING_MARKET_DATA");
+  const historyRepair = root.querySelector("[data-pipeline-history-repair]");
+  if (historyRepair) historyRepair.hidden = !(["COMPLETED", "PARTIAL", "BLOCKED", "FAILED"].includes(data.status)
+    && result.market_data_history_gap_count);
+  const availability = result.market_data_availability || {};
+  const marketGaps = root.querySelector("[data-pipeline-market-gaps]");
+  if (marketGaps) marketGaps.hidden = !(availability.unavailable_tickers || []).length
+    && !(availability.history_gap_tickers || []).length;
+  setText(root, "[data-pipeline-market-unavailable]", (availability.unavailable_tickers || []).join(", ") || "None");
+  setText(root, "[data-pipeline-market-history-gaps]", (availability.history_gap_tickers || []).join(", ") || "None");
+  setText(root, "[data-pipeline-market-gap-explanation]", availability.continued_with_gaps
+    ? "Other companies continue. Affected calculations remain incomplete where required data is missing."
+    : "The run retains each company's data-availability result.");
+  const marketGapDetails = root.querySelector("[data-pipeline-market-gap-details]");
+  if (marketGapDetails) {
+    const rows = Object.entries(marketReadiness.tickers || {}).filter(([, item]) =>
+      item.history_gap_count || !["READY", "TERMINAL_INACTIVE"].includes(item.disposition)
+    ).map(([ticker, item]) => {
+      const row = document.createElement("li");
+      const returnedDates = (item.provider_results || []).map(value => value.actual_end_date).filter(Boolean).sort();
+      const missing = (item.missing_sessions || []).length ? ` Missing days: ${item.missing_sessions.join(", ")}.` : "";
+      row.textContent = `${ticker}: ${item.reason_message || (item.reason_code || "Data unavailable").replaceAll("_", " ")}${missing} Returned through ${returnedDates.at(-1) || "unavailable"}; available through ${item.latest_bar_session || "unavailable"}.`;
+      return row;
+    });
+    marketGapDetails.replaceChildren(...rows);
+  }
   const partialAction = root.querySelector("[data-pipeline-partial]");
   const excludedTickers = marketReadiness.blockers || [];
   if (partialAction) {

@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from collections.abc import Callable
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from math import isfinite
@@ -38,6 +38,7 @@ from app.services.ib_historical_errors import SYSTEMIC_CIRCUIT_CATEGORIES
 from app.services.ib_historical_request_scope import (
     DAILY_BAR_ADMISSION_V2,
     DAILY_BAR_ADMISSION_V3,
+    DAILY_BAR_ADMISSION_V4,
     STRICT_RESPONSE_V1,
     HistoricalEndMode,
     HistoricalRequestScope,
@@ -187,7 +188,7 @@ def execute_fetch_plan(
                 item_run = _load_fetch_run(item_db, fetch_identity)
                 fetch_item = _existing_fetch_item(item_db, fetch_identity, plan_item)
                 if fetch_item is not None and (
-                    fetch_item.status in {"SUCCESS", "SKIPPED"}
+                    fetch_item.status in {"SUCCESS", "PARTIAL", "SKIPPED"}
                     or (
                         fetch_item.status == "FAILED"
                         and (fetch_item.decision_metadata_json or {}).get("retryable") is not True
@@ -317,6 +318,12 @@ def execute_fetch_plan(
         raise
     except Exception as exc:
         fetch_run.status = "FAILED"
+        fetch_run.decision_counts_json = {
+            **(fetch_run.decision_counts_json or {}),
+            "execution_failure": {
+                "classification": "IB_CONNECTION_FAILED" if connecting else "APPLICATION_ERROR",
+            },
+        }
         fetch_run.completed_at = datetime.now(UTC)
         fetch_run.failure_count = max(fetch_run.failure_count or 0, 1)
         fetch_run.message = ("IB_CONNECTION_FAILED: " if connecting else "") + _safe_message(
@@ -522,6 +529,12 @@ def _execute_plan_item(
     if plan_item.action == FetchAction.FAILED:
         _mark_failed(fetch_item, plan_item.reason)
         return
+    if plan_item.response_admission_policy == DAILY_BAR_ADMISSION_V4 and (
+        plan_item.data_role in {"BENCHMARK", "SECTOR"}
+        or {"BENCHMARK", "SECTOR"}.intersection(plan_item.dependency_roles)
+    ):
+        _mark_typed_failure(fetch_item, plan_item, "GAP_POLICY_DEPENDENCY_NOT_ALLOWED")
+        return
 
     if plan_item.contract_identity is not None:
         if (
@@ -693,6 +706,12 @@ def _execute_plan_item(
                     actual_end_date=actual_end,
                     boundary_status="PASS",
                     provider_result="PROVIDER_NO_DATA",
+                    received_bar_count=(
+                        0 if scope.response_admission_policy == DAILY_BAR_ADMISSION_V4 else None
+                    ),
+                    retryable=(
+                        False if scope.response_admission_policy == DAILY_BAR_ADMISSION_V4 else None
+                    ),
                 )
                 _mark_failed(
                     fetch_item,
@@ -706,6 +725,8 @@ def _execute_plan_item(
                 ticker=plan_item.ticker,
                 observed_at=received_at,
             )
+            missing_sessions = _missing_required_sessions(bars, scope)
+            gap_aware = scope.response_admission_policy == DAILY_BAR_ADMISSION_V4
             fetch_item.decision_metadata_json = _decision_metadata(
                 plan_item,
                 action=action,
@@ -713,33 +734,44 @@ def _execute_plan_item(
                 scope=scope,
                 actual_start_date=actual_start,
                 actual_end_date=actual_end,
-                boundary_status="PASS",
+                boundary_status="PASS_WITH_GAPS" if gap_aware and missing_sessions else "PASS",
                 provider_result="SUCCESS_WITH_BARS",
                 received_bar_count=received_count,
                 admitted_bars=bars,
             )
+            if gap_aware:
+                required_sessions = _required_sessions(scope)
+                fetch_item.decision_metadata_json = {
+                    **fetch_item.decision_metadata_json,
+                    "missing_required_sessions": [day.isoformat() for day in missing_sessions],
+                    "required_session_count": len(required_sessions),
+                    "admitted_required_session_count": len(required_sessions)-len(missing_sessions),
+                    "coverage_complete": not missing_sessions,
+                    "admitted_expected_session": (
+                        plan_item.freshness_threshold_date or scope.reviewed_end_date
+                    ) in {
+                        bar.bar_date for bar in bars
+                    },
+                    "history_gap_count": len(missing_sessions),
+                    "retryable": False,
+                }
+                if not bars:
+                    _mark_failed(fetch_item, "No completed daily bars within the frozen interval.")
+                    return
             cache_started = perf_counter()
             try:
-                upsert = cache_bars(
-                    db,
-                    bars,
-                    fetch_run_id=fetch_item.fetch_run_id
-                    or getattr(fetch_item.fetch_run, "id", None),
-                    fetch_item_id=fetch_item.id,
+                _cache_admitted_bars(
+                    db, fetch_item=fetch_item, scope=scope, bars=bars,
+                    missing_sessions=missing_sessions, gap_aware=gap_aware,
+                    contract_identity=(plan_item.runtime_contract_identity
+                                       or plan_item.contract_identity or {}),
                 )
             finally:
                 _add_duration(performance, "bar_cache_write_ms", cache_started)
-            fetch_item.fetched = len(bars)
-            fetch_item.inserted = upsert.inserted
-            fetch_item.updated = upsert.updated
-            fetch_item.revised = upsert.revised
-            fetch_item.unchanged = upsert.unchanged
-            fetch_item.status = "SUCCESS"
-            fetch_item.completed_at = datetime.now(UTC)
             operational_metrics.increment(
                 "swinglens_ib_historical_requests_total",
                 feed=plan_item.what_to_show,
-                result="success",
+                result="partial" if gap_aware and missing_sessions else "success",
                 error_category="NONE",
             )
             return
@@ -1288,6 +1320,7 @@ def _refresh_run_totals(fetch_run: IBFetchRun, db: Session | None = None) -> Non
                 func.coalesce(func.sum(IBFetchItem.updated), 0),
                 func.coalesce(func.sum(IBFetchItem.revised), 0),
                 func.coalesce(func.sum(IBFetchItem.unchanged), 0),
+                func.count().filter(IBFetchItem.status == "PARTIAL"),
             ).where(IBFetchItem.fetch_run_id == fetch_run.id)
         ).one()
         (
@@ -1300,7 +1333,8 @@ def _refresh_run_totals(fetch_run: IBFetchRun, db: Session | None = None) -> Non
             fetch_run.updated_count,
             fetch_run.revised_count,
             fetch_run.unchanged_count,
-        ) = (int(value or 0) for value in totals)
+        ) = (int(value or 0) for value in totals[:-1])
+        _set_partial_response_count(fetch_run, int(totals[-1] or 0))
         return
     items = fetch_run.items or []
     fetch_run.executed_request_count = sum((item.attempt_count or 0) > 0 for item in items)
@@ -1312,9 +1346,18 @@ def _refresh_run_totals(fetch_run: IBFetchRun, db: Session | None = None) -> Non
     fetch_run.updated_count = sum(item.updated or 0 for item in items)
     fetch_run.revised_count = sum(item.revised or 0 for item in items)
     fetch_run.unchanged_count = sum(item.unchanged or 0 for item in items)
+    _set_partial_response_count(fetch_run, sum(item.status == "PARTIAL" for item in items))
+
+
+def _set_partial_response_count(fetch_run: IBFetchRun, count: int) -> None:
+    counters = dict(fetch_run.decision_counts_json or {})
+    if count or "partial_response_count" in counters:
+        fetch_run.decision_counts_json = {**counters, "partial_response_count": count}
 
 
 def _final_run_status(fetch_run: IBFetchRun) -> str:
+    if (fetch_run.decision_counts_json or {}).get("partial_response_count", 0):
+        return "PARTIAL"
     if fetch_run.failure_count and fetch_run.success_count:
         return "PARTIAL"
     if fetch_run.failure_count and not fetch_run.success_count:
@@ -1323,6 +1366,10 @@ def _final_run_status(fetch_run: IBFetchRun) -> str:
 
 
 def _run_message(fetch_run: IBFetchRun) -> str:
+    partial = (fetch_run.decision_counts_json or {}).get("partial_response_count", 0)
+    if partial:
+        return (f"Executed {fetch_run.executed_request_count} IB requests with "
+                f"{partial} partial responses and {fetch_run.failure_count} failures.")
     if fetch_run.failure_count:
         return (
             f"Executed {fetch_run.executed_request_count} IB requests with "
@@ -1470,9 +1517,9 @@ def _execution_scope(plan_item: FetchPlanItem, duration: str) -> HistoricalReque
 def _unconfirmed_response_session(
     scope: HistoricalRequestScope, observed_at: datetime | None = None,
 ) -> date | None:
-    """V3 alone may discard today's forming ADJUSTED_LAST daily observation."""
+    """Completed-subset policies may discard today's forming adjusted observation."""
     if (
-        scope.response_admission_policy != DAILY_BAR_ADMISSION_V3
+        scope.response_admission_policy not in {DAILY_BAR_ADMISSION_V3, DAILY_BAR_ADMISSION_V4}
         or scope.end_mode != HistoricalEndMode.CURRENT
         or scope.what_to_show != "ADJUSTED_LAST"
         or scope.bar_size != "1 day"
@@ -1503,7 +1550,7 @@ def _validate_returned_scope(
     actual_start = min(dates, default=None)
     actual_end = max(dates, default=None)
     if scope.response_admission_policy not in {
-        STRICT_RESPONSE_V1, DAILY_BAR_ADMISSION_V2, DAILY_BAR_ADMISSION_V3,
+        STRICT_RESPONSE_V1, DAILY_BAR_ADMISSION_V2, DAILY_BAR_ADMISSION_V3, DAILY_BAR_ADMISSION_V4,
     }:
         raise HistoricalRequestScopeViolation("Unsupported historical response admission policy.")
     if (
@@ -1563,16 +1610,70 @@ def _admit_returned_bars(
         bar for bar in bars
         if scope.reviewed_start_date <= bar.bar_date <= scope.reviewed_end_date
     ]
-    required_end = scope.required_end_date or scope.reviewed_end_date
-    required = scope.required_start_date or required_end
-    admitted_dates = {bar.bar_date for bar in admitted}
-    while required <= required_end:
-        if required not in admitted_dates:
+    if scope.response_admission_policy != DAILY_BAR_ADMISSION_V4:
+        for required in _missing_required_sessions(admitted, scope):
             raise HistoricalRequestScopeViolation(
                 f"Required historical session missing: {required}."
             )
-        required = next_us_trading_day(required)
     return admitted
+
+
+def _required_sessions(scope: HistoricalRequestScope) -> list[date]:
+    end = scope.required_end_date or scope.reviewed_end_date
+    current = scope.required_start_date or end
+    sessions = []
+    while current <= end:
+        sessions.append(current)
+        current = next_us_trading_day(current)
+    return sessions
+
+
+def _missing_required_sessions(
+    bars: list[HistoricalBar], scope: HistoricalRequestScope,
+) -> list[date]:
+    present = {bar.bar_date for bar in bars}
+    return [day for day in _required_sessions(scope) if day not in present]
+
+
+def _seal_bar_admission(db, **kwargs):
+    if not isinstance(db, Session):
+        return None
+    from app.services.ib_bar_admission_service import seal_bar_admission
+
+    return seal_bar_admission(db, **kwargs)
+
+
+def _cache_admitted_bars(
+    db, *, fetch_item, scope, bars, missing_sessions, gap_aware, contract_identity,
+):
+    # A rejected receipt must roll back the cache projection in the same savepoint.
+    atomic = db.begin_nested() if gap_aware and isinstance(db, Session) else nullcontext()
+    with atomic:
+        upsert = cache_bars(
+            db, bars,
+            fetch_run_id=fetch_item.fetch_run_id or getattr(fetch_item.fetch_run, "id", None),
+            fetch_item_id=fetch_item.id,
+        )
+        fetch_item.fetched = len(bars)
+        fetch_item.inserted = upsert.inserted
+        fetch_item.updated = upsert.updated
+        fetch_item.revised = upsert.revised
+        fetch_item.unchanged = upsert.unchanged
+        fetch_item.status = "PARTIAL" if gap_aware and missing_sessions else "SUCCESS"
+        fetch_item.completed_at = datetime.now(UTC)
+        if gap_aware:
+            db.flush()
+            receipt = _seal_bar_admission(
+                db, fetch_item=fetch_item, scope=scope, admitted_bars=bars,
+                missing_sessions=missing_sessions, contract_identity=contract_identity,
+            )
+            if receipt is not None:
+                fetch_item.decision_metadata_json = {
+                    **fetch_item.decision_metadata_json,
+                    "admission_receipt_hash": receipt.receipt_hash,
+                }
+            fetch_item.completed_at = datetime.now(UTC)
+            db.flush()
 
 
 def _iso_date(value: date | None) -> str | None:

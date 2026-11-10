@@ -2317,6 +2317,46 @@ def _readiness_cutoff():
     )
 
 
+def test_new_availability_policy_retains_all_requested_processing_members(monkeypatch):
+    from dataclasses import replace
+
+    from app.services.market_data_availability_policy import new_availability_policy
+
+    db = PipelineExecutorFakeDb(tickers=["LIVE", "HLT", "CLBK"])
+    db.pipeline.result_json = {
+        "market_data_availability_policy": new_availability_policy().as_dict()
+    }
+    live = _readiness_row("LIVE", disposition="READY", lifecycle_state="ACTIVE", eligible=True)
+    hlt = _readiness_row("HLT", disposition="READY", lifecycle_state="ACTIVE", eligible=True)
+    hlt.evidence_json = {"history_gap_count": 1, "missing_required_sessions": ["2026-10-05"]}
+    clbk = _readiness_row("CLBK", disposition="REQUIRED_DATA_UNAVAILABLE",
+                          lifecycle_state="UNKNOWN", eligible=False)
+    clbk.evidence_json = {"fetch_failures": [{"provider_error_category":
+                                              "HISTORICAL_DATA_UNAVAILABLE", "retryable": False}]}
+    _enable_readiness_boundary(monkeypatch, SessionReadinessResult((live, hlt, clbk)))
+    technical = []
+    downstream = []
+
+    def score(_db, _run_id, *, frozen_tickers=None, **_kwargs):
+        technical.extend(frozen_tickers)
+        return []
+
+    def finish(_db, *, tickers, pipeline, result, **_kwargs):
+        downstream.extend(tickers)
+        assert result["market_data_unavailable_count"] == 1
+        assert result["market_data_history_gap_count"] == 1
+        assert result["market_data_excluded_count"] == 0
+        pipeline.status = PipelineStatus.PARTIAL
+        return pipeline_executor._to_execution_result(pipeline, result)
+
+    monkeypatch.setattr(pipeline_executor, "_continue_after_sector_snapshot", finish)
+    dependencies = replace(_dependencies([]), score_technicals=score,
+                           market_cutoff=_readiness_cutoff())
+    actual = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+    assert actual.status == PipelineStatus.PARTIAL
+    assert technical == downstream == ["LIVE", "HLT", "CLBK"]
+
+
 def _readiness_row(
     ticker: str,
     *,

@@ -28,6 +28,8 @@ _EXPLICIT_INTEGRITY_FLAGS = (
 )
 _GAP_COUNTS = (
     "market_data_excluded_count",
+    "market_data_unavailable_count",
+    "market_data_history_gap_count",
     "incomplete_rows",
     "ib_failure_count",
     "technical_error_count",
@@ -68,6 +70,12 @@ def derive_pipeline_outcome(status: str, result: dict[str, Any]) -> dict[str, An
             "warning_rows": int(result.get("warning_rows") or 0),
             "gaps": gaps,
             "excluded_tickers": (result.get("partial_scope") or {}).get("excluded_tickers", []),
+            "unavailable_tickers": (result.get("market_data_availability") or {}).get(
+                "unavailable_tickers", []
+            ),
+            "history_gap_tickers": (result.get("market_data_availability") or {}).get(
+                "history_gap_tickers", []
+            ),
         },
         "integrity": {
             "status": integrity,

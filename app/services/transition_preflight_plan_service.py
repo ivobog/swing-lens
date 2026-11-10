@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriScoreSnapshot, CeriSourceRecord
 from app.models.tables import (
     MarketCalculationContext,
-    MarketDataSessionDisposition,
     MarketRegimeSnapshot,
     PipelineRun,
     RawCompanyRow,
@@ -863,24 +862,31 @@ def _pipeline_downstream_tickers(
 ) -> set[str] | None:
     """Return the frozen admitted population, or None for legacy/preflight callers."""
 
-    rows = tuple(
-        db.scalars(
-            select(MarketDataSessionDisposition).where(
-                MarketDataSessionDisposition.pipeline_run_id == pipeline_run_id,
-                MarketDataSessionDisposition.is_current_revision.is_(True),
-            )
-        )
-    )
-    if not rows:
+    from app.services.market_data_session_readiness import load_current_session_readiness
+
+    readiness = load_current_session_readiness(db, pipeline_run_id=pipeline_run_id)
+    if readiness is None:
         return None
-    blockers = [row for row in rows if row.disposition not in {"READY", "TERMINAL_INACTIVE"}]
+    rows = readiness.rows
+    from app.services.market_data_availability_policy import (
+        hard_readiness_blockers,
+        parse_availability_policy,
+        pipeline_availability_policy,
+        processing_tickers,
+    )
+
+    pipeline = db.get(PipelineRun, pipeline_run_id)
+    policy = pipeline_availability_policy(pipeline) if pipeline is not None else (
+        parse_availability_policy()
+    )
+    blockers = hard_readiness_blockers(rows, policy)
     if blockers:
         raise TransitionPreflightError(
             "MARKET_DATA_SESSION_READINESS_BLOCKED",
             "decision handoff cannot bypass unresolved market-data dispositions: "
             + ",".join(f"{row.ticker}={row.disposition}" for row in blockers),
         )
-    return {row.ticker.upper() for row in rows if row.downstream_eligible}
+    return {ticker.upper() for ticker in processing_tickers(rows, policy)}
 
 
 def reconstruct_transition_decision_manifests(

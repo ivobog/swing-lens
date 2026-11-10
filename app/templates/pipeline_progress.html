@@ -35,6 +35,15 @@
         </button>
       </form>
       {% set market_readiness = pipeline_result.get('market_data_session_readiness') or {} %}
+      <form method="post" action="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/recover-with-gaps"
+            data-loading-form data-pipeline-recover-gaps
+            data-confirm="Start a new run with the same companies and allow reported company-specific data gaps? The original run will remain available."
+            {% if not (pipeline.status == 'BLOCKED' and pipeline.current_step == 'FETCHING_MARKET_DATA') %}hidden{% endif %}>
+        <button type="submit" data-loading-label="Queuing recovery run...">Start new run with data gaps</button>
+      </form>
+      <a class="button-link secondary" data-pipeline-history-repair
+         href="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/history-gaps"
+         {% if not (is_terminal and pipeline_result.get('market_data_history_gap_count')) %}hidden{% endif %}>Review missing history</a>
       <form method="post" action="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/partial"
             data-loading-form data-pipeline-partial
             data-confirm="Start a new partial run with the listed missing tickers excluded from scoring and ranking? The original pipeline will stay blocked."
@@ -44,6 +53,26 @@
       </form>
     </div>
   </div>
+
+  {% set availability = pipeline_result.get('market_data_availability') or {} %}
+  <div class="alert section-gap" role="status" data-pipeline-market-gaps
+       {% if not availability.get('unavailable_tickers') and not availability.get('history_gap_tickers') %}hidden{% endif %}>
+    <strong>Market-data gaps</strong><br>
+    Unavailable: <span data-pipeline-market-unavailable>{{ (availability.get('unavailable_tickers') or [])|join(', ') or 'None' }}</span>.<br>
+    Incomplete history: <span data-pipeline-market-history-gaps>{{ (availability.get('history_gap_tickers') or [])|join(', ') or 'None' }}</span>.<br>
+    <span data-pipeline-market-gap-explanation>{% if availability.get('continued_with_gaps') %}Other companies continue. Affected calculations remain incomplete where required data is missing.{% else %}The run retains each company's data-availability result.{% endif %}</span>
+  </div>
+  <ul data-pipeline-market-gap-details>
+    {% for ticker, item in (market_readiness.get('tickers') or {}).items() %}
+      {% if item.get('history_gap_count') or item.get('disposition') not in ['READY', 'TERMINAL_INACTIVE'] %}
+        {% set returned_dates = (item.get('provider_results') or [])|map(attribute='actual_end_date')|select|sort|list %}
+        <li>{{ ticker }}: {{ item.get('reason_message') or item.get('reason_code', 'Data unavailable')|replace('_', ' ') }}
+          {% if item.get('missing_sessions') %}Missing days: {{ item.missing_sessions|join(', ') }}.{% endif %}
+          Returned through {{ returned_dates|last if returned_dates else 'unavailable' }};
+          available through {{ item.get('latest_bar_session') or 'unavailable' }}.</li>
+      {% endif %}
+    {% endfor %}
+  </ul>
 
   {% set partial = pipeline_result.get('partial_scope') or {} %}
   <div class="alert section-gap" role="status" data-pipeline-partial-coverage {% if not partial %}hidden{% endif %}>

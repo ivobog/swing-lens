@@ -31,6 +31,9 @@ _CONTRACT_NOT_FOUND = re.compile(
     re.IGNORECASE,
 )
 _NO_HISTORICAL_DATA = re.compile(r"\bno\s+historical\s+market\s+data\s+for\b", re.IGNORECASE)
+_HMDS_QUERY_NO_DATA = re.compile(
+    r"\bhmds\s+query\s+returned\s+no\s+data(?:\s*[:.;]|$)", re.IGNORECASE,
+)
 _UNSUPPORTED_BEST_QUERY = re.compile(
     r"\bbest\s+queries\s+are\s+not\s+supported\s+for\s+this\s+contract\b", re.IGNORECASE
 )
@@ -103,6 +106,11 @@ def classify_ib_historical_error(
         return IBHistoricalErrorClassification(
             IBHistoricalErrorCategory.HISTORICAL_TRANSIENT,
             retryable=True,
+        )
+    if _HMDS_QUERY_NO_DATA.search(normalized):
+        return IBHistoricalErrorClassification(
+            IBHistoricalErrorCategory.HISTORICAL_DATA_UNAVAILABLE,
+            retryable=False,
         )
     return IBHistoricalErrorClassification(
         IBHistoricalErrorCategory.HISTORICAL_UNKNOWN_162,

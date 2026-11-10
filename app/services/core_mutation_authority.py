@@ -1553,7 +1553,7 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
     from app.services.price_bar_repository import (
         _pipeline_acquisition_visibility,
         price_bar_pit_manifest_hash,
-        project_price_bar_rows_as_of,
+        project_acquisition_price_rows,
     )
 
     if (
@@ -1577,9 +1577,9 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
         raise ValueError("MUTATION_PRICE_MANIFEST_SCOPE_MISMATCH")
     baseline = [row for row in rows if row.first_seen_at <= cutoff and row.created_at <= cutoff]
     acquired = [row for row in rows if row not in baseline]
-    projected = project_price_bar_rows_as_of(db, baseline, as_of=cutoff)
+    resolved = None
+    authority = manifest.get("acquisition_authority")
     if acquired:
-        authority = manifest.get("acquisition_authority")
         if not isinstance(authority, dict):
             raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_REQUIRED")
         resolved = _pipeline_acquisition_visibility(
@@ -1588,20 +1588,13 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
             ticker=manifest["ticker"],
             what_to_show=manifest["what_to_show"],
             timeframe=manifest["timeframe"],
+            receipt_hashes=tuple(sorted({
+                member["receipt_hash"] for member in authority.get("bar_admissions", [])
+            })),
         )
-        if resolved is None or Canonical.canonicalize(authority) != Canonical.canonicalize(
-            resolved.__dict__
-        ):
-            raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_MISMATCH")
-        if any(
-            row.first_fetch_run_id != resolved.fetch_run_id
-            or row.first_fetch_item_id != resolved.fetch_item_id
-            or row.created_at > resolved.completed_at
-            or row.first_seen_at > resolved.completed_at
-            for row in acquired
-        ):
-            raise ValueError("MUTATION_PRICE_ACQUISITION_SCOPE_MISMATCH")
-        projected.extend(project_price_bar_rows_as_of(db, acquired, as_of=resolved.completed_at))
+    projected = project_acquisition_price_rows(
+        db, rows, as_of=cutoff, acquisition=resolved, authority=authority,
+    )
     expected = {state["id"]: state["fingerprint"] for state in states}
     if len(projected) != len(ids) or any(
         price_bar_pit_manifest_hash(db, row) != expected[row.id] for row in projected
@@ -1708,12 +1701,13 @@ def _validate_technical_price_source_manifests(
     from app.services.price_bar_repository import (
         _pipeline_acquisition_visibilities,
         price_bar_pit_manifest_hash,
-        project_price_bar_rows_as_of,
+        project_acquisition_price_rows,
     )
 
     prepared = []
     all_ids: set[int] = set()
     acquisition_keys: dict[int, set[tuple[str, str, str]]] = {}
+    acquisition_receipts: dict[int, set[str]] = {}
     for manifest in manifests:
         if (
             datetime.fromisoformat(manifest["as_of"]) != cutoff
@@ -1735,6 +1729,9 @@ def _validate_technical_price_source_manifests(
             acquisition_keys[context_id] = acquisition_keys.get(context_id, set()) | {
                 (manifest["ticker"], manifest["what_to_show"], manifest["timeframe"])
             }
+            acquisition_receipts.setdefault(context_id, set()).update(
+                member["receipt_hash"] for member in authority.get("bar_admissions", [])
+            )
 
     rows_by_id = {}
     ordered_ids = sorted(all_ids)
@@ -1754,6 +1751,7 @@ def _validate_technical_price_source_manifests(
             tickers=tuple(sorted({key[0] for key in keys})),
             what_to_show=tuple(sorted({key[1] for key in keys})),
             timeframes=tuple(sorted({key[2] for key in keys})),
+            receipt_hashes=tuple(sorted(acquisition_receipts[context_id])),
         )
 
     for index, ((manifest, ids, expected), item) in enumerate(
@@ -1772,30 +1770,18 @@ def _validate_technical_price_source_manifests(
             raise ValueError("MUTATION_PRICE_MANIFEST_SCOPE_MISMATCH")
         baseline = [row for row in rows if row.first_seen_at <= cutoff and row.created_at <= cutoff]
         acquired = [row for row in rows if row not in baseline]
-        projected = project_price_bar_rows_as_of(db, baseline, as_of=cutoff)
+        resolved = None
+        authority = manifest.get("acquisition_authority")
         if acquired:
-            authority = manifest.get("acquisition_authority")
             if not isinstance(authority, dict):
                 raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_REQUIRED")
             context_id = int(authority["calculation_context_id"])
             resolved = visibilities.get(context_id, {}).get(
                 (manifest["ticker"].upper(), manifest["what_to_show"], manifest["timeframe"])
             )
-            if resolved is None or Canonical.canonicalize(authority) != Canonical.canonicalize(
-                resolved.__dict__
-            ):
-                raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_MISMATCH")
-            if any(
-                row.first_fetch_run_id != resolved.fetch_run_id
-                or row.first_fetch_item_id != resolved.fetch_item_id
-                or row.created_at > resolved.completed_at
-                or row.first_seen_at > resolved.completed_at
-                for row in acquired
-            ):
-                raise ValueError("MUTATION_PRICE_ACQUISITION_SCOPE_MISMATCH")
-            projected.extend(
-                project_price_bar_rows_as_of(db, acquired, as_of=resolved.completed_at)
-            )
+        projected = project_acquisition_price_rows(
+            db, rows, as_of=cutoff, acquisition=resolved, authority=authority,
+        )
         if len(projected) != len(ids) or any(
             price_bar_pit_manifest_hash(db, row) != expected[row.id] for row in projected
         ):

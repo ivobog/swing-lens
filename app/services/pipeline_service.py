@@ -27,6 +27,7 @@ from app.services.background_job_service import (
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.constants import CERI_PIPELINE_PROVIDER_INGEST_STEP, CERI_PIPELINE_STEPS
 from app.services.ceri.feature_flags import ceri_flags
+from app.services.market_data_availability_policy import new_availability_policy
 from app.services.market_data_prewarm_service import request_active_prewarm_preemption
 from app.services.operational_metrics import operational_metrics
 from app.services.pipeline_stage_registry import (
@@ -169,11 +170,16 @@ def start_pipeline(
     transition_candidate_discovery: Any | None = None,
     partial_source_pipeline_id: int | None = None,
     excluded_tickers: tuple[str, ...] = (),
+    market_data_availability_policy: str | None = None,
+    market_data_recovery_source: dict[str, Any] | None = None,
 ) -> PipelineRun:
     settings = get_settings()
     certification_mode = (
         getattr(settings, "runtime_mode", RuntimeMode.NORMAL) is RuntimeMode.CERTIFICATION
     )
+    availability = new_availability_policy(
+        market_data_availability_policy, certification=certification_mode
+    ).as_dict()
     upload_run = db.get(UploadRun, upload_run_id)
     if upload_run is None:
         raise ValueError(f"Upload run {upload_run_id} was not found.")
@@ -319,6 +325,7 @@ def start_pipeline(
         return authoritative
 
     request_key = _pipeline_request_key(upload_run_id, step_names, policy)
+    request_key += ":availability:" + CanonicalEvidenceSerializer.fingerprint(availability)
     if partial_scope is not None:
         request_key += ":partial:" + CanonicalEvidenceSerializer.fingerprint(partial_scope)
     existing_job = active_job_for_request_key(db, FULL_PIPELINE_JOB_TYPE, request_key)
@@ -368,6 +375,8 @@ def start_pipeline(
             policy=policy,
             market_cutoff=market_cutoff,
             partial_scope=partial_scope,
+            availability=availability,
+            recovery_source=market_data_recovery_source,
         )
         bind_semantic_authority(pipeline, authority)
 
@@ -396,6 +405,9 @@ def start_pipeline(
         job_type=FULL_PIPELINE_JOB_TYPE,
         payload={
             "pipeline_run_id": pipeline.id,
+            "market_data_availability_policy": availability,
+            **({"market_data_recovery_source": market_data_recovery_source}
+               if market_data_recovery_source is not None else {}),
             "market_calculation_context_id": market_cutoff.context_id,
             "market_cutoff_at": CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at),
             "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
@@ -443,6 +455,9 @@ def start_pipeline(
     pipeline.result_json = {
         "background_job_id": job.id,
         "market_data_policy": policy.value,
+        "market_data_availability_policy": availability,
+        **({"market_data_recovery_source": market_data_recovery_source}
+           if market_data_recovery_source is not None else {}),
         **({"partial_scope": partial_scope} if partial_scope is not None else {}),
         "ib_preflight_status": preflight.get("status"),
         "ib_preflight_checked_at": preflight.get("checked_at"),
@@ -1936,6 +1951,8 @@ def _admit_pipeline_authority(
     policy: MarketDataPolicy,
     market_cutoff: Any,
     partial_scope: dict[str, Any] | None = None,
+    availability: dict[str, Any] | None = None,
+    recovery_source: dict[str, Any] | None = None,
 ) -> SemanticWorkAuthority:
     tickers = tuple(
         dict.fromkeys(
@@ -1950,6 +1967,12 @@ def _admit_pipeline_authority(
     )
     if partial_scope is not None:
         tickers = tuple(partial_scope["included_tickers"])
+    if recovery_source is not None and (
+        recovery_source.get("contract_version") != "full-universe-market-data-recovery-v1"
+        or sorted(recovery_source.get("requested_tickers") or ()) != sorted(tickers)
+        or not recovery_source.get("source_scope_id")
+    ):
+        raise ValueError("MARKET_DATA_RECOVERY_SOURCE_SCOPE_MISMATCH")
     members = tuple(ScopeMember("TICKER", ticker) for ticker in tickers)
     cutoff = market_cutoff.cutoff_at
     cycle_key = f"pipeline-market-context:{market_cutoff.context_id}"
@@ -1957,6 +1980,8 @@ def _admit_pipeline_authority(
         {
             "kind": "full-pipeline-admission",
             "market_data_policy": policy.value,
+            **({"market_data_availability_policy": availability} if availability else {}),
+            **({"market_data_recovery_source": recovery_source} if recovery_source else {}),
             "steps": list(step_names),
             **({"partial_scope": partial_scope} if partial_scope is not None else {}),
         }
@@ -1976,10 +2001,13 @@ def _admit_pipeline_authority(
             "upload_run_id": pipeline.upload_run_id,
             "market_calculation_context_id": market_cutoff.context_id,
             "market_data_policy": policy.value,
+            **({"market_data_availability_policy": availability} if availability else {}),
+            **({"market_data_recovery_source": recovery_source} if recovery_source else {}),
             "stages": list(step_names),
             **({"partial_scope": partial_scope} if partial_scope is not None else {}),
         },
-        parent_scope_id=(partial_scope["source_scope_id"] if partial_scope else None),
+        parent_scope_id=(partial_scope["source_scope_id"] if partial_scope
+                         else recovery_source["source_scope_id"] if recovery_source else None),
         refresh_reason="FULL_PIPELINE_ADMISSION",
     )
 
