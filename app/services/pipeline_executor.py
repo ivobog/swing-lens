@@ -612,6 +612,19 @@ def execute_full_pipeline(
                         "ib_fetch_plan": fetch_plan_to_dict(plan),
                         "ib_fetch_authority": fetch_authority.as_dict(),
                     }
+                    if first_admission:
+                        admitted_checkpoint = {
+                            **result["market_data_resume_checkpoint"],
+                            "first_plan_admitted": True,
+                        }
+                        pipeline.result_json = {
+                            **pipeline.result_json,
+                            "market_data_resume_checkpoint": admitted_checkpoint,
+                        }
+                        # Admission is durable before auxiliary lookups or broker
+                        # coordination. A rollback must leave the local result
+                        # unadmitted so failure reporting cannot invent a commit.
+                        _save_progress(db, lease_guard=lease_guard)
                 if first_admission:
                     result["market_data_resume_checkpoint"]["first_plan_admitted"] = True
             prewarm_context = resolve_pipeline_prewarm_context(db, tickers)

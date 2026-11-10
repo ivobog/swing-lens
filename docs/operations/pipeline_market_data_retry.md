@@ -24,6 +24,12 @@ health projection changes to ready. That contract cannot waive prior acquisition
 facts or a changed scope, context or session. A `first_plan_admitted` marker
 prevents treating a lost admitted plan as a fresh acquisition.
 
+The first plan, child authority and admitted checkpoint commit atomically
+before prewarm lookups or broker preparation. The in-memory admitted marker
+changes only after that commit succeeds. A preparation failure therefore
+retains the exact committed plan, while a failed admission commit leaves the
+unadmitted proof eligible for retry. Neither case invents an acquisition.
+
 An existing plan uses the `RETAINED` path. Its required shape, upload and ticker
 scope are checked; its exact frozen contents are reused. Older optional request
 fields are not silently reinterpreted under a newer request policy.
