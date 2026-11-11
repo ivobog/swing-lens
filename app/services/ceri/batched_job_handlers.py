@@ -785,11 +785,6 @@ def _require_terminal_stage(
             )
         )
     )
-    if (expected and len(jobs) != expected) or not jobs:
-        raise JobDeferred(
-            f"waiting for {job_type} creation",
-            delay_seconds=retry_seconds,
-        )
     if any(job.status not in TERMINAL_JOB_STATUSES for job in jobs):
         raise JobDeferred(
             f"waiting for terminal {job_type} batches",
@@ -806,6 +801,11 @@ def _require_terminal_stage(
                 "upstream_job_type": job_type,
                 "jobs": [{"job_id": row.id, "status": row.status} for row in unsuccessful],
             },
+        )
+    if (expected and len(jobs) != expected) or not jobs:
+        raise JobDeferred(
+            f"waiting for {job_type} creation",
+            delay_seconds=retry_seconds,
         )
 
 

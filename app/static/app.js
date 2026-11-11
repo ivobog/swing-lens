@@ -744,6 +744,17 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-cancel-metric]", data.job_cancel_requested ? "Requested" : "No");
   setText(root, "[data-pipeline-items-processed]", data.processed_item_count || 0);
   setText(root, "[data-pipeline-items-total]", data.total_item_count || 0);
+  const dependencyWait = root.querySelector("[data-pipeline-dependency-wait]");
+  const deferralWarning = root.querySelector("[data-pipeline-deferral-warning]");
+  if (deferralWarning) deferralWarning.hidden = !data.dependency_deferral_warning;
+  if (dependencyWait) {
+    const waiting = data.dependency_wait || {};
+    dependencyWait.hidden = !waiting.prerequisite;
+    setText(root, "[data-pipeline-prerequisite-label]", waiting.label || "");
+    setText(root, "[data-pipeline-prerequisite-unfinished]", waiting.unfinished_batches ?? 0);
+    setText(root, "[data-pipeline-prerequisite-age]", waiting.age_seconds ?? 0);
+    setText(root, "[data-pipeline-deferral-count]", data.dependency_deferral_count ?? 0);
+  }
   const sectorOperation = root.querySelector("[data-pipeline-sector-operation]");
   if (sectorOperation) {
     const sector = data.sector_progress || {};

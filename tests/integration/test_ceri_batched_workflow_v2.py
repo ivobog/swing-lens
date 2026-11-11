@@ -626,7 +626,9 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
             workflow_key=workflow_key,
             request_key=f"{workflow_key}:normalize:eodhd:estimates:0001",
             related_run_id=run_id,
-            status=JobStatus.RUNNING,
+            # The provider is still running; claim normalization only after it
+            # terminalizes, as the production stage barrier now requires.
+            status=JobStatus.QUEUED,
             priority=81,
             payload_json={
                 "workflow_key": workflow_key,

@@ -83,6 +83,17 @@
     This run remains incomplete for the original universe.
   </div>
 
+  {% set waiting = pipeline.dependency_wait or {} %}
+  <div class="panel section-gap" role="status" data-pipeline-dependency-wait {% if not waiting %}hidden{% endif %}>
+    Waiting for <span data-pipeline-prerequisite-label>{{ waiting.get('label', '') }}</span>:
+    <span data-pipeline-prerequisite-unfinished>{{ waiting.get('unfinished_batches', 0) }}</span> unfinished batches.
+    Waiting job age: <span data-pipeline-prerequisite-age>{{ waiting.get('age_seconds', 0) }}</span> seconds.
+    Previous dependency deferrals: <span data-pipeline-deferral-count>{{ pipeline.dependency_deferral_count or 0 }}</span>.
+    Worker activity does not count as processing progress.
+  </div>
+  <div class="alert section-gap" role="status" data-pipeline-deferral-warning {% if not pipeline.dependency_deferral_warning %}hidden{% endif %}>
+    This job has repeatedly waited for the same prerequisite. Processing has not advanced.
+  </div>
   {% set sector = pipeline.sector_progress or {} %}
   <div class="panel section-gap" role="status" data-pipeline-sector-operation {% if not sector %}hidden{% endif %}>
     <strong>Sector operation:</strong> <span data-pipeline-sector-label>{{ sector.get('label', '') }}</span>.

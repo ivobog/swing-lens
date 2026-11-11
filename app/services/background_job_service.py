@@ -13,7 +13,7 @@ from typing import Any
 from uuid import uuid4
 from weakref import WeakKeyDictionary
 
-from sqlalchemy import MetaData, Table, case, delete, event, insert, or_, select, update
+from sqlalchemy import MetaData, Table, case, delete, event, func, insert, or_, select, update
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
@@ -917,8 +917,8 @@ def claim_next_job(
     job.lease_expires_at = _lease_expiry(now, lease_seconds)
     job.started_at = job.started_at or now
     job.error_message = None
-    job.last_progress_at = now
-    job.progress_sequence = int(job.progress_sequence or 0) + 1
+    # A new execution window is activity, not evidence of useful work. locked_at
+    # starts its stall clock without hiding repeated dependency-only attempts.
     job.stall_detected_at = None
     metadata = _with_attempt_started(
         _with_lease_event(
@@ -1085,10 +1085,14 @@ def fence_stalled_jobs(
     """Fence live-but-not-progressing executions without trusting lease freshness."""
     authority = require_recovery_authority(authority)
     observed_at = now or _utcnow()
+    attempt_progress_at = func.coalesce(
+        func.greatest(BackgroundJob.last_progress_at, BackgroundJob.locked_at),
+        BackgroundJob.started_at, BackgroundJob.created_at,
+    )
     candidate_query = (
         select(BackgroundJob)
         .where(BackgroundJob.status == JobStatus.RUNNING)
-        .where(BackgroundJob.last_progress_at.is_not(None))
+        .where(attempt_progress_at.is_not(None))
         .where(_job_recovery_authority_predicate())
     )
     if worker_id is not None:
@@ -1106,7 +1110,8 @@ def fence_stalled_jobs(
         )
     # Healthy observations must never lock or rewrite the leased job row.
     # Progress sequence and last_progress_at advance in the same control UPDATE;
-    # the timestamp, rather than watchdog polling metadata, owns the stall clock.
+    # useful progress or the current attempt's start owns the stall clock. Queue
+    # waiting time must not make a newly claimed attempt immediately overdue.
     candidates = list(db.scalars(candidate_query).all())
     if not candidates:
         logger.info(
@@ -1122,7 +1127,7 @@ def fence_stalled_jobs(
             market_data_timeout_seconds=market_data_timeout_seconds,
             long_stage_timeout_seconds=long_stage_timeout_seconds,
         )
-        if candidate.requested_cancel or candidate.last_progress_at < observed_at - timedelta(
+        if candidate.requested_cancel or _attempt_progress_at(candidate) < observed_at - timedelta(
             seconds=timeout
         ):
             overdue.append(
@@ -1144,7 +1149,14 @@ def fence_stalled_jobs(
             "progress_sequence": int(candidate.progress_sequence or 0),
             "stage": effective_stage,
             "stall_threshold_seconds": timeout,
-            "decision": "HEALTHY_WITHIN_PROGRESS_TIMEOUT",
+            "decision": (
+                "AWAITING_USEFUL_PROGRESS_WITHIN_ATTEMPT_TIMEOUT"
+                if candidate.last_progress_at is None or (
+                    candidate.locked_at is not None
+                    and candidate.last_progress_at < candidate.locked_at
+                ) else "HEALTHY_WITHIN_PROGRESS_TIMEOUT"
+            ),
+            "attempt_age_seconds": _age_seconds(observed_at, candidate.locked_at),
         }
         _watchdog_decision(db, decision_context)
     fenced: list[int] = []
@@ -1156,11 +1168,11 @@ def fence_stalled_jobs(
                 BackgroundJob.id == job_id,
                 BackgroundJob.execution_token == token,
                 BackgroundJob.progress_sequence == sequence,
-                BackgroundJob.last_progress_at == progress_at,
+                BackgroundJob.last_progress_at.is_not_distinct_from(progress_at),
                 BackgroundJob.progress_stage == stage,
                 or_(
                     BackgroundJob.requested_cancel.is_(True),
-                    BackgroundJob.last_progress_at < deadline,
+                    attempt_progress_at < deadline,
                 ),
             )
             .with_for_update(skip_locked=True)
@@ -1244,6 +1256,13 @@ def fence_stalled_jobs(
         publish_after_commit(db, "increment", "swinglens_job_stalls_total", job_type=job.job_type)
     db.flush()
     return fenced
+
+
+def _attempt_progress_at(job: BackgroundJob) -> datetime:
+    values = [value for value in (job.last_progress_at, job.locked_at) if value is not None]
+    if not values:
+        values = [job.started_at or job.created_at]
+    return max(value.replace(tzinfo=UTC) if value.tzinfo is None else value for value in values)
 
 
 def _record_progress_recovery(job, identity, *, observed_at, failure_reason=None):
@@ -1771,6 +1790,9 @@ def _claim_ready_job_id(
     )
 
     query = apply_job_execution_authority_scope(query)
+    from app.services.ceri.batched_claims import ceri_stage_claim_predicate
+
+    query = query.where(ceri_stage_claim_predicate())
     if certification_only:
         from app.services.certification_runtime import (
             apply_certification_claim_scope,
@@ -2187,6 +2209,34 @@ def mark_job_deferred(
 ) -> None:
     expected_token = _expected_execution_token(job, execution_token)
     now = _utcnow()
+    metadata = _with_attempt_finished(
+        job.operational_metadata_json, finished_at=now, status="DEFERRED",
+    )
+    previous = dict(metadata.get("dependency_wait") or {})
+    safe_reason = _safe_error(reason)
+    sequence = int(job.progress_sequence or 0)
+    unchanged = (
+        previous.get("reason") == safe_reason
+        and previous.get("progress_sequence") == sequence
+    )
+    metadata["dependency_wait"] = {
+        "reason": safe_reason,
+        "progress_sequence": sequence,
+        "deferral_count": int(previous.get("deferral_count") or 0) + 1,
+        "unchanged_since": previous.get("unchanged_since", now.isoformat())
+        if unchanged else now.isoformat(),
+        "last_deferred_at": now.isoformat(),
+    }
+    if metadata["dependency_wait"]["deferral_count"] % 100 == 0:
+        logger.warning(
+            "job.dependency_wait_repeated",
+            extra={
+                "job_id": job.id, "job_type": job.job_type,
+                "deferral_count": metadata["dependency_wait"]["deferral_count"],
+                "unchanged_since": metadata["dependency_wait"]["unchanged_since"],
+                "progress_sequence": sequence,
+            },
+        )
     values: dict[str, Any] = {
         "status": JobStatus.QUEUED,
         "run_after": now + delay,
@@ -2198,11 +2248,7 @@ def mark_job_deferred(
         "worker_instance_id": None,
         "lease_owner": None,
         "execution_token": None,
-        "operational_metadata_json": _with_attempt_finished(
-            job.operational_metadata_json,
-            finished_at=now,
-            status="DEFERRED",
-        ),
+        "operational_metadata_json": metadata,
     }
     _apply_running_job_update(db, job, expected_token, values)
     publish_after_commit(

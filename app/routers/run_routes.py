@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
@@ -1991,6 +1991,22 @@ def _pipeline_status_payload(
             if isinstance(hashed, (int, float))
             else f"{sector_progress.get('processed', 0)} / {sector_progress.get('total', 0)}"
         )
+    from app.services.ceri.batched_claims import ceri_dependency_wait
+
+    dependency_wait = ceri_dependency_wait(db, job)
+    if dependency_wait:
+        dependency_wait["age_seconds"] = age_seconds(dependency_wait.get("waiting_since"))
+    deferrals = dict(observed_metadata.get("dependency_wait") or {})
+    try:
+        deferral_age = age_seconds(datetime.fromisoformat(deferrals.get("unchanged_since", "")))
+    except (ValueError, TypeError):
+        deferral_age = None
+    deferral_warning = bool(
+        job is not None and job.status in {"QUEUED", "RECOVERING", "RUNNING"}
+        and int(deferrals.get("deferral_count") or 0) >= 10
+        and deferral_age is not None and deferral_age >= 300
+        and deferrals.get("progress_sequence") == job.progress_sequence
+    )
     return {
         "pipeline_run_id": status.pipeline_run_id,
         "upload_run_id": status.upload_run_id,
@@ -2032,6 +2048,11 @@ def _pipeline_status_payload(
         ),
         "total_item_count": sector_progress.get("total", job.progress_total if job else None),
         "sector_progress": sector_progress,
+        "dependency_wait": dependency_wait,
+        "dependency_deferral_count": int(deferrals.get("deferral_count") or 0),
+        "dependency_deferral_age_seconds": deferral_age,
+        "dependency_deferral_warning": deferral_warning,
+        "last_claimed_at": job.locked_at if job else None,
         "checkpoint_version": job.checkpoint_version if job else None,
         "stall_detected_at": job.stall_detected_at if job else None,
         "recovery_count": job.recovery_count if job else 0,
@@ -2199,7 +2220,16 @@ def _pipeline_observability_job(
         select(BackgroundJob)
         .where(BackgroundJob.workflow_key == str(workflow_key))
         .where(BackgroundJob.status.in_(("RUNNING", "RECOVERING", "STALLED", "QUEUED")))
-        .order_by(BackgroundJob.last_progress_at.desc().nullslast(), BackgroundJob.id.desc())
+        .order_by(
+            case(
+                (BackgroundJob.status == "RUNNING", 0),
+                (BackgroundJob.status == "RECOVERING", 1),
+                (BackgroundJob.status == "STALLED", 2),
+                else_=3,
+            ),
+            BackgroundJob.last_progress_at.desc().nullslast(),
+            BackgroundJob.priority.asc(), BackgroundJob.id.asc(),
+        )
         .limit(1)
     )
     return active_child or root_job

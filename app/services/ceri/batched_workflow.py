@@ -169,7 +169,8 @@ def build_ceri_batched_workflow_plan(
                     CeriBatchJobSpec(
                         job_type=CERI_NORMALIZE_BATCH,
                         request_key=request_key,
-                        priority=priority + 1,
+                        # Every normalization waits for the entire provider stage.
+                        priority=max(DATASET_PRIORITIES.values()) + 1,
                         payload={
                             "workflow_key": workflow_key,
                             "request_key": request_key,
