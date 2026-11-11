@@ -55,6 +55,28 @@ def test_observed_466_company_source_shape_stays_below_memory_budget(
 
 @pytest.mark.slow
 @pytest.mark.destructive
+def test_native_scale_inputs_produce_nonlocal_ranking_order(
+    disposable_postgres_database, tmp_path,
+):
+    output = tmp_path / "native-input-preflight.json"
+    source_root = Path(__file__).parents[2]
+    environment = _isolated_probe_environment(disposable_postgres_database, source_root)
+    process = subprocess.run(
+        [sys.executable, str(source_root / "tests/sector_full_native_scale_probe.py"),
+         "--input-preflight", "--output", str(output)], env=environment, cwd=source_root,
+        text=True, capture_output=True, timeout=900,
+    )
+    assert process.returncode == 0, process.stdout + process.stderr
+    report = json.loads(output.read_text())
+    assert report["status"] == "PASS_INPUT_PREFLIGHT"
+    assert report["fixture"]["companies"] == 12
+    assert report["provider_calls"] == 0
+    assert report["distinct_fundamental_scores"] > 1
+    assert report["ranking_evidence_order_descents"] > 5
+
+
+@pytest.mark.slow
+@pytest.mark.destructive
 def test_full_native_466_company_five_profile_sector_publication_memory(
     disposable_postgres_database, tmp_path,
 ):

@@ -32,6 +32,7 @@ from app.models.tables import (
 )
 from app.services.bar_cache_service import price_bar_data_hash
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.column_mapper import load_alias_map
 from app.services.combined_decision import refresh_combined_results
 from app.services.configuration_delivery import (
     binding_reference,
@@ -103,7 +104,8 @@ def seed_cached_price_facts_copy(engine, symbols, frame, cutoff_at, *, progress)
         connection.close()
 
 
-def main(output):
+def main(output, *, input_preflight=False):
+    company_count = 12 if input_preflight else 466
     if os.name == "nt":
         import psutil
 
@@ -145,7 +147,9 @@ def main(output):
     ib_insync.IB.connectAsync = forbid_provider
     engine = create_engine(url)
     report = {"started_at": datetime.now(UTC).isoformat(), "source_root": str(source),
-        "scope": "Normal admitted 466-company cohort; real sealed producers and Sector writer",
+        "scope": ("12-company input/order preflight; no Sector publication"
+                  if input_preflight else
+                  "Normal admitted 466-company cohort; real sealed producers and Sector writer"),
         "provider_calls": 0, "phase": "prepare", "status": "RUNNING", "samples": []}
     report["process_id"] = os.getpid()
     stop = threading.Event()
@@ -188,13 +192,15 @@ def main(output):
 
     thread = threading.Thread(target=sample, daemon=True)
     thread.start()
-    progress("PREPARING_NORMAL_ADMISSION", 0, 466)
+    progress("PREPARING_NORMAL_ADMISSION", 0, company_count)
     try:
         with Session(engine, expire_on_commit=False) as db:
-            upload = UploadRun(filename="native-466-scale.csv", status="COMPLETED", row_count=466)
+            upload = UploadRun(filename="native-scale.csv", status="COMPLETED",
+                               row_count=company_count)
             db.add(upload)
             db.flush()
-            symbols = tuple(f"SYN{index:04d}" for index in range(466))
+            aliases = load_alias_map()
+            symbols = tuple(f"SYN{index:04d}" for index in range(company_count))
             for index, ticker in enumerate(symbols):
                 sector, canonical = SECTORS[index % len(SECTORS)]
                 # Strong complete inputs, with score order distinct from ticker order.
@@ -203,7 +209,9 @@ def main(output):
                 values["eps_growth_quarterly_yoy"] = str(12 + ((index * 149) % 466) / 20)
                 db.add(RawCompanyRow(run_id=upload.id, row_number=index + 1, ticker=ticker,
                     sector=sector, sector_canonical=canonical,
-                    raw_json={"Symbol": ticker, **values}))
+                    raw_json={"Symbol": ticker, **{
+                        aliases[name][0]: value for name, value in values.items()
+                    }}))
             db.flush()
             pipeline = start_pipeline(db, upload.id)
             db.commit()
@@ -215,7 +223,7 @@ def main(output):
                 name for name in delivery.configurations if name.startswith("core.ranking:")
             )
             assert len(profiles) == 5
-            report["fixture"] = {"companies": 466, "profiles": profiles,
+            report["fixture"] = {"companies": company_count, "profiles": profiles,
                 "price_sessions_per_feed": PRICE_SESSIONS,
                 "price_symbols": len(symbols) + len(ETFS),
                 "market_context_id": cutoff.context_id, "pipeline_id": pipeline.id,
@@ -254,16 +262,26 @@ def main(output):
                     return cls(delivery.configurations[name].snapshot)
 
                 args = {"market_cutoff": cutoff, "pipeline_run_id": pipeline.id}
-                progress("NATIVE_FUNDAMENTALS", 0, 466)
+                progress("NATIVE_FUNDAMENTALS", 0, company_count)
                 fundamentals = recalculate_run_fundamentals(db, upload.id, **args,
                     effective_configuration=config("core.fundamental"))
                 db.commit()
+                score_values = {row.fundamental_score for row in fundamentals}
+                report["distinct_fundamental_scores"] = len(score_values)
+                assert len(score_values) > 1, "Upload fields must produce varied native scores"
                 pins = {row.ticker: {"fundamental": row.evidence_id} for row in fundamentals}
                 del fundamentals
-                progress("NATIVE_TECHNICALS", 0, 466)
+                progress("NATIVE_TECHNICALS", 0, company_count)
                 technicals = score_run_technicals(db, upload.id, **args, frozen_tickers=symbols,
                     effective_configuration=config("core.technical"), checkpoint_callback=progress)
                 db.commit()
+                report["technical_input_sample"] = {
+                    "insufficient_data": technicals[0].insufficient_data,
+                    "technical_confidence": technicals[0].technical_confidence,
+                    "warnings": technicals[0].warning_flags_json,
+                    "missing_data": technicals[0].missing_data_json,
+                    "data_readiness": (technicals[0].v4_debug_json or {}).get("data_readiness"),
+                }
                 for row in technicals:
                     pins[row.ticker]["technical"] = row.evidence_id
                 del technicals
@@ -275,26 +293,27 @@ def main(output):
                     ), {"pipeline": pipeline.id, "context": cutoff.context_id}).mappings()]
                 report["technical_manifests"] = manifests
                 assert len(manifests) == 1
-                assert manifests[0]["state_count"] >= OBSERVED_MANIFEST_STATES
-                assert manifests[0]["json_text_bytes"] >= OBSERVED_MANIFEST_JSON_BYTES
+                if not input_preflight:
+                    assert manifests[0]["state_count"] >= OBSERVED_MANIFEST_STATES
+                    assert manifests[0]["json_text_bytes"] >= OBSERVED_MANIFEST_JSON_BYTES
                 progress("NATIVE_REGIME", 0, 1)
                 regime = MarketRegimeCommandCenterService().build_snapshot(db, run_id=upload.id,
                     market_cutoff=cutoff, effective_configuration=config("contextual.regime"))
                 db.commit()
                 del regime
-                progress("NATIVE_COMBINED", 0, 466)
+                progress("NATIVE_COMBINED", 0, company_count)
                 combined = refresh_combined_results(db, upload.id, **args, source_evidence=pins,
                     effective_configuration=config("core.combined"), checkpoint_callback=progress)
                 db.commit()
                 del combined
                 del pins
-                progress("NATIVE_ALL_PROFILE_RANKINGS", 0, 2330)
+                progress("NATIVE_ALL_PROFILE_RANKINGS", 0, company_count * 5)
                 rankings = tuple(refresh_all_ranking_profiles(
                     db, upload.id, **args,
                     effective_configurations=tuple(config(name) for name in profiles),
                     checkpoint_callback=progress,
                 ))
-                assert len(rankings) == 2330
+                assert len(rankings) == company_count * 5
                 db.commit()
                 del rankings
                 role_order = list(db.execute(select(
@@ -306,9 +325,13 @@ def main(output):
                     first[0] == second[0] and first[1] > second[1]
                     for first, second in zip(role_order, role_order[1:], strict=False)
                 )
-                assert descents > 5, "Scale fixture must exercise nonlocal evidence access"
                 report["ranking_evidence_order_descents"] = descents
+                assert descents > 5, "Scale fixture must exercise nonlocal evidence access"
                 del role_order
+                if input_preflight:
+                    report["status"] = "PASS_INPUT_PREFLIGHT"
+                    progress("INPUT_PREFLIGHT_COMPLETED", 1, 1)
+                    return
                 with engine.connect() as observation:
                     report["producer_evidence_before_sector"] = [dict(row) for row in (
                         observation.execute(text(
@@ -404,4 +427,6 @@ def main(output):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
-    main(parser.parse_args().output)
+    parser.add_argument("--input-preflight", action="store_true")
+    args = parser.parse_args()
+    main(args.output, input_preflight=args.input_preflight)

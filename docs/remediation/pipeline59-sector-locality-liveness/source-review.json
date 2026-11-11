@@ -11,12 +11,12 @@
     "app/services/sector_universe_service.py": "d47a00a72f66b533898026c6387088ab7ed67049b02205bfc96a8ce71f0a6b6f",
     "app/services/worker_registry.py": "75a45ec43d45a19d93700b1ecedd7fa8819a6982306b521429137da6ba209388",
     "app/static/app.js": "df3f76b6ad2c5d3329bb168bab4fbb470abca8e21288c8af00a47373d926df92",
-    "app/templates/pipeline_progress.html": "37285d868cf13f15bee355657612f0485209de32fbfc9eae28e7b9b48ebc8b3e",
+    "app/templates/pipeline_progress.html": "f1eb3ce56761568f42db51da0a9e4894a493cdc9eab7edbec6c6c33c790c660f",
     "app/worker_supervisor.py": "c53aea1d528fd7acac498f4adb5c9ee029f43510ec58e786620d7800000c6d80",
     "tests/integration/test_sector_evidence_memory_postgresql.py": "4366f1b651fd2f9aea43d70c3892def4eb7c5dc87c00f1fcd8ca0494af44a6c1",
-    "tests/integration/test_sector_memory_scale_postgresql.py": "41646f8c603abac6495019498aeaf77952de48190b918c1970135542c25d25e2",
+    "tests/integration/test_sector_memory_scale_postgresql.py": "66a3374537887a5c0775c409652a2439717332cf2cc13ed2c0540a16f4bb5d7f",
     "tests/integration/test_supervisor_recovery_isolation_postgresql.py": "85bef0eed5df8ca5d52fcc31e3171199f2571f4f6fec4ae08979cd2020f09224",
-    "tests/sector_full_native_scale_probe.py": "e92f278bf5a675344ae73d8df6e0efbfaef93c21885d93452e13e2e7779e9336",
+    "tests/sector_full_native_scale_probe.py": "ba5567b7587a975a8167186548a4f2b0a0556c7d0142b04ab73238114cc6bcf3",
     "tests/test_sector_locality_liveness.py": "deac37be32d2d99c725bb3cf7247e90b2a77e6fb6265084a4aff6b2a4af4b7b3"
   }
 }

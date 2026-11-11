@@ -84,7 +84,7 @@
   </div>
 
   {% set sector = pipeline.sector_progress or {} %}
-  <div class="alert section-gap" role="status" data-pipeline-sector-operation {% if not sector %}hidden{% endif %}>
+  <div class="panel section-gap" role="status" data-pipeline-sector-operation {% if not sector %}hidden{% endif %}>
     <strong>Sector operation:</strong> <span data-pipeline-sector-label>{{ sector.get('label', '') }}</span>.
     <span data-pipeline-sector-count>{{ sector.get('progress_label') or (sector.get('processed', 0)|string ~ ' / ' ~ sector.get('total', 0)|string) }}</span>
     <span data-pipeline-sector-age>{% if sector.get('phase_elapsed_ms') is not none %} · {{ (sector.get('phase_elapsed_ms', 0) / 1000)|round|int }} seconds in this operation{% endif %}</span>.

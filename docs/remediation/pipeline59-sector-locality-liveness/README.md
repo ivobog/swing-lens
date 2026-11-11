@@ -57,6 +57,11 @@ no database credentials. Source hashes accompany this document.
   **3 passed**; unrelated owners remain untouched.
 - Architecture registry: **passed, zero exceptions**. Ruff and JavaScript
   syntax checks passed. Existing dependency/deprecation warnings remain.
+- Final progress/recovery presentation selection: **32 passed**, after using
+  the existing neutral panel style so counts remain inline and ordinary work
+  is not presented as an error alert.
+- The actual lifecycle journal write/read smoke check retained the nested safe
+  process-identity, heartbeat and decision fields in its isolated journal.
 - Restored 466-company/five-profile qualification: **passed** through actual
   replacement-worker checkpoint validation and committed Sector publication.
   All 3,729 upstream evidence records and native upstream table digests were
@@ -80,10 +85,41 @@ Elapsed worker qualification was approximately 39 minutes, including checkpoint
 certification/resume; expensive independent canonical validation still takes
 minutes. This repair does not promise an instantaneous Sector step.
 
-The separate fresh 466-company producer-to-Sector qualification is pending at
-the time this document is prepared. It uses real Fundamental, Technical,
-Combined, five-profile Ranking, Regime and Sector producers with admitted cached
-facts and forbidden provider calls. Its fixture deliberately separates score
-order from ticker order and asserts a nonlocal Ranking evidence traversal before
-Sector runs. Release activation remains pending its result and a safe live
-lifecycle boundary.
+The first fresh 466-company attempt failed its explicit nonlocal-order assertion
+after upstream production. Its fixture used canonical metric names as upload
+column names, so the production upload mapper did not deliver the intended
+varying Fundamental inputs. That failed attempt is preserved and is not counted
+as a publication pass. The fixture now supplies the production column aliases
+and checks varied native scores immediately after Fundamental production. The
+added twelve-company native preflight passed with ten distinct Fundamental
+scores and 35 within-profile evidence-ID descents across five Ranking profiles.
+It is explicitly an input/order preflight, not a Sector publication test.
+
+The corrected fresh 466-company producer-to-Sector qualification **passed** in
+54m33s, including its independent serialization/isolation checks. It used real
+Fundamental, Technical, Combined, five-profile Ranking, Regime and Sector
+producers with admitted cached facts and forbidden provider calls. It produced
+320 distinct Fundamental scores and 1,195 within-profile evidence-ID descents
+across 2,330 Ranking outputs. All 11 Sector serving values matched the calculated
+DTO; legacy/streaming serialization matched and caller mutation left the sealed
+record unchanged. Peak private commit was **3,099,615,232 bytes**, below the
+unchanged 6 GiB budget.
+
+The fresh Universe pass loaded 3,760 bodies for 3,728 addresses in 118 batches.
+Each independent declaration/persistence reader loaded 2,797 bodies for 2,797
+addresses in 89 batches. Peak cache was 64 records / 50,669,672 estimated decoded
+bytes. Declaration source-role validation took 66.7 seconds; independent locked
+persistence source-role validation took 413.3 seconds. The final sealing phase
+took 217.4 seconds. The retained Technical manifest had 713,664 states and
+70,805,188 JSON-text bytes. Producer evidence before Sector totalled 484,362,688
+JSON-text bytes, **99.18%** of the observed production baseline; this is a full
+native cohort/order qualification, not an exact copy of live pipeline 59.
+Measurements share a host with the running app and are not a controlled
+before/after wall-time benchmark.
+
+[The checked qualification receipt](qualification.json) records scope, counts,
+hashes, per-phase durations and actual cache work. Neither native qualification
+claims completion of later CERI/Setup/Winner stages. Activation uses the existing
+lifecycle claim fence, waits for active work to finish, and verifies frozen
+financial/configuration fingerprints afterwards. Workspace activation receipts
+record the deployed revision, runtime identities and core readiness.
