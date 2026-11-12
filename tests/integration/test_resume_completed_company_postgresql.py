@@ -165,8 +165,8 @@ def test_lineage_progress_follows_all_company_hashes_before_publication(
     hashed_rows = []
     native_identity = preflight._artifact_identity
 
-    def observe_identity(row):
-        result = native_identity(row)
+    def observe_identity(row, **kwargs):
+        result = native_identity(row, **kwargs)
         hashed_rows.append(row)
         return result
 
@@ -176,8 +176,21 @@ def test_lineage_progress_follows_all_company_hashes_before_publication(
             run_id, _pipeline_id, context = _seed_sources(db)
             before = _financial_records(db)
             completed = []
+            company_hashes = {}
 
             def checkpoint(**progress):
+                if progress["phase"] == "ARTIFACT_COMPANY_INPUTS_SERIALIZED":
+                    ticker = progress["current_item"]
+                    raw_index = max(
+                        index for index, row in enumerate(hashed_rows)
+                        if type(row).__name__ == "RawCompanyRow" and row.ticker == ticker
+                    )
+                    company_hashes[ticker] = hashed_rows[raw_index:]
+                    assert [type(row).__name__ for row in company_hashes[ticker]] == [
+                        "RawCompanyRow", "FundamentalScore", "TechnicalScore",
+                        "CombinedResult", "RankingResult", "SectorRotationRow",
+                    ]
+                    return
                 if progress["phase"] != "ARTIFACT_LINEAGE_SERIALIZED":
                     return
                 completed.append(progress)
@@ -185,23 +198,11 @@ def test_lineage_progress_follows_all_company_hashes_before_publication(
                 assert progress["processed"] == len(completed)
                 assert progress["total"] == 2
                 assert progress["current_item"] == progress["last_completed_item"] == ticker
-                raw_index = max(
-                    index
-                    for index, row in enumerate(hashed_rows)
-                    if type(row).__name__ == "RawCompanyRow"
-                )
-                company_rows = hashed_rows[raw_index:]
-                assert company_rows[0].ticker == ticker
-                assert [type(row).__name__ for row in company_rows] == [
-                    "RawCompanyRow",
-                    "FundamentalScore",
-                    "TechnicalScore",
-                    "CombinedResult",
-                    "RankingResult",
-                    "MarketRegimeSnapshot",
-                    "SectorRotationSnapshot",
-                    "SectorRotationRow",
-                ]
+                assert company_hashes[ticker][0].ticker == ticker
+                # Completion is published only after both global identities
+                # exist. Shared rows are hashed once, not once per company.
+                for kind in ("MarketRegimeSnapshot", "SectorRotationSnapshot"):
+                    assert sum(type(row).__name__ == kind for row in hashed_rows) == 1
                 assert _financial_records(db) == before
                 assert db.scalar(
                     select(func.count()).select_from(TransitionDecisionHandoffManifest)

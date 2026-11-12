@@ -4,7 +4,7 @@ from decimal import Decimal
 from functools import lru_cache
 
 import pandas as pd
-from sqlalchemy import and_, or_, select, tuple_
+from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
@@ -313,6 +313,8 @@ def project_price_bar_rows_as_of(
 def _project_price_bar_rows_at_boundaries(
     db: Session,
     rows: list[tuple[PriceBar, datetime]],
+    *,
+    checkpoint_callback=None,
 ) -> list[PriceBar]:
     """Project many rows at individual visibility boundaries with one revision query."""
 
@@ -341,7 +343,12 @@ def _project_price_bar_rows_at_boundaries(
         by_bar.setdefault(int(revision.price_bar_id), []).append(revision)
 
     projected: list[PriceBar] = []
-    for row, boundary in rows:
+    for index, (row, boundary) in enumerate(rows, start=1):
+        if index > 1 and (index - 1) % 256 == 0:
+            _price_checkpoint(
+                checkpoint_callback, "PRICE_HISTORY_RECONSTRUCTED", index - 1, len(rows),
+                f"rows-through:{index - 1}",
+            )
         history = by_bar.get(int(row.id or 0), [])
         normalized_as_of = _as_utc(boundary)
         first_after = next(
@@ -386,6 +393,10 @@ def _project_price_bar_rows_at_boundaries(
         historical._pit_projection_as_of = boundary
         historical._pit_projection_revision_id = first_after.id
         projected.append(historical)
+    _price_checkpoint(
+        checkpoint_callback, "PRICE_HISTORY_RECONSTRUCTED", len(rows), len(rows),
+        f"rows-through:{len(rows)}",
+    )
     return projected
 
 
@@ -409,6 +420,7 @@ def load_price_bar_rows_for_context(
     session_count: int | None = None,
     one_source_per_session: bool = False,
     source_priority: tuple[str, ...] = (),
+    checkpoint_callback=None,
 ) -> list[PriceBar]:
     """Load a batched PIT bar view including only this pipeline's authorized acquisition.
 
@@ -447,43 +459,84 @@ def load_price_bar_rows_for_context(
         )
     if receipt_ids:
         visibility_predicate = or_(visibility_predicate, PriceBar.id.in_(receipt_ids))
-    rows = list(
-        db.scalars(
-            select(PriceBar)
-            .where(
-                PriceBar.ticker.in_(normalized_tickers),
-                PriceBar.what_to_show.in_(normalized_sources),
-                PriceBar.timeframe.in_(normalized_timeframes),
-                PriceBar.bar_date <= max_session,
-                PriceBar.close.is_not(None),
-                visibility_predicate,
-            )
-            .order_by(PriceBar.ticker, PriceBar.bar_date, PriceBar.id)
-        )
+    criteria = (
+        PriceBar.ticker.in_(normalized_tickers),
+        PriceBar.what_to_show.in_(normalized_sources),
+        PriceBar.timeframe.in_(normalized_timeframes),
+        PriceBar.bar_date <= max_session,
+        PriceBar.close.is_not(None),
+        visibility_predicate,
     )
-
-    bounded: list[tuple[PriceBar, datetime]] = []
-    members = {}
-    for row in rows:
-        boundary = _price_bar_visibility_boundary(row, as_of=as_of, visibilities=visibilities)
-        if boundary is not None:
-            bounded.append((row, boundary))
-            if getattr(row, "_ib_bar_admission", None) is not None:
-                members[row.id] = row._ib_bar_admission
-    projected = _project_price_bar_rows_at_boundaries(db, bounded)
-    from app.services.ib_bar_admission_service import immutable_bar_fingerprint
-    for row in projected:
-        member = members.get(row.id)
-        if member is not None:
-            if (row.data_hash != member["data_hash"]
-                    or row.revision_count != member["revision_count"]
-                    or immutable_bar_fingerprint(row) != member["immutable_fingerprint"]):
-                raise ValueError("IB_BAR_ADMISSION_VERSION_MISMATCH")
-            row._ib_bar_admission = member
+    admission_index = _index_visibility_admissions(visibilities)
+    _price_checkpoint(
+        checkpoint_callback, "PRICE_AUTHORITY_LOADED", len(visibilities),
+        len(visibilities), "price-authority",
+    )
+    limited = session_count is not None or one_source_per_session
+    safe_count = max(1, min(int(session_count or 1), 10))
+    projected: list[PriceBar] = []
+    if limited:
+        # Rank only candidate addresses in SQL. A candidate date may have no
+        # provably visible historical row after authorization/reconstruction, so
+        # keep advancing older pages until each ticker has enough VALID dates.
+        # Applying LIMIT to current rows before those checks loses that fallback.
+        ranked = (
+            select(
+                PriceBar.id.label("price_bar_id"),
+                PriceBar.ticker.label("ticker"),
+                func.dense_rank().over(
+                    partition_by=PriceBar.ticker, order_by=PriceBar.bar_date.desc(),
+                ).label("candidate_session_rank"),
+            )
+            .where(*criteria)
+            .subquery()
+        )
+        unfinished = set(normalized_tickers)
+        page_size = max(2, safe_count)
+        offset = 0
+        while unfinished:
+            rows = list(db.scalars(
+                select(PriceBar)
+                .join(ranked, ranked.c.price_bar_id == PriceBar.id)
+                .where(
+                    ranked.c.ticker.in_(unfinished),
+                    ranked.c.candidate_session_rank > offset,
+                    ranked.c.candidate_session_rank <= offset + page_size,
+                )
+                .order_by(PriceBar.ticker, PriceBar.bar_date, PriceBar.id)
+            ))
+            if not rows:
+                break
+            projected.extend(_project_context_bar_batch(
+                db, rows, as_of=as_of, visibilities=visibilities,
+                admission_index=admission_index, checkpoint_callback=checkpoint_callback,
+            ))
+            valid_dates: dict[str, set[date]] = {}
+            for row in projected:
+                valid_dates.setdefault(row.ticker.upper(), set()).add(row.bar_date)
+            candidates = {row.ticker.upper() for row in rows}
+            unfinished = {
+                ticker for ticker in unfinished & candidates
+                if len(valid_dates.get(ticker, ())) < safe_count
+            }
+            offset += page_size
+            _price_checkpoint(
+                checkpoint_callback, "PRICE_SESSION_PAGE_VERIFIED",
+                len(normalized_tickers) - len(unfinished), len(normalized_tickers),
+                f"candidate-sessions-through:{offset}",
+            )
+    else:
+        rows = list(db.scalars(
+            select(PriceBar).where(*criteria)
+            .order_by(PriceBar.ticker, PriceBar.bar_date, PriceBar.id)
+        ))
+        projected = _project_context_bar_batch(
+            db, rows, as_of=as_of, visibilities=visibilities,
+            admission_index=admission_index, checkpoint_callback=checkpoint_callback,
+        )
     if session_count is None and not one_source_per_session:
         return projected
 
-    safe_count = max(1, min(int(session_count or 1), 10))
     priority = {source: index for index, source in enumerate(source_priority)}
     grouped: dict[str, dict[date, list[PriceBar]]] = {}
     for row in projected:
@@ -510,6 +563,67 @@ def load_price_bar_rows_for_context(
     return selected
 
 
+def _price_checkpoint(callback, phase, processed, total, current_item):
+    if callback is not None:
+        callback(
+            phase=phase, processed=processed, total=total, current_item=current_item,
+            last_completed_item=current_item,
+        )
+
+
+def _index_visibility_admissions(visibilities):
+    """Index exact members for this read; never cache mutable validation outcomes."""
+    indexed = {}
+    for key, visibility in visibilities.items():
+        if visibility is None:
+            continue
+        by_id = {}
+        for member in visibility.bar_admissions:
+            by_id.setdefault(member["price_bar_id"], []).append(member)
+        indexed[key] = by_id
+    return indexed
+
+
+def _project_context_bar_batch(
+    db, rows, *, as_of, visibilities, admission_index, checkpoint_callback=None,
+):
+    bounded: list[tuple[PriceBar, datetime]] = []
+    members = {}
+    for index, row in enumerate(rows, start=1):
+        boundary = _price_bar_visibility_boundary(
+            row, as_of=as_of, visibilities=visibilities, admission_index=admission_index,
+        )
+        if boundary is not None:
+            bounded.append((row, boundary))
+            if getattr(row, "_ib_bar_admission", None) is not None:
+                members[row.id] = row._ib_bar_admission
+        if index % 256 == 0 or index == len(rows):
+            _price_checkpoint(
+                checkpoint_callback, "PRICE_VISIBILITY_VERIFIED", index, len(rows),
+                f"bar:{row.id}",
+            )
+    projected = _project_price_bar_rows_at_boundaries(
+        db, bounded,
+        **({"checkpoint_callback": checkpoint_callback} if checkpoint_callback is not None else {}),
+    )
+    from app.services.ib_bar_admission_service import immutable_bar_fingerprint
+
+    for index, row in enumerate(projected, start=1):
+        member = members.get(row.id)
+        if member is not None:
+            if (row.data_hash != member["data_hash"]
+                    or row.revision_count != member["revision_count"]
+                    or immutable_bar_fingerprint(row) != member["immutable_fingerprint"]):
+                raise ValueError("IB_BAR_ADMISSION_VERSION_MISMATCH")
+            row._ib_bar_admission = member
+        if index % 256 == 0 or index == len(projected):
+            _price_checkpoint(
+                checkpoint_callback, "PRICE_REVISIONS_VERIFIED", index, len(projected),
+                f"bar:{row.id}",
+            )
+    return projected
+
+
 def invalid_price_bar_rows_for_context(
     db: Session,
     rows: list[PriceBar] | tuple[PriceBar, ...],
@@ -531,8 +645,11 @@ def invalid_price_bar_rows_for_context(
         timeframes=tuple({row.timeframe for row in materialized}),
     )
     invalid = []
+    admission_index = _index_visibility_admissions(visibilities)
     for row in materialized:
-        boundary = _price_bar_visibility_boundary(row, as_of=as_of, visibilities=visibilities)
+        boundary = _price_bar_visibility_boundary(
+            row, as_of=as_of, visibilities=visibilities, admission_index=admission_index,
+        )
         revised_at = row.revised_at
         member = getattr(row, "_ib_bar_admission", None)
         from app.services.ib_bar_admission_service import immutable_bar_fingerprint
@@ -552,6 +669,7 @@ def _price_bar_visibility_boundary(
     *,
     as_of: datetime,
     visibilities: dict[tuple[str, str, str], PipelineAcquisitionVisibility | None],
+    admission_index=None,
 ) -> datetime | None:
     created_at = row.created_at
     first_seen_at = row.first_seen_at
@@ -563,10 +681,14 @@ def _price_bar_visibility_boundary(
     ):
         row._ib_bar_admission = None
         return as_of
-    visibility = visibilities.get((row.ticker.upper(), row.what_to_show, row.timeframe))
+    key = (row.ticker.upper(), row.what_to_show, row.timeframe)
+    visibility = visibilities.get(key)
     if visibility is None:
         return None
-    members = [member for member in visibility.bar_admissions if member["price_bar_id"] == row.id]
+    members = (
+        admission_index.get(key, {}).get(row.id, ()) if admission_index is not None
+        else [member for member in visibility.bar_admissions if member["price_bar_id"] == row.id]
+    )
     if members:
         from app.services.ib_bar_admission_service import immutable_bar_fingerprint
 
