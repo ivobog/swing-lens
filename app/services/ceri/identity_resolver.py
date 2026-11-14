@@ -19,6 +19,7 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
+from app.services.ceri.sec.issuer_succession import effective_symbol, reviewed_symbols
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.source_mutation_authority import source_mutation_writer
 
@@ -466,7 +467,19 @@ class CeriIdentityResolver:
             if alias.alias_type == "cik" and cik and alias.alias_value == cik:
                 matched_ids.add(alias.company_id)
 
-        return tuple(company for company in companies if company.id in matched_ids)
+        matches = tuple(company for company in companies if company.id in matched_ids)
+        if provider == "sec" and cik and reviewed_symbols(cik, [row.ticker for row in matches]):
+            symbol = effective_symbol(cik, as_of)
+            if (
+                symbol
+                and ticker in {row.ticker for row in matches}
+                and provider_company_id in (None, cik)
+                and all(row.cik == cik for row in matches)
+                and len({row.exchange for row in matches}) == 1
+                and all(exchange is None or exchange == row.exchange for row in matches)
+            ):
+                return tuple(row for row in matches if row.ticker == symbol)
+        return matches
 
 
 def _load_companies(db: Session) -> list[CeriCompany]:

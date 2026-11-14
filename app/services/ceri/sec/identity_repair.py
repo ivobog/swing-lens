@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCompany
 from app.services.ceri.filing_authority import reviewed_filing_authority
+from app.services.ceri.sec.issuer_succession import ownership_conflict
 from app.services.ceri.sec.provider import SecCeriProvider
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.source_mutation_authority import source_mutation_writer
@@ -96,6 +97,9 @@ def resolve_and_persist_sec_identity(
         )
 
     normalized = str(resolved).zfill(10)
+    conflict = ownership_conflict(db, symbol, normalized, writing=True)
+    if conflict:
+        return SecIdentityRepairResult(symbol, "AMBIGUOUS", cik=normalized, reason=conflict)
     if rows:
         for row in rows:
             row.cik = normalized

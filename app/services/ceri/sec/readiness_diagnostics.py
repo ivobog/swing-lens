@@ -7,11 +7,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriCompany, CeriSecSyncState
 from app.services.ceri.enums import CeriDataset
+from app.services.ceri.sec.issuer_succession import reviewed_symbols
 
 _VALID_TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.-]{0,15}$")
 
@@ -103,11 +104,23 @@ def diagnose_sec_readiness(
     symbols = tuple(sorted({str(value).strip().upper() for value in tickers if value}))
     valid_symbols = tuple(symbol for symbol in symbols if _VALID_TICKER.fullmatch(symbol))
     companies = list(
-        db.scalars(select(CeriCompany).where(CeriCompany.ticker.in_(valid_symbols))).all()
+        db.scalars(
+            select(CeriCompany).where(
+                or_(
+                    CeriCompany.ticker.in_(valid_symbols),
+                    CeriCompany.cik.in_(
+                        select(CeriCompany.cik).where(CeriCompany.ticker.in_(valid_symbols))
+                    ),
+                )
+            )
+        ).all()
     )
     by_ticker: dict[str, list[CeriCompany]] = {}
     for company in companies:
         by_ticker.setdefault(company.ticker.upper(), []).append(company)
+    owners = {}
+    for company in companies:
+        owners.setdefault(company.cik, []).append(company)
     ciks = {str(company.cik) for company in companies if company.cik}
     sync_rows = (
         list(
@@ -168,6 +181,23 @@ def diagnose_sec_readiness(
             )
             continue
         ticker_ciks = tuple(sorted({str(company.cik) for company in required if company.cik}))
+        collisions = [
+            row
+            for cik in ticker_ciks
+            for row in owners[cik]
+            if len(owners[cik]) > 1 and not reviewed_symbols(cik, [r.ticker for r in owners[cik]])
+        ]
+        if collisions or len(ticker_ciks) > 1:
+            candidates = ", ".join(f"{r.ticker} ({r.id})" for r in collisions or required)
+            diagnostics.append(
+                SecTickerReadiness(
+                    ticker,
+                    SecTickerReadinessCategory.OTHER_BLOCKING_REASON,
+                    ticker_ciks,
+                    reason=f"Conflicting SEC identity candidates: {candidates}",
+                )
+            )
+            continue
         if not ticker_ciks:
             diagnostics.append(
                 SecTickerReadiness(

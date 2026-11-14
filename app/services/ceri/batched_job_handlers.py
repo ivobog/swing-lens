@@ -288,6 +288,11 @@ def execute_normalize_batch_job(
                 except CeriNormalizationCancelled as exc:
                     raise CancelRequested(str(exc)) from exc
                 results[ticker] = result.as_dict()
+            if processing.status == "PARTIAL":
+                conflicts = [row for row in (processing.errors_json or {}).get("records", [])
+                             if row.get("reason") in {"identity_ambiguous", "identity_unresolved"}]
+                if conflicts:
+                    results[ticker]["identity_rejections"] = conflicts
             failed += int(results[ticker].get("failed") or 0)
         completed.add(ticker)
         _save_checkpoint(

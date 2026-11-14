@@ -1607,6 +1607,28 @@ def _ceri_child_failure_detail(job: BackgroundJob) -> dict[str, Any]:
     classification = dict(
         result.get("failure_classification") or metadata.get("failure_classification") or {}
     )
+    identity_failures = (
+        [
+            {
+                "ticker": ticker,
+                "processing_run_id": item.get("processing_run_id"),
+                "provider": result.get("provider"),
+                "dataset": result.get("dataset"),
+                "source_count": len(item["identity_rejections"]),
+                "records": item["identity_rejections"],
+            }
+            for ticker, item in (result.get("results") or {}).items()
+            if isinstance(item, dict) and item.get("identity_rejections")
+        ]
+        if isinstance(result.get("results"), dict)
+        else []
+    )
+    if identity_failures:
+        classification = {
+            **classification,
+            "code": classification.get("code") or "CERI_IDENTITY_REJECTED",
+            "identity_failures": identity_failures,
+        }
     return {
         "job_id": job.id,
         "job_type": job.job_type,

@@ -13,6 +13,7 @@ from app.services.ceri.dtos import GuidanceRequest
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.observability import ceri_metrics
 from app.services.ceri.sec.content_cache import SecDocumentContentCache
+from app.services.ceri.sec.issuer_succession import ownership_conflict
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider, SecGuidanceDocument
 from app.services.ceri.sec.readiness_service import (
@@ -399,6 +400,9 @@ class SecGuidanceIncrementalIngestionService:
         if resolved is None:
             return None
         normalized = str(resolved).zfill(10)
+        conflict = ownership_conflict(db, ticker.upper(), normalized, writing=True)
+        if conflict:
+            raise RuntimeError(conflict)
         if rows:
             for row in rows:
                 if not row.cik:
