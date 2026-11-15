@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriProcessingRun, CeriScoreSnapshot
@@ -42,6 +42,12 @@ def reconcile_unsuccessful_pipeline_ceri(
             pipeline.status, result
         ):
             return {"excluded": 0, "projections_repaired": 0, "processing_terminalized": 0}
+    sole_pipeline = not db.scalar(
+        select(PipelineRun.id).where(
+            PipelineRun.upload_run_id == pipeline.upload_run_id,
+            PipelineRun.id != pipeline.id,
+        ).limit(1)
+    )
     snapshots = list(
         db.scalars(
             select(CeriScoreSnapshot)
@@ -52,7 +58,8 @@ def reconcile_unsuccessful_pipeline_ceri(
             .where(
                 or_(
                     MarketCalculationContext.pipeline_run_id == int(pipeline.id),
-                    CeriScoreSnapshot.run_id == int(pipeline.upload_run_id),
+                    and_(sole_pipeline, MarketCalculationContext.pipeline_run_id.is_(None),
+                         CeriScoreSnapshot.run_id == int(pipeline.upload_run_id)),
                 )
             )
             .order_by(CeriScoreSnapshot.id)
@@ -78,7 +85,7 @@ def reconcile_unsuccessful_pipeline_ceri(
         ],
     )
     repaired = _rebuild_ceri_projections(db, snapshots)
-    terminalized = _terminalize_processing(db, pipeline)
+    terminalized = _terminalize_processing(db, pipeline, sole_pipeline)
     return {
         "excluded": excluded,
         "projections_repaired": repaired,
@@ -133,8 +140,8 @@ def _rebuild_ceri_projections(
     return repaired
 
 
-def _terminalize_processing(db: Session, pipeline: PipelineRun) -> int:
-    workflow_prefix = f"ceri:pipeline:{pipeline.id}:"
+def _terminalize_processing(db: Session, pipeline: PipelineRun, sole_pipeline: bool) -> int:
+    workflow_prefix = f"ceri:pipeline:owner:{pipeline.id}:"
     job_ids = set(
         db.scalars(
             select(BackgroundJob.id).where(
@@ -153,8 +160,12 @@ def _terminalize_processing(db: Session, pipeline: PipelineRun) -> int:
                 or_(
                     CeriProcessingRun.background_job_id.in_(job_ids or {-1}),
                     CeriProcessingRun.deterministic_request_key.startswith(workflow_prefix),
-                    CeriProcessingRun.scope_json["run_id"].astext
-                    == str(pipeline.upload_run_id),
+                    and_(
+                        sole_pipeline,
+                        CeriProcessingRun.background_job_id.is_(None),
+                        CeriProcessingRun.scope_json["run_id"].astext
+                        == str(pipeline.upload_run_id),
+                    ),
                 ),
             )
         )

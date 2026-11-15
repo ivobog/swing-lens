@@ -104,6 +104,7 @@ def build_ceri_batched_workflow_plan(
     run_id: int,
     tickers: Iterable[str],
     config_hash: str,
+    workflow_key: str | None = None,
     settings: Settings | None = None,
     provider_datasets: Mapping[str, tuple[CeriDataset, ...]] = DEFAULT_PROVIDER_DATASETS,
     provider_tickers: Mapping[str, Iterable[str]] | None = None,
@@ -112,7 +113,7 @@ def build_ceri_batched_workflow_plan(
     symbols = tuple(
         sorted({str(ticker).strip().upper() for ticker in tickers if str(ticker).strip()})
     )
-    workflow_key = f"ceri:pipeline:{run_id}:{config_hash}"
+    workflow_key = workflow_key or f"ceri:pipeline:{run_id}:{config_hash}"
     jobs: list[CeriBatchJobSpec] = []
     provider_count = 0
     normalization_count = 0
@@ -356,10 +357,19 @@ def schedule_ceri_batched_workflow(
                 },
             )
         provider_ticker_scopes["sec"] = sec_coverage_ticker_scope(readiness, coverage)
+    config_hash = load_ceri_config().config_hash
+    workflow_key = None
+    if pipeline is not None:
+        # The upload may be reused by multiple independent pipeline executions.
+        # A retained key keeps an already-dispatched legacy workflow resumable.
+        workflow_key = (pipeline.result_json or {}).get("ceri_provider_workflow_key")
+        if not workflow_key:
+            workflow_key = f"ceri:pipeline:owner:{pipeline.id}:{run_id}:{config_hash}"
     plan = build_ceri_batched_workflow_plan(
         run_id=run_id,
         tickers=tickers,
-        config_hash=load_ceri_config().config_hash,
+        config_hash=config_hash,
+        workflow_key=workflow_key,
         settings=runtime_settings,
         provider_datasets=provider_datasets,
         provider_tickers=provider_ticker_scopes,

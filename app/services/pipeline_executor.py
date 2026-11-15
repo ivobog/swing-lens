@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from inspect import Parameter, signature
 from time import perf_counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
@@ -4280,12 +4280,16 @@ def _ceri_provider_ingest_enabled(dependencies: PipelineExecutionDependencies) -
     )
 
 
+if TYPE_CHECKING:
+    from app.services.ceri.batched_workflow import CeriBatchedWorkflowPlan
+
+
 def _schedule_ceri_provider_ingest(
     db: Session,
     run_id: int,
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
-) -> int:
+) -> int | CeriBatchedWorkflowPlan:
     """Queue provider-specific ingestion jobs for the current SwingLens run."""
     settings = get_settings()
     # Pipeline-owned provider work must have one durable finalizer/capture tail.
@@ -4297,7 +4301,7 @@ def _schedule_ceri_provider_ingest(
         if market_cutoff is not None:
             return schedule_ceri_batched_workflow(
                 db, run_id, market_cutoff=market_cutoff
-            ).provider_batches
+            )
         return schedule_ceri_batched_workflow(db, run_id).provider_batches
     if not getattr(settings, "ceri_legacy_pipeline_scheduling_enabled", True):
         return 0

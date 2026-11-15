@@ -1950,3 +1950,61 @@ def _effect_counts(db: Session) -> tuple[int, int, int]:
         int(db.scalar(select(func.count(CeriChangeEvent.id))) or 0),
         int(db.scalar(select(func.count(CeriAlertEvent.id))) or 0),
     )
+
+
+def test_repeated_upload_dispatch_is_owned_by_each_pipeline(
+    disposable_postgres_database, monkeypatch
+):
+    from app.services.ceri import batched_workflow
+    from app.services.ceri.enums import CeriDataset
+    from app.services.pipeline_executor import (
+        _ceri_provider_workflow_key,
+        _schedule_ceri_provider_ingest,
+    )
+
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    monkeypatch.setattr(
+        batched_workflow, "DEFAULT_PROVIDER_DATASETS", {"eodhd": (CeriDataset.ESTIMATES,)}
+    )
+    with Session(engine) as db:
+        upload = _seed_zero_history_run(db)
+        prior = set()
+        for label in ("first", "second"):
+            authority = _fixture_authority(db, run_id=upload, cycle_key=label)
+            pipeline = PipelineRun(upload_run_id=upload, status="RUNNING", result_json={})
+            bind_semantic_authority(pipeline, authority)
+            db.add(pipeline)
+            db.flush()
+            cutoff = create_pipeline_market_context(
+                db, pipeline, cutoff_at=datetime(2026, 8, 12, 11, tzinfo=UTC)
+            )
+            if label == "first":
+                from app.services.ceri.config import load_ceri_config
+
+                config_hash = load_ceri_config().config_hash
+                pipeline.result_json = {
+                    "ceri_provider_workflow_key": f"ceri:pipeline:{upload}:{config_hash}"
+                }
+            plan = _schedule_ceri_provider_ingest(db, upload, market_cutoff=cutoff)
+            key = _ceri_provider_workflow_key(upload, plan)
+            assert plan.provider_batches > 0
+            assert key == plan.workflow_key
+            jobs = list(db.scalars(select(BackgroundJob).where(BackgroundJob.workflow_key == key)))
+            ids = {job.id for job in jobs}
+            assert len(ids) == plan.initial_job_count and not (ids & prior)
+            assert all(
+                job.scope_id == authority.scope_id
+                and job.payload_json["pipeline_run_id"] == pipeline.id
+                for job in jobs
+            )
+            retry = _schedule_ceri_provider_ingest(db, upload, market_cutoff=cutoff)
+            assert retry.workflow_key == key
+            assert (
+                set(db.scalars(select(BackgroundJob.id).where(BackgroundJob.workflow_key == key)))
+                == ids
+            )
+            prior.update(ids)
+            pipeline.status = "COMPLETED"
+            db.commit()
+    engine.dispose()

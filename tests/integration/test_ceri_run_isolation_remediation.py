@@ -289,6 +289,17 @@ def test_failed_pipeline_excludes_evidence_repairs_projection_and_processing(
         )
         db.commit()
 
+        # A second pipeline failing on dispatch owns neither the first context
+        # nor its legacy upload-only processing record.
+        savepoint = db.begin_nested()
+        context.pipeline_run_id = pipeline.id
+        sibling = PipelineRun(upload_run_id=upload.id, status="FAILED")
+        db.add(sibling)
+        db.flush()
+        assert reconcile_unsuccessful_pipeline_ceri(db, sibling) == {
+            "excluded": 0, "projections_repaired": 0, "processing_terminalized": 0,
+        }
+        savepoint.rollback()
         result = reconcile_unsuccessful_pipeline_ceri(db, pipeline)
         db.commit()
 
