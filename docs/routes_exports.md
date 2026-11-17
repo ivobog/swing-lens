@@ -236,7 +236,10 @@ CI checks that the generated blocks below match runtime route introspection.
 | POST | `/runs/{run_id}/pipeline` | `run_full_pipeline_action` |
 | GET | `/runs/{run_id}/pipeline/{pipeline_id}` | `run_pipeline_progress_page` |
 | POST | `/runs/{run_id}/pipeline/{pipeline_id}/cancel` | `cancel_run_pipeline_action` |
+| GET | `/runs/{run_id}/pipeline/{pipeline_id}/history-gaps` | `review_history_gap_repair` |
 | POST | `/runs/{run_id}/pipeline/{pipeline_id}/partial` | `start_partial_pipeline_action` |
+| POST | `/runs/{run_id}/pipeline/{pipeline_id}/recover-with-gaps` | `start_market_data_recovery_action` |
+| POST | `/runs/{run_id}/pipeline/{pipeline_id}/repair-history-gaps` | `repair_history_gaps_action` |
 | POST | `/runs/{run_id}/pipeline/{pipeline_id}/resume` | `resume_run_pipeline_action` |
 | GET | `/runs/{run_id}/pipeline/{pipeline_id}/status` | `run_pipeline_status` |
 | GET | `/runs/{run_id}/rankings/export.csv` | `export_all_ranking_results` |

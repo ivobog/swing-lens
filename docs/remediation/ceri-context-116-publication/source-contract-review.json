@@ -1,0 +1,140 @@
+{
+  "claim": "STATIC_INTENT",
+  "reviewed_baseline": "fad3e86129c40214dccf0082b2bd55ab41ece3f8",
+  "bindings": [
+    {
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "test_id": "tests/integration/test_ceri_batched_workflow_v2.py::test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded",
+      "old_reviewed_test_sha256": "2456f8492f9da78acfa01d0c834924f74c7ff4000a7d1825371d4f31bae861d9",
+      "new_reviewed_test_sha256": "4778dcceb3f38f463f61d5257755f115450d02cd0e07c88ebbdc993f32e79312",
+      "test_ast_unchanged": true,
+      "assertions_before": 12,
+      "assertions_current": 12
+    },
+    {
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "test_id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_reports_current_database_head_and_separate_evidence_schema",
+      "old_reviewed_test_sha256": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32",
+      "new_reviewed_test_sha256": "251e8ecba11db9a580aeb90f13c1f22aacd25ee818c8297567b2b78d9ae0b527",
+      "test_ast_unchanged": false,
+      "assertions_before": 5,
+      "assertions_current": 5
+    },
+    {
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "test_id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_rejects_stale_database_head_and_preserves_historical_identity",
+      "old_reviewed_test_sha256": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32",
+      "new_reviewed_test_sha256": "251e8ecba11db9a580aeb90f13c1f22aacd25ee818c8297567b2b78d9ae0b527",
+      "test_ast_unchanged": true,
+      "assertions_before": 4,
+      "assertions_current": 4
+    },
+    {
+      "contract": "REGIME_SECTOR_SELECTION",
+      "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_residency_rechecks_seals_and_expires_with_its_transaction",
+      "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+      "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+      "test_ast_unchanged": true,
+      "assertions_before": 5,
+      "assertions_current": 5
+    },
+    {
+      "contract": "REGIME_SECTOR_SELECTION",
+      "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-UNIVERSE_RANKING_INPUTS_LOADED]",
+      "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+      "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+      "test_ast_unchanged": false,
+      "assertions_before": 12,
+      "assertions_current": 12
+    },
+    {
+      "contract": "REGIME_SECTOR_SELECTION",
+      "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-UNIVERSE_SOURCE_VALIDATION]",
+      "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+      "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+      "test_ast_unchanged": false,
+      "assertions_before": 12,
+      "assertions_current": 12
+    },
+    {
+      "contract": "REGIME_SECTOR_SELECTION",
+      "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-PERSISTENCE_VALIDATION_SOURCE_LOCKS]",
+      "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+      "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+      "test_ast_unchanged": false,
+      "assertions_before": 12,
+      "assertions_current": 12
+    },
+    {
+      "contract": "REGIME_SECTOR_SELECTION",
+      "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-PERSISTENCE_VALIDATION_SOURCE_ROLES]",
+      "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+      "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+      "test_ast_unchanged": false,
+      "assertions_before": 12,
+      "assertions_current": 12
+    },
+    {
+      "contract": "REGIME_SECTOR_SELECTION",
+      "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-UNIVERSE_RANKING_INPUTS_LOADED]",
+      "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+      "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+      "test_ast_unchanged": false,
+      "assertions_before": 12,
+      "assertions_current": 12
+    },
+    {
+      "contract": "REGIME_SECTOR_SELECTION",
+      "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-UNIVERSE_SOURCE_VALIDATION]",
+      "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+      "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+      "test_ast_unchanged": false,
+      "assertions_before": 12,
+      "assertions_current": 12
+    },
+    {
+      "contract": "REGIME_SECTOR_SELECTION",
+      "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-PERSISTENCE_VALIDATION_SOURCE_LOCKS]",
+      "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+      "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+      "test_ast_unchanged": false,
+      "assertions_before": 12,
+      "assertions_current": 12
+    },
+    {
+      "contract": "REGIME_SECTOR_SELECTION",
+      "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-PERSISTENCE_VALIDATION_SOURCE_ROLES]",
+      "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+      "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+      "test_ast_unchanged": false,
+      "assertions_before": 12,
+      "assertions_current": 12
+    },
+    {
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "test_id": "tests/test_pipeline_executor.py::test_market_data_resume_preserves_fundamentals_and_completed_steps",
+      "old_reviewed_test_sha256": "7fe5b07d44815f4228725b0902ed584baa665dc61972a4ad7393d692bc039e6b",
+      "new_reviewed_test_sha256": "acdc4f89a5d4b57acd6ae246de9444f8af2d16e310e1faaaf534e3bf5e359687",
+      "test_ast_unchanged": true,
+      "assertions_before": 5,
+      "assertions_current": 5
+    },
+    {
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "test_id": "tests/test_pipeline_executor.py::test_contract_preflight_failure_blocks_pipeline_before_technicals",
+      "old_reviewed_test_sha256": "7fe5b07d44815f4228725b0902ed584baa665dc61972a4ad7393d692bc039e6b",
+      "new_reviewed_test_sha256": "acdc4f89a5d4b57acd6ae246de9444f8af2d16e310e1faaaf534e3bf5e359687",
+      "test_ast_unchanged": true,
+      "assertions_before": 4,
+      "assertions_current": 4
+    }
+  ],
+  "additional_critical_controls": [
+    "tests/integration/test_ceri_context_uniqueness.py::test_context_keys_on_postgresql",
+    "tests/integration/test_ceri_dedicated_change_authority.py::test_native_dedicated_capture_persists_score_change_with_strict_owner",
+    "tests/integration/test_ceri_batched_workflow_v2.py::test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores",
+    "tests/ceri/test_native_score_identity.py::test_native_physical_key_matches_the_frozen_identity",
+    "tests/ceri/test_native_score_identity.py::test_native_physical_key_cannot_disagree_with_sealed_identity",
+    "tests/ceri/test_native_score_identity.py::test_native_temporal_key_cannot_drift_within_a_context"
+  ]
+}
